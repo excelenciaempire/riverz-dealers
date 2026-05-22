@@ -2,6 +2,22 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Demo mode: act as if the user is already signed in. Bypasses the
+  // entire auth check so the inbox is reachable without a Supabase
+  // project. The dashboard then loads its data from the mock client.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+    if (
+      request.nextUrl.pathname === '/login' ||
+      request.nextUrl.pathname === '/signup' ||
+      request.nextUrl.pathname === '/forgot-password'
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -37,7 +53,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protected pages - redirect to login if not authenticated
-  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
+  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/broadcasts', '/automations', '/flows', '/settings']
   if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'

@@ -1,3 +1,62 @@
+// ============================================================
+// Channels — unified inbox taxonomy
+// ============================================================
+export type Channel =
+  | 'whatsapp'
+  | 'instagram'
+  | 'messenger'
+  | 'gmail'
+  | 'outlook'
+  | 'fb_comment'
+  | 'ig_comment';
+
+export const CHANNELS: Channel[] = [
+  'whatsapp',
+  'instagram',
+  'messenger',
+  'gmail',
+  'outlook',
+  'fb_comment',
+  'ig_comment',
+];
+
+// ============================================================
+// Workspaces — multi-tenant
+// ============================================================
+export type WorkspaceRole = 'admin' | 'agent';
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: WorkspaceRole;
+  invited_email?: string;
+  invited_by?: string;
+  joined_at: string;
+  user?: Profile;
+}
+
+export interface WorkspaceInvite {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: WorkspaceRole;
+  token: string;
+  invited_by: string;
+  expires_at: string;
+  accepted_at?: string;
+  created_at: string;
+}
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -5,21 +64,19 @@ export interface Profile {
   email: string;
   avatar_url?: string;
   role: string;
-  /**
-   * Opted-in beta feature keys for this account. The column survives
-   * for future beta gates; no current feature reads it (Flows was
-   * the last user and went to soft-GA in PR #134). Defaults to `[]`
-   * for every profile; toggled per-account via a direct UPDATE on
-   * the `profiles` row.
-   */
   beta_features?: string[];
   created_at: string;
 }
 
 export interface Contact {
   id: string;
-  user_id: string;
-  phone: string;
+  workspace_id: string;
+  channel: Channel;
+  /** Stable per-channel identifier — phone (whatsapp), PSID (messenger),
+   * IG user id (instagram), email address (gmail/outlook), commenter id
+   * (fb_comment/ig_comment). */
+  external_id?: string;
+  phone?: string;
   name?: string;
   email?: string;
   company?: string;
@@ -30,7 +87,7 @@ export interface Contact {
 
 export interface Tag {
   id: string;
-  user_id: string;
+  workspace_id: string;
   name: string;
   color: string;
   created_at: string;
@@ -44,7 +101,7 @@ export interface ContactTag {
 
 export interface CustomField {
   id: string;
-  user_id: string;
+  workspace_id: string;
   field_name: string;
   field_type: string;
   field_options?: Record<string, unknown>;
@@ -70,8 +127,19 @@ export type ConversationStatus = 'open' | 'pending' | 'closed';
 
 export interface Conversation {
   id: string;
-  user_id: string;
+  workspace_id: string;
   contact_id: string;
+  channel: Channel;
+  /** Connection that produced this conversation (Meta page, mailbox, …). */
+  connection_id?: string;
+  /** Email-style subject, or the post/ad title for comment threads. */
+  subject?: string;
+  /** External thread identifier — Gmail threadId, Graph conversation id, etc. */
+  thread_external_id?: string;
+  /** True when ≥1 message in this conversation came from an ad creative
+   * (resolved via the comments_meta.is_ad → ad_posts lookup). Drives the
+   * inbox's "Ads only" filter. */
+  is_ad?: boolean;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
@@ -91,30 +159,47 @@ export type ContentType =
   | 'video'
   | 'location'
   | 'template'
-  /** Customer tapped a reply button or list row on a message we sent. */
-  | 'interactive';
+  | 'interactive'
+  | 'email'
+  | 'comment';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface MessageAttachment {
+  url: string;
+  mime_type?: string;
+  name?: string;
+  size?: number;
+}
 
 export interface Message {
   id: string;
   conversation_id: string;
+  channel: Channel;
   sender_type: SenderType;
   sender_id?: string;
   content_type: ContentType;
   content_text?: string;
+  /** Email HTML body when content_type === 'email'. */
+  html_body?: string;
+  /** Email subject when content_type === 'email'. */
+  subject?: string;
   media_url?: string;
+  attachments?: MessageAttachment[];
   template_name?: string;
   message_id?: string;
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;
-  /**
-   * Only set when `content_type === 'interactive'` — the stable id of
-   * the button or list row the customer tapped. The Flows engine uses
-   * this to route the next node; the inbox bubble uses it as a styling
-   * cue (renders with a "↩ button reply" affordance).
-   */
   interactive_reply_id?: string;
+}
+
+export interface CommentMeta {
+  message_id: string;
+  post_id?: string;
+  parent_comment_id?: string;
+  ad_id?: string;
+  permalink?: string;
+  created_at: string;
 }
 
 export type ReactionActor = 'customer' | 'agent';
@@ -129,9 +214,41 @@ export interface MessageReaction {
   created_at: string;
 }
 
+// ============================================================
+// Channel connections — generic per-channel auth/config
+// ============================================================
+export type ConnectionStatus =
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+  | 'pending';
+
+export interface ChannelConnection {
+  id: string;
+  workspace_id: string;
+  channel: Channel;
+  label?: string;
+  status: ConnectionStatus;
+  external_account_id?: string;
+  /** Non-secret per-channel metadata: phone_number_id, page_id, waba_id, … */
+  config: Record<string, unknown>;
+  /** Encrypted secrets — never expose to the client. */
+  secrets?: Record<string, unknown>;
+  webhook_secret?: string;
+  last_synced_at?: string;
+  last_error?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Legacy WhatsApp connection record. Kept for one release cycle; new
+ * code should read from {@link ChannelConnection} (channel='whatsapp').
+ */
 export interface WhatsAppConfig {
   id: string;
-  user_id: string;
+  workspace_id: string;
   phone_number_id: string;
   waba_id?: string;
   access_token: string;
@@ -142,7 +259,7 @@ export interface WhatsAppConfig {
 
 export interface MessageTemplate {
   id: string;
-  user_id: string;
+  workspace_id: string;
   name: string;
   category: 'Marketing' | 'Utility' | 'Authentication';
   language?: string;
@@ -155,55 +272,12 @@ export interface MessageTemplate {
   created_at: string;
 }
 
-export interface Pipeline {
-  id: string;
-  user_id: string;
-  name: string;
-  created_at: string;
-}
-
-export interface PipelineStage {
-  id: string;
-  pipeline_id: string;
-  name: string;
-  position: number;
-  color: string;
-  created_at: string;
-}
-
-export type DealStatus = 'open' | 'won' | 'lost';
-
-export interface Deal {
-  id: string;
-  user_id: string;
-  pipeline_id: string;
-  stage_id: string;
-  /**
-   * Nullable after migration 004 — becomes NULL when the referenced
-   * contact is deleted (ON DELETE SET NULL). History preserved.
-   */
-  contact_id: string | null;
-  conversation_id?: string;
-  assigned_to?: string;
-  title: string;
-  value: number;
-  currency?: string;
-  notes?: string;
-  expected_close_date?: string;
-  status?: DealStatus;
-  created_at: string;
-  updated_at?: string;
-  contact?: Contact;
-  stage?: PipelineStage;
-  assignee?: Profile;
-}
-
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 
 export interface Broadcast {
   id: string;
-  user_id: string;
+  workspace_id: string;
   name: string;
   template_name: string;
   template_language: string;
@@ -265,7 +339,6 @@ export type AutomationStepType =
   | 'remove_tag'
   | 'assign_conversation'
   | 'update_contact_field'
-  | 'create_deal'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -320,13 +393,6 @@ export interface UpdateContactFieldStepConfig {
   value: string;
 }
 
-export interface CreateDealStepConfig {
-  pipeline_id: string;
-  stage_id: string;
-  title: string;
-  value?: number;
-}
-
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -358,7 +424,6 @@ export type AutomationStepConfig =
   | TagStepConfig
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
-  | CreateDealStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
@@ -367,7 +432,7 @@ export type AutomationStepConfig =
 
 export interface Automation {
   id: string;
-  user_id: string;
+  workspace_id: string;
   name: string;
   description?: string;
   trigger_type: AutomationTriggerType;
@@ -400,7 +465,7 @@ export interface AutomationLogStepResult {
 export interface AutomationLog {
   id: string;
   automation_id: string;
-  user_id: string;
+  workspace_id: string;
   contact_id: string | null;
   trigger_event: string;
   steps_executed: AutomationLogStepResult[];

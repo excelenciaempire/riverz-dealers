@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         .from('whatsapp_config')
         .update({ access_token: encrypt(accessToken) })
         .eq('id', config.id)
-        .then(({ error }) => {
+        .then(({ error }: { error: { message: string } | null }) => {
           if (error) {
             console.warn(
               '[whatsapp/send] access_token GCM upgrade failed:',

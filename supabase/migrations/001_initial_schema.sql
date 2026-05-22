@@ -229,66 +229,6 @@ DROP POLICY IF EXISTS "Users can manage own templates" ON message_templates;
 CREATE POLICY "Users can manage own templates" ON message_templates FOR ALL USING (auth.uid() = user_id);
 
 -- ============================================================
--- PIPELINES
--- ============================================================
-CREATE TABLE IF NOT EXISTS pipelines (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE pipelines ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can manage own pipelines" ON pipelines;
-CREATE POLICY "Users can manage own pipelines" ON pipelines FOR ALL USING (auth.uid() = user_id);
-
--- ============================================================
--- PIPELINE_STAGES
--- ============================================================
-CREATE TABLE IF NOT EXISTS pipeline_stages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  pipeline_id UUID NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  position INTEGER NOT NULL DEFAULT 0,
-  color TEXT NOT NULL DEFAULT '#3b82f6',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_pipeline_stages_pipeline ON pipeline_stages(pipeline_id);
-
-ALTER TABLE pipeline_stages ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can manage pipeline stages" ON pipeline_stages;
-CREATE POLICY "Users can manage pipeline stages" ON pipeline_stages FOR ALL
-  USING (EXISTS (SELECT 1 FROM pipelines WHERE pipelines.id = pipeline_stages.pipeline_id AND pipelines.user_id = auth.uid()));
-
--- ============================================================
--- DEALS
--- ============================================================
-CREATE TABLE IF NOT EXISTS deals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  pipeline_id UUID NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
-  stage_id UUID NOT NULL REFERENCES pipeline_stages(id),
-  contact_id UUID NOT NULL REFERENCES contacts(id),
-  conversation_id UUID REFERENCES conversations(id),
-  title TEXT NOT NULL,
-  value NUMERIC(12,2) NOT NULL DEFAULT 0,
-  currency TEXT DEFAULT 'USD',
-  notes TEXT,
-  expected_close_date DATE,
-  status TEXT DEFAULT 'active',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_deals_pipeline ON deals(pipeline_id);
-CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage_id);
-
-ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can manage own deals" ON deals;
-CREATE POLICY "Users can manage own deals" ON deals FOR ALL USING (auth.uid() = user_id);
-
--- ============================================================
 -- BROADCASTS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS broadcasts (
@@ -355,7 +295,6 @@ DROP TRIGGER IF EXISTS set_updated_at ON contacts;
 DROP TRIGGER IF EXISTS set_updated_at ON conversations;
 DROP TRIGGER IF EXISTS set_updated_at ON whatsapp_config;
 DROP TRIGGER IF EXISTS set_updated_at ON message_templates;
-DROP TRIGGER IF EXISTS set_updated_at ON deals;
 DROP TRIGGER IF EXISTS set_updated_at ON broadcasts;
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -363,7 +302,6 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUN
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON whatsapp_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON message_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON deals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON broadcasts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================

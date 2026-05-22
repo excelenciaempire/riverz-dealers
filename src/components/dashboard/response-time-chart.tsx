@@ -29,23 +29,22 @@ export function ResponseTimeChart({
       <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-white">
-            Average First Response Time
+            Tiempo medio de primera respuesta
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            Minutes to reply to a customer&apos;s first unreplied message, by
-            weekday
+            Minutos hasta responder al primer mensaje sin responder de un cliente, por día de la semana
           </p>
         </div>
         {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
           <div className="text-right text-xs">
             <div className="text-slate-400">
-              This week:{' '}
+              Esta semana:{' '}
               <span className="font-medium text-white tabular-nums">
                 {fmt(data.thisWeekAvg)}
               </span>
             </div>
             <div className="text-slate-500">
-              Last week:{' '}
+              Semana pasada:{' '}
               <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
             </div>
           </div>
@@ -58,8 +57,8 @@ export function ResponseTimeChart({
         ) : !hasData ? (
           <EmptyState
             icon={Clock}
-            title="No replies recorded yet"
-            hint="This chart fills in as you reply to customer messages."
+            title="Aún no hay respuestas registradas"
+            hint="Este gráfico se llena conforme respondes a los mensajes de tus clientes."
           />
         ) : (
           <Bars data={data} thresholdMinutes={thresholdMinutes} />

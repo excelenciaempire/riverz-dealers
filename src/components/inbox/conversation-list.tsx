@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
+import { ChannelBadge } from "@/components/inbox/channel-badge";
 import { Search, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -37,10 +38,10 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 };
 
 const FILTER_OPTIONS: { label: string; value: ConversationStatus | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "Open", value: "open" },
-  { label: "Pending", value: "pending" },
-  { label: "Closed", value: "closed" },
+  { label: "Todas", value: "all" },
+  { label: "Abiertas", value: "open" },
+  { label: "Pendientes", value: "pending" },
+  { label: "Cerradas", value: "closed" },
 ];
 
 export function ConversationList({
@@ -155,7 +156,7 @@ export function ConversationList({
           <Input
             value={search}
             onChange={handleSearchChange}
-            placeholder="Search conversations..."
+            placeholder="Buscar conversaciones..."
             className="border-slate-700 bg-slate-800 pl-9 text-sm text-white placeholder-slate-500 focus:border-primary/50"
           />
         </div>
@@ -195,7 +196,7 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-slate-500">No conversations found</p>
+            <p className="text-sm text-slate-500">No hay conversaciones</p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -226,7 +227,8 @@ function ConversationItem({
   onSelect,
 }: ConversationItemProps) {
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || "Unknown";
+  const displayName =
+    contact?.name || contact?.email || contact?.phone || contact?.external_id || "Sin nombre";
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -263,14 +265,28 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-white">
-            {displayName}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium text-white">
+              {displayName}
+            </span>
+            <ChannelBadge channel={conversation.channel} />
+            {conversation.is_ad && (
+              <span
+                title="Comment on a paid ad"
+                className="inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+              >
+                Ad
+              </span>
+            )}
+          </div>
           <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-slate-400">
-            {conversation.last_message_text || "No messages yet"}
+            {conversation.subject ? (
+              <span className="font-medium text-slate-300">{conversation.subject} · </span>
+            ) : null}
+            {conversation.last_message_text || "Sin mensajes aún"}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (

@@ -642,7 +642,7 @@ async function processMessage(
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
   for (const triggerType of automationTriggers) {
     runAutomationsForTrigger({
-      userId,
+      workspaceId: userId, // TODO Phase 3: pass actual workspace_id from connection lookup
       triggerType,
       contactId: contactRecord.id,
       context: {

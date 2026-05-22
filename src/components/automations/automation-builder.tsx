@@ -15,7 +15,6 @@ import {
   TagIcon,
   UserCheck,
   PencilLine,
-  Briefcase,
   Hourglass,
   GitBranch,
   Webhook,
@@ -83,7 +82,6 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   remove_tag: { label: "Remove Tag", icon: TagIcon, border: "border-l-primary" },
   assign_conversation: { label: "Assign Conversation", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "Update Contact Field", icon: PencilLine, border: "border-l-primary" },
-  create_deal: { label: "Create Deal", icon: Briefcase, border: "border-l-primary" },
   wait: { label: "Wait", icon: Hourglass, border: "border-l-slate-500" },
   condition: { label: "Condition (If/Else)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Send Webhook", icon: Webhook, border: "border-l-primary" },
@@ -97,7 +95,6 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "remove_tag",
   "assign_conversation",
   "update_contact_field",
-  "create_deal",
   "wait",
   "condition",
   "send_webhook",
@@ -140,8 +137,6 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { mode: "round_robin" }
     case "update_contact_field":
       return { field: "name", value: "" }
-    case "create_deal":
-      return { pipeline_id: "", stage_id: "", title: "", value: 0 }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -794,40 +789,6 @@ function StepEditor({
             <Input
               value={(cfg.value as string) ?? ""}
               onChange={(e) => set({ value: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-        </>
-      )
-    case "create_deal":
-      return (
-        <>
-          <FieldBlock label="Pipeline id">
-            <Input
-              value={(cfg.pipeline_id as string) ?? ""}
-              onChange={(e) => set({ pipeline_id: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-          <FieldBlock label="Stage id">
-            <Input
-              value={(cfg.stage_id as string) ?? ""}
-              onChange={(e) => set({ stage_id: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-          <FieldBlock label="Title">
-            <Input
-              value={(cfg.title as string) ?? ""}
-              onChange={(e) => set({ title: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-          <FieldBlock label="Value">
-            <Input
-              type="number"
-              value={(cfg.value as number) ?? 0}
-              onChange={(e) => set({ value: Number(e.target.value) })}
               className="bg-slate-800 text-white"
             />
           </FieldBlock>

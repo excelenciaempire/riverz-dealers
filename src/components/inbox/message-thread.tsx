@@ -426,6 +426,7 @@ export function MessageThread({
       const optimisticMsg: Message = {
         id: tempId,
         conversation_id: conversation.id,
+        channel: conversation.channel,
         sender_type: "agent",
         content_type: "text",
         content_text: text,
@@ -437,14 +438,13 @@ export function MessageThread({
       setReplyTo(null);
 
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const res = await fetch("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversation.id,
-            message_type: "text",
-            content_text: text,
-            reply_to_message_id: replyToId,
+            text,
+            reply_to_external_id: replyToId,
           }),
         });
 
@@ -454,14 +454,10 @@ export function MessageThread({
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
           toast.error(`Failed to send: ${reason}`);
-          // Mark the optimistic bubble as failed so the user sees what happened
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
 
-        // Success — the realtime INSERT event will replace the temp bubble
-        // with the real DB row. If realtime hasn't arrived yet, at least
-        // flip status to 'sent' so the UI stops showing "sending".
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send message:", err);
@@ -502,6 +498,7 @@ export function MessageThread({
       const optimisticMsg: Message = {
         id: tempId,
         conversation_id: conversation.id,
+        channel: conversation.channel,
         sender_type: "agent",
         content_type: "template",
         content_text: renderedBody,
@@ -683,16 +680,16 @@ export function MessageThread({
           <MessageSquare className="h-8 w-8 text-slate-600" />
         </div>
         <h3 className="mt-4 text-sm font-medium text-slate-400">
-          Select a conversation
+          Selecciona una conversación
         </h3>
         <p className="mt-1 text-xs text-slate-600">
-          Choose a conversation from the left to start messaging
+          Elige una conversación de la izquierda para empezar a chatear
         </p>
       </div>
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contact';
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status

@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   MessageSquare,
   Users,
-  GitBranch,
   Radio,
   Zap,
   Workflow,
@@ -44,17 +43,16 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
-  { href: "/broadcasts", label: "Broadcasts", icon: Radio },
-  { href: "/automations", label: "Automations", icon: Zap },
-  { href: "/flows", label: "Flows", icon: Workflow, beta: true },
+  { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
+  { href: "/inbox", label: "Bandeja", icon: MessageSquare },
+  { href: "/contacts", label: "Contactos", icon: Users },
+  { href: "/broadcasts", label: "Difusión", icon: Radio },
+  { href: "/automations", label: "Automatizaciones", icon: Zap },
+  { href: "/flows", label: "Flujos", icon: Workflow },
 ];
 
 const bottomNavItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Ajustes", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -128,7 +126,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <MessageSquare className="h-4 w-4" />
             </div>
             <span className="text-sm font-semibold text-white">
-              CRM Template for WhatsApp
+              Bandeja Unificada
             </span>
           </Link>
           <button
@@ -256,19 +254,19 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 }
               >
                 <User className="size-4" />
-                Profile
+                Perfil
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
                   <Link
-                    href="/settings?tab=whatsapp"
+                    href="/settings?tab=channels"
                     onClick={onClose}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
                   />
                 }
               >
                 <Settings className="size-4" />
-                Settings
+                Ajustes
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-slate-800" />
               <DropdownMenuItem
@@ -276,7 +274,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 className="text-slate-200 focus:bg-slate-800 focus:text-white"
               >
                 <LogOut className="size-4" />
-                Sign out
+                Cerrar sesión
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

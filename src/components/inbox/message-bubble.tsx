@@ -17,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import { CommentModerationBar } from "./comment-moderation-bar";
 
 interface MessageBubbleProps {
   message: Message;
@@ -289,6 +290,10 @@ export function MessageBubble({
           onToggle={onToggleReaction}
         />
       )}
+      {(message.channel === "fb_comment" || message.channel === "ig_comment") &&
+        message.sender_type === "customer" && (
+          <CommentModerationBar message={message} channel={message.channel} />
+        )}
     </div>
   );
 }

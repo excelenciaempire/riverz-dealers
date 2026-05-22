@@ -353,7 +353,7 @@ async function sendButtonsAndSuspend(
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveButtons({
-    userId: run.user_id,
+    userId: run.workspace_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
     bodyText: cfg.text,
@@ -388,7 +388,7 @@ async function sendListAndSuspend(
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendListNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveList({
-    userId: run.user_id,
+    userId: run.workspace_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
     bodyText: cfg.text,
@@ -573,7 +573,7 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as SendMessageNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendText({
-          userId: run.user_id,
+          userId: run.workspace_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.text, run.vars),
@@ -599,7 +599,7 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as CollectInputNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendText({
-          userId: run.user_id,
+          userId: run.workspace_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
@@ -974,7 +974,7 @@ async function handleReplyForActiveRun(
       const cfg = currentNode.config as unknown as CollectInputNodeConfig;
       try {
         await engineSendText({
-          userId: run.user_id,
+          userId: run.workspace_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
@@ -1019,7 +1019,7 @@ async function startNewRun(
     .from("flow_runs")
     .insert({
       flow_id: flow.id,
-      user_id: flow.user_id,
+      workspace_id: flow.workspace_id,
       contact_id: input.contactId,
       conversation_id: input.conversationId,
       status: "active",

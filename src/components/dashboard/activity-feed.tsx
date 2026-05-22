@@ -5,7 +5,6 @@ import { useState } from 'react'
 import {
   MessageSquare,
   UserPlus,
-  Briefcase,
   Radio,
   Zap,
   Inbox,
@@ -33,7 +32,6 @@ interface KindTheme {
 const KIND_THEME: Record<ActivityKind, KindTheme> = {
   message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-400' },
   contact: { icon: UserPlus, badge: 'bg-primary/10 text-primary' },
-  deal: { icon: Briefcase, badge: 'bg-primary/10 text-primary' },
   broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-400' },
   automation: { icon: Zap, badge: 'bg-rose-500/10 text-rose-400' },
 }
@@ -56,12 +54,12 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900">
       <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-        <h2 className="text-sm font-semibold text-white">Recent Activity</h2>
+        <h2 className="text-sm font-semibold text-white">Actividad reciente</h2>
         <Link
           href="/inbox"
           className="text-xs font-medium text-primary hover:text-primary/80"
         >
-          View all →
+          Ver todo →
         </Link>
       </header>
 
@@ -75,8 +73,8 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
         <div className="p-5">
           <EmptyState
             icon={Inbox}
-            title="No activity yet"
-            hint="Activity from messages, deals, broadcasts, and automations will appear here."
+            title="Aún no hay actividad"
+            hint="Aquí aparecerán los mensajes, difusiones y automatizaciones."
           />
         </div>
       ) : (
@@ -121,11 +119,11 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
           </ul>
           <footer className="flex items-center justify-between border-t border-slate-800 px-5 py-3 text-xs">
             <span className="text-slate-500 tabular-nums">
-              Showing {visible.length} of {totalLoaded}
+              Mostrando {visible.length} de {totalLoaded}
               {totalLoaded === 50 ? '+' : ''}
             </span>
             <div className="flex items-center gap-1">
-              <span className="mr-1 text-slate-500">Show</span>
+              <span className="mr-1 text-slate-500">Mostrar</span>
               {PAGE_SIZES.map((size, i) => {
                 const disabled = !isSizeUseful(size, i)
                 return (

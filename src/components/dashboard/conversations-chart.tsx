@@ -49,8 +49,8 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
     <section className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-900">
       <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-white">Conversations Over Time</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Daily message volume by direction</p>
+          <h2 className="text-sm font-semibold text-white">Conversaciones en el tiempo</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Volumen diario de mensajes por dirección</p>
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-slate-800/60 p-1">
           {[7, 30, 90].map((r) => (
@@ -65,7 +65,7 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
                   : 'text-slate-400 hover:text-white',
               )}
             >
-              {r} days
+              {r} días
             </button>
           ))}
         </div>
@@ -77,8 +77,8 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
         ) : data.every((p) => p.incoming === 0 && p.outgoing === 0) ? (
           <EmptyState
             icon={MessageSquare}
-            title="No message activity in this range"
-            hint="Send or receive messages to start populating this chart."
+            title="Sin actividad de mensajes en este rango"
+            hint="Envía o recibe mensajes para poblar este gráfico."
           />
         ) : (
           <LineSvg data={data} maxY={maxY} ticks={niceTicks} />
@@ -86,8 +86,8 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
       </div>
 
       <footer className="flex items-center gap-4 border-t border-slate-800 px-5 py-3 text-xs text-slate-400">
-        <LegendDot color="#3b82f6" label="Incoming" />
-        <LegendDot color="#7c3aed" label="Outgoing" />
+        <LegendDot color="#3b82f6" label="Entrantes" />
+        <LegendDot color="#7c3aed" label="Salientes" />
       </footer>
     </section>
   )

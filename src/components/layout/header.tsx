@@ -18,13 +18,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/inbox": "Inbox",
-  "/contacts": "Contacts",
-  "/pipelines": "Pipelines",
-  "/broadcasts": "Broadcasts",
-  "/automations": "Automations",
-  "/settings": "Settings",
+  "/dashboard": "Panel",
+  "/inbox": "Bandeja",
+  "/contacts": "Contactos",
+  "/broadcasts": "Difusión",
+  "/flows": "Flujos",
+  "/automations": "Automatizaciones",
+  "/settings": "Ajustes",
 };
 
 function getPageTitle(pathname: string): string {
@@ -71,7 +71,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       <DropdownMenu>
         <DropdownMenuTrigger
           className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pl-1 sm:pr-3"
-          aria-label="Open account menu"
+          aria-label="Abrir menú de cuenta"
         >
           <Avatar className="size-8">
             {profile?.avatar_url ? (
@@ -111,18 +111,18 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             }
           >
             <User className="size-4" />
-            Profile
+            Perfil
           </DropdownMenuItem>
           <DropdownMenuItem
             render={
               <Link
-                href="/settings?tab=whatsapp"
+                href="/settings?tab=channels"
                 className="text-slate-200 focus:bg-slate-800 focus:text-white"
               />
             }
           >
             <SettingsIcon className="size-4" />
-            Settings
+            Ajustes
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bg-slate-800" />
           <DropdownMenuItem
@@ -130,7 +130,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             className="text-slate-200 focus:bg-slate-800 focus:text-white"
           >
             <LogOut className="size-4" />
-            Sign out
+            Cerrar sesión
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

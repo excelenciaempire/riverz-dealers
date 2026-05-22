@@ -30,12 +30,12 @@ export default function SignupPage() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Las contraseñas no coinciden");
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+      setError("La contraseña debe tener al menos 6 caracteres");
       return;
     }
 
@@ -70,12 +70,12 @@ export default function SignupPage() {
               <CheckCircle className="h-6 w-6 text-primary" />
             </div>
             <CardTitle className="text-xl text-white">
-              Check your email
+              Revisa tu correo
             </CardTitle>
             <CardDescription className="text-slate-400">
-              We&apos;ve sent a confirmation link to{" "}
-              <span className="text-white">{email}</span>. Please check your
-              inbox and click the link to verify your account.
+              Hemos enviado un enlace de confirmación a{" "}
+              <span className="text-white">{email}</span>. Abre tu bandeja y
+              haz clic en el enlace para verificar tu cuenta.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -84,7 +84,7 @@ export default function SignupPage() {
                 variant="outline"
                 className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               >
-                Back to sign in
+                Volver al inicio de sesión
               </Button>
             </Link>
           </CardContent>
@@ -100,9 +100,9 @@ export default function SignupPage() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <MessageSquare className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-xl text-white">Create account</CardTitle>
+          <CardTitle className="text-xl text-white">Crear cuenta</CardTitle>
           <CardDescription className="text-slate-400">
-            Get started with CRM Template for WhatsApp
+            Empieza a usar tu Bandeja Unificada
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -115,12 +115,12 @@ export default function SignupPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="fullName" className="text-slate-300">
-                Full name
+                Nombre completo
               </Label>
               <Input
                 id="fullName"
                 type="text"
-                placeholder="John Doe"
+                placeholder="Tu nombre"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -130,12 +130,12 @@ export default function SignupPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-slate-300">
-                Email
+                Correo electrónico
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="tu@correo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -145,12 +145,12 @@ export default function SignupPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="password" className="text-slate-300">
-                Password
+                Contraseña
               </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="At least 6 characters"
+                placeholder="Al menos 6 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -160,12 +160,12 @@ export default function SignupPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirmPassword" className="text-slate-300">
-                Confirm password
+                Confirmar contraseña
               </Label>
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Repeat your password"
+                placeholder="Repite tu contraseña"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -178,17 +178,17 @@ export default function SignupPage() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Creando cuenta..." : "Crear cuenta"}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{" "}
+            ¿Ya tienes una cuenta?{" "}
             <Link
               href="/login"
               className="text-primary hover:text-primary/80"
             >
-              Sign in
+              Inicia sesión
             </Link>
           </p>
         </CardContent>

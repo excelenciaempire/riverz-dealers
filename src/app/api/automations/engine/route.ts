@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   await runAutomationsForTrigger({
-    userId: user.id,
+    workspaceId: user.id, // TODO Phase 3: resolve from workspace_members
     triggerType: body.trigger_type as AutomationTriggerType,
     contactId: body.contact_id ?? null,
     context: body.context ?? {},

@@ -3,15 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
-  User,
   Tag as TagIcon,
-  DollarSign,
   StickyNote,
   Plus,
 } from "lucide-react";
@@ -25,7 +23,6 @@ interface ContactSidebarProps {
 
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -36,13 +33,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+    const [notesRes, tagsRes] = await Promise.all([
       supabase
         .from("contact_notes")
         .select("*")
@@ -54,7 +45,6 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .eq("contact_id", contact.id),
     ]);
 
-    if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (tagsRes.data) {
       const mapped = tagsRes.data
@@ -114,12 +104,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-slate-800 bg-slate-900">
-        <p className="text-sm text-slate-500">Select a conversation</p>
+        <p className="text-sm text-slate-500">Selecciona una conversación</p>
       </div>
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contact';
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -177,11 +167,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
               <TagIcon className="h-3 w-3" />
-              Tags
+              Etiquetas
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {tags.length === 0 ? (
-                <p className="px-1 text-xs text-slate-600">No tags</p>
+                <p className="px-1 text-xs text-slate-600">Sin etiquetas</p>
               ) : (
                 tags.map((tag) => (
                   <span
@@ -202,62 +192,18 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Divider */}
           <div className="my-4 border-t border-slate-800" />
 
-          {/* Active Deals */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
-              <DollarSign className="h-3 w-3" />
-              Active Deals
-            </div>
-            <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
-                <p className="px-1 text-xs text-slate-600">No deals</p>
-              ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="rounded-lg bg-slate-800 px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-white">
-                      {deal.title}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-slate-800" />
-
           {/* Notes */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
               <StickyNote className="h-3 w-3" />
-              Notes
+              Notas
             </div>
             <div className="mt-2">
               <div className="flex gap-2">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a note..."
+                  placeholder="Añadir una nota..."
                   rows={2}
                   className="flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-primary/50"
                 />

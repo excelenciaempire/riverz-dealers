@@ -3,13 +3,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
+import type { Channel, Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
+import { ChannelFilter } from "@/components/inbox/channel-filter";
+import Link from "next/link";
 import { toast } from "sonner";
-import { WifiOff } from "lucide-react";
+import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function InboxPage() {
@@ -27,8 +29,10 @@ export default function InboxPage() {
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(
-    null
+  const [channelFilter, setChannelFilter] = useState<Channel | null>(null);
+  const [adsFilter, setAdsFilter] = useState<"off" | "only">("off");
+  const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
+    null,
   );
   /**
    * Bumped whenever we want children (ConversationList, MessageThread)
@@ -132,15 +136,12 @@ export default function InboxPage() {
 
       if (!user) return;
 
-      // Table is `whatsapp_config` (singular) — the previous "whatsapp_configs"
-      // query always returned no rows, so the banner always showed "not connected".
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { count } = await supabase
+        .from("channel_connections")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "connected");
 
-      setWhatsappConnected(data?.status === "connected");
+      setHasAnyConnection((count ?? 0) > 0);
     };
 
     checkConnection();
@@ -495,17 +496,43 @@ export default function InboxPage() {
   // before, unchanged.
   const hasActiveConv = !!activeConversation;
 
+  // Channel filter derived state — recomputed cheaply on every render
+  // since the conversations array is already in memory.
+  const availableChannels = new Set<Channel>();
+  const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
+  let adsUnreadCount = 0;
+  for (const c of conversations) {
+    availableChannels.add(c.channel);
+    unreadByChannel.all = (unreadByChannel.all ?? 0) + (c.unread_count ?? 0);
+    unreadByChannel[c.channel] =
+      (unreadByChannel[c.channel] ?? 0) + (c.unread_count ?? 0);
+    if (c.is_ad) adsUnreadCount += c.unread_count ?? 0;
+  }
+  const filteredConversations = (() => {
+    let list = conversations;
+    if (adsFilter === "only") {
+      list = list.filter((c) => c.is_ad);
+    } else if (channelFilter) {
+      list = list.filter((c) => c.channel === channelFilter);
+    }
+    return list;
+  })();
+
   return (
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
-      {/* WhatsApp connection banner — in the flex column, not absolute,
-          so it pushes the panels down instead of overlapping them. */}
-      {whatsappConnected === false && (
-        <div className="flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2">
-          <WifiOff className="h-4 w-4 text-amber-400" />
-          <p className="text-xs text-amber-400">
-            WhatsApp® is not connected. Go to Settings to connect your account.
+      {hasAnyConnection === false && (
+        <Link
+          href="/settings?tab=channels"
+          className="group flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 transition-colors hover:bg-amber-500/15"
+        >
+          <Plug2 className="h-4 w-4 text-amber-400" />
+          <p className="text-xs text-amber-200">
+            Aún no has conectado ningún canal.{" "}
+            <span className="font-semibold underline-offset-2 group-hover:underline">
+              Conecta WhatsApp, Instagram, Gmail y más →
+            </span>
           </p>
-        </div>
+        </Link>
       )}
 
       <div className="flex flex-1 overflow-hidden">
@@ -514,17 +541,28 @@ export default function InboxPage() {
             thread can occupy the full width. Always visible on lg+. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex-none",
+            "flex h-full flex-1 flex-col border-r border-slate-800 bg-slate-900 lg:flex-none lg:w-80",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >
-          <ConversationList
-            activeConversationId={activeConversation?.id ?? null}
-            onSelect={handleSelectConversation}
-            conversations={conversations}
-            onConversationsLoaded={handleConversationsLoaded}
-            resyncToken={resyncToken}
+          <ChannelFilter
+            value={channelFilter}
+            onChange={setChannelFilter}
+            available={availableChannels}
+            unread={unreadByChannel}
+            adsFilter={adsFilter}
+            onAdsFilterChange={setAdsFilter}
+            adsUnreadCount={adsUnreadCount}
           />
+          <div className="flex-1 overflow-hidden">
+            <ConversationList
+              activeConversationId={activeConversation?.id ?? null}
+              onSelect={handleSelectConversation}
+              conversations={filteredConversations}
+              onConversationsLoaded={handleConversationsLoaded}
+              resyncToken={resyncToken}
+            />
+          </div>
         </div>
 
         {/* Center panel: Message thread.

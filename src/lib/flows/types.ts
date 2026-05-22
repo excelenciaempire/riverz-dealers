@@ -195,7 +195,7 @@ export type FlowTriggerConfig =
 
 export interface FlowRow {
   id: string;
-  user_id: string;
+  workspace_id: string;
   name: string;
   description: string | null;
   status: "draft" | "active" | "archived";
@@ -223,7 +223,7 @@ export interface FlowNodeRow {
 export interface FlowRunRow {
   id: string;
   flow_id: string;
-  user_id: string;
+  workspace_id: string;
   contact_id: string | null;
   conversation_id: string | null;
   status:

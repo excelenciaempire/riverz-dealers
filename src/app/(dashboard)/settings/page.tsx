@@ -1,19 +1,21 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, MessageSquare, Tag, User, Palette } from 'lucide-react';
+import { MessageSquare, Tag, User, Palette, Building2, Plug2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
+import { ChannelsPanel } from '@/components/settings/channels-panel';
+import { WorkspacePanel } from '@/components/settings/workspace-panel';
 
 const TAB_VALUES = [
   'profile',
-  'whatsapp',
+  'workspace',
+  'channels',
   'templates',
   'tags',
   'appearance',
@@ -28,10 +30,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // The URL is the single source of truth for the active tab — no
-  // local state, no sync effect. A previous revision duplicated this
-  // into `useState` + a sync effect, which tripped React 19's
-  // set-state-in-effect rule and was also redundant.
   const queryTab = searchParams.get('tab');
   const tab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
 
@@ -44,10 +42,9 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <h1 className="text-2xl font-bold text-white">Ajustes</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, WhatsApp® integration, message templates, and
-          tags.
+          Perfil, equipo, canales, plantillas y etiquetas — todo en un mismo sitio.
         </p>
       </div>
 
@@ -58,35 +55,42 @@ export default function SettingsPage() {
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <User className="size-4" />
-            Profile
+            Perfil
           </TabsTrigger>
           <TabsTrigger
-            value="whatsapp"
+            value="workspace"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
-            <Settings className="size-4" />
-            WhatsApp Config
+            <Building2 className="size-4" />
+            Equipo
+          </TabsTrigger>
+          <TabsTrigger
+            value="channels"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Plug2 className="size-4" />
+            Canales
           </TabsTrigger>
           <TabsTrigger
             value="templates"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <MessageSquare className="size-4" />
-            Templates
+            Plantillas
           </TabsTrigger>
           <TabsTrigger
             value="tags"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <Tag className="size-4" />
-            Tags
+            Etiquetas
           </TabsTrigger>
           <TabsTrigger
             value="appearance"
             className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
           >
             <Palette className="size-4" />
-            Appearance
+            Apariencia
           </TabsTrigger>
         </TabsList>
 
@@ -96,8 +100,12 @@ export default function SettingsPage() {
           <SessionsCard />
         </TabsContent>
 
-        <TabsContent value="whatsapp">
-          <WhatsAppConfig />
+        <TabsContent value="workspace">
+          <WorkspacePanel />
+        </TabsContent>
+
+        <TabsContent value="channels">
+          <ChannelsPanel />
         </TabsContent>
 
         <TabsContent value="templates">
