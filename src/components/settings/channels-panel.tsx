@@ -10,6 +10,8 @@ import {
   XCircle,
   AlertCircle,
   Sparkles,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -28,10 +30,41 @@ const CHANNEL_DESCRIPTION: Record<Channel, string> = {
   ig_comment: "Comentarios en posts orgánicos y anuncios de Instagram.",
 };
 
+interface ProviderStatus {
+  meta: boolean;
+  google: boolean;
+  microsoft: boolean;
+  siteUrl: string;
+}
+
 export function ChannelsPanel() {
   const { workspace, isAdmin, loading } = useWorkspace();
   const [connections, setConnections] = useState<ChannelConnection[]>([]);
   const [busy, setBusy] = useState(false);
+  const [providers, setProviders] = useState<ProviderStatus | null>(null);
+
+  useEffect(() => {
+    fetch("/api/connections/status")
+      .then((r) => r.json())
+      .then((j: ProviderStatus) => setProviders(j))
+      .catch(() => setProviders({ meta: false, google: false, microsoft: false, siteUrl: "" }));
+  }, []);
+
+  const isProviderReady = (channel: Channel): boolean => {
+    if (!providers) return false;
+    if (channel === "gmail") return providers.google;
+    if (channel === "outlook") return providers.microsoft;
+    return providers.meta;
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copiado`);
+    } catch {
+      toast.error("No se pudo copiar");
+    }
+  };
 
   const fetchConnections = useCallback(async () => {
     if (!workspace) return;
@@ -117,8 +150,80 @@ export function ChannelsPanel() {
   }
   const connectedCount = connections.filter((c) => c.status === "connected").length;
 
+  const anyProviderMissing =
+    providers && (!providers.meta || !providers.google || !providers.microsoft);
+
   return (
     <div className="space-y-4">
+      {/* Provider config banner */}
+      {anyProviderMissing && isAdmin && providers && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="size-5 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <h3 className="text-sm font-semibold text-amber-200">
+                Faltan apps OAuth por registrar
+              </h3>
+              <p className="text-xs leading-relaxed text-amber-100/80">
+                Para que los botones <strong>Conectar</strong> funcionen necesitas registrar
+                las apps de OAuth en cada proveedor (Meta para WhatsApp/IG/Messenger/FB,
+                Google para Gmail, Microsoft para Outlook) y pegar sus claves en las
+                variables de entorno de Render.
+              </p>
+              <ul className="space-y-1 text-xs text-amber-100/70">
+                <li>
+                  <span className={providers.meta ? "text-emerald-400" : "text-amber-300"}>
+                    {providers.meta ? "✓" : "✗"}
+                  </span>{" "}
+                  <strong>Meta App</strong> — developers.facebook.com → My Apps → Create App
+                  → Business. Variables: <code>META_APP_ID</code>, <code>META_APP_SECRET</code>
+                </li>
+                <li>
+                  <span className={providers.google ? "text-emerald-400" : "text-amber-300"}>
+                    {providers.google ? "✓" : "✗"}
+                  </span>{" "}
+                  <strong>Google OAuth Client</strong> — console.cloud.google.com →
+                  APIs & Services → Credentials. Variables: <code>GOOGLE_CLIENT_ID</code>,
+                  <code>GOOGLE_CLIENT_SECRET</code>
+                </li>
+                <li>
+                  <span className={providers.microsoft ? "text-emerald-400" : "text-amber-300"}>
+                    {providers.microsoft ? "✓" : "✗"}
+                  </span>{" "}
+                  <strong>Microsoft Azure App</strong> — portal.azure.com → App registrations
+                  → New registration. Variables: <code>MICROSOFT_CLIENT_ID</code>,
+                  <code>MICROSOFT_CLIENT_SECRET</code>
+                </li>
+              </ul>
+              {providers.siteUrl && (
+                <div className="mt-2 rounded-md bg-slate-950/50 p-2 text-xs">
+                  <p className="mb-1 text-amber-200">
+                    Redirect URIs a pegar en cada consola:
+                  </p>
+                  <div className="space-y-1 font-mono">
+                    {(["meta", "google", "microsoft"] as const).map((p) => {
+                      const url = `${providers.siteUrl}/api/connections/${p}/oauth/callback`;
+                      return (
+                        <div key={p} className="flex items-center justify-between gap-2">
+                          <span className="truncate text-slate-300">{url}</span>
+                          <button
+                            onClick={() => copyToClipboard(url, p)}
+                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+                            title="Copiar"
+                          >
+                            <Copy className="size-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-primary/10 p-6">
         <div className="absolute -top-12 -right-12 size-48 rounded-full bg-primary/10 blur-3xl" />
@@ -217,21 +322,47 @@ export function ChannelsPanel() {
               )}
 
               {/* CTA */}
-              {isAdmin && (
-                <button
-                  onClick={() => handleConnect(d.channel)}
-                  disabled={busy}
-                  className={cn(
-                    "mt-auto flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    anyConnected
-                      ? "border border-slate-700 bg-slate-800/50 text-slate-200 hover:bg-slate-800"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90",
-                  )}
-                >
-                  <ChannelLogo channel={d.channel} size={16} />
-                  {anyConnected ? "Añadir otra cuenta" : "Conectar"}
-                </button>
-              )}
+              {isAdmin && (() => {
+                const ready = isProviderReady(d.channel);
+                return (
+                  <button
+                    onClick={() => {
+                      if (!ready) {
+                        toast.error(
+                          d.channel === "gmail"
+                            ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
+                            : d.channel === "outlook"
+                              ? "Configura Microsoft Azure App primero (ver banner amarillo)"
+                              : "Configura la Meta App primero (ver banner amarillo)",
+                        );
+                        return;
+                      }
+                      handleConnect(d.channel);
+                    }}
+                    disabled={busy}
+                    className={cn(
+                      "mt-auto flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      !ready
+                        ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+                        : anyConnected
+                          ? "border border-slate-700 bg-slate-800/50 text-slate-200 hover:bg-slate-800"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90",
+                    )}
+                  >
+                    {!ready ? (
+                      <>
+                        <AlertCircle className="size-4" />
+                        Configura el proveedor
+                      </>
+                    ) : (
+                      <>
+                        <ChannelLogo channel={d.channel} size={16} />
+                        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
             </li>
           );
         })}
