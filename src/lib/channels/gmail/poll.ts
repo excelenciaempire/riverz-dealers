@@ -63,9 +63,12 @@ async function pollOne(
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const lastHistoryId = cfg.history_id ? String(cfg.history_id) : "";
 
+  // First-run query covers a week so a freshly-connected mailbox shows
+  // something in the inbox immediately. Once history_id is set, the
+  // history.list path is incremental and the window stops mattering.
   const ids = lastHistoryId
     ? await listMessageIdsViaHistory(accessToken, lastHistoryId)
-    : await listMessageIdsViaQuery(accessToken, "in:inbox -from:me newer_than:1d");
+    : await listMessageIdsViaQuery(accessToken, "in:inbox newer_than:7d");
 
   if (ids.length === 0) {
     await admin
@@ -188,7 +191,7 @@ async function listMessageIdsViaHistory(
   });
   // If startHistoryId is too old, Gmail returns 404 — fall back to query.
   if (r.status === 404) {
-    return listMessageIdsViaQuery(accessToken, "in:inbox -from:me newer_than:1d");
+    return listMessageIdsViaQuery(accessToken, "in:inbox newer_than:7d");
   }
   if (!r.ok) throw new Error(`history.list ${r.status}: ${await r.text()}`);
   const j = (await r.json()) as {
