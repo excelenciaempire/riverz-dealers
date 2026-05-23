@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { decrypt, encrypt } from "@/lib/channels/encryption";
+import { decrypt } from "@/lib/channels/encryption";
+import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import type { ChannelConnection } from "@/types";
+import type { InboundEvent } from "@/lib/channels/types";
 
 /**
  * GET /api/debug/gmail
  *
- * Returns diagnostic info about the connected Gmail mailbox — email,
- * total messages, last 5 inbox subjects. Auth: `x-cron-secret`.
+ * Diagnostic probe for the Gmail polling pipeline. Walks the most
+ * recent INBOX message end-to-end (fetch → parse → ingest) and
+ * reports what each stage actually saw. Auth: `x-cron-secret`.
  *
- * This is a temporary probe; remove once polling is confirmed working.
+ * Temporary — delete once polling is confirmed working.
  */
 export async function GET(request: Request) {
   const expected = process.env.AUTOMATION_CRON_SECRET;
@@ -32,60 +35,101 @@ export async function GET(request: Request) {
   for (const c of connections as ChannelConnection[]) {
     try {
       const accessToken = await getFreshToken(c);
-      const profile = await fetchJson(
-        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+      const list = await fetchJson<{ messages?: { id: string }[]; resultSizeEstimate?: number }>(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=in:inbox newer_than:1d&maxResults=5",
         accessToken,
       );
-      const listInbox = await fetchJson(
-        "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=in:inbox&maxResults=5",
-        accessToken,
-      );
-      const listAll = await fetchJson(
-        "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5",
-        accessToken,
-      );
-      const subjects: string[] = [];
-      for (const m of (listInbox.messages ?? []).slice(0, 5)) {
-        const detail = await fetchJson(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+      const ids = (list.messages ?? []).map((m) => m.id);
+
+      // Workspace sanity check — the FK to workspaces is the most
+      // likely silent failure if the connection's workspace_id is
+      // pointing somewhere stale.
+      const { data: ws } = await admin
+        .from("workspaces")
+        .select("id, name")
+        .eq("id", c.workspace_id)
+        .maybeSingle();
+
+      const perMessage = [];
+      for (const id of ids) {
+        const msg = await fetchJson<GmailMessage>(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
           accessToken,
         );
-        const headers = detail?.payload?.headers ?? [];
+        const headers = msg.payload?.headers ?? [];
         const get = (n: string) =>
-          headers.find((h: { name: string; value: string }) => h.name.toLowerCase() === n)
-            ?.value;
-        subjects.push(`${get("date") ?? ""} | ${get("from") ?? ""} | ${get("subject") ?? ""}`);
+          headers.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value;
+        const fromHeader = get("From") ?? "";
+        const subject = get("Subject") ?? "";
+
+        const event: InboundEvent = {
+          channel: "gmail",
+          connection: c,
+          externalContactId: parseEmail(fromHeader),
+          contactName: parseName(fromHeader),
+          externalMessageId: get("Message-ID") || get("Message-Id") || msg.id,
+          externalThreadId: msg.threadId,
+          subject,
+          text: extractText(msg.payload) || "(no text body)",
+          receivedAt: msg.internalDate
+            ? new Date(Number(msg.internalDate)).toISOString()
+            : new Date().toISOString(),
+        };
+
+        let ingestResult: string;
+        try {
+          const r = await ingestInboundEvent(admin, event);
+          ingestResult = r
+            ? `OK contact=${r.contact.id.slice(0, 8)} conv=${r.conversation.id.slice(0, 8)} msg=${r.message.id.slice(0, 8)}`
+            : "ingest returned null (duplicate or downstream failure)";
+        } catch (err) {
+          ingestResult = `THROW: ${err instanceof Error ? err.message : String(err)}`;
+        }
+
+        perMessage.push({
+          gmailId: id,
+          from: fromHeader,
+          subject,
+          parsedEmail: event.externalContactId,
+          messageIdHeader: event.externalMessageId,
+          textPreview: event.text.slice(0, 80),
+          labels: msg.labelIds ?? [],
+          ingestResult,
+        });
       }
+
       out.push({
         connectionId: c.id,
-        status: c.status,
-        labelInDb: c.label,
-        externalIdInDb: c.external_account_id,
-        configInDb: c.config,
-        profile: {
-          emailAddress: profile?.emailAddress,
-          messagesTotal: profile?.messagesTotal,
-          threadsTotal: profile?.threadsTotal,
-          historyId: profile?.historyId,
-        },
-        inboxCountSample: (listInbox.messages ?? []).length,
-        inboxResultSizeEstimate: listInbox.resultSizeEstimate,
-        allCountSample: (listAll.messages ?? []).length,
-        allResultSizeEstimate: listAll.resultSizeEstimate,
-        recentInbox: subjects,
+        workspaceId: c.workspace_id,
+        workspaceExists: Boolean(ws),
+        workspaceName: ws?.name ?? null,
+        ingestProbeWindow: "in:inbox newer_than:1d",
+        candidates: ids.length,
+        perMessage,
       });
     } catch (err) {
       out.push({
         connectionId: c.id,
-        status: c.status,
-        labelInDb: c.label,
-        externalIdInDb: c.external_account_id,
+        workspaceId: c.workspace_id,
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
   return NextResponse.json({ count: out.length, connections: out });
+}
+
+interface GmailMessage {
+  id: string;
+  threadId?: string;
+  internalDate?: string;
+  labelIds?: string[];
+  payload?: {
+    headers?: { name: string; value: string }[];
+    mimeType?: string;
+    body?: { data?: string };
+    parts?: GmailMessage["payload"][];
+  };
 }
 
 async function getFreshToken(connection: ChannelConnection): Promise<string> {
@@ -115,15 +159,38 @@ async function getFreshToken(connection: ChannelConnection): Promise<string> {
     }).toString(),
   });
   if (!r.ok) throw new Error(`refresh ${r.status}: ${await r.text()}`);
-  const j = (await r.json()) as { access_token?: string; expires_in?: number };
+  const j = (await r.json()) as { access_token?: string };
   if (!j.access_token) throw new Error("no access_token in refresh response");
-  // Persist fresh token for next time
-  void encrypt; // referenced for symmetry; we keep refresh updates out of debug
   return j.access_token;
 }
 
-async function fetchJson(url: string, accessToken: string): Promise<Record<string, unknown> & { messages?: Array<{ id: string }>; payload?: { headers?: Array<{ name: string; value: string }> }; resultSizeEstimate?: number; emailAddress?: string; messagesTotal?: number; threadsTotal?: number; historyId?: string }> {
+async function fetchJson<T>(url: string, accessToken: string): Promise<T> {
   const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!r.ok) throw new Error(`${url} ${r.status}: ${await r.text()}`);
-  return r.json();
+  return (await r.json()) as T;
+}
+
+function parseEmail(raw: string): string {
+  const m = raw.match(/<([^>]+)>/);
+  return (m ? m[1] : raw).trim().toLowerCase();
+}
+function parseName(raw: string): string {
+  const m = raw.match(/^\s*(.*?)\s*</);
+  return m ? m[1].replace(/^"|"$/g, "") : "";
+}
+function extractText(payload?: GmailMessage["payload"]): string {
+  if (!payload) return "";
+  if (payload.mimeType === "text/plain" && payload.body?.data) {
+    return decodeBody(payload.body.data);
+  }
+  for (const p of payload.parts ?? []) {
+    const t = extractText(p);
+    if (t) return t;
+  }
+  return "";
+}
+function decodeBody(data: string): string {
+  const padded = data.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = padded.length % 4 ? padded + "=".repeat(4 - (padded.length % 4)) : padded;
+  return Buffer.from(pad, "base64").toString("utf8");
 }
