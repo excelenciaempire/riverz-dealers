@@ -63,12 +63,16 @@ async function pollOne(
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const lastHistoryId = cfg.history_id ? String(cfg.history_id) : "";
 
-  // First-run query covers a week so a freshly-connected mailbox shows
-  // something in the inbox immediately. Once history_id is set, the
-  // history.list path is incremental and the window stops mattering.
-  const ids = lastHistoryId
-    ? await listMessageIdsViaHistory(accessToken, lastHistoryId)
-    : await listMessageIdsViaQuery(accessToken, "in:inbox newer_than:7d");
+  // messages.list every run with a sliding 1-day window. The unique
+  // index on messages.message_id makes re-ingest a no-op, so overlap
+  // is free — and this avoids the history.list edge cases (cursor too
+  // old, label filter mismatches) that silently returned 0 even when
+  // the inbox had fresh mail.
+  //
+  // On a freshly-connected mailbox we widen to 7d so the user sees a
+  // realistic backlog instead of an empty inbox on day one.
+  const window = lastHistoryId ? "newer_than:1d" : "newer_than:7d";
+  const ids = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
 
   if (ids.length === 0) {
     await admin
@@ -176,34 +180,6 @@ async function listMessageIdsViaQuery(
   if (!r.ok) throw new Error(`messages.list ${r.status}: ${await r.text()}`);
   const j = (await r.json()) as { messages?: { id: string }[] };
   return (j.messages ?? []).map((m) => m.id);
-}
-
-async function listMessageIdsViaHistory(
-  accessToken: string,
-  startHistoryId: string,
-): Promise<string[]> {
-  const u = new URL(`${GMAIL_API}/users/me/history`);
-  u.searchParams.set("startHistoryId", startHistoryId);
-  u.searchParams.set("historyTypes", "messageAdded");
-  u.searchParams.set("labelId", "INBOX");
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  // If startHistoryId is too old, Gmail returns 404 — fall back to query.
-  if (r.status === 404) {
-    return listMessageIdsViaQuery(accessToken, "in:inbox newer_than:7d");
-  }
-  if (!r.ok) throw new Error(`history.list ${r.status}: ${await r.text()}`);
-  const j = (await r.json()) as {
-    history?: { messagesAdded?: { message: { id: string } }[] }[];
-  };
-  const ids = new Set<string>();
-  for (const h of j.history ?? []) {
-    for (const m of h.messagesAdded ?? []) {
-      ids.add(m.message.id);
-    }
-  }
-  return [...ids];
 }
 
 interface GmailMessage {
