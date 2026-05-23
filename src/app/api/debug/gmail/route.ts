@@ -86,6 +86,42 @@ export async function GET(request: Request) {
           ingestResult = `THROW: ${err instanceof Error ? err.message : String(err)}`;
         }
 
+        // Split-stage probe so we know which DB step fails when
+        // ingestInboundEvent silently returns null.
+        const stages: Record<string, unknown> = {};
+        const { data: existingContact, error: contactSelectErr } = await admin
+          .from("contacts")
+          .select("id")
+          .eq("workspace_id", c.workspace_id)
+          .eq("channel", "gmail")
+          .eq("external_id", event.externalContactId)
+          .maybeSingle();
+        stages.contact_select_error = contactSelectErr?.message ?? null;
+        stages.contact_already_exists = Boolean(existingContact);
+
+        if (!existingContact) {
+          const { error: contactInsertErr } = await admin
+            .from("contacts")
+            .insert({
+              workspace_id: c.workspace_id,
+              channel: "gmail",
+              external_id: event.externalContactId,
+              name: event.contactName,
+              email: event.externalContactId,
+            })
+            .select()
+            .single();
+          stages.contact_insert_error = contactInsertErr?.message ?? null;
+          stages.contact_insert_code = contactInsertErr?.code ?? null;
+        }
+
+        const { count: msgCountForConn, error: msgCountErr } = await admin
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("message_id", event.externalMessageId);
+        stages.same_message_id_already_in_db = msgCountForConn ?? 0;
+        stages.message_count_error = msgCountErr?.message ?? null;
+
         perMessage.push({
           gmailId: id,
           from: fromHeader,
@@ -95,6 +131,7 @@ export async function GET(request: Request) {
           textPreview: event.text.slice(0, 80),
           labels: msg.labelIds ?? [],
           ingestResult,
+          stages,
         });
       }
 
