@@ -1,0 +1,33 @@
+name: Gmail poll
+
+# Polls /api/cron/gmail-poll every 5 min so inbound Gmail flows into
+# the unified inbox without a Cloud Pub/Sub setup. GitHub Actions cron
+# is best-effort (latency 5-15 min in practice) — fine for an inbox.
+#
+# Secrets used:
+#   - CRON_PING_URL    e.g. https://unified-inbox-7yp9.onrender.com/api/cron/gmail-poll
+#   - CRON_PING_SECRET matches AUTOMATION_CRON_SECRET in Render env
+
+on:
+  schedule:
+    # */5 = every 5 minutes (best-effort; GitHub may delay under load).
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+# A late run shouldn't pile on top of an in-flight one.
+concurrency:
+  group: gmail-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hit Gmail poll endpoint
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS \
+            -H "x-cron-secret: ${{ secrets.CRON_PING_SECRET }}" \
+            "${{ secrets.CRON_PING_URL }}")
+          echo "$response"
