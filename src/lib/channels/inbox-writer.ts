@@ -82,17 +82,23 @@ export async function ingestInboundEvent(
   //    the authoritative source.
   if (event.comment && message) {
     let adId = event.comment.adId;
-    let isAd = false;
-    if (event.comment.postId) {
+    // Meta sends ad_id directly in the webhook payload for comments
+    // on ads — that's the authoritative signal, no Marketing API call
+    // needed. The ad_posts table is a secondary cache for dark posts
+    // (page-promotable creatives that don't appear in the page feed,
+    // so the webhook can't tag them); we still consult it but its
+    // absence is no longer a blocker for `is_ad`.
+    let isAd = Boolean(adId);
+    if (!isAd && event.comment.postId) {
       const { data: adPost } = await db
         .from("ad_posts")
         .select("ad_id")
         .eq("workspace_id", workspaceId)
         .eq("post_id", event.comment.postId)
         .maybeSingle();
-      if (adPost?.ad_id) {
-        adId = adPost.ad_id;
+      if (adPost) {
         isAd = true;
+        if (adPost.ad_id) adId = adPost.ad_id;
       }
     }
     await db.from("comments_meta").insert({
@@ -103,6 +109,15 @@ export async function ingestInboundEvent(
       permalink: event.comment.permalink,
       is_ad: isAd,
     });
+
+    // Bubble is_ad onto the conversation row so the inbox list can
+    // show the "Anuncio" badge without a join on comments_meta.
+    if (isAd) {
+      await db
+        .from("conversations")
+        .update({ is_ad: true })
+        .eq("id", conversation.id);
+    }
   }
 
   // 5. Bump conversation summary fields.
