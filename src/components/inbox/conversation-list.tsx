@@ -145,10 +145,12 @@ export function ConversationList({
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   return (
-    // w-full on mobile so the list occupies the whole viewport when it's
-    // the single pane showing; fixed 320px on desktop where it shares the
-    // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-slate-800 bg-slate-900 lg:w-80">
+    // Always fills its parent. Width is controlled by ResizablePane on
+    // desktop (with localStorage persistence) and by the inbox flex row
+    // on mobile. Keeping the fixed `lg:w-80` here was overriding the
+    // resize drag visually — the inline width from the parent would
+    // change but this div stayed pinned at 320px.
+    <div className="flex h-full w-full flex-col bg-slate-900">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-slate-800 p-3">
         <div className="relative">

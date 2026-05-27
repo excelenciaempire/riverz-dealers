@@ -2,6 +2,7 @@
 
 import type { Channel } from "@/types";
 import { CHANNEL_DISPLAY } from "@/lib/channels/display";
+import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { cn } from "@/lib/utils";
 import { Inbox, Megaphone } from "lucide-react";
 
@@ -12,8 +13,7 @@ interface ChannelFilterProps {
   value: Channel | null;
   onChange: (channel: Channel | null) => void;
   /** Channels with at least one connected account in this workspace —
-   * other channels render disabled so the inbox doesn't dangle empty
-   * filters in front of the user. */
+   * other channels are simply not rendered so the row stays clean. */
   available: Set<Channel>;
   /** Per-channel unread counts so chips can show a hint dot. */
   unread?: Partial<Record<Channel | "all", number>>;
@@ -40,7 +40,7 @@ export function ChannelFilter({
     <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-3 pt-1">
       <Chip
         label="Todos"
-        icon={<Inbox className="h-3 w-3" />}
+        icon={<Inbox className="h-3.5 w-3.5" />}
         active={value === null && adsFilter === "off"}
         onClick={() => {
           onChange(null);
@@ -53,7 +53,7 @@ export function ChannelFilter({
       {onAdsFilterChange && (
         <Chip
           label="Anuncios"
-          icon={<Megaphone className="h-3 w-3" />}
+          icon={<Megaphone className="h-3.5 w-3.5" />}
           tone="#f59e0b"
           active={adsFilter === "only"}
           onClick={() => onAdsFilterChange(adsFilter === "only" ? "off" : "only")}
@@ -62,15 +62,16 @@ export function ChannelFilter({
       )}
       {Object.values(CHANNEL_DISPLAY)
         // Only render chips for channels the caller marked as available.
-        // Previously we rendered every channel as a disabled chip, which
-        // surfaced WA/Gmail chips inside the Comentarios tab and made
-        // the filter row noisy.
         .filter((d) => available.has(d.channel))
         .map((d) => (
           <Chip
             key={d.channel}
-            label={d.shortLabel}
+            label={d.label}
             tone={d.accent}
+            // Real brand logo instead of two-letter abbreviation —
+            // the row is the channel filter, so showing the actual
+            // app icons makes the affordance obvious at a glance.
+            icon={<ChannelLogo channel={d.channel} size={14} />}
             active={value === d.channel && adsFilter === "off"}
             onClick={() => {
               onChange(d.channel);
@@ -105,17 +106,19 @@ function Chip({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={label}
+      aria-label={label}
       className={cn(
-        "group relative inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-all",
+        "group relative inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
         active
           ? "border-primary/60 bg-primary/15 text-primary"
-          : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200",
+          : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:text-white",
         disabled && "cursor-not-allowed opacity-40 hover:border-slate-800 hover:text-slate-400",
       )}
       style={!active && tone ? { boxShadow: `inset 2px 0 0 ${tone}55` } : undefined}
     >
       {icon}
-      <span className="uppercase tracking-wider">{label}</span>
+      <span className="hidden sm:inline">{label}</span>
       {count && count > 0 ? (
         <span
           className={cn(
