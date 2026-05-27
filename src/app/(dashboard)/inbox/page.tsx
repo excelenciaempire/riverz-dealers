@@ -519,7 +519,10 @@ export default function InboxPage() {
     if (c.is_ad) adsUnreadCount += unread;
     if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
     else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
-    if (!c.assigned_agent_id && c.status !== "closed") tabCounts.unassigned += unread || 1;
+    // Sin asignar tab counts conversations (not unread messages) —
+    // these are work items waiting to be claimed by someone, so a
+    // closed/silent conversation still counts until someone owns it.
+    if (!c.assigned_agent_id && c.status !== "closed") tabCounts.unassigned += 1;
   }
   // Channels that belong to the current tab — drives which chips are
   // available in the secondary filter row below the tabs.

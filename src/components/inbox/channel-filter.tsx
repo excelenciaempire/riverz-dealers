@@ -60,14 +60,17 @@ export function ChannelFilter({
           count={adsUnreadCount}
         />
       )}
-      {Object.values(CHANNEL_DISPLAY).map((d) => {
-        const enabled = available.has(d.channel);
-        return (
+      {Object.values(CHANNEL_DISPLAY)
+        // Only render chips for channels the caller marked as available.
+        // Previously we rendered every channel as a disabled chip, which
+        // surfaced WA/Gmail chips inside the Comentarios tab and made
+        // the filter row noisy.
+        .filter((d) => available.has(d.channel))
+        .map((d) => (
           <Chip
             key={d.channel}
             label={d.shortLabel}
             tone={d.accent}
-            disabled={!enabled}
             active={value === d.channel && adsFilter === "off"}
             onClick={() => {
               onChange(d.channel);
@@ -75,8 +78,7 @@ export function ChannelFilter({
             }}
             count={unread?.[d.channel] ?? 0}
           />
-        );
-      })}
+        ))}
     </div>
   );
 }

@@ -101,7 +101,7 @@ function Tab({
               : "bg-primary/20 text-primary",
           )}
         >
-          {count > 99 ? "99+" : count}
+          {count > 999 ? "999+" : count}
         </span>
       )}
       {active && (
