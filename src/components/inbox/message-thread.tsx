@@ -59,6 +59,11 @@ interface MessageThreadProps {
   onMessagesLoaded: (messages: Message[]) => void;
   onNewMessage: (message: Message) => void;
   onUpdateMessage: (id: string, updates: Partial<Message>) => void;
+  /** Optional — when set, the per-message actions bar renders a delete
+   *  button that calls this with the deleted message's id so the parent
+   *  can drop it from its state. The DELETE API call lives in the
+   *  actions bar; the parent's job is just to forget the row. */
+  onDeleteMessage?: (id: string) => void;
   onStatusChange: (conversationId: string, status: ConversationStatus) => void;
   onAssignChange: (
     conversationId: string,
@@ -138,6 +143,7 @@ export function MessageThread({
   onMessagesLoaded,
   onNewMessage,
   onUpdateMessage,
+  onDeleteMessage,
   onStatusChange,
   onAssignChange,
   onBack,
@@ -585,6 +591,13 @@ export function MessageThread({
     [authorLabelFor],
   );
 
+  const handleDeleteMessage = useCallback(
+    (messageId: string) => {
+      onDeleteMessage?.(messageId);
+    },
+    [onDeleteMessage],
+  );
+
   // Single reaction-set primitive. emoji === "" removes; otherwise adds/swaps.
   // The "toggle" semantic (pill click) is computed at the call site where the
   // current reactions for the bubble are already in scope — keeps this
@@ -870,6 +883,25 @@ export function MessageThread({
         </div>
       </div>
 
+      {/* Email subject banner — surfaces the thread title up top
+          instead of letting it disappear into the conversation row in
+          the list. Long subjects truncate; click to expand. */}
+      {(conversation.channel === "gmail" ||
+        conversation.channel === "outlook") &&
+        conversation.subject && (
+          <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950/60 px-3 py-2 text-xs sm:px-4">
+            <span className="inline-flex items-center rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Hilo
+            </span>
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">
+              {conversation.subject}
+            </p>
+            <span className="shrink-0 text-[10px] text-slate-500">
+              {messages.length} mensaje{messages.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        )}
+
       {/* Post context banner — only for comment channels. Makes it
           immediately clear which post the conversation is about, since a
           comment thread without that context just looks like a wall of
@@ -963,6 +995,7 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onDelete={handleDeleteMessage}
                       >
                         <MessageBubble
                           message={msg}

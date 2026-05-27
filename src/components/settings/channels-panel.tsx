@@ -364,6 +364,14 @@ export function ChannelsPanel() {
                           );
                           return;
                         }
+                        // Meta apps with use-cases blocked the classic OAuth
+                        // dialog, so the only reliable connect path for Meta
+                        // channels is pasting a system-user / page token.
+                        // Gmail and Outlook still use real OAuth.
+                        if (isMeta) {
+                          setManualOpen(d.channel as ManualChannel);
+                          return;
+                        }
                         handleConnect(d.channel);
                       }}
                       disabled={busy}
@@ -388,14 +396,11 @@ export function ChannelsPanel() {
                         </>
                       )}
                     </button>
-                    {isMeta && (
-                      <button
-                        onClick={() => setManualOpen(d.channel as ManualChannel)}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] text-slate-400 transition-colors hover:bg-slate-800/70 hover:text-slate-200"
-                      >
-                        <KeyRound className="size-3" />
-                        Pegar token manualmente
-                      </button>
+                    {isMeta && ready && (
+                      <p className="text-center text-[10px] leading-snug text-slate-500">
+                        <KeyRound className="mr-1 inline-block size-2.5" />
+                        Conexión via Page/System User token
+                      </p>
                     )}
                   </div>
                 );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +19,10 @@ interface MessageActionsProps {
   message: Message;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  /** Optional — wires the trash button. If omitted, the button is
+   *  hidden so callers that don't yet wire delete (e.g. preview
+   *  surfaces) aren't forced to. */
+  onDelete?: (messageId: string) => void;
   children: ReactNode;
 }
 
@@ -31,6 +35,7 @@ export function MessageActions({
   message,
   onReply,
   onReact,
+  onDelete,
   children,
 }: MessageActionsProps) {
   // Touch devices have no hover. Long-press fires `contextmenu`; we capture
@@ -71,6 +76,27 @@ export function MessageActions({
   const handleReply = () => {
     onReply();
     setTouchOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!confirm("¿Borrar este mensaje de la bandeja? La copia en el canal original no se toca.")) {
+      setTouchOpen(false);
+      return;
+    }
+    setTouchOpen(false);
+    try {
+      const res = await fetch(`/api/messages/${message.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(j.error ?? "No se pudo borrar");
+        return;
+      }
+      onDelete(message.id);
+      toast.success("Mensaje borrado");
+    } catch {
+      toast.error("Error de red");
+    }
   };
 
   // Row alignment lives here (not in MessageBubble) so the `group/actions`
@@ -136,6 +162,16 @@ export function MessageActions({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-red-500/20 hover:text-red-400"
+            aria-label="Borrar"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
       </div>
     </div>

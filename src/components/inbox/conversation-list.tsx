@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
-import { ChannelBadge } from "@/components/inbox/channel-badge";
+import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { Search, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -249,17 +249,27 @@ function ConversationItem({
         isActive && "border-l-2 border-primary bg-slate-800/70"
       )}
     >
-      {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
-        {contact?.avatar_url ? (
-          <img
-            src={contact.avatar_url}
-            alt={displayName}
-            className="h-10 w-10 rounded-full object-cover"
-          />
-        ) : (
-          initials
-        )}
+      {/* Avatar with channel logo badge — the small overlay tells the
+          agent at a glance which app the message came from without having
+          to read a separate text badge in the row. */}
+      <div className="relative h-10 w-10 shrink-0">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+          {contact?.avatar_url ? (
+            <img
+              src={contact.avatar_url}
+              alt={displayName}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          ) : (
+            initials
+          )}
+        </div>
+        <span
+          className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 ring-2 ring-slate-900"
+          title={conversation.channel}
+        >
+          <ChannelLogo channel={conversation.channel} size={12} />
+        </span>
       </div>
 
       {/* Content */}
@@ -269,7 +279,6 @@ function ConversationItem({
             <span className="truncate text-sm font-medium text-white">
               {displayName}
             </span>
-            <ChannelBadge channel={conversation.channel} />
             {conversation.is_ad && (
               <span
                 title="Comentario en un anuncio pagado"
