@@ -31,6 +31,27 @@ export async function GET(
   if (!isChannel(channel)) {
     return NextResponse.json({ error: "unknown channel" }, { status: 404 });
   }
+
+  // Meta-portal handshake: when an admin registers this URL in the
+  // developer portal there are no channel_connections yet, so we
+  // verify against META_WEBHOOK_VERIFY_TOKEN directly without
+  // requiring a stored connection. Other channels (and rotated
+  // per-connection secrets) still go through the adapter.
+  const url = new URL(req.url);
+  const isMetaHandshake =
+    url.searchParams.get("hub.mode") === "subscribe" &&
+    url.searchParams.get("hub.verify_token");
+  if (isMetaHandshake) {
+    const expected = process.env.META_WEBHOOK_VERIFY_TOKEN;
+    const supplied = url.searchParams.get("hub.verify_token");
+    if (expected && supplied === expected) {
+      return new Response(url.searchParams.get("hub.challenge") ?? "", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }
+  }
+
   const connection = await loadConnection(req, channel);
   if (!connection) return new Response("not found", { status: 404 });
 
