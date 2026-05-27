@@ -4,7 +4,8 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { baseUrl, decodeState, loadProvider, type ProviderName } from "@/lib/channels/oauth";
 import { encrypt } from "@/lib/channels/encryption";
 import { discoverMetaAccounts, subscribePageToWebhooks } from "@/lib/channels/meta-graph";
-import type { Channel } from "@/types";
+import { startGmailWatch } from "@/lib/channels/gmail/watch";
+import type { Channel, ChannelConnection } from "@/types";
 
 const VALID: ProviderName[] = ["meta", "google", "microsoft"];
 
@@ -228,19 +229,39 @@ export async function GET(
 
   // Non-Meta providers (Google, Microsoft) — single connection per OAuth flow.
   const secrets: Record<string, unknown> = { ...baseSecrets, access_token: encrypt(accessToken) };
-  const { error: upsertErr } = await admin.from("channel_connections").insert({
-    workspace_id: state.workspaceId,
-    channel,
-    label: label ?? channelLabel(channel),
-    status: "connected",
-    external_account_id: externalAccountId,
-    config: {},
-    secrets,
-    created_by: user.id,
-  });
+  const { data: inserted, error: upsertErr } = await admin
+    .from("channel_connections")
+    .insert({
+      workspace_id: state.workspaceId,
+      channel,
+      label: label ?? channelLabel(channel),
+      status: "connected",
+      external_account_id: externalAccountId,
+      config: channel === "gmail" ? { email: label ?? externalAccountId } : {},
+      secrets,
+      created_by: user.id,
+    })
+    .select("*")
+    .maybeSingle();
   if (upsertErr) {
     console.error(`[oauth/${provider}] persist failed:`, upsertErr);
     return redirectWithStatus(req, "error", upsertErr.message);
+  }
+
+  // Gmail: arm the Pub/Sub watch right away so the user gets real-time
+  // delivery from the moment they connect, not 6 days later when the
+  // cron fires. Best-effort — a missing GMAIL_PUSH_TOPIC env or a
+  // transient watch error doesn't unmake the connection; the polling
+  // cron still covers them every 5 min and the renew cron will retry.
+  if (channel === "gmail" && inserted) {
+    try {
+      const r = await startGmailWatch(admin, inserted as ChannelConnection);
+      if (r.error) {
+        console.warn(`[oauth/gmail] watch arming failed: ${r.error}`);
+      }
+    } catch (err) {
+      console.warn(`[oauth/gmail] watch arming threw:`, err);
+    }
   }
 
   return redirectWithStatus(req, "ok");
