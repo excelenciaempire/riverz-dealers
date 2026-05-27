@@ -31,7 +31,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(payload.error ?? `Could not ${action}`);
+        toast.error(payload.error ?? `No se pudo ${action}`);
         return;
       }
       toast.success(labelFor(action));
@@ -51,7 +51,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       <button
         onClick={() => act(liked ? "unlike" : "like")}
         disabled={busy !== null}
-        title={liked ? "Unlike" : "Like as page"}
+        title={liked ? "Quitar me gusta" : "Me gusta como página"}
         className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-rose-300"
       >
         <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
@@ -59,17 +59,17 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       <button
         onClick={() => act(hidden ? "unhide" : "hide")}
         disabled={busy !== null}
-        title={hidden ? "Unhide" : "Hide comment"}
+        title={hidden ? "Mostrar" : "Ocultar comentario"}
         className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-amber-300"
       >
         {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
       </button>
       <button
         onClick={() => {
-          if (confirm("Delete this comment? This cannot be undone.")) act("delete");
+          if (confirm("¿Eliminar este comentario? Esta acción no se puede deshacer.")) act("delete");
         }}
         disabled={busy !== null}
-        title="Delete"
+        title="Eliminar"
         className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-red-400"
       >
         <Trash2 className="size-3" />
@@ -79,7 +79,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
           href={permalink}
           target="_blank"
           rel="noopener noreferrer"
-          title="Open on Facebook/Instagram"
+          title="Abrir en Facebook/Instagram"
           className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
         >
           <ExternalLink className="size-3" />
@@ -92,16 +92,16 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
 function labelFor(action: string): string {
   switch (action) {
     case "hide":
-      return "Comment hidden";
+      return "Comentario ocultado";
     case "unhide":
-      return "Comment shown again";
+      return "Comentario visible de nuevo";
     case "like":
-      return "Liked as page";
+      return "Me gusta como página";
     case "unlike":
-      return "Unliked";
+      return "Me gusta quitado";
     case "delete":
-      return "Comment deleted";
+      return "Comentario eliminado";
     default:
-      return "Done";
+      return "Hecho";
   }
 }

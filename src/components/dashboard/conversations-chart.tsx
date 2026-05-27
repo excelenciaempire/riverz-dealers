@@ -195,7 +195,7 @@ function LineSvg({
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         className="h-[240px] w-full"
         role="img"
-        aria-label="Conversations per day"
+        aria-label="Conversaciones por día"
       >
         {/* Y-axis gridlines + labels */}
         {ticks.map((t) => {
@@ -287,11 +287,11 @@ function LineSvg({
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5 text-blue-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-              {hovered.incoming} incoming
+              {hovered.incoming} entrantes
             </span>
             <span className="flex items-center gap-1.5 text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              {hovered.outgoing} outgoing
+              {hovered.outgoing} salientes
             </span>
           </div>
         </div>
@@ -314,13 +314,13 @@ function shortDayLabel(key: string): string {
   // appended time avoids timezone-shift surprises across midnight.
   const [y, m, d] = key.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
 }
 
 function longDayLabel(key: string): string {
   const [y, m, d] = key.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  return date.toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 /**

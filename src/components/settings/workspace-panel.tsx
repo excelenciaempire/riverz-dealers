@@ -62,7 +62,7 @@ export function WorkspacePanel() {
       toast.error(error.message);
       return;
     }
-    toast.success("Workspace renamed");
+    toast.success("Espacio de trabajo renombrado");
     reload();
   }, [workspace, name, reload]);
 
@@ -81,10 +81,10 @@ export function WorkspacePanel() {
     setInviting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? "Failed to send invite");
+      toast.error(payload.error ?? "No se pudo enviar la invitación");
       return;
     }
-    toast.success(`Invite sent to ${inviteEmail}`);
+    toast.success(`Invitación enviada a ${inviteEmail}`);
     setInviteEmail("");
     await fetchMembersAndInvites();
   }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites]);
@@ -97,7 +97,7 @@ export function WorkspacePanel() {
         toast.error(error.message);
         return;
       }
-      toast.success("Member removed");
+      toast.success("Miembro eliminado");
       await fetchMembersAndInvites();
     },
     [fetchMembersAndInvites],
@@ -136,7 +136,7 @@ export function WorkspacePanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
-        No workspace yet. Sign out and sign back in to provision one.
+        Aún no hay espacio de trabajo. Cierra sesión y vuelve a iniciar sesión para crear uno.
       </div>
     );
   }
@@ -147,11 +147,11 @@ export function WorkspacePanel() {
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
         <div className="flex items-center gap-3">
           <Building2 className="size-5 text-primary" />
-          <h2 className="text-base font-semibold text-white">Workspace</h2>
+          <h2 className="text-base font-semibold text-white">Espacio de trabajo</h2>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-400">Name</Label>
+            <Label className="text-xs text-slate-400">Nombre</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -165,7 +165,7 @@ export function WorkspacePanel() {
               disabled={saving || !name.trim() || name === workspace.name}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : "Save"}
+              {saving ? <Loader2 className="size-4 animate-spin" /> : "Guardar"}
             </Button>
           )}
         </div>
@@ -174,9 +174,9 @@ export function WorkspacePanel() {
       {/* Members card */}
       <section className="rounded-xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Team members</h2>
+          <h2 className="text-base font-semibold text-white">Miembros del equipo</h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Everyone here shares the inbox, contacts and connections.
+            Todas las personas de aquí comparten la bandeja de entrada, los contactos y las conexiones.
           </p>
         </div>
         <ul className="divide-y divide-slate-800">
@@ -191,8 +191,8 @@ export function WorkspacePanel() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-white">
-                    {user?.full_name ?? user?.email ?? "Pending"}
-                    {isYou && <span className="ml-2 text-xs text-slate-500">(you)</span>}
+                    {user?.full_name ?? user?.email ?? "Pendiente"}
+                    {isYou && <span className="ml-2 text-xs text-slate-500">(tú)</span>}
                   </p>
                   <p className="truncate text-xs text-slate-500">{user?.email}</p>
                 </div>
@@ -203,7 +203,7 @@ export function WorkspacePanel() {
                     className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200"
                   >
                     <option value="admin">Admin</option>
-                    <option value="agent">Agent</option>
+                    <option value="agent">Agente</option>
                   </select>
                 ) : (
                   <span className="flex items-center gap-1 text-xs text-slate-400">
@@ -215,7 +215,7 @@ export function WorkspacePanel() {
                   <button
                     onClick={() => handleRemoveMember(m.id)}
                     className="ml-2 rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
-                    aria-label="Remove member"
+                    aria-label="Eliminar miembro"
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -230,13 +230,13 @@ export function WorkspacePanel() {
           <div className="border-t border-slate-800 px-5 py-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
               <UserPlus className="size-4 text-primary" />
-              Invite by email
+              Invitar por correo
             </h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Input
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="teammate@email.com"
+                placeholder="companero@email.com"
                 className="bg-slate-800 text-white"
               />
               <select
@@ -244,7 +244,7 @@ export function WorkspacePanel() {
                 onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
                 className="rounded-md border border-slate-700 bg-slate-800 px-2 text-sm text-slate-200"
               >
-                <option value="agent">Agent</option>
+                <option value="agent">Agente</option>
                 <option value="admin">Admin</option>
               </select>
               <Button
@@ -252,7 +252,7 @@ export function WorkspacePanel() {
                 disabled={inviting || !inviteEmail.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Send invite"}
+                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Enviar invitación"}
               </Button>
             </div>
           </div>
@@ -263,7 +263,7 @@ export function WorkspacePanel() {
       {invites.length > 0 && (
         <section className="rounded-xl border border-slate-800 bg-slate-900">
           <div className="border-b border-slate-800 px-5 py-4">
-            <h2 className="text-base font-semibold text-white">Pending invites</h2>
+            <h2 className="text-base font-semibold text-white">Invitaciones pendientes</h2>
           </div>
           <ul className="divide-y divide-slate-800">
             {invites.map((inv) => (
@@ -272,14 +272,14 @@ export function WorkspacePanel() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-white">{inv.email}</p>
                   <p className="text-xs text-slate-500">
-                    Role: {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
+                    Rol: {inv.role} · expira el {new Date(inv.expires_at).toLocaleDateString('es-ES')}
                   </p>
                 </div>
                 {isAdmin && (
                   <button
                     onClick={() => handleRevokeInvite(inv.id)}
                     className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
-                    aria-label="Revoke invite"
+                    aria-label="Revocar invitación"
                   >
                     <Trash2 className="size-4" />
                   </button>

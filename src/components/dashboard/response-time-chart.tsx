@@ -137,7 +137,7 @@ function Bars({
             textAnchor="end"
             className="fill-rose-300 text-[10px]"
           >
-            target {thresholdMinutes}m
+            objetivo {thresholdMinutes}m
           </text>
         </g>
       )}
@@ -162,8 +162,8 @@ function Bars({
             >
               <title>
                 {DOW_SHORT_MON_FIRST[i]}:{' '}
-                {b.avgMinutes == null ? 'no samples' : `${b.avgMinutes.toFixed(1)} min avg`}
-                {b.samples > 0 ? ` (${b.samples} sample${b.samples === 1 ? '' : 's'})` : ''}
+                {b.avgMinutes == null ? 'sin muestras' : `${b.avgMinutes.toFixed(1)} min promedio`}
+                {b.samples > 0 ? ` (${b.samples} muestra${b.samples === 1 ? '' : 's'})` : ''}
               </title>
             </rect>
             <text

@@ -1599,7 +1599,7 @@ function SendListForm({
                 className="mt-1"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add row
+                Añadir fila
               </Button>
             )}
           </div>
@@ -1614,7 +1614,7 @@ function SendListForm({
             onClick={addSection}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add section
+            Añadir sección
           </Button>
         )}
       </div>
@@ -1677,7 +1677,7 @@ function ConditionForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs text-slate-400">If</label>
+          <label className="mb-1 block text-xs text-slate-400">Si</label>
           <Select
             value={subject}
             onValueChange={(v) =>
@@ -1688,19 +1688,19 @@ function ConditionForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="var">Captured variable</SelectItem>
-              <SelectItem value="tag">Contact has tag</SelectItem>
-              <SelectItem value="contact_field">Contact field</SelectItem>
+              <SelectItem value="var">Variable capturada</SelectItem>
+              <SelectItem value="tag">El contacto tiene la etiqueta</SelectItem>
+              <SelectItem value="contact_field">Campo del contacto</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs text-slate-400">
             {subject === "var"
-              ? "var name"
+              ? "nombre de variable"
               : subject === "tag"
-                ? "Tag"
-                : "Field"}
+                ? "Etiqueta"
+                : "Campo"}
           </label>
           {subject === "tag" && tags.length > 0 ? (
             <Select
@@ -1708,7 +1708,7 @@ function ConditionForm({
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-slate-800">
-                <SelectValue placeholder="Pick a tag…" />
+                <SelectValue placeholder="Elige una etiqueta…" />
               </SelectTrigger>
               <SelectContent>
                 {tags.map((t) => (
@@ -1724,20 +1724,20 @@ function ConditionForm({
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-slate-800">
-                <SelectValue placeholder="Pick a field…" />
+                <SelectValue placeholder="Elige un campo…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name">name</SelectItem>
-                <SelectItem value="email">email</SelectItem>
-                <SelectItem value="phone">phone</SelectItem>
-                <SelectItem value="company">company</SelectItem>
+                <SelectItem value="name">nombre</SelectItem>
+                <SelectItem value="email">correo</SelectItem>
+                <SelectItem value="phone">teléfono</SelectItem>
+                <SelectItem value="company">empresa</SelectItem>
               </SelectContent>
             </Select>
           ) : (
             <Input
               value={cfg.subject_key ?? ""}
               onChange={(e) => onUpdateConfig({ subject_key: e.target.value })}
-              placeholder={subject === "var" ? "e.g. email" : "tag UUID"}
+              placeholder={subject === "var" ? "p. ej. correo" : "UUID de la etiqueta"}
               className="bg-slate-800 font-mono text-xs"
             />
           )}
@@ -1751,7 +1751,7 @@ function ConditionForm({
         )}
       >
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Operator</label>
+          <label className="mb-1 block text-xs text-slate-400">Operador</label>
           <Select
             value={operator}
             onValueChange={(v) =>
@@ -1762,16 +1762,16 @@ function ConditionForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="present">is present</SelectItem>
-              <SelectItem value="absent">is absent</SelectItem>
-              <SelectItem value="equals">equals</SelectItem>
-              <SelectItem value="contains">contains</SelectItem>
+              <SelectItem value="present">existe</SelectItem>
+              <SelectItem value="absent">no existe</SelectItem>
+              <SelectItem value="equals">es igual a</SelectItem>
+              <SelectItem value="contains">contiene</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {showValue && (
           <div>
-            <label className="mb-1 block text-xs text-slate-400">Value</label>
+            <label className="mb-1 block text-xs text-slate-400">Valor</label>
             <Input
               value={cfg.value ?? ""}
               onChange={(e) => onUpdateConfig({ value: e.target.value })}
@@ -1787,14 +1787,14 @@ function ConditionForm({
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ true_next: v })}
-          label="If true → advance to"
+          label="Si es verdadero → avanza a"
         />
         <NextNodeRow
           value={cfg.false_next ?? ""}
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ false_next: v })}
-          label="If false → advance to"
+          label="Si es falso → avanza a"
         />
       </div>
     </>
@@ -1842,7 +1842,7 @@ function SetTagForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Action</label>
+          <label className="mb-1 block text-xs text-slate-400">Acción</label>
           <Select
             value={cfg.mode ?? "add"}
             onValueChange={(v) =>
@@ -1853,20 +1853,20 @@ function SetTagForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="add">Add tag</SelectItem>
-              <SelectItem value="remove">Remove tag</SelectItem>
+              <SelectItem value="add">Añadir etiqueta</SelectItem>
+              <SelectItem value="remove">Quitar etiqueta</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Tag</label>
+          <label className="mb-1 block text-xs text-slate-400">Etiqueta</label>
           {tags.length > 0 ? (
             <Select
               value={cfg.tag_id ?? ""}
               onValueChange={(v) => onUpdateConfig({ tag_id: v })}
             >
               <SelectTrigger className="bg-slate-800">
-                <SelectValue placeholder="Pick a tag…" />
+                <SelectValue placeholder="Elige una etiqueta…" />
               </SelectTrigger>
               <SelectContent>
                 {tags.map((t) => (
@@ -1880,7 +1880,7 @@ function SetTagForm({
             <Input
               value={cfg.tag_id ?? ""}
               onChange={(e) => onUpdateConfig({ tag_id: e.target.value })}
-              placeholder="Tag UUID"
+              placeholder="UUID de la etiqueta"
               className="bg-slate-800 font-mono text-xs"
             />
           )}
@@ -1891,7 +1891,7 @@ function SetTagForm({
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
-        label="Then advance to"
+        label="Luego avanza a"
       />
     </>
   );
@@ -1952,7 +1952,7 @@ function NextNodeRow({
         nodes={allNodes}
         excludeKey={currentKey}
         onChange={(v) => onChange(v ?? "")}
-        placeholder="Pick a next node…"
+        placeholder="Elige el siguiente nodo…"
       />
     </div>
   );
@@ -1983,7 +1983,7 @@ function NodeKeySelect({
         <SelectValue placeholder={placeholder ?? "—"} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">— None —</SelectItem>
+        <SelectItem value="__none__">— Ninguno —</SelectItem>
         {options.map((n) => {
           const Icon = NODE_META[n.node_type].icon;
           return (
@@ -2022,10 +2022,10 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
-        aria-label="Add node"
+        aria-label="Añadir nodo"
       >
         <Plus className="h-3.5 w-3.5" />
-        Add node
+        Añadir nodo
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
         {types.map((t) => {
@@ -2060,7 +2060,7 @@ function ValidationPanel({
     return (
       <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-slate-950 p-3 text-sm font-medium text-emerald-300">
         <CircleCheck className="h-4 w-4 shrink-0" />
-        No issues. Ready to activate.
+        Sin problemas. Listo para activar.
       </div>
     );
   }
@@ -2079,8 +2079,8 @@ function ValidationPanel({
         ) : (
           <CircleAlert className="h-4 w-4 text-amber-400" />
         )}
-        {errors.length} error{errors.length === 1 ? "" : "s"},{" "}
-        {warnings.length} warning{warnings.length === 1 ? "" : "s"}
+        {errors.length} error{errors.length === 1 ? "" : "es"},{" "}
+        {warnings.length} advertencia{warnings.length === 1 ? "" : "s"}
       </div>
       <div className="flex flex-col gap-1">
         {issues.map((i, ix) => (
@@ -2127,7 +2127,7 @@ function IssueLine({
           "flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-slate-800/60",
           tone,
         )}
-        aria-label={`Jump to node ${issue.node_key}`}
+        aria-label={`Ir al nodo ${issue.node_key}`}
       >
         {body}
       </button>

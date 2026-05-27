@@ -125,7 +125,7 @@ export function TemplateManager() {
       setTemplates(data || []);
     } catch (err) {
       console.error('Failed to fetch templates:', err);
-      toast.error('Failed to load templates');
+      toast.error('No se pudieron cargar las plantillas');
     } finally {
       setLoading(false);
     }
@@ -133,18 +133,18 @@ export function TemplateManager() {
 
   async function handleSave() {
     if (!form.name.trim()) {
-      toast.error('Template name is required');
+      toast.error('El nombre de la plantilla es obligatorio');
       return;
     }
     if (!form.body_text.trim()) {
-      toast.error('Body text is required');
+      toast.error('El texto del cuerpo es obligatorio');
       return;
     }
 
     try {
       setSaving(true);
       if (!user) {
-        toast.error('Not authenticated');
+        toast.error('No autenticado');
         return;
       }
 
@@ -165,13 +165,13 @@ export function TemplateManager() {
 
       if (error) throw error;
 
-      toast.success('Template created successfully');
+      toast.success('Plantilla creada correctamente');
       setDialogOpen(false);
       setForm(emptyForm);
       if (user) await fetchTemplates(user.id);
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Failed to create template');
+      toast.error('No se pudo crear la plantilla');
     } finally {
       setSaving(false);
     }
@@ -192,12 +192,12 @@ export function TemplateManager() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || `Sync failed (HTTP ${res.status})`);
+        throw new Error(data?.error || `Sincronización fallida (HTTP ${res.status})`);
       }
       toast.success(
-        `Synced ${data.total} template${data.total === 1 ? '' : 's'} from Meta` +
+        `${data.total} plantilla${data.total === 1 ? '' : 's'} sincronizada${data.total === 1 ? '' : 's'} desde Meta` +
           (data.inserted || data.updated
-            ? ` (${data.inserted} new, ${data.updated} updated)`
+            ? ` (${data.inserted} nuevas, ${data.updated} actualizadas)`
             : ''),
       );
       if (Array.isArray(data.errors) && data.errors.length > 0) {
@@ -208,19 +208,19 @@ export function TemplateManager() {
             `${e.name} (${e.language})`,
         );
         const suffix =
-          data.errors.length > 3 ? `, +${data.errors.length - 3} more` : '';
-        toast.error(`Failed to sync: ${preview.join(', ')}${suffix}`);
+          data.errors.length > 3 ? `, +${data.errors.length - 3} más` : '';
+        toast.error(`No se pudo sincronizar: ${preview.join(', ')}${suffix}`);
       }
       if (data.truncated) {
         toast.warning(
-          'Hit Meta pagination cap — more templates may exist. Contact support if this persists.',
+          'Se alcanzó el límite de paginación de Meta — pueden existir más plantillas. Contacta con soporte si persiste.',
         );
       }
       await fetchTemplates(user.id);
     } catch (err) {
       console.error('Template sync error:', err);
       toast.error(
-        err instanceof Error ? err.message : 'Failed to sync templates',
+        err instanceof Error ? err.message : 'No se pudieron sincronizar las plantillas',
       );
     } finally {
       setSyncing(false);
@@ -235,11 +235,11 @@ export function TemplateManager() {
         .eq('id', id);
 
       if (error) throw error;
-      toast.success('Template deleted');
+      toast.success('Plantilla eliminada');
       setTemplates((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       console.error('Delete error:', err);
-      toast.error('Failed to delete template');
+      toast.error('No se pudo eliminar la plantilla');
     }
   }
 
@@ -255,11 +255,12 @@ export function TemplateManager() {
     <div className="space-y-4 mt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-white">Message Templates</h2>
+          <h2 className="text-lg font-semibold text-white">Plantillas de mensaje</h2>
           <p className="text-sm text-slate-400">
-            Create and manage your WhatsApp message templates. Meta requires
-            every template to be approved in the WhatsApp Manager before it can
-            be sent — use &quot;Sync from Meta&quot; to pull your approved list.
+            Crea y gestiona tus plantillas de mensaje de WhatsApp. Meta exige
+            que cada plantilla esté aprobada en el WhatsApp Manager antes de
+            poder enviarse — usa &quot;Sincronizar desde Meta&quot; para traer tu
+            lista aprobada.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -268,12 +269,12 @@ export function TemplateManager() {
             onClick={handleSyncFromMeta}
             disabled={syncing}
             className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
-            title="Pull approved templates from your Meta WhatsApp Business Account"
+            title="Traer las plantillas aprobadas de tu Cuenta de WhatsApp Business en Meta"
           >
             <RefreshCw
               className={`size-4 ${syncing ? 'animate-spin' : ''}`}
             />
-            {syncing ? 'Syncing…' : 'Sync from Meta'}
+            {syncing ? 'Sincronizando…' : 'Sincronizar desde Meta'}
           </Button>
           <Button
             onClick={() => {
@@ -283,7 +284,7 @@ export function TemplateManager() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />
-            New Template
+            Nueva plantilla
           </Button>
         </div>
       </div>
@@ -291,8 +292,8 @@ export function TemplateManager() {
       {templates.length === 0 ? (
         <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-slate-400 text-sm">No templates yet.</p>
-            <p className="text-slate-500 text-xs mt-1">Create your first message template to get started.</p>
+            <p className="text-slate-400 text-sm">Aún no hay plantillas.</p>
+            <p className="text-slate-500 text-xs mt-1">Crea tu primera plantilla de mensaje para empezar.</p>
           </CardContent>
         </Card>
       ) : (
@@ -340,17 +341,17 @@ export function TemplateManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white">New Message Template</DialogTitle>
+            <DialogTitle className="text-white">Nueva plantilla de mensaje</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Create a new WhatsApp message template.
+              Crea una nueva plantilla de mensaje de WhatsApp.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-slate-300">Template Name</Label>
+              <Label className="text-slate-300">Nombre de la plantilla</Label>
               <Input
-                placeholder="e.g. order_confirmation"
+                placeholder="ej. confirmacion_pedido"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
@@ -359,7 +360,7 @@ export function TemplateManager() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-slate-300">Category</Label>
+                <Label className="text-slate-300">Categoría</Label>
                 <Select
                   value={form.category}
                   onValueChange={(val) =>
@@ -380,7 +381,7 @@ export function TemplateManager() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Language</Label>
+                <Label className="text-slate-300">Idioma</Label>
                 <Input
                   list="template-language-codes"
                   placeholder="en_US"
@@ -394,25 +395,25 @@ export function TemplateManager() {
                   ))}
                 </datalist>
                 <p className="text-[11px] text-slate-500">
-                  Must match the exact language code the template is approved
-                  under on Meta — e.g. <code>en_US</code> and <code>en</code>{' '}
-                  are distinct.
+                  Debe coincidir con el código de idioma exacto bajo el que se
+                  aprobó la plantilla en Meta — ej. <code>en_US</code> y{' '}
+                  <code>en</code> son distintos.
                 </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Header Type</Label>
+              <Label className="text-slate-300">Tipo de encabezado</Label>
               <Select
                 value={form.header_type}
                 onValueChange={(val) => setForm({ ...form, header_type: val || '' })}
               >
                 <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="Ninguno" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
                   <SelectItem value="none" className="text-white focus:bg-slate-700 focus:text-white">
-                    None
+                    Ninguno
                   </SelectItem>
                   {HEADER_TYPES.map((type) => (
                     <SelectItem key={type} value={type} className="text-white focus:bg-slate-700 focus:text-white">
@@ -424,9 +425,9 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Body Text</Label>
+              <Label className="text-slate-300">Texto del cuerpo</Label>
               <Textarea
-                placeholder="Enter your template message body. Use {{1}}, {{2}} for variables."
+                placeholder="Introduce el cuerpo del mensaje de la plantilla. Usa {{1}}, {{2}} para variables."
                 value={form.body_text}
                 onChange={(e) => setForm({ ...form, body_text: e.target.value })}
                 rows={4}
@@ -435,9 +436,9 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Footer Text</Label>
+              <Label className="text-slate-300">Texto del pie</Label>
               <Input
-                placeholder="Optional footer text"
+                placeholder="Texto opcional del pie"
                 value={form.footer_text}
                 onChange={(e) => setForm({ ...form, footer_text: e.target.value })}
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
@@ -451,7 +452,7 @@ export function TemplateManager() {
               onClick={() => setDialogOpen(false)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               onClick={handleSave}
@@ -461,10 +462,10 @@ export function TemplateManager() {
               {saving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Creating...
+                  Creando...
                 </>
               ) : (
-                'Create Template'
+                'Crear plantilla'
               )}
             </Button>
           </DialogFooter>

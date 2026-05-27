@@ -16,6 +16,7 @@ import {
   COMMENT_CHANNELS,
   channelBelongsToTab,
 } from "@/components/inbox/inbox-tabs";
+import { ResizablePane } from "@/components/inbox/resizable-pane";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Plug2 } from "lucide-react";
@@ -510,7 +511,7 @@ export default function InboxPage() {
   const availableChannels = new Set<Channel>();
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   let adsUnreadCount = 0;
-  const tabCounts = { messages: 0, comments: 0, unassigned: 0 };
+  const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
     availableChannels.add(c.channel);
     const unread = c.unread_count ?? 0;
@@ -519,10 +520,6 @@ export default function InboxPage() {
     if (c.is_ad) adsUnreadCount += unread;
     if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
     else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
-    // Sin asignar tab counts conversations (not unread messages) —
-    // these are work items waiting to be claimed by someone, so a
-    // closed/silent conversation still counts until someone owns it.
-    if (!c.assigned_agent_id && c.status !== "closed") tabCounts.unassigned += 1;
   }
   // Channels that belong to the current tab — drives which chips are
   // available in the secondary filter row below the tabs.
@@ -537,12 +534,8 @@ export default function InboxPage() {
     // Tab-level filter
     if (inboxTab === "comments") {
       list = list.filter((c) => COMMENT_CHANNELS.includes(c.channel));
-    } else if (inboxTab === "messages") {
+    } else {
       list = list.filter((c) => MESSAGE_CHANNELS.includes(c.channel));
-    } else if (inboxTab === "unassigned") {
-      list = list.filter(
-        (c) => !c.assigned_agent_id && c.status !== "closed",
-      );
     }
     // Secondary filter (channel chips or Ads-only)
     if (adsFilter === "only") {
@@ -590,18 +583,24 @@ export default function InboxPage() {
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
             thread can occupy the full width. Always visible on lg+. */}
-        <div
+        <ResizablePane
+          storageKey="ui.inbox.list-width"
+          defaultWidth={320}
+          minWidth={260}
+          maxWidth={560}
           className={cn(
-            "flex h-full flex-1 flex-col border-r border-slate-800 bg-slate-900 lg:flex-none lg:w-80",
-            hasActiveConv ? "hidden lg:flex" : "flex",
+            "h-full border-r border-slate-800 bg-slate-900",
+            // Below lg the pane is full-width via the wrapping flex, so
+            // hide it entirely when a conv is open (matches existing UX).
+            hasActiveConv ? "hidden lg:block" : "block w-full lg:!w-auto",
           )}
         >
-          <InboxTabs
-            value={inboxTab}
-            onChange={handleTabChange}
-            counts={tabCounts}
-          />
-          {inboxTab !== "unassigned" && (
+          <div className="flex h-full flex-col">
+            <InboxTabs
+              value={inboxTab}
+              onChange={handleTabChange}
+              counts={tabCounts}
+            />
             <ChannelFilter
               value={channelFilter}
               onChange={setChannelFilter}
@@ -611,17 +610,17 @@ export default function InboxPage() {
               onAdsFilterChange={inboxTab === "comments" ? setAdsFilter : undefined}
               adsUnreadCount={adsUnreadCount}
             />
-          )}
-          <div className="flex-1 overflow-hidden">
-            <ConversationList
-              activeConversationId={activeConversation?.id ?? null}
-              onSelect={handleSelectConversation}
-              conversations={filteredConversations}
-              onConversationsLoaded={handleConversationsLoaded}
-              resyncToken={resyncToken}
-            />
+            <div className="flex-1 overflow-hidden">
+              <ConversationList
+                activeConversationId={activeConversation?.id ?? null}
+                onSelect={handleSelectConversation}
+                conversations={filteredConversations}
+                onConversationsLoaded={handleConversationsLoaded}
+                resyncToken={resyncToken}
+              />
+            </div>
           </div>
-        </div>
+        </ResizablePane>
 
         {/* Center panel: Message thread.
             Hidden on mobile when no conversation is selected so the

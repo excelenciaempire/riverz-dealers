@@ -23,11 +23,12 @@ export function AppearancePanel() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">Color theme</h2>
+        <h2 className="text-lg font-semibold text-white">Tema de color</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Pick the accent color used across the app. All themes stay
-          dark — only the primary color (buttons, active nav, badges)
-          changes. Saved to this device.
+          Elige el color de acento que se usa en toda la aplicación. Todos
+          los temas se mantienen oscuros — solo cambia el color principal
+          (botones, navegación activa, insignias). Se guarda en este
+          dispositivo.
         </p>
       </div>
 
@@ -68,7 +69,7 @@ function ThemeCard({
       type="button"
       onClick={onPick}
       aria-pressed={isActive}
-      aria-label={`Use ${name} theme`}
+      aria-label={`Usar el tema ${name}`}
       className={cn(
         "flex flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
         isActive
@@ -88,7 +89,7 @@ function ThemeCard({
         {isActive && (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
             <Check className="h-3 w-3" />
-            Active
+            Activo
           </span>
         )}
       </div>
@@ -107,7 +108,7 @@ function ThemeCard({
         <span className="w-3 bg-slate-800" />
         <span className="w-3 bg-slate-900" />
       </div>
-      <span className="sr-only">Theme id: {id}</span>
+      <span className="sr-only">ID del tema: {id}</span>
     </button>
   );
 }

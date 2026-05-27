@@ -2,9 +2,9 @@
 
 import type { Channel } from "@/types";
 import { cn } from "@/lib/utils";
-import { MessageSquare, MessageSquareReply, AlertCircle } from "lucide-react";
+import { MessageSquare, MessageSquareReply } from "lucide-react";
 
-export type InboxTab = "messages" | "comments" | "unassigned";
+export type InboxTab = "messages" | "comments";
 
 export const MESSAGE_CHANNELS: Channel[] = [
   "whatsapp",
@@ -17,22 +17,20 @@ export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment"];
 
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
   if (tab === "comments") return COMMENT_CHANNELS.includes(channel);
-  if (tab === "messages") return MESSAGE_CHANNELS.includes(channel);
-  // 'unassigned' is orthogonal to channel — handled by status filter
-  return true;
+  return MESSAGE_CHANNELS.includes(channel);
 }
 
 interface InboxTabsProps {
   value: InboxTab;
   onChange: (tab: InboxTab) => void;
-  counts: { messages: number; comments: number; unassigned: number };
+  counts: { messages: number; comments: number };
 }
 
 /**
- * Top-level inbox split: messages vs comments vs unassigned. Sits above
- * the channel chips so users see the right slice of the unified inbox
- * at a glance without having to enumerate every channel filter every
- * time they want to triage comments.
+ * Top-level inbox split: messages vs comments. Sits above the channel
+ * chips so users see the right slice of the unified inbox at a glance
+ * without having to enumerate every channel filter every time they
+ * want to triage comments.
  *
  * Counts shown next to each tab are unread counts within that slice.
  */
@@ -53,14 +51,6 @@ export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
         icon={<MessageSquareReply className="h-3.5 w-3.5" />}
         count={counts.comments}
       />
-      <Tab
-        active={value === "unassigned"}
-        onClick={() => onChange("unassigned")}
-        label="Sin asignar"
-        icon={<AlertCircle className="h-3.5 w-3.5" />}
-        count={counts.unassigned}
-        tone="warning"
-      />
     </div>
   );
 }
@@ -71,14 +61,12 @@ function Tab({
   label,
   icon,
   count,
-  tone = "primary",
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
   count: number;
-  tone?: "primary" | "warning";
 }) {
   return (
     <button
@@ -93,24 +81,12 @@ function Tab({
       {icon}
       <span>{label}</span>
       {count > 0 && (
-        <span
-          className={cn(
-            "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-            tone === "warning"
-              ? "bg-amber-500/20 text-amber-300"
-              : "bg-primary/20 text-primary",
-          )}
-        >
+        <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-primary">
           {count > 999 ? "999+" : count}
         </span>
       )}
       {active && (
-        <span
-          className={cn(
-            "absolute inset-x-2 bottom-0 h-0.5 rounded-t-full",
-            tone === "warning" ? "bg-amber-400" : "bg-primary",
-          )}
-        />
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-primary" />
       )}
     </button>
   );

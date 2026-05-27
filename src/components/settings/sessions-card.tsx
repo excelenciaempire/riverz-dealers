@@ -35,12 +35,12 @@ export function SessionsCard() {
       // triggers the usual redirect.
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
-        toast.error(`Sign-out failed: ${error.message}`);
+        toast.error(`No se pudo cerrar sesión: ${error.message}`);
         return;
       }
       window.location.href = '/login';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
       toast.error(msg);
     } finally {
       setSigningOut(false);
@@ -53,11 +53,12 @@ export function SessionsCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <LogOut className="size-4 text-primary" />
-            Active sessions
+            Sesiones activas
           </CardTitle>
           <CardDescription className="text-slate-400">
-            Sign out of every device where you&apos;re logged in — including
-            this one. Useful if you lost a laptop or shared your password.
+            Cierra sesión en todos los dispositivos donde tengas la sesión
+            iniciada — incluido este. Útil si perdiste un portátil o
+            compartiste tu contraseña.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,7 +68,7 @@ export function SessionsCard() {
             onClick={() => setOpen(true)}
           >
             <LogOut className="size-4" />
-            Sign out of all devices
+            Cerrar sesión en todos los dispositivos
           </Button>
         </CardContent>
       </Card>
@@ -75,11 +76,11 @@ export function SessionsCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out everywhere?</DialogTitle>
+            <DialogTitle>¿Cerrar sesión en todos los dispositivos?</DialogTitle>
             <DialogDescription>
-              Every device logged into this account will be signed out and
-              will need to log in again. You will be redirected to the login
-              page.
+              Todos los dispositivos con sesión iniciada en esta cuenta se
+              cerrarán y tendrán que iniciar sesión de nuevo. Se te
+              redirigirá a la página de inicio de sesión.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -89,16 +90,16 @@ export function SessionsCard() {
               onClick={() => setOpen(false)}
               disabled={signingOut}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button type="button" onClick={onConfirm} disabled={signingOut}>
               {signingOut ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Signing out…
+                  Cerrando sesión…
                 </>
               ) : (
-                'Sign out everywhere'
+                'Cerrar sesión en todos los dispositivos'
               )}
             </Button>
           </DialogFooter>

@@ -56,7 +56,7 @@ export default function AutomationLogsPage({
         setAutomation(autRes.data as Automation | null)
         setLogs((logRes.data ?? []) as AutomationLog[])
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load logs")
+        setError(err instanceof Error ? err.message : "No se pudieron cargar los registros")
       }
     }
     load()
@@ -67,7 +67,7 @@ export default function AutomationLogsPage({
       <div className="flex h-64 flex-col items-center justify-center gap-3">
         <p className="text-sm text-red-400">{error}</p>
         <Button variant="outline" onClick={() => router.push("/automations")}>
-          Back
+          Atrás
         </Button>
       </div>
     )
@@ -88,21 +88,21 @@ export default function AutomationLogsPage({
           type="button"
           onClick={() => router.push("/automations")}
           className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
-          aria-label="Back"
+          aria-label="Atrás"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
           <h1 className="text-2xl font-bold text-white">{automation.name}</h1>
-          <p className="mt-0.5 text-sm text-slate-400">Execution logs</p>
+          <p className="mt-0.5 text-sm text-slate-400">Registros de ejecución</p>
         </div>
       </div>
 
       {logs.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/40">
-          <p className="text-sm text-white">No executions yet</p>
+          <p className="text-sm text-white">Aún no hay ejecuciones</p>
           <p className="mt-1 text-xs text-slate-400">
-            Trigger this automation to see runs here.
+            Activa esta automatización para ver ejecuciones aquí.
           </p>
         </div>
       ) : (
@@ -127,10 +127,10 @@ export default function AutomationLogsPage({
                   <StatusBadge status={log.status} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-white">
-                      {log.contact?.name ?? log.contact?.phone ?? "Unknown contact"}
+                      {log.contact?.name ?? log.contact?.phone ?? "Contacto desconocido"}
                     </div>
                     <div className="truncate text-xs text-slate-500">
-                      {log.trigger_event} · {log.steps_executed?.length ?? 0} step
+                      {log.trigger_event} · {log.steps_executed?.length ?? 0} paso
                       {log.steps_executed?.length === 1 ? "" : "s"}
                     </div>
                   </div>
@@ -150,7 +150,7 @@ export default function AutomationLogsPage({
                         <StepRow key={i} result={r} />
                       ))}
                       {(log.steps_executed ?? []).length === 0 && (
-                        <li className="text-xs text-slate-500">No steps recorded.</li>
+                        <li className="text-xs text-slate-500">No se registraron pasos.</li>
                       )}
                     </ul>
                   </div>
@@ -171,6 +171,8 @@ function StatusBadge({ status }: { status: AutomationLog["status"] }) {
       : status === "partial"
       ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
       : "border-red-500/30 bg-red-500/10 text-red-300"
+  const label =
+    status === "success" ? "éxito" : status === "partial" ? "parcial" : "error"
   return (
     <span
       className={cn(
@@ -178,7 +180,7 @@ function StatusBadge({ status }: { status: AutomationLog["status"] }) {
         classes,
       )}
     >
-      {status}
+      {label}
     </span>
   )
 }

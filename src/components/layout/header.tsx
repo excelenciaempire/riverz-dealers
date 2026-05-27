@@ -32,16 +32,19 @@ function getPageTitle(pathname: string): string {
   const match = Object.entries(pageTitles).find(([path]) =>
     pathname.startsWith(path),
   );
-  return match ? match[1] : "Dashboard";
+  return match ? match[1] : "Panel";
 }
 
 interface HeaderProps {
-  /** Wired to the shell's drawer state. Used only on mobile — the
-   *  hamburger button is hidden on lg+. */
+  /** Wired to the shell's drawer state. Used only on mobile — opens
+   *  the slide-in drawer. */
   onOpenSidebar?: () => void;
+  /** Desktop-only — toggles the sidebar between full-width and the
+   *  collapsed icon rail. */
+  onToggleCollapsed?: () => void;
 }
 
-export function Header({ onOpenSidebar }: HeaderProps) {
+export function Header({ onOpenSidebar, onToggleCollapsed }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const title = getPageTitle(pathname);
@@ -54,15 +57,30 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950 px-4 lg:px-6">
       <div className="flex min-w-0 items-center gap-2">
-        {/* Hamburger — mobile only. 44×44 hit target per Apple HIG. */}
+        {/* Mobile hamburger — opens the slide-in drawer. 44×44 hit target. */}
         <button
           type="button"
           onClick={onOpenSidebar}
-          aria-label="Open menu"
+          aria-label="Abrir menú"
           className="flex h-10 w-10 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
+        {/* Desktop collapse toggle — mirrors the X in the expanded
+            sidebar so the user can collapse OR expand from the header
+            no matter which state it's in. Hidden on mobile where the
+            drawer is the right control. */}
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label="Alternar menú"
+            title="Alternar menú"
+            className="hidden h-9 w-9 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:flex"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         <h1 className="truncate text-base font-semibold text-white sm:text-lg">
           {title}
         </h1>
@@ -85,7 +103,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             </AvatarFallback>
           </Avatar>
           <span className="hidden text-sm font-medium text-white sm:inline">
-            {profile?.full_name ?? "User"}
+            {profile?.full_name ?? "Usuario"}
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -95,7 +113,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <div className="px-2 py-1.5">
             <p className="truncate text-sm font-medium text-white">
-              {profile?.full_name ?? "User"}
+              {profile?.full_name ?? "Usuario"}
             </p>
             <p className="truncate text-xs text-slate-400">
               {profile?.email ?? ""}

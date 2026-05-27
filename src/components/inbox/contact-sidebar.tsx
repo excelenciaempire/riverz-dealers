@@ -109,7 +109,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contact';
+  const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contacto';
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -227,7 +227,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                       {note.note_text}
                     </p>
                     <p className="mt-1 text-[10px] text-slate-600">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+                      {format(new Date(note.created_at), "d MMM yyyy HH:mm")}
                     </p>
                   </div>
                 ))}
