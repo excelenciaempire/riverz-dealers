@@ -1,6 +1,7 @@
 import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
+import { verifyMetaHandshake } from "../meta-webhook";
 
 /**
  * Instagram ad / post comments via Graph API.
@@ -80,11 +81,6 @@ export const igCommentAdapter: ChannelAdapter = {
   },
 
   async verifyWebhookHandshake(req: Request, connection: ChannelConnection): Promise<string | null> {
-    const url = new URL(req.url);
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
-    if (mode === "subscribe" && token && token === connection.webhook_secret) return challenge;
-    return null;
+    return verifyMetaHandshake(req, connection);
   },
 };
