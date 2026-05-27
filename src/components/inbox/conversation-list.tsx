@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { Search, ChevronDown } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
+import { es } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -237,11 +238,20 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-      })
-    : "";
+  // Smart timestamp — same idiom every messaging app uses: today shows
+  // a clock time, yesterday says "Ayer", this week shows the day name,
+  // older falls back to a date. Much more useful than the
+  // "about 14 hours" string that says nothing about whether it was
+  // 9am, lunch, or last night.
+  const timeAgo = (() => {
+    if (!conversation.last_message_at) return "";
+    const d = new Date(conversation.last_message_at);
+    if (isToday(d)) return format(d, "HH:mm");
+    if (isYesterday(d)) return "Ayer";
+    if (isThisWeek(d, { weekStartsOn: 1 })) return format(d, "EEE", { locale: es });
+    if (isThisYear(d)) return format(d, "d MMM", { locale: es });
+    return format(d, "d MMM yy", { locale: es });
+  })();
 
   return (
     <button

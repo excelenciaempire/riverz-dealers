@@ -905,40 +905,64 @@ export function MessageThread({
       {/* Post context banner — only for comment channels. Makes it
           immediately clear which post the conversation is about, since a
           comment thread without that context just looks like a wall of
-          replies from people the agent has never met. */}
+          replies from people the agent has never met. Adds a "Ver
+          publicación" link so the agent can jump to the post on FB/IG. */}
       {(conversation.channel === "fb_comment" ||
-        conversation.channel === "ig_comment") && (
-        <div className="flex items-start gap-2 border-b border-slate-800 bg-slate-950/70 px-3 py-2 text-xs sm:px-4">
-          <span
-            className={cn(
-              "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-              conversation.channel === "fb_comment"
-                ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
-                : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
-            )}
-          >
-            {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-slate-300">
-              {conversation.subject || "Comentario en una publicación"}
-            </p>
-            {conversation.thread_external_id && (
-              <p className="truncate text-[10px] text-slate-500">
-                ID del post: {conversation.thread_external_id}
+        conversation.channel === "ig_comment") && (() => {
+        const postId = conversation.thread_external_id ?? "";
+        // FB post_ids stored on conversations come in `<page_id>_<post_id>`
+        // form. facebook.com/<id> redirects to the post for either form,
+        // so it's safe to link with the raw id. IG doesn't have a stable
+        // url derivable from media_id; we omit the link there.
+        const postUrl =
+          conversation.channel === "fb_comment" && postId
+            ? `https://facebook.com/${postId}`
+            : null;
+        return (
+          <div className="flex items-start gap-2 border-b border-slate-800 bg-slate-950/70 px-3 py-2 text-xs sm:px-4">
+            <span
+              className={cn(
+                "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                conversation.channel === "fb_comment"
+                  ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
+                  : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
+              )}
+            >
+              {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-slate-300">
+                {conversation.subject || "Comentario en una publicación"}
               </p>
+              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500">
+                {postId && (
+                  <span className="truncate" title={postId}>
+                    ID: {postId.slice(0, 30)}
+                  </span>
+                )}
+                {postUrl && (
+                  <a
+                    href={postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-primary/80 hover:text-primary hover:underline"
+                  >
+                    Ver publicación ↗
+                  </a>
+                )}
+              </div>
+            </div>
+            {conversation.is_ad && (
+              <span
+                title="Comentario en anuncio pagado"
+                className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+              >
+                Anuncio
+              </span>
             )}
           </div>
-          {conversation.is_ad && (
-            <span
-              title="Comentario en anuncio pagado"
-              className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
-            >
-              Anuncio
-            </span>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
@@ -1014,10 +1038,16 @@ export function MessageThread({
         )}
       </div>
 
-      {/* Composer */}
+      {/* Composer — the 24h session-window check only applies to
+          WhatsApp; for every other channel the agent can reply any
+          time (comments, DMs, emails). Without this gate, fb_comment
+          threads opened a day after a comment landed showed the
+          composer in "expired" state and blocked the reply. */}
       <MessageComposer
         conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
+        sessionExpired={
+          conversation.channel === "whatsapp" && sessionInfo.expired
+        }
         onSend={handleSend}
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
