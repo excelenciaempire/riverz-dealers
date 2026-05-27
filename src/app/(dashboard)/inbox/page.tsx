@@ -9,6 +9,13 @@ import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
+import {
+  InboxTabs,
+  type InboxTab,
+  MESSAGE_CHANNELS,
+  COMMENT_CHANNELS,
+  channelBelongsToTab,
+} from "@/components/inbox/inbox-tabs";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Plug2 } from "lucide-react";
@@ -31,6 +38,7 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [channelFilter, setChannelFilter] = useState<Channel | null>(null);
   const [adsFilter, setAdsFilter] = useState<"off" | "only">("off");
+  const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
   );
@@ -497,19 +505,43 @@ export default function InboxPage() {
   const hasActiveConv = !!activeConversation;
 
   // Channel filter derived state — recomputed cheaply on every render
-  // since the conversations array is already in memory.
+  // since the conversations array is already in memory. We also count
+  // unread per top-level tab so the tabs can show their own badge.
   const availableChannels = new Set<Channel>();
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   let adsUnreadCount = 0;
+  const tabCounts = { messages: 0, comments: 0, unassigned: 0 };
   for (const c of conversations) {
     availableChannels.add(c.channel);
-    unreadByChannel.all = (unreadByChannel.all ?? 0) + (c.unread_count ?? 0);
-    unreadByChannel[c.channel] =
-      (unreadByChannel[c.channel] ?? 0) + (c.unread_count ?? 0);
-    if (c.is_ad) adsUnreadCount += c.unread_count ?? 0;
+    const unread = c.unread_count ?? 0;
+    unreadByChannel.all = (unreadByChannel.all ?? 0) + unread;
+    unreadByChannel[c.channel] = (unreadByChannel[c.channel] ?? 0) + unread;
+    if (c.is_ad) adsUnreadCount += unread;
+    if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
+    else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
+    if (!c.assigned_agent_id && c.status !== "closed") tabCounts.unassigned += unread || 1;
+  }
+  // Channels that belong to the current tab — drives which chips are
+  // available in the secondary filter row below the tabs.
+  const tabChannels: Channel[] =
+    inboxTab === "comments" ? COMMENT_CHANNELS : MESSAGE_CHANNELS;
+  const visibleAvailableChannels = new Set<Channel>();
+  for (const ch of tabChannels) {
+    if (availableChannels.has(ch)) visibleAvailableChannels.add(ch);
   }
   const filteredConversations = (() => {
     let list = conversations;
+    // Tab-level filter
+    if (inboxTab === "comments") {
+      list = list.filter((c) => COMMENT_CHANNELS.includes(c.channel));
+    } else if (inboxTab === "messages") {
+      list = list.filter((c) => MESSAGE_CHANNELS.includes(c.channel));
+    } else if (inboxTab === "unassigned") {
+      list = list.filter(
+        (c) => !c.assigned_agent_id && c.status !== "closed",
+      );
+    }
+    // Secondary filter (channel chips or Ads-only)
     if (adsFilter === "only") {
       list = list.filter((c) => c.is_ad);
     } else if (channelFilter) {
@@ -517,6 +549,22 @@ export default function InboxPage() {
     }
     return list;
   })();
+
+  // Switching tab clears any channel filter that no longer applies, so
+  // the user doesn't get an empty list because a stale chip is still
+  // restricting results.
+  const handleTabChange = useCallback(
+    (next: InboxTab) => {
+      setInboxTab(next);
+      if (channelFilter && !channelBelongsToTab(channelFilter, next)) {
+        setChannelFilter(null);
+      }
+      if (adsFilter === "only" && next !== "comments") {
+        setAdsFilter("off");
+      }
+    },
+    [channelFilter, adsFilter],
+  );
 
   return (
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
@@ -545,15 +593,22 @@ export default function InboxPage() {
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >
-          <ChannelFilter
-            value={channelFilter}
-            onChange={setChannelFilter}
-            available={availableChannels}
-            unread={unreadByChannel}
-            adsFilter={adsFilter}
-            onAdsFilterChange={setAdsFilter}
-            adsUnreadCount={adsUnreadCount}
+          <InboxTabs
+            value={inboxTab}
+            onChange={handleTabChange}
+            counts={tabCounts}
           />
+          {inboxTab !== "unassigned" && (
+            <ChannelFilter
+              value={channelFilter}
+              onChange={setChannelFilter}
+              available={visibleAvailableChannels}
+              unread={unreadByChannel}
+              adsFilter={inboxTab === "comments" ? adsFilter : "off"}
+              onAdsFilterChange={inboxTab === "comments" ? setAdsFilter : undefined}
+              adsUnreadCount={adsUnreadCount}
+            />
+          )}
           <div className="flex-1 overflow-hidden">
             <ConversationList
               activeConversationId={activeConversation?.id ?? null}

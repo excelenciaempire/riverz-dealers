@@ -114,43 +114,43 @@ const NODE_META: Record<
   NodeType,
   { label: string; icon: typeof Workflow; color: string }
 > = {
-  start: { label: "Start", icon: PlayCircle, color: "text-emerald-400" },
+  start: { label: "Inicio", icon: PlayCircle, color: "text-emerald-400" },
   send_message: {
-    label: "Send message",
+    label: "Enviar mensaje",
     icon: MessageCircle,
     color: "text-sky-400",
   },
   send_buttons: {
-    label: "Send buttons",
+    label: "Enviar botones",
     icon: ListChecks,
     color: "text-primary",
   },
   send_list: {
-    label: "Send list",
+    label: "Enviar lista",
     icon: ListPlus,
     color: "text-indigo-400",
   },
   collect_input: {
-    label: "Collect input",
+    label: "Capturar entrada",
     icon: Inbox,
     color: "text-teal-400",
   },
   condition: {
-    label: "If / else",
+    label: "Si / si no",
     icon: GitFork,
     color: "text-fuchsia-400",
   },
   set_tag: {
-    label: "Tag contact",
+    label: "Etiquetar contacto",
     icon: Tag,
     color: "text-pink-400",
   },
   handoff: {
-    label: "Handoff to agent",
+    label: "Transferir a un agente",
     icon: UserPlus,
     color: "text-amber-400",
   },
-  end: { label: "End", icon: Flag, color: "text-slate-400" },
+  end: { label: "Fin", icon: Flag, color: "text-slate-400" },
 };
 
 // ============================================================
@@ -218,11 +218,11 @@ function summarizeNode(node: BuilderNode): string | null {
       }, 0);
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${rowCount} option${rowCount === 1 ? "" : "s"}`
+          ? `${truncate(text, 50)} · ${rowCount} opción${rowCount === 1 ? "" : "es"}`
           : truncate(text);
       }
       return rowCount > 0
-        ? `${rowCount} option${rowCount === 1 ? "" : "s"} across ${sections.length} section${sections.length === 1 ? "" : "s"}`
+        ? `${rowCount} opción${rowCount === 1 ? "" : "es"} en ${sections.length} sección${sections.length === 1 ? "" : "es"}`
         : null;
     }
     case "collect_input": {
@@ -244,16 +244,16 @@ function summarizeNode(node: BuilderNode): string | null {
             ? "field"
             : "var";
       const subjectStr =
-        subject === "tag" ? `has tag ${truncate(subjectKey, 24)}` : `${subject}.${subjectKey}`;
+        subject === "tag" ? `tiene etiqueta ${truncate(subjectKey, 24)}` : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === "equals"
           ? "=="
           : cfg.operator === "contains"
-            ? "contains"
+            ? "contiene"
             : cfg.operator === "present"
-              ? "exists"
+              ? "existe"
               : cfg.operator === "absent"
-                ? "missing"
+                ? "no existe"
                 : "";
       const value = typeof cfg.value === "string" ? cfg.value : "";
       const valStr =

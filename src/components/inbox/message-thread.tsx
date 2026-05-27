@@ -672,19 +672,52 @@ export function MessageThread({
 
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
-  // pattern under the user's eye.
+  // pattern under the user's eye. Pitched as a quick orientation card
+  // so a fresh user knows what each tab is for instead of staring at an
+  // icon and a one-liner.
   if (!conversation || !contact) {
     return (
-      <div className={cn("flex flex-1 flex-col items-center justify-center", DOODLE_BG_CLASSES)}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
-          <MessageSquare className="h-8 w-8 text-slate-600" />
+      <div
+        className={cn(
+          "flex flex-1 flex-col items-center justify-center px-6 py-8",
+          DOODLE_BG_CLASSES,
+        )}
+      >
+        <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 backdrop-blur">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-primary/30">
+            <MessageSquare className="h-6 w-6 text-primary" />
+          </div>
+          <h3 className="mt-4 text-base font-semibold text-white">
+            Bandeja unificada
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Elige una conversación de la izquierda para empezar. Todo tu equipo
+            ve y responde desde la misma bandeja, sin importar el canal.
+          </p>
+          <ul className="mt-4 space-y-1.5 text-xs text-slate-400">
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span>
+                <strong className="text-slate-200">Mensajes</strong> — WhatsApp, IG,
+                Messenger, Gmail, Outlook
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+              <span>
+                <strong className="text-slate-200">Comentarios</strong> — FB e IG, modera
+                desde aquí
+              </span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              <span>
+                <strong className="text-slate-200">Sin asignar</strong> — pendientes que
+                nadie ha tomado
+              </span>
+            </li>
+          </ul>
         </div>
-        <h3 className="mt-4 text-sm font-medium text-slate-400">
-          Selecciona una conversación
-        </h3>
-        <p className="mt-1 text-xs text-slate-600">
-          Elige una conversación de la izquierda para empezar a chatear
-        </p>
       </div>
     );
   }
@@ -843,6 +876,44 @@ export function MessageThread({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Post context banner — only for comment channels. Makes it
+          immediately clear which post the conversation is about, since a
+          comment thread without that context just looks like a wall of
+          replies from people the agent has never met. */}
+      {(conversation.channel === "fb_comment" ||
+        conversation.channel === "ig_comment") && (
+        <div className="flex items-start gap-2 border-b border-slate-800 bg-slate-950/70 px-3 py-2 text-xs sm:px-4">
+          <span
+            className={cn(
+              "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+              conversation.channel === "fb_comment"
+                ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
+                : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
+            )}
+          >
+            {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-slate-300">
+              {conversation.subject || "Comentario en una publicación"}
+            </p>
+            {conversation.thread_external_id && (
+              <p className="truncate text-[10px] text-slate-500">
+                ID del post: {conversation.thread_external_id}
+              </p>
+            )}
+          </div>
+          {conversation.is_ad && (
+            <span
+              title="Comentario en anuncio pagado"
+              className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+            >
+              Anuncio
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">

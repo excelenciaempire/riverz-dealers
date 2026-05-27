@@ -103,7 +103,7 @@ export default function ContactsPage() {
     const { data, count, error } = await query;
 
     if (error) {
-      toast.error('Failed to load contacts');
+      toast.error('No se pudieron cargar los contactos');
       setLoading(false);
       return;
     }
@@ -190,9 +190,9 @@ export default function ContactsPage() {
       .eq('id', deleteTarget.id);
 
     if (error) {
-      toast.error('Failed to delete contact');
+      toast.error('No se pudo eliminar el contacto');
     } else {
-      toast.success('Contact deleted');
+      toast.success('Contacto eliminado');
       fetchContacts();
     }
 
@@ -210,9 +210,9 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Contacts</h1>
+          <h1 className="text-2xl font-bold text-white">Contactos</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
+            Gestiona tu lista de contactos. {totalCount > 0 && `${totalCount} contactos en total.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -222,14 +222,14 @@ export default function ContactsPage() {
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
           >
             <Upload className="size-4" />
-            Import
+            Importar
           </Button>
           <Button
             onClick={openAddForm}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />
-            Add Contact
+            Añadir contacto
           </Button>
         </div>
       </div>
@@ -245,7 +245,7 @@ export default function ContactsPage() {
             // set shrinks/grows, page N may no longer be valid.
             setPage(0);
           }}
-          placeholder="Search by name, phone, or email..."
+          placeholder="Busca por nombre, teléfono o correo..."
           className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
         />
       </div>
@@ -255,12 +255,12 @@ export default function ContactsPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-slate-400">Name</TableHead>
-              <TableHead className="text-slate-400">Phone</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Tags</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Created</TableHead>
+              <TableHead className="text-slate-400">Nombre</TableHead>
+              <TableHead className="text-slate-400">Teléfono</TableHead>
+              <TableHead className="text-slate-400 hidden md:table-cell">Correo</TableHead>
+              <TableHead className="text-slate-400 hidden lg:table-cell">Empresa</TableHead>
+              <TableHead className="text-slate-400 hidden md:table-cell">Etiquetas</TableHead>
+              <TableHead className="text-slate-400 hidden lg:table-cell">Creado</TableHead>
               <TableHead className="text-slate-400 w-12" />
             </TableRow>
           </TableHeader>
@@ -270,7 +270,7 @@ export default function ContactsPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-primary" />
-                    <p className="text-sm text-slate-500">Loading contacts...</p>
+                    <p className="text-sm text-slate-500">Cargando contactos...</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -280,7 +280,7 @@ export default function ContactsPage() {
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
-                      {search ? 'No contacts match your search.' : 'No contacts yet.'}
+                      {search ? 'No hay contactos que coincidan con tu búsqueda.' : 'Aún no hay contactos.'}
                     </p>
                     {!search && (
                       <Button
@@ -290,7 +290,7 @@ export default function ContactsPage() {
                         className="mt-2 border-slate-700 text-slate-300 hover:bg-slate-800"
                       >
                         <Plus className="size-3.5" />
-                        Add your first contact
+                        Añade tu primer contacto
                       </Button>
                     )}
                   </div>
@@ -304,7 +304,7 @@ export default function ContactsPage() {
                   onClick={() => openDetail(contact.id)}
                 >
                   <TableCell className="text-white font-medium">
-                    {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
+                    {contact.name || <span className="text-slate-500 italic">Sin nombre</span>}
                   </TableCell>
                   <TableCell className="text-slate-300 font-mono text-xs">
                     {contact.phone}
@@ -341,7 +341,7 @@ export default function ContactsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-slate-500 text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('en-US', {
+                    {new Date(contact.created_at).toLocaleDateString('es-ES', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -373,7 +373,7 @@ export default function ContactsPage() {
                           className="text-slate-300 focus:bg-slate-800 focus:text-white"
                         >
                           <Pencil className="size-4" />
-                          Edit
+                          Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="bg-slate-700" />
                         <DropdownMenuItem
@@ -384,7 +384,7 @@ export default function ContactsPage() {
                           }}
                         >
                           <Trash2 className="size-4" />
-                          Delete
+                          Eliminar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -400,7 +400,7 @@ export default function ContactsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
-            Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} of{' '}
+            Mostrando {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} de{' '}
             {totalCount}
           </p>
           <div className="flex items-center gap-1">
@@ -414,7 +414,7 @@ export default function ContactsPage() {
               <ChevronLeft className="size-4" />
             </Button>
             <span className="text-xs text-slate-400 px-2">
-              Page {page + 1} of {totalPages}
+              Página {page + 1} de {totalPages}
             </span>
             <Button
               variant="outline"
@@ -460,13 +460,13 @@ export default function ContactsPage() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-white">Delete Contact</DialogTitle>
+            <DialogTitle className="text-white">Eliminar contacto</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Are you sure you want to delete{' '}
+              ¿Seguro que quieres eliminar a{' '}
               <span className="text-slate-200 font-medium">
                 {deleteTarget?.name || deleteTarget?.phone}
               </span>
-              ? This action cannot be undone.
+              ? Esta acción no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="bg-slate-900 border-slate-700">
@@ -475,7 +475,7 @@ export default function ContactsPage() {
               onClick={() => setDeleteConfirmOpen(false)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               variant="destructive"
@@ -483,7 +483,7 @@ export default function ContactsPage() {
               disabled={deleting}
             >
               {deleting && <Loader2 className="size-4 animate-spin" />}
-              Delete
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>

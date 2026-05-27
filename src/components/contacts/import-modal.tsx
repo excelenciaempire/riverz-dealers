@@ -109,7 +109,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     const rows = parseCSV(text);
 
     if (rows.length === 0) {
-      toast.error('No valid rows found. Ensure CSV has a "phone" column header.');
+      toast.error('No se encontraron filas válidas. Asegúrate de que el CSV tenga una columna "phone".');
       setParsedRows([]);
       return;
     }
@@ -126,7 +126,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error('No autenticado');
 
       let imported = 0;
       let failed = 0;
@@ -165,14 +165,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
       setResult({ imported, failed });
       if (imported > 0) {
-        toast.success(`${imported} contact${imported !== 1 ? 's' : ''} imported`);
+        toast.success(`${imported} contacto${imported !== 1 ? 's' : ''} importado${imported !== 1 ? 's' : ''}`);
         onImported();
       }
       if (failed > 0) {
-        toast.error(`${failed} contact${failed !== 1 ? 's' : ''} failed to import`);
+        toast.error(`No se pudo importar ${failed} contacto${failed !== 1 ? 's' : ''}`);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Import failed';
+      const message = err instanceof Error ? err.message : 'Falló la importación';
       toast.error(message);
     } finally {
       setImporting(false);
@@ -185,9 +185,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-white">Import Contacts</DialogTitle>
+          <DialogTitle className="text-white">Importar contactos</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
+            Sube un archivo CSV con una columna &quot;phone&quot; (obligatoria). Columnas opcionales:
             name, email, company.
           </DialogDescription>
         </DialogHeader>
@@ -203,17 +203,17 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                 <FileText className="size-8 text-primary" />
                 <p className="text-sm text-slate-300">{file.name}</p>
                 <p className="text-xs text-slate-500">
-                  {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} detected
+                  {parsedRows.length} fila{parsedRows.length !== 1 ? 's' : ''} detectada{parsedRows.length !== 1 ? 's' : ''}
                 </p>
               </>
             ) : (
               <>
                 <Upload className="size-8 text-slate-500" />
                 <p className="text-sm text-slate-400">
-                  Click to upload CSV file
+                  Haz clic para subir un archivo CSV
                 </p>
                 <p className="text-xs text-slate-500">
-                  CSV with &quot;phone&quot; column required
+                  Se requiere CSV con columna &quot;phone&quot;
                 </p>
               </>
             )}
@@ -231,16 +231,16 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {preview.length > 0 && !result && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Preview (first {preview.length} rows)
+                Vista previa (primeras {preview.length} filas)
               </p>
               <div className="rounded-lg border border-slate-700 overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-slate-800">
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Phone</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Email</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Company</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Teléfono</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Nombre</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Correo</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Empresa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -257,7 +257,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               </div>
               {parsedRows.length > 5 && (
                 <p className="text-xs text-slate-500">
-                  ...and {parsedRows.length - 5} more rows
+                  ...y {parsedRows.length - 5} filas más
                 </p>
               )}
             </div>
@@ -266,18 +266,18 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {/* Results */}
           {result && (
             <div className="rounded-lg border border-slate-700 p-4 space-y-2">
-              <p className="text-sm font-medium text-white">Import Complete</p>
+              <p className="text-sm font-medium text-white">Importación completada</p>
               <div className="flex items-center gap-4">
                 {result.imported > 0 && (
                   <div className="flex items-center gap-1.5 text-primary text-sm">
                     <CheckCircle className="size-4" />
-                    {result.imported} imported
+                    {result.imported} importado{result.imported !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.failed > 0 && (
                   <div className="flex items-center gap-1.5 text-red-400 text-sm">
                     <XCircle className="size-4" />
-                    {result.failed} failed
+                    {result.failed} con error
                   </div>
                 )}
               </div>
@@ -292,7 +292,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
             onClick={() => handleOpenChange(false)}
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
           >
-            {result ? 'Close' : 'Cancel'}
+            {result ? 'Cerrar' : 'Cancelar'}
           </Button>
           {!result && (
             <Button
@@ -302,7 +302,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {importing && <Loader2 className="size-4 animate-spin" />}
-              Import {parsedRows.length > 0 ? `${parsedRows.length} Contacts` : ''}
+              Importar {parsedRows.length > 0 ? `${parsedRows.length} contacto${parsedRows.length !== 1 ? 's' : ''}` : ''}
             </Button>
           )}
         </DialogFooter>

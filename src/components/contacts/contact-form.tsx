@@ -79,7 +79,7 @@ export function ContactForm({
     e.preventDefault();
 
     if (!phone.trim()) {
-      toast.error('Phone number is required');
+      toast.error('El número de teléfono es obligatorio');
       return;
     }
 
@@ -90,7 +90,7 @@ export function ContactForm({
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error('No autenticado');
 
       let contactId = contact?.id;
 
@@ -141,11 +141,11 @@ export function ContactForm({
         }
       }
 
-      toast.success(isEdit ? 'Contact updated' : 'Contact created');
+      toast.success(isEdit ? 'Contacto actualizado' : 'Contacto creado');
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save contact';
+      const message = err instanceof Error ? err.message : 'No se pudo guardar el contacto';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -157,82 +157,82 @@ export function ContactForm({
       <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">
-            {isEdit ? 'Edit Contact' : 'Add Contact'}
+            {isEdit ? 'Editar contacto' : 'Añadir contacto'}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
             {isEdit
-              ? 'Update the contact details below.'
-              : 'Fill in the details to create a new contact.'}
+              ? 'Actualiza los datos del contacto.'
+              : 'Rellena los datos para crear un nuevo contacto.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cf-name" className="text-slate-300">
-              Name
+              Nombre
             </Label>
             <Input
               id="cf-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
+              placeholder="Juan Pérez"
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-slate-300">
-              Phone <span className="text-red-400">*</span>
+              Teléfono <span className="text-red-400">*</span>
             </Label>
             <Input
               id="cf-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 234 567 8900"
+              placeholder="+57 300 123 4567"
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
             <p className="text-xs text-slate-500">
-              Include country code, e.g. +1 for US
+              Incluye el código de país, p. ej. +57 para Colombia
             </p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="cf-email" className="text-slate-300">
-              Email
+              Correo
             </Label>
             <Input
               id="cf-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="john@example.com"
+              placeholder="juan@correo.com"
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="cf-company" className="text-slate-300">
-              Company
+              Empresa
             </Label>
             <Input
               id="cf-company"
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme Inc."
+              placeholder="Acme S.A."
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300">Tags</Label>
+            <Label className="text-slate-300">Etiquetas</Label>
             {loadingTags ? (
               <div className="flex items-center gap-2 text-slate-500 text-sm">
                 <Loader2 className="size-3 animate-spin" />
-                Loading tags...
+                Cargando etiquetas...
               </div>
             ) : tags.length === 0 ? (
               <p className="text-xs text-slate-500">
-                No tags available. Create tags in Settings.
+                No hay etiquetas disponibles. Créalas en Ajustes.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -269,7 +269,7 @@ export function ContactForm({
               onClick={() => onOpenChange(false)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="submit"
@@ -277,7 +277,7 @@ export function ContactForm({
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
-              {isEdit ? 'Update' : 'Create'}
+              {isEdit ? 'Actualizar' : 'Crear'}
             </Button>
           </DialogFooter>
         </form>
