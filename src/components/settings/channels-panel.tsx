@@ -12,6 +12,8 @@ import {
   Sparkles,
   Copy,
   ExternalLink,
+  KeyRound,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -37,11 +39,17 @@ interface ProviderStatus {
   siteUrl: string;
 }
 
+type ManualChannel = Extract<
+  Channel,
+  "whatsapp" | "messenger" | "instagram" | "fb_comment" | "ig_comment"
+>;
+
 export function ChannelsPanel() {
   const { workspace, isAdmin, loading } = useWorkspace();
   const [connections, setConnections] = useState<ChannelConnection[]>([]);
   const [busy, setBusy] = useState(false);
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
+  const [manualOpen, setManualOpen] = useState<ManualChannel | null>(null);
 
   useEffect(() => {
     fetch("/api/connections/status")
@@ -253,6 +261,18 @@ export function ChannelsPanel() {
         )}
       </div>
 
+      {manualOpen && workspace && (
+        <ManualTokenModal
+          channel={manualOpen}
+          workspaceId={workspace.id}
+          onClose={() => setManualOpen(null)}
+          onSaved={async () => {
+            setManualOpen(null);
+            await fetchConnections();
+          }}
+        />
+      )}
+
       {/* Grid de canales */}
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {channels.map((d) => {
@@ -324,43 +344,60 @@ export function ChannelsPanel() {
               {/* CTA */}
               {isAdmin && (() => {
                 const ready = isProviderReady(d.channel);
+                const isMeta =
+                  d.channel === "whatsapp" ||
+                  d.channel === "messenger" ||
+                  d.channel === "instagram" ||
+                  d.channel === "fb_comment" ||
+                  d.channel === "ig_comment";
                 return (
-                  <button
-                    onClick={() => {
-                      if (!ready) {
-                        toast.error(
-                          d.channel === "gmail"
-                            ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
-                            : d.channel === "outlook"
-                              ? "Configura Microsoft Azure App primero (ver banner amarillo)"
-                              : "Configura la Meta App primero (ver banner amarillo)",
-                        );
-                        return;
-                      }
-                      handleConnect(d.channel);
-                    }}
-                    disabled={busy}
-                    className={cn(
-                      "mt-auto flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      !ready
-                        ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
-                        : anyConnected
-                          ? "border border-slate-700 bg-slate-800/50 text-slate-200 hover:bg-slate-800"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90",
+                  <div className="mt-auto space-y-1.5">
+                    <button
+                      onClick={() => {
+                        if (!ready) {
+                          toast.error(
+                            d.channel === "gmail"
+                              ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
+                              : d.channel === "outlook"
+                                ? "Configura Microsoft Azure App primero (ver banner amarillo)"
+                                : "Configura la Meta App primero (ver banner amarillo)",
+                          );
+                          return;
+                        }
+                        handleConnect(d.channel);
+                      }}
+                      disabled={busy}
+                      className={cn(
+                        "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        !ready
+                          ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+                          : anyConnected
+                            ? "border border-slate-700 bg-slate-800/50 text-slate-200 hover:bg-slate-800"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90",
+                      )}
+                    >
+                      {!ready ? (
+                        <>
+                          <AlertCircle className="size-4" />
+                          Configura el proveedor
+                        </>
+                      ) : (
+                        <>
+                          <ChannelLogo channel={d.channel} size={16} />
+                          {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+                        </>
+                      )}
+                    </button>
+                    {isMeta && (
+                      <button
+                        onClick={() => setManualOpen(d.channel as ManualChannel)}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] text-slate-400 transition-colors hover:bg-slate-800/70 hover:text-slate-200"
+                      >
+                        <KeyRound className="size-3" />
+                        Pegar token manualmente
+                      </button>
                     )}
-                  >
-                    {!ready ? (
-                      <>
-                        <AlertCircle className="size-4" />
-                        Configura el proveedor
-                      </>
-                    ) : (
-                      <>
-                        <ChannelLogo channel={d.channel} size={16} />
-                        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
-                      </>
-                    )}
-                  </button>
+                  </div>
                 );
               })()}
             </li>
@@ -377,6 +414,169 @@ function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
   if (status === "error") return <AlertCircle className={cn(classes, "text-red-400")} />;
   if (status === "pending") return <Loader2 className={cn(classes, "animate-spin text-amber-400")} />;
   return <XCircle className={cn(classes, "text-slate-500")} />;
+}
+
+const MANUAL_HINT: Record<ManualChannel, { label: string; tip: string }> = {
+  whatsapp: {
+    label: "WhatsApp",
+    tip: "Pega un System User Token con whatsapp_business_messaging + whatsapp_business_management. Necesitas además el phone_number_id y waba_id.",
+  },
+  messenger: {
+    label: "Facebook Messenger",
+    tip: "Pega un Page Access Token de la página (Business Settings → System Users → Generar identificador con permiso pages_messaging + pages_show_list).",
+  },
+  instagram: {
+    label: "Instagram DMs",
+    tip: "Pega el Page Access Token de la página que tiene la cuenta IG Profesional vinculada. Necesita permisos instagram_basic + instagram_manage_messages.",
+  },
+  fb_comment: {
+    label: "Comentarios FB",
+    tip: "Pega el Page Access Token con permisos pages_read_engagement + pages_manage_engagement.",
+  },
+  ig_comment: {
+    label: "Comentarios IG",
+    tip: "Pega el Page Access Token de la página que gestiona la cuenta IG con instagram_manage_comments.",
+  },
+};
+
+function ManualTokenModal({
+  channel,
+  workspaceId,
+  onClose,
+  onSaved,
+}: {
+  channel: ManualChannel;
+  workspaceId: string;
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+}) {
+  const meta = MANUAL_HINT[channel];
+  const [token, setToken] = useState("");
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [wabaId, setWabaId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!token.trim()) {
+      toast.error("Pega un token");
+      return;
+    }
+    if (channel === "whatsapp" && (!phoneNumberId.trim() || !wabaId.trim())) {
+      toast.error("WhatsApp necesita phone_number_id y waba_id");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/connections/meta/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          channel,
+          token: token.trim(),
+          workspace_id: workspaceId,
+          phone_number_id: phoneNumberId.trim() || undefined,
+          waba_id: wabaId.trim() || undefined,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; label?: string };
+      if (!res.ok) {
+        toast.error(json.error ?? "No se pudo guardar el token");
+        return;
+      }
+      toast.success(`Conectado: ${json.label ?? channel}`);
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-white">
+              Conectar {meta.label} con token
+            </h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{meta.tip}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="-mr-1 -mt-1 rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="block text-[11px] font-medium text-slate-300">
+              Access token
+            </span>
+            <textarea
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="EAA..."
+              rows={4}
+              className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+            />
+          </label>
+          {channel === "whatsapp" && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="block text-[11px] font-medium text-slate-300">
+                  phone_number_id
+                </span>
+                <input
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  placeholder="1166510229869969"
+                  className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[11px] font-medium text-slate-300">
+                  waba_id
+                </span>
+                <input
+                  value={wabaId}
+                  onChange={(e) => setWabaId(e.target.value)}
+                  placeholder="2771752166515024"
+                  className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3 animate-spin" />}
+            Guardar y conectar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function providerForChannel(channel: Channel): string {
