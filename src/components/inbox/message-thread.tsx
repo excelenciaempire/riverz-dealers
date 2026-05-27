@@ -23,6 +23,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
+import { useTimezone } from "@/hooks/use-timezone";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -94,19 +96,22 @@ interface MessageThreadProps {
   onRefresh?: () => void;
 }
 
-function formatDateSeparator(dateStr: string): string {
-  const date = new Date(dateStr);
-  if (isToday(date)) return "Hoy";
-  if (isYesterday(date)) return "Ayer";
-  return format(date, "d 'de' MMMM 'de' yyyy");
+function formatDateSeparator(dateStr: string, tz: string): string {
+  const utc = new Date(dateStr);
+  const zoned = toZonedTime(utc, tz);
+  if (isToday(zoned)) return "Hoy";
+  if (isYesterday(zoned)) return "Ayer";
+  return formatInTimeZone(utc, tz, "d 'de' MMMM 'de' yyyy");
 }
 
-function groupMessagesByDate(messages: Message[]) {
+function groupMessagesByDate(messages: Message[], tz: string) {
   const groups: { date: string; messages: Message[] }[] = [];
   let currentDate = "";
 
   for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
+    // Day key has to be computed in the user's tz, otherwise a message
+    // sent at 23:30 local would land in the next day's group.
+    const day = formatInTimeZone(new Date(msg.created_at), tz, "yyyy-MM-dd");
     if (day !== currentDate) {
       currentDate = day;
       groups.push({ date: msg.created_at, messages: [msg] });
@@ -151,6 +156,7 @@ export function MessageThread({
   onRefresh,
 }: MessageThreadProps) {
   const { user } = useAuth();
+  const tz = useTimezone();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -729,7 +735,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contacto';
-  const messageGroups = groupMessagesByDate(messages);
+  const messageGroups = groupMessagesByDate(messages, tz);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -984,7 +990,7 @@ export function MessageThread({
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
                   <span className="rounded-full bg-slate-800 px-3 py-1 text-[10px] font-medium text-slate-400">
-                    {formatDateSeparator(group.date)}
+                    {formatDateSeparator(group.date, tz)}
                   </span>
                 </div>
                 {/* Messages */}

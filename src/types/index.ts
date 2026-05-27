@@ -65,6 +65,8 @@ export interface Profile {
   avatar_url?: string;
   role: string;
   beta_features?: string[];
+  /** IANA timezone (e.g. "America/Bogota"). Drives every format() in the inbox. */
+  timezone?: string;
   created_at: string;
 }
 

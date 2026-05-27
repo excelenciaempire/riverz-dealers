@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { Search, ChevronDown } from "lucide-react";
-import { format, isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
+import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { es } from "date-fns/locale";
+import { useTimezone } from "@/hooks/use-timezone";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -55,6 +57,7 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationStatus | "all">("all");
   const [loading, setLoading] = useState(true);
+  const tz = useTimezone();
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -209,6 +212,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                tz={tz}
               />
             ))}
           </div>
@@ -222,12 +226,14 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  tz: string;
 }
 
 function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  tz,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName =
@@ -238,19 +244,22 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  // Smart timestamp — same idiom every messaging app uses: today shows
-  // a clock time, yesterday says "Ayer", this week shows the day name,
-  // older falls back to a date. Much more useful than the
-  // "about 14 hours" string that says nothing about whether it was
-  // 9am, lunch, or last night.
+  // Smart timestamp — same idiom every messaging app uses, formatted
+  // in the user's IANA timezone so 14:32 means 14:32 *for them*, not
+  // for the server. isToday / isYesterday compare against the local
+  // calendar day via toZonedTime so a message sent at 23:30 doesn't
+  // jump to "Ayer" just because UTC ticked over.
   const timeAgo = (() => {
     if (!conversation.last_message_at) return "";
-    const d = new Date(conversation.last_message_at);
-    if (isToday(d)) return format(d, "HH:mm");
-    if (isYesterday(d)) return "Ayer";
-    if (isThisWeek(d, { weekStartsOn: 1 })) return format(d, "EEE", { locale: es });
-    if (isThisYear(d)) return format(d, "d MMM", { locale: es });
-    return format(d, "d MMM yy", { locale: es });
+    const utc = new Date(conversation.last_message_at);
+    const zoned = toZonedTime(utc, tz);
+    if (isToday(zoned)) return formatInTimeZone(utc, tz, "HH:mm");
+    if (isYesterday(zoned)) return "Ayer";
+    if (isThisWeek(zoned, { weekStartsOn: 1 }))
+      return formatInTimeZone(utc, tz, "EEE", { locale: es });
+    if (isThisYear(zoned))
+      return formatInTimeZone(utc, tz, "d MMM", { locale: es });
+    return formatInTimeZone(utc, tz, "d MMM yy", { locale: es });
   })();
 
   return (
