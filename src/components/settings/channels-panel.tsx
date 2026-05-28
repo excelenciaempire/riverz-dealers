@@ -44,7 +44,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     key: "whatsapp",
     label: "WhatsApp",
     description:
-      "Mensajes 1-a-1 con tus clientes. Necesita un número dedicado a la Cloud API (no uno en uso en la app de WhatsApp del celular).",
+      "Mensajes 1-a-1 con tus clientes. Funciona con Cloud API (número dedicado), WhatsApp Business y coexistencia.",
     logoChannel: "whatsapp",
     members: ["whatsapp"],
     connectChannel: "whatsapp",

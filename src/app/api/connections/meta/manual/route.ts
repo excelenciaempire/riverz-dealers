@@ -241,12 +241,11 @@ async function connectWhatsApp(
   if (!args.phone_number_id || !args.waba_id) {
     throw new Error("WhatsApp manual connect needs phone_number_id and waba_id");
   }
-  // Probe the phone number to confirm the token has access AND that the
-  // number can actually receive in our CRM. A number that is on the
-  // WhatsApp Business mobile app (is_on_biz_app = Coexistence) routes
-  // inbound messages to whatever provider holds its coexistence link —
-  // not to us — so connecting it would look "connected" while never
-  // receiving. We reject it up front with a clear explanation instead.
+  // Probe the phone number to confirm the token has access. We also read
+  // is_on_biz_app (Coexistence) for informational purposes — Business
+  // App / coexistence numbers are allowed; if a number turns out not to
+  // deliver inbound, that surfaces as a connection warning rather than a
+  // hard block here.
   const probe = await fetch(
     `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(args.token)}`,
   );
@@ -259,13 +258,6 @@ async function connectWhatsApp(
     is_on_biz_app?: boolean;
     platform_type?: string;
   };
-  if (phone.is_on_biz_app) {
-    throw new Error(
-      "Este número está en Coexistencia con la app de WhatsApp Business (u otro proveedor), " +
-        "así que NO puede recibir mensajes en la bandeja. Usá un número dedicado a Cloud API " +
-        "(uno que no se use en la app del celular).",
-    );
-  }
 
   const label = phone.verified_name
     ? `${phone.verified_name} (${phone.display_phone_number ?? ""})`.trim()
