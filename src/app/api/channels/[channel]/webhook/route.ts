@@ -75,6 +75,18 @@ export async function POST(
     return NextResponse.json({ error: "unknown channel" }, { status: 404 });
   }
 
+  // Microsoft Graph validates a new subscription by POSTing to the
+  // notification URL with a `validationToken` query param and expects
+  // the decoded token echoed back as text/plain within 10s. This must
+  // run before any body parsing — the validation POST has no JSON body.
+  const validationToken = new URL(req.url).searchParams.get("validationToken");
+  if (validationToken) {
+    return new Response(validationToken, {
+      status: 200,
+      headers: { "content-type": "text/plain" },
+    });
+  }
+
   // Meta delivers ONE webhook per object: page → messaging + feed (DMs +
   // FB comments), instagram → messaging + comments (DMs + IG comments).
   // Run every related adapter so a single delivery hits both the DM

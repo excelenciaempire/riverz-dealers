@@ -5,6 +5,7 @@ import { baseUrl, decodeState, loadProvider, type ProviderName } from "@/lib/cha
 import { encrypt } from "@/lib/channels/encryption";
 import { discoverMetaAccounts, subscribePageToWebhooks } from "@/lib/channels/meta-graph";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
+import { startOutlookWatch } from "@/lib/channels/outlook/watch";
 import type { Channel, ChannelConnection } from "@/types";
 
 const VALID: ProviderName[] = ["meta", "google", "microsoft"];
@@ -237,7 +238,10 @@ export async function GET(
       label: label ?? channelLabel(channel),
       status: "connected",
       external_account_id: externalAccountId,
-      config: channel === "gmail" ? { email: label ?? externalAccountId } : {},
+      config:
+        channel === "gmail" || channel === "outlook"
+          ? { email: label ?? externalAccountId }
+          : {},
       secrets,
       created_by: user.id,
     })
@@ -261,6 +265,21 @@ export async function GET(
       }
     } catch (err) {
       console.warn(`[oauth/gmail] watch arming threw:`, err);
+    }
+  }
+
+  // Outlook: arm the Graph push subscription right away so mail flows
+  // in real time from the moment of connect. Best-effort — the 5-min
+  // poll cron and the renew cron both cover a missed/failed arm.
+  if (channel === "outlook" && inserted) {
+    try {
+      const notificationUrl = `${baseUrl(req)}/api/channels/outlook/webhook`;
+      const r = await startOutlookWatch(admin, inserted as ChannelConnection, notificationUrl);
+      if (r.error) {
+        console.warn(`[oauth/outlook] watch arming failed: ${r.error}`);
+      }
+    } catch (err) {
+      console.warn(`[oauth/outlook] watch arming threw:`, err);
     }
   }
 
