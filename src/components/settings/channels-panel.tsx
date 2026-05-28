@@ -44,7 +44,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     key: "whatsapp",
     label: "WhatsApp",
     description:
-      "Mensajes 1-a-1 con tus clientes. Funciona con Coexistencia (QR) o número nuevo.",
+      "Mensajes 1-a-1 con tus clientes. Necesita un número dedicado a la Cloud API (no uno en uso en la app de WhatsApp del celular).",
     logoChannel: "whatsapp",
     members: ["whatsapp"],
     connectChannel: "whatsapp",
@@ -378,34 +378,45 @@ export function ChannelsPanel() {
                     const primary =
                       conns.find((c) => c.status === "connected") ?? conns[0];
                     const ids = conns.map((c) => c.id);
+                    const errText =
+                      primary.status === "error"
+                        ? (primary as ChannelConnection & { last_error?: string }).last_error
+                        : null;
                     return (
                       <li
                         key={primary.id}
-                        className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50"
+                        className="rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50"
                       >
-                        <StatusIcon status={primary.status} />
-                        <span className="flex-1 truncate text-xs text-foreground">
-                          {primary.label ?? primary.external_account_id ?? "Sin etiqueta"}
-                        </span>
-                        {isAdmin && (
-                          <>
-                            {primary.status === "connected" && (
+                        <div className="flex items-center gap-2">
+                          <StatusIcon status={primary.status} />
+                          <span className="flex-1 truncate text-xs text-foreground">
+                            {primary.label ?? primary.external_account_id ?? "Sin etiqueta"}
+                          </span>
+                          {isAdmin && (
+                            <>
+                              {primary.status === "connected" && (
+                                <button
+                                  onClick={() => ids.forEach((id) => handleDisconnect(id))}
+                                  title="Desconectar"
+                                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+                                >
+                                  <RefreshCcw className="size-3.5" />
+                                </button>
+                              )}
                               <button
-                                onClick={() => ids.forEach((id) => handleDisconnect(id))}
-                                title="Desconectar"
-                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+                                onClick={() => ids.forEach((id) => handleDelete(id))}
+                                title="Eliminar"
+                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
                               >
-                                <RefreshCcw className="size-3.5" />
+                                <Trash2 className="size-3.5" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => ids.forEach((id) => handleDelete(id))}
-                              title="Eliminar"
-                              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </>
+                            </>
+                          )}
+                        </div>
+                        {errText && (
+                          <p className="mt-1 pl-6 text-[10px] leading-snug text-red-400">
+                            {errText}
+                          </p>
                         )}
                       </li>
                     );
@@ -486,7 +497,7 @@ function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
 const MANUAL_HINT: Record<ManualChannel, { label: string; tip: string }> = {
   whatsapp: {
     label: "WhatsApp",
-    tip: "Pega un System User Token con whatsapp_business_messaging + whatsapp_business_management. Necesitas además el phone_number_id y waba_id.",
+    tip: "Pega un System User Token (whatsapp_business_messaging + whatsapp_business_management) + el phone_number_id y waba_id. Importante: el número debe estar registrado en Cloud API y NO estar en uso en la app de WhatsApp Business del celular (coexistencia), o no recibirá mensajes.",
   },
   messenger: {
     label: "Facebook Messenger",
