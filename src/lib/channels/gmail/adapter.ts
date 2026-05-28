@@ -25,7 +25,10 @@ export const gmailAdapter: ChannelAdapter = {
 
   async sendText(input: OutboundText): Promise<SendResult> {
     const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
-    const from = String(cfg.email ?? "");
+    // Connections created before the OAuth callback started writing
+    // `config.email` still have it on `external_account_id`. Fall back
+    // there so older Gmail rows can send without a forced reconnect.
+    const from = String(cfg.email ?? input.connection.external_account_id ?? "");
     if (!from) throw new Error("[gmail] connection missing email");
 
     const secrets = (input.connection.secrets ?? {}) as Record<string, unknown>;

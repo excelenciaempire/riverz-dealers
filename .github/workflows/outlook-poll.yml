@@ -1,0 +1,31 @@
+name: Outlook poll
+
+# Polls /api/cron/outlook-poll every 5 min so inbound Hotmail/Outlook
+# flows into the unified inbox. Mirrors gmail-poll.yml intentionally —
+# same shared secret, same cadence.
+#
+# Secrets used:
+#   - OUTLOOK_POLL_URL  e.g. https://unified-inbox-7yp9.onrender.com/api/cron/outlook-poll
+#   - CRON_PING_SECRET  matches AUTOMATION_CRON_SECRET in Render env
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: outlook-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hit Outlook poll endpoint
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS \
+            -H "x-cron-secret: ${{ secrets.CRON_PING_SECRET }}" \
+            "${{ secrets.OUTLOOK_POLL_URL }}")
+          echo "$response"

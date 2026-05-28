@@ -75,31 +75,58 @@ export async function POST(
     return NextResponse.json({ error: "unknown channel" }, { status: 404 });
   }
 
-  const connection = await loadConnection(req, channel);
-  if (!connection) {
-    return NextResponse.json({ error: "connection not found" }, { status: 404 });
-  }
-
-  const adapter = getAdapter(channel);
-  let events;
-  try {
-    events = await adapter.parseWebhook(req.clone(), connection);
-  } catch (err) {
-    console.error(`[channels/${channel}] parseWebhook failed:`, err);
-    // Always 200 — platforms retry on non-2xx and we'd rather log + drop
-    // than enter an exponential-backoff loop.
-    return NextResponse.json({ ok: true, ignored: true });
-  }
+  // Meta delivers ONE webhook per object: page → messaging + feed (DMs +
+  // FB comments), instagram → messaging + comments (DMs + IG comments).
+  // Run every related adapter so a single delivery hits both the DM
+  // pipeline and the comments pipeline even though they live under
+  // different connection rows.
+  const adapterChannels = relatedChannels(channel);
 
   const db = supabaseAdmin();
-  for (const event of events) {
+  let ingested = 0;
+  let processed = false;
+  for (const c of adapterChannels) {
+    const connection = await loadConnection(req, c);
+    if (!connection) continue;
+    const adapter = getAdapter(c);
+    let events;
     try {
-      await ingestInboundEvent(db, event);
+      events = await adapter.parseWebhook(req.clone(), connection);
     } catch (err) {
-      console.error(`[channels/${channel}] ingest failed:`, err);
+      console.error(`[channels/${c}] parseWebhook failed:`, err);
+      continue;
+    }
+    processed = true;
+    for (const event of events) {
+      try {
+        await ingestInboundEvent(db, event);
+        ingested++;
+      } catch (err) {
+        console.error(`[channels/${c}] ingest failed:`, err);
+      }
     }
   }
-  return NextResponse.json({ ok: true, ingested: events.length });
+  if (!processed) {
+    return NextResponse.json({ error: "connection not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true, ingested });
+}
+
+/**
+ * Channels that may carry events for the given URL channel. Meta sends
+ * one webhook per object even when it covers two of our internal
+ * channels (page = messenger + fb_comment, instagram = instagram +
+ * ig_comment), so we run both adapters and let each parser ignore the
+ * events it doesn't care about.
+ */
+function relatedChannels(channel: Channel): Channel[] {
+  if (channel === "messenger" || channel === "fb_comment") {
+    return ["messenger", "fb_comment"];
+  }
+  if (channel === "instagram" || channel === "ig_comment") {
+    return ["instagram", "ig_comment"];
+  }
+  return [channel];
 }
 
 function isChannel(x: string): x is Channel {
