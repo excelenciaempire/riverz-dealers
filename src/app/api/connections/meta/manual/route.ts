@@ -112,6 +112,16 @@ interface PageInsertArgs {
   igUserIdHint?: string;
 }
 
+// A single page token covers both the DM channel and the comment
+// channel for that platform, so one "connect" sets up both. Facebook
+// page → Messenger + FB comments; Instagram → IG DMs + IG comments.
+const CHANNEL_SIBLINGS: Record<string, Channel[]> = {
+  messenger: ["messenger", "fb_comment"],
+  fb_comment: ["messenger", "fb_comment"],
+  instagram: ["instagram", "ig_comment"],
+  ig_comment: ["instagram", "ig_comment"],
+};
+
 async function connectPageChannel(
   admin: ReturnType<typeof supabaseAdmin>,
   args: PageInsertArgs,
@@ -137,64 +147,82 @@ async function connectPageChannel(
   const igUserId = args.igUserIdHint ?? profile.instagram_business_account?.id;
   const igUsername = profile.instagram_business_account?.username;
 
-  let externalAccountId = pageId;
-  let label = pageName;
-  let config: Record<string, unknown> = { page_id: pageId, page_name: pageName };
-  if (args.channel === "instagram" || args.channel === "ig_comment") {
-    if (!igUserId) {
-      throw new Error(
-        "this page has no Instagram Professional account attached — link an IG business account first",
-      );
-    }
-    externalAccountId = igUserId;
-    label = igUsername ? `${pageName} (@${igUsername})` : `${pageName} (Instagram)`;
-    config = { page_id: pageId, page_name: pageName, ig_user_id: igUserId };
+  // Expand to both sibling channels so one paste connects DMs + comments.
+  const channels = CHANNEL_SIBLINGS[args.channel] ?? [args.channel];
+  const needsIg = channels.some((c) => c === "instagram" || c === "ig_comment");
+  if (needsIg && !igUserId) {
+    throw new Error(
+      "this page has no Instagram Professional account attached — link an IG business account first",
+    );
   }
 
-  const { error: insErr, data: inserted } = await admin
-    .from("channel_connections")
-    .insert({
+  const encryptedToken = encrypt(args.token);
+  const created: Channel[] = [];
+  const already: Channel[] = [];
+  let label = pageName;
+
+  for (const ch of channels) {
+    const isIg = ch === "instagram" || ch === "ig_comment";
+    const externalAccountId = isIg ? (igUserId as string) : pageId;
+    const rowLabel = isIg
+      ? igUsername
+        ? `${pageName} (@${igUsername})`
+        : `${pageName} (Instagram)`
+      : pageName;
+    const config: Record<string, unknown> = isIg
+      ? { page_id: pageId, page_name: pageName, ig_user_id: igUserId }
+      : { page_id: pageId, page_name: pageName };
+
+    const { error: insErr } = await admin.from("channel_connections").insert({
       workspace_id: args.workspaceId,
-      channel: args.channel,
-      label,
+      channel: ch,
+      label: rowLabel,
       status: "connected",
       external_account_id: externalAccountId,
       config,
-      secrets: { access_token: encrypt(args.token) },
+      secrets: { access_token: encryptedToken },
       created_by: args.userId,
-    })
-    .select("id")
-    .single();
-  if (insErr) {
-    if (insErr.code === "23505") {
-      return NextResponse.json(
-        { error: "this page is already connected to the workspace" },
-        { status: 409 },
-      );
-    }
-    throw new Error(`insert failed: ${insErr.message}`);
-  }
-
-  // Webhook subscription is best-effort — a 4xx here doesn't unmake the
-  // connection, the admin can retry from the dashboard later.
-  let subscribed = false;
-  try {
-    await subscribePageToWebhooks({
-      channel: args.channel,
-      pageId,
-      pageAccessToken: args.token,
-      igUserId,
     });
-    subscribed = true;
-  } catch (err) {
-    console.warn(`[connections/meta/manual] subscribe failed:`, err);
+    if (insErr) {
+      if (insErr.code === "23505") {
+        // Already connected — refresh its token + reactivate instead.
+        await admin
+          .from("channel_connections")
+          .update({
+            secrets: { access_token: encryptedToken },
+            status: "connected",
+            last_error: null,
+          })
+          .eq("workspace_id", args.workspaceId)
+          .eq("channel", ch)
+          .eq("external_account_id", externalAccountId);
+        already.push(ch);
+      } else {
+        throw new Error(`insert failed (${ch}): ${insErr.message}`);
+      }
+    } else {
+      created.push(ch);
+    }
+    label = rowLabel;
+
+    // Webhook subscription is best-effort.
+    try {
+      await subscribePageToWebhooks({
+        channel: ch,
+        pageId,
+        pageAccessToken: args.token,
+        igUserId,
+      });
+    } catch (err) {
+      console.warn(`[connections/meta/manual] subscribe failed (${ch}):`, err);
+    }
   }
 
   return NextResponse.json({
     ok: true,
-    connection_id: inserted?.id,
-    subscribed,
     label,
+    created,
+    refreshed: already,
   });
 }
 

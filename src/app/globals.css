@@ -41,6 +41,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-accent-ink: var(--accent-ink);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -83,6 +84,11 @@ html[data-theme="light"] {
   --primary-hover: #f1fa84;
   --primary-soft: rgba(247, 255, 158, 0.45);
   --primary-soft-2: rgba(247, 255, 158, 0.6);
+  /* Readable accent for TEXT/icons. The pale yellow #f7ff9e works as a
+     fill (with dark text) but is invisible as text on light surfaces,
+     so colored text/icons use this deep chartreuse instead. In dark
+     mode it becomes the original pale yellow (see dark block). */
+  --accent-ink: #5e6a00;
   --secondary: #f5f3ec;
   --secondary-foreground: #0a0a0a;
   --muted: #f1eee4;
@@ -121,6 +127,9 @@ html[data-theme="dark"] {
   --primary-hover: #f1fa84;
   --primary-soft: rgba(247, 255, 158, 0.16);
   --primary-soft-2: rgba(247, 255, 158, 0.26);
+  /* On dark surfaces the pale yellow reads fine as text, so accent-ink
+     matches --primary — preserves the original dark-theme look. */
+  --accent-ink: #f7ff9e;
   --secondary: #1a1a22;
   --secondary-foreground: #fafaf7;
   --muted: #1a1a22;
@@ -167,5 +176,157 @@ html[data-theme="dark"] {
      with negative tracking. */
   h1, h2, h3, h4 {
     letter-spacing: -0.025em;
+  }
+}
+
+/* Thin, theme-aware scrollbars. The native OS scrollbar (chunky light
+   bar on Windows) looked jarring against the dark inbox once we moved
+   the conversation list to plain overflow scrolling. `.scrollbar-thin`
+   opts a container into a slim, subtle track that matches the UI and
+   only shows the thumb on hover. */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  }
+  .scrollbar-thin::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ============================================================
+ * RIVERZ EDITORIAL COMPONENT PRIMITIVES
+ * Ported from Riverz's app-v2 design system, rewired onto the
+ * shadcn tokens above. Used by the shell + page headers so the
+ * app reads as deliberate/editorial rather than generic.
+ * ============================================================ */
+@layer components {
+  /* Tiny uppercase label above a page title or section. */
+  .app-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Large, light-weight editorial page title. */
+  .app-page-title {
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.04;
+    color: var(--foreground);
+    font-size: clamp(26px, 3.2vw, 36px);
+  }
+
+  /* Section header rule used across pages. */
+  .app-section-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Sidebar group label (e.g. PRINCIPAL, CAMPAÑAS). */
+  .app-sidebar-group {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--sidebar-foreground);
+    opacity: 0.38;
+  }
+
+  /* Sidebar nav row. Active = signature lime pill with dark ink. */
+  .app-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: color-mix(in oklab, var(--sidebar-foreground) 60%, transparent);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .app-sidebar-link:hover {
+    background: var(--sidebar-accent);
+    color: var(--sidebar-foreground);
+  }
+  .app-sidebar-link.is-active {
+    background: var(--sidebar-primary);
+    color: var(--sidebar-primary-foreground);
+  }
+
+  /* Primary CTA — lime fill, uppercase, dark ink. */
+  .app-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 8px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 12px;
+    padding: 10px 16px;
+    border: 0;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .app-cta:hover { background: var(--primary-hover); }
+  .app-cta:active { transform: translateY(1px); }
+
+  .app-cta-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .app-cta-outline:hover {
+    border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+    background: var(--secondary);
+  }
+
+  /* Uppercase arrow CTA used inside cards. */
+  .app-card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--foreground);
   }
 }

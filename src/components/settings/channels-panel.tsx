@@ -18,19 +18,72 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
-import { CHANNEL_DISPLAY } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { cn } from "@/lib/utils";
 
-const CHANNEL_DESCRIPTION: Record<Channel, string> = {
-  whatsapp: "Mensajes 1-a-1 con tus clientes. Funciona con Coexistencia (escaneo de QR) o número nuevo.",
-  instagram: "Recibe y responde DMs de Instagram desde la misma bandeja.",
-  messenger: "Conversaciones directas de Facebook Messenger.",
-  gmail: "Lee y responde correos como si fueran mensajes. Funciona con tu @gmail o Workspace.",
-  outlook: "Bandeja para Outlook, Hotmail y Microsoft 365.",
-  fb_comment: "Modera y responde comentarios de anuncios y posts en Facebook.",
-  ig_comment: "Comentarios en posts orgánicos y anuncios de Instagram.",
-};
+/**
+ * One card per platform. Facebook and Instagram each cover two internal
+ * channels (DMs + comments) but share a single page token, so the user
+ * connects once and both light up — no separate Messenger / comments
+ * connections to manage.
+ */
+interface ChannelGroup {
+  key: string;
+  label: string;
+  description: string;
+  /** Channel whose brand logo represents the group. */
+  logoChannel: Channel;
+  /** Internal channels this group sets up. */
+  members: Channel[];
+  /** Channel passed to the connect flow (backend expands to siblings). */
+  connectChannel: Channel;
+}
+
+const CHANNEL_GROUPS: ChannelGroup[] = [
+  {
+    key: "whatsapp",
+    label: "WhatsApp",
+    description:
+      "Mensajes 1-a-1 con tus clientes. Funciona con Coexistencia (QR) o número nuevo.",
+    logoChannel: "whatsapp",
+    members: ["whatsapp"],
+    connectChannel: "whatsapp",
+  },
+  {
+    key: "facebook",
+    label: "Facebook",
+    description:
+      "Messenger y comentarios de tu página en una sola conexión.",
+    logoChannel: "messenger",
+    members: ["messenger", "fb_comment"],
+    connectChannel: "messenger",
+  },
+  {
+    key: "instagram",
+    label: "Instagram",
+    description: "DMs y comentarios de Instagram en una sola conexión.",
+    logoChannel: "instagram",
+    members: ["instagram", "ig_comment"],
+    connectChannel: "instagram",
+  },
+  {
+    key: "gmail",
+    label: "Gmail",
+    description:
+      "Lee y responde correos como mensajes. Funciona con @gmail o Workspace.",
+    logoChannel: "gmail",
+    members: ["gmail"],
+    connectChannel: "gmail",
+  },
+  {
+    key: "outlook",
+    label: "Outlook",
+    description: "Bandeja para Outlook, Hotmail y Microsoft 365.",
+    logoChannel: "outlook",
+    members: ["outlook"],
+    connectChannel: "outlook",
+  },
+];
 
 interface ProviderStatus {
   meta: boolean;
@@ -136,20 +189,19 @@ export function ChannelsPanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-5 animate-spin text-slate-500" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
         No se encontró el workspace.
       </div>
     );
   }
 
-  const channels = Object.values(CHANNEL_DISPLAY);
   const connectionsByChannel = new Map<Channel, ChannelConnection[]>();
   for (const c of connections) {
     const list = connectionsByChannel.get(c.channel) ?? [];
@@ -204,7 +256,7 @@ export function ChannelsPanel() {
                 </li>
               </ul>
               {providers.siteUrl && (
-                <div className="mt-2 rounded-md bg-slate-950/50 p-2 text-xs">
+                <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
                   <p className="mb-1 text-amber-200">
                     Redirect URIs a pegar en cada consola:
                   </p>
@@ -213,10 +265,10 @@ export function ChannelsPanel() {
                       const url = `${providers.siteUrl}/api/connections/${p}/oauth/callback`;
                       return (
                         <div key={p} className="flex items-center justify-between gap-2">
-                          <span className="truncate text-slate-300">{url}</span>
+                          <span className="truncate text-foreground">{url}</span>
                           <button
                             onClick={() => copyToClipboard(url, p)}
-                            className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                             title="Copiar"
                           >
                             <Copy className="size-3" />
@@ -233,29 +285,29 @@ export function ChannelsPanel() {
       )}
 
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-primary/10 p-6">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-primary/10 p-6">
         <div className="absolute -top-12 -right-12 size-48 rounded-full bg-primary/10 blur-3xl" />
         <div className="relative flex items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent-ink">
               <Sparkles className="size-3.5" />
               Bandeja unificada
             </div>
-            <h2 className="mt-1 text-xl font-bold text-white">Conecta tus canales</h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-300">
+            <h2 className="mt-1 text-xl font-bold text-foreground">Conecta tus canales</h2>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
               WhatsApp, Instagram, Messenger, Gmail, Outlook y comentarios de anuncios — todo en
               una sola bandeja. Conexiones oficiales con un clic vía OAuth.
             </p>
           </div>
           <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-3xl font-bold text-white">{connectedCount}</p>
-            <p className="text-xs text-slate-400">
+            <p className="text-3xl font-bold text-foreground">{connectedCount}</p>
+            <p className="text-xs text-muted-foreground">
               {connectedCount === 1 ? "canal activo" : "canales activos"}
             </p>
           </div>
         </div>
         {!isAdmin && (
-          <p className="relative mt-3 text-xs text-slate-500">
+          <p className="relative mt-3 text-xs text-muted-foreground">
             Solo lectura · los admins gestionan las conexiones.
           </p>
         )}
@@ -273,138 +325,148 @@ export function ChannelsPanel() {
         />
       )}
 
-      {/* Grid de canales */}
+      {/* Grid de canales — una tarjeta por plataforma. */}
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {channels.map((d) => {
-          const list = connectionsByChannel.get(d.channel) ?? [];
-          const anyConnected = list.some((c) => c.status === "connected");
+        {CHANNEL_GROUPS.map((g) => {
+          // Aggregate connections across the group's member channels,
+          // then collapse to one row per connected account (page / IG /
+          // mailbox / phone) so Messenger + comments show as a single
+          // "Facebook" connection rather than two redundant rows.
+          const memberConns = g.members.flatMap(
+            (m) => connectionsByChannel.get(m) ?? [],
+          );
+          const byAccount = new Map<string, ChannelConnection[]>();
+          for (const c of memberConns) {
+            const key = c.external_account_id ?? c.id;
+            const arr = byAccount.get(key) ?? [];
+            arr.push(c);
+            byAccount.set(key, arr);
+          }
+          const accounts = [...byAccount.values()];
+          const anyConnected = memberConns.some((c) => c.status === "connected");
+          const ready = isProviderReady(g.connectChannel);
+          const isMeta =
+            g.connectChannel === "whatsapp" ||
+            g.connectChannel === "messenger" ||
+            g.connectChannel === "instagram";
           return (
             <li
-              key={d.channel}
+              key={g.key}
               className={cn(
-                "group flex flex-col gap-3 overflow-hidden rounded-xl border bg-slate-900 p-4 transition-all",
+                "group flex flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all",
                 anyConnected
                   ? "border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]"
-                  : "border-slate-800 hover:border-slate-700",
+                  : "border-border hover:border-foreground/30",
               )}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-slate-800"
-                  >
-                    <ChannelLogo channel={d.channel} size={28} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{d.label}</p>
-                    <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-400">
-                      {CHANNEL_DESCRIPTION[d.channel]}
-                    </p>
-                  </div>
+              <div className="flex items-start gap-3">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
+                  <ChannelLogo channel={g.logoChannel} size={28} />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{g.label}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                    {g.description}
+                  </p>
                 </div>
               </div>
 
-              {/* Connection rows */}
-              {list.length > 0 && (
+              {/* One row per connected account. */}
+              {accounts.length > 0 && (
                 <ul className="space-y-1">
-                  {list.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center gap-2 rounded-md bg-slate-950/60 px-2 py-1.5 ring-1 ring-slate-800/50"
-                    >
-                      <StatusIcon status={c.status} />
-                      <span className="flex-1 truncate text-xs text-slate-300">
-                        {c.label ?? c.external_account_id ?? "Sin etiqueta"}
-                      </span>
-                      {isAdmin && (
-                        <>
-                          {c.status === "connected" && (
+                  {accounts.map((conns) => {
+                    const primary =
+                      conns.find((c) => c.status === "connected") ?? conns[0];
+                    const ids = conns.map((c) => c.id);
+                    return (
+                      <li
+                        key={primary.id}
+                        className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50"
+                      >
+                        <StatusIcon status={primary.status} />
+                        <span className="flex-1 truncate text-xs text-foreground">
+                          {primary.label ?? primary.external_account_id ?? "Sin etiqueta"}
+                        </span>
+                        {isAdmin && (
+                          <>
+                            {primary.status === "connected" && (
+                              <button
+                                onClick={() => ids.forEach((id) => handleDisconnect(id))}
+                                title="Desconectar"
+                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+                              >
+                                <RefreshCcw className="size-3.5" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleDisconnect(c.id)}
-                              title="Desconectar"
-                              className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-amber-400"
+                              onClick={() => ids.forEach((id) => handleDelete(id))}
+                              title="Eliminar"
+                              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
                             >
-                              <RefreshCcw className="size-3.5" />
+                              <Trash2 className="size-3.5" />
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleDelete(c.id)}
-                            title="Eliminar"
-                            className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-red-400"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </li>
-                  ))}
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
               {/* CTA */}
-              {isAdmin && (() => {
-                const ready = isProviderReady(d.channel);
-                const isMeta =
-                  d.channel === "whatsapp" ||
-                  d.channel === "messenger" ||
-                  d.channel === "instagram" ||
-                  d.channel === "fb_comment" ||
-                  d.channel === "ig_comment";
-                return (
-                  <div className="mt-auto space-y-1.5">
-                    <button
-                      onClick={() => {
-                        if (!ready) {
-                          toast.error(
-                            d.channel === "gmail"
-                              ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
-                              : d.channel === "outlook"
-                                ? "Configura Microsoft Azure App primero (ver banner amarillo)"
-                                : "Configura la Meta App primero (ver banner amarillo)",
-                          );
-                          return;
-                        }
-                        // Meta apps with use-cases blocked the classic OAuth
-                        // dialog, so the only reliable connect path for Meta
-                        // channels is pasting a system-user / page token.
-                        // Gmail and Outlook still use real OAuth.
-                        if (isMeta) {
-                          setManualOpen(d.channel as ManualChannel);
-                          return;
-                        }
-                        handleConnect(d.channel);
-                      }}
-                      disabled={busy}
-                      className={cn(
-                        "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        !ready
-                          ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
-                          : anyConnected
-                            ? "border border-slate-700 bg-slate-800/50 text-slate-200 hover:bg-slate-800"
-                            : "bg-primary text-primary-foreground hover:bg-primary/90",
-                      )}
-                    >
-                      {!ready ? (
-                        <>
-                          <AlertCircle className="size-4" />
-                          Configura el proveedor
-                        </>
-                      ) : (
-                        <>
-                          <ChannelLogo channel={d.channel} size={16} />
-                          {anyConnected ? "Añadir otra cuenta" : "Conectar"}
-                        </>
-                      )}
-                    </button>
-                    {isMeta && ready && (
-                      <p className="text-center text-[10px] leading-snug text-slate-500">
-                        <KeyRound className="mr-1 inline-block size-2.5" />
-                        Conexión via Page/System User token
-                      </p>
+              {isAdmin && (
+                <div className="mt-auto space-y-1.5">
+                  <button
+                    onClick={() => {
+                      if (!ready) {
+                        toast.error(
+                          g.connectChannel === "gmail"
+                            ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
+                            : g.connectChannel === "outlook"
+                              ? "Configura Microsoft Azure App primero (ver banner amarillo)"
+                              : "Configura la Meta App primero (ver banner amarillo)",
+                        );
+                        return;
+                      }
+                      // Meta uses manual page/system-user token paste (the
+                      // use-case app blocks the classic OAuth dialog).
+                      // Gmail / Outlook use real OAuth.
+                      if (isMeta) {
+                        setManualOpen(g.connectChannel as ManualChannel);
+                        return;
+                      }
+                      handleConnect(g.connectChannel);
+                    }}
+                    disabled={busy}
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      !ready
+                        ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+                        : anyConnected
+                          ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90",
                     )}
-                  </div>
-                );
-              })()}
+                  >
+                    {!ready ? (
+                      <>
+                        <AlertCircle className="size-4" />
+                        Configura el proveedor
+                      </>
+                    ) : (
+                      <>
+                        <ChannelLogo channel={g.logoChannel} size={16} />
+                        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+                      </>
+                    )}
+                  </button>
+                  {isMeta && ready && (
+                    <p className="text-center text-[10px] leading-snug text-muted-foreground">
+                      <KeyRound className="mr-1 inline-block size-2.5" />
+                      Conexión via Page/System User token
+                    </p>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -418,7 +480,7 @@ function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
   if (status === "connected") return <CheckCircle2 className={cn(classes, "text-emerald-400")} />;
   if (status === "error") return <AlertCircle className={cn(classes, "text-red-400")} />;
   if (status === "pending") return <Loader2 className={cn(classes, "animate-spin text-amber-400")} />;
-  return <XCircle className={cn(classes, "text-slate-500")} />;
+  return <XCircle className={cn(classes, "text-muted-foreground")} />;
 }
 
 const MANUAL_HINT: Record<ManualChannel, { label: string; tip: string }> = {
@@ -504,18 +566,18 @@ function ManualTokenModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-foreground">
               Conectar {meta.label} con token
             </h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{meta.tip}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{meta.tip}</p>
           </div>
           <button
             onClick={onClose}
-            className="-mr-1 -mt-1 rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"
+            className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label="Cerrar"
           >
             <X className="size-4" />
@@ -524,7 +586,7 @@ function ManualTokenModal({
 
         <div className="mt-4 space-y-3">
           <label className="block">
-            <span className="block text-[11px] font-medium text-slate-300">
+            <span className="block text-[11px] font-medium text-foreground">
               Access token
             </span>
             <textarea
@@ -532,31 +594,31 @@ function ManualTokenModal({
               onChange={(e) => setToken(e.target.value)}
               placeholder="EAA..."
               rows={4}
-              className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+              className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-[11px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
           </label>
           {channel === "whatsapp" && (
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[11px] font-medium text-slate-300">
+                <span className="block text-[11px] font-medium text-foreground">
                   phone_number_id
                 </span>
                 <input
                   value={phoneNumberId}
                   onChange={(e) => setPhoneNumberId(e.target.value)}
                   placeholder="1166510229869969"
-                  className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+                  className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
               </label>
               <label className="block">
-                <span className="block text-[11px] font-medium text-slate-300">
+                <span className="block text-[11px] font-medium text-foreground">
                   waba_id
                 </span>
                 <input
                   value={wabaId}
                   onChange={(e) => setWabaId(e.target.value)}
                   placeholder="2771752166515024"
-                  className="mt-1 block w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-xs text-slate-100 placeholder:text-slate-600 focus:border-primary focus:outline-none"
+                  className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
               </label>
             </div>
@@ -566,7 +628,7 @@ function ManualTokenModal({
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
           >
             Cancelar
           </button>

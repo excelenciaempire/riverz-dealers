@@ -124,22 +124,22 @@ function groupMessagesByDate(messages: Message[], tz: string) {
 }
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
-  { label: "Abierta", value: "open", color: "text-primary" },
+  { label: "Abierta", value: "open", color: "text-accent-ink" },
   { label: "Pendiente", value: "pending", color: "text-amber-400" },
-  { label: "Cerrada", value: "closed", color: "text-slate-400" },
+  { label: "Cerrada", value: "closed", color: "text-muted-foreground" },
 ];
 
 /**
  * WhatsApp-style doodle background applied to the chat area (both the
  * active thread and the empty state). The SVG tile lives at
- * `/public/inbox-doodle.svg`; the slate-950 colour sits underneath so
+ * `/public/inbox-doodle.svg`; the background colour sits underneath so
  * the doodles read as a subtle pattern rather than a stark grid.
  *
  * Defined once at module scope so the two render paths can't drift —
  * if we ever switch the asset, both spots update together.
  */
 const DOODLE_BG_CLASSES =
-  "bg-slate-950 bg-[url('/inbox-doodle.svg')] bg-repeat";
+  "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
 
 export function MessageThread({
   conversation,
@@ -702,29 +702,29 @@ export function MessageThread({
           DOODLE_BG_CLASSES,
         )}
       >
-        <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 backdrop-blur">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card/80 p-6 backdrop-blur">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-primary/30">
-            <MessageSquare className="h-6 w-6 text-primary" />
+            <MessageSquare className="h-6 w-6 text-accent-ink" />
           </div>
-          <h3 className="mt-4 text-base font-semibold text-white">
+          <h3 className="mt-4 text-base font-semibold text-foreground">
             Bandeja unificada
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             Elige una conversación de la izquierda para empezar. Todo tu equipo
             ve y responde desde la misma bandeja, sin importar el canal.
           </p>
-          <ul className="mt-4 space-y-1.5 text-xs text-slate-400">
+          <ul className="mt-4 space-y-1.5 text-xs text-muted-foreground">
             <li className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               <span>
-                <strong className="text-slate-200">Mensajes</strong> — WhatsApp, IG,
+                <strong className="text-foreground">Mensajes</strong> — WhatsApp, IG,
                 Messenger, Gmail, Outlook
               </span>
             </li>
             <li className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
               <span>
-                <strong className="text-slate-200">Comentarios</strong> — FB e IG, modera
+                <strong className="text-foreground">Comentarios</strong> — FB e IG, modera
                 desde aquí
               </span>
             </li>
@@ -747,9 +747,9 @@ export function MessageThread({
 
   return (
     <div className={cn("flex flex-1 flex-col", DOODLE_BG_CLASSES)}>
-      {/* Header — solid bg-slate-900 sits on top of the doodle so the
+      {/* Header — solid bg-card sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-3 sm:px-4">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
@@ -758,25 +758,25 @@ export function MessageThread({
               type="button"
               onClick={onBack}
               aria-label="Volver a conversaciones"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-slate-800 hover:text-white lg:hidden"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-foreground hover:bg-accent hover:text-foreground lg:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
-            <p className="truncate text-xs text-slate-400">{contact.phone}</p>
+            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
+            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
           <Badge
             variant="outline"
             className={cn(
-              "ml-1 hidden gap-1 border-slate-700 text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-primary"
+              "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
+              sessionInfo.expired ? "text-red-400" : "text-accent-ink"
             )}
           >
             <Clock className="h-3 w-3" />
@@ -798,7 +798,7 @@ export function MessageThread({
               aria-label="Actualizar conversación"
               title="Actualizar"
               className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-60",
+                "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60",
               )}
             >
               <RefreshCw
@@ -810,15 +810,15 @@ export function MessageThread({
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-slate-800",
-                  currentStatus?.color ?? "text-slate-400"
+                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-accent",
+                  currentStatus?.color ?? "text-muted-foreground"
                 )}>
                 {currentStatus?.label ?? "Estado"}
                 <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-slate-700 bg-slate-800"
+              className="border-border bg-card"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <DropdownMenuItem
@@ -836,8 +836,8 @@ export function MessageThread({
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-slate-800",
-                assignedAgentId ? "text-primary" : "text-slate-400"
+                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-accent",
+                assignedAgentId ? "text-accent-ink" : "text-muted-foreground"
               )}
             >
               <UserPlus className="h-3 w-3" />
@@ -846,10 +846,10 @@ export function MessageThread({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-slate-700 bg-slate-800"
+              className="border-border bg-card"
             >
               {profiles.length === 0 ? (
-                <DropdownMenuItem disabled className="text-sm text-slate-500">
+                <DropdownMenuItem disabled className="text-sm text-muted-foreground">
                   No hay compañeros disponibles
                 </DropdownMenuItem>
               ) : (
@@ -861,7 +861,7 @@ export function MessageThread({
                       onClick={() => handleAssignChange(p.user_id)}
                       className={cn(
                         "text-sm",
-                        isSelected ? "text-primary" : "text-slate-300"
+                        isSelected ? "text-accent-ink" : "text-foreground"
                       )}
                     >
                       <span className="flex-1">
@@ -875,10 +875,10 @@ export function MessageThread({
               )}
               {assignedAgentId && (
                 <>
-                  <DropdownMenuSeparator className="bg-slate-700" />
+                  <DropdownMenuSeparator className="bg-border" />
                   <DropdownMenuItem
                     onClick={() => handleAssignChange(null)}
-                    className="text-sm text-slate-400"
+                    className="text-sm text-muted-foreground"
                   >
                     Quitar asignación
                   </DropdownMenuItem>
@@ -895,14 +895,14 @@ export function MessageThread({
       {(conversation.channel === "gmail" ||
         conversation.channel === "outlook") &&
         conversation.subject && (
-          <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950/60 px-3 py-2 text-xs sm:px-4">
-            <span className="inline-flex items-center rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-2 text-xs sm:px-4">
+            <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Hilo
             </span>
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
               {conversation.subject}
             </p>
-            <span className="shrink-0 text-[10px] text-slate-500">
+            <span className="shrink-0 text-[10px] text-muted-foreground">
               {messages.length} mensaje{messages.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -925,7 +925,7 @@ export function MessageThread({
             ? `https://facebook.com/${postId}`
             : null;
         return (
-          <div className="flex items-start gap-2 border-b border-slate-800 bg-slate-950/70 px-3 py-2 text-xs sm:px-4">
+          <div className="flex items-start gap-2 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
             <span
               className={cn(
                 "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
@@ -937,10 +937,10 @@ export function MessageThread({
               {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-slate-300">
+              <p className="truncate text-foreground">
                 {conversation.subject || "Comentario en una publicación"}
               </p>
-              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500">
+              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
                 {postId && (
                   <span className="truncate" title={postId}>
                     ID: {postId.slice(0, 30)}
@@ -951,7 +951,7 @@ export function MessageThread({
                     href={postUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 text-primary/80 hover:text-primary hover:underline"
+                    className="shrink-0 text-accent-ink/80 hover:text-accent-ink hover:underline"
                   >
                     Ver publicación ↗
                   </a>
@@ -971,15 +971,15 @@ export function MessageThread({
       })()}
 
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <p className="text-sm text-slate-500">Aún no hay mensajes</p>
-            <p className="text-xs text-slate-600">
+            <p className="text-sm text-muted-foreground">Aún no hay mensajes</p>
+            <p className="text-xs text-muted-foreground">
               Envía una plantilla para iniciar la conversación
             </p>
           </div>
@@ -989,7 +989,7 @@ export function MessageThread({
               <div key={group.date}>
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
-                  <span className="rounded-full bg-slate-800 px-3 py-1 text-[10px] font-medium text-slate-400">
+                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
                     {formatDateSeparator(group.date, tz)}
                   </span>
                 </div>

@@ -45,7 +45,7 @@ interface ConversationListProps {
 const STATUS_COLORS: Record<ConversationStatus, string> = {
   open: "bg-primary",
   pending: "bg-amber-500",
-  closed: "bg-slate-500",
+  closed: "bg-muted-foreground",
 };
 
 const FILTER_OPTIONS: { label: string; value: ConversationStatus | "all" }[] = [
@@ -238,28 +238,28 @@ export function ConversationList({
     // on mobile. Keeping the fixed `lg:w-80` here was overriding the
     // resize drag visually — the inline width from the parent would
     // change but this div stayed pinned at 320px.
-    <div className="flex h-full w-full flex-col bg-slate-900">
+    <div className="flex h-full w-full flex-col bg-card">
       {/* Search + Filter */}
-      <div className="space-y-2 border-b border-slate-800 p-3">
+      <div className="space-y-2 border-b border-border p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={handleSearchChange}
             placeholder="Buscar conversaciones..."
-            className="border-slate-700 bg-slate-800 pl-9 text-sm text-white placeholder-slate-500 focus:border-primary/50"
+            className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
           />
         </div>
 
         <div className="flex items-center justify-between">
           <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-slate-400 hover:text-white rounded-md hover:bg-slate-800">
+            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-accent">
                 {activeFilter?.label ?? "Todas"}
                 <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
-              className="border-slate-700 bg-slate-800"
+              className="border-border bg-card"
             >
               {FILTER_OPTIONS.map((opt) => (
                 <DropdownMenuItem
@@ -268,8 +268,8 @@ export function ConversationList({
                   className={cn(
                     "text-sm",
                     filter === opt.value
-                      ? "text-primary"
-                      : "text-slate-300"
+                      ? "text-accent-ink"
+                      : "text-foreground"
                   )}
                 >
                   {opt.label}
@@ -281,7 +281,7 @@ export function ConversationList({
           {selectMode ? (
             <button
               onClick={exitSelectMode}
-              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
               Cancelar
@@ -289,7 +289,7 @@ export function ConversationList({
           ) : (
             <button
               onClick={() => setSelectMode(true)}
-              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <CheckSquare className="h-3.5 w-3.5" />
               Seleccionar
@@ -303,14 +303,14 @@ export function ConversationList({
           bounded height inside the resizable flex column, which killed
           wheel scrolling on long lists. A plain overflow-y-auto always
           scrolls. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-slate-500">No hay conversaciones</p>
+            <p className="text-sm text-muted-foreground">No hay conversaciones</p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -333,8 +333,8 @@ export function ConversationList({
 
       {/* Bulk action bar — only while selecting. */}
       {selectMode && (
-        <div className="flex items-center justify-between gap-2 border-t border-slate-800 bg-slate-900 p-3">
-          <span className="text-xs text-slate-400">
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
+          <span className="text-xs text-muted-foreground">
             {selectedIds.size} seleccionada{selectedIds.size === 1 ? "" : "s"}
           </span>
           <button
@@ -438,8 +438,8 @@ function ConversationItem({
     <div
       onClick={handleClick}
       className={cn(
-        "group relative flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
-        isActive && !selectMode && "border-l-2 border-primary bg-slate-800/70",
+        "group relative flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-accent/50",
+        isActive && !selectMode && "border-l-2 border-primary bg-accent/70",
         selected && "bg-primary/10"
       )}
     >
@@ -447,9 +447,9 @@ function ConversationItem({
       {selectMode && (
         <span className="mt-2.5 shrink-0">
           {selected ? (
-            <CheckSquare className="h-5 w-5 text-primary" />
+            <CheckSquare className="h-5 w-5 text-accent-ink" />
           ) : (
-            <Square className="h-5 w-5 text-slate-500" />
+            <Square className="h-5 w-5 text-muted-foreground" />
           )}
         </span>
       )}
@@ -457,14 +457,14 @@ function ConversationItem({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Acciones"
-            className="absolute right-1.5 top-2 hidden h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-700/60 hover:text-white group-hover:flex data-[popup-open]:flex"
+            className="absolute right-1.5 top-2 hidden h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground group-hover:flex data-[popup-open]:flex"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreVertical className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="border-slate-700 bg-slate-800"
+            className="border-border bg-card"
           >
             <DropdownMenuItem
               onClick={(e) => handleDelete(e as unknown as Event)}
@@ -480,7 +480,7 @@ function ConversationItem({
           agent at a glance which app the message came from without having
           to read a separate text badge in the row. */}
       <div className="relative h-10 w-10 shrink-0">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
           {contact?.avatar_url ? (
             <img
               src={contact.avatar_url}
@@ -492,7 +492,7 @@ function ConversationItem({
           )}
         </div>
         <span
-          className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 ring-2 ring-slate-900"
+          className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-card ring-2 ring-card"
           title={conversation.channel}
         >
           <ChannelLogo channel={conversation.channel} size={12} />
@@ -503,7 +503,7 @@ function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium text-white">
+            <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
             {conversation.is_ad && (
@@ -515,12 +515,12 @@ function ConversationItem({
               </span>
             )}
           </div>
-          <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-slate-400">
+          <p className="truncate text-xs text-muted-foreground">
             {conversation.subject ? (
-              <span className="font-medium text-slate-300">{conversation.subject} · </span>
+              <span className="font-medium text-foreground">{conversation.subject} · </span>
             ) : null}
             {conversation.last_message_text || "Sin mensajes aún"}
           </p>
