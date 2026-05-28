@@ -148,10 +148,14 @@ export default function InboxPage() {
 
       if (!user) return;
 
+      // Only count connections this user owns — the workspace may
+      // contain teammates' channels but each agent's inbox is scoped
+      // to the channels they themselves connected.
       const { data: rows } = await supabase
         .from("channel_connections")
         .select("channel")
-        .eq("status", "connected");
+        .eq("status", "connected")
+        .eq("created_by", user.id);
 
       const channels = new Set<Channel>((rows ?? []).map((r) => r.channel as Channel));
       setConnectedChannels(channels);

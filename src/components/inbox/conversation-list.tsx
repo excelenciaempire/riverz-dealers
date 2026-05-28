@@ -84,9 +84,35 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
+      // Per-user scoping: a workspace member only sees conversations
+      // from the connections they themselves connected. Without this
+      // filter every user in the workspace would see each other's
+      // Gmail / Hotmail / WhatsApp threads, which is what we want
+      // avoid — "que cada usuario en su cuenta pueda conectar su email".
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      const { data: ownConns } = await supabase
+        .from("channel_connections")
+        .select("id")
+        .eq("created_by", user.id);
+      const ownIds = (ownConns ?? []).map((c) => c.id);
+      if (ownIds.length === 0) {
+        if (!cancelled) {
+          onConversationsLoadedRef.current([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       const { data, error } = await supabase
         .from("conversations")
         .select("*, contact:contacts(*)")
+        .in("connection_id", ownIds)
         .order("last_message_at", { ascending: false });
 
       if (cancelled) return;
