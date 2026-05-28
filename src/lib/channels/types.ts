@@ -45,6 +45,12 @@ export interface InboundEvent {
   };
   /** Wall-clock timestamp at the platform. */
   receivedAt: string;
+  /** When true this event is something WE sent (e.g. an email pulled
+   * from the Sent folder), so it should be stored as an agent message
+   * and must not bump the unread counter. `externalContactId` still
+   * refers to the customer (the recipient), so the conversation keys
+   * correctly. */
+  outbound?: boolean;
   /** Raw payload kept for debugging — never echoed to clients. */
   raw?: unknown;
 }

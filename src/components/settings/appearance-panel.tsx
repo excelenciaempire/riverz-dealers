@@ -1,16 +1,16 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
 import { THEMES, type ThemeId } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
 /**
- * Appearance panel — color-theme picker.
+ * Appearance panel — light / dark mode picker.
  *
  * Click a card → applies + persists immediately. No save button:
- * the whole change is a single CSS-variable swap on <html>, there's
+ * the whole change is a single data-theme swap on <html>, there's
  * nothing to roll back. The active card carries a check chip + a
  * primary-tinted border so the current pick is obvious.
  *
@@ -23,16 +23,15 @@ export function AppearancePanel() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">Tema de color</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Elige el color de acento que se usa en toda la aplicación. Todos
-          los temas se mantienen oscuros — solo cambia el color principal
-          (botones, navegación activa, insignias). Se guarda en este
+        <h2 className="text-lg font-semibold text-foreground">Apariencia</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Elige entre el tema claro (crema editorial) y el oscuro. Ambos
+          comparten el acento lima de la marca. Se guarda en este
           dispositivo.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {THEMES.map((t) => (
           <ThemeCard
             key={t.id}
@@ -64,6 +63,8 @@ function ThemeCard({
   isActive: boolean;
   onPick: () => void;
 }) {
+  const isDark = id === "dark";
+  const Icon = isDark ? Moon : Sun;
   return (
     <button
       type="button"
@@ -71,42 +72,48 @@ function ThemeCard({
       aria-pressed={isActive}
       aria-label={`Usar el tema ${name}`}
       className={cn(
-        "flex flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
+        "flex flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors",
         isActive
           ? "border-primary/60 ring-2 ring-primary/40"
-          : "border-slate-800 hover:border-slate-700 hover:bg-slate-800/40",
+          : "border-border hover:border-foreground/30 hover:bg-accent",
       )}
     >
       <div className="flex items-center justify-between">
         <span
           aria-hidden
-          className="h-8 w-8 shrink-0 rounded-full"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           style={{
             background: swatch,
-            boxShadow: "inset 0 0 0 1px oklch(1 0 0 / 0.15)",
+            color: isDark ? "#fafaf7" : "#0a0a0a",
+            boxShadow: "inset 0 0 0 1px rgba(120,120,120,0.25)",
           }}
-        />
+        >
+          <Icon className="h-4 w-4" />
+        </span>
         {isActive && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-foreground">
             <Check className="h-3 w-3" />
             Activo
           </span>
         )}
       </div>
       <div>
-        <div className="text-sm font-semibold text-white">{name}</div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-400">
+        <div className="text-sm font-semibold text-foreground">{name}</div>
+        <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {tagline}
         </div>
       </div>
+      {/* Mini preview: surface, then the shared lime accent swatch. */}
       <div
         className="mt-1 flex h-2 overflow-hidden rounded-full"
         aria-hidden
       >
         <span className="flex-1" style={{ background: swatch }} />
-        <span className="w-3 bg-slate-700" />
-        <span className="w-3 bg-slate-800" />
-        <span className="w-3 bg-slate-900" />
+        <span className="w-5" style={{ background: "#f7ff9e" }} />
+        <span
+          className="w-3"
+          style={{ background: isDark ? "#25252e" : "#e8e1d2" }}
+        />
       </div>
       <span className="sr-only">ID del tema: {id}</span>
     </button>

@@ -33,30 +33,39 @@ export const outlookAdapter: ChannelAdapter = {
 
     const subject = input.conversation.subject ?? "(no subject)";
 
-    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    // Create a draft first so we capture the internetMessageId, then
+    // send it. /sendMail returns 202 with no body, which left our
+    // outbound rows id-less and unable to dedupe against the same mail
+    // when the Sent-folder poller later ingests it. The draft id IS the
+    // internetMessageId the Sent copy carries, so dedup works.
+    const draftRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        message: {
-          subject,
-          body: { contentType: "Text", content: input.text },
-          toRecipients: [{ emailAddress: { address: to } }],
-        },
-        saveToSentItems: true,
+        subject,
+        body: { contentType: "Text", content: input.text },
+        toRecipients: [{ emailAddress: { address: to } }],
       }),
     });
-    if (!res.ok && res.status !== 202) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(`[outlook] send failed (${res.status}): ${detail}`);
+    if (!draftRes.ok) {
+      const detail = await draftRes.text().catch(() => "");
+      throw new Error(`[outlook] draft create failed (${draftRes.status}): ${detail}`);
     }
-    // Graph sendMail returns 202 without a body — we don't get the
-    // immutable id until the message lands in Sent Items. The webhook
-    // backfills the externalMessageId when the "sent" notification
-    // arrives.
-    return { status: "sent" };
+    const draft = (await draftRes.json()) as { id?: string; internetMessageId?: string };
+    if (!draft.id) throw new Error("[outlook] draft missing id");
+
+    const sendRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/send`,
+      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!sendRes.ok && sendRes.status !== 202) {
+      const detail = await sendRes.text().catch(() => "");
+      throw new Error(`[outlook] send failed (${sendRes.status}): ${detail}`);
+    }
+    return { externalMessageId: draft.internetMessageId, status: "sent" };
   },
 
   async parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]> {

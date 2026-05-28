@@ -53,7 +53,9 @@ export async function ingestInboundEvent(
   const insertPayload: Record<string, unknown> = {
     conversation_id: conversation.id,
     channel,
-    sender_type: "customer",
+    // Sent-folder emails come back as outbound (we authored them), so
+    // they land as agent messages on the right side of the thread.
+    sender_type: event.outbound ? "agent" : "customer",
     content_type: channel === "gmail" || channel === "outlook" ? "email" :
                   channel === "fb_comment" || channel === "ig_comment" ? "comment" : "text",
     content_text: event.text,
@@ -61,7 +63,7 @@ export async function ingestInboundEvent(
     subject: event.subject,
     attachments: event.attachments ?? null,
     message_id: event.externalMessageId,
-    status: "delivered",
+    status: event.outbound ? "sent" : "delivered",
     created_at: event.receivedAt,
   };
   const { data: message, error } = await db
@@ -120,13 +122,16 @@ export async function ingestInboundEvent(
     }
   }
 
-  // 5. Bump conversation summary fields.
+  // 5. Bump conversation summary fields. Outbound (our own sent mail)
+  //    must not increment the unread counter.
   await db
     .from("conversations")
     .update({
       last_message_text: event.text.slice(0, 200),
       last_message_at: event.receivedAt,
-      unread_count: (conversation.unread_count ?? 0) + 1,
+      unread_count: event.outbound
+        ? (conversation.unread_count ?? 0)
+        : (conversation.unread_count ?? 0) + 1,
       updated_at: new Date().toISOString(),
     })
     .eq("id", conversation.id);

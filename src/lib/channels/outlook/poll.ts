@@ -75,26 +75,12 @@ async function pollOne(
     : Date.now() - 7 * 24 * 60 * 60 * 1000;
   const since = new Date(sinceMs).toISOString();
 
-  const u = new URL(`${GRAPH_API}/me/mailFolders/inbox/messages`);
-  u.searchParams.set(
-    "$select",
-    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead",
-  );
-  u.searchParams.set("$top", "50");
-  u.searchParams.set("$orderby", "receivedDateTime asc");
-  u.searchParams.set("$filter", `receivedDateTime gt ${since}`);
+  const inbox = await listFolder(accessToken, "inbox", since, "receivedDateTime");
+  // Sent mail too, so the agent's own replies (including ones sent
+  // straight from Outlook) land in the thread.
+  const sent = await listFolder(accessToken, "sentitems", since, "sentDateTime");
 
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!r.ok) {
-    const detail = await r.text().catch(() => "");
-    throw new Error(`messages.list ${r.status}: ${detail}`);
-  }
-  const j = (await r.json()) as { value?: GraphMessage[] };
-  const messages = j.value ?? [];
-
-  if (messages.length === 0) {
+  if (inbox.length === 0 && sent.length === 0) {
     await admin
       .from("channel_connections")
       .update({ last_synced_at: new Date().toISOString(), last_error: null })
@@ -104,12 +90,18 @@ async function pollOne(
 
   let ingested = 0;
   let maxReceived = sinceMs;
-  for (const msg of messages) {
+  for (const msg of inbox) {
     if (msg.receivedDateTime) {
       const t = new Date(msg.receivedDateTime).getTime();
       if (t > maxReceived) maxReceived = t;
     }
     const event = buildInboundEvent(connection, msg);
+    if (!event) continue;
+    const result = await ingestInboundEvent(admin, event);
+    if (result) ingested++;
+  }
+  for (const msg of sent) {
+    const event = buildOutboundEvent(connection, msg);
     if (!event) continue;
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
@@ -193,6 +185,56 @@ async function getFreshAccessToken(
   return fresh;
 }
 
+async function listFolder(
+  accessToken: string,
+  folder: "inbox" | "sentitems",
+  since: string,
+  dateField: "receivedDateTime" | "sentDateTime",
+): Promise<GraphMessage[]> {
+  const u = new URL(`${GRAPH_API}/me/mailFolders/${folder}/messages`);
+  u.searchParams.set(
+    "$select",
+    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,sentDateTime,isRead",
+  );
+  u.searchParams.set("$top", "50");
+  u.searchParams.set("$orderby", `${dateField} asc`);
+  u.searchParams.set("$filter", `${dateField} gt ${since}`);
+  const r = await fetch(u.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new Error(`messages.list(${folder}) ${r.status}: ${detail}`);
+  }
+  const j = (await r.json()) as { value?: GraphMessage[] };
+  return j.value ?? [];
+}
+
+function buildOutboundEvent(
+  connection: ChannelConnection,
+  msg: GraphMessage,
+): InboundEvent | null {
+  // Sent mail is addressed TO the customer — that's the conversation
+  // owner. Take the first recipient.
+  const to = msg.toRecipients?.[0]?.emailAddress?.address?.toLowerCase();
+  if (!to) return null;
+  const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
+  const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
+  return {
+    channel: "outlook",
+    connection,
+    externalContactId: to,
+    externalMessageId: msg.internetMessageId || msg.id,
+    externalThreadId: msg.conversationId,
+    subject: msg.subject ?? "",
+    text: text || stripHtml(html) || msg.bodyPreview || "",
+    htmlBody: html || undefined,
+    receivedAt: msg.sentDateTime ?? msg.receivedDateTime ?? new Date().toISOString(),
+    outbound: true,
+    raw: { graphId: msg.id, sent: true },
+  };
+}
+
 interface GraphMessage {
   id: string;
   internetMessageId?: string;
@@ -203,6 +245,7 @@ interface GraphMessage {
   bodyPreview?: string;
   body?: { contentType?: string; content?: string };
   receivedDateTime?: string;
+  sentDateTime?: string;
   isRead?: boolean;
 }
 

@@ -72,9 +72,12 @@ async function pollOne(
   // On a freshly-connected mailbox we widen to 7d so the user sees a
   // realistic backlog instead of an empty inbox on day one.
   const window = lastHistoryId ? "newer_than:1d" : "newer_than:7d";
-  const ids = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
+  const inboxIds = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
+  // Also pull recently-sent mail so the agent's own replies (including
+  // ones sent straight from Gmail, outside this app) show in the thread.
+  const sentIds = await listMessageIdsViaQuery(accessToken, `in:sent ${window}`);
 
-  if (ids.length === 0) {
+  if (inboxIds.length === 0 && sentIds.length === 0) {
     await admin
       .from("channel_connections")
       .update({ last_synced_at: new Date().toISOString(), last_error: null })
@@ -84,7 +87,7 @@ async function pollOne(
 
   let ingested = 0;
   let maxHistoryId = lastHistoryId ? BigInt(lastHistoryId) : BigInt(0);
-  for (const id of ids) {
+  for (const id of inboxIds) {
     const msg = await fetchMessage(accessToken, id);
     if (!msg) continue;
     if (msg.historyId) {
@@ -92,6 +95,14 @@ async function pollOne(
       if (h > maxHistoryId) maxHistoryId = h;
     }
     const event = buildInboundEvent(connection, msg);
+    if (!event) continue;
+    const result = await ingestInboundEvent(admin, event);
+    if (result) ingested++;
+  }
+  for (const id of sentIds) {
+    const msg = await fetchMessage(accessToken, id);
+    if (!msg) continue;
+    const event = buildOutboundEvent(connection, msg);
     if (!event) continue;
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
@@ -246,6 +257,43 @@ function buildInboundEvent(
     htmlBody: html || undefined,
     receivedAt,
     raw: { gmailId: msg.id, labels },
+  };
+}
+
+function buildOutboundEvent(
+  connection: ChannelConnection,
+  msg: GmailMessage,
+): InboundEvent | null {
+  const headers = msg.payload?.headers ?? [];
+  const getH = (name: string): string | undefined =>
+    headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
+
+  // A sent message is addressed TO the customer — that's who the
+  // conversation belongs to. Take the first To recipient.
+  const toRaw = getH("To") ?? "";
+  const firstTo = toRaw.split(",")[0] ?? "";
+  const { email, name } = parseAddress(firstTo);
+  if (!email) return null;
+
+  const subject = getH("Subject") ?? "";
+  const { text, html } = extractBody(msg.payload);
+  return {
+    channel: "gmail",
+    connection,
+    externalContactId: email,
+    contactName: name || undefined,
+    // Key on the Gmail message id — the send route stores this same id,
+    // so a reply sent through the app dedupes against its Sent copy.
+    externalMessageId: msg.id,
+    externalThreadId: msg.threadId,
+    subject,
+    text: text || stripHtml(html) || "",
+    htmlBody: html || undefined,
+    receivedAt: msg.internalDate
+      ? new Date(Number(msg.internalDate)).toISOString()
+      : new Date().toISOString(),
+    outbound: true,
+    raw: { gmailId: msg.id, sent: true },
   };
 }
 
