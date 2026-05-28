@@ -78,6 +78,37 @@ export async function POST(req: Request): Promise<Response> {
         ? "comment"
         : "text";
 
+  // Comment replies must target a COMMENT id, not the post id. The
+  // conversation's thread_external_id is the post/media id (used for
+  // grouping), so replying to that 400s ("object does not exist").
+  // Resolve the reply target to the specific comment the agent picked,
+  // or fall back to the most recent inbound comment in the thread.
+  let replyToExternalId = body.reply_to_external_id;
+  if (channel === "fb_comment" || channel === "ig_comment") {
+    let target: string | undefined;
+    if (body.reply_to_external_id) {
+      const { data: picked } = await admin
+        .from("messages")
+        .select("message_id")
+        .eq("id", body.reply_to_external_id)
+        .maybeSingle();
+      target = picked?.message_id ?? undefined;
+    }
+    if (!target) {
+      const { data: lastInbound } = await admin
+        .from("messages")
+        .select("message_id")
+        .eq("conversation_id", (conversation as Conversation).id)
+        .eq("sender_type", "customer")
+        .not("message_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      target = lastInbound?.message_id ?? undefined;
+    }
+    replyToExternalId = target;
+  }
+
   // Send through the channel adapter. On failure we still persist the
   // agent's message with status="failed" so their typed text is never
   // lost — it shows in the thread with a failed indicator — and we
@@ -92,7 +123,7 @@ export async function POST(req: Request): Promise<Response> {
       conversation: conversation as Conversation,
       contact: contact as Contact,
       text: body.text,
-      replyToExternalId: body.reply_to_external_id,
+      replyToExternalId,
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
