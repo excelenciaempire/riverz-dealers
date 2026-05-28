@@ -160,6 +160,16 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  // Resolved publication a comment thread belongs to (thumbnail +
+  // caption + permalink), fetched lazily when a comment conversation
+  // opens so the agent sees which ad/post the comment is on.
+  const [postPreview, setPostPreview] = useState<{
+    permalink?: string;
+    image?: string;
+    caption?: string;
+    isAd?: boolean;
+    adId?: string;
+  } | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -208,6 +218,25 @@ export function MessageThread({
       cancelled = true;
     };
   }, []);
+
+  // Resolve the publication a comment thread is about (thumbnail +
+  // caption + permalink) so the agent sees which ad/post it's on.
+  useEffect(() => {
+    setPostPreview(null);
+    const convId = conversation?.id;
+    const ch = conversation?.channel;
+    if (!convId || (ch !== "fb_comment" && ch !== "ig_comment")) return;
+    let cancelled = false;
+    fetch(`/api/conversations/${convId}/post-preview`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setPostPreview(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.id, conversation?.channel]);
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
@@ -916,56 +945,70 @@ export function MessageThread({
       {(conversation.channel === "fb_comment" ||
         conversation.channel === "ig_comment") && (() => {
         const postId = conversation.thread_external_id ?? "";
-        // FB post_ids stored on conversations come in `<page_id>_<post_id>`
-        // form. facebook.com/<id> redirects to the post for either form,
-        // so it's safe to link with the raw id. IG doesn't have a stable
-        // url derivable from media_id; we omit the link there.
+        // Prefer the resolved permalink from the preview; fall back to a
+        // best-effort FB url. IG has no derivable url without the API.
         const postUrl =
-          conversation.channel === "fb_comment" && postId
+          postPreview?.permalink ??
+          (conversation.channel === "fb_comment" && postId
             ? `https://facebook.com/${postId}`
-            : null;
+            : null);
+        const caption = postPreview?.caption || conversation.subject || "Comentario en una publicación";
+        const isAd = postPreview?.isAd ?? conversation.is_ad;
         return (
-          <div className="flex items-start gap-2 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
-            <span
-              className={cn(
-                "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                conversation.channel === "fb_comment"
-                  ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
-                  : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
-              )}
-            >
-              {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-foreground">
-                {conversation.subject || "Comentario en una publicación"}
-              </p>
-              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                {postId && (
-                  <span className="truncate" title={postId}>
-                    ID: {postId.slice(0, 30)}
-                  </span>
-                )}
-                {postUrl && (
-                  <a
-                    href={postUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-accent-ink/80 hover:text-accent-ink hover:underline"
-                  >
-                    Ver publicación ↗
-                  </a>
-                )}
-              </div>
-            </div>
-            {conversation.is_ad && (
-              <span
-                title="Comentario en anuncio pagado"
-                className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+          <div className="flex items-start gap-3 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
+            {/* Thumbnail of the actual post/ad. */}
+            {postPreview?.image ? (
+              <a
+                href={postUrl ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0"
               >
-                Anuncio
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={postPreview.image}
+                  alt="Publicación"
+                  className="size-12 rounded-md object-cover ring-1 ring-border"
+                />
+              </a>
+            ) : (
+              <span
+                className={cn(
+                  "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  conversation.channel === "fb_comment"
+                    ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
+                    : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
+                )}
+              >
+                {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
               </span>
             )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {conversation.channel === "fb_comment" ? "Comentario en Facebook" : "Comentario en Instagram"}
+                </span>
+                {isAd && (
+                  <span
+                    title="Comentario en anuncio pagado"
+                    className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+                  >
+                    Anuncio
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 line-clamp-2 text-foreground">{caption}</p>
+              {postUrl && (
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-0.5 inline-block text-[10px] text-accent-ink/80 hover:text-accent-ink hover:underline"
+                >
+                  Ver publicación ↗
+                </a>
+              )}
+            </div>
           </div>
         );
       })()}
