@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
 import { cn } from "@/lib/utils";
 
 /**
@@ -427,54 +428,75 @@ export function ChannelsPanel() {
               {/* CTA */}
               {isAdmin && (
                 <div className="mt-auto space-y-1.5">
-                  <button
-                    onClick={() => {
-                      if (!ready) {
-                        toast.error(
-                          g.connectChannel === "gmail"
-                            ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
-                            : g.connectChannel === "outlook"
-                              ? "Configura Microsoft Azure App primero (ver banner amarillo)"
-                              : "Configura la Meta App primero (ver banner amarillo)",
-                        );
-                        return;
-                      }
-                      // Meta uses manual page/system-user token paste (the
-                      // use-case app blocks the classic OAuth dialog).
-                      // Gmail / Outlook use real OAuth.
-                      if (isMeta) {
-                        setManualOpen(g.connectChannel as ManualChannel);
-                        return;
-                      }
-                      handleConnect(g.connectChannel);
-                    }}
-                    disabled={busy}
-                    className={cn(
-                      "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      !ready
-                        ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
-                        : anyConnected
-                          ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90",
-                    )}
-                  >
-                    {!ready ? (
-                      <>
-                        <AlertCircle className="size-4" />
-                        Configura el proveedor
-                      </>
-                    ) : (
-                      <>
-                        <ChannelLogo channel={g.logoChannel} size={16} />
-                        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
-                      </>
-                    )}
-                  </button>
-                  {isMeta && ready && (
-                    <p className="text-center text-[10px] leading-snug text-muted-foreground">
-                      <KeyRound className="mr-1 inline-block size-2.5" />
-                      Conexión via Page/System User token
-                    </p>
+                  {/* WhatsApp: official Embedded Signup (Coexistence or new
+                      number) is the primary path; pasting a token stays as a
+                      secondary fallback. */}
+                  {g.connectChannel === "whatsapp" && ready ? (
+                    <>
+                      <WhatsAppEmbeddedSignup
+                        workspaceId={workspace.id}
+                        onConnected={() => void fetchConnections()}
+                      />
+                      <button
+                        onClick={() => setManualOpen("whatsapp")}
+                        className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <KeyRound className="mr-1 inline-block size-2.5" />
+                        o conectar pegando un token manualmente
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!ready) {
+                            toast.error(
+                              g.connectChannel === "gmail"
+                                ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
+                                : g.connectChannel === "outlook"
+                                  ? "Configura Microsoft Azure App primero (ver banner amarillo)"
+                                  : "Configura la Meta App primero (ver banner amarillo)",
+                            );
+                            return;
+                          }
+                          // Meta page channels use manual token paste (the
+                          // use-case app blocks the classic OAuth dialog).
+                          // Gmail / Outlook use real OAuth.
+                          if (isMeta) {
+                            setManualOpen(g.connectChannel as ManualChannel);
+                            return;
+                          }
+                          handleConnect(g.connectChannel);
+                        }}
+                        disabled={busy}
+                        className={cn(
+                          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          !ready
+                            ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+                            : anyConnected
+                              ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
+                              : "bg-primary text-primary-foreground hover:bg-primary/90",
+                        )}
+                      >
+                        {!ready ? (
+                          <>
+                            <AlertCircle className="size-4" />
+                            Configura el proveedor
+                          </>
+                        ) : (
+                          <>
+                            <ChannelLogo channel={g.logoChannel} size={16} />
+                            {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+                          </>
+                        )}
+                      </button>
+                      {isMeta && ready && (
+                        <p className="text-center text-[10px] leading-snug text-muted-foreground">
+                          <KeyRound className="mr-1 inline-block size-2.5" />
+                          Conexión via Page/System User token
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
