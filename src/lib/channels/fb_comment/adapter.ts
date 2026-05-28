@@ -78,7 +78,10 @@ export const fbCommentAdapter: ChannelAdapter = {
             adId: value.ad_id ? String(value.ad_id) : undefined,
             permalink: value.permalink_url ? String(value.permalink_url) : undefined,
           },
-          receivedAt: new Date(Number(entry.time ?? Date.now())).toISOString(),
+          // Meta's entry.time is Unix SECONDS; Date() wants ms.
+          receivedAt: new Date(
+            entry.time ? Number(entry.time) * 1000 : Date.now(),
+          ).toISOString(),
           raw: c,
         });
       }

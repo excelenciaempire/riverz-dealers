@@ -72,7 +72,10 @@ export const igCommentAdapter: ChannelAdapter = {
             postId: String((value.media as { id?: string } | undefined)?.id ?? ""),
             parentCommentId: value.parent_id ? String(value.parent_id) : undefined,
           },
-          receivedAt: new Date(Number(entry.time ?? Date.now())).toISOString(),
+          // Meta's entry.time is Unix SECONDS; Date() wants ms.
+          receivedAt: new Date(
+            entry.time ? Number(entry.time) * 1000 : Date.now(),
+          ).toISOString(),
           raw: c,
         });
       }
