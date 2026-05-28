@@ -25,25 +25,25 @@ export function ResponseTimeChart({
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900">
-      <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <section className="rounded-xl border border-border bg-card">
+      <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-white">
+          <h2 className="text-sm font-semibold text-foreground">
             Tiempo medio de primera respuesta
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Minutos hasta responder al primer mensaje sin responder de un cliente, por día de la semana
           </p>
         </div>
         {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
           <div className="text-right text-xs">
-            <div className="text-slate-400">
+            <div className="text-muted-foreground">
               Esta semana:{' '}
-              <span className="font-medium text-white tabular-nums">
+              <span className="font-medium text-foreground tabular-nums">
                 {fmt(data.thisWeekAvg)}
               </span>
             </div>
-            <div className="text-slate-500">
+            <div className="text-muted-foreground">
               Semana pasada:{' '}
               <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
             </div>
@@ -101,7 +101,7 @@ function Bars({
               x2={VB_W - PADDING.right}
               y1={y}
               y2={y}
-              stroke="rgb(30 41 59)"
+              stroke="var(--border)"
               strokeDasharray="3 3"
             />
             <text
@@ -109,7 +109,7 @@ function Bars({
               y={y}
               textAnchor="end"
               dominantBaseline="middle"
-              className="fill-slate-500 text-[10px]"
+              className="fill-muted-foreground text-[10px]"
             >
               {t}m
             </text>
@@ -157,7 +157,7 @@ function Bars({
               width={barW}
               height={muted ? 2 : Math.max(1, h)}
               rx={4}
-              fill={muted ? 'rgb(51 65 85)' : '#7c3aed'}
+              fill={muted ? 'var(--muted)' : '#7c3aed'}
               opacity={muted ? 0.6 : 1}
             >
               <title>
@@ -170,7 +170,7 @@ function Bars({
               x={x + barW / 2}
               y={VB_H - 10}
               textAnchor="middle"
-              className="fill-slate-400 text-[11px]"
+              className="fill-muted-foreground text-[11px]"
             >
               {DOW_SHORT_MON_FIRST[i]}
             </text>

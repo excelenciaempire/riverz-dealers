@@ -75,20 +75,20 @@ export default function AcceptInvitePage({ params }: PageProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
         {state === "loading" && (
           <div className="flex flex-col items-center gap-3 py-6">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-            <p className="text-sm text-slate-400">Loading invite…</p>
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading invite…</p>
           </div>
         )}
 
         {state === "needs_login" && (
           <div className="space-y-4 text-center">
-            <Mail className="mx-auto h-8 w-8 text-primary" />
-            <h1 className="text-lg font-semibold text-white">You have an invite</h1>
-            <p className="text-sm text-slate-400">
+            <Mail className="mx-auto h-8 w-8 text-accent-ink" />
+            <h1 className="text-lg font-semibold text-foreground">You have an invite</h1>
+            <p className="text-sm text-muted-foreground">
               Sign in first to accept this invitation. We'll bring you back to this page after.
             </p>
             <Link
@@ -102,9 +102,9 @@ export default function AcceptInvitePage({ params }: PageProps) {
 
         {state === "ready" && (
           <div className="space-y-4 text-center">
-            <Mail className="mx-auto h-8 w-8 text-primary" />
-            <h1 className="text-lg font-semibold text-white">Join “{workspaceName}”</h1>
-            <p className="text-sm text-slate-400">
+            <Mail className="mx-auto h-8 w-8 text-accent-ink" />
+            <h1 className="text-lg font-semibold text-foreground">Join “{workspaceName}”</h1>
+            <p className="text-sm text-muted-foreground">
               You've been invited to join this workspace. You'll share the inbox, contacts and channels with the team.
             </p>
             <Button
@@ -120,19 +120,19 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "accepted" && (
           <div className="space-y-3 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
-            <h1 className="text-lg font-semibold text-white">You're in!</h1>
-            <p className="text-sm text-slate-400">Redirecting to the inbox…</p>
+            <h1 className="text-lg font-semibold text-foreground">You're in!</h1>
+            <p className="text-sm text-muted-foreground">Redirecting to the inbox…</p>
           </div>
         )}
 
         {state === "error" && (
           <div className="space-y-3 text-center">
             <XCircle className="mx-auto h-8 w-8 text-red-400" />
-            <h1 className="text-lg font-semibold text-white">Invite not valid</h1>
-            <p className="text-sm text-slate-400">{errorMsg}</p>
+            <h1 className="text-lg font-semibold text-foreground">Invite not valid</h1>
+            <p className="text-sm text-muted-foreground">{errorMsg}</p>
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center rounded-md border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+              className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
             >
               Back to dashboard
             </Link>

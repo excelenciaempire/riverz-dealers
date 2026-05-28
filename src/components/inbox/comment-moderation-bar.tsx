@@ -52,7 +52,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         onClick={() => act(liked ? "unlike" : "like")}
         disabled={busy !== null}
         title={liked ? "Quitar me gusta" : "Me gusta como página"}
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-rose-300"
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
       >
         <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
       </button>
@@ -60,7 +60,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         onClick={() => act(hidden ? "unhide" : "hide")}
         disabled={busy !== null}
         title={hidden ? "Mostrar" : "Ocultar comentario"}
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-amber-300"
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
       >
         {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
       </button>
@@ -70,7 +70,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         }}
         disabled={busy !== null}
         title="Eliminar"
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-red-400"
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
       >
         <Trash2 className="size-3" />
       </button>
@@ -80,7 +80,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
           target="_blank"
           rel="noopener noreferrer"
           title="Abrir en Facebook/Instagram"
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <ExternalLink className="size-3" />
         </a>

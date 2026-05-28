@@ -154,12 +154,12 @@ export function ContactForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md">
+      <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">
+          <DialogTitle className="text-foreground">
             {isEdit ? 'Editar contacto' : 'Añadir contacto'}
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             {isEdit
               ? 'Actualiza los datos del contacto.'
               : 'Rellena los datos para crear un nuevo contacto.'}
@@ -168,7 +168,7 @@ export function ContactForm({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="cf-name" className="text-slate-300">
+            <Label htmlFor="cf-name" className="text-foreground">
               Nombre
             </Label>
             <Input
@@ -176,12 +176,12 @@ export function ContactForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Juan Pérez"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cf-phone" className="text-slate-300">
+            <Label htmlFor="cf-phone" className="text-foreground">
               Teléfono <span className="text-red-400">*</span>
             </Label>
             <Input
@@ -189,15 +189,15 @@ export function ContactForm({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+57 300 123 4567"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Incluye el código de país, p. ej. +57 para Colombia
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cf-email" className="text-slate-300">
+            <Label htmlFor="cf-email" className="text-foreground">
               Correo
             </Label>
             <Input
@@ -206,12 +206,12 @@ export function ContactForm({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="juan@correo.com"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cf-company" className="text-slate-300">
+            <Label htmlFor="cf-company" className="text-foreground">
               Empresa
             </Label>
             <Input
@@ -219,19 +219,19 @@ export function ContactForm({
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder="Acme S.A."
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-slate-300">Etiquetas</Label>
+            <Label className="text-foreground">Etiquetas</Label>
             {loadingTags ? (
-              <div className="flex items-center gap-2 text-slate-500 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="size-3 animate-spin" />
                 Cargando etiquetas...
               </div>
             ) : tags.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 No hay etiquetas disponibles. Créalas en Ajustes.
               </p>
             ) : (
@@ -245,7 +245,7 @@ export function ContactForm({
                       onClick={() => toggleTag(tag.id)}
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
                         selected
-                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-slate-900'
+                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
                           : 'opacity-60 hover:opacity-100'
                       }`}
                       style={{
@@ -262,12 +262,12 @@ export function ContactForm({
             )}
           </div>
 
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="bg-card border-border">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-border text-foreground hover:bg-accent"
             >
               Cancelar
             </Button>

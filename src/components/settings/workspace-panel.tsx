@@ -128,14 +128,14 @@ export function WorkspacePanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-5 animate-spin text-slate-500" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
         Aún no hay espacio de trabajo. Cierra sesión y vuelve a iniciar sesión para crear uno.
       </div>
     );
@@ -144,19 +144,19 @@ export function WorkspacePanel() {
   return (
     <div className="space-y-6">
       {/* Workspace card */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
-          <Building2 className="size-5 text-primary" />
-          <h2 className="text-base font-semibold text-white">Espacio de trabajo</h2>
+          <Building2 className="size-5 text-accent-ink" />
+          <h2 className="text-base font-semibold text-foreground">Espacio de trabajo</h2>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-400">Nombre</Label>
+            <Label className="text-xs text-muted-foreground">Nombre</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={!isAdmin}
-              className="bg-slate-800 text-white"
+              className="bg-muted text-foreground"
             />
           </div>
           {isAdmin && (
@@ -172,41 +172,41 @@ export function WorkspacePanel() {
       </section>
 
       {/* Members card */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="border-b border-slate-800 px-5 py-4">
-          <h2 className="text-base font-semibold text-white">Miembros del equipo</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
+      <section className="rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-base font-semibold text-foreground">Miembros del equipo</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Todas las personas de aquí comparten la bandeja de entrada, los contactos y las conexiones.
           </p>
         </div>
-        <ul className="divide-y divide-slate-800">
+        <ul className="divide-y divide-border">
           {members.map((m) => {
             const user = (m as WorkspaceMember & { user?: { full_name: string; email: string; avatar_url?: string } })
               .user;
             const isYou = false;
             return (
               <li key={m.id} className="flex items-center gap-3 px-5 py-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
                   {user?.full_name?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? "?"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white">
+                  <p className="truncate text-sm font-medium text-foreground">
                     {user?.full_name ?? user?.email ?? "Pendiente"}
-                    {isYou && <span className="ml-2 text-xs text-slate-500">(tú)</span>}
+                    {isYou && <span className="ml-2 text-xs text-muted-foreground">(tú)</span>}
                   </p>
-                  <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                 </div>
                 {isAdmin ? (
                   <select
                     value={m.role}
                     onChange={(e) => handleChangeRole(m.id, e.target.value as "admin" | "agent")}
-                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200"
+                    className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
                   >
                     <option value="admin">Admin</option>
                     <option value="agent">Agente</option>
                   </select>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     {m.role === "admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
                     {m.role}
                   </span>
@@ -214,7 +214,7 @@ export function WorkspacePanel() {
                 {isAdmin && (
                   <button
                     onClick={() => handleRemoveMember(m.id)}
-                    className="ml-2 rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
+                    className="ml-2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
                     aria-label="Eliminar miembro"
                   >
                     <Trash2 className="size-4" />
@@ -227,9 +227,9 @@ export function WorkspacePanel() {
 
         {/* Invite form */}
         {isAdmin && (
-          <div className="border-t border-slate-800 px-5 py-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <UserPlus className="size-4 text-primary" />
+          <div className="border-t border-border px-5 py-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <UserPlus className="size-4 text-accent-ink" />
               Invitar por correo
             </h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
@@ -237,12 +237,12 @@ export function WorkspacePanel() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="companero@email.com"
-                className="bg-slate-800 text-white"
+                className="bg-muted text-foreground"
               />
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
-                className="rounded-md border border-slate-700 bg-slate-800 px-2 text-sm text-slate-200"
+                className="rounded-md border border-border bg-muted px-2 text-sm text-foreground"
               >
                 <option value="agent">Agente</option>
                 <option value="admin">Admin</option>
@@ -261,24 +261,24 @@ export function WorkspacePanel() {
 
       {/* Pending invites */}
       {invites.length > 0 && (
-        <section className="rounded-xl border border-slate-800 bg-slate-900">
-          <div className="border-b border-slate-800 px-5 py-4">
-            <h2 className="text-base font-semibold text-white">Invitaciones pendientes</h2>
+        <section className="rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-base font-semibold text-foreground">Invitaciones pendientes</h2>
           </div>
-          <ul className="divide-y divide-slate-800">
+          <ul className="divide-y divide-border">
             {invites.map((inv) => (
               <li key={inv.id} className="flex items-center gap-3 px-5 py-3">
-                <Mail className="size-4 text-slate-500" />
+                <Mail className="size-4 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-white">{inv.email}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="truncate text-sm text-foreground">{inv.email}</p>
+                  <p className="text-xs text-muted-foreground">
                     Rol: {inv.role} · expira el {new Date(inv.expires_at).toLocaleDateString('es-ES')}
                   </p>
                 </div>
                 {isAdmin && (
                   <button
                     onClick={() => handleRevokeInvite(inv.id)}
-                    className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
                     aria-label="Revocar invitación"
                   >
                     <Trash2 className="size-4" />

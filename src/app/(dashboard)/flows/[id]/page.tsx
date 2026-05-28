@@ -65,18 +65,18 @@ export default function FlowEditorPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
   if (notFound || !flow) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-slate-400">Flujo no encontrado.</p>
+        <p className="text-sm text-muted-foreground">Flujo no encontrado.</p>
         <button
           type="button"
           onClick={() => router.push("/flows")}
-          className="text-sm text-primary hover:opacity-80"
+          className="text-sm text-accent-ink hover:opacity-80"
         >
           ← Volver a flujos
         </button>

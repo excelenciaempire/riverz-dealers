@@ -36,7 +36,7 @@ interface InboxTabsProps {
  */
 export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
   return (
-    <div className="flex border-b border-slate-800 bg-slate-950/40">
+    <div className="flex border-b border-border bg-background/40">
       <Tab
         active={value === "messages"}
         onClick={() => onChange("messages")}
@@ -74,14 +74,14 @@ function Tab({
       className={cn(
         "relative flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
         active
-          ? "text-white"
-          : "text-slate-400 hover:bg-slate-900/50 hover:text-slate-200",
+          ? "text-foreground"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >
       {icon}
       <span>{label}</span>
       {count > 0 && (
-        <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-primary">
+        <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent-ink">
           {count > 999 ? "999+" : count}
         </span>
       )}

@@ -242,10 +242,10 @@ export function ProfileForm() {
     : '—';
 
   return (
-    <Card className="bg-slate-900/40 border-slate-800">
+    <Card className="bg-card/40 border-border">
       <CardHeader>
-        <CardTitle className="text-white">Perfil</CardTitle>
-        <CardDescription className="text-slate-400">
+        <CardTitle className="text-foreground">Perfil</CardTitle>
+        <CardDescription className="text-muted-foreground">
           Cómo te ves en la app. Tu avatar y nombre aparecen en la cabecera,
           la barra lateral y en cualquier lugar donde te vean tus compañeros.
         </CardDescription>
@@ -259,7 +259,7 @@ export function ProfileForm() {
               {currentAvatar ? (
                 <AvatarImage src={currentAvatar} alt={fullName || 'Avatar'} />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-base text-primary">
+              <AvatarFallback className="bg-primary/10 text-base text-accent-ink">
                 {initial}
               </AvatarFallback>
             </Avatar>
@@ -287,13 +287,13 @@ export function ProfileForm() {
                   variant="ghost"
                   onClick={onRemoveAvatar}
                   disabled={saving}
-                  className="text-slate-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <Trash2 className="size-4" />
                   Quitar
                 </Button>
               )}
-              <p className="w-full text-xs text-slate-500">
+              <p className="w-full text-xs text-muted-foreground">
                 PNG, JPG, WebP o GIF. Hasta 2 MB.
               </p>
             </div>
@@ -301,7 +301,7 @@ export function ProfileForm() {
 
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="profile-full-name" className="text-slate-200">
+            <Label htmlFor="profile-full-name" className="text-foreground">
               Nombre para mostrar
             </Label>
             <Input
@@ -317,7 +317,7 @@ export function ProfileForm() {
 
           {/* Email */}
           <div className="space-y-2">
-            <Label htmlFor="profile-email" className="text-slate-200">
+            <Label htmlFor="profile-email" className="text-foreground">
               Correo
             </Label>
             <Input
@@ -343,7 +343,7 @@ export function ProfileForm() {
           {/* Timezone — drives every time format() in the inbox so the
               user sees timestamps relative to their own clock. */}
           <div className="space-y-2">
-            <Label htmlFor="profile-timezone" className="text-slate-200">
+            <Label htmlFor="profile-timezone" className="text-foreground">
               Zona horaria
             </Label>
             <select
@@ -351,7 +351,7 @@ export function ProfileForm() {
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
               disabled={saving}
-              className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-9 w-full rounded-md border border-border bg-card px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {timezones.map((z) => (
                 <option key={z} value={z}>
@@ -359,30 +359,30 @@ export function ProfileForm() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Las fechas y horas en la bandeja se mostrarán en esta zona.
             </p>
           </div>
 
           {/* Read-only block */}
-          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div className="rounded-lg border border-border bg-card/60 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Datos de la cuenta
             </p>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Rol</dt>
-                <dd className="mt-0.5 font-mono text-slate-200">
+                <dt className="text-muted-foreground">Rol</dt>
+                <dd className="mt-0.5 font-mono text-foreground">
                   {profile?.role ?? 'user'}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Registrado el</dt>
-                <dd className="mt-0.5 text-slate-200">{joined}</dd>
+                <dt className="text-muted-foreground">Registrado el</dt>
+                <dd className="mt-0.5 text-foreground">{joined}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-slate-500">ID de usuario</dt>
-                <dd className="mt-0.5 break-all font-mono text-xs text-slate-400">
+                <dt className="text-muted-foreground">ID de usuario</dt>
+                <dd className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
                   {user?.id ?? '—'}
                 </dd>
               </div>
@@ -390,7 +390,7 @@ export function ProfileForm() {
           </div>
 
           {!profile && (
-            <p className="flex items-center gap-2 text-sm text-slate-400">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <CircleAlert className="size-4" />
               Cargando tu perfil…
             </p>

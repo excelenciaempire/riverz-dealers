@@ -38,9 +38,9 @@ const categoryColors: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  Draft: 'bg-slate-600/20 text-slate-400 border-slate-600/30',
+  Draft: 'bg-muted text-muted-foreground border-border',
   Pending: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30',
-  Approved: 'bg-primary/20 text-primary border-primary/30',
+  Approved: 'bg-primary/20 text-accent-ink border-primary/30',
   Rejected: 'bg-red-600/20 text-red-400 border-red-600/30',
 };
 
@@ -246,7 +246,7 @@ export function TemplateManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
+        <Loader2 className="size-6 animate-spin text-accent-ink" />
       </div>
     );
   }
@@ -255,8 +255,8 @@ export function TemplateManager() {
     <div className="space-y-4 mt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-white">Plantillas de mensaje</h2>
-          <p className="text-sm text-slate-400">
+          <h2 className="text-lg font-semibold text-foreground">Plantillas de mensaje</h2>
+          <p className="text-sm text-muted-foreground">
             Crea y gestiona tus plantillas de mensaje de WhatsApp. Meta exige
             que cada plantilla esté aprobada en el WhatsApp Manager antes de
             poder enviarse — usa &quot;Sincronizar desde Meta&quot; para traer tu
@@ -268,7 +268,7 @@ export function TemplateManager() {
             variant="outline"
             onClick={handleSyncFromMeta}
             disabled={syncing}
-            className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+            className="border-border bg-transparent text-foreground hover:bg-accent"
             title="Traer las plantillas aprobadas de tu Cuenta de WhatsApp Business en Meta"
           >
             <RefreshCw
@@ -290,20 +290,20 @@ export function TemplateManager() {
       </div>
 
       {templates.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+        <Card className="bg-card border-border ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-slate-400 text-sm">Aún no hay plantillas.</p>
-            <p className="text-slate-500 text-xs mt-1">Crea tu primera plantilla de mensaje para empezar.</p>
+            <p className="text-muted-foreground text-sm">Aún no hay plantillas.</p>
+            <p className="text-muted-foreground text-xs mt-1">Crea tu primera plantilla de mensaje para empezar.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3">
           {templates.map((template) => (
-            <Card key={template.id} className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <Card key={template.id} className="bg-card border-border ring-0 ring-transparent">
               <CardContent className="flex items-start justify-between pt-4">
                 <div className="space-y-2 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-medium text-white">{template.name}</h3>
+                    <h3 className="font-medium text-foreground">{template.name}</h3>
                     <Badge
                       className={`text-xs border ${categoryColors[template.category] || ''}`}
                     >
@@ -315,19 +315,19 @@ export function TemplateManager() {
                       {template.status || 'Draft'}
                     </Badge>
                     {template.language && (
-                      <span className="text-xs text-slate-500 uppercase">{template.language}</span>
+                      <span className="text-xs text-muted-foreground uppercase">{template.language}</span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-400 line-clamp-2">{template.body_text}</p>
+                  <p className="text-sm text-muted-foreground line-clamp-2">{template.body_text}</p>
                   {template.footer_text && (
-                    <p className="text-xs text-slate-500 italic">{template.footer_text}</p>
+                    <p className="text-xs text-muted-foreground italic">{template.footer_text}</p>
                   )}
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => handleDelete(template.id)}
-                  className="text-slate-400 hover:text-red-400 hover:bg-red-950/30 shrink-0 ml-2"
+                  className="text-muted-foreground hover:text-red-400 hover:bg-red-950/30 shrink-0 ml-2"
                 >
                   <Trash2 className="size-4" />
                 </Button>
@@ -339,40 +339,40 @@ export function TemplateManager() {
 
       {/* New Template Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-lg">
+        <DialogContent className="bg-card border-border sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-white">Nueva plantilla de mensaje</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-foreground">Nueva plantilla de mensaje</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Crea una nueva plantilla de mensaje de WhatsApp.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-slate-300">Nombre de la plantilla</Label>
+              <Label className="text-foreground">Nombre de la plantilla</Label>
               <Input
                 placeholder="ej. confirmacion_pedido"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-slate-300">Categoría</Label>
+                <Label className="text-foreground">Categoría</Label>
                 <Select
                   value={form.category}
                   onValueChange={(val) =>
                     setForm({ ...form, category: val as MessageTemplate['category'] })
                   }
                 >
-                  <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
+                  <SelectTrigger className="w-full bg-muted border-border text-foreground">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
+                  <SelectContent className="bg-muted border-border">
                     {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat} className="text-white focus:bg-slate-700 focus:text-white">
+                      <SelectItem key={cat} value={cat} className="text-foreground focus:bg-accent focus:text-foreground">
                         {cat}
                       </SelectItem>
                     ))}
@@ -381,20 +381,20 @@ export function TemplateManager() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Idioma</Label>
+                <Label className="text-foreground">Idioma</Label>
                 <Input
                   list="template-language-codes"
                   placeholder="en_US"
                   value={form.language}
                   onChange={(e) => setForm({ ...form, language: e.target.value })}
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                 />
                 <datalist id="template-language-codes">
                   {COMMON_LANGUAGE_CODES.map((code) => (
                     <option key={code} value={code} />
                   ))}
                 </datalist>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-muted-foreground">
                   Debe coincidir con el código de idioma exacto bajo el que se
                   aprobó la plantilla en Meta — ej. <code>en_US</code> y{' '}
                   <code>en</code> son distintos.
@@ -403,20 +403,20 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Tipo de encabezado</Label>
+              <Label className="text-foreground">Tipo de encabezado</Label>
               <Select
                 value={form.header_type}
                 onValueChange={(val) => setForm({ ...form, header_type: val || '' })}
               >
-                <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
+                <SelectTrigger className="w-full bg-muted border-border text-foreground">
                   <SelectValue placeholder="Ninguno" />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="none" className="text-white focus:bg-slate-700 focus:text-white">
+                <SelectContent className="bg-muted border-border">
+                  <SelectItem value="none" className="text-foreground focus:bg-accent focus:text-foreground">
                     Ninguno
                   </SelectItem>
                   {HEADER_TYPES.map((type) => (
-                    <SelectItem key={type} value={type} className="text-white focus:bg-slate-700 focus:text-white">
+                    <SelectItem key={type} value={type} className="text-foreground focus:bg-accent focus:text-foreground">
                       {type.charAt(0).toUpperCase() + type.slice(1)}
                     </SelectItem>
                   ))}
@@ -425,32 +425,32 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Texto del cuerpo</Label>
+              <Label className="text-foreground">Texto del cuerpo</Label>
               <Textarea
                 placeholder="Introduce el cuerpo del mensaje de la plantilla. Usa {{1}}, {{2}} para variables."
                 value={form.body_text}
                 onChange={(e) => setForm({ ...form, body_text: e.target.value })}
                 rows={4}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 resize-none"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none"
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-slate-300">Texto del pie</Label>
+              <Label className="text-foreground">Texto del pie</Label>
               <Input
                 placeholder="Texto opcional del pie"
                 value={form.footer_text}
                 onChange={(e) => setForm({ ...form, footer_text: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
           </div>
 
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="bg-card border-border">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-border text-foreground hover:bg-accent"
             >
               Cancelar
             </Button>

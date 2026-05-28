@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
@@ -63,18 +63,18 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-        <Card className="w-full max-w-md border-slate-800 bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md border-border bg-card">
           <CardHeader className="items-center text-center">
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-primary" />
+              <CheckCircle className="h-6 w-6 text-accent-ink" />
             </div>
-            <CardTitle className="text-xl text-white">
+            <CardTitle className="text-xl text-foreground">
               Revisa tu correo
             </CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardDescription className="text-muted-foreground">
               Hemos enviado un enlace de confirmación a{" "}
-              <span className="text-white">{email}</span>. Abre tu bandeja y
+              <span className="text-foreground">{email}</span>. Abre tu bandeja y
               haz clic en el enlace para verificar tu cuenta.
             </CardDescription>
           </CardHeader>
@@ -82,7 +82,7 @@ export default function SignupPage() {
             <Link href="/login">
               <Button
                 variant="outline"
-                className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                className="w-full border-border text-foreground hover:bg-accent hover:text-foreground"
               >
                 Volver al inicio de sesión
               </Button>
@@ -94,14 +94,14 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <MessageSquare className="h-6 w-6 text-primary" />
-          </div>
-          <CardTitle className="text-xl text-white">Crear cuenta</CardTitle>
-          <CardDescription className="text-slate-400">
+          <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
+            riverz
+          </span>
+          <CardTitle className="text-xl text-foreground">Crear cuenta</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Empieza a usar tu Bandeja Unificada
           </CardDescription>
         </CardHeader>
@@ -114,7 +114,7 @@ export default function SignupPage() {
             )}
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="fullName" className="text-slate-300">
+              <Label htmlFor="fullName" className="text-foreground">
                 Nombre completo
               </Label>
               <Input
@@ -124,12 +124,12 @@ export default function SignupPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-slate-300">
+              <Label htmlFor="email" className="text-foreground">
                 Correo electrónico
               </Label>
               <Input
@@ -139,12 +139,12 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password" className="text-slate-300">
+              <Label htmlFor="password" className="text-foreground">
                 Contraseña
               </Label>
               <Input
@@ -154,12 +154,12 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="confirmPassword" className="text-slate-300">
+              <Label htmlFor="confirmPassword" className="text-foreground">
                 Confirmar contraseña
               </Label>
               <Input
@@ -169,7 +169,7 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
@@ -182,11 +182,11 @@ export default function SignupPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             ¿Ya tienes una cuenta?{" "}
             <Link
               href="/login"
-              className="text-primary hover:text-primary/80"
+              className="text-accent-ink hover:text-accent-ink/80"
             >
               Inicia sesión
             </Link>

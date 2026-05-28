@@ -27,22 +27,22 @@ export function ReplyQuote({
       className={cn(
         "flex items-start gap-2 border-l-2 border-primary px-2 py-1",
         isChip
-          ? "rounded-md bg-slate-800/80"
+          ? "rounded-md bg-muted/80"
           : "mb-1.5 rounded-md bg-black/20",
       )}
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11px] font-medium text-primary">
+        <div className="truncate text-[11px] font-medium text-accent-ink">
           {authorLabel}
         </div>
-        <div className="truncate text-xs text-slate-200/80">{preview}</div>
+        <div className="truncate text-xs text-foreground/80">{preview}</div>
       </div>
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
           aria-label="Cancelar respuesta"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-slate-700 hover:text-white"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
         </button>

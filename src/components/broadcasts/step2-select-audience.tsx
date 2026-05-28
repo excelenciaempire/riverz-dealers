@@ -249,8 +249,8 @@ export function Step2SelectAudience({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white">Selecciona la audiencia</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-lg font-semibold text-foreground">Selecciona la audiencia</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Elige quién recibirá esta difusión.
         </p>
       </div>
@@ -280,21 +280,21 @@ export function Step2SelectAudience({
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                 isSelected
                   ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                  : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+                  : 'border-border bg-card/50 hover:border-foreground/30'
               }`}
             >
               <div
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                   isSelected
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-slate-800 text-slate-400'
+                    ? 'bg-primary/10 text-accent-ink'
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 <Icon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white">{option.label}</p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="text-sm font-medium text-foreground">{option.label}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {option.description}
                 </p>
               </div>
@@ -304,12 +304,12 @@ export function Step2SelectAudience({
       </div>
 
       {audience.type === 'tags' && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <p className="mb-3 text-sm font-medium text-white">Selecciona etiquetas</p>
+        <div className="rounded-xl border border-border bg-card/50 p-4">
+          <p className="mb-3 text-sm font-medium text-foreground">Selecciona etiquetas</p>
           {loadingTags ? (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
           ) : tags.length === 0 ? (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               No se encontraron etiquetas. Créalas en Ajustes.
             </p>
           ) : (
@@ -322,8 +322,8 @@ export function Step2SelectAudience({
                     onClick={() => toggleTag(tag.id)}
                     className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                       isSelected
-                        ? 'border-primary/30 bg-primary/10 text-primary'
-                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600'
+                        ? 'border-primary/30 bg-primary/10 text-accent-ink'
+                        : 'border-border bg-muted text-foreground hover:border-foreground/30'
                     }`}
                   >
                     <span
@@ -340,12 +340,12 @@ export function Step2SelectAudience({
       )}
 
       {audience.type === 'custom_field' && (
-        <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <p className="text-sm font-medium text-white">Filtro por campo personalizado</p>
+        <div className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
+          <p className="text-sm font-medium text-foreground">Filtro por campo personalizado</p>
           {loadingFields ? (
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
           ) : customFields.length === 0 ? (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               No hay campos personalizados definidos. Crea uno en Ajustes → Campos personalizados.
             </p>
           ) : (
@@ -353,7 +353,7 @@ export function Step2SelectAudience({
               <select
                 value={audience.customField?.fieldId ?? ''}
                 onChange={(e) => updateCustomField({ fieldId: e.target.value })}
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 <option value="">Selecciona el campo…</option>
                 {customFields.map((f) => (
@@ -369,7 +369,7 @@ export function Step2SelectAudience({
                     operator: e.target.value as CustomFieldOperator,
                   })
                 }
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
                 {OPERATOR_OPTIONS.map((op) => (
                   <option key={op.value} value={op.value}>
@@ -382,7 +382,7 @@ export function Step2SelectAudience({
                 value={audience.customField?.value ?? ''}
                 onChange={(e) => updateCustomField({ value: e.target.value })}
                 placeholder="Valor"
-                className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
           )}
@@ -390,16 +390,16 @@ export function Step2SelectAudience({
       )}
 
       {/* Exclude list — applies regardless of audience type */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <div className="rounded-xl border border-border bg-card/50 p-4">
         <div className="mb-3 flex items-center gap-2">
           <X className="h-4 w-4 text-red-400" />
-          <p className="text-sm font-medium text-white">
+          <p className="text-sm font-medium text-foreground">
             Excluir contactos con estas etiquetas
           </p>
-          <span className="text-xs text-slate-500">(opcional)</span>
+          <span className="text-xs text-muted-foreground">(opcional)</span>
         </div>
         {tags.length === 0 ? (
-          <p className="text-xs text-slate-500">No hay etiquetas disponibles.</p>
+          <p className="text-xs text-muted-foreground">No hay etiquetas disponibles.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => {
@@ -411,7 +411,7 @@ export function Step2SelectAudience({
                   className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                     isExcluded
                       ? 'border-red-500/30 bg-red-500/10 text-red-300'
-                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600'
+                      : 'border-border bg-muted text-foreground hover:border-foreground/30'
                   }`}
                 >
                   <span
@@ -427,33 +427,33 @@ export function Step2SelectAudience({
       </div>
 
       {/* Audience Summary */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-        <p className="mb-2 text-sm font-medium text-white">Resumen de audiencia</p>
+      <div className="rounded-xl border border-border bg-card/50 p-4">
+        <p className="mb-2 text-sm font-medium text-foreground">Resumen de audiencia</p>
         {loadingCount ? (
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span className="text-xs text-slate-400">Calculando…</span>
+            <Loader2 className="h-4 w-4 animate-spin text-accent-ink" />
+            <span className="text-xs text-muted-foreground">Calculando…</span>
           </div>
         ) : estimatedCount !== null ? (
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <span className="text-sm text-white">
+            <Users className="h-4 w-4 text-accent-ink" />
+            <span className="text-sm text-foreground">
               {estimatedCount.toLocaleString()}
             </span>
-            <span className="text-xs text-slate-400">destinatarios estimados</span>
+            <span className="text-xs text-muted-foreground">destinatarios estimados</span>
           </div>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Selecciona un tipo de audiencia para ver la estimación.
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+      <div className="flex items-center justify-between border-t border-border pt-4">
         <Button
           variant="outline"
           onClick={onBack}
-          className="border-slate-700 text-slate-300"
+          className="border-border text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Atrás

@@ -628,7 +628,7 @@ export default function InboxPage() {
           minWidth={260}
           maxWidth={560}
           className={cn(
-            "h-full border-r border-slate-800 bg-slate-900",
+            "h-full border-r border-border bg-card",
             // Below lg the pane is full-width via the wrapping flex, so
             // hide it entirely when a conv is open (matches existing UX).
             hasActiveConv ? "hidden lg:block" : "block w-full lg:!w-auto",

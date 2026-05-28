@@ -122,8 +122,8 @@ export default function NewBroadcastPage() {
     <div className="mx-auto max-w-3xl space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Nueva difusión</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-2xl font-bold text-foreground">Nueva difusión</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Crea y envía un mensaje de difusión a tus contactos.
         </p>
       </div>
@@ -142,15 +142,15 @@ export default function NewBroadcastPage() {
                     isCompleted
                       ? 'bg-primary text-primary-foreground'
                       : isActive
-                        ? 'border-2 border-primary bg-primary/10 text-primary'
-                        : 'border border-slate-700 bg-slate-800 text-slate-500'
+                        ? 'border-2 border-primary bg-primary/10 text-accent-ink'
+                        : 'border border-border bg-muted text-muted-foreground'
                   }`}
                 >
                   {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
                 </div>
                 <span
                   className={`hidden text-sm font-medium sm:block ${
-                    isActive ? 'text-white' : isCompleted ? 'text-primary' : 'text-slate-500'
+                    isActive ? 'text-foreground' : isCompleted ? 'text-accent-ink' : 'text-muted-foreground'
                   }`}
                 >
                   {step.label}
@@ -159,7 +159,7 @@ export default function NewBroadcastPage() {
               {index < steps.length - 1 && (
                 <div
                   className={`mx-3 h-px flex-1 ${
-                    index < currentStep ? 'bg-primary' : 'bg-slate-800'
+                    index < currentStep ? 'bg-primary' : 'bg-muted'
                   }`}
                 />
               )}

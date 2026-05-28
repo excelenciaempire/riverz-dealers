@@ -108,8 +108,9 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Panel</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="app-eyebrow">Panel de control</p>
+        <h1 className="app-page-title mt-1.5">Resumen</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Analítica en tiempo real de conversaciones, contactos, difusiones y automatizaciones.
         </p>
       </div>

@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { useTheme } from "@/hooks/use-theme";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -18,6 +19,8 @@ import {
   User,
   X,
   PanelLeftClose,
+  Moon,
+  Sun,
 } from "lucide-react";
 import {
   Avatar,
@@ -37,24 +40,34 @@ interface NavItem {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
-  /**
-   * When true, the nav row renders a small "Beta" chip after the label.
-   * Purely informational — doesn't affect routing or access.
-   */
+  /** Renders a small "Beta" chip after the label. Informational only. */
   beta?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
-  { href: "/inbox", label: "Bandeja", icon: MessageSquare },
-  { href: "/contacts", label: "Contactos", icon: Users },
-  { href: "/broadcasts", label: "Difusión", icon: Radio },
-  { href: "/automations", label: "Automatizaciones", icon: Zap },
-  { href: "/flows", label: "Flujos", icon: Workflow },
-];
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
 
-const bottomNavItems = [
-  { href: "/settings", label: "Ajustes", icon: Settings },
+// Grouped navigation, mirroring Riverz's sidebar sections. Group labels
+// render as tiny uppercase eyebrows above each cluster.
+const navGroups: NavGroup[] = [
+  {
+    title: "Principal",
+    items: [
+      { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
+      { href: "/inbox", label: "Bandeja", icon: MessageSquare },
+      { href: "/contacts", label: "Contactos", icon: Users },
+    ],
+  },
+  {
+    title: "Campañas",
+    items: [
+      { href: "/broadcasts", label: "Difusión", icon: Radio },
+      { href: "/automations", label: "Automatizaciones", icon: Zap },
+      { href: "/flows", label: "Flujos", icon: Workflow },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -64,8 +77,7 @@ interface SidebarProps {
   /** Desktop-only — when true, sidebar shrinks to an icon-only rail. */
   collapsed?: boolean;
   /** Fired when the user clicks the collapse/expand toggle inside the
-   *  sidebar. Mirrors the same toggle in the header so users have a
-   *  control wherever they happen to be looking. */
+   *  sidebar. Mirrors the same toggle in the header. */
   onToggleCollapsed?: () => void;
 }
 
@@ -78,12 +90,12 @@ export function Sidebar({
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const totalUnread = useTotalUnread();
+  const { theme, setTheme } = useTheme();
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
   useEffect(() => {
     onClose?.();
-    // Only pathname drives this — onClose identity doesn't need to re-run it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
@@ -105,15 +117,13 @@ export function Sidebar({
 
   return (
     <>
-      {/* Backdrop — only exists on mobile and only when open. Clicking
-          it closes the drawer. Hidden from lg+ since the sidebar is
-          part of the main flex row there. */}
+      {/* Mobile backdrop. */}
       <button
         type="button"
         aria-label="Cerrar menú"
         onClick={onClose}
         className={cn(
-          "fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm transition-opacity lg:hidden",
+          "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm transition-opacity lg:hidden",
           open
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0",
@@ -122,63 +132,52 @@ export function Sidebar({
 
       <aside
         className={cn(
-          // Mobile: fixed drawer that slides in from the left, always full width.
-          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-800 bg-slate-900",
+          "fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground",
+          "border-r border-sidebar-border",
           "transition-transform duration-200 ease-out will-change-transform",
           open ? "translate-x-0" : "-translate-x-full",
-          // Desktop: static, always visible. Width swaps with `collapsed`.
-          // Keep transition on so the swap animates.
           "lg:static lg:z-0 lg:translate-x-0 lg:transition-[width] lg:duration-200",
-          collapsed ? "lg:w-14" : "lg:w-60",
+          collapsed ? "lg:w-16" : "lg:w-60",
         )}
         aria-label="Principal"
       >
-        {/* Logo row. On mobile we put a close button here; on desktop the
-            close button is hidden since the sidebar is always-visible. */}
+        {/* Logo row — lowercase lime wordmark, matching Riverz. */}
         <div
           className={cn(
-            "flex h-14 shrink-0 items-center border-b border-slate-800",
+            "flex h-14 shrink-0 items-center",
             collapsed ? "lg:justify-center lg:px-2" : "px-4",
             "justify-between gap-2",
           )}
         >
           <Link
             href="/dashboard"
+            aria-label="riverz"
             className={cn(
-              "flex items-center gap-2",
-              collapsed && "lg:justify-center",
+              "font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
+              collapsed ? "lg:text-[18px]" : "text-[20px]",
             )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </div>
-            <span
-              className={cn(
-                "text-sm font-semibold text-white",
-                collapsed && "lg:hidden",
-              )}
-            >
-              Bandeja Unificada
-            </span>
+            {collapsed ? <span className="hidden lg:inline">r</span> : null}
+            <span className={cn(collapsed && "lg:hidden")}>riverz</span>
           </Link>
+
           {/* Mobile close button */}
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar menú"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+            className="rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>
-          {/* Desktop collapse button — hidden in collapsed mode so the
-              row stays clean; the header has the matching expand toggle. */}
+          {/* Desktop collapse button */}
           {onToggleCollapsed && !collapsed && (
             <button
               type="button"
               onClick={onToggleCollapsed}
               aria-label="Contraer menú"
               title="Contraer menú"
-              className="hidden h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:flex"
+              className="hidden rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:block"
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
@@ -188,49 +187,62 @@ export function Sidebar({
         {/* Main navigation */}
         <nav
           className={cn(
-            "flex-1 overflow-y-auto py-4",
+            "flex-1 overflow-y-auto py-3 scrollbar-thin",
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          <ul className="flex flex-col gap-1">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                pathname={pathname}
-                collapsed={collapsed}
-                totalUnread={totalUnread}
-              />
-            ))}
-          </ul>
-
-          <div className="my-4 border-t border-slate-800" />
-
-          <ul className="flex flex-col gap-1">
-            {bottomNavItems.map((item) => (
-              <NavLink
-                key={item.href}
-                item={item}
-                pathname={pathname}
-                collapsed={collapsed}
-                totalUnread={0}
-              />
-            ))}
-          </ul>
+          {navGroups.map((group) => (
+            <div key={group.title} className="mb-4">
+              <h3
+                className={cn(
+                  "app-sidebar-group mb-1.5 px-2.5",
+                  collapsed && "lg:hidden",
+                )}
+              >
+                {group.title}
+              </h3>
+              <ul className="flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                    totalUnread={totalUnread}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
-        {/* User section */}
+        {/* Settings + sign out */}
         <div
           className={cn(
-            "shrink-0 border-t border-slate-800",
-            collapsed ? "lg:p-2" : "p-3",
+            "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
+            collapsed ? "lg:px-2" : "px-3",
+          )}
+        >
+          <NavLink
+            item={{ href: "/settings", label: "Ajustes", icon: Settings }}
+            pathname={pathname}
+            collapsed={collapsed}
+            totalUnread={0}
+          />
+        </div>
+
+        {/* User row + theme toggle */}
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-2 border-t border-sidebar-border p-3",
+            collapsed && "lg:flex-col lg:gap-2 lg:p-2",
           )}
         >
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "flex w-full items-center rounded-lg text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60",
-                collapsed ? "lg:justify-center lg:p-2" : "gap-3 px-3 py-2",
+                "flex min-w-0 flex-1 items-center rounded-lg text-left transition-colors hover:bg-sidebar-accent focus:bg-sidebar-accent focus:outline-none data-popup-open:bg-sidebar-accent",
+                collapsed ? "lg:justify-center lg:p-1.5" : "gap-2.5 px-2 py-1.5",
               )}
             >
               <Avatar className="size-8 shrink-0">
@@ -240,22 +252,17 @@ export function Sidebar({
                     alt={profile.full_name ?? "Avatar"}
                   />
                 ) : null}
-                <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                <AvatarFallback className="bg-primary/15 text-sm font-medium text-sidebar-primary">
                   {profile?.full_name?.charAt(0)?.toUpperCase() ??
                     profile?.email?.charAt(0)?.toUpperCase() ??
                     "U"}
                 </AvatarFallback>
               </Avatar>
-              <div
-                className={cn(
-                  "min-w-0 flex-1",
-                  collapsed && "lg:hidden",
-                )}
-              >
-                <p className="truncate text-sm font-medium text-white">
+              <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
+                <p className="truncate text-[13px] font-medium text-sidebar-foreground">
                   {profile?.full_name ?? "Usuario"}
                 </p>
-                <p className="truncate text-xs text-slate-400">
+                <p className="truncate text-[11px] text-sidebar-foreground/55">
                   {profile?.email ?? ""}
                 </p>
               </div>
@@ -264,14 +271,14 @@ export function Sidebar({
               align="end"
               side="top"
               sideOffset={6}
-              className="min-w-56 bg-slate-900 text-slate-100 ring-slate-700"
+              className="min-w-56 bg-popover text-popover-foreground"
             >
               <DropdownMenuItem
                 render={
                   <Link
                     href="/settings?tab=profile"
                     onClick={onClose}
-                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                    className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
                   />
                 }
               >
@@ -283,23 +290,40 @@ export function Sidebar({
                   <Link
                     href="/settings?tab=channels"
                     onClick={onClose}
-                    className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                    className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
                   />
                 }
               >
                 <Settings className="size-4" />
                 Ajustes
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
                 onClick={signOut}
-                className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
               >
                 <LogOut className="size-4" />
                 Cerrar sesión
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Light / dark toggle — mirrors Riverz's sidebar control. */}
+          <button
+            type="button"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label={
+              theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"
+            }
+            title={theme === "dark" ? "Tema claro" : "Tema oscuro"}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sidebar-border text-sidebar-foreground/60 transition-colors hover:border-sidebar-primary hover:text-sidebar-primary"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </aside>
     </>
@@ -321,21 +345,18 @@ function NavLink({
     pathname === item.href ||
     (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-  const showUnreadDot =
-    item.href === "/inbox" && totalUnread > 0 && !isActive;
+  const showUnreadDot = item.href === "/inbox" && totalUnread > 0 && !isActive;
 
   const link = (
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
-        collapsed ? "lg:justify-center lg:px-0 lg:py-2.5" : "px-3 py-2.5 lg:py-2",
-        isActive
-          ? "bg-primary/10 text-primary"
-          : "text-slate-400 hover:bg-slate-800 hover:text-white",
+        "app-sidebar-link",
+        collapsed && "lg:justify-center lg:px-0",
+        isActive && "is-active",
       )}
     >
-      <item.icon className="h-4 w-4 shrink-0" />
+      <item.icon className="h-3.5 w-3.5 shrink-0" />
       <span className={cn("flex-1", collapsed && "lg:hidden")}>
         {item.label}
       </span>
@@ -355,16 +376,13 @@ function NavLink({
             collapsed && "lg:absolute lg:right-1 lg:top-1",
           )}
         >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sidebar-primary opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-sidebar-primary" />
         </span>
       )}
     </Link>
   );
 
-  // In collapsed mode, hover-tooltips replace the label so the user can
-  // still identify each icon. Tooltips only render on desktop where the
-  // collapsed state actually applies.
   return (
     <li>
       {collapsed ? (

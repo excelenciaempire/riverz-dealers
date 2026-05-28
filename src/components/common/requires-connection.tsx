@@ -25,7 +25,7 @@ export function RequiresConnection({ title, description, children }: RequiresCon
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-5 animate-spin text-slate-500" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -33,14 +33,14 @@ export function RequiresConnection({ title, description, children }: RequiresCon
   if (!hasAny) {
     return (
       <div className="mx-auto max-w-xl py-12">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-primary/10 p-8 text-center">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-primary/10 p-8 text-center">
           <div className="absolute -top-12 -right-12 size-48 rounded-full bg-primary/10 blur-3xl" />
           <div className="relative">
             <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/15">
-              <Plug2 className="size-7 text-primary" />
+              <Plug2 className="size-7 text-accent-ink" />
             </div>
-            <h2 className="text-lg font-bold text-white">{title}</h2>
-            <p className="mt-2 text-sm text-slate-300">{description}</p>
+            <h2 className="text-lg font-bold text-foreground">{title}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{description}</p>
             <Link
               href="/settings?tab=channels"
               className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"

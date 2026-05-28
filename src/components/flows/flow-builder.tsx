@@ -123,7 +123,7 @@ const NODE_META: Record<
   send_buttons: {
     label: "Enviar botones",
     icon: ListChecks,
-    color: "text-primary",
+    color: "text-accent-ink",
   },
   send_list: {
     label: "Enviar lista",
@@ -150,7 +150,7 @@ const NODE_META: Record<
     icon: UserPlus,
     color: "text-amber-400",
   },
-  end: { label: "Fin", icon: Flag, color: "text-slate-400" },
+  end: { label: "Fin", icon: Flag, color: "text-muted-foreground" },
 };
 
 // ============================================================
@@ -620,14 +620,14 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">
+          <h2 className="text-sm font-semibold text-foreground">
             Nodos ({state.nodes.length})
           </h2>
           <AddNodeButton onAdd={addNode} />
         </div>
 
         {state.nodes.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center text-sm text-slate-400">
+          <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
             Añade un nodo de <strong>Inicio</strong>, luego un nodo de{" "}
             <strong>Enviar botones</strong>, y después un{" "}
             <strong>Transferir</strong>: ese es el esquema clásico de un menú de
@@ -663,7 +663,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           dashboard shell is the scroll container; this stays pinned
           to the viewport bottom (with a 1rem gap) until the page
           naturally ends, at which point it falls back into flow. */}
-      <div className="sticky bottom-4 z-10 shadow-xl shadow-slate-950/60">
+      <div className="sticky bottom-4 z-10 shadow-xl shadow-black/40">
         <ValidationPanel issues={issues} onJump={jumpToNode} />
       </div>
     </div>
@@ -701,11 +701,11 @@ function Header({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1 hover:text-slate-300"
+          className="inline-flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-3 w-3" />
           Flujos
@@ -713,14 +713,14 @@ function Header({
       </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Workflow className="h-5 w-5 shrink-0 text-primary" />
+          <Workflow className="h-5 w-5 shrink-0 text-accent-ink" />
           <Input
             value={state.name}
             onChange={(e) =>
               setState((s) => ({ ...s, name: e.target.value }))
             }
             placeholder="Nombre del flujo"
-            className="max-w-md bg-slate-900 text-lg font-semibold"
+            className="max-w-md bg-card text-lg font-semibold"
           />
           <StatusBadge status={state.status} />
           {dirty && (
@@ -802,7 +802,7 @@ function Header({
           setState((s) => ({ ...s, description: e.target.value }))
         }
         placeholder="Descripción opcional (interna — los clientes no la ven)"
-        className="bg-slate-900 text-sm"
+        className="bg-card text-sm"
       />
     </div>
   );
@@ -810,9 +810,9 @@ function Header({
 
 function StatusBadge({ status }: { status: BuilderState["status"] }) {
   const cls = {
-    draft: "border-slate-700 bg-slate-800 text-slate-300",
+    draft: "border-border bg-muted text-foreground",
     active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
-    archived: "border-slate-700 bg-slate-800/50 text-slate-500",
+    archived: "border-border bg-muted/50 text-muted-foreground",
   }[status];
   const label = {
     draft: "Borrador",
@@ -840,11 +840,11 @@ function TriggerPanel({
   triggerIssues: ValidationIssue[];
 }) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-white">Activador</h2>
+    <section className="rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-3 text-sm font-semibold text-foreground">Activador</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Cuándo…</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Cuándo…</label>
           <Select
             value={state.trigger_type}
             onValueChange={(v) =>
@@ -856,7 +856,7 @@ function TriggerPanel({
               }))
             }
           >
-            <SelectTrigger className="bg-slate-800">
+            <SelectTrigger className="bg-muted">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -874,7 +874,7 @@ function TriggerPanel({
         </div>
         {state.trigger_type === "keyword" && (
           <div>
-            <label className="mb-1 block text-xs text-slate-400">
+            <label className="mb-1 block text-xs text-muted-foreground">
               Palabras clave (separadas por comas)
             </label>
             <Input
@@ -896,7 +896,7 @@ function TriggerPanel({
                 }))
               }
               placeholder="soporte, ayuda, hola"
-              className="bg-slate-800"
+              className="bg-muted"
             />
           </div>
         )}
@@ -925,9 +925,9 @@ function EntryPicker({
 }) {
   if (state.nodes.length === 0) return null;
   return (
-    <section className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-3">
-      <CornerDownRight className="h-4 w-4 shrink-0 text-primary" />
-      <span className="text-xs text-slate-400">Nodo de entrada:</span>
+    <section className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+      <CornerDownRight className="h-4 w-4 shrink-0 text-accent-ink" />
+      <span className="text-xs text-muted-foreground">Nodo de entrada:</span>
       <NodeKeySelect
         value={state.entry_node_id}
         nodes={state.nodes}
@@ -979,14 +979,14 @@ function NodeCard({
     <div
       ref={cardRef}
       className={cn(
-        "rounded-lg border bg-slate-900 transition-shadow duration-500",
+        "rounded-lg border bg-card transition-shadow duration-500",
         hasError
           ? "border-red-500/40"
           : isEntry
             ? "border-primary/50"
-            : "border-slate-800",
+            : "border-border",
         isFlashed &&
-          "ring-2 ring-primary ring-offset-2 ring-offset-slate-950",
+          "ring-2 ring-primary ring-offset-2 ring-offset-background",
       )}
     >
       <button
@@ -997,23 +997,23 @@ function NodeCard({
         <meta.icon className={cn("h-4 w-4 shrink-0", meta.color)} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-white">
+            <span className="truncate text-sm font-medium text-foreground">
               {meta.label}
             </span>
-            <code className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
+            <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
               {node.node_key}
             </code>
             {isEntry && (
               <Badge
                 variant="outline"
-                className="border-primary/40 bg-primary/10 text-[10px] text-primary"
+                className="border-primary/40 bg-primary/10 text-[10px] text-accent-ink"
               >
                 Entrada
               </Badge>
             )}
           </div>
           {!expanded && preview && (
-            <p className="mt-0.5 truncate text-xs text-slate-500">
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {preview}
             </p>
           )}
@@ -1022,20 +1022,20 @@ function NodeCard({
           <CircleAlert className="h-3.5 w-3.5 shrink-0 text-red-400" />
         )}
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-slate-500" />
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-slate-500" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
       {expanded && (
-        <div className="border-t border-slate-800 px-4 py-4">
+        <div className="border-t border-border px-4 py-4">
           <NodeConfigForm
             node={node}
             allNodes={allNodes}
             onUpdate={onUpdate}
             onUpdateConfig={onUpdateConfig}
           />
-          <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
             <div className="flex items-center gap-2">
               {!isEntry && (
                 <Button variant="ghost" size="sm" onClick={onSetEntry}>
@@ -1148,7 +1148,7 @@ function NodeConfigForm({
             rows={2}
           />
           <div>
-            <label className="mb-1 block text-xs text-slate-400">
+            <label className="mb-1 block text-xs text-muted-foreground">
               Clave de variable (se guarda en flow_runs.vars; alfanumérico + guion bajo)
             </label>
             <Input
@@ -1159,11 +1159,11 @@ function NodeConfigForm({
                 })
               }
               placeholder="p. ej. nombre, correo, empresa"
-              className="bg-slate-800 font-mono text-xs"
+              className="bg-muted font-mono text-xs"
             />
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 text-[10px] text-muted-foreground">
               Úsala en mensajes posteriores y notas de transferencia con{" "}
-              <code className="rounded bg-slate-800 px-1">
+              <code className="rounded bg-muted px-1">
                 {"{{vars."}
                 {(cfg as { var_key?: string }).var_key || "nombre"}
                 {"}}"}
@@ -1209,17 +1209,17 @@ function NodeConfigForm({
       )}
 
       {node.node_type === "end" && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Nodo terminal. Cuando el motor llega a este nodo, la ejecución se
           marca como completa. No hace falta configuración.
         </p>
       )}
 
-      <div className="border-t border-slate-800 pt-3">
+      <div className="border-t border-border pt-3">
         <button
           type="button"
           onClick={() => setShowAdvanced((v) => !v)}
-          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           {showAdvanced ? (
             <ChevronUp className="h-3 w-3" />
@@ -1231,7 +1231,7 @@ function NodeConfigForm({
         {showAdvanced && (
           <div className="mt-3 flex flex-col gap-3">
             <div>
-              <label className="mb-1 block text-xs text-slate-400">
+              <label className="mb-1 block text-xs text-muted-foreground">
                 Clave del nodo (identificador interno — mantenlo estable para analítica)
               </label>
               <Input
@@ -1239,11 +1239,11 @@ function NodeConfigForm({
                 onChange={(e) =>
                   onUpdate({ node_key: slugify(e.target.value, node.node_key) })
                 }
-                className="bg-slate-800 font-mono text-xs"
+                className="bg-muted font-mono text-xs"
               />
             </div>
             {hasReplyIds && (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-muted-foreground">
                 Los IDs de respuesta de cada opción se muestran arriba.
                 WhatsApp los devuelve cuando un cliente toca; normalmente no
                 necesitas modificarlos.
@@ -1315,7 +1315,7 @@ function SendButtonsForm({
       />
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="text-xs text-slate-400">
+          <label className="text-xs text-muted-foreground">
             Botones (1–3) — cada uno enruta a un nodo distinto
           </label>
         </div>
@@ -1324,7 +1324,7 @@ function SendButtonsForm({
             <div
               key={i}
               className={cn(
-                "grid grid-cols-1 gap-2 rounded-md border border-slate-800 bg-slate-800/40 p-3",
+                "grid grid-cols-1 gap-2 rounded-md border border-border bg-muted/40 p-3",
                 showAdvanced
                   ? "md:grid-cols-[1fr_2fr_2fr_auto]"
                   : "md:grid-cols-[2fr_2fr_auto]",
@@ -1339,14 +1339,14 @@ function SendButtonsForm({
                     })
                   }
                   placeholder="reply_id"
-                  className="bg-slate-800 font-mono text-xs"
+                  className="bg-muted font-mono text-xs"
                 />
               )}
               <Input
                 value={b.title}
                 onChange={(e) => updateButton(i, { title: e.target.value })}
                 placeholder="Título visible (≤20 caracteres)"
-                className="bg-slate-800"
+                className="bg-muted"
                 maxLength={20}
               />
               <NodeKeySelect
@@ -1509,13 +1509,13 @@ function SendListForm({
       </div>
 
       <div className="mt-2">
-        <label className="mb-2 block text-xs text-slate-400">
+        <label className="mb-2 block text-xs text-muted-foreground">
           Filas (1–10 en total entre todas las secciones)
         </label>
         {sections.map((section, sIdx) => (
           <div
             key={sIdx}
-            className="mb-3 rounded-md border border-slate-800 bg-slate-800/40 p-3"
+            className="mb-3 rounded-md border border-border bg-muted/40 p-3"
           >
             <div className="mb-2 flex items-center gap-2">
               <Input
@@ -1524,7 +1524,7 @@ function SendListForm({
                   updateSection(sIdx, { title: e.target.value })
                 }
                 placeholder={`Título de la sección ${sIdx + 1} (opcional)`}
-                className="bg-slate-800 text-xs"
+                className="bg-muted text-xs"
               />
               {sections.length > 1 && (
                 <Button
@@ -1560,7 +1560,7 @@ function SendListForm({
                       })
                     }
                     placeholder="reply_id"
-                    className="bg-slate-800 font-mono text-xs"
+                    className="bg-muted font-mono text-xs"
                   />
                 )}
                 <Input
@@ -1569,7 +1569,7 @@ function SendListForm({
                     updateRow(sIdx, rIdx, { title: e.target.value })
                   }
                   placeholder="Título de la fila (≤24)"
-                  className="bg-slate-800"
+                  className="bg-muted"
                   maxLength={24}
                 />
                 <NodeKeySelect
@@ -1677,14 +1677,14 @@ function ConditionForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Si</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Si</label>
           <Select
             value={subject}
             onValueChange={(v) =>
               onUpdateConfig({ subject: v as ConditionCfg["subject"] })
             }
           >
-            <SelectTrigger className="bg-slate-800">
+            <SelectTrigger className="bg-muted">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1695,7 +1695,7 @@ function ConditionForm({
           </Select>
         </div>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-slate-400">
+          <label className="mb-1 block text-xs text-muted-foreground">
             {subject === "var"
               ? "nombre de variable"
               : subject === "tag"
@@ -1707,7 +1707,7 @@ function ConditionForm({
               value={cfg.subject_key ?? ""}
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
-              <SelectTrigger className="bg-slate-800">
+              <SelectTrigger className="bg-muted">
                 <SelectValue placeholder="Elige una etiqueta…" />
               </SelectTrigger>
               <SelectContent>
@@ -1723,7 +1723,7 @@ function ConditionForm({
               value={cfg.subject_key ?? ""}
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
-              <SelectTrigger className="bg-slate-800">
+              <SelectTrigger className="bg-muted">
                 <SelectValue placeholder="Elige un campo…" />
               </SelectTrigger>
               <SelectContent>
@@ -1738,7 +1738,7 @@ function ConditionForm({
               value={cfg.subject_key ?? ""}
               onChange={(e) => onUpdateConfig({ subject_key: e.target.value })}
               placeholder={subject === "var" ? "p. ej. correo" : "UUID de la etiqueta"}
-              className="bg-slate-800 font-mono text-xs"
+              className="bg-muted font-mono text-xs"
             />
           )}
         </div>
@@ -1751,14 +1751,14 @@ function ConditionForm({
         )}
       >
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Operador</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Operador</label>
           <Select
             value={operator}
             onValueChange={(v) =>
               onUpdateConfig({ operator: v as ConditionCfg["operator"] })
             }
           >
-            <SelectTrigger className="bg-slate-800">
+            <SelectTrigger className="bg-muted">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1771,11 +1771,11 @@ function ConditionForm({
         </div>
         {showValue && (
           <div>
-            <label className="mb-1 block text-xs text-slate-400">Valor</label>
+            <label className="mb-1 block text-xs text-muted-foreground">Valor</label>
             <Input
               value={cfg.value ?? ""}
               onChange={(e) => onUpdateConfig({ value: e.target.value })}
-              className="bg-slate-800"
+              className="bg-muted"
             />
           </div>
         )}
@@ -1842,14 +1842,14 @@ function SetTagForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Acción</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Acción</label>
           <Select
             value={cfg.mode ?? "add"}
             onValueChange={(v) =>
               onUpdateConfig({ mode: v as SetTagCfg["mode"] })
             }
           >
-            <SelectTrigger className="bg-slate-800">
+            <SelectTrigger className="bg-muted">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1859,13 +1859,13 @@ function SetTagForm({
           </Select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-slate-400">Etiqueta</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Etiqueta</label>
           {tags.length > 0 ? (
             <Select
               value={cfg.tag_id ?? ""}
               onValueChange={(v) => onUpdateConfig({ tag_id: v })}
             >
-              <SelectTrigger className="bg-slate-800">
+              <SelectTrigger className="bg-muted">
                 <SelectValue placeholder="Elige una etiqueta…" />
               </SelectTrigger>
               <SelectContent>
@@ -1881,7 +1881,7 @@ function SetTagForm({
               value={cfg.tag_id ?? ""}
               onChange={(e) => onUpdateConfig({ tag_id: e.target.value })}
               placeholder="UUID de la etiqueta"
-              className="bg-slate-800 font-mono text-xs"
+              className="bg-muted font-mono text-xs"
             />
           )}
         </div>
@@ -1912,19 +1912,19 @@ function TextRow({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-slate-400">{label}</label>
+      <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
       {rows > 1 ? (
         <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
-          className="bg-slate-800"
+          className="bg-muted"
         />
       ) : (
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="bg-slate-800"
+          className="bg-muted"
         />
       )}
     </div>
@@ -1946,7 +1946,7 @@ function NextNodeRow({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-slate-400">{label}</label>
+      <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
       <NodeKeySelect
         value={value || null}
         nodes={allNodes}
@@ -1979,7 +1979,7 @@ function NodeKeySelect({
       value={value ?? "__none__"}
       onValueChange={(v) => onChange(v === "__none__" ? null : v)}
     >
-      <SelectTrigger className={cn("bg-slate-800", className)}>
+      <SelectTrigger className={cn("bg-muted", className)}>
         <SelectValue placeholder={placeholder ?? "—"} />
       </SelectTrigger>
       <SelectContent>
@@ -2021,13 +2021,13 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
         aria-label="Añadir nodo"
       >
         <Plus className="h-3.5 w-3.5" />
         Añadir nodo
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
+      <DropdownMenuContent align="end" className="border-border bg-card">
         {types.map((t) => {
           const meta = NODE_META[t];
           return (
@@ -2058,7 +2058,7 @@ function ValidationPanel({
     // sticky-positioned over scrolled-behind node cards (a translucent
     // bg-emerald-500/10 would bleed through ugly).
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-slate-950 p-3 text-sm font-medium text-emerald-300">
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-card p-3 text-sm font-medium text-emerald-300">
         <CircleCheck className="h-4 w-4 shrink-0" />
         Sin problemas. Listo para activar.
       </div>
@@ -2069,11 +2069,11 @@ function ValidationPanel({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-slate-950 p-3",
+        "rounded-lg border bg-card p-3",
         errors.length > 0 ? "border-red-500/40" : "border-amber-500/40",
       )}
     >
-      <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
+      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
         {errors.length > 0 ? (
           <CircleAlert className="h-4 w-4 text-red-400" />
         ) : (
@@ -2107,7 +2107,7 @@ function IssueLine({
       <CircleAlert className={cn("mt-0.5 h-3 w-3 shrink-0", iconTone)} />
       <span className="min-w-0 flex-1">
         {issue.node_key && (
-          <code className="mr-1 rounded bg-slate-800 px-1 py-0.5 text-[10px] text-slate-400">
+          <code className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
             {issue.node_key}
           </code>
         )}
@@ -2124,7 +2124,7 @@ function IssueLine({
         type="button"
         onClick={() => onJump(issue.node_key!)}
         className={cn(
-          "flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-slate-800/60",
+          "flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-accent",
           tone,
         )}
         aria-label={`Ir al nodo ${issue.node_key}`}

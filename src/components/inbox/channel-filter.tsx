@@ -111,9 +111,9 @@ function Chip({
       className={cn(
         "group relative inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
         active
-          ? "border-primary/60 bg-primary/15 text-primary"
-          : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:text-white",
-        disabled && "cursor-not-allowed opacity-40 hover:border-slate-800 hover:text-slate-400",
+          ? "border-primary/60 bg-primary/15 text-accent-ink"
+          : "border-border bg-card text-foreground hover:border-foreground/30 hover:text-foreground",
+        disabled && "cursor-not-allowed opacity-40 hover:border-border hover:text-muted-foreground",
       )}
       style={!active && tone ? { boxShadow: `inset 2px 0 0 ${tone}55` } : undefined}
     >
@@ -123,7 +123,7 @@ function Chip({
         <span
           className={cn(
             "ml-0.5 rounded-full px-1 text-[9px] font-bold tabular-nums",
-            active ? "bg-primary/30 text-primary" : "bg-slate-800 text-slate-300",
+            active ? "bg-primary/30 text-accent-ink" : "bg-muted text-foreground",
           )}
         >
           {count > 99 ? "99+" : count}

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { UserPlus, MessageSquare, Radio, Zap } from 'lucide-react'
+import { UserPlus, MessageSquare, Radio, Zap, ArrowRight } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
@@ -12,31 +12,33 @@ interface Action {
   label: string
   href: string
   icon: ComponentType<{ className?: string }>
-  tint: string
 }
 
 const ACTIONS: Action[] = [
-  { label: 'Abrir bandeja', href: '/inbox', icon: MessageSquare, tint: 'text-blue-400' },
-  { label: 'Nuevo contacto', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
-  { label: 'Nueva difusión', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' },
-  { label: 'Nueva automatización', href: '/automations/new', icon: Zap, tint: 'text-primary' },
+  { label: 'Abrir bandeja', href: '/inbox', icon: MessageSquare },
+  { label: 'Nuevo contacto', href: '/contacts', icon: UserPlus },
+  { label: 'Nueva difusión', href: '/broadcasts/new', icon: Radio },
+  { label: 'Nueva automatización', href: '/automations/new', icon: Zap },
 ]
 
 export function QuickActions() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {ACTIONS.map((a) => {
         const Icon = a.icon
         return (
           <Link
             key={a.href}
             href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 transition-colors hover:border-slate-700 hover:bg-slate-800/60"
+            className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-colors hover:border-foreground/30 hover:bg-accent"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 ${a.tint}`}>
-              <Icon className="h-4 w-4" />
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
+                <Icon className="h-4 w-4" />
+              </div>
+              <span className="truncate text-sm font-medium text-foreground">{a.label}</span>
             </div>
-            <span className="text-sm font-medium text-white">{a.label}</span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
         )
       })}

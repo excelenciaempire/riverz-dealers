@@ -14,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -44,14 +43,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <MessageSquare className="h-6 w-6 text-primary" />
-          </div>
-          <CardTitle className="text-xl text-white">Bienvenido de nuevo</CardTitle>
-          <CardDescription className="text-slate-400">
+          <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
+            riverz
+          </span>
+          <CardTitle className="text-xl text-foreground">Bienvenido de nuevo</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Inicia sesión en tu cuenta
           </CardDescription>
         </CardHeader>
@@ -64,7 +63,7 @@ export default function LoginPage() {
             )}
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-slate-300">
+              <Label htmlFor="email" className="text-foreground">
                 Correo electrónico
               </Label>
               <Input
@@ -74,18 +73,18 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-300">
+                <Label htmlFor="password" className="text-foreground">
                   Contraseña
                 </Label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
+                  className="text-sm text-accent-ink hover:text-accent-ink/80"
                 >
                   ¿Olvidaste tu contraseña?
                 </Link>
@@ -97,7 +96,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
             </div>
 
@@ -110,11 +109,11 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             ¿No tienes cuenta?{" "}
             <Link
               href="/signup"
-              className="text-primary hover:text-primary/80"
+              className="text-accent-ink hover:text-accent-ink/80"
             >
               Crear cuenta
             </Link>

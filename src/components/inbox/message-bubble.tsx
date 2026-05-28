@@ -32,11 +32,11 @@ interface MessageBubbleProps {
 function StatusIcon({ status }: { status: Message["status"] }) {
   switch (status) {
     case "sending":
-      return <Clock className="h-3 w-3 text-slate-400" />;
+      return <Clock className="h-3 w-3 text-muted-foreground" />;
     case "sent":
-      return <Check className="h-3 w-3 text-slate-400" />;
+      return <Check className="h-3 w-3 text-muted-foreground" />;
     case "delivered":
-      return <CheckCheck className="h-3 w-3 text-slate-400" />;
+      return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
     case "read":
       return <CheckCheck className="h-3 w-3 text-blue-400" />;
     case "failed":
@@ -48,8 +48,8 @@ function StatusIcon({ status }: { status: Message["status"] }) {
 
 function MediaUnavailable({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-slate-700/40 px-3 py-2 text-xs text-slate-300">
-      <ImageOff className="h-4 w-4 shrink-0 text-slate-500" />
+    <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-foreground">
+      <ImageOff className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span>{label} no disponible</span>
     </div>
   );
@@ -94,15 +94,15 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
   if (error) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-slate-700">
-        <ImageOff className="h-8 w-8 text-slate-500" />
+      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+        <ImageOff className="h-8 w-8 text-muted-foreground" />
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-slate-700">
+      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
@@ -183,9 +183,9 @@ function MessageContent({ message }: { message: Message }) {
           href={message.media_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg bg-slate-700/50 px-3 py-2 text-sm hover:bg-slate-700"
+          className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
         >
-          <FileText className="h-5 w-5 shrink-0 text-slate-400" />
+          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
           <span className="truncate">
             {message.content_text || "Documento"}
           </span>
@@ -195,7 +195,7 @@ function MessageContent({ message }: { message: Message }) {
     case "template":
       return (
         <div>
-          <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+          <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-ink">
             <LayoutTemplate className="h-3 w-3" />
             Plantilla
           </span>
@@ -210,7 +210,7 @@ function MessageContent({ message }: { message: Message }) {
     case "location":
       return (
         <div className="flex items-center gap-2 text-sm">
-          <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
+          <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>{message.content_text || "Ubicación compartida"}</span>
         </div>
       );
@@ -223,7 +223,7 @@ function MessageContent({ message }: { message: Message }) {
       // tap rather than the customer typing the same words.
       return (
         <div className="flex flex-col gap-0.5">
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <CornerDownLeft className="h-3 w-3" />
             Respuesta de botón
           </span>
@@ -269,33 +269,33 @@ export function MessageBubble({
       <div className="w-full">
         <div
           className={cn(
-            "rounded-lg border bg-slate-800/40",
+            "rounded-lg border bg-card/40",
             isAgent
-              ? "border-l-2 border-l-primary border-slate-700/60"
-              : "border-l-2 border-l-slate-500 border-slate-700/60",
+              ? "border-l-2 border-l-primary border-border/60"
+              : "border-l-2 border-l-border border-border/60",
           )}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-slate-700/50 px-3 py-1.5">
+          <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 text-xs font-semibold",
-                isAgent ? "text-primary" : "text-slate-200",
+                isAgent ? "text-accent-ink" : "text-foreground",
               )}
             >
               <span
                 className={cn(
                   "inline-block h-2 w-2 rounded-full",
-                  isAgent ? "bg-primary" : "bg-slate-400",
+                  isAgent ? "bg-primary" : "bg-muted-foreground",
                 )}
               />
               {isAgent ? "Tú (enviado)" : "Cliente"}
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}
               {isAgent && <StatusIcon status={message.status} />}
             </span>
           </div>
-          <div className="px-3 py-2 text-sm text-slate-100">
+          <div className="px-3 py-2 text-sm text-foreground">
             {reply && (
               <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
             )}
@@ -320,7 +320,7 @@ export function MessageBubble({
           "relative rounded-2xl px-3 py-2",
           isAgent
             ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-slate-800 text-slate-100",
+            : "rounded-bl-md bg-muted text-foreground",
         )}
       >
         {reply && (
@@ -333,7 +333,14 @@ export function MessageBubble({
             isAgent ? "justify-end" : "justify-start",
           )}
         >
-          <span className="text-[10px] text-white/60">{time}</span>
+          <span
+            className={cn(
+              "text-[10px]",
+              isAgent ? "text-primary-foreground/60" : "text-muted-foreground",
+            )}
+          >
+            {time}
+          </span>
           {isAgent && <StatusIcon status={message.status} />}
         </div>
       </div>

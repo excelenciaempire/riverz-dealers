@@ -42,52 +42,52 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Ajustes</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">Ajustes</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Perfil, equipo, canales, plantillas y etiquetas — todo en un mismo sitio.
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
-        <TabsList className="bg-slate-900 border border-slate-700">
+        <TabsList className="bg-card border border-border">
           <TabsTrigger
             value="profile"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <User className="size-4" />
             Perfil
           </TabsTrigger>
           <TabsTrigger
             value="workspace"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Building2 className="size-4" />
             Equipo
           </TabsTrigger>
           <TabsTrigger
             value="channels"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Plug2 className="size-4" />
             Canales
           </TabsTrigger>
           <TabsTrigger
             value="templates"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <MessageSquare className="size-4" />
             Plantillas
           </TabsTrigger>
           <TabsTrigger
             value="tags"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Tag className="size-4" />
             Etiquetas
           </TabsTrigger>
           <TabsTrigger
             value="appearance"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Palette className="size-4" />
             Apariencia
