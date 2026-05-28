@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, MoreVertical, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { es } from "date-fns/locale";
@@ -25,6 +26,7 @@ interface ConversationListProps {
   onSelect: (conversation: Conversation) => void;
   conversations: Conversation[];
   onConversationsLoaded: (conversations: Conversation[]) => void;
+  onConversationDeleted?: (id: string) => void;
   /**
    * Increment to force the fetch effect below to refire. The parent
    * bumps this on realtime reconnect / tab visibility → visible so the
@@ -52,6 +54,7 @@ export function ConversationList({
   onSelect,
   conversations,
   onConversationsLoaded,
+  onConversationDeleted,
   resyncToken = 0,
 }: ConversationListProps) {
   const [search, setSearch] = useState("");
@@ -212,6 +215,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                onDelete={onConversationDeleted}
                 tz={tz}
               />
             ))}
@@ -226,6 +230,7 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  onDelete?: (id: string) => void;
   tz: string;
 }
 
@@ -233,8 +238,40 @@ function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  onDelete,
   tz,
 }: ConversationItemProps) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent | Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (deleting) return;
+      const name =
+        conversation.contact?.name ||
+        conversation.contact?.email ||
+        conversation.contact?.phone ||
+        "esta conversación";
+      if (!window.confirm(`¿Eliminar la conversación con ${name}? Se quitará de la bandeja.`)) return;
+      setDeleting(true);
+      try {
+        const r = await fetch(`/api/conversations/${conversation.id}`, { method: "DELETE" });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          toast.error(j.error || "No se pudo eliminar");
+          return;
+        }
+        onDelete?.(conversation.id);
+        toast.success("Conversación eliminada");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error de red");
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [conversation, deleting, onDelete],
+  );
   const contact = conversation.contact;
   const displayName =
     contact?.name || contact?.email || contact?.phone || contact?.external_id || "Sin nombre";
@@ -263,13 +300,36 @@ function ConversationItem({
   })();
 
   return (
-    <button
+    <div
       onClick={handleClick}
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
+        "group relative flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
         isActive && "border-l-2 border-primary bg-slate-800/70"
       )}
     >
+      {onDelete && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Acciones"
+            className="absolute right-1.5 top-2 hidden h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-700/60 hover:text-white group-hover:flex data-[popup-open]:flex"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="border-slate-700 bg-slate-800"
+          >
+            <DropdownMenuItem
+              onClick={(e) => handleDelete(e as unknown as Event)}
+              className="text-sm text-red-400 focus:bg-red-500/10 focus:text-red-300"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Eliminar conversación
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       {/* Avatar with channel logo badge — the small overlay tells the
           agent at a glance which app the message came from without having
           to read a separate text badge in the row. */}
@@ -334,6 +394,6 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

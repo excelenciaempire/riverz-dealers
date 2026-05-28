@@ -43,6 +43,9 @@ export default function InboxPage() {
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
   );
+  const [connectedChannels, setConnectedChannels] = useState<Set<Channel>>(
+    new Set(),
+  );
   /**
    * Bumped whenever we want children (ConversationList, MessageThread)
    * to refetch from the DB — used as a safety net against missed
@@ -145,12 +148,14 @@ export default function InboxPage() {
 
       if (!user) return;
 
-      const { count } = await supabase
+      const { data: rows } = await supabase
         .from("channel_connections")
-        .select("id", { count: "exact", head: true })
+        .select("channel")
         .eq("status", "connected");
 
-      setHasAnyConnection((count ?? 0) > 0);
+      const channels = new Set<Channel>((rows ?? []).map((r) => r.channel as Channel));
+      setConnectedChannels(channels);
+      setHasAnyConnection(channels.size > 0);
     };
 
     checkConnection();
@@ -432,6 +437,23 @@ export default function InboxPage() {
     [activeConversation?.id, router]
   );
 
+  // Drop a conversation from local state after the user deletes it via
+  // the row's kebab menu. The DELETE request itself happens inside
+  // ConversationList; here we just keep the in-memory list in sync.
+  const handleConversationDeleted = useCallback(
+    (id: string) => {
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (activeConversation?.id === id) {
+        setActiveConversation(null);
+        setActiveContact(null);
+        setMessages([]);
+        autoSelectedForDeepLinkRef.current = null;
+        router.replace("/inbox", { scroll: false });
+      }
+    },
+    [activeConversation?.id, router],
+  );
+
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
   // instead of re-opening the thread the user just backed out of.
@@ -512,7 +534,10 @@ export default function InboxPage() {
   // Channel filter derived state — recomputed cheaply on every render
   // since the conversations array is already in memory. We also count
   // unread per top-level tab so the tabs can show their own badge.
-  const availableChannels = new Set<Channel>();
+  // Channels come from connected accounts (channel_connections) so a
+  // freshly-connected channel shows up immediately, even before its
+  // first inbound message has arrived.
+  const availableChannels = new Set<Channel>(connectedChannels);
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
   let adsUnreadCount = 0;
   const tabCounts = { messages: 0, comments: 0 };
@@ -620,6 +645,7 @@ export default function InboxPage() {
                 onSelect={handleSelectConversation}
                 conversations={filteredConversations}
                 onConversationsLoaded={handleConversationsLoaded}
+                onConversationDeleted={handleConversationDeleted}
                 resyncToken={resyncToken}
               />
             </div>
