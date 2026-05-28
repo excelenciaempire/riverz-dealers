@@ -76,12 +76,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         onToggleCollapsed={toggleCollapsed}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header
-          onOpenSidebar={openSidebar}
-          onToggleCollapsed={toggleCollapsed}
-        />
+        <Header onOpenSidebar={openSidebar} />
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

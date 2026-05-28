@@ -19,6 +19,7 @@ import {
   User,
   X,
   PanelLeftClose,
+  PanelLeftOpen,
   Moon,
   Sun,
 } from "lucide-react";
@@ -144,21 +145,19 @@ export function Sidebar({
         {/* Logo row — lowercase lime wordmark, matching Riverz. */}
         <div
           className={cn(
-            "flex h-14 shrink-0 items-center",
-            collapsed ? "lg:justify-center lg:px-2" : "px-4",
-            "justify-between gap-2",
+            "flex h-14 shrink-0 items-center justify-between gap-2",
+            collapsed ? "px-4 lg:justify-center lg:px-2" : "px-4",
           )}
         >
           <Link
             href="/dashboard"
             aria-label="riverz"
             className={cn(
-              "font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
-              collapsed ? "lg:text-[18px]" : "text-[20px]",
+              "text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
+              collapsed && "lg:hidden",
             )}
           >
-            {collapsed ? <span className="hidden lg:inline">r</span> : null}
-            <span className={cn(collapsed && "lg:hidden")}>riverz</span>
+            riverz
           </Link>
 
           {/* Mobile close button */}
@@ -170,16 +169,24 @@ export function Sidebar({
           >
             <X className="h-5 w-5" />
           </button>
-          {/* Desktop collapse button */}
-          {onToggleCollapsed && !collapsed && (
+          {/* Desktop collapse / expand toggle. Centered when collapsed so the
+              icon rail keeps a usable expand control. */}
+          {onToggleCollapsed && (
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label="Contraer menú"
-              title="Contraer menú"
-              className="hidden rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:block"
+              aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
+              title={collapsed ? "Expandir menú" : "Contraer menú"}
+              className={cn(
+                "hidden rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:block",
+                collapsed && "lg:mx-auto",
+              )}
             >
-              <PanelLeftClose className="h-4 w-4" />
+              {collapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
             </button>
           )}
         </div>
