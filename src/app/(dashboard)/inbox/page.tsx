@@ -602,7 +602,7 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6 lg:-m-8 lg:h-screen">
       {hasAnyConnection === false && (
         <Link
           href="/settings?tab=channels"
@@ -631,7 +631,10 @@ export default function InboxPage() {
             "h-full border-r border-border bg-card",
             // Below lg the pane is full-width via the wrapping flex, so
             // hide it entirely when a conv is open (matches existing UX).
-            hasActiveConv ? "hidden lg:block" : "block w-full lg:!w-auto",
+            // `max-lg:!w-full` forces full width on mobile (overriding the
+            // pane's inline px width); on lg+ the inline resizable width
+            // applies so the thread + contact sidebar get their space.
+            hasActiveConv ? "hidden lg:block" : "block max-lg:!w-full",
           )}
         >
           <div className="flex h-full flex-col">
@@ -689,7 +692,7 @@ export default function InboxPage() {
         </div>
 
         {/* Right panel: Contact sidebar — desktop only. */}
-        <div className="hidden lg:block">
+        <div className="hidden shrink-0 lg:block">
           <ContactSidebar contact={activeContact} />
         </div>
       </div>
