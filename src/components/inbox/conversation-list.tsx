@@ -5,7 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { Search, ChevronDown, MoreVertical, Trash2 } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  MoreVertical,
+  Trash2,
+  CheckSquare,
+  Square,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -18,8 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -60,6 +66,9 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationStatus | "all">("all");
   const [loading, setLoading] = useState(true);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const tz = useTimezone();
 
   // Keep the latest callback in a ref so the fetch effect below can
@@ -84,11 +93,12 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      // Per-user scoping: a workspace member only sees conversations
-      // from the connections they themselves connected. Without this
-      // filter every user in the workspace would see each other's
-      // Gmail / Hotmail / WhatsApp threads, which is what we want
-      // avoid — "que cada usuario en su cuenta pueda conectar su email".
+      // Scoping rule: EMAIL channels (gmail/outlook) are personal — each
+      // agent only sees the mailboxes they themselves connected. Every
+      // other channel (WhatsApp, Instagram, Messenger, FB/IG comments)
+      // is a shared business asset, so all workspace members see it.
+      // This is what the user asked for: "que solamente se vean los
+      // emails del email conectado" without hiding the shared WhatsApp.
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -99,21 +109,23 @@ export function ConversationList({
       const { data: ownConns } = await supabase
         .from("channel_connections")
         .select("id")
-        .eq("created_by", user.id);
-      const ownIds = (ownConns ?? []).map((c) => c.id);
-      if (ownIds.length === 0) {
-        if (!cancelled) {
-          onConversationsLoadedRef.current([]);
-          setLoading(false);
-        }
-        return;
-      }
+        .eq("created_by", user.id)
+        .in("channel", ["gmail", "outlook"]);
+      const ownEmailIds = (ownConns ?? []).map((c) => c.id);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("conversations")
         .select("*, contact:contacts(*)")
-        .in("connection_id", ownIds)
         .order("last_message_at", { ascending: false });
+      // Show all non-email conversations (RLS already limits to the
+      // workspace) plus email conversations from this user's mailboxes.
+      query =
+        ownEmailIds.length > 0
+          ? query.or(
+              `channel.not.in.(gmail,outlook),connection_id.in.(${ownEmailIds.join(",")})`,
+            )
+          : query.not("channel", "in", "(gmail,outlook)");
+      const { data, error } = await query;
 
       if (cancelled) return;
 
@@ -175,6 +187,49 @@ export function ConversationList({
     [onSelect]
   );
 
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    if (
+      !window.confirm(
+        `¿Eliminar ${selectedIds.size} conversación(es)? Se quitarán de la bandeja.`,
+      )
+    )
+      return;
+    setBulkDeleting(true);
+    const ids = [...selectedIds];
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+        if (r.ok) {
+          ok++;
+          onConversationDeleted?.(id);
+        }
+      } catch {
+        // best-effort; report the tally at the end
+      }
+    }
+    setBulkDeleting(false);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    if (ok > 0) toast.success(`${ok} conversación(es) eliminada(s)`);
+    if (ok < ids.length) toast.error(`${ids.length - ok} no se pudieron eliminar`);
+  }, [selectedIds, onConversationDeleted]);
+
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   return (
@@ -196,35 +251,59 @@ export function ConversationList({
           />
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-slate-400 hover:text-white rounded-md hover:bg-slate-800">
-              {activeFilter?.label ?? "Todas"}
-              <ChevronDown className="h-3 w-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="border-slate-700 bg-slate-800"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => setFilter(opt.value)}
-                className={cn(
-                  "text-sm",
-                  filter === opt.value
-                    ? "text-primary"
-                    : "text-slate-300"
-                )}
-              >
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-between">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-slate-400 hover:text-white rounded-md hover:bg-slate-800">
+                {activeFilter?.label ?? "Todas"}
+                <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="border-slate-700 bg-slate-800"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => setFilter(opt.value)}
+                  className={cn(
+                    "text-sm",
+                    filter === opt.value
+                      ? "text-primary"
+                      : "text-slate-300"
+                  )}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {selectMode ? (
+            <button
+              onClick={exitSelectMode}
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancelar
+            </button>
+          ) : (
+            <button
+              onClick={() => setSelectMode(true)}
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              Seleccionar
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Conversation Items */}
-      <ScrollArea className="flex-1">
+      {/* Conversation Items — native overflow scroll. We dropped the
+          base-ui ScrollArea here because its viewport wasn't resolving a
+          bounded height inside the resizable flex column, which killed
+          wheel scrolling on long lists. A plain overflow-y-auto always
+          scrolls. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -242,12 +321,32 @@ export function ConversationList({
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
                 onDelete={onConversationDeleted}
+                selectMode={selectMode}
+                selected={selectedIds.has(conv.id)}
+                onToggleSelected={toggleSelected}
                 tz={tz}
               />
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
+
+      {/* Bulk action bar — only while selecting. */}
+      {selectMode && (
+        <div className="flex items-center justify-between gap-2 border-t border-slate-800 bg-slate-900 p-3">
+          <span className="text-xs text-slate-400">
+            {selectedIds.size} seleccionada{selectedIds.size === 1 ? "" : "s"}
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedIds.size === 0 || bulkDeleting}
+            className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {bulkDeleting ? "Eliminando…" : "Eliminar"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -257,6 +356,9 @@ interface ConversationItemProps {
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
   onDelete?: (id: string) => void;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: (id: string) => void;
   tz: string;
 }
 
@@ -265,6 +367,9 @@ function ConversationItem({
   isActive,
   onSelect,
   onDelete,
+  selectMode = false,
+  selected = false,
+  onToggleSelected,
   tz,
 }: ConversationItemProps) {
   const [deleting, setDeleting] = useState(false);
@@ -304,8 +409,12 @@ function ConversationItem({
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
+    if (selectMode) {
+      onToggleSelected?.(conversation.id);
+      return;
+    }
     onSelect(conversation);
-  }, [onSelect, conversation]);
+  }, [selectMode, onToggleSelected, onSelect, conversation]);
 
   // Smart timestamp — same idiom every messaging app uses, formatted
   // in the user's IANA timezone so 14:32 means 14:32 *for them*, not
@@ -330,10 +439,21 @@ function ConversationItem({
       onClick={handleClick}
       className={cn(
         "group relative flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
-        isActive && "border-l-2 border-primary bg-slate-800/70"
+        isActive && !selectMode && "border-l-2 border-primary bg-slate-800/70",
+        selected && "bg-primary/10"
       )}
     >
-      {onDelete && (
+      {/* Selection checkbox — only in multi-select mode. */}
+      {selectMode && (
+        <span className="mt-2.5 shrink-0">
+          {selected ? (
+            <CheckSquare className="h-5 w-5 text-primary" />
+          ) : (
+            <Square className="h-5 w-5 text-slate-500" />
+          )}
+        </span>
+      )}
+      {onDelete && !selectMode && (
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Acciones"

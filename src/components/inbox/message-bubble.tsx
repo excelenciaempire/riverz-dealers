@@ -254,6 +254,58 @@ export function MessageBubble({
   const tz = useTimezone();
   const time = formatInTimeZone(new Date(message.created_at), tz, "HH:mm");
 
+  // Email channels render as full-width cards rather than chat bubbles —
+  // an email thread reads better as stacked messages with an explicit
+  // "Tú / cliente" header and a color-coded side rail than as left/right
+  // speech bubbles. Outbound (our replies) get a primary rail on the
+  // right; inbound (client) gets a slate rail on the left.
+  if (message.channel === "gmail" || message.channel === "outlook") {
+    const fullTime = formatInTimeZone(
+      new Date(message.created_at),
+      tz,
+      "d MMM HH:mm",
+    );
+    return (
+      <div className="w-full">
+        <div
+          className={cn(
+            "rounded-lg border bg-slate-800/40",
+            isAgent
+              ? "border-l-2 border-l-primary border-slate-700/60"
+              : "border-l-2 border-l-slate-500 border-slate-700/60",
+          )}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-slate-700/50 px-3 py-1.5">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs font-semibold",
+                isAgent ? "text-primary" : "text-slate-200",
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-2 w-2 rounded-full",
+                  isAgent ? "bg-primary" : "bg-slate-400",
+                )}
+              />
+              {isAgent ? "Tú (enviado)" : "Cliente"}
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              {fullTime}
+              {isAgent && <StatusIcon status={message.status} />}
+            </span>
+          </div>
+          <div className="px-3 py-2 text-sm text-slate-100">
+            {reply && (
+              <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
+            )}
+            <MessageContent message={message} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
   return (

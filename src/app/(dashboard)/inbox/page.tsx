@@ -148,16 +148,22 @@ export default function InboxPage() {
 
       if (!user) return;
 
-      // Only count connections this user owns — the workspace may
-      // contain teammates' channels but each agent's inbox is scoped
-      // to the channels they themselves connected.
+      // Email channels (gmail/outlook) are personal — only show the
+      // chip if THIS user connected that mailbox. Business channels
+      // (WhatsApp, IG, Messenger, comments) are shared, so the chip
+      // shows for every workspace member.
       const { data: rows } = await supabase
         .from("channel_connections")
-        .select("channel")
-        .eq("status", "connected")
-        .eq("created_by", user.id);
+        .select("channel, created_by")
+        .eq("status", "connected");
 
-      const channels = new Set<Channel>((rows ?? []).map((r) => r.channel as Channel));
+      const channels = new Set<Channel>();
+      for (const r of rows ?? []) {
+        const isEmail = r.channel === "gmail" || r.channel === "outlook";
+        if (!isEmail || r.created_by === user.id) {
+          channels.add(r.channel as Channel);
+        }
+      }
       setConnectedChannels(channels);
       setHasAnyConnection(channels.size > 0);
     };
