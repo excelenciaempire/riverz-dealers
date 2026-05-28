@@ -70,28 +70,61 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "connection not found" }, { status: 404 });
   }
 
-  const adapter = getAdapter((conversation as Conversation).channel);
-  const result = await adapter.sendText({
-    channel: (conversation as Conversation).channel,
-    connection: connection as ChannelConnection,
-    conversation: conversation as Conversation,
-    contact: contact as Contact,
-    text: body.text,
-    replyToExternalId: body.reply_to_external_id,
-  });
+  const channel = (conversation as Conversation).channel;
+  const contentType =
+    channel === "gmail" || channel === "outlook"
+      ? "email"
+      : channel === "fb_comment" || channel === "ig_comment"
+        ? "comment"
+        : "text";
+
+  // Send through the channel adapter. On failure we still persist the
+  // agent's message with status="failed" so their typed text is never
+  // lost — it shows in the thread with a failed indicator — and we
+  // return the error detail so the composer can surface it instead of a
+  // bare 500.
+  const adapter = getAdapter(channel);
+  let result: { externalMessageId?: string; status?: string };
+  try {
+    result = await adapter.sendText({
+      channel,
+      connection: connection as ChannelConnection,
+      conversation: conversation as Conversation,
+      contact: contact as Contact,
+      text: body.text,
+      replyToExternalId: body.reply_to_external_id,
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[send/${channel}] failed:`, detail);
+    const { data: failedMsg } = await admin
+      .from("messages")
+      .insert({
+        conversation_id: (conversation as Conversation).id,
+        channel,
+        sender_type: "agent",
+        sender_id: user.id,
+        content_type: contentType,
+        content_text: body.text,
+        status: "failed",
+      })
+      .select()
+      .single();
+    return NextResponse.json(
+      { ok: false, error: detail, message: failedMsg as Message },
+      { status: 502 },
+    );
+  }
 
   // Persist outbound message + bump summary.
   const { data: message } = await admin
     .from("messages")
     .insert({
       conversation_id: (conversation as Conversation).id,
-      channel: (conversation as Conversation).channel,
+      channel,
       sender_type: "agent",
       sender_id: user.id,
-      content_type: ((conversation as Conversation).channel === "gmail" ||
-                     (conversation as Conversation).channel === "outlook") ? "email" :
-                    ((conversation as Conversation).channel === "fb_comment" ||
-                     (conversation as Conversation).channel === "ig_comment") ? "comment" : "text",
+      content_type: contentType,
       content_text: body.text,
       message_id: result.externalMessageId,
       status: result.status ?? "sent",

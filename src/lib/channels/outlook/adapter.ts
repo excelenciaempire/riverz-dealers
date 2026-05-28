@@ -1,6 +1,5 @@
 import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
 import type { ChannelConnection } from "@/types";
-import { decrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { fetchOutlookMessage, getFreshAccessToken } from "./watch";
 
@@ -25,10 +24,9 @@ export const outlookAdapter: ChannelAdapter = {
   },
 
   async sendText(input: OutboundText): Promise<SendResult> {
-    const secrets = (input.connection.secrets ?? {}) as Record<string, unknown>;
-    const encrypted = String(secrets.access_token ?? "");
-    if (!encrypted) throw new Error("[outlook] connection missing access_token");
-    const accessToken = decrypt(encrypted);
+    // Refresh the Graph token if the cached one expired (~1h lifetime).
+    const accessToken = await getFreshAccessToken(supabaseAdmin(), input.connection);
+    if (!accessToken) throw new Error("[outlook] connection missing access_token");
 
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[outlook] contact missing email address");

@@ -1,6 +1,7 @@
 import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
 import type { ChannelConnection } from "@/types";
-import { decrypt } from "../encryption";
+import { supabaseAdmin } from "../admin-client";
+import { getFreshAccessToken } from "./watch";
 
 /**
  * Gmail via Google API (OAuth 2.0, scope gmail.send + gmail.readonly +
@@ -31,10 +32,11 @@ export const gmailAdapter: ChannelAdapter = {
     const from = String(cfg.email ?? input.connection.external_account_id ?? "");
     if (!from) throw new Error("[gmail] connection missing email");
 
-    const secrets = (input.connection.secrets ?? {}) as Record<string, unknown>;
-    const encrypted = String(secrets.access_token ?? "");
-    if (!encrypted) throw new Error("[gmail] connection missing access_token");
-    const accessToken = decrypt(encrypted);
+    // Refresh the access token if the cached one has expired (Google
+    // tokens live ~1h). Without this, replies started failing with 401
+    // an hour after connecting and the agent's text was lost.
+    const accessToken = await getFreshAccessToken(supabaseAdmin(), input.connection);
+    if (!accessToken) throw new Error("[gmail] connection missing access_token");
 
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[gmail] contact missing email address");
