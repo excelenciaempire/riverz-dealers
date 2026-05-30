@@ -210,7 +210,7 @@ export function TemplateBuilder() {
         </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Form card */}
         <div className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="space-y-6 p-6">

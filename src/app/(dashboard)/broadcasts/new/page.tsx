@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, CalendarClock, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Loader2, Plus, Send } from 'lucide-react';
 import type { MessageTemplate, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -250,7 +250,7 @@ export default function NewBroadcastPage() {
         </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="space-y-6 p-6">
             <Field label="Nombre de la campaña">
@@ -279,27 +279,46 @@ export default function NewBroadcastPage() {
                 </SelectContent>
               </Select>
               {audienceType === 'segment' && (
-                <div className="mt-2 space-y-1">
-                  <Select value={segmentId} onValueChange={(v) => setSegmentId(v ?? '')}>
-                    <SelectTrigger className="w-full bg-background">
-                      <SelectValue
-                        labels={segmentLabels}
-                        placeholder="Elegir un segmento"
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {segments.length === 0 && (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          No tenés segmentos. Creá uno en Contactos → Segmentos.
-                        </div>
-                      )}
-                      {segments.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="mt-2 space-y-2">
+                  <div className="flex gap-2">
+                    <Select
+                      value={segmentId}
+                      onValueChange={(v) => setSegmentId(v ?? '')}
+                    >
+                      <SelectTrigger className="flex-1 bg-background">
+                        <SelectValue
+                          labels={segmentLabels}
+                          placeholder={
+                            segments.length === 0
+                              ? 'Todavía no hay segmentos'
+                              : 'Elegir un segmento'
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {segments.length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            No tenés segmentos guardados.
+                          </div>
+                        )}
+                        {segments.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => router.push('/contacts?tab=segments&new=1')}
+                      className="border-border text-foreground hover:bg-accent"
+                      title="Crear un segmento nuevo"
+                    >
+                      <Plus className="size-4" />
+                      Crear segmento
+                    </Button>
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     Los contactos se calculan al enviar — así si editás el segmento
                     antes de la fecha, viajan los nombres correctos.

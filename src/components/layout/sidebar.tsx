@@ -66,7 +66,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Marketing",
     items: [
-      { href: "/broadcasts", label: "Difusión", icon: Megaphone },
+      { href: "/broadcasts", label: "Campañas masivas", icon: Megaphone },
       { href: "/templates", label: "Plantillas", icon: LayoutTemplate },
     ],
   },

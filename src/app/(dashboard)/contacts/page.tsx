@@ -72,7 +72,12 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'list' | 'segments'>('list');
+  const [tab, setTab] = useState<'list' | 'segments'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    return new URLSearchParams(window.location.search).get('tab') === 'segments'
+      ? 'segments'
+      : 'list';
+  });
 
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});

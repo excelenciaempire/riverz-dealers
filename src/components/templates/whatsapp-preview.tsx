@@ -37,18 +37,18 @@ export function WhatsappPreview({
   const activeButtons = (buttons ?? []).filter((b) => b.text?.trim());
 
   return (
-    <div className="mx-auto w-full max-w-[320px]">
+    <div className="mx-auto w-full max-w-[360px]">
       {/* Phone frame */}
-      <div className="overflow-hidden rounded-[2rem] border-[6px] border-foreground/90 bg-[#0b141a] shadow-xl">
+      <div className="overflow-hidden rounded-[2.25rem] border-[7px] border-foreground/90 bg-[#0b141a] shadow-2xl">
         {/* Chat header */}
-        <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5">
-          <div className="h-7 w-7 rounded-full bg-white/20" />
+        <div className="flex items-center gap-2 bg-[#075e54] px-4 py-3">
+          <div className="h-8 w-8 rounded-full bg-white/20" />
           <div className="text-sm font-medium text-white">Tu negocio</div>
         </div>
 
         {/* Canvas */}
         <div
-          className="min-h-[360px] px-3 py-4"
+          className="min-h-[460px] px-3 py-4"
           style={{
             backgroundColor: '#e5ddd5',
             backgroundImage:
