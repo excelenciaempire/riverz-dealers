@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, Save, Clock, MessageSquarePlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface AudienceConfig {
   type: string;
@@ -32,6 +34,11 @@ interface Step4Props {
   onBack: () => void;
   isProcessing: boolean;
   progress: number;
+  /** ISO local datetime string for a scheduled send, or '' for immediate. */
+  scheduledAt: string;
+  onScheduledAtChange: (value: string) => void;
+  createConversations: boolean;
+  onCreateConversationsChange: (value: boolean) => void;
 }
 
 export function Step4ScheduleSend({
@@ -44,7 +51,12 @@ export function Step4ScheduleSend({
   onBack,
   isProcessing,
   progress,
+  scheduledAt,
+  onScheduledAtChange,
+  createConversations,
+  onCreateConversationsChange,
 }: Step4Props) {
+  const isScheduled = scheduledAt.trim().length > 0;
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
@@ -142,6 +154,77 @@ export function Step4ScheduleSend({
         </div>
       </div>
 
+      {/* Send timing */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-foreground">¿Cuándo enviar?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onScheduledAtChange('')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+              !isScheduled
+                ? 'border-primary bg-primary/10 text-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-accent',
+            )}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <Send className="h-3.5 w-3.5" /> Enviar ahora
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!isScheduled) {
+                // Default to ~1 hour from now in the input's local format.
+                const d = new Date(Date.now() + 60 * 60 * 1000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                onScheduledAtChange(
+                  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+                );
+              }
+            }}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+              isScheduled
+                ? 'border-primary bg-primary/10 text-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-accent',
+            )}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <Clock className="h-3.5 w-3.5" /> Programar
+            </span>
+          </button>
+        </div>
+        {isScheduled && (
+          <Input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => onScheduledAtChange(e.target.value)}
+            className="border-border bg-muted text-foreground"
+          />
+        )}
+      </div>
+
+      {/* Create conversations toggle */}
+      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+        <div className="flex items-center gap-2">
+          <MessageSquarePlus className="h-4 w-4 text-accent-ink" />
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Crear conversaciones en la Bandeja
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Abre un hilo por destinatario para que tu equipo pueda dar seguimiento.
+            </p>
+          </div>
+        </div>
+        <Switch
+          checked={createConversations}
+          onCheckedChange={onCreateConversationsChange}
+        />
+      </div>
+
       {/* Processing overlay */}
       {isProcessing && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -194,18 +277,39 @@ export function Step4ScheduleSend({
               />
             }
           >
-            <Send className="h-4 w-4" />
-            Enviar difusión
+            {isScheduled ? <Clock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            {isScheduled ? 'Programar difusión' : 'Enviar difusión'}
           </DialogTrigger>
           <DialogContent className="border-border bg-card sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-foreground">Confirmar difusión</DialogTitle>
+              <DialogTitle className="text-foreground">
+                {isScheduled ? 'Programar difusión' : 'Confirmar difusión'}
+              </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Estás a punto de enviar esta difusión a{' '}
-                <span className="font-medium text-foreground">{estimatedReach.toLocaleString()}</span>{' '}
-                contactos usando la plantilla{' '}
-                <span className="font-medium text-foreground">{template.name}</span>.
-                Esta acción no se puede deshacer.
+                {isScheduled ? (
+                  <>
+                    Se enviará a{' '}
+                    <span className="font-medium text-foreground">
+                      {estimatedReach.toLocaleString()}
+                    </span>{' '}
+                    contactos el{' '}
+                    <span className="font-medium text-foreground">
+                      {new Date(scheduledAt).toLocaleString('es-ES')}
+                    </span>{' '}
+                    con la plantilla{' '}
+                    <span className="font-medium text-foreground">{template.name}</span>.
+                  </>
+                ) : (
+                  <>
+                    Estás a punto de enviar esta difusión a{' '}
+                    <span className="font-medium text-foreground">
+                      {estimatedReach.toLocaleString()}
+                    </span>{' '}
+                    contactos usando la plantilla{' '}
+                    <span className="font-medium text-foreground">{template.name}</span>.
+                    Esta acción no se puede deshacer.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -223,8 +327,8 @@ export function Step4ScheduleSend({
                 }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                <Send className="h-4 w-4" />
-                Confirmar y enviar
+                {isScheduled ? <Clock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                {isScheduled ? 'Confirmar y programar' : 'Confirmar y enviar'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -50,3 +50,7 @@ services:
       # Claude API — redacción con IA del cuerpo de plantillas.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Secreto compartido para el cron de campañas programadas
+      # (GET /api/broadcasts/cron con header x-cron-secret).
+      - key: BROADCAST_CRON_SECRET
+        sync: false

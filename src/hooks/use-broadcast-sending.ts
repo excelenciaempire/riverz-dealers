@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
+import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -38,6 +39,10 @@ interface BroadcastPayload {
   template: MessageTemplate;
   audience: AudienceConfig;
   variables: Record<string, VariableMapping>;
+  /** ISO timestamp to send later. Omit / past → send immediately. */
+  scheduledAt?: string | null;
+  /** Open an inbox conversation per recipient when the template goes out. */
+  createConversations?: boolean;
 }
 
 interface UseBroadcastSendingReturn {
@@ -335,6 +340,31 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         throw new Error('No contacts found for this audience.');
       }
 
+      // Resolve per-recipient template params NOW (before insert) so a
+      // scheduled campaign carries fully-resolved params and the cron
+      // sender never has to re-run audience/variable resolution.
+      const customValueIndex = await fetchCustomValueIndex(
+        supabase,
+        contacts.map((c) => c.id),
+      );
+      const paramsByContact = new Map<string, string[]>();
+      for (const c of contacts) {
+        paramsByContact.set(
+          c.id,
+          resolveVariables(payload.variables, c, customValueIndex.get(c.id)),
+        );
+      }
+
+      // Decide immediate vs scheduled. A scheduled_at in the past is
+      // treated as "send now".
+      const scheduledAt = payload.scheduledAt
+        ? new Date(payload.scheduledAt)
+        : null;
+      const isScheduled =
+        scheduledAt !== null &&
+        !Number.isNaN(scheduledAt.getTime()) &&
+        scheduledAt.getTime() > Date.now();
+
       // ── Step 2: Create broadcast row ──────────────────────────────
       setProgress(10);
       const { data: broadcast, error: broadcastError } = await supabase
@@ -351,7 +381,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             customField: payload.audience.customField,
             excludeTagIds: payload.audience.excludeTagIds,
           },
-          status: 'sending',
+          create_conversations: payload.createConversations ?? false,
+          scheduled_at: isScheduled ? scheduledAt!.toISOString() : null,
+          status: isScheduled ? 'scheduled' : 'sending',
           total_recipients: contacts.length,
           sent_count: 0,
           delivered_count: 0,
@@ -368,12 +400,13 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         );
       }
 
-      // ── Step 3: Insert recipient rows ─────────────────────────────
+      // ── Step 3: Insert recipient rows (with resolved params) ──────
       setProgress(20);
       const recipientRows = contacts.map((contact) => ({
         broadcast_id: broadcast.id,
         contact_id: contact.id,
         status: 'pending' as const,
+        params: paramsByContact.get(contact.id) ?? [],
       }));
 
       for (let i = 0; i < recipientRows.length; i += INSERT_BATCH_SIZE) {
@@ -400,7 +433,14 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         }
       }
 
-      // ── Step 4: Fetch recipients (joined contact) + preload custom values
+      // Scheduled: rows are queued with status 'scheduled'. The
+      // /api/broadcasts/cron route will fan them out when due. Stop here.
+      if (isScheduled) {
+        setProgress(100);
+        return broadcast.id;
+      }
+
+      // ── Step 4: Fetch recipients (joined contact) for the send loop
       setProgress(30);
       const { data: recipients, error: recipientsFetchError } = await supabase
         .from('broadcast_recipients')
@@ -411,15 +451,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         throw new Error('Failed to fetch broadcast recipients');
       }
 
-      // One bulk fetch of custom values for every contact in this
-      // broadcast, avoiding N+1 during the send loop.
-      const contactIds = recipients
-        .map((r) => r.contact?.id)
-        .filter((id): id is string => Boolean(id));
-      const customValueIndex = await fetchCustomValueIndex(
-        supabase,
-        contactIds,
-      );
+      // Best-effort: resolve the workspace's WhatsApp connection once so
+      // "create conversations" can stamp connection_id. Null is fine.
+      let connectionId: string | null = null;
+      if (payload.createConversations) {
+        const wsId = recipients.find((r) => r.contact?.workspace_id)?.contact
+          ?.workspace_id as string | undefined;
+        if (wsId) {
+          const { data: conn } = await supabase
+            .from('channel_connections')
+            .select('id')
+            .eq('workspace_id', wsId)
+            .eq('channel', 'whatsapp')
+            .limit(1)
+            .maybeSingle();
+          connectionId = (conn?.id as string | undefined) ?? null;
+        }
+      }
 
       let failedCount = 0;
       const totalRecipients = recipients.length;
@@ -490,6 +538,22 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                   error_message: null,
                 })
                 .eq('id', recipient.id);
+
+              if (payload.createConversations && recipient.contact?.id) {
+                try {
+                  await recordBroadcastConversation(supabase, {
+                    contactId: recipient.contact.id,
+                    workspaceId: recipient.contact.workspace_id ?? null,
+                    connectionId,
+                    templateName: payload.template.name,
+                    bodyPreview:
+                      payload.template.body_text || payload.template.name,
+                    whatsappMessageId: result.whatsapp_message_id ?? null,
+                  });
+                } catch (convErr) {
+                  console.error('[broadcast] conversation create failed:', convErr);
+                }
+              }
             } else {
               failedCount++;
               await supabase

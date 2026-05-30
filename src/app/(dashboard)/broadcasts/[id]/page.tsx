@@ -38,6 +38,25 @@ import {
   getBroadcastStatus,
   getRecipientStatus,
 } from '@/lib/broadcast-status';
+import { ActiveHoursChart } from '@/components/broadcasts/active-hours-chart';
+
+/** Human label for a broadcast's audience filter (the "Segmentación"). */
+function segmentationLabel(filter: unknown): string {
+  if (!filter || typeof filter !== 'object') return 'Personalizada';
+  const f = filter as { type?: string; tagIds?: unknown[] };
+  switch (f.type) {
+    case 'all':
+      return 'Todos los contactos';
+    case 'tags':
+      return `Etiquetas (${f.tagIds?.length ?? 0})`;
+    case 'custom_field':
+      return 'Campo personalizado';
+    case 'csv':
+      return 'Lista CSV';
+    default:
+      return 'Personalizada';
+  }
+}
 
 interface StatCardProps {
   label: string;
@@ -293,11 +312,15 @@ export default function BroadcastDetailPage() {
                 {status.label}
               </span>
             </div>
-            <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
               <span>Plantilla: {broadcast.template_name}</span>
               <span>-</span>
+              <span>Segmentación: {segmentationLabel(broadcast.audience_filter)}</span>
+              <span>-</span>
               <span>
-                Creada el {new Date(broadcast.created_at).toLocaleDateString('es-ES')}
+                {broadcast.scheduled_at && broadcast.status === 'scheduled'
+                  ? `Programada para el ${new Date(broadcast.scheduled_at).toLocaleString('es-ES')}`
+                  : `Creada el ${new Date(broadcast.created_at).toLocaleDateString('es-ES')}`}
               </span>
             </div>
           </div>
@@ -393,7 +416,10 @@ export default function BroadcastDetailPage() {
         />
       </div>
 
-      <FunnelChart steps={funnelSteps} />
+      <div className="grid gap-3 lg:grid-cols-2">
+        <FunnelChart steps={funnelSteps} />
+        <ActiveHoursChart timestamps={recipients.map((r) => r.sent_at)} />
+      </div>
 
       {/* Recipients Table */}
       <div className="rounded-xl border border-border bg-card">

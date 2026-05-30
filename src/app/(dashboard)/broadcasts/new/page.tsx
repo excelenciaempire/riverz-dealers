@@ -40,6 +40,8 @@ export default function NewBroadcastPage() {
     Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
   >({});
   const [name, setName] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [createConversations, setCreateConversations] = useState(false);
 
   async function handleSend() {
     if (!template) return;
@@ -56,6 +58,8 @@ export default function NewBroadcastPage() {
           excludeTagIds: audience.excludeTagIds,
         },
         variables,
+        scheduledAt: scheduledAt || null,
+        createConversations,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
@@ -213,6 +217,10 @@ export default function NewBroadcastPage() {
               onBack={() => setCurrentStep(2)}
               isProcessing={isProcessing}
               progress={progress}
+              scheduledAt={scheduledAt}
+              onScheduledAtChange={setScheduledAt}
+              createConversations={createConversations}
+              onCreateConversationsChange={setCreateConversations}
             />
           )}
         </div>
