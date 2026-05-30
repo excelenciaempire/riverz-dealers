@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, Info, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
 import {
   extractVariables,
@@ -22,30 +28,46 @@ import {
   type TemplateHeaderType,
 } from '@/lib/whatsapp/template-components';
 
-const CATEGORIES = [
-  { value: 'MARKETING', label: 'Marketing' },
-  { value: 'UTILITY', label: 'Utilidad' },
-  { value: 'AUTHENTICATION', label: 'Autenticación' },
-] as const;
+const CATEGORIES: {
+  value: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: 'MARKETING',
+    label: 'Marketing',
+    hint: 'Promociones, novedades, ofertas y campañas. Requiere consentimiento del contacto.',
+  },
+  {
+    value: 'UTILITY',
+    label: 'Utilidad',
+    hint: 'Mensajes operativos en respuesta a una acción: confirmaciones, envíos, recordatorios, recibos.',
+  },
+  {
+    value: 'AUTHENTICATION',
+    label: 'Autenticación',
+    hint: 'Códigos de verificación de un solo uso (OTP) para iniciar sesión o validar la identidad.',
+  },
+];
 
 const HEADER_TYPES: { value: TemplateHeaderType; label: string }[] = [
   { value: 'none', label: 'Sin encabezado' },
   { value: 'text', label: 'Texto' },
 ];
 
-const LANGUAGES = [
-  'es',
-  'es_ES',
-  'es_MX',
-  'es_AR',
-  'en_US',
-  'en_GB',
-  'en',
-  'pt_BR',
-  'pt_PT',
-  'fr',
-  'de',
-  'it',
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: 'es', label: 'Español' },
+  { code: 'es_AR', label: 'Español (Argentina)' },
+  { code: 'es_ES', label: 'Español (España)' },
+  { code: 'es_MX', label: 'Español (México)' },
+  { code: 'en', label: 'Inglés' },
+  { code: 'en_US', label: 'Inglés (EE. UU.)' },
+  { code: 'en_GB', label: 'Inglés (Reino Unido)' },
+  { code: 'pt_BR', label: 'Portugués (Brasil)' },
+  { code: 'pt_PT', label: 'Portugués (Portugal)' },
+  { code: 'fr', label: 'Francés' },
+  { code: 'de', label: 'Alemán' },
+  { code: 'it', label: 'Italiano' },
 ];
 
 const BUTTON_TYPES = [
@@ -160,16 +182,36 @@ export function TemplateBuilder() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {LANGUAGES.map((code) => (
-                      <SelectItem key={code} value={code}>
-                        {code}
+                    {LANGUAGES.map((l) => (
+                      <SelectItem key={l.code} value={l.code}>
+                        {l.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-foreground">Categoría</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-foreground">Categoría</Label>
+                  <TooltipProvider delay={150}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        type="button"
+                        aria-label="Qué significa cada categoría"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Info className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs space-y-1.5 text-xs">
+                        {CATEGORIES.map((c) => (
+                          <div key={c.value}>
+                            <span className="font-semibold">{c.label}:</span> {c.hint}
+                          </div>
+                        ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <Select
                   value={category}
                   onValueChange={(v) =>

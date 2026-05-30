@@ -1,110 +1,127 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { MessageTemplate } from '@/types';
-import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
-import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audience';
-import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
-import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import type { MessageTemplate, Tag } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
-import { Check } from 'lucide-react';
 
-const steps = [
-  { label: 'Plantilla', key: 'template' },
-  { label: 'Audiencia', key: 'audience' },
-  { label: 'Personalizar', key: 'personalize' },
-  { label: 'Enviar', key: 'send' },
-] as const;
+type AudienceType = 'all' | 'tags';
 
 export default function NewBroadcastPage() {
   const router = useRouter();
-  const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
+  const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [template, setTemplate] = useState<MessageTemplate | null>(null);
-  const [audience, setAudience] = useState<{
-    type: 'all' | 'tags' | 'custom_field' | 'csv';
-    tagIds?: string[];
-    customField?: {
-      fieldId: string;
-      operator: 'is' | 'is_not' | 'contains';
-      value: string;
-    };
-    csvContacts?: { phone: string; name?: string }[];
-    excludeTagIds?: string[];
-  }>({ type: 'all' });
-  const [variables, setVariables] = useState<
-    Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
-  >({});
   const [name, setName] = useState('');
+  const [audienceType, setAudienceType] = useState<AudienceType>('all');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [templateId, setTemplateId] = useState<string>('');
+  const [variables, setVariables] = useState<Record<string, string>>({});
+  const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
   const [createConversations, setCreateConversations] = useState(false);
 
-  async function handleSend() {
-    if (!template) return;
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from('message_templates')
+      .select('*')
+      .eq('status', 'Approved')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setTemplates((data ?? []) as MessageTemplate[]));
+    supabase
+      .from('tags')
+      .select('*')
+      .order('name')
+      .then(({ data }) => setTags((data ?? []) as Tag[]));
+  }, []);
 
+  const template = useMemo(
+    () => templates.find((t) => t.id === templateId) ?? null,
+    [templates, templateId],
+  );
+
+  // Extract {{1}}, {{2}} variables from the template body so the form
+  // shows one input per variable inline.
+  const templateVars = useMemo(() => {
+    if (!template?.body_text) return [] as string[];
+    const out = new Set<string>();
+    const re = /\{\{(\d+)\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(template.body_text)) !== null) out.add(m[1]);
+    return [...out].sort((a, b) => Number(a) - Number(b));
+  }, [template]);
+
+  function toggleTag(id: string) {
+    setSelectedTagIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function validate(): string | null {
+    if (!name.trim()) return 'Ponle un nombre a la campaña.';
+    if (!template) return 'Elegí una plantilla.';
+    if (audienceType === 'tags' && selectedTagIds.length === 0)
+      return 'Seleccioná al menos una etiqueta.';
+    if (sendMode === 'schedule' && !scheduledAt) return 'Elegí cuándo programarla.';
+    return null;
+  }
+
+  async function handleSend() {
+    const err = validate();
+    if (err) return toast.error(err);
+    if (!template) return;
     try {
       const broadcastId = await createAndSendBroadcast({
         name,
         template,
         audience: {
-          type: audience.type,
-          tagIds: audience.tagIds,
-          customField: audience.customField,
-          csvContacts: audience.csvContacts,
-          excludeTagIds: audience.excludeTagIds,
+          type: audienceType,
+          tagIds: audienceType === 'tags' ? selectedTagIds : undefined,
         },
-        variables,
-        scheduledAt: scheduledAt || null,
+        variables: Object.fromEntries(
+          templateVars.map((v) => [v, { type: 'static', value: variables[v] ?? '' }]),
+        ),
+        scheduledAt: sendMode === 'schedule' ? scheduledAt : null,
         createConversations,
       });
       router.push(`/broadcasts/${broadcastId}`);
-    } catch (err) {
-      // Previously swallowed with console.error — the wizard would
-      // just no-op, leaving the user confused. Surface the reason.
-      const message = err instanceof Error ? err.message : 'La difusión falló';
-      console.error('Broadcast failed:', err);
-      toast.error(message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo enviar la campaña');
     }
   }
 
-  /**
-   * Writes a draft broadcast row — no recipients, no sending. The user
-   * can revisit it via the list page to finish the flow later. We
-   * don't persist the in-progress audience/variable config here
-   * because the current schema doesn't carry it past `audience_filter`
-   * and `template_variables`; those are enough for the user to
-   * recognize the draft but not to exactly round-trip into the wizard.
-   * A full resume-draft UX is a future polish.
-   */
   async function handleSaveDraft() {
-    if (!template || !name.trim()) {
-      toast.error('Ponle un nombre a la difusión antes de guardar el borrador.');
-      return;
-    }
+    const err = validate();
+    if (err) return toast.error(err);
+    if (!template) return;
     const supabase = createClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) {
-      toast.error('No has iniciado sesión.');
-      return;
-    }
-
+    if (!user) return toast.error('No has iniciado sesión.');
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       name: name.trim(),
       template_name: template.name,
-      template_language: template.language ?? 'en_US',
+      template_language: template.language ?? 'es',
       template_variables: variables,
-      audience_filter: {
-        type: audience.type,
-        tagIds: audience.tagIds,
-      },
+      audience_filter: { type: audienceType, tagIds: selectedTagIds },
       status: 'draft',
       total_recipients: 0,
       sent_count: 0,
@@ -113,116 +130,210 @@ export default function NewBroadcastPage() {
       replied_count: 0,
       failed_count: 0,
     });
-
-    if (error) {
-      toast.error(`No se pudo guardar el borrador: ${error.message}`);
-      return;
-    }
+    if (error) return toast.error(`No se pudo guardar: ${error.message}`);
     toast.success('Borrador guardado');
     router.push('/broadcasts');
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Nueva difusión</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Crea y envía un mensaje de difusión a tus contactos.
-        </p>
-      </div>
-
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isActive = index === currentStep;
-          const isCompleted = index < currentStep;
-
-          return (
-            <div key={step.key} className="flex flex-1 items-center">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-all ${
-                    isCompleted
-                      ? 'bg-primary text-primary-foreground'
-                      : isActive
-                        ? 'border-2 border-primary bg-primary/10 text-accent-ink'
-                        : 'border border-border bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
-                </div>
-                <span
-                  className={`hidden text-sm font-medium sm:block ${
-                    isActive ? 'text-foreground' : isCompleted ? 'text-accent-ink' : 'text-muted-foreground'
-                  }`}
-                >
-                  {step.label}
-                </span>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`mx-3 h-px flex-1 ${
-                    index < currentStep ? 'bg-primary' : 'bg-muted'
-                  }`}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Step Content */}
-      <div className="relative min-h-[400px]">
-        <div
-          className="transition-all duration-300 ease-in-out"
-          style={{
-            opacity: isProcessing ? 0.6 : 1,
-            pointerEvents: isProcessing ? 'none' : 'auto',
-          }}
+    <div className="mx-auto max-w-3xl space-y-5">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push('/broadcasts')}
+          className="border-border"
         >
-          {currentStep === 0 && (
-            <Step1ChooseTemplate
-              selectedTemplate={template}
-              onSelect={setTemplate}
-              onNext={() => setCurrentStep(1)}
-              onBack={() => router.push('/broadcasts')}
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h1 className="text-xl font-semibold text-foreground">Nueva campaña</h1>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="space-y-5">
+          <div className="space-y-1.5">
+            <Label className="text-foreground">Nombre</Label>
+            <Input
+              placeholder="Reactivación oferta verano"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="bg-background"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-foreground">Destinatarios</Label>
+            <Select
+              value={audienceType}
+              onValueChange={(v) => setAudienceType(v as AudienceType)}
+            >
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los contactos</SelectItem>
+                <SelectItem value="tags">Por etiquetas</SelectItem>
+              </SelectContent>
+            </Select>
+            {audienceType === 'tags' && (
+              <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
+                {tags.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No tenés etiquetas todavía. Creá una en Contactos.
+                  </p>
+                )}
+                {tags.map((t) => {
+                  const on = selectedTagIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleTag(t.id)}
+                      className={
+                        'rounded-full px-2.5 py-0.5 text-xs transition-colors ' +
+                        (on
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-accent')
+                      }
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-foreground">Cuándo enviar</Label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  name="sendMode"
+                  checked={sendMode === 'now'}
+                  onChange={() => setSendMode('now')}
+                  className="accent-primary"
+                />
+                Ahora mismo
+              </label>
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  name="sendMode"
+                  checked={sendMode === 'schedule'}
+                  onChange={() => setSendMode('schedule')}
+                  className="accent-primary"
+                />
+                Programar
+              </label>
+            </div>
+            {sendMode === 'schedule' && (
+              <Input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="mt-2 bg-background"
+              />
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-foreground">Plantilla</Label>
+            <Select value={templateId} onValueChange={(v) => setTemplateId(v ?? '')}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="Elegir una plantilla aprobada" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No hay plantillas aprobadas todavía.
+                  </div>
+                )}
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name} ({t.language ?? 'es'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {template && (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-xs font-medium text-foreground">Vista previa</p>
+              <p className="whitespace-pre-wrap text-sm text-foreground">
+                {template.body_text}
+              </p>
+            </div>
           )}
-          {currentStep === 1 && (
-            <Step2SelectAudience
-              audience={audience}
-              onUpdate={setAudience}
-              onNext={() => setCurrentStep(2)}
-              onBack={() => setCurrentStep(0)}
+
+          {templateVars.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-xs font-medium text-foreground">Valores de las variables</p>
+              {templateVars.map((v) => (
+                <div key={v} className="flex items-center gap-2">
+                  <span className="w-12 shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {`{{${v}}}`}
+                  </span>
+                  <Input
+                    placeholder="Valor que reemplaza la variable"
+                    value={variables[v] ?? ''}
+                    onChange={(e) =>
+                      setVariables((prev) => ({ ...prev, [v]: e.target.value }))
+                    }
+                    className="bg-background"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={createConversations}
+              onChange={(e) => setCreateConversations(e.target.checked)}
+              className="mt-0.5 accent-primary"
             />
-          )}
-          {currentStep === 2 && template && (
-            <Step3Personalize
-              template={template}
-              variables={variables}
-              onUpdate={setVariables}
-              onNext={() => setCurrentStep(3)}
-              onBack={() => setCurrentStep(1)}
-            />
-          )}
-          {currentStep === 3 && template && (
-            <Step4ScheduleSend
-              name={name}
-              onNameChange={setName}
-              template={template}
-              audience={audience}
-              onSend={handleSend}
-              onSaveDraft={handleSaveDraft}
-              onBack={() => setCurrentStep(2)}
-              isProcessing={isProcessing}
-              progress={progress}
-              scheduledAt={scheduledAt}
-              onScheduledAtChange={setScheduledAt}
-              createConversations={createConversations}
-              onCreateConversationsChange={setCreateConversations}
-            />
-          )}
+            <span>
+              Abrir una conversación en la bandeja por cada destinatario para hacer
+              seguimiento de respuestas.
+            </span>
+          </label>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            className="text-sm font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Guardar borrador
+          </button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/broadcasts')}
+            className="border-border text-foreground hover:bg-accent"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSend}
+            disabled={isProcessing}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Enviando…
+              </>
+            ) : sendMode === 'schedule' ? (
+              'Programar'
+            ) : (
+              'Enviar ahora'
+            )}
+          </Button>
         </div>
       </div>
     </div>
