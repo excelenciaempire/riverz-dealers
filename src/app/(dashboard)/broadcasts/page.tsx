@@ -74,7 +74,7 @@ export default function BroadcastsPage() {
       if (fetchError) throw fetchError;
       setBroadcasts(data ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar las difusiones');
+      setError(err instanceof Error ? err.message : 'No se cargaron las difusiones');
     } finally {
       setLoading(false);
     }

@@ -610,9 +610,8 @@ export default function InboxPage() {
         >
           <Plug2 className="h-4 w-4 text-amber-400" />
           <p className="text-xs text-amber-200">
-            Aún no has conectado ningún canal.{" "}
             <span className="font-semibold underline-offset-2 group-hover:underline">
-              Conecta WhatsApp, Instagram, Gmail y más →
+              Conectar un canal →
             </span>
           </p>
         </Link>

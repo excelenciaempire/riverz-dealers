@@ -73,7 +73,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
         <div className="p-5">
           <EmptyState
             icon={Inbox}
-            title="Aún no hay actividad"
+            title="Sin actividad"
           />
         </div>
       ) : (
@@ -122,7 +122,6 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
               {totalLoaded === 50 ? '+' : ''}
             </span>
             <div className="flex items-center gap-1">
-              <span className="mr-1 text-muted-foreground">Mostrar</span>
               {PAGE_SIZES.map((size, i) => {
                 const disabled = !isSizeUseful(size, i)
                 return (

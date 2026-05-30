@@ -109,7 +109,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     const rows = parseCSV(text);
 
     if (rows.length === 0) {
-      toast.error('No se encontraron filas válidas. Asegúrate de que el CSV tenga una columna "phone".');
+      toast.error('Sin filas válidas. Falta la columna "phone".');
       setParsedRows([]);
       return;
     }
@@ -187,8 +187,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         <DialogHeader>
           <DialogTitle className="text-foreground">Importar contactos</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Sube un archivo CSV con una columna &quot;phone&quot; (obligatoria). Columnas opcionales:
-            name, email, company.
+            CSV con columna <code className="font-mono">phone</code>. Opcionales:{' '}
+            <code className="font-mono">name</code>, <code className="font-mono">email</code>,{' '}
+            <code className="font-mono">company</code>.
           </DialogDescription>
         </DialogHeader>
 
@@ -228,7 +229,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {preview.length > 0 && !result && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Vista previa (primeras {preview.length} filas)
+                Vista previa
               </p>
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-xs">
@@ -263,7 +264,6 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {/* Results */}
           {result && (
             <div className="rounded-lg border border-border p-4 space-y-2">
-              <p className="text-sm font-medium text-foreground">Importación completada</p>
               <div className="flex items-center gap-4">
                 {result.imported > 0 && (
                   <div className="flex items-center gap-1.5 text-accent-ink text-sm">

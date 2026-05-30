@@ -14,7 +14,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 
 const MIN_PASSWORD = 8;
@@ -32,15 +31,15 @@ export function PasswordForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.email) {
-      toast.error('No se puede cambiar la contraseña sin un correo actual');
+      toast.error('Falta un correo actual.');
       return;
     }
     if (next.length < MIN_PASSWORD) {
-      setConfirmError(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`);
+      setConfirmError(`Mínimo ${MIN_PASSWORD} caracteres.`);
       return;
     }
     if (next !== confirm) {
-      setConfirmError('La nueva contraseña y la confirmación no coinciden');
+      setConfirmError('Las contraseñas no coinciden.');
       return;
     }
     setConfirmError(null);
@@ -56,7 +55,7 @@ export function PasswordForm() {
         password: current,
       });
       if (signInError) {
-        toast.error('La contraseña actual es incorrecta');
+        toast.error('Contraseña actual incorrecta.');
         return;
       }
 
@@ -64,7 +63,7 @@ export function PasswordForm() {
         password: next,
       });
       if (updateError) {
-        toast.error(`No se pudo actualizar la contraseña: ${updateError.message}`);
+        toast.error(updateError.message);
         return;
       }
 
@@ -73,7 +72,7 @@ export function PasswordForm() {
       setConfirm('');
       toast.success('Contraseña actualizada');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      const msg = err instanceof Error ? err.message : 'Error';
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -87,9 +86,6 @@ export function PasswordForm() {
           <KeyRound className="size-4 text-accent-ink" />
           Contraseña
         </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Mínimo {MIN_PASSWORD} caracteres.
-        </CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -154,12 +150,9 @@ export function PasswordForm() {
               disabled={saving || !current || !next || !confirm}
             >
               {saving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Actualizando…
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Actualizar contraseña'
+                'Actualizar'
               )}
             </Button>
           </div>

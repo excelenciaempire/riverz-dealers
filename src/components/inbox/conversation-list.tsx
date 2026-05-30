@@ -211,11 +211,7 @@ export function ConversationList({
 
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    if (
-      !window.confirm(
-        `¿Eliminar ${selectedIds.size} conversación(es)?`,
-      )
-    )
+    if (!window.confirm(`¿Eliminar ${selectedIds.size} conversación(es)?`))
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
@@ -234,8 +230,8 @@ export function ConversationList({
     setBulkDeleting(false);
     setSelectedIds(new Set());
     setSelectMode(false);
-    if (ok > 0) toast.success(`${ok} conversación(es) eliminada(s)`);
-    if (ok < ids.length) toast.error(`${ids.length - ok} no se pudieron eliminar`);
+    if (ok > 0) toast.success(`${ok} eliminada(s)`);
+    if (ok < ids.length) toast.error(`${ids.length - ok} no eliminada(s)`);
   }, [selectedIds, onConversationDeleted]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
@@ -254,7 +250,7 @@ export function ConversationList({
           <Input
             value={search}
             onChange={handleSearchChange}
-            placeholder="Buscar conversaciones..."
+            placeholder="Buscar"
             className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
           />
         </div>
@@ -387,12 +383,7 @@ function ConversationItem({
       e.preventDefault();
       e.stopPropagation();
       if (deleting) return;
-      const name =
-        conversation.contact?.name ||
-        conversation.contact?.email ||
-        conversation.contact?.phone ||
-        "esta conversación";
-      if (!window.confirm(`¿Eliminar la conversación con ${name}?`)) return;
+      if (!window.confirm("¿Eliminar conversación?")) return;
       setDeleting(true);
       try {
         const r = await fetch(`/api/conversations/${conversation.id}`, { method: "DELETE" });
@@ -402,7 +393,7 @@ function ConversationItem({
           return;
         }
         onDelete?.(conversation.id);
-        toast.success("Conversación eliminada");
+        toast.success("Eliminada");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Error de red");
       } finally {
@@ -529,7 +520,7 @@ function ConversationItem({
             {conversation.subject ? (
               <span className="font-medium text-foreground">{conversation.subject} · </span>
             ) : null}
-            {conversation.last_message_text || "Sin mensajes aún"}
+            {conversation.last_message_text || "Sin mensajes"}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (

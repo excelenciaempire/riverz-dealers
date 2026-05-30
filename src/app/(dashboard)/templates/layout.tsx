@@ -8,7 +8,7 @@ export default function TemplatesLayout({
   return (
     <RequiresConnection
       title="Conecta WhatsApp para gestionar plantillas"
-      description="Las plantillas oficiales se envían a Meta para su aprobación. Necesitas tu cuenta de WhatsApp Business conectada para crearlas y sincronizarlas."
+      description="Las plantillas se envían a Meta para su aprobación."
     >
       {children}
     </RequiresConnection>

@@ -155,11 +155,11 @@ export function TemplateBuilder() {
 
   async function handleSubmit() {
     if (!name.trim()) {
-      toast.error('Ponle un nombre a la plantilla.');
+      toast.error('Falta el nombre.');
       return;
     }
     if (!bodyText.trim()) {
-      toast.error('El cuerpo del mensaje es obligatorio.');
+      toast.error('Falta el mensaje.');
       return;
     }
     setSubmitting(true);
@@ -181,7 +181,7 @@ export function TemplateBuilder() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'No se pudo crear la plantilla');
-      toast.success('Plantilla enviada a Meta para revisión.');
+      toast.success('Plantilla enviada');
       router.push('/templates');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo crear la plantilla');
@@ -202,9 +202,7 @@ export function TemplateBuilder() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
-        </div>
+        <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -299,7 +297,6 @@ export function TemplateBuilder() {
               </Select>
               {headerType === 'text' && (
                 <Input
-                  placeholder="Texto del encabezado"
                   value={headerText}
                   maxLength={60}
                   onChange={(e) => setHeaderText(e.target.value)}
@@ -321,28 +318,18 @@ export function TemplateBuilder() {
                   Añadir variable
                 </button>
               </div>
-              <div className="relative">
-                <Textarea
-                  placeholder="Escribí el mensaje. Usá {{1}}, {{2}} para datos variables."
-                  value={bodyText}
-                  rows={10}
-                  maxLength={1024}
-                  onChange={(e) => setBodyText(e.target.value)}
-                  className="min-h-[220px] resize-y bg-background text-sm leading-relaxed"
-                />
-                <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted-foreground tabular-nums">
-                  {bodyText.length}/1024
-                </span>
-              </div>
+              <Textarea
+                placeholder="Escribí el mensaje. Usá {{1}}, {{2}} para datos variables."
+                value={bodyText}
+                rows={10}
+                maxLength={1024}
+                onChange={(e) => setBodyText(e.target.value)}
+                className="min-h-[220px] resize-y bg-background text-sm leading-relaxed"
+              />
             </div>
 
             {variables.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-sm font-medium text-foreground">
-                    Ejemplos para variables
-                  </p>
-                </div>
                 <div className="space-y-2">
                   {variables.map((v) => (
                     <div
@@ -353,7 +340,7 @@ export function TemplateBuilder() {
                         {`{{${v}}}`}
                       </span>
                       <Input
-                        placeholder="Ej: María"
+                        placeholder="María"
                         value={samples[v] ?? ''}
                         onChange={(e) =>
                           setSamples((prev) => ({ ...prev, [v]: e.target.value }))
@@ -366,7 +353,7 @@ export function TemplateBuilder() {
               </div>
             )}
 
-            <Field label="Pie (opcional)">
+            <Field label="Pie">
               <Input
                 placeholder="Equipo Vitalú"
                 value={footerText}
@@ -407,7 +394,7 @@ export function TemplateBuilder() {
                       className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                     >
                       <Plus className="size-3.5" />
-                      Añadir otro botón
+                      Añadir botón
                     </button>
                   )}
                 </div>

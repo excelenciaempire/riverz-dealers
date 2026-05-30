@@ -116,7 +116,7 @@ export default function SignupPage() {
               <Input
                 id="fullName"
                 type="text"
-                placeholder="Tu nombre"
+                placeholder=""
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -146,7 +146,7 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Al menos 6 caracteres"
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

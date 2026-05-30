@@ -215,12 +215,7 @@ export function SegmentsPanel() {
   }
 
   async function handleDelete(id: string) {
-    if (
-      !confirm(
-        '¿Eliminar este segmento? Las campañas que lo usen perderán la referencia.',
-      )
-    )
-      return;
+    if (!confirm('¿Eliminar este segmento?')) return;
     setDeletingId(id);
     const { error } = await supabase.from('contact_segments').delete().eq('id', id);
     setDeletingId(null);
@@ -234,8 +229,8 @@ export function SegmentsPanel() {
 
   if (!workspace) {
     return (
-      <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-        Cargando workspace…
+      <div className="flex items-center justify-center rounded-lg border border-border bg-card p-6">
+        <Loader2 className="size-4 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -257,15 +252,14 @@ export function SegmentsPanel() {
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Cargando segmentos…
+          <div className="flex items-center justify-center p-10">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
           </div>
         ) : segments.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-10 text-center">
             <Layers className="size-8 text-muted-foreground" />
             <p className="max-w-sm text-sm text-muted-foreground">
-              Aún no hay segmentos.
+              No hay segmentos.
             </p>
           </div>
         ) : (
@@ -406,8 +400,8 @@ function SegmentEditor({
     if (!stub) {
       toast.error(
         type === 'tag'
-          ? 'Aún no tenés etiquetas para filtrar.'
-          : 'Aún no tenés campos personalizados.',
+          ? 'No hay etiquetas.'
+          : 'No hay campos personalizados.',
       );
       return;
     }
@@ -424,7 +418,7 @@ function SegmentEditor({
 
   async function save() {
     if (!name.trim()) {
-      toast.error('Ponle un nombre al segmento.');
+      toast.error('Falta el nombre.');
       return;
     }
     setSaving(true);
@@ -485,7 +479,7 @@ function SegmentEditor({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-foreground">Descripción (opcional)</Label>
+                <Label className="text-foreground">Descripción</Label>
                 <Input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -517,14 +511,7 @@ function SegmentEditor({
             {/* Rules block */}
             <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Reglas</p>
-                  {rules.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      {rules.length} regla{rules.length === 1 ? '' : 's'}
-                    </p>
-                  )}
-                </div>
+                <p className="text-sm font-semibold text-foreground">Reglas</p>
                 <AddRuleMenu onAdd={addRule} hasCustomFields={customFields.length > 0} />
               </div>
 
@@ -607,7 +594,7 @@ function SegmentEditor({
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving && <Loader2 className="size-4 animate-spin" />}
-            Guardar segmento
+            Guardar
           </Button>
         </div>
       </DialogContent>

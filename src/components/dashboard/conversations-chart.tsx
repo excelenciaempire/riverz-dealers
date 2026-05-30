@@ -76,7 +76,7 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
         ) : data.every((p) => p.incoming === 0 && p.outgoing === 0) ? (
           <EmptyState
             icon={MessageSquare}
-            title="Sin actividad de mensajes en este rango"
+            title="Sin actividad en este rango"
           />
         ) : (
           <LineSvg data={data} maxY={maxY} ticks={niceTicks} />

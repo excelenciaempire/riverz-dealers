@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Accordion,
@@ -115,7 +115,7 @@ export function WhatsAppConfig() {
       }
     } catch (err) {
       console.error('fetchConfig error:', err);
-      toast.error('No se pudo cargar la configuración de WhatsApp');
+      toast.error('No se cargó la configuración.');
     } finally {
       setLoading(false);
     }
@@ -132,11 +132,11 @@ export function WhatsAppConfig() {
 
   async function handleSave() {
     if (!phoneNumberId.trim()) {
-      toast.error('El ID del número de teléfono es obligatorio');
+      toast.error('Falta el ID del número.');
       return;
     }
     if (!config && (!accessToken.trim() || !tokenEdited)) {
-      toast.error('El token de acceso es obligatorio para la configuración inicial');
+      toast.error('Falta el token de acceso.');
       return;
     }
 
@@ -160,7 +160,7 @@ export function WhatsAppConfig() {
         // server. But our POST handler requires an access_token to verify
         // with Meta. If the user didn't change the token, we need to signal
         // that. Simplest: require token re-entry if they're updating.
-        toast.error('Vuelve a introducir el token de acceso para guardar los cambios');
+        toast.error('Reingresá el token para guardar.');
         setSaving(false);
         return;
       }
@@ -174,7 +174,7 @@ export function WhatsAppConfig() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || 'No se pudo guardar la configuración');
+        toast.error(data.error || 'No se guardó.');
         setSaving(false);
         return;
       }
@@ -182,13 +182,13 @@ export function WhatsAppConfig() {
       toast.success(
         data.phone_info?.verified_name
           ? `Conectado a ${data.phone_info.verified_name}`
-          : 'Configuración guardada correctamente'
+          : 'Guardado'
       );
 
       if (user) await fetchConfig(user.id);
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('No se pudo guardar la configuración');
+      toast.error('No se guardó.');
     } finally {
       setSaving(false);
     }
@@ -207,25 +207,25 @@ export function WhatsAppConfig() {
         toast.success(
           payload.phone_info?.verified_name
             ? `Conectado a ${payload.phone_info.verified_name}`
-            : 'Conexión con la API correcta'
+            : 'Conexión OK'
         );
       } else {
         setConnectionStatus('disconnected');
         setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
         setStatusMessage(payload.message || '');
-        toast.error(payload.message || 'Falló la conexión con la API');
+        toast.error(payload.message || 'Falló la conexión.');
       }
     } catch (err) {
       console.error('Test connection error:', err);
       setConnectionStatus('disconnected');
-      toast.error('La prueba de conexión falló. Comprueba la red y vuelve a intentarlo.');
+      toast.error('Falló la conexión.');
     } finally {
       setTesting(false);
     }
   }
 
   async function handleReset() {
-    if (!confirm('Esto eliminará la configuración actual de WhatsApp para que puedas volver a introducirla. ¿Continuar?')) {
+    if (!confirm('¿Restablecer la configuración de WhatsApp?')) {
       return;
     }
 
@@ -235,11 +235,11 @@ export function WhatsAppConfig() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || 'No se pudo restablecer la configuración');
+        toast.error(data.error || 'No se pudo restablecer.');
         return;
       }
 
-      toast.success('Configuración borrada. Ya puedes volver a introducir tus credenciales.');
+      toast.success('Configuración borrada.');
       setConfig(null);
       setPhoneNumberId('');
       setWabaId('');
@@ -251,7 +251,7 @@ export function WhatsAppConfig() {
       setStatusMessage('');
     } catch (err) {
       console.error('Reset error:', err);
-      toast.error('No se pudo restablecer la configuración');
+      toast.error('No se pudo restablecer.');
     } finally {
       setResetting(false);
     }
@@ -259,7 +259,7 @@ export function WhatsAppConfig() {
 
   function handleCopyWebhookUrl() {
     navigator.clipboard.writeText(webhookUrl);
-    toast.success('URL del webhook copiada al portapapeles');
+    toast.success('URL copiada');
   }
 
   if (loading) {
@@ -295,14 +295,11 @@ export function WhatsAppConfig() {
                   className="mt-3 bg-amber-600 hover:bg-amber-700 text-white"
                 >
                   {resetting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Restableciendo...
-                    </>
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
                     <>
                       <RotateCcw className="size-4" />
-                      Restablecer configuración
+                      Restablecer
                     </>
                   )}
                 </Button>
@@ -323,12 +320,11 @@ export function WhatsAppConfig() {
               {connectionStatus === 'connected' ? 'Conectado' : 'No conectado'}
             </AlertTitle>
           </div>
-          <AlertDescription className="text-muted-foreground">
-            {connectionStatus === 'connected'
-              ? 'API de WhatsApp Business lista para enviar y recibir.'
-              : statusMessage ||
-                'Introduce tus credenciales de Meta abajo para conectar.'}
-          </AlertDescription>
+          {connectionStatus !== 'connected' && statusMessage && (
+            <AlertDescription className="text-muted-foreground">
+              {statusMessage}
+            </AlertDescription>
+          )}
         </Alert>
 
         {/* API Credentials */}
@@ -340,7 +336,7 @@ export function WhatsAppConfig() {
             <div className="space-y-2">
               <Label className="text-foreground">ID del número de teléfono</Label>
               <Input
-                placeholder="ej. 100234567890123"
+                placeholder="100234567890123"
                 value={phoneNumberId}
                 onChange={(e) => setPhoneNumberId(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
@@ -350,7 +346,7 @@ export function WhatsAppConfig() {
             <div className="space-y-2">
               <Label className="text-foreground">ID de la cuenta de WhatsApp Business</Label>
               <Input
-                placeholder="ej. 100234567890456"
+                placeholder="100234567890456"
                 value={wabaId}
                 onChange={(e) => setWabaId(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
@@ -362,7 +358,6 @@ export function WhatsAppConfig() {
               <div className="relative">
                 <Input
                   type={showToken ? 'text' : 'password'}
-                  placeholder="Introduce tu token de acceso"
                   value={accessToken}
                   onChange={(e) => {
                     setAccessToken(e.target.value);
@@ -386,7 +381,7 @@ export function WhatsAppConfig() {
               </div>
               {config && !tokenEdited && (
                 <p className="text-xs text-muted-foreground">
-                  Vuelve a introducirlo para guardar cambios.
+                  Reingresalo para guardar cambios.
                 </p>
               )}
             </div>
@@ -394,13 +389,12 @@ export function WhatsAppConfig() {
             <div className="space-y-2">
               <Label className="text-foreground">Token de verificación del webhook</Label>
               <Input
-                placeholder="Crea un token personalizado"
                 value={verifyToken}
                 onChange={(e) => setVerifyToken(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
               <p className="text-xs text-muted-foreground">
-                Debe coincidir con el token configurado en el webhook de Meta.
+                Debe coincidir con el del webhook de Meta.
               </p>
             </div>
           </CardContent>
@@ -410,13 +404,10 @@ export function WhatsAppConfig() {
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardHeader>
             <CardTitle className="text-foreground">Webhook</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Pega esta URL como callback en el panel de tu app de Meta.
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <Label className="text-foreground">URL de callback del webhook</Label>
+              <Label className="text-foreground">URL de callback</Label>
               <div className="flex gap-2">
                 <Input
                   readOnly
@@ -444,12 +435,9 @@ export function WhatsAppConfig() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {saving ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Guardando...
-              </>
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              'Guardar configuración'
+              'Guardar'
             )}
           </Button>
           <Button
@@ -459,14 +447,11 @@ export function WhatsAppConfig() {
             className="border-border text-foreground hover:text-foreground hover:bg-accent"
           >
             {testing ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Probando...
-              </>
+              <Loader2 className="size-4 animate-spin" />
             ) : (
               <>
                 <Zap className="size-4" />
-                Probar conexión con la API
+                Probar conexión
               </>
             )}
           </Button>
@@ -478,14 +463,11 @@ export function WhatsAppConfig() {
               className="border-red-900 text-red-400 hover:text-red-300 hover:bg-red-950/40"
             >
               {resetting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Restableciendo...
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
                 <>
                   <RotateCcw className="size-4" />
-                  Restablecer configuración
+                  Restablecer
                 </>
               )}
             </Button>

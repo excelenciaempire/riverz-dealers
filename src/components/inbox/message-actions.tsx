@@ -80,7 +80,7 @@ export function MessageActions({
 
   const handleDelete = async () => {
     if (!onDelete) return;
-    if (!confirm("¿Borrar este mensaje de la bandeja? La copia en el canal original no se toca.")) {
+    if (!confirm("¿Borrar mensaje?")) {
       setTouchOpen(false);
       return;
     }
@@ -93,7 +93,7 @@ export function MessageActions({
         return;
       }
       onDelete(message.id);
-      toast.success("Mensaje borrado");
+      toast.success("Borrado");
     } catch {
       toast.error("Error de red");
     }

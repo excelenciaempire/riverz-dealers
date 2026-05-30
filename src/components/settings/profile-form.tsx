@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
+import { Loader2, Upload, Trash2, Mail } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -19,7 +19,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -105,15 +104,11 @@ export function ProfileForm() {
     if (!file) return;
 
     if (!ALLOWED_MIME.has(file.type)) {
-      toast.error('Tipo de imagen no compatible', {
-        description: 'Usa PNG, JPG, WebP o GIF.',
-      });
+      toast.error('Usá PNG, JPG, WebP o GIF.');
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('La imagen es demasiado grande', {
-        description: 'Máximo 2 MB.',
-      });
+      toast.error('Máximo 2 MB.');
       return;
     }
 
@@ -136,12 +131,12 @@ export function ProfileForm() {
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      toast.error('El nombre para mostrar es obligatorio');
+      toast.error('Falta el nombre.');
       return;
     }
     const trimmedEmail = email.trim();
     if (!EMAIL_RE.test(trimmedEmail)) {
-      toast.error('Introduce una dirección de correo válida');
+      toast.error('Correo inválido.');
       return;
     }
 
@@ -197,7 +192,7 @@ export function ProfileForm() {
         });
         if (emailError) {
           // Partial success: name/avatar saved but email didn't.
-          toast.success('Perfil guardado');
+          toast.success('Guardado');
           toast.error(`No se pudo cambiar el correo: ${emailError.message}`);
           setSaving(false);
           await refreshProfile();
@@ -214,11 +209,11 @@ export function ProfileForm() {
 
       toast.success(
         emailSent
-          ? 'Perfil guardado — revisa tu correo para confirmar el cambio de dirección'
-          : 'Perfil guardado',
+          ? 'Guardado — confirmá el cambio de correo desde tu bandeja'
+          : 'Guardado',
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      const msg = err instanceof Error ? err.message : 'Error';
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -289,9 +284,6 @@ export function ProfileForm() {
                   Quitar
                 </Button>
               )}
-              <p className="w-full text-xs text-muted-foreground">
-                PNG, JPG, WebP o GIF. Hasta 2 MB.
-              </p>
             </div>
           </div>
 
@@ -304,7 +296,6 @@ export function ProfileForm() {
               id="profile-full-name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Ada Lovelace"
               maxLength={120}
               disabled={saving}
               required
@@ -383,21 +374,15 @@ export function ProfileForm() {
           </div>
 
           {!profile && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CircleAlert className="size-4" />
-              Cargando tu perfil…
-            </p>
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
           )}
 
           <div className="flex justify-end">
             <Button type="submit" disabled={saving || !dirty || !profile}>
               {saving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Guardando…
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Guardar cambios'
+                'Guardar'
               )}
             </Button>
           </div>

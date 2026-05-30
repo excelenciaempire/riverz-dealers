@@ -140,10 +140,8 @@ export function TemplatePicker({
             <LayoutTemplate className="h-4 w-4 text-accent-ink" />
             {selected ? selected.name : "Enviar plantilla"}
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            {selected
-              ? "Completa las variables para enviar."
-              : "Elige una plantilla aprobada."}
+          <DialogDescription className="sr-only">
+            {selected ? "Variables" : "Plantillas"}
           </DialogDescription>
         </DialogHeader>
 
@@ -216,7 +214,6 @@ export function TemplatePicker({
                     next[i] = e.target.value;
                     setParams(next);
                   }}
-                  placeholder={`Valor para {{${v}}}`}
                   className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
                 />
               </div>
@@ -243,7 +240,7 @@ export function TemplatePicker({
                 onClick={confirm}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Enviar plantilla
+                Enviar
               </Button>
             </>
           ) : (

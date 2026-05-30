@@ -92,15 +92,15 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
 function labelFor(action: string): string {
   switch (action) {
     case "hide":
-      return "Comentario ocultado";
+      return "Ocultado";
     case "unhide":
-      return "Comentario visible de nuevo";
+      return "Visible";
     case "like":
-      return "Me gusta como página";
+      return "Me gusta";
     case "unlike":
-      return "Me gusta quitado";
+      return "Quitado";
     case "delete":
-      return "Comentario eliminado";
+      return "Eliminado";
     default:
       return "Hecho";
   }

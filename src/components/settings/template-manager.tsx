@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -132,11 +132,11 @@ export function TemplateManager() {
 
   async function handleSave() {
     if (!form.name.trim()) {
-      toast.error('El nombre de la plantilla es obligatorio');
+      toast.error('Falta el nombre.');
       return;
     }
     if (!form.body_text.trim()) {
-      toast.error('El texto del cuerpo es obligatorio');
+      toast.error('Falta el mensaje.');
       return;
     }
 
@@ -164,7 +164,7 @@ export function TemplateManager() {
 
       if (error) throw error;
 
-      toast.success('Plantilla creada correctamente');
+      toast.success('Plantilla creada');
       setDialogOpen(false);
       setForm(emptyForm);
       if (user) await fetchTemplates(user.id);
@@ -255,9 +255,6 @@ export function TemplateManager() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Plantillas de mensaje</h2>
-          <p className="text-sm text-muted-foreground">
-            Meta exige que cada plantilla esté aprobada en WhatsApp Manager antes de enviarse.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -265,7 +262,6 @@ export function TemplateManager() {
             onClick={handleSyncFromMeta}
             disabled={syncing}
             className="border-border bg-transparent text-foreground hover:bg-accent"
-            title="Traer las plantillas aprobadas de tu Cuenta de WhatsApp Business en Meta"
           >
             <RefreshCw
               className={`size-4 ${syncing ? 'animate-spin' : ''}`}
@@ -288,7 +284,7 @@ export function TemplateManager() {
       {templates.length === 0 ? (
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground text-sm">Aún no hay plantillas.</p>
+            <p className="text-muted-foreground text-sm">Sin plantillas.</p>
           </CardContent>
         </Card>
       ) : (
@@ -341,9 +337,9 @@ export function TemplateManager() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-foreground">Nombre de la plantilla</Label>
+              <Label className="text-foreground">Nombre</Label>
               <Input
-                placeholder="ej. confirmacion_pedido"
+                placeholder="confirmacion_pedido"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
@@ -387,9 +383,7 @@ export function TemplateManager() {
                   ))}
                 </datalist>
                 <p className="text-[11px] text-muted-foreground">
-                  Debe coincidir con el código de idioma exacto bajo el que se
-                  aprobó la plantilla en Meta — ej. <code>en_US</code> y{' '}
-                  <code>en</code> son distintos.
+                  Debe coincidir con el código aprobado en Meta. <code>en_US</code> y <code>en</code> son distintos.
                 </p>
               </div>
             </div>
@@ -417,9 +411,9 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-foreground">Texto del cuerpo</Label>
+              <Label className="text-foreground">Cuerpo</Label>
               <Textarea
-                placeholder="Introduce el cuerpo del mensaje de la plantilla. Usa {{1}}, {{2}} para variables."
+                placeholder="Usá {{1}}, {{2}} para variables."
                 value={form.body_text}
                 onChange={(e) => setForm({ ...form, body_text: e.target.value })}
                 rows={4}
@@ -428,9 +422,8 @@ export function TemplateManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-foreground">Texto del pie</Label>
+              <Label className="text-foreground">Pie</Label>
               <Input
-                placeholder="Texto opcional del pie"
                 value={form.footer_text}
                 onChange={(e) => setForm({ ...form, footer_text: e.target.value })}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
@@ -452,12 +445,9 @@ export function TemplateManager() {
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Creando...
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Crear plantilla'
+                'Crear'
               )}
             </Button>
           </DialogFooter>

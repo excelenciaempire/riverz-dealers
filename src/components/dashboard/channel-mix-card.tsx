@@ -21,7 +21,6 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
       <header className="mb-4 flex items-baseline justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">Volumen por canal</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Últimos 7 días</p>
         </div>
         <p className="text-xs text-muted-foreground">
           Total: <span className="font-semibold text-foreground tabular-nums">{total.toLocaleString()}</span>

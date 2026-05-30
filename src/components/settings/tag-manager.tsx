@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { Tag } from '@/types';
@@ -76,7 +75,7 @@ export function TagManager() {
 
   async function handleCreate() {
     if (!newTagName.trim()) {
-      toast.error('El nombre de la etiqueta es obligatorio');
+      toast.error('Falta el nombre.');
       return;
     }
 
@@ -97,7 +96,7 @@ export function TagManager() {
 
       if (error) throw error;
 
-      toast.success('Etiqueta creada correctamente');
+      toast.success('Etiqueta creada');
       setDialogOpen(false);
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
@@ -169,7 +168,7 @@ export function TagManager() {
       {tags.length === 0 ? (
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground text-sm">Aún no hay etiquetas.</p>
+            <p className="text-muted-foreground text-sm">Sin etiquetas.</p>
           </CardContent>
         </Card>
       ) : (
@@ -213,9 +212,9 @@ export function TagManager() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-foreground">Nombre de la etiqueta</Label>
+              <Label className="text-foreground">Nombre</Label>
               <Input
-                placeholder="ej. Cliente VIP"
+                placeholder="Cliente VIP"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
@@ -259,7 +258,7 @@ export function TagManager() {
                     className="size-2 rounded-full"
                     style={{ backgroundColor: selectedColor }}
                   />
-                  {newTagName || 'Nombre de la etiqueta'}
+                  {newTagName || 'Nombre'}
                 </span>
               </div>
             </div>
@@ -279,12 +278,9 @@ export function TagManager() {
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Creando...
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Crear etiqueta'
+                'Crear'
               )}
             </Button>
           </DialogFooter>
@@ -295,11 +291,7 @@ export function TagManager() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="bg-card border-border sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Eliminar etiqueta</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              ¿Seguro que quieres eliminar la etiqueta &quot;{tagToDelete?.name}&quot;? Se quitará
-              de todos los contactos. Esta acción no se puede deshacer.
-            </DialogDescription>
+            <DialogTitle className="text-foreground">¿Eliminar &quot;{tagToDelete?.name}&quot;?</DialogTitle>
           </DialogHeader>
           <DialogFooter className="bg-card border-border">
             <Button
@@ -315,12 +307,9 @@ export function TagManager() {
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {deleting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Eliminando...
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Eliminar etiqueta'
+                'Eliminar'
               )}
             </Button>
           </DialogFooter>

@@ -61,7 +61,7 @@ export default function TemplatesPage() {
       setTemplates(data || []);
     } catch (err) {
       console.error('Failed to fetch templates:', err);
-      toast.error('No se pudieron cargar las plantillas');
+      toast.error('No se cargaron las plantillas');
     } finally {
       setLoading(false);
     }
@@ -102,9 +102,7 @@ export default function TemplatesPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Plantillas</h1>
-        </div>
+        <h1 className="text-2xl font-bold text-foreground">Plantillas</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -113,7 +111,7 @@ export default function TemplatesPage() {
             className="border-border bg-transparent text-foreground hover:bg-accent"
           >
             <RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando…' : 'Sincronizar desde Meta'}
+            {syncing ? 'Sincronizando…' : 'Sincronizar'}
           </Button>
           <Button
             render={

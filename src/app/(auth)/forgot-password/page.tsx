@@ -109,7 +109,7 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Enviando..." : "Enviar enlace de restablecimiento"}
+              {loading ? "Enviando..." : "Enviar enlace"}
             </Button>
           </form>
 

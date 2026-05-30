@@ -11,14 +11,12 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 
@@ -35,12 +33,12 @@ export function SessionsCard() {
       // triggers the usual redirect.
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
-        toast.error(`No se pudo cerrar sesión: ${error.message}`);
+        toast.error(error.message);
         return;
       }
       window.location.href = '/login';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      const msg = err instanceof Error ? err.message : 'Error';
       toast.error(msg);
     } finally {
       setSigningOut(false);
@@ -55,9 +53,6 @@ export function SessionsCard() {
             <LogOut className="size-4 text-accent-ink" />
             Sesiones activas
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Cierra sesión en todos los dispositivos, incluido este.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
@@ -75,9 +70,6 @@ export function SessionsCard() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>¿Cerrar sesión en todos los dispositivos?</DialogTitle>
-            <DialogDescription>
-              Tendrás que volver a iniciar sesión en cada uno.
-            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
@@ -90,12 +82,9 @@ export function SessionsCard() {
             </Button>
             <Button type="button" onClick={onConfirm} disabled={signingOut}>
               {signingOut ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Cerrando sesión…
-                </>
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Cerrar sesión en todos los dispositivos'
+                'Cerrar sesión'
               )}
             </Button>
           </DialogFooter>

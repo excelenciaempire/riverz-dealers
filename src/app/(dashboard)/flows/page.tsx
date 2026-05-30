@@ -172,15 +172,13 @@ export default function FlowsPage() {
   }
 
   async function handleDelete(flow: FlowRow) {
-    const yes = window.confirm(
-      `¿Eliminar "${flow.name}"? Cualquier ejecución activa terminará de inmediato.`,
-    );
+    const yes = window.confirm(`¿Eliminar "${flow.name}"?`);
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
-      toast.success("Flujo eliminado.");
+      toast.success("Eliminado.");
     } catch (err) {
       console.error(err);
       toast.error("No se pudo eliminar el flujo.");
@@ -205,9 +203,6 @@ export default function FlowsPage() {
               Beta
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Chatbots interactivos donde el cliente avanza la conversación con botones o respuestas.
-          </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -298,7 +293,7 @@ export default function FlowsPage() {
             </Button>
             <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Crear flujo en blanco
+              Crear
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -314,7 +309,7 @@ function EmptyState() {
         <Workflow className="h-6 w-6 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-base font-medium text-foreground">
-        Aún no hay flujos
+        Sin flujos
       </h2>
     </div>
   );

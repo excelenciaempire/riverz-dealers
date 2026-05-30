@@ -164,7 +164,7 @@ export function ContactDetailView({
 
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
-      toast.error('El número de teléfono es obligatorio');
+      toast.error('Falta el teléfono');
       return;
     }
 
@@ -288,7 +288,7 @@ export function ContactDetailView({
         if (error) throw error;
       }
 
-      toast.success('Campos personalizados guardados');
+      toast.success('Guardado');
     } catch {
       toast.error('No se pudieron guardar los campos personalizados');
     }
@@ -439,7 +439,7 @@ export function ContactDetailView({
                     ) : (
                       <Save className="size-3.5" />
                     )}
-                    Guardar cambios
+                    Guardar
                   </Button>
                 </div>
               </TabsContent>
@@ -449,7 +449,7 @@ export function ContactDetailView({
                 <div className="space-y-3">
                   {allTags.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No hay etiquetas. Créalas en Ajustes.
+                      No hay etiquetas.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
@@ -500,7 +500,7 @@ export function ContactDetailView({
                     ) : (
                       <Plus className="size-3.5" />
                     )}
-                    Añadir nota
+                    Añadir
                   </Button>
                 </div>
 
@@ -511,7 +511,7 @@ export function ContactDetailView({
                     </div>
                   ) : notes.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      Aún no hay notas.
+                      No hay notas.
                     </p>
                   ) : (
                     notes.map((note) => (
@@ -553,7 +553,7 @@ export function ContactDetailView({
                   </div>
                 ) : customFields.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    No hay campos personalizados. Créalos en Ajustes.
+                    No hay campos personalizados.
                   </p>
                 ) : (
                   <div className="space-y-3">

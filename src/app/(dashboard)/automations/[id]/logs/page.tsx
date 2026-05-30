@@ -92,15 +92,12 @@ export default function AutomationLogsPage({
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{automation.name}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Registros de ejecución</p>
-        </div>
+        <h1 className="text-2xl font-bold text-foreground">{automation.name}</h1>
       </div>
 
       {logs.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <p className="text-sm text-foreground">Aún no hay ejecuciones</p>
+          <p className="text-sm text-foreground">Sin ejecuciones</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -147,7 +144,7 @@ export default function AutomationLogsPage({
                         <StepRow key={i} result={r} />
                       ))}
                       {(log.steps_executed ?? []).length === 0 && (
-                        <li className="text-xs text-muted-foreground">No se registraron pasos.</li>
+                        <li className="text-xs text-muted-foreground">Sin pasos.</li>
                       )}
                     </ul>
                   </div>

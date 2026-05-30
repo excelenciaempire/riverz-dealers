@@ -93,7 +93,7 @@ export function WhatsAppEmbeddedSignup({
     async (code: string) => {
       const { waba_id, phone_number_id } = sessionInfo.current;
       if (!waba_id || !phone_number_id) {
-        toast.error("No se recibió la cuenta de WhatsApp — reintentá el onboarding.");
+        toast.error("No se recibió la cuenta de WhatsApp.");
         return;
       }
       setBusy(true);

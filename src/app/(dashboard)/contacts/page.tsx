@@ -26,7 +26,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -111,7 +110,7 @@ export default function ContactsPage() {
     const { data, count, error } = await query;
 
     if (error) {
-      toast.error('No se pudieron cargar los contactos');
+      toast.error('No se cargaron los contactos');
       setLoading(false);
       return;
     }
@@ -284,7 +283,7 @@ export default function ContactsPage() {
             // set shrinks/grows, page N may no longer be valid.
             setPage(0);
           }}
-          placeholder="Busca por nombre, teléfono o correo..."
+          placeholder="Nombre, teléfono o correo"
           className="pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground"
         />
       </div>
@@ -320,7 +319,7 @@ export default function ContactsPage() {
                     <p className="max-w-sm text-sm text-muted-foreground">
                       {search
                         ? 'Sin resultados.'
-                        : 'Aún no hay contactos.'}
+                        : 'No hay contactos.'}
                     </p>
                   </div>
                 </TableCell>
@@ -491,14 +490,13 @@ export default function ContactsPage() {
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-card border-border text-foreground sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Eliminar contacto</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              ¿Seguro que quieres eliminar a{' '}
-              <span className="text-foreground font-medium">
+            <DialogTitle className="text-foreground">
+              ¿Eliminar a{' '}
+              <span className="font-medium">
                 {deleteTarget?.name || deleteTarget?.phone}
               </span>
-              ? Esta acción no se puede deshacer.
-            </DialogDescription>
+              ?
+            </DialogTitle>
           </DialogHeader>
           <DialogFooter className="bg-card border-border">
             <Button

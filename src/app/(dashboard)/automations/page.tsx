@@ -102,7 +102,7 @@ export default function AutomationsPage() {
       toast.error(body?.error ?? "No se pudo actualizar")
       return
     }
-    toast.success(next ? "Automatización activada" : "Automatización pausada")
+    toast.success(next ? "Activada" : "Pausada")
   }
 
   async function duplicate(a: Automation) {
@@ -112,7 +112,7 @@ export default function AutomationsPage() {
       toast.error(body?.error ?? "No se pudo duplicar")
       return
     }
-    toast.success("Automatización duplicada")
+    toast.success("Duplicada")
     load()
   }
 
@@ -126,7 +126,7 @@ export default function AutomationsPage() {
       toast.error(body?.error ?? "No se pudo eliminar")
       return
     }
-    toast.success("Automatización eliminada")
+    toast.success("Eliminada")
     setPendingDelete(null)
     load()
   }
@@ -173,7 +173,7 @@ export default function AutomationsPage() {
 
       {showTemplates && (
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Plantillas de inicio rápido</h2>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Plantillas</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {TEMPLATE_ORDER.map((slug) => {
               const t = AUTOMATION_TEMPLATES[slug]
@@ -222,11 +222,11 @@ export default function AutomationsPage() {
       <Dialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Eliminar automatización</DialogTitle>
+            <DialogTitle>
+              ¿Eliminar <span className="text-foreground">{pendingDelete?.name}</span>?
+            </DialogTitle>
             <DialogDescription>
-              Esto eliminará permanentemente{" "}
-              <span className="text-foreground">{pendingDelete?.name}</span> y su historial de
-              ejecuciones. Esta acción no se puede deshacer.
+              Se eliminará también su historial de ejecuciones.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -494,7 +494,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
-          toast.error(`No se pudo enviar: ${reason}`);
+          toast.error(`No se envió: ${reason}`);
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
@@ -503,7 +503,7 @@ export function MessageThread({
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : "error de red";
-        toast.error(`No se pudo enviar: ${reason}`);
+        toast.error(`No se envió: ${reason}`);
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
@@ -567,7 +567,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send template:", reason);
-          toast.error(`No se pudo enviar la plantilla: ${reason}`);
+          toast.error(`No se envió: ${reason}`);
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
@@ -576,7 +576,7 @@ export function MessageThread({
       } catch (err) {
         console.error("Failed to send template:", err);
         const reason = err instanceof Error ? err.message : "error de red";
-        toast.error(`No se pudo enviar la plantilla: ${reason}`);
+        toast.error(`No se envió: ${reason}`);
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
@@ -644,7 +644,7 @@ export function MessageThread({
         return;
       }
       if (messageId.startsWith("temp-")) {
-        toast.error("Espera a que el mensaje termine de enviarse");
+        toast.error("Espera a que se envíe");
         return;
       }
 
@@ -690,7 +690,7 @@ export function MessageThread({
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : "error de red";
-        toast.error(`No se pudo reaccionar: ${reason}`);
+        toast.error(`No se reaccionó: ${reason}`);
         setReactions(snapshot);
       }
     },
@@ -709,7 +709,7 @@ export function MessageThread({
 
       if (error) {
         console.error("Failed to update assignment:", error);
-        toast.error("No se pudo actualizar la asignación");
+        toast.error("No se asignó");
         return;
       }
 
@@ -804,8 +804,7 @@ export function MessageThread({
               type="button"
               onClick={handleRefreshClick}
               disabled={isRefreshing}
-              aria-label="Actualizar conversación"
-              title="Actualizar"
+              aria-label="Actualizar"
               className={cn(
                 "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60",
               )}
@@ -859,7 +858,7 @@ export function MessageThread({
             >
               {profiles.length === 0 ? (
                 <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                  No hay compañeros disponibles
+                  Sin compañeros
                 </DropdownMenuItem>
               ) : (
                 profiles.map((p) => {
@@ -905,14 +904,11 @@ export function MessageThread({
         conversation.channel === "outlook") &&
         conversation.subject && (
           <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-2 text-xs sm:px-4">
-            <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Hilo
-            </span>
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
               {conversation.subject}
             </p>
             <span className="shrink-0 text-[10px] text-muted-foreground">
-              {messages.length} mensaje{messages.length === 1 ? "" : "s"}
+              {messages.length}
             </span>
           </div>
         )}
@@ -964,19 +960,14 @@ export function MessageThread({
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {conversation.channel === "fb_comment" ? "Comentario en Facebook" : "Comentario en Instagram"}
+              {isAd && (
+                <span
+                  title="Anuncio pagado"
+                  className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+                >
+                  Anuncio
                 </span>
-                {isAd && (
-                  <span
-                    title="Comentario en anuncio pagado"
-                    className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
-                  >
-                    Anuncio
-                  </span>
-                )}
-              </div>
+              )}
               <p className="mt-0.5 line-clamp-2 text-foreground">{caption}</p>
               {postUrl && (
                 <a
@@ -1001,7 +992,7 @@ export function MessageThread({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <p className="text-sm text-muted-foreground">Aún no hay mensajes</p>
+            <p className="text-sm text-muted-foreground">Sin mensajes</p>
           </div>
         ) : (
           <div className="space-y-4">

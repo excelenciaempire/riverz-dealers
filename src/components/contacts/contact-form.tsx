@@ -78,7 +78,7 @@ export function ContactForm({
     e.preventDefault();
 
     if (!phone.trim()) {
-      toast.error('El número de teléfono es obligatorio');
+      toast.error('Falta el teléfono');
       return;
     }
 
@@ -169,7 +169,6 @@ export function ContactForm({
               id="cf-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Juan Pérez"
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
@@ -196,7 +195,6 @@ export function ContactForm({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="juan@correo.com"
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
@@ -209,7 +207,6 @@ export function ContactForm({
               id="cf-company"
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme S.A."
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
@@ -217,13 +214,10 @@ export function ContactForm({
           <div className="space-y-2">
             <Label className="text-foreground">Etiquetas</Label>
             {loadingTags ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="size-3 animate-spin" />
-                Cargando etiquetas...
-              </div>
+              <Loader2 className="size-3 animate-spin text-muted-foreground" />
             ) : tags.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No hay etiquetas disponibles. Créalas en Ajustes.
+                No hay etiquetas. Créalas en Ajustes.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">

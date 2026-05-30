@@ -237,7 +237,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || "[Tipo de mensaje no compatible]"}
+          {message.content_text || "[No compatible]"}
         </p>
       );
   }
@@ -269,7 +269,7 @@ function EmailBody({ text }: { text: string }) {
             className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             ···
-            {open ? " ocultar mensaje citado" : " mostrar mensaje citado"}
+            {open ? " ocultar cita" : " mostrar cita"}
           </button>
           {open && (
             <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted/30 p-2 text-[11px] text-muted-foreground">
@@ -377,7 +377,7 @@ export function MessageBubble({
                   isAgent ? "bg-primary" : "bg-muted-foreground",
                 )}
               />
-              {isAgent ? "Tú (enviado)" : "Cliente"}
+              {isAgent ? "Tú" : "Cliente"}
             </span>
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}

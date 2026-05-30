@@ -54,7 +54,7 @@ export function ResponseTimeChart({
         ) : !hasData ? (
           <EmptyState
             icon={Clock}
-            title="Aún no hay respuestas registradas"
+            title="Sin respuestas registradas"
           />
         ) : (
           <Bars data={data} thresholdMinutes={thresholdMinutes} />

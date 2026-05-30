@@ -123,23 +123,15 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "close_conversation",
 ]
 
-const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] = [
-  { value: "new_message_received", label: "Nuevo mensaje recibido", hint: "Cualquier mensaje entrante" },
-  {
-    value: "first_inbound_message",
-    label: "Primer mensaje del contacto",
-    hint: "La primera vez que el contacto te escribe",
-  },
-  { value: "keyword_match", label: "Coincidencia de palabra clave", hint: "El mensaje contiene una o varias palabras clave" },
-  { value: "new_contact_created", label: "Nuevo contacto creado", hint: "Al crear un contacto desde un mensaje entrante" },
-  { value: "conversation_assigned", label: "Conversación asignada", hint: "Al asignarse a un agente" },
-  { value: "tag_added", label: "Etiqueta añadida", hint: "Al añadirse una etiqueta a un contacto" },
-  { value: "time_based", label: "Programada", hint: "En un horario recurrente" },
-  {
-    value: "shopify_abandoned_checkout",
-    label: "Carrito abandonado (Shopify)",
-    hint: "Cuando alguien deja un checkout en Shopify",
-  },
+const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
+  { value: "new_message_received", label: "Nuevo mensaje recibido" },
+  { value: "first_inbound_message", label: "Primer mensaje del contacto" },
+  { value: "keyword_match", label: "Coincidencia de palabra clave" },
+  { value: "new_contact_created", label: "Nuevo contacto creado" },
+  { value: "conversation_assigned", label: "Conversación asignada" },
+  { value: "tag_added", label: "Etiqueta añadida" },
+  { value: "time_based", label: "Programada" },
+  { value: "shopify_abandoned_checkout", label: "Carrito abandonado (Shopify)" },
 ]
 
 /**
@@ -162,12 +154,9 @@ function AudienceStrip({
       <Layers className="h-3.5 w-3.5 text-muted-foreground" />
       <span className="text-muted-foreground">Audiencia:</span>
       {segments.length === 0 ? (
-        <span className="text-muted-foreground">
-          Sin segmentos guardados.{" "}
-          <a href="/contacts?tab=segments" className="underline hover:text-foreground">
-            Crear uno
-          </a>
-        </span>
+        <a href="/contacts?tab=segments" className="text-muted-foreground underline hover:text-foreground">
+          Crear segmento
+        </a>
       ) : (
         <>
           <select
@@ -234,20 +223,13 @@ function ConditionFields({
             onChange={(e) => set({ operand: e.target.value })}
             className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
           >
-            <option value="">Elegir un segmento…</option>
+            <option value=""></option>
             {segments.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
           </select>
-          {segments.length === 0 && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              <a href="/contacts?tab=segments" className="underline">
-                Crear un segmento
-              </a>
-            </p>
-          )}
         </FieldBlock>
       ) : (
         <FieldBlock label="Operando">
@@ -427,7 +409,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         }
         return
       }
-      toast.success(isEditing ? "Automatización guardada" : "Automatización creada")
+      toast.success(isEditing ? "Guardada" : "Creada")
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automations/${body.automation.id}/edit`)
       }
@@ -448,7 +430,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           type="button"
           onClick={() => router.push("/automations")}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Volver a automatizaciones"
+          aria-label="Atrás"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -533,11 +515,10 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            title="Mostrar vista previa de WhatsApp"
             className="hidden absolute right-4 top-20 z-10 items-center gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-lg backdrop-blur transition-colors hover:bg-accent lg:inline-flex"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            Ver vista previa
+            Vista previa
           </button>
         )}
       </div>
@@ -627,7 +608,6 @@ function MessagePreviewRail({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-foreground">Vista previa</p>
       {preview ? (
         <WhatsappPreview
           headerType={preview.headerType}
@@ -700,9 +680,6 @@ function TriggerCard({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {TRIGGER_OPTIONS.find((o) => o.value === type)?.hint}
-              </p>
             </div>
             {type === "keyword_match" && (
               <KeywordMatchConfig
@@ -1100,7 +1077,7 @@ function StepEditor({
                 }}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
               >
-                <option value="">Selecciona una plantilla…</option>
+                <option value=""></option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.name}>
                     {t.name} ({t.language}) · {t.status ?? "Draft"}

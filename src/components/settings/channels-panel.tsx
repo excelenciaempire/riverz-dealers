@@ -10,7 +10,6 @@ import {
   XCircle,
   AlertCircle,
   Copy,
-  ExternalLink,
   KeyRound,
   X,
 } from "lucide-react";
@@ -155,7 +154,7 @@ export function ChannelsPanel() {
 
   const handleDisconnect = useCallback(
     async (id: string) => {
-      if (!confirm("¿Desconectar este canal? El historial de conversaciones se conserva.")) return;
+      if (!confirm("¿Desconectar este canal?")) return;
       const supabase = createClient();
       const { error } = await supabase
         .from("channel_connections")
@@ -173,7 +172,7 @@ export function ChannelsPanel() {
 
   const handleDelete = useCallback(
     async (id: string) => {
-      if (!confirm("¿Eliminar esta conexión definitivamente? El historial de conversaciones se conserva.")) return;
+      if (!confirm("¿Eliminar esta conexión?")) return;
       const supabase = createClient();
       const { error } = await supabase.from("channel_connections").delete().eq("id", id);
       if (error) {
@@ -224,9 +223,6 @@ export function ChannelsPanel() {
               <h3 className="text-sm font-semibold text-amber-200">
                 Faltan apps OAuth por registrar
               </h3>
-              <p className="text-xs leading-relaxed text-amber-100/80">
-                Registra cada app y pega sus claves en las variables de entorno de Render.
-              </p>
               <ul className="space-y-1 text-xs text-amber-100/70">
                 <li>
                   <span className={providers.meta ? "text-emerald-400" : "text-amber-300"}>
@@ -292,9 +288,7 @@ export function ChannelsPanel() {
         </div>
       </div>
       {!isAdmin && (
-        <p className="text-xs text-muted-foreground">
-          Solo lectura · los admins gestionan las conexiones.
-        </p>
+        <p className="text-xs text-muted-foreground">Solo lectura.</p>
       )}
 
       {manualOpen && workspace && (

@@ -136,7 +136,7 @@ export function WorkspacePanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Aún no hay espacio de trabajo. Cierra sesión y vuelve a iniciar sesión para crear uno.
+        Sin espacio de trabajo. Volvé a iniciar sesión.
       </div>
     );
   }
@@ -175,9 +175,6 @@ export function WorkspacePanel() {
       <section className="rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">
           <h2 className="text-base font-semibold text-foreground">Miembros del equipo</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Todas las personas de aquí comparten la bandeja de entrada, los contactos y las conexiones.
-          </p>
         </div>
         <ul className="divide-y divide-border">
           {members.map((m) => {
@@ -230,7 +227,7 @@ export function WorkspacePanel() {
           <div className="border-t border-border px-5 py-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <UserPlus className="size-4 text-accent-ink" />
-              Invitar por correo
+              Invitar
             </h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Input
@@ -252,7 +249,7 @@ export function WorkspacePanel() {
                 disabled={inviting || !inviteEmail.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Enviar invitación"}
+                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Enviar"}
               </Button>
             </div>
           </div>

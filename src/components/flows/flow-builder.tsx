@@ -433,7 +433,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const handleStatus = useCallback(
     async (next: BuilderState["status"]) => {
       if (next === "active" && !canActivate) {
-        toast.error("Corrige los problemas de abajo antes de activar.");
+        toast.error("Corrige los errores antes de activar.");
         return;
       }
       setActivating(true);
@@ -456,10 +456,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         setState((s) => ({ ...s, status: next }));
         toast.success(
           next === "active"
-            ? "Flujo activado."
+            ? "Activado."
             : next === "archived"
               ? "Archivado."
-              : "Guardado como borrador.",
+              : "Borrador.",
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "No se pudo actualizar el estado";
@@ -473,9 +473,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
-    const yes = window.confirm(
-      `¿Eliminar "${state.name}"? Cualquier ejecución activa terminará de inmediato. Esto no se puede deshacer.`,
-    );
+    const yes = window.confirm(`¿Eliminar "${state.name}"?`);
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
@@ -628,7 +626,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
         {state.nodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-            Aún no hay nodos.
+            Sin nodos.
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -769,9 +767,7 @@ function Header({
               onClick={() => onStatus("active")}
               disabled={activating || !canActivate}
               title={
-                !canActivate
-                  ? "Corrige los problemas de abajo antes de activar"
-                  : undefined
+                !canActivate ? "Corrige los errores antes de activar" : undefined
               }
             >
               {activating ? (
@@ -797,7 +793,7 @@ function Header({
         onChange={(e) =>
           setState((s) => ({ ...s, description: e.target.value }))
         }
-        placeholder="Descripción interna (los clientes no la ven)"
+        placeholder="Descripción interna"
         className="bg-card text-sm"
       />
     </div>
@@ -840,7 +836,7 @@ function TriggerPanel({
       <h2 className="mb-3 text-sm font-semibold text-foreground">Activador</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Cuándo…</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Cuándo</label>
           <Select
             value={state.trigger_type}
             onValueChange={(v) =>
@@ -871,7 +867,7 @@ function TriggerPanel({
         {state.trigger_type === "keyword" && (
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
-              Palabras clave (separadas por comas)
+              Palabras clave
             </label>
             <Input
               value={
@@ -930,7 +926,7 @@ function EntryPicker({
         onChange={(key) =>
           setState((s) => ({ ...s, entry_node_id: key }))
         }
-        placeholder="Elige el primer nodo…"
+        placeholder=""
         className="flex-1 max-w-xs"
       />
     </section>
@@ -1084,8 +1080,6 @@ function NodeConfigForm({
   // for the rare case where someone wants to lock a key for stable
   // analytics or external integration.
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const hasReplyIds =
-    node.node_type === "send_buttons" || node.node_type === "send_list";
   return (
     <div className="flex flex-col gap-3">
       {node.node_type === "start" && (
@@ -1157,15 +1151,6 @@ function NodeConfigForm({
               placeholder="nombre"
               className="bg-muted font-mono text-xs"
             />
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              Referencia en otros nodos con{" "}
-              <code className="rounded bg-muted px-1">
-                {"{{vars."}
-                {(cfg as { var_key?: string }).var_key || "nombre"}
-                {"}}"}
-              </code>
-              .
-            </p>
           </div>
           <NextNodeRow
             value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
@@ -1204,12 +1189,6 @@ function NodeConfigForm({
         />
       )}
 
-      {node.node_type === "end" && (
-        <p className="text-xs text-muted-foreground">
-          Nodo terminal. Marca la ejecución como completa.
-        </p>
-      )}
-
       <div className="border-t border-border pt-3">
         <button
           type="button"
@@ -1237,11 +1216,6 @@ function NodeConfigForm({
                 className="bg-muted font-mono text-xs"
               />
             </div>
-            {hasReplyIds && (
-              <p className="text-[10px] text-muted-foreground">
-                Los IDs de respuesta de cada opción son editables arriba.
-              </p>
-            )}
           </div>
         )}
       </div>
@@ -1302,7 +1276,7 @@ function SendButtonsForm({
         rows={3}
       />
       <TextRow
-        label="Pie de página (opcional)"
+        label="Pie de página"
         value={cfg.footer_text ?? ""}
         onChange={(v) => onUpdateConfig({ footer_text: v })}
       />
@@ -1347,7 +1321,7 @@ function SendButtonsForm({
                 nodes={allNodes}
                 excludeKey={currentKey}
                 onChange={(v) => updateButton(i, { next_node_key: v ?? "" })}
-                placeholder="Siguiente nodo…"
+                placeholder=""
               />
               <Button
                 variant="ghost"
@@ -1495,7 +1469,7 @@ function SendListForm({
           onChange={(v) => onUpdateConfig({ button_label: v })}
         />
         <TextRow
-          label="Pie de página (opcional)"
+          label="Pie de página"
           value={cfg.footer_text ?? ""}
           onChange={(v) => onUpdateConfig({ footer_text: v })}
         />
@@ -1516,7 +1490,7 @@ function SendListForm({
                 onChange={(e) =>
                   updateSection(sIdx, { title: e.target.value })
                 }
-                placeholder={`Título de la sección ${sIdx + 1} (opcional)`}
+                placeholder={`Título de la sección ${sIdx + 1}`}
                 className="bg-muted text-xs"
               />
               {sections.length > 1 && (
@@ -1572,7 +1546,7 @@ function SendListForm({
                   onChange={(v) =>
                     updateRow(sIdx, rIdx, { next_node_key: v ?? "" })
                   }
-                  placeholder="Siguiente nodo…"
+                  placeholder=""
                 />
                 <Button
                   variant="ghost"
@@ -1701,7 +1675,7 @@ function ConditionForm({
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-muted">
-                <SelectValue placeholder="Elige una etiqueta…" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {tags.map((t) => (
@@ -1717,7 +1691,7 @@ function ConditionForm({
               onValueChange={(v) => onUpdateConfig({ subject_key: v })}
             >
               <SelectTrigger className="bg-muted">
-                <SelectValue placeholder="Elige un campo…" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="name">nombre</SelectItem>
@@ -1859,7 +1833,7 @@ function SetTagForm({
               onValueChange={(v) => onUpdateConfig({ tag_id: v })}
             >
               <SelectTrigger className="bg-muted">
-                <SelectValue placeholder="Elige una etiqueta…" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {tags.map((t) => (
@@ -1945,7 +1919,7 @@ function NextNodeRow({
         nodes={allNodes}
         excludeKey={currentKey}
         onChange={(v) => onChange(v ?? "")}
-        placeholder="Elige el siguiente nodo…"
+        placeholder=""
       />
     </div>
   );
@@ -2015,7 +1989,6 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-        aria-label="Añadir nodo"
       >
         <Plus className="h-3.5 w-3.5" />
         Añadir nodo
@@ -2053,7 +2026,7 @@ function ValidationPanel({
     return (
       <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-card p-3 text-sm font-medium text-emerald-300">
         <CircleCheck className="h-4 w-4 shrink-0" />
-        Sin problemas. Listo para activar.
+        Listo para activar.
       </div>
     );
   }

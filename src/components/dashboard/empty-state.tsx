@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
  * different widget.
  */
 export function EmptyState({
-  title = 'Aún no hay datos suficientes',
+  title = 'Sin datos suficientes',
   hint,
   icon: Icon = BarChart3,
   className,

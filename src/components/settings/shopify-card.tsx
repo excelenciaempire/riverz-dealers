@@ -53,14 +53,14 @@ export function ShopifyCard() {
   function handleConnect() {
     const trimmed = shop.trim();
     if (!trimmed) {
-      toast.error('Escribí el dominio de tu tienda (tu-tienda.myshopify.com).');
+      toast.error('Falta el dominio de la tienda.');
       return;
     }
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
   }
 
   async function handleDisconnect() {
-    if (!confirm('¿Desconectar Shopify? El historial se conserva.')) return;
+    if (!confirm('¿Desconectar Shopify?')) return;
     setDisconnecting(true);
     try {
       const res = await fetch('/api/shopify/status', { method: 'DELETE' });
@@ -172,7 +172,7 @@ export function ShopifyCard() {
       {!configured && (
         <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
           <AlertCircle className="size-3.5" />
-          Configurar credenciales primero
+          Faltan credenciales
         </div>
       )}
     </li>

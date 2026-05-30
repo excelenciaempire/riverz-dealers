@@ -75,9 +75,7 @@ export function WhatsappPreview({
             {/* Body */}
             <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-[#111b21]">
               {bodyText.trim() || (
-                <span className="text-[#667781]">
-                  El cuerpo de tu mensaje aparecerá aquí…
-                </span>
+                <span className="text-[#667781]">Tu mensaje aparece aquí…</span>
               )}
             </p>
 

@@ -147,16 +147,16 @@ export default function NewBroadcastPage() {
   }
 
   function validate(): string | null {
-    if (!name.trim()) return 'Ponle un nombre a la campaña.';
+    if (!name.trim()) return 'Falta el nombre.';
     if (!template) return 'Elegí una plantilla.';
     if (audienceType === 'tags' && selectedTagIds.length === 0)
-      return 'Seleccioná al menos una etiqueta.';
+      return 'Elegí una etiqueta.';
     if (audienceType === 'segment' && !segmentId) return 'Elegí un segmento.';
     if (sendMode === 'schedule') {
       if (!scheduledAt) return 'Elegí cuándo programarla.';
       const t = new Date(scheduledAt).getTime();
-      if (Number.isNaN(t)) return 'La fecha no es válida.';
-      if (t <= Date.now()) return 'La fecha de envío tiene que ser en el futuro.';
+      if (Number.isNaN(t)) return 'Fecha no válida.';
+      if (t <= Date.now()) return 'La fecha debe ser futura.';
     }
     return null;
   }
@@ -183,7 +183,7 @@ export default function NewBroadcastPage() {
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo enviar la campaña');
+      toast.error(e instanceof Error ? e.message : 'No se envió');
     }
   }
 
@@ -196,7 +196,7 @@ export default function NewBroadcastPage() {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return toast.error('No has iniciado sesión.');
+    if (!user) return toast.error('Sin sesión.');
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       name: name.trim(),
@@ -286,16 +286,14 @@ export default function NewBroadcastPage() {
                         <SelectValue
                           labels={segmentLabels}
                           placeholder={
-                            segments.length === 0
-                              ? 'Todavía no hay segmentos'
-                              : 'Elegir un segmento'
+                            segments.length === 0 ? 'Todavía no hay segmentos' : ''
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
                         {segments.length === 0 && (
                           <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            No tenés segmentos guardados.
+                            Sin segmentos.
                           </div>
                         )}
                         {segments.map((s) => (
@@ -315,17 +313,12 @@ export default function NewBroadcastPage() {
                       Crear segmento
                     </Button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Los contactos se calculan al enviar.
-                  </p>
                 </div>
               )}
               {audienceType === 'tags' && (
                 <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
                   {tags.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No tenés etiquetas todavía. Creá una en Contactos.
-                    </p>
+                    <p className="text-xs text-muted-foreground">Sin etiquetas.</p>
                   )}
                   {tags.map((t) => {
                     const on = selectedTagIds.includes(t.id);
@@ -355,7 +348,7 @@ export default function NewBroadcastPage() {
                 <ModeOption
                   active={sendMode === 'now'}
                   onClick={() => setSendMode('now')}
-                  title="Ahora mismo"
+                  title="Ahora"
                   icon={<Send className="size-4" />}
                 />
                 <ModeOption
@@ -373,15 +366,12 @@ export default function NewBroadcastPage() {
             <Field label="Plantilla">
               <Select value={templateId} onValueChange={(v) => setTemplateId(v ?? '')}>
                 <SelectTrigger className="w-full bg-background">
-                  <SelectValue
-                    labels={templateLabels}
-                    placeholder="Elegir una plantilla aprobada"
-                  />
+                  <SelectValue labels={templateLabels} placeholder="" />
                 </SelectTrigger>
                 <SelectContent>
                   {templates.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      No hay plantillas aprobadas todavía.
+                      Sin plantillas aprobadas.
                     </div>
                   )}
                   {templates.map((t) => (
@@ -395,9 +385,6 @@ export default function NewBroadcastPage() {
 
             {templateVars.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
-                <p className="mb-3 text-sm font-medium text-foreground">
-                  Valores de las variables
-                </p>
                 <div className="space-y-2">
                   {templateVars.map((v) => (
                     <div
@@ -428,10 +415,7 @@ export default function NewBroadcastPage() {
                 onChange={(e) => setCreateConversations(e.target.checked)}
                 className="mt-0.5 accent-primary"
               />
-              <span>
-                Abrir una conversación en la bandeja por cada destinatario para hacer
-                seguimiento de respuestas.
-              </span>
+              <span>Abrir conversación en la bandeja por destinatario.</span>
             </label>
           </div>
 
@@ -461,9 +445,9 @@ export default function NewBroadcastPage() {
                   Enviando…
                 </>
               ) : sendMode === 'schedule' ? (
-                'Programar envío'
+                'Programar'
               ) : (
-                'Enviar ahora'
+                'Enviar'
               )}
             </Button>
           </div>
@@ -564,18 +548,15 @@ function SchedulePicker({
           </button>
         ))}
       </div>
-      <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">Fecha y hora exactas</Label>
-        <Input
-          type="datetime-local"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="bg-background"
-        />
-      </div>
+      <Input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-background"
+      />
       {summary && (
         <p className="text-[11px] text-muted-foreground">
-          Se enviará <span className="font-medium text-foreground">{summary}</span>
+          <span className="font-medium text-foreground">{summary}</span>
           {tz ? ` · ${tz}` : ''}
         </p>
       )}

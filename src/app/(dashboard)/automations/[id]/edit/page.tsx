@@ -57,7 +57,7 @@ export default function EditAutomationPage({
           onClick={() => router.push("/automations")}
           className="text-sm text-accent-ink hover:text-accent-ink/80"
         >
-          Volver a automatizaciones
+          Atrás
         </button>
       </div>
     )

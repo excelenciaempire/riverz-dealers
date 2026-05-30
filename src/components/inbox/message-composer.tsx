@@ -90,7 +90,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            Sesión de 24 horas expirada. Usa una plantilla para reiniciar.
+            Sesión de 24h expirada — usa una plantilla.
           </p>
           <Button
             variant="ghost"
@@ -122,8 +122,8 @@ export function MessageComposer({
           onKeyDown={handleKeyDown}
           placeholder={
             sessionExpired
-              ? "Sesión expirada - usa una plantilla"
-              : "Escribe un mensaje..."
+              ? "Sesión expirada — usa una plantilla"
+              : "Mensaje"
           }
           disabled={sessionExpired}
           rows={1}
