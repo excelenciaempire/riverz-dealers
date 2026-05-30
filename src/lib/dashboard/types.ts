@@ -12,6 +12,15 @@ export interface MetricsBundle {
   newContactsToday: MetricDelta
   resolvedToday: MetricDelta
   messagesSentToday: MetricDelta
+  messagesReceivedToday: MetricDelta
+  /** Volume mix by channel for the last 7 days. */
+  channelMix: ChannelMixPoint[]
+}
+
+export interface ChannelMixPoint {
+  channel: string
+  inbound: number
+  outbound: number
 }
 
 export interface ConversationsSeriesPoint {

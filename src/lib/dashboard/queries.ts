@@ -31,29 +31,20 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
 
+  const sevenDayStart = daysAgoStart(7).toISOString()
   const [
     openConvCur,
-    newConvToday,
-    newConvYesterday,
     newContactsToday,
     newContactsYesterday,
     resolvedToday,
     resolvedYesterday,
-    messagesToday,
-    messagesYesterday,
+    messagesSentToday,
+    messagesSentYesterday,
+    messagesRecvToday,
+    messagesRecvYesterday,
+    channelMixRows,
   ] = await Promise.all([
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', todayStart),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
     db
       .from('contacts')
@@ -82,12 +73,47 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .eq('sender_type', 'agent')
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
+    db
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender_type', 'customer')
+      .gte('created_at', todayStart),
+    db
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender_type', 'customer')
+      .gte('created_at', yesterdayStart)
+      .lt('created_at', todayStart),
+    // Channel mix — aggregated client-side from the last 7 days of
+    // message rows. Cheap enough at the scale we run today; revisit
+    // if a tenant tips into millions of messages.
+    db
+      .from('messages')
+      .select('channel, sender_type')
+      .gte('created_at', sevenDayStart),
   ])
 
+  const mix = new Map<string, { inbound: number; outbound: number }>()
+  type MixRow = { channel?: string | null; sender_type?: string | null }
+  for (const r of (channelMixRows.data as MixRow[] | null) ?? []) {
+    const ch = r.channel ?? 'unknown'
+    const m = mix.get(ch) ?? { inbound: 0, outbound: 0 }
+    if (r.sender_type === 'customer') m.inbound++
+    else m.outbound++
+    mix.set(ch, m)
+  }
+  const channelMix = [...mix.entries()]
+    .map(([channel, v]) => ({ channel, inbound: v.inbound, outbound: v.outbound }))
+    .sort((a, b) => b.inbound + b.outbound - (a.inbound + a.outbound))
+
   return {
+    // "previous" for an instantaneous count like Active Conversations is
+    // meaningless without historical state, so we report it as itself —
+    // the delta widget renders neutral (no up/down arrow) when current
+    // === previous.
     activeConversations: {
       current: openConvCur.count ?? 0,
-      previous: (newConvToday.count ?? 0) - (newConvYesterday.count ?? 0),
+      previous: openConvCur.count ?? 0,
     },
     newContactsToday: {
       current: newContactsToday.count ?? 0,
@@ -98,9 +124,14 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       previous: resolvedYesterday.count ?? 0,
     },
     messagesSentToday: {
-      current: messagesToday.count ?? 0,
-      previous: messagesYesterday.count ?? 0,
+      current: messagesSentToday.count ?? 0,
+      previous: messagesSentYesterday.count ?? 0,
     },
+    messagesReceivedToday: {
+      current: messagesRecvToday.count ?? 0,
+      previous: messagesRecvYesterday.count ?? 0,
+    },
+    channelMix,
   }
 }
 

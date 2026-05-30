@@ -7,7 +7,9 @@ import {
   UserPlus,
   CheckCircle2,
   Send,
+  Inbox,
 } from 'lucide-react'
+import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 
 import {
   loadActivity,
@@ -24,7 +26,6 @@ import type {
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
-import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
@@ -116,9 +117,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {metricsLoading || !metrics ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
             <MetricCard
@@ -157,6 +158,19 @@ export default function DashboardPage() {
               }}
             />
             <MetricCard
+              title="Mensajes recibidos hoy"
+              value={metrics.messagesReceivedToday.current.toLocaleString()}
+              icon={Inbox}
+              delta={{
+                sign:
+                  metrics.messagesReceivedToday.current - metrics.messagesReceivedToday.previous,
+                label: deltaLabel(
+                  metrics.messagesReceivedToday.current - metrics.messagesReceivedToday.previous,
+                  'vs ayer',
+                ),
+              }}
+            />
+            <MetricCard
               title="Mensajes enviados hoy"
               value={metrics.messagesSentToday.current.toLocaleString()}
               icon={Send}
@@ -173,8 +187,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Quick actions */}
-      <QuickActions />
+      {/* Channel mix — volume per channel over the last 7 days. Helps the
+          team see WHERE the inbox load is coming from at a glance. */}
+      {metrics && metrics.channelMix.length > 0 && (
+        <ChannelMixCard mix={metrics.channelMix} />
+      )}
 
       {/* Charts row */}
       <ConversationsChart

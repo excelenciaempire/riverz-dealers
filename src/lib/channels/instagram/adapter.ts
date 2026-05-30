@@ -60,6 +60,14 @@ export const instagramAdapter: ChannelAdapter = {
     const body = (await req.json()) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
+    let pageToken: string | null = null;
+    const getToken = (): string | null => {
+      if (pageToken !== null) return pageToken;
+      const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
+      const enc = String(secrets.access_token ?? "");
+      pageToken = enc ? decrypt(enc) : "";
+      return pageToken;
+    };
     for (const entry of entries) {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
@@ -68,10 +76,15 @@ export const instagramAdapter: ChannelAdapter = {
           | { mid?: string; text?: string; attachments?: Array<Record<string, unknown>> }
           | undefined;
         if (!sender?.id || !message) continue;
+        // IG webhooks ship the IGSID but no display label — resolve to
+        // @username from /{igsid}?fields=username,name so the inbox row
+        // reads as "@somehandle" instead of a 17-digit id.
+        const name = await fetchInstagramName(sender.id, getToken());
         events.push({
           channel: "instagram",
           connection,
           externalContactId: sender.id,
+          contactName: name,
           externalMessageId: message.mid,
           text: String(message.text ?? ""),
           attachments: (message.attachments ?? [])
@@ -93,3 +106,27 @@ export const instagramAdapter: ChannelAdapter = {
     return verifyMetaHandshake(req, connection);
   },
 };
+
+/**
+ * Resolve an IGSID to a display label, preferring "@username" over the
+ * full name (matches how IG shows people everywhere). Best-effort —
+ * undefined on any failure so ingest never blocks on a profile fetch.
+ */
+async function fetchInstagramName(
+  igsid: string,
+  token: string | null,
+): Promise<string | undefined> {
+  if (!token) return undefined;
+  try {
+    const r = await fetch(
+      `https://graph.facebook.com/v22.0/${igsid}?fields=username,name&access_token=${encodeURIComponent(token)}`,
+    );
+    if (!r.ok) return undefined;
+    const j = (await r.json()) as { username?: string; name?: string };
+    if (j.username && j.username.trim()) return `@${j.username.trim()}`;
+    if (j.name && j.name.trim()) return j.name.trim();
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
