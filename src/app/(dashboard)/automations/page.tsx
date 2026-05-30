@@ -162,7 +162,9 @@ export default function AutomationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Automatizaciones</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Crea flujos que respondan automáticamente a eventos de WhatsApp®.
+            Reglas automáticas: un disparador (mensaje, palabra clave, carrito de
+            Shopify, horario…) ejecuta acciones como enviar una plantilla, esperar
+            o etiquetar. Sin que el cliente tenga que interactuar.
           </p>
         </div>
         <Button

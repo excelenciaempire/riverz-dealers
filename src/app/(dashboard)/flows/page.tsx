@@ -207,9 +207,10 @@ export default function FlowsPage() {
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Crea conversaciones de WhatsApp con ramificaciones y botones. Útil
-            para menús, preguntas frecuentes y triaje antes de que intervenga
-            un humano.
+            Chatbots interactivos: el cliente pulsa botones o responde y la
+            conversación avanza según lo que elige (menús, preguntas frecuentes,
+            triaje). A diferencia de las Automatizaciones, aquí el cliente
+            interactúa de ida y vuelta.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
