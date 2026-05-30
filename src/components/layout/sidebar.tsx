@@ -14,6 +14,7 @@ import {
   Radio,
   Zap,
   Workflow,
+  FileText,
   Settings,
   LogOut,
   User,
@@ -65,6 +66,7 @@ const navGroups: NavGroup[] = [
     title: "Campañas",
     items: [
       { href: "/broadcasts", label: "Difusión", icon: Radio },
+      { href: "/templates", label: "Plantillas", icon: FileText },
       { href: "/automations", label: "Automatizaciones", icon: Zap },
       { href: "/flows", label: "Flujos", icon: Workflow },
     ],

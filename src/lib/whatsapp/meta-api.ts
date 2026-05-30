@@ -183,6 +183,102 @@ export async function sendTemplateMessage(
 }
 
 // ============================================================
+// Message templates (official creation / deletion)
+// ============================================================
+//
+// Unlike the read-only sync route (which only pulls Meta's approved
+// templates into the local catalog), these helpers PUSH local → Meta:
+// they submit a template for review and delete it. Submission returns
+// immediately with status PENDING — Meta reviews asynchronously and the
+// status later flips to APPROVED / REJECTED, which the sync route picks up.
+
+export type MetaTemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'
+
+/**
+ * A single component of a template as the Meta create-endpoint expects it.
+ * Built by the caller (the create route) from the user's form. Kept as a
+ * loose shape because Meta's component schema varies a lot by type
+ * (text header vs media header vs buttons).
+ */
+export interface MetaTemplateComponentInput {
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS'
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+  text?: string
+  /** e.g. { body_text: [["sample1","sample2"]] } or { header_text: ["sample"] } */
+  example?: Record<string, unknown>
+  buttons?: Array<Record<string, unknown>>
+}
+
+export interface CreateMessageTemplateArgs {
+  wabaId: string
+  accessToken: string
+  /** Meta requires lowercase, snake_case, ≤ 512 chars. */
+  name: string
+  /** Exact Meta language code, e.g. en_US, es, es_MX. */
+  language: string
+  category: MetaTemplateCategory
+  components: MetaTemplateComponentInput[]
+}
+
+export interface CreateMessageTemplateResult {
+  id: string
+  /** Usually "PENDING" right after submission. */
+  status: string
+  category?: string
+}
+
+/**
+ * Submit a new message template to Meta for review.
+ * POST /{waba-id}/message_templates
+ */
+export async function createMessageTemplate(
+  args: CreateMessageTemplateArgs
+): Promise<CreateMessageTemplateResult> {
+  const { wabaId, accessToken, name, language, category, components } = args
+  const url = `${META_API_BASE}/${wabaId}/message_templates`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ name, language, category, components }),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = await response.json()
+  return { id: data.id, status: data.status, category: data.category }
+}
+
+export interface DeleteMessageTemplateArgs {
+  wabaId: string
+  accessToken: string
+  /** Deletes every language version registered under this name. */
+  name: string
+}
+
+/**
+ * Delete a template by name from Meta. Removes all language variants.
+ * DELETE /{waba-id}/message_templates?name=...
+ */
+export async function deleteMessageTemplate(
+  args: DeleteMessageTemplateArgs
+): Promise<void> {
+  const { wabaId, accessToken, name } = args
+  const url = `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(
+    name
+  )}`
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+}
+
+// ============================================================
 // Reactions
 // ============================================================
 

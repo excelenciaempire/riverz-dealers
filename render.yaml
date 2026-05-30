@@ -47,3 +47,6 @@ services:
         sync: false
       - key: MICROSOFT_CLIENT_SECRET
         sync: false
+      # Claude API — redacción con IA del cuerpo de plantillas.
+      - key: ANTHROPIC_API_KEY
+        sync: false

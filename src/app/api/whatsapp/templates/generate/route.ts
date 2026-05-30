@@ -1,0 +1,124 @@
+import { NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from '@/lib/rate-limit'
+
+/**
+ * Draft a WhatsApp template body with Claude from a short brief.
+ *
+ * Powers the "Generar con IA" toggle in the template builder. Returns a
+ * single suggested body string respecting Meta's limits (≤ 1024 chars,
+ * sequential {{1}} variables). The user reviews/edits before submitting to
+ * Meta — we never auto-submit AI output.
+ */
+
+const SYSTEM_PROMPT = `Eres un redactor experto en plantillas de WhatsApp Business (WhatsApp Cloud API).
+Escribes el CUERPO de una plantilla de mensaje que Meta debe aprobar.
+
+Reglas estrictas:
+- Devuelve SOLO el texto del cuerpo, sin comillas, sin encabezado, sin pie, sin explicaciones.
+- Máximo 1024 caracteres. Conciso, cálido y claro.
+- Si necesitas personalización, usa variables correlativas {{1}}, {{2}}… empezando en {{1}}, sin saltos.
+- No incluyas URLs ni teléfonos en el cuerpo (van en botones).
+- Cumple las políticas de Meta: nada engañoso, sin contenido prohibido.
+- Responde en el idioma que se indique.
+- No incluyas razonamiento ni notas: solo el cuerpo final.`
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'La generación con IA no está configurada (falta ANTHROPIC_API_KEY).' },
+        { status: 503 },
+      )
+    }
+
+    const limit = checkRateLimit(`template-ai:${user.id}`, RATE_LIMITS.broadcast)
+    if (!limit.success) return rateLimitResponse(limit)
+
+    const body = await request.json()
+    const brief: string = (body.brief ?? '').toString().trim()
+    const language: string = (body.language ?? 'es').toString()
+    const category: string = (body.category ?? 'MARKETING').toString()
+    const tone: string = (body.tone ?? '').toString().trim()
+
+    if (!brief) {
+      return NextResponse.json(
+        { error: 'Describe brevemente el mensaje que quieres generar.' },
+        { status: 400 },
+      )
+    }
+
+    const client = new Anthropic({ apiKey })
+
+    const userPrompt = [
+      `Idioma: ${language}`,
+      `Categoría: ${category}`,
+      tone ? `Tono: ${tone}` : null,
+      `Objetivo / brief del mensaje: ${brief}`,
+      '',
+      'Escribe el cuerpo de la plantilla.',
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    const response = await client.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 1024,
+      // Quick copy task — no thinking, lowest effort. The system prompt forbids
+      // reasoning leaking into the visible response (a 4.8 quirk when thinking
+      // is disabled).
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'low' },
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim()
+
+    if (!text) {
+      return NextResponse.json(
+        { error: 'La IA no devolvió ningún texto. Inténtalo de nuevo.' },
+        { status: 502 },
+      )
+    }
+
+    // Meta hard-caps the body at 1024 chars; clamp defensively.
+    const bodyText = text.slice(0, 1024)
+
+    return NextResponse.json({ success: true, body_text: bodyText })
+  } catch (error) {
+    console.error('Error generating template with AI:', error)
+    const message =
+      error instanceof Anthropic.APIError
+        ? `Error de la API de Claude (${error.status}): ${error.message}`
+        : error instanceof Error
+          ? error.message
+          : 'No se pudo generar el mensaje'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
