@@ -220,7 +220,7 @@ export default function FlowsPage() {
       </header>
 
       {flows.length === 0 ? (
-        <EmptyState onCreate={() => setCreateOpen(true)} />
+        <EmptyState />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {flows.map((flow) => (
@@ -314,7 +314,7 @@ export default function FlowsPage() {
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-16 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
@@ -324,14 +324,11 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Aún no hay flujos
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Crea tu primera conversación: un menú de bienvenida, una consulta de
-        pedidos, un bot de preguntas frecuentes. Los clientes pulsan botones y
-        el bot los lleva a la respuesta correcta (o al agente correcto).
+        Creá tu primera conversación con el botón
+        <span className="mx-1 font-medium text-foreground">Nuevo flujo</span>
+        arriba: un menú de bienvenida, un FAQ o un bot que dirige al cliente
+        al agente correcto.
       </p>
-      <Button onClick={onCreate} className="mt-5">
-        <Plus className="h-4 w-4" />
-        Crear tu primer flujo
-      </Button>
     </div>
   );
 }

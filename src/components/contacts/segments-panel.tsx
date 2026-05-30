@@ -26,9 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -267,21 +265,13 @@ export function SegmentsPanel() {
             Cargando segmentos…
           </div>
         ) : segments.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 p-10 text-center">
+          <div className="flex flex-col items-center gap-2 p-10 text-center">
             <Layers className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Todavía no tenés segmentos. Creá uno para reutilizarlo en campañas y
-              automatizaciones.
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Todavía no tenés segmentos guardados. Creá uno con el botón
+              <span className="mx-1 font-medium text-foreground">Nuevo segmento</span>
+              para reutilizarlo en campañas y automatizaciones.
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={startNew}
-              className="border-border text-foreground hover:bg-accent"
-            >
-              <Plus className="size-3.5" />
-              Crear primer segmento
-            </Button>
           </div>
         ) : (
           <ul className="divide-y divide-border">
@@ -467,18 +457,31 @@ function SegmentEditor({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="border-border bg-card p-0 text-foreground sm:max-w-4xl">
-        <DialogHeader className="border-b border-border px-6 py-4">
-          <DialogTitle className="text-base font-semibold text-foreground">
-            {segment.id ? 'Editar segmento' : 'Nuevo segmento'}
-          </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            Definí reglas y mirá en vivo cuántos contactos cumplen.
-          </p>
-        </DialogHeader>
+      <DialogContent
+        className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
+        showCloseButton={false}
+      >
+        <div className="flex items-start justify-between border-b border-border px-6 py-4">
+          <div>
+            <DialogTitle className="text-base font-semibold text-foreground">
+              {segment.id ? 'Editar segmento' : 'Nuevo segmento'}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Definí reglas y mirá en vivo cuántos contactos cumplen.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
 
-        <div className="grid gap-0 sm:grid-cols-[1fr_320px]">
-          <div className="space-y-5 p-6">
+        <div className="grid min-h-0 gap-0 overflow-hidden sm:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-5 overflow-y-auto p-6">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-foreground">Nombre</Label>
@@ -551,7 +554,7 @@ function SegmentEditor({
           </div>
 
           {/* Preview side panel */}
-          <aside className="border-t border-border bg-muted/30 p-4 sm:border-l sm:border-t-0">
+          <aside className="overflow-y-auto border-t border-border bg-muted/30 p-4 sm:border-l sm:border-t-0">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Vista previa</span>
               {previewing && <Loader2 className="size-3 animate-spin" />}
@@ -598,7 +601,7 @@ function SegmentEditor({
           </aside>
         </div>
 
-        <DialogFooter className="border-t border-border bg-card/60 px-6 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
           <Button
             variant="outline"
             onClick={onClose}
@@ -614,7 +617,7 @@ function SegmentEditor({
             {saving && <Loader2 className="size-4 animate-spin" />}
             Guardar segmento
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

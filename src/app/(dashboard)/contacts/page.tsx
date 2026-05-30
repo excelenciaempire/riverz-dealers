@@ -316,20 +316,23 @@ export default function ContactsPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      {search ? 'No hay contactos que coincidan con tu búsqueda.' : 'Aún no hay contactos.'}
+                    <p className="max-w-sm text-sm text-muted-foreground">
+                      {search
+                        ? 'No hay contactos que coincidan con tu búsqueda.'
+                        : (
+                          <>
+                            Aún no hay contactos. Usá
+                            <span className="mx-1 font-medium text-foreground">
+                              Añadir contacto
+                            </span>
+                            o
+                            <span className="mx-1 font-medium text-foreground">
+                              Importar
+                            </span>
+                            arriba para empezar.
+                          </>
+                        )}
                     </p>
-                    {!search && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={openAddForm}
-                        className="mt-2 border-border text-foreground hover:bg-accent"
-                      >
-                        <Plus className="size-3.5" />
-                        Añade tu primer contacto
-                      </Button>
-                    )}
                   </div>
                 </TableCell>
               </TableRow>
