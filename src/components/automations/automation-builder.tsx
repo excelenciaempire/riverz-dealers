@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -23,6 +23,10 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  MousePointer2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -316,12 +320,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 
       {/* Body: canvas + live phone preview rail (like the template builder). */}
       <div className="flex min-h-0 flex-1">
-        {/* Canvas — horizontal flow (trigger → steps left-to-right), like the
-            reference design. Condition branches stay vertical beneath their
-            node. Scrolls both axes for long / branching flows. */}
-        <div className="relative flex-1 overflow-auto">
-          <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-          <div className="relative flex w-max items-start gap-0 px-8 py-10">
+        {/* Canvas — Miro-style infinite viewport: pan with middle mouse or
+            Space+drag, zoom with Ctrl+wheel, trackpad two-finger scrolls,
+            buttons for explicit zoom + reset. Trigger → steps still flow
+            left-to-right inside; condition branches stay vertical. */}
+        <CanvasViewport>
+          <div className="flex w-max items-start gap-0 px-8 py-10">
             <TriggerCard
               type={state.trigger_type}
               config={state.trigger_config}
@@ -339,7 +343,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
               moveStepAt={moveStepAt}
             />
           </div>
-        </div>
+        </CanvasViewport>
 
         {/* Live phone preview of the message being composed. */}
         <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
@@ -1317,6 +1321,219 @@ export interface ServerStepNode {
   step_type: string
   step_config: Record<string, unknown>
   branches: { yes: ServerStepNode[]; no: ServerStepNode[] }
+}
+
+// ------------------------------------------------------------
+// Canvas viewport — pan + zoom around the trigger/step flow.
+// Keeps node geometry as plain flex layout so the existing add/move/delete
+// logic is untouched; this wrapper only transforms the viewport.
+// ------------------------------------------------------------
+
+const MIN_SCALE = 0.25
+const MAX_SCALE = 2
+
+function clampScale(s: number) {
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
+}
+
+function CanvasViewport({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+  const [tx, setTx] = useState(0)
+  const [ty, setTy] = useState(0)
+  const [spaceDown, setSpaceDown] = useState(false)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    startTx: number
+    startTy: number
+  } | null>(null)
+
+  const zoomAt = useCallback(
+    (clientX: number, clientY: number, nextScale: number) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const ox = clientX - rect.left
+      const oy = clientY - rect.top
+      const next = clampScale(nextScale)
+      const ratio = next / scale
+      setTx(ox - (ox - tx) * ratio)
+      setTy(oy - (oy - ty) * ratio)
+      setScale(next)
+    },
+    [scale, tx, ty],
+  )
+
+  // Native wheel listener — React's synthetic onWheel is passive in React 19,
+  // so preventDefault() inside the handler is a no-op there. Bind manually.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const factor = Math.exp(-e.deltaY * 0.0015)
+        zoomAt(e.clientX, e.clientY, scale * factor)
+      } else {
+        // Plain wheel / trackpad two-finger → pan.
+        e.preventDefault()
+        setTx((v) => v - e.deltaX)
+        setTy((v) => v - e.deltaY)
+      }
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [scale, zoomAt])
+
+  // Space-bar held → cursor turns grab and any left-drag pans.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !isTypingTarget(e.target)) {
+        e.preventDefault()
+        setSpaceDown(true)
+      }
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") setSpaceDown(false)
+    }
+    window.addEventListener("keydown", down)
+    window.addEventListener("keyup", up)
+    return () => {
+      window.removeEventListener("keydown", down)
+      window.removeEventListener("keyup", up)
+    }
+  }, [])
+
+  // Pan: middle-mouse anywhere, or left-mouse while Space is held.
+  function onMouseDown(e: React.MouseEvent) {
+    const isMiddle = e.button === 1
+    const isSpaceLeft = e.button === 0 && spaceDown
+    if (!isMiddle && !isSpaceLeft) return
+    e.preventDefault()
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startTx: tx,
+      startTy: ty,
+    }
+  }
+
+  useEffect(() => {
+    function move(e: MouseEvent) {
+      if (!dragRef.current) return
+      setTx(dragRef.current.startTx + (e.clientX - dragRef.current.startX))
+      setTy(dragRef.current.startTy + (e.clientY - dragRef.current.startY))
+    }
+    function up() {
+      dragRef.current = null
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+    return () => {
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+  }, [])
+
+  function zoomByButton(delta: number) {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, scale + delta)
+  }
+
+  function reset() {
+    setScale(1)
+    setTx(0)
+    setTy(0)
+  }
+
+  const cursor = dragRef.current
+    ? "grabbing"
+    : spaceDown
+      ? "grab"
+      : "default"
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseDown={onMouseDown}
+      className="relative flex-1 overflow-hidden select-none"
+      style={{ cursor }}
+    >
+      {/* Dot grid — moves with the viewport so panning feels physical. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, var(--border) 1px, transparent 1px)",
+          backgroundSize: `${20 * scale}px ${20 * scale}px`,
+          backgroundPosition: `${tx}px ${ty}px`,
+        }}
+      />
+
+      <div
+        className="origin-top-left will-change-transform"
+        style={{
+          transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
+        }}
+      >
+        {children}
+      </div>
+
+      {/* Zoom + reset controls */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-0.5 rounded-lg border border-border bg-card/95 px-1 py-1 shadow-lg backdrop-blur">
+        <button
+          type="button"
+          onClick={() => zoomByButton(-0.1)}
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Reducir (Ctrl + rueda)"
+          aria-label="Reducir"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="min-w-[3.5rem] rounded px-1 py-1 text-center text-xs tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Restablecer vista"
+        >
+          {Math.round(scale * 100)}%
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomByButton(0.1)}
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Ampliar (Ctrl + rueda)"
+          aria-label="Ampliar"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </button>
+        <div className="mx-1 h-4 w-px bg-border" />
+        <button
+          type="button"
+          onClick={reset}
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Centrar"
+          aria-label="Centrar"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Pan hint */}
+      <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-1.5 rounded-md border border-border/60 bg-card/80 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
+        <MousePointer2 className="h-3 w-3" />
+        Espacio + arrastrar para mover · Ctrl + rueda para acercar
+      </div>
+    </div>
+  )
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
+  return target.isContentEditable
 }
 
 export function fromServerSteps(nodes: ServerStepNode[]): BuilderStep[] {

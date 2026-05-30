@@ -1,11 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Store, Plug, Unplug } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertCircle, CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface ShopifyConnection {
   shop_domain: string;
@@ -14,9 +14,10 @@ interface ShopifyConnection {
 }
 
 /**
- * Settings → Channels card for connecting a Shopify store. Connect kicks off
- * OAuth (server route sets the state cookies + redirects to Shopify). On
- * return, the callback bounces back with ?shopify=connected|error.
+ * Settings → Canales card for Shopify. Matches the per-platform card
+ * layout used in channels-panel.tsx (logo chip + label + description,
+ * connection rows below, action button at the bottom) so the row of
+ * cards reads as a single uniform grid no matter the provider.
  */
 export function ShopifyCard() {
   const [loading, setLoading] = useState(true);
@@ -24,10 +25,10 @@ export function ShopifyCard() {
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
   const [shop, setShop] = useState('');
   const [disconnecting, setDisconnecting] = useState(false);
+  const [showInput, setShowInput] = useState(false);
 
   useEffect(() => {
     void load();
-    // Surface the callback result once.
     const params = new URLSearchParams(window.location.search);
     const result = params.get('shopify');
     if (result === 'connected') toast.success('Shopify conectado');
@@ -52,13 +53,14 @@ export function ShopifyCard() {
   function handleConnect() {
     const trimmed = shop.trim();
     if (!trimmed) {
-      toast.error('Escribe el dominio de tu tienda (tu-tienda.myshopify.com).');
+      toast.error('Escribí el dominio de tu tienda (tu-tienda.myshopify.com).');
       return;
     }
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
   }
 
   async function handleDisconnect() {
+    if (!confirm('¿Desconectar Shopify? El historial se conserva.')) return;
     setDisconnecting(true);
     try {
       const res = await fetch('/api/shopify/status', { method: 'DELETE' });
@@ -75,75 +77,104 @@ export function ShopifyCard() {
   const isConnected = connection?.status === 'active';
 
   return (
-    <Card className="bg-card border-border ring-0">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <Store className="size-5 text-accent-ink" />
-          Shopify
-        </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Conecta tu tienda para disparar automatizaciones de WhatsApp ante
-          carritos abandonados.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex items-center py-4">
-            <Loader2 className="size-5 animate-spin text-accent-ink" />
-          </div>
-        ) : !configured ? (
-          <p className="text-sm text-muted-foreground">
-            La integración con Shopify aún no está configurada en el servidor
-            (faltan <code>SHOPIFY_API_KEY</code> / <code>SHOPIFY_API_SECRET</code>).
-            Consulta <code>SHOPIFY_SETUP.md</code>.
+    <li
+      className={cn(
+        'group flex flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all',
+        isConnected
+          ? 'border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]'
+          : 'border-border hover:border-foreground/30',
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
+          <Image src="/channels/shopify.svg" alt="Shopify" width={28} height={28} />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">Shopify</p>
+          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+            Disparadores de carrito abandonado y pedidos hacia WhatsApp.
           </p>
-        ) : isConnected ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {connection?.shop_name || connection?.shop_domain}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {connection?.shop_domain} · conectada
-              </p>
-            </div>
-            <Button
-              variant="outline"
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-3">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : !configured ? (
+        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-300">
+          Faltan credenciales SHOPIFY_API_KEY / SHOPIFY_API_SECRET en el servidor.
+        </p>
+      ) : isConnected ? (
+        <ul className="space-y-1">
+          <li className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
+            <CheckCircle2 className="size-3.5 text-emerald-400" />
+            <span className="flex-1 truncate text-xs text-foreground">
+              {connection?.shop_name || connection?.shop_domain}
+            </span>
+            <button
               onClick={handleDisconnect}
               disabled={disconnecting}
-              className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10"
+              title="Desconectar"
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
             >
               {disconnecting ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <Unplug className="size-4" />
+                <RefreshCcw className="size-3.5" />
               )}
-              Desconectar
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-56 space-y-1.5">
-              <label className="text-xs font-medium text-foreground">
-                Dominio de la tienda
-              </label>
+            </button>
+          </li>
+        </ul>
+      ) : null}
+
+      {configured && (!isConnected || showInput) && (
+        <div className="mt-auto space-y-2">
+          {showInput ? (
+            <>
               <Input
                 placeholder="tu-tienda.myshopify.com"
                 value={shop}
                 onChange={(e) => setShop(e.target.value)}
-                className="bg-muted border-border text-foreground"
+                className="bg-background text-sm"
               />
-            </div>
-            <Button
-              onClick={handleConnect}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConnect}
+                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Conectar
+                </button>
+                <button
+                  onClick={() => setShowInput(false)}
+                  className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowInput(true)}
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                isConnected
+                  ? 'border border-border bg-muted/50 text-foreground hover:bg-accent'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90',
+              )}
             >
-              <Plug className="size-4" />
-              Conectar
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
+              {isConnected ? 'Añadir otra tienda' : 'Conectar'}
+            </button>
+          )}
+        </div>
+      )}
+      {!configured && (
+        <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          <AlertCircle className="size-3.5" />
+          Configurar credenciales primero
+        </div>
+      )}
+    </li>
   );
 }

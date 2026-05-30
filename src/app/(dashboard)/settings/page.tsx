@@ -10,7 +10,6 @@ import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
-import { ShopifyCard } from '@/components/settings/shopify-card';
 
 const TAB_VALUES = [
   'profile',
@@ -98,7 +97,6 @@ export default function SettingsPage() {
 
         <TabsContent value="channels" className="space-y-6">
           <ChannelsPanel />
-          <ShopifyCard />
         </TabsContent>
 
         <TabsContent value="tags">

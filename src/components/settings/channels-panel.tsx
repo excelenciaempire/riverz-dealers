@@ -20,6 +20,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
+import { ShopifyCard } from "@/components/settings/shopify-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -506,6 +507,7 @@ export function ChannelsPanel() {
             </li>
           );
         })}
+        <ShopifyCard />
       </ul>
     </div>
   );
