@@ -3,11 +3,22 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Info, Loader2, Plus, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Info,
+  Loader2,
+  Plus,
+  X,
+  MousePointerClick,
+  ExternalLink,
+  Phone,
+  Reply,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -27,6 +38,7 @@ import {
   type TemplateButtonInput,
   type TemplateHeaderType,
 } from '@/lib/whatsapp/template-components';
+import { cn } from '@/lib/utils';
 
 const CATEGORIES: {
   value: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
@@ -71,21 +83,43 @@ const LANGUAGES: { code: string; label: string }[] = [
 ];
 
 const BUTTON_TYPES = [
-  { value: 'QUICK_REPLY', label: 'Respuesta rápida' },
-  { value: 'URL', label: 'Enlace (URL)' },
-  { value: 'PHONE_NUMBER', label: 'Llamar' },
+  {
+    value: 'QUICK_REPLY',
+    label: 'Respuesta rápida',
+    hint: 'Botón que envía un texto de vuelta cuando el contacto lo toca.',
+    Icon: Reply,
+  },
+  {
+    value: 'URL',
+    label: 'Enlace (URL)',
+    hint: 'Abre una página web al tocarlo.',
+    Icon: ExternalLink,
+  },
+  {
+    value: 'PHONE_NUMBER',
+    label: 'Llamar por teléfono',
+    hint: 'Inicia una llamada al número que indiques.',
+    Icon: Phone,
+  },
 ] as const;
+
+const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.label]));
+const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label]));
+const HEADER_LABELS = Object.fromEntries(HEADER_TYPES.map((h) => [h.value, h.label]));
+const BUTTON_TYPE_LABELS = Object.fromEntries(BUTTON_TYPES.map((b) => [b.value, b.label]));
 
 export function TemplateBuilder() {
   const router = useRouter();
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('es');
-  const [category, setCategory] = useState<'MARKETING' | 'UTILITY' | 'AUTHENTICATION'>('MARKETING');
+  const [category, setCategory] =
+    useState<'MARKETING' | 'UTILITY' | 'AUTHENTICATION'>('MARKETING');
   const [headerType, setHeaderType] = useState<TemplateHeaderType>('none');
   const [headerText, setHeaderText] = useState('');
   const [bodyText, setBodyText] = useState('');
   const [footerText, setFooterText] = useState('');
+  const [buttonsOn, setButtonsOn] = useState(false);
   const [buttons, setButtons] = useState<TemplateButtonInput[]>([]);
   const [samples, setSamples] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +131,13 @@ export function TemplateBuilder() {
     setBodyText((prev) => `${prev}{{${next}}}`);
   }
 
+  function toggleButtons(on: boolean) {
+    setButtonsOn(on);
+    if (on && buttons.length === 0) {
+      setButtons([{ type: 'QUICK_REPLY', text: '' }]);
+    }
+    if (!on) setButtons([]);
+  }
   function addButton() {
     if (buttons.length >= 10) return;
     setButtons((prev) => [...prev, { type: 'QUICK_REPLY', text: '' }]);
@@ -105,7 +146,11 @@ export function TemplateBuilder() {
     setButtons((prev) => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
   }
   function removeButton(i: number) {
-    setButtons((prev) => prev.filter((_, idx) => idx !== i));
+    setButtons((prev) => {
+      const next = prev.filter((_, idx) => idx !== i);
+      if (next.length === 0) setButtonsOn(false);
+      return next;
+    });
   }
 
   async function handleSubmit() {
@@ -130,7 +175,7 @@ export function TemplateBuilder() {
           headerText: headerType === 'text' ? headerText : undefined,
           bodyText,
           footerText,
-          buttons,
+          buttons: buttonsOn ? buttons : [],
           bodySamples: variables.map((v) => samples[v] ?? ''),
         }),
       });
@@ -146,7 +191,7 @@ export function TemplateBuilder() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button
@@ -157,29 +202,32 @@ export function TemplateBuilder() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
+          <p className="text-xs text-muted-foreground">
+            Diseñá el mensaje y enviá la plantilla a Meta para que la apruebe.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Form card */}
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <div className="space-y-5">
-            <div className="space-y-1.5">
-              <Label className="text-foreground">Nombre</Label>
+        <div className="rounded-2xl border border-border bg-card shadow-sm">
+          <div className="space-y-6 p-6">
+            <Field label="Nombre">
               <Input
                 placeholder="recordatorio_constancia"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-background"
               />
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-foreground">Idioma</Label>
+              <Field label="Idioma">
                 <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
                   <SelectTrigger className="w-full bg-background">
-                    <SelectValue />
+                    <SelectValue labels={LANGUAGE_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     {LANGUAGES.map((l) => (
@@ -189,29 +237,33 @@ export function TemplateBuilder() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Label className="text-foreground">Categoría</Label>
-                  <TooltipProvider delay={150}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        type="button"
-                        aria-label="Qué significa cada categoría"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <Info className="size-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs space-y-1.5 text-xs">
-                        {CATEGORIES.map((c) => (
-                          <div key={c.value}>
-                            <span className="font-semibold">{c.label}:</span> {c.hint}
-                          </div>
-                        ))}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+              </Field>
+
+              <Field
+                label={
+                  <span className="inline-flex items-center gap-1.5">
+                    Categoría
+                    <TooltipProvider delay={150}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          type="button"
+                          aria-label="Qué significa cada categoría"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="size-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs space-y-1.5 text-xs">
+                          {CATEGORIES.map((c) => (
+                            <div key={c.value}>
+                              <span className="font-semibold">{c.label}:</span> {c.hint}
+                            </div>
+                          ))}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
+                }
+              >
                 <Select
                   value={category}
                   onValueChange={(v) =>
@@ -219,7 +271,7 @@ export function TemplateBuilder() {
                   }
                 >
                   <SelectTrigger className="w-full bg-background">
-                    <SelectValue />
+                    <SelectValue labels={CATEGORY_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     {CATEGORIES.map((c) => (
@@ -229,17 +281,16 @@ export function TemplateBuilder() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-foreground">Encabezado</Label>
+            <Field label="Encabezado">
               <Select
                 value={headerType}
                 onValueChange={(v) => setHeaderType(v as TemplateHeaderType)}
               >
                 <SelectTrigger className="w-full bg-background">
-                  <SelectValue />
+                  <SelectValue labels={HEADER_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
                   {HEADER_TYPES.map((h) => (
@@ -258,135 +309,131 @@ export function TemplateBuilder() {
                   className="mt-2 bg-background"
                 />
               )}
-            </div>
+            </Field>
 
-            <div className="space-y-1.5">
+            {/* Message */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-foreground">Mensaje</Label>
                 <button
                   type="button"
                   onClick={insertVariable}
-                  className="text-xs font-medium text-accent-ink hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
                 >
-                  + Añadir variable
+                  <Plus className="size-3" />
+                  Añadir variable
                 </button>
               </div>
-              <Textarea
-                placeholder="Escribe el mensaje. Usa {{1}}, {{2}} para variables."
-                value={bodyText}
-                rows={6}
-                maxLength={1024}
-                onChange={(e) => setBodyText(e.target.value)}
-                className="bg-background resize-none"
-              />
-              <p className="text-right text-[10px] text-muted-foreground">{bodyText.length}/1024</p>
+              <div className="relative">
+                <Textarea
+                  placeholder="Escribí el mensaje. Usá {{1}}, {{2}} para datos variables."
+                  value={bodyText}
+                  rows={10}
+                  maxLength={1024}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  className="min-h-[220px] resize-y bg-background text-sm leading-relaxed"
+                />
+                <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted-foreground tabular-nums">
+                  {bodyText.length}/1024
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Cada <span className="font-mono text-foreground/80">{'{{n}}'}</span> se
+                reemplaza por el dato del contacto al enviar. Ej: {'{{1}}'} → nombre.
+              </p>
             </div>
 
             {variables.length > 0 && (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-                <p className="text-xs font-medium text-foreground">Ejemplos para variables</p>
-                {variables.map((v) => (
-                  <div key={v} className="flex items-center gap-2">
-                    <span className="w-12 shrink-0 text-xs text-muted-foreground tabular-nums">
-                      {`{{${v}}}`}
-                    </span>
-                    <Input
-                      placeholder={`Ejemplo`}
-                      value={samples[v] ?? ''}
-                      onChange={(e) =>
-                        setSamples((prev) => ({ ...prev, [v]: e.target.value }))
-                      }
-                      className="bg-background"
-                    />
-                  </div>
-                ))}
+              <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">
+                    Ejemplos para variables
+                  </p>
+                  <span className="text-[11px] text-muted-foreground">
+                    Meta pide un ejemplo por variable para aprobar la plantilla.
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {variables.map((v) => (
+                    <div
+                      key={v}
+                      className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5"
+                    >
+                      <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        {`{{${v}}}`}
+                      </span>
+                      <Input
+                        placeholder="Ej: María"
+                        value={samples[v] ?? ''}
+                        onChange={(e) =>
+                          setSamples((prev) => ({ ...prev, [v]: e.target.value }))
+                        }
+                        className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label className="text-foreground">Pie (opcional)</Label>
+            <Field label="Pie (opcional)">
               <Input
-                placeholder=""
+                placeholder="Por ejemplo: Equipo Vitalú"
                 value={footerText}
                 maxLength={60}
                 onChange={(e) => setFooterText(e.target.value)}
                 className="bg-background"
               />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-foreground">Botones (opcional)</Label>
-                {buttons.length < 10 && (
-                  <button
-                    type="button"
-                    onClick={addButton}
-                    className="flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
-                  >
-                    <Plus className="h-3 w-3" /> Añadir botón
-                  </button>
-                )}
-              </div>
-              {buttons.map((b, i) => (
-                <div
-                  key={i}
-                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background p-2"
-                >
-                  <Select
-                    value={b.type}
-                    onValueChange={(v) =>
-                      updateButton(i, { type: v as TemplateButtonInput['type'] })
-                    }
-                  >
-                    <SelectTrigger className="w-40 bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUTTON_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Texto del botón"
-                    value={b.text}
-                    maxLength={25}
-                    onChange={(e) => updateButton(i, { text: e.target.value })}
-                    className="w-40 flex-1 bg-background"
-                  />
-                  {b.type === 'URL' && (
-                    <Input
-                      placeholder="https://…"
-                      value={b.url ?? ''}
-                      onChange={(e) => updateButton(i, { url: e.target.value })}
-                      className="w-full bg-background"
-                    />
-                  )}
-                  {b.type === 'PHONE_NUMBER' && (
-                    <Input
-                      placeholder="+57 300 000 0000"
-                      value={b.phone_number ?? ''}
-                      onChange={(e) => updateButton(i, { phone_number: e.target.value })}
-                      className="w-full bg-background"
-                    />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeButton(i)}
-                    className="text-muted-foreground hover:text-red-400"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+            {/* Buttons section — Clientify-style toggle card */}
+            <div className="rounded-xl border border-border bg-muted/20">
+              <div className="flex items-start gap-3 p-4">
+                <Switch
+                  checked={buttonsOn}
+                  onCheckedChange={toggleButtons}
+                  aria-label="Activar botones"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <MousePointerClick className="size-4 text-foreground" />
+                    <p className="text-sm font-semibold text-foreground">Botones</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Añadí una respuesta rápida, un enlace o un botón para llamar.
+                  </p>
                 </div>
-              ))}
+              </div>
+              {buttonsOn && (
+                <div className="space-y-2 border-t border-border/70 px-4 py-3">
+                  {buttons.map((b, i) => (
+                    <ButtonRow
+                      key={i}
+                      button={b}
+                      onChange={(patch) => updateButton(i, patch)}
+                      onRemove={() => removeButton(i)}
+                    />
+                  ))}
+                  {buttons.length < 10 && (
+                    <button
+                      type="button"
+                      onClick={addButton}
+                      className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+                    >
+                      <Plus className="size-3.5" />
+                      Añadir otro botón
+                    </button>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    Hasta 10 botones por plantilla.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Footer actions */}
-          <div className="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
             <Button
               variant="outline"
               onClick={() => router.push('/templates')}
@@ -397,7 +444,7 @@ export function TemplateBuilder() {
             <Button
               onClick={handleSubmit}
               disabled={submitting}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {submitting ? (
                 <>
@@ -417,10 +464,100 @@ export function TemplateBuilder() {
             headerText={headerText}
             bodyText={bodyText}
             footerText={footerText}
-            buttons={buttons}
+            buttons={buttonsOn ? buttons : []}
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label className="text-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function ButtonRow({
+  button,
+  onChange,
+  onRemove,
+}: {
+  button: TemplateButtonInput;
+  onChange: (patch: Partial<TemplateButtonInput>) => void;
+  onRemove: () => void;
+}) {
+  const meta = BUTTON_TYPES.find((t) => t.value === button.type) ?? BUTTON_TYPES[0];
+  const Icon = meta.Icon;
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
+        <Select
+          value={button.type}
+          onValueChange={(v) => onChange({ type: v as TemplateButtonInput['type'] })}
+        >
+          <SelectTrigger className="w-full bg-background">
+            <SelectValue labels={BUTTON_TYPE_LABELS} />
+          </SelectTrigger>
+          <SelectContent>
+            {BUTTON_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                <span className="inline-flex items-center gap-2">
+                  <t.Icon className="size-3.5 text-muted-foreground" />
+                  {t.label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          placeholder="Texto del botón"
+          value={button.text}
+          maxLength={25}
+          onChange={(e) => onChange({ text: e.target.value })}
+          className="bg-background"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onRemove}
+          aria-label="Quitar botón"
+          className="text-muted-foreground hover:text-red-400"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {button.type === 'URL' && (
+        <Input
+          placeholder="https://tu-pagina.com/oferta"
+          value={button.url ?? ''}
+          onChange={(e) => onChange({ url: e.target.value })}
+          className="mt-2 bg-background"
+        />
+      )}
+      {button.type === 'PHONE_NUMBER' && (
+        <Input
+          placeholder="+57 300 000 0000"
+          value={button.phone_number ?? ''}
+          onChange={(e) => onChange({ phone_number: e.target.value })}
+          className="mt-2 bg-background"
+        />
+      )}
+      <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Icon className="size-3" />
+        {meta.hint}
+      </p>
     </div>
   );
 }

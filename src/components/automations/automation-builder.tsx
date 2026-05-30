@@ -336,6 +336,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [segments, setSegments] = useState<ContactSegment[]>([])
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   // Load the user's templates once — powers the send_template picker and
   // the live phone preview. Approved first so the dropdown is useful.
@@ -491,7 +492,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       />
 
       {/* Body: canvas + live phone preview rail (like the template builder). */}
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {/* Canvas — Miro-style infinite viewport: pan with middle mouse or
             Space+drag, zoom with Ctrl+wheel, trackpad two-finger scrolls,
             buttons for explicit zoom + reset. Trigger → steps still flow
@@ -517,10 +518,37 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           </div>
         </CanvasViewport>
 
-        {/* Live phone preview of the message being composed. */}
-        <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
-          <MessagePreviewRail steps={state.steps} expandedId={expandedId} />
-        </aside>
+        {/* Live phone preview — collapsible. Only useful for steps that
+            actually render a message (send_message / send_template); we
+            tuck it away by default so the canvas gets the full width
+            and the user opens it from the floating button when needed. */}
+        {previewOpen && (
+          <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground">Vista previa</p>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Cerrar vista previa"
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <MessagePreviewRail steps={state.steps} expandedId={expandedId} />
+          </aside>
+        )}
+        {!previewOpen && (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            title="Mostrar vista previa de WhatsApp"
+            className="hidden absolute right-4 top-20 z-10 items-center gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-lg backdrop-blur transition-colors hover:bg-accent lg:inline-flex"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Ver vista previa
+          </button>
+        )}
       </div>
     </div>
     </SegmentsContext.Provider>
@@ -1470,13 +1498,19 @@ function clampScale(s: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
 }
 
+/** Selectors a click on which should not start a pan — the user is
+ *  trying to interact with a control, not move the canvas. */
+const INTERACTIVE_SELECTOR =
+  'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"]'
+
 function CanvasViewport({ children }: { children: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [tx, setTx] = useState(0)
   const [ty, setTy] = useState(0)
-  const [spaceDown, setSpaceDown] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const hasCenteredRef = useRef(false)
   const dragRef = useRef<{
     startX: number
     startY: number
@@ -1499,6 +1533,43 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     [scale, tx, ty],
   )
 
+  /** Frame the workflow into the viewport with comfortable padding,
+   *  scaling down if it doesn't fit at 100%. Used on first mount and
+   *  whenever the user hits the "Centrar" button. */
+  const fitToView = useCallback(() => {
+    const container = containerRef.current
+    const content = contentRef.current
+    if (!container || !content) return
+    // The content is rendered at scale 1 inside the transform; clientWidth
+    // reflects its untransformed layout size.
+    const cw = container.clientWidth
+    const ch = container.clientHeight
+    const w = content.scrollWidth
+    const h = content.scrollHeight
+    if (!w || !h) return
+    const padding = 80
+    const scaleFit = Math.min(
+      1,
+      (cw - padding) / w,
+      (ch - padding) / h,
+    )
+    const s = clampScale(scaleFit)
+    setScale(s)
+    setTx((cw - w * s) / 2)
+    setTy((ch - h * s) / 2)
+  }, [])
+
+  // Center the chain on first paint so the trigger card isn't pinned
+  // against the left edge.
+  useEffect(() => {
+    if (hasCenteredRef.current) return
+    const id = requestAnimationFrame(() => {
+      fitToView()
+      hasCenteredRef.current = true
+    })
+    return () => cancelAnimationFrame(id)
+  }, [fitToView])
+
   // Native wheel listener — React's synthetic onWheel is passive in React 19,
   // so preventDefault() inside the handler is a no-op there. Bind manually.
   useEffect(() => {
@@ -1520,30 +1591,13 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     return () => el.removeEventListener("wheel", onWheel)
   }, [scale, zoomAt])
 
-  // Space-bar held → cursor turns grab and any left-drag pans.
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !isTypingTarget(e.target)) {
-        e.preventDefault()
-        setSpaceDown(true)
-      }
-    }
-    const up = (e: KeyboardEvent) => {
-      if (e.code === "Space") setSpaceDown(false)
-    }
-    window.addEventListener("keydown", down)
-    window.addEventListener("keyup", up)
-    return () => {
-      window.removeEventListener("keydown", down)
-      window.removeEventListener("keyup", up)
-    }
-  }, [])
-
-  // Pan: middle-mouse anywhere, or left-mouse while Space is held.
+  // Pan whenever the user left-drags on empty canvas (no Space needed).
+  // Middle mouse anywhere still pans. Clicks that land on form controls
+  // or buttons pass through untouched so inputs/menus keep working.
   function onMouseDown(e: React.MouseEvent) {
-    const isMiddle = e.button === 1
-    const isSpaceLeft = e.button === 0 && spaceDown
-    if (!isMiddle && !isSpaceLeft) return
+    const target = e.target as HTMLElement
+    if (e.button !== 0 && e.button !== 1) return
+    if (e.button === 0 && target.closest(INTERACTIVE_SELECTOR)) return
     e.preventDefault()
     dragRef.current = {
       startX: e.clientX,
@@ -1580,20 +1634,14 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, scale + delta)
   }
 
-  function reset() {
-    setScale(1)
-    setTx(0)
-    setTy(0)
-  }
-
-  const cursor = dragging ? "grabbing" : spaceDown ? "grab" : "default"
-
   return (
     <div
       ref={containerRef}
       onMouseDown={onMouseDown}
-      className="relative flex-1 overflow-hidden select-none"
-      style={{ cursor }}
+      className={cn(
+        "relative flex-1 overflow-hidden select-none",
+        dragging ? "cursor-grabbing" : "cursor-grab",
+      )}
     >
       {/* Dot grid — moves with the viewport so panning feels physical. */}
       <div
@@ -1607,7 +1655,8 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
       />
 
       <div
-        className="origin-top-left will-change-transform"
+        ref={contentRef}
+        className="origin-top-left cursor-auto will-change-transform"
         style={{
           transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
         }}
@@ -1628,9 +1677,9 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         </button>
         <button
           type="button"
-          onClick={reset}
+          onClick={fitToView}
           className="min-w-[3.5rem] rounded px-1 py-1 text-center text-xs tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Restablecer vista"
+          title="Centrar y ajustar"
         >
           {Math.round(scale * 100)}%
         </button>
@@ -1646,9 +1695,9 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         <div className="mx-1 h-4 w-px bg-border" />
         <button
           type="button"
-          onClick={reset}
+          onClick={fitToView}
           className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Centrar"
+          title="Centrar todo el flujo"
           aria-label="Centrar"
         >
           <Maximize2 className="h-4 w-4" />
@@ -1658,17 +1707,10 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
       {/* Pan hint */}
       <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-1.5 rounded-md border border-border/60 bg-card/80 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
         <MousePointer2 className="h-3 w-3" />
-        Espacio + arrastrar para mover · Ctrl + rueda para acercar
+        Arrastrá para moverte · Ctrl + rueda para acercar
       </div>
     </div>
   )
-}
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
-  return target.isContentEditable
 }
 
 export function fromServerSteps(nodes: ServerStepNode[]): BuilderStep[] {

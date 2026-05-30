@@ -18,13 +18,38 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+/**
+ * Wraps Base UI's Select.Value. With no children, Base UI prints the raw
+ * value verbatim — so a `<SelectValue />` for `value="es"` shows "es"
+ * instead of "Español". Pass `labels` (a value → display map) for the
+ * common case where the items are static.
+ */
+type SelectValueExtraProps = {
+  labels?: Record<string, React.ReactNode>
+}
+
+function SelectValue({
+  className,
+  labels,
+  children,
+  ...props
+}: SelectPrimitive.Value.Props & SelectValueExtraProps) {
+  const resolved =
+    labels !== undefined
+      ? (v: unknown) => {
+          if (v == null) return props.placeholder ?? ""
+          const key = String(v)
+          return key in labels ? labels[key] : (props.placeholder ?? key)
+        }
+      : children
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn("flex flex-1 text-left", className)}
       {...props}
-    />
+    >
+      {resolved as SelectPrimitive.Value.Props["children"]}
+    </SelectPrimitive.Value>
   )
 }
 
