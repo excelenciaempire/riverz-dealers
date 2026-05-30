@@ -4,7 +4,7 @@ export default function AutomationsLayout({ children }: { children: React.ReactN
   return (
     <RequiresConnection
       title="Conecta un canal antes de automatizar"
-      description="Las automatizaciones disparan respuestas, etiquetas y acciones sobre mensajes reales. Conecta WhatsApp, Instagram, Messenger o un email primero y vuelve a esta pantalla."
+      description="Conecta WhatsApp, Instagram, Messenger o un email para empezar."
     >
       {children}
     </RequiresConnection>

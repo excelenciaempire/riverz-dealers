@@ -24,11 +24,6 @@ export function AppearancePanel() {
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Apariencia</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Elige entre el tema claro (crema editorial) y el oscuro. Ambos
-          comparten el acento lima de la marca. Se guarda en este
-          dispositivo.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

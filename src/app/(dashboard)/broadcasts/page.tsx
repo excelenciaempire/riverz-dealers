@@ -177,9 +177,6 @@ export default function BroadcastsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Difusiones</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Envía mensajes masivos a tus contactos usando plantillas aprobadas.
-          </p>
         </div>
         <Button
           onClick={() => router.push('/broadcasts/new')}
@@ -194,12 +191,9 @@ export default function BroadcastsPage() {
         <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-border bg-card">
           <Radio className="mb-3 h-10 w-10 text-muted-foreground" />
           <p className="text-sm font-medium text-foreground">Aún no hay difusiones</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Crea tu primera difusión para llegar a tus contactos a gran escala.
-          </p>
           <Button
             onClick={() => router.push('/broadcasts/new')}
-            className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="mt-3 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
             Nueva difusión

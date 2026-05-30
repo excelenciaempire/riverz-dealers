@@ -210,10 +210,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               <>
                 <Upload className="size-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  Haz clic para subir un archivo CSV
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Se requiere CSV con columna &quot;phone&quot;
+                  Haz clic para subir un CSV
                 </p>
               </>
             )}

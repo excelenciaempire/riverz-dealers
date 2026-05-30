@@ -118,9 +118,6 @@ export function WhatsappPreview({
           )}
         </div>
       </div>
-      <p className="mt-2 text-center text-xs text-muted-foreground">
-        Vista previa en WhatsApp
-      </p>
     </div>
   );
 }

@@ -628,10 +628,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
         {state.nodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-            Añade un nodo de <strong>Inicio</strong>, luego un nodo de{" "}
-            <strong>Enviar botones</strong>, y después un{" "}
-            <strong>Transferir</strong>: ese es el esquema clásico de un menú de
-            bienvenida.
+            Aún no hay nodos.
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -726,7 +723,6 @@ function Header({
           {dirty && (
             <span
               className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-amber-300"
-              title="Cambios sin guardar — pulsa Guardar para persistirlos"
               aria-live="polite"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
@@ -801,7 +797,7 @@ function Header({
         onChange={(e) =>
           setState((s) => ({ ...s, description: e.target.value }))
         }
-        placeholder="Descripción opcional (interna — los clientes no la ven)"
+        placeholder="Descripción interna (los clientes no la ven)"
         className="bg-card text-sm"
       />
     </div>
@@ -1149,7 +1145,7 @@ function NodeConfigForm({
           />
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
-              Clave de variable (se guarda en flow_runs.vars; alfanumérico + guion bajo)
+              Clave de variable
             </label>
             <Input
               value={(cfg as { var_key?: string }).var_key ?? ""}
@@ -1158,11 +1154,11 @@ function NodeConfigForm({
                   var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
                 })
               }
-              placeholder="p. ej. nombre, correo, empresa"
+              placeholder="nombre"
               className="bg-muted font-mono text-xs"
             />
             <p className="mt-1 text-[10px] text-muted-foreground">
-              Úsala en mensajes posteriores y notas de transferencia con{" "}
+              Referencia en otros nodos con{" "}
               <code className="rounded bg-muted px-1">
                 {"{{vars."}
                 {(cfg as { var_key?: string }).var_key || "nombre"}
@@ -1210,8 +1206,7 @@ function NodeConfigForm({
 
       {node.node_type === "end" && (
         <p className="text-xs text-muted-foreground">
-          Nodo terminal. Cuando el motor llega a este nodo, la ejecución se
-          marca como completa. No hace falta configuración.
+          Nodo terminal. Marca la ejecución como completa.
         </p>
       )}
 
@@ -1232,7 +1227,7 @@ function NodeConfigForm({
           <div className="mt-3 flex flex-col gap-3">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Clave del nodo (identificador interno — mantenlo estable para analítica)
+                Clave del nodo
               </label>
               <Input
                 value={node.node_key}
@@ -1244,9 +1239,7 @@ function NodeConfigForm({
             </div>
             {hasReplyIds && (
               <p className="text-[10px] text-muted-foreground">
-                Los IDs de respuesta de cada opción se muestran arriba.
-                WhatsApp los devuelve cuando un cliente toca; normalmente no
-                necesitas modificarlos.
+                Los IDs de respuesta de cada opción son editables arriba.
               </p>
             )}
           </div>
@@ -1309,14 +1302,14 @@ function SendButtonsForm({
         rows={3}
       />
       <TextRow
-        label="Pie de página (opcional, 60 caracteres)"
+        label="Pie de página (opcional)"
         value={cfg.footer_text ?? ""}
         onChange={(v) => onUpdateConfig({ footer_text: v })}
       />
       <div>
         <div className="mb-2 flex items-center justify-between">
           <label className="text-xs text-muted-foreground">
-            Botones (1–3) — cada uno enruta a un nodo distinto
+            Botones (1–3)
           </label>
         </div>
         <div className="flex flex-col gap-3">
@@ -1345,7 +1338,7 @@ function SendButtonsForm({
               <Input
                 value={b.title}
                 onChange={(e) => updateButton(i, { title: e.target.value })}
-                placeholder="Título visible (≤20 caracteres)"
+                placeholder="Título visible"
                 className="bg-muted"
                 maxLength={20}
               />
@@ -1497,12 +1490,12 @@ function SendListForm({
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TextRow
-          label="Texto del botón para desplegar la lista (≤20 caracteres)"
+          label="Texto del botón que despliega la lista"
           value={cfg.button_label ?? ""}
           onChange={(v) => onUpdateConfig({ button_label: v })}
         />
         <TextRow
-          label="Pie de página (opcional, 60 caracteres)"
+          label="Pie de página (opcional)"
           value={cfg.footer_text ?? ""}
           onChange={(v) => onUpdateConfig({ footer_text: v })}
         />
@@ -1510,7 +1503,7 @@ function SendListForm({
 
       <div className="mt-2">
         <label className="mb-2 block text-xs text-muted-foreground">
-          Filas (1–10 en total entre todas las secciones)
+          Filas (1–10 en total)
         </label>
         {sections.map((section, sIdx) => (
           <div
@@ -1568,7 +1561,7 @@ function SendListForm({
                   onChange={(e) =>
                     updateRow(sIdx, rIdx, { title: e.target.value })
                   }
-                  placeholder="Título de la fila (≤24)"
+                  placeholder="Título de la fila"
                   className="bg-muted"
                   maxLength={24}
                 />
@@ -1737,7 +1730,7 @@ function ConditionForm({
             <Input
               value={cfg.subject_key ?? ""}
               onChange={(e) => onUpdateConfig({ subject_key: e.target.value })}
-              placeholder={subject === "var" ? "p. ej. correo" : "UUID de la etiqueta"}
+              placeholder={subject === "var" ? "correo" : "UUID de la etiqueta"}
               className="bg-muted font-mono text-xs"
             />
           )}

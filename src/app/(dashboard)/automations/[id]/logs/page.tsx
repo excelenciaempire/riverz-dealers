@@ -101,9 +101,6 @@ export default function AutomationLogsPage({
       {logs.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
           <p className="text-sm text-foreground">Aún no hay ejecuciones</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Activa esta automatización para ver ejecuciones aquí.
-          </p>
         </div>
       ) : (
         <ul className="space-y-2">

@@ -142,8 +142,8 @@ export function TemplatePicker({
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {selected
-              ? "Completa los campos para renderizar esta plantilla. Meta requiere que cada variable esté definida."
-              : "Elige una plantilla de WhatsApp aprobada para enviar a este contacto."}
+              ? "Completa las variables para enviar."
+              : "Elige una plantilla aprobada."}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,8 +157,7 @@ export function TemplatePicker({
               <div className="rounded-md border border-border bg-background/50 p-6 text-center">
                 <p className="text-sm text-foreground">No hay plantillas aprobadas</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Aprueba una plantilla en Meta WhatsApp Manager y luego sincronízala
-                  desde Ajustes → Plantillas.
+                  Sincroniza desde Ajustes → Plantillas.
                 </p>
               </div>
             ) : (

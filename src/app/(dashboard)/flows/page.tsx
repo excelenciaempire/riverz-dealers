@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -207,10 +206,7 @@ export default function FlowsPage() {
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Chatbots interactivos: el cliente pulsa botones o responde y la
-            conversación avanza según lo que elige (menús, preguntas frecuentes,
-            triaje). A diferencia de las Automatizaciones, aquí el cliente
-            interactúa de ida y vuelta.
+            Chatbots interactivos donde el cliente avanza la conversación con botones o respuestas.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -241,10 +237,7 @@ export default function FlowsPage() {
             sm-scoped 384px wins at every real desktop breakpoint. */}
         <DialogContent className="sm:max-w-4xl bg-card text-foreground">
           <DialogHeader>
-            <DialogTitle>Crear un nuevo flujo</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Comienza desde una plantilla o créalo desde cero.
-            </DialogDescription>
+            <DialogTitle>Nuevo flujo</DialogTitle>
           </DialogHeader>
 
           {templates.length > 0 && (
@@ -287,7 +280,7 @@ export default function FlowsPage() {
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="p. ej. Menú de bienvenida"
+              placeholder="Menú de bienvenida"
               className="bg-muted"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreate();
@@ -323,12 +316,6 @@ function EmptyState() {
       <h2 className="mt-4 text-base font-medium text-foreground">
         Aún no hay flujos
       </h2>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Creá tu primera conversación con el botón
-        <span className="mx-1 font-medium text-foreground">Nuevo flujo</span>
-        arriba: un menú de bienvenida, un FAQ o un bot que dirige al cliente
-        al agente correcto.
-      </p>
     </div>
   );
 }

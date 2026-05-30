@@ -204,9 +204,6 @@ export function TemplateBuilder() {
         </Button>
         <div>
           <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
-          <p className="text-xs text-muted-foreground">
-            Diseñá el mensaje y enviá la plantilla a Meta para que la apruebe.
-          </p>
         </div>
       </div>
 
@@ -337,10 +334,6 @@ export function TemplateBuilder() {
                   {bodyText.length}/1024
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Cada <span className="font-mono text-foreground/80">{'{{n}}'}</span> se
-                reemplaza por el dato del contacto al enviar. Ej: {'{{1}}'} → nombre.
-              </p>
             </div>
 
             {variables.length > 0 && (
@@ -349,9 +342,6 @@ export function TemplateBuilder() {
                   <p className="text-sm font-medium text-foreground">
                     Ejemplos para variables
                   </p>
-                  <span className="text-[11px] text-muted-foreground">
-                    Meta pide un ejemplo por variable para aprobar la plantilla.
-                  </span>
                 </div>
                 <div className="space-y-2">
                   {variables.map((v) => (
@@ -378,7 +368,7 @@ export function TemplateBuilder() {
 
             <Field label="Pie (opcional)">
               <Input
-                placeholder="Por ejemplo: Equipo Vitalú"
+                placeholder="Equipo Vitalú"
                 value={footerText}
                 maxLength={60}
                 onChange={(e) => setFooterText(e.target.value)}
@@ -392,16 +382,12 @@ export function TemplateBuilder() {
                 <Switch
                   checked={buttonsOn}
                   onCheckedChange={toggleButtons}
-                  aria-label="Activar botones"
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <MousePointerClick className="size-4 text-foreground" />
                     <p className="text-sm font-semibold text-foreground">Botones</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Añadí una respuesta rápida, un enlace o un botón para llamar.
-                  </p>
                 </div>
               </div>
               {buttonsOn && (
@@ -424,9 +410,6 @@ export function TemplateBuilder() {
                       Añadir otro botón
                     </button>
                   )}
-                  <p className="text-[10px] text-muted-foreground">
-                    Hasta 10 botones por plantilla.
-                  </p>
                 </div>
               )}
             </div>
@@ -498,8 +481,6 @@ function ButtonRow({
   onChange: (patch: Partial<TemplateButtonInput>) => void;
   onRemove: () => void;
 }) {
-  const meta = BUTTON_TYPES.find((t) => t.value === button.type) ?? BUTTON_TYPES[0];
-  const Icon = meta.Icon;
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
@@ -554,10 +535,6 @@ function ButtonRow({
           className="mt-2 bg-background"
         />
       )}
-      <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Icon className="size-3" />
-        {meta.hint}
-      </p>
     </div>
   );
 }

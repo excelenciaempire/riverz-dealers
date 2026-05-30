@@ -88,8 +88,7 @@ export function PasswordForm() {
           Contraseña
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          Usa al menos {MIN_PASSWORD} caracteres. Tu sesión seguirá iniciada en
-          este dispositivo tras el cambio.
+          Mínimo {MIN_PASSWORD} caracteres.
         </CardDescription>
       </CardHeader>
 

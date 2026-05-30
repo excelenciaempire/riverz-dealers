@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -159,11 +158,6 @@ export function ContactForm({
           <DialogTitle className="text-foreground">
             {isEdit ? 'Editar contacto' : 'Añadir contacto'}
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            {isEdit
-              ? 'Actualiza los datos del contacto.'
-              : 'Rellena los datos para crear un nuevo contacto.'}
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -191,9 +185,6 @@ export function ContactForm({
               placeholder="+57 300 123 4567"
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
-            <p className="text-xs text-muted-foreground">
-              Incluye el código de país, p. ej. +57 para Colombia
-            </p>
           </div>
 
           <div className="space-y-2">

@@ -245,10 +245,6 @@ export function ProfileForm() {
     <Card className="bg-card/40 border-border">
       <CardHeader>
         <CardTitle className="text-foreground">Perfil</CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Cómo te ves en la app. Tu avatar y nombre aparecen en la cabecera,
-          la barra lateral y en cualquier lugar donde te vean tus compañeros.
-        </CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -359,9 +355,6 @@ export function ProfileForm() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              Las fechas y horas en la bandeja se mostrarán en esta zona.
-            </p>
           </div>
 
           {/* Read-only block */}

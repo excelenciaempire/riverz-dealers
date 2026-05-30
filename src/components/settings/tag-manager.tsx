@@ -152,7 +152,6 @@ export function TagManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Etiquetas</h2>
-          <p className="text-sm text-muted-foreground">Organiza tus contactos con etiquetas de colores.</p>
         </div>
         <Button
           onClick={() => {
@@ -171,7 +170,6 @@ export function TagManager() {
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-muted-foreground text-sm">Aún no hay etiquetas.</p>
-            <p className="text-muted-foreground text-xs mt-1">Crea etiquetas para categorizar tus contactos.</p>
           </CardContent>
         </Card>
       ) : (
@@ -211,9 +209,6 @@ export function TagManager() {
         <DialogContent className="bg-card border-border sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-foreground">Nueva etiqueta</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Crea una nueva etiqueta con un nombre y un color.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">

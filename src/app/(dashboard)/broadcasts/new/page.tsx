@@ -219,7 +219,7 @@ export default function NewBroadcastPage() {
 
   const previewBody = useMemo(() => {
     if (!template?.body_text) {
-      return 'Elegí una plantilla aprobada para ver cómo se verá el mensaje.';
+      return 'Elegí una plantilla.';
     }
     return template.body_text.replace(/\{\{(\d+)\}\}/g, (_, n: string) => {
       const v = variables[n];
@@ -244,9 +244,6 @@ export default function NewBroadcastPage() {
         </Button>
         <div>
           <h1 className="text-xl font-semibold text-foreground">Nueva campaña</h1>
-          <p className="text-xs text-muted-foreground">
-            Elegí destinatarios, plantilla y cuándo enviar.
-          </p>
         </div>
       </div>
 
@@ -313,15 +310,13 @@ export default function NewBroadcastPage() {
                       variant="outline"
                       onClick={() => router.push('/contacts?tab=segments&new=1')}
                       className="border-border text-foreground hover:bg-accent"
-                      title="Crear un segmento nuevo"
                     >
                       <Plus className="size-4" />
                       Crear segmento
                     </Button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Los contactos se calculan al enviar — así si editás el segmento
-                    antes de la fecha, viajan los nombres correctos.
+                    Los contactos se calculan al enviar.
                   </p>
                 </div>
               )}
@@ -361,14 +356,12 @@ export default function NewBroadcastPage() {
                   active={sendMode === 'now'}
                   onClick={() => setSendMode('now')}
                   title="Ahora mismo"
-                  hint="Se envía en cuanto toques “Enviar”."
                   icon={<Send className="size-4" />}
                 />
                 <ModeOption
                   active={sendMode === 'schedule'}
                   onClick={() => setSendMode('schedule')}
                   title="Programar"
-                  hint="Elegí una fecha y hora."
                   icon={<CalendarClock className="size-4" />}
                 />
               </div>
@@ -415,7 +408,7 @@ export default function NewBroadcastPage() {
                         {`{{${v}}}`}
                       </span>
                       <Input
-                        placeholder="Valor que reemplaza la variable"
+                        placeholder="Valor"
                         value={variables[v] ?? ''}
                         onChange={(e) =>
                           setVariables((prev) => ({ ...prev, [v]: e.target.value }))
@@ -515,7 +508,7 @@ function ModeOption({
   active: boolean;
   onClick: () => void;
   title: string;
-  hint: string;
+  hint?: string;
   icon: React.ReactNode;
 }) {
   return (
@@ -523,7 +516,7 @@ function ModeOption({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
+        'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
         active
           ? 'border-primary/60 bg-primary/10'
           : 'border-border bg-background hover:border-foreground/30',
@@ -531,7 +524,7 @@ function ModeOption({
     >
       <span
         className={cn(
-          'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md',
+          'flex size-7 shrink-0 items-center justify-center rounded-md',
           active ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
         )}
       >
@@ -539,7 +532,9 @@ function ModeOption({
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-medium text-foreground">{title}</span>
-        <span className="block text-[11px] text-muted-foreground">{hint}</span>
+        {hint && (
+          <span className="block text-[11px] text-muted-foreground">{hint}</span>
+        )}
       </span>
     </button>
   );
@@ -578,19 +573,12 @@ function SchedulePicker({
           className="bg-background"
         />
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        {summary ? (
-          <>
-            Se enviará <span className="font-medium text-foreground">{summary}</span>
-            {tz ? ` · zona horaria ${tz}` : ''}
-          </>
-        ) : (
-          <>
-            Elegí una fecha futura. Hora local del navegador
-            {tz ? ` · ${tz}` : ''}.
-          </>
-        )}
-      </p>
+      {summary && (
+        <p className="text-[11px] text-muted-foreground">
+          Se enviará <span className="font-medium text-foreground">{summary}</span>
+          {tz ? ` · ${tz}` : ''}
+        </p>
+      )}
     </div>
   );
 }

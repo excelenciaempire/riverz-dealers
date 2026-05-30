@@ -53,9 +53,8 @@ export default function ForgotPasswordPage() {
               Revisa tu correo
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Hemos enviado un enlace para restablecer la contraseña a{" "}
-              <span className="text-foreground">{email}</span>. Revisa tu bandeja de
-              entrada.
+              Enviamos un enlace de restablecimiento a{" "}
+              <span className="text-foreground">{email}</span>.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -81,9 +80,6 @@ export default function ForgotPasswordPage() {
             riverz
           </span>
           <CardTitle className="text-xl text-foreground">Restablecer contraseña</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Introduce tu correo y te enviaremos un enlace para restablecerla
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleReset} className="flex flex-col gap-4">

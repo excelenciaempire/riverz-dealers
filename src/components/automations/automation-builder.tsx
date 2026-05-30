@@ -26,7 +26,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  MousePointer2,
   Layers,
   X as XIcon,
 } from "lucide-react"
@@ -129,17 +128,17 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
   {
     value: "first_inbound_message",
     label: "Primer mensaje del contacto",
-    hint: "La primera vez que este contacto te escribe (también funciona para contactos añadidos manualmente)",
+    hint: "La primera vez que el contacto te escribe",
   },
   { value: "keyword_match", label: "Coincidencia de palabra clave", hint: "El mensaje contiene una o varias palabras clave" },
-  { value: "new_contact_created", label: "Nuevo contacto creado", hint: "Cuando se crea automáticamente un contacto a partir de un mensaje entrante" },
-  { value: "conversation_assigned", label: "Conversación asignada", hint: "Cuando se asigna a un agente" },
-  { value: "tag_added", label: "Etiqueta añadida", hint: "Cuando se añade una etiqueta a un contacto" },
+  { value: "new_contact_created", label: "Nuevo contacto creado", hint: "Al crear un contacto desde un mensaje entrante" },
+  { value: "conversation_assigned", label: "Conversación asignada", hint: "Al asignarse a un agente" },
+  { value: "tag_added", label: "Etiqueta añadida", hint: "Al añadirse una etiqueta a un contacto" },
   { value: "time_based", label: "Programada", hint: "En un horario recurrente" },
   {
     value: "shopify_abandoned_checkout",
     label: "Carrito abandonado (Shopify)",
-    hint: "Cuando alguien deja un checkout en tu tienda Shopify conectada",
+    hint: "Cuando alguien deja un checkout en Shopify",
   },
 ]
 
@@ -167,8 +166,7 @@ function AudienceStrip({
           Sin segmentos guardados.{" "}
           <a href="/contacts?tab=segments" className="underline hover:text-foreground">
             Crear uno
-          </a>{" "}
-          para acotar la audiencia.
+          </a>
         </span>
       ) : (
         <>
@@ -177,7 +175,7 @@ function AudienceStrip({
             onChange={(e) => onChange(e.target.value || null)}
             className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="">Todos los contactos del workspace</option>
+            <option value="">Todos los contactos</option>
             {segments.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -194,11 +192,6 @@ function AudienceStrip({
               <XIcon className="h-3.5 w-3.5" />
             </button>
           )}
-          <span className="text-muted-foreground">
-            {selected
-              ? `Solo dispara para contactos del segmento "${selected.name}".`
-              : "Dispara para cualquier contacto que cumpla el trigger."}
-          </span>
         </>
       )}
     </div>
@@ -250,11 +243,9 @@ function ConditionFields({
           </select>
           {segments.length === 0 && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              No tenés segmentos guardados todavía.{" "}
               <a href="/contacts?tab=segments" className="underline">
-                Crear uno
+                Crear un segmento
               </a>
-              .
             </p>
           )}
         </FieldBlock>
@@ -649,8 +640,7 @@ function MessagePreviewRail({
         />
       ) : (
         <p className="text-xs text-muted-foreground">
-          Añade un paso de «Enviar mensaje» o «Enviar plantilla» para ver cómo lo
-          recibirá tu contacto.
+          Añade un paso de mensaje para ver la vista previa.
         </p>
       )}
     </div>
@@ -699,9 +689,6 @@ function TriggerCard({
         {open && (
           <div className="space-y-3 border-t border-border px-4 py-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Tipo de activador
-              </label>
               <select
                 value={type}
                 onChange={(e) => onTypeChange(e.target.value as AutomationTriggerType)}
@@ -1245,11 +1232,7 @@ function StepEditor({
         </>
       )
     case "close_conversation":
-      return (
-        <p className="text-xs text-muted-foreground">
-          Cambia el estado de la conversación a &quot;cerrada&quot;. No se requiere configuración.
-        </p>
-      )
+      return null
     default:
       return null
   }
@@ -1704,11 +1687,6 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         </button>
       </div>
 
-      {/* Pan hint */}
-      <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-1.5 rounded-md border border-border/60 bg-card/80 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-        <MousePointer2 className="h-3 w-3" />
-        Arrastrá para moverte · Ctrl + rueda para acercar
-      </div>
     </div>
   )
 }

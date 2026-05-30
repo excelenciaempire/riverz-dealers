@@ -111,9 +111,6 @@ export default function DashboardPage() {
       <div>
         <p className="app-eyebrow">Panel de control</p>
         <h1 className="app-page-title mt-1.5">Resumen</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Analítica en tiempo real de conversaciones, contactos, difusiones y automatizaciones.
-        </p>
       </div>
 
       {/* Metric cards */}

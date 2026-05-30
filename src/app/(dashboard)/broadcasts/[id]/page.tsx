@@ -360,7 +360,7 @@ export default function BroadcastDetailPage() {
             title={
               broadcast.status === 'sending'
                 ? 'No se puede eliminar mientras una difusión se está enviando'
-                : 'Eliminar esta difusión'
+                : undefined
             }
             className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
           >

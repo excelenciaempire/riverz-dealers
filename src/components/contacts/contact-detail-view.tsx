@@ -329,8 +329,8 @@ export function ContactDetailView({
                   <SheetTitle className="text-foreground truncate">
                     {contact.name || 'Desconocido'}
                   </SheetTitle>
-                  <SheetDescription className="text-muted-foreground text-xs mt-0.5">
-                    Detalles del contacto
+                  <SheetDescription className="sr-only">
+                    {contact.name || contact.phone}
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     <button
@@ -447,12 +447,9 @@ export function ContactDetailView({
               {/* Tags Tab */}
               <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Haz clic en una etiqueta para añadirla o quitarla de este contacto.
-                  </p>
                   {allTags.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No hay etiquetas disponibles. Créalas en Ajustes.
+                      No hay etiquetas. Créalas en Ajustes.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
@@ -556,7 +553,7 @@ export function ContactDetailView({
                   </div>
                 ) : customFields.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    No hay campos personalizados definidos. Créalos en Ajustes.
+                    No hay campos personalizados. Créalos en Ajustes.
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -573,7 +570,6 @@ export function ContactDetailView({
                               [field.id]: e.target.value,
                             }))
                           }
-                          placeholder={`Introduce ${field.field_name}...`}
                           className="bg-muted border-border text-foreground h-8 text-sm placeholder:text-muted-foreground"
                         />
                       </div>
@@ -589,7 +585,7 @@ export function ContactDetailView({
                       ) : (
                         <Save className="size-3.5" />
                       )}
-                      Guardar campos personalizados
+                      Guardar
                     </Button>
                   </div>
                 )}

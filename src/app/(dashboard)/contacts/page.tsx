@@ -219,9 +219,11 @@ export default function ContactsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Contactos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestiona tu lista de contactos. {totalCount > 0 && `${totalCount} contactos en total.`}
-          </p>
+          {totalCount > 0 && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {totalCount} en total
+            </p>
+          )}
         </div>
         {tab === 'list' && (
           <div className="flex items-center gap-2">
@@ -307,7 +309,6 @@ export default function ContactsPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-accent-ink" />
-                    <p className="text-sm text-muted-foreground">Cargando contactos...</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -318,20 +319,8 @@ export default function ContactsPage() {
                     <Users className="size-8 text-muted-foreground" />
                     <p className="max-w-sm text-sm text-muted-foreground">
                       {search
-                        ? 'No hay contactos que coincidan con tu búsqueda.'
-                        : (
-                          <>
-                            Aún no hay contactos. Usá
-                            <span className="mx-1 font-medium text-foreground">
-                              Añadir contacto
-                            </span>
-                            o
-                            <span className="mx-1 font-medium text-foreground">
-                              Importar
-                            </span>
-                            arriba para empezar.
-                          </>
-                        )}
+                        ? 'Sin resultados.'
+                        : 'Aún no hay contactos.'}
                     </p>
                   </div>
                 </TableCell>

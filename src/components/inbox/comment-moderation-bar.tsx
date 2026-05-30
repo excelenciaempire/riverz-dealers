@@ -66,7 +66,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       </button>
       <button
         onClick={() => {
-          if (confirm("¿Eliminar este comentario? Esta acción no se puede deshacer.")) act("delete");
+          if (confirm("¿Eliminar este comentario?")) act("delete");
         }}
         disabled={busy !== null}
         title="Eliminar"

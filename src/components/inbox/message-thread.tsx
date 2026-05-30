@@ -731,33 +731,13 @@ export function MessageThread({
           DOODLE_BG_CLASSES,
         )}
       >
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card/80 p-6 backdrop-blur">
+        <div className="flex flex-col items-center rounded-2xl border border-border bg-card/80 p-6 backdrop-blur">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-primary/30">
             <MessageSquare className="h-6 w-6 text-accent-ink" />
           </div>
-          <h3 className="mt-4 text-base font-semibold text-foreground">
-            Bandeja unificada
-          </h3>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Elige una conversación de la izquierda para empezar. Todo tu equipo
-            ve y responde desde la misma bandeja, sin importar el canal.
+          <p className="mt-4 text-sm text-muted-foreground">
+            Selecciona una conversación
           </p>
-          <ul className="mt-4 space-y-1.5 text-xs text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>
-                <strong className="text-foreground">Mensajes</strong> — WhatsApp, IG,
-                Messenger, Gmail, Outlook
-              </span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-              <span>
-                <strong className="text-foreground">Comentarios</strong> — FB e IG, modera
-                desde aquí
-              </span>
-            </li>
-          </ul>
         </div>
       </div>
     );
@@ -1022,9 +1002,6 @@ export function MessageThread({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-muted-foreground">Aún no hay mensajes</p>
-            <p className="text-xs text-muted-foreground">
-              Envía una plantilla para iniciar la conversación
-            </p>
           </div>
         ) : (
           <div className="space-y-4">

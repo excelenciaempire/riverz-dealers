@@ -41,9 +41,6 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Ajustes</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Perfil, equipo, canales, integraciones y etiquetas — todo en un mismo sitio.
-        </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>

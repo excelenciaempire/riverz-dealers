@@ -213,7 +213,7 @@ export function ConversationList({
     if (selectedIds.size === 0) return;
     if (
       !window.confirm(
-        `¿Eliminar ${selectedIds.size} conversación(es)? Se quitarán de la bandeja.`,
+        `¿Eliminar ${selectedIds.size} conversación(es)?`,
       )
     )
       return;
@@ -392,7 +392,7 @@ function ConversationItem({
         conversation.contact?.email ||
         conversation.contact?.phone ||
         "esta conversación";
-      if (!window.confirm(`¿Eliminar la conversación con ${name}? Se quitará de la bandeja.`)) return;
+      if (!window.confirm(`¿Eliminar la conversación con ${name}?`)) return;
       setDeleting(true);
       try {
         const r = await fetch(`/api/conversations/${conversation.id}`, { method: "DELETE" });

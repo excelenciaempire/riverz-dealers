@@ -325,9 +325,9 @@ export function WhatsAppConfig() {
           </div>
           <AlertDescription className="text-muted-foreground">
             {connectionStatus === 'connected'
-              ? 'Tu API de WhatsApp Business está conectada y lista para enviar y recibir mensajes.'
+              ? 'API de WhatsApp Business lista para enviar y recibir.'
               : statusMessage ||
-                'Configura tus credenciales de la API de Meta abajo para conectar tu cuenta de WhatsApp Business.'}
+                'Introduce tus credenciales de Meta abajo para conectar.'}
           </AlertDescription>
         </Alert>
 
@@ -335,9 +335,6 @@ export function WhatsAppConfig() {
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardHeader>
             <CardTitle className="text-foreground">Credenciales de la API</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Introduce tus credenciales de la API de WhatsApp Business de Meta.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -389,7 +386,7 @@ export function WhatsAppConfig() {
               </div>
               {config && !tokenEdited && (
                 <p className="text-xs text-muted-foreground">
-                  El token está oculto por seguridad. Vuelve a introducirlo para actualizar la configuración.
+                  Vuelve a introducirlo para guardar cambios.
                 </p>
               )}
             </div>
@@ -397,13 +394,13 @@ export function WhatsAppConfig() {
             <div className="space-y-2">
               <Label className="text-foreground">Token de verificación del webhook</Label>
               <Input
-                placeholder="Crea un token de verificación personalizado"
+                placeholder="Crea un token personalizado"
                 value={verifyToken}
                 onChange={(e) => setVerifyToken(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
               <p className="text-xs text-muted-foreground">
-                Una cadena personalizada que creas tú. Debe coincidir con el token que configuras en los ajustes del webhook de Meta.
+                Debe coincidir con el token configurado en el webhook de Meta.
               </p>
             </div>
           </CardContent>
@@ -412,9 +409,9 @@ export function WhatsAppConfig() {
         {/* Webhook URL */}
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardHeader>
-            <CardTitle className="text-foreground">Configuración del webhook</CardTitle>
+            <CardTitle className="text-foreground">Webhook</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Usa esta URL como callback del webhook en el panel de tu app de Meta.
+              Pega esta URL como callback en el panel de tu app de Meta.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -500,10 +497,7 @@ export function WhatsAppConfig() {
       <div>
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardHeader>
-            <CardTitle className="text-foreground text-base">Instrucciones de configuración</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Sigue estos pasos para conectar tu API de WhatsApp Business.
-            </CardDescription>
+            <CardTitle className="text-foreground text-base">Cómo conectar</CardTitle>
           </CardHeader>
           <CardContent>
             <Accordion>

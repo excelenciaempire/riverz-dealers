@@ -92,7 +92,7 @@ export default function TemplatesPage() {
         .delete()
         .eq('id', id);
       if (error) throw error;
-      toast.success('Plantilla eliminada del catálogo local');
+      toast.success('Plantilla eliminada');
       setTemplates((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo eliminar');
@@ -104,10 +104,6 @@ export default function TemplatesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Plantillas</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Crea plantillas oficiales de WhatsApp y sincroniza su estado de
-            aprobación desde Meta.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -139,9 +135,6 @@ export default function TemplatesPage() {
         <Card className="bg-card border-border ring-0">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm text-muted-foreground">Aún no hay plantillas.</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Crea tu primera plantilla y envíala a Meta para aprobación.
-            </p>
           </CardContent>
         </Card>
       ) : (

@@ -56,9 +56,7 @@ export function SessionsCard() {
             Sesiones activas
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Cierra sesión en todos los dispositivos donde tengas la sesión
-            iniciada — incluido este. Útil si perdiste un portátil o
-            compartiste tu contraseña.
+            Cierra sesión en todos los dispositivos, incluido este.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -78,9 +76,7 @@ export function SessionsCard() {
           <DialogHeader>
             <DialogTitle>¿Cerrar sesión en todos los dispositivos?</DialogTitle>
             <DialogDescription>
-              Todos los dispositivos con sesión iniciada en esta cuenta se
-              cerrarán y tendrán que iniciar sesión de nuevo. Se te
-              redirigirá a la página de inicio de sesión.
+              Tendrás que volver a iniciar sesión en cada uno.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

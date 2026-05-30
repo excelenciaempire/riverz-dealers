@@ -9,7 +9,6 @@ import {
   Trash2,
   XCircle,
   AlertCircle,
-  Sparkles,
   Copy,
   ExternalLink,
   KeyRound,
@@ -46,7 +45,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     key: "whatsapp",
     label: "WhatsApp",
     description:
-      "Mensajes 1-a-1 con tus clientes. Funciona con Cloud API (número dedicado), WhatsApp Business y coexistencia.",
+      "Cloud API, WhatsApp Business o coexistencia.",
     logoChannel: "whatsapp",
     members: ["whatsapp"],
     connectChannel: "whatsapp",
@@ -71,8 +70,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "gmail",
     label: "Gmail",
-    description:
-      "Lee y responde correos como mensajes. Funciona con @gmail o Workspace.",
+    description: "Cuentas @gmail o Workspace.",
     logoChannel: "gmail",
     members: ["gmail"],
     connectChannel: "gmail",
@@ -227,10 +225,7 @@ export function ChannelsPanel() {
                 Faltan apps OAuth por registrar
               </h3>
               <p className="text-xs leading-relaxed text-amber-100/80">
-                Para que los botones <strong>Conectar</strong> funcionen necesitas registrar
-                las apps de OAuth en cada proveedor (Meta para WhatsApp/IG/Messenger/FB,
-                Google para Gmail, Microsoft para Outlook) y pegar sus claves en las
-                variables de entorno de Render.
+                Registra cada app y pega sus claves en las variables de entorno de Render.
               </p>
               <ul className="space-y-1 text-xs text-amber-100/70">
                 <li>
@@ -286,34 +281,21 @@ export function ChannelsPanel() {
         </div>
       )}
 
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-primary/10 p-6">
-        <div className="absolute -top-12 -right-12 size-48 rounded-full bg-primary/10 blur-3xl" />
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent-ink">
-              <Sparkles className="size-3.5" />
-              Bandeja unificada
-            </div>
-            <h2 className="mt-1 text-xl font-bold text-foreground">Conecta tus canales</h2>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              WhatsApp, Instagram, Messenger, Gmail, Outlook y comentarios de anuncios — todo en
-              una sola bandeja. Conexiones oficiales con un clic vía OAuth.
-            </p>
-          </div>
-          <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-3xl font-bold text-foreground">{connectedCount}</p>
-            <p className="text-xs text-muted-foreground">
-              {connectedCount === 1 ? "canal activo" : "canales activos"}
-            </p>
-          </div>
-        </div>
-        {!isAdmin && (
-          <p className="relative mt-3 text-xs text-muted-foreground">
-            Solo lectura · los admins gestionan las conexiones.
+      {/* Header */}
+      <div className="flex items-end justify-between gap-4">
+        <h2 className="text-xl font-bold text-foreground">Canales</h2>
+        <div className="hidden shrink-0 text-right sm:block">
+          <p className="text-3xl font-bold text-foreground">{connectedCount}</p>
+          <p className="text-xs text-muted-foreground">
+            {connectedCount === 1 ? "canal activo" : "canales activos"}
           </p>
-        )}
+        </div>
       </div>
+      {!isAdmin && (
+        <p className="text-xs text-muted-foreground">
+          Solo lectura · los admins gestionan las conexiones.
+        </p>
+      )}
 
       {manualOpen && workspace && (
         <ManualTokenModal
@@ -494,12 +476,6 @@ export function ChannelsPanel() {
                           </>
                         )}
                       </button>
-                      {isMeta && ready && (
-                        <p className="text-center text-[10px] leading-snug text-muted-foreground">
-                          <KeyRound className="mr-1 inline-block size-2.5" />
-                          Conexión via Page/System User token
-                        </p>
-                      )}
                     </>
                   )}
                 </div>

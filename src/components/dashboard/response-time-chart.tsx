@@ -31,9 +31,6 @@ export function ResponseTimeChart({
           <h2 className="text-sm font-semibold text-foreground">
             Tiempo medio de primera respuesta
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Minutos hasta responder al primer mensaje sin responder de un cliente, por día de la semana
-          </p>
         </div>
         {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
           <div className="text-right text-xs">
@@ -58,7 +55,6 @@ export function ResponseTimeChart({
           <EmptyState
             icon={Clock}
             title="Aún no hay respuestas registradas"
-            hint="Este gráfico se llena conforme respondes a los mensajes de tus clientes."
           />
         ) : (
           <Bars data={data} thresholdMinutes={thresholdMinutes} />

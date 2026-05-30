@@ -89,7 +89,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
             <h1 className="text-lg font-semibold text-foreground">You have an invite</h1>
             <p className="text-sm text-muted-foreground">
-              Sign in first to accept this invitation. We'll bring you back to this page after.
+              Sign in to continue.
             </p>
             <Link
               href={`/login?redirect=/invite/${token}`}
@@ -104,9 +104,6 @@ export default function AcceptInvitePage({ params }: PageProps) {
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
             <h1 className="text-lg font-semibold text-foreground">Join “{workspaceName}”</h1>
-            <p className="text-sm text-muted-foreground">
-              You've been invited to join this workspace. You'll share the inbox, contacts and channels with the team.
-            </p>
             <Button
               onClick={accept}
               disabled={accepting}

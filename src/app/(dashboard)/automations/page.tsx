@@ -161,11 +161,6 @@ export default function AutomationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Automatizaciones</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reglas automáticas: un disparador (mensaje, palabra clave, carrito de
-            Shopify, horario…) ejecuta acciones como enviar una plantilla, esperar
-            o etiquetar. Sin que el cliente tenga que interactuar.
-          </p>
         </div>
         <Button
           onClick={() => router.push("/automations/new")}
@@ -207,9 +202,6 @@ export default function AutomationsPage() {
             <Zap className="h-6 w-6 text-accent-ink" />
           </div>
           <p className="mt-3 text-sm font-medium text-foreground">Aún no hay automatizaciones</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Elige una plantilla de arriba o crea una desde cero.
-          </p>
         </div>
       ) : (
         <ul className="space-y-3">

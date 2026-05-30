@@ -73,9 +73,8 @@ export default function SignupPage() {
               Revisa tu correo
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Hemos enviado un enlace de confirmación a{" "}
-              <span className="text-foreground">{email}</span>. Abre tu bandeja y
-              haz clic en el enlace para verificar tu cuenta.
+              Enviamos un enlace de confirmación a{" "}
+              <span className="text-foreground">{email}</span>.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -101,9 +100,6 @@ export default function SignupPage() {
             riverz
           </span>
           <CardTitle className="text-xl text-foreground">Crear cuenta</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Empieza a usar tu Bandeja Unificada
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="flex flex-col gap-4">
@@ -165,7 +161,7 @@ export default function SignupPage() {
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Repite tu contraseña"
+                placeholder=""
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required

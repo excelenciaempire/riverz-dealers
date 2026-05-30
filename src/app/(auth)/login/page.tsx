@@ -49,10 +49,7 @@ export default function LoginPage() {
           <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
             riverz
           </span>
-          <CardTitle className="text-xl text-foreground">Bienvenido de nuevo</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Inicia sesión en tu cuenta
-          </CardDescription>
+          <CardTitle className="text-xl text-foreground">Iniciar sesión</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -92,7 +89,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Introduce tu contraseña"
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

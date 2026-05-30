@@ -123,7 +123,7 @@ export function MessageComposer({
           placeholder={
             sessionExpired
               ? "Sesión expirada - usa una plantilla"
-              : "Escribe un mensaje... (Shift+Enter para nueva línea)"
+              : "Escribe un mensaje..."
           }
           disabled={sessionExpired}
           rows={1}
@@ -142,13 +142,6 @@ export function MessageComposer({
           <Send className="h-4 w-4" />
         </Button>
       </div>
-
-      {/* Hint sits outside the flex row so its height doesn't push
-          `items-end` buttons below the textarea. Indented to line up
-          under the textarea left edge (w-9 button + gap-2 = 44px). */}
-      <p className="mt-1 pl-11 text-[10px] text-muted-foreground">
-        Escribe &apos;/&apos; para respuestas rápidas
-      </p>
     </div>
   );
 }

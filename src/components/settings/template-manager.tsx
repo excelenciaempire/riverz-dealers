@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -257,10 +256,7 @@ export function TemplateManager() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Plantillas de mensaje</h2>
           <p className="text-sm text-muted-foreground">
-            Crea y gestiona tus plantillas de mensaje de WhatsApp. Meta exige
-            que cada plantilla esté aprobada en el WhatsApp Manager antes de
-            poder enviarse — usa &quot;Sincronizar desde Meta&quot; para traer tu
-            lista aprobada.
+            Meta exige que cada plantilla esté aprobada en WhatsApp Manager antes de enviarse.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -293,7 +289,6 @@ export function TemplateManager() {
         <Card className="bg-card border-border ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-muted-foreground text-sm">Aún no hay plantillas.</p>
-            <p className="text-muted-foreground text-xs mt-1">Crea tu primera plantilla de mensaje para empezar.</p>
           </CardContent>
         </Card>
       ) : (
@@ -342,9 +337,6 @@ export function TemplateManager() {
         <DialogContent className="bg-card border-border sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-foreground">Nueva plantilla de mensaje</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Crea una nueva plantilla de mensaje de WhatsApp.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">

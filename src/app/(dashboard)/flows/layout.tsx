@@ -4,7 +4,7 @@ export default function FlowsLayout({ children }: { children: React.ReactNode })
   return (
     <RequiresConnection
       title="Conecta un canal antes de crear flujos"
-      description="Los flujos son bots conversacionales que dialogan con tus contactos. Conecta un canal oficial primero para que el flujo tenga por dónde hablar."
+      description="Necesitas un canal oficial conectado para enviar mensajes."
     >
       {children}
     </RequiresConnection>

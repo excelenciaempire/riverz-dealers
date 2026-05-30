@@ -182,14 +182,12 @@ export default function FlowRunsPage() {
       </button>
       <h1 className="text-xl font-semibold text-foreground">Ejecuciones</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Las 50 ejecuciones más recientes de este flujo. Expande una fila para
-        ver el registro paso a paso del motor.
+        Las 50 más recientes. Expande una fila para ver el registro paso a paso.
       </p>
 
       {runs.length === 0 ? (
         <div className="mt-6 rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center text-sm text-muted-foreground">
-          Aún no hay ejecuciones. Activa el flujo desde un número personal de
-          WhatsApp para verlo aparecer aquí.
+          Aún no hay ejecuciones.
         </div>
       ) : (
         <div className="mt-6 flex flex-col gap-2">

@@ -245,9 +245,6 @@ export function SegmentsPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Segmentos guardados</h2>
-          <p className="text-xs text-muted-foreground">
-            Listas dinámicas que podés reutilizar en campañas masivas y automatizaciones.
-          </p>
         </div>
         <Button
           onClick={startNew}
@@ -268,9 +265,7 @@ export function SegmentsPanel() {
           <div className="flex flex-col items-center gap-2 p-10 text-center">
             <Layers className="size-8 text-muted-foreground" />
             <p className="max-w-sm text-sm text-muted-foreground">
-              Todavía no tenés segmentos guardados. Creá uno con el botón
-              <span className="mx-1 font-medium text-foreground">Nuevo segmento</span>
-              para reutilizarlo en campañas y automatizaciones.
+              Aún no hay segmentos.
             </p>
           </div>
         ) : (
@@ -466,9 +461,6 @@ function SegmentEditor({
             <DialogTitle className="text-base font-semibold text-foreground">
               {segment.id ? 'Editar segmento' : 'Nuevo segmento'}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              Definí reglas y mirá en vivo cuántos contactos cumplen.
-            </p>
           </div>
           <button
             type="button"
@@ -527,11 +519,11 @@ function SegmentEditor({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Reglas</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {rules.length === 0
-                      ? 'Añadí al menos una regla para empezar a filtrar.'
-                      : `${rules.length} regla${rules.length === 1 ? '' : 's'} configurada${rules.length === 1 ? '' : 's'}.`}
-                  </p>
+                  {rules.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {rules.length} regla{rules.length === 1 ? '' : 's'}
+                    </p>
+                  )}
                 </div>
                 <AddRuleMenu onAdd={addRule} hasCustomFields={customFields.length > 0} />
               </div>
@@ -594,7 +586,7 @@ function SegmentEditor({
               )}
               {preview.length === 0 && !previewing && (
                 <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-[11px] text-muted-foreground">
-                  Aún ningún contacto coincide. Probá ajustar las reglas.
+                  Ningún contacto coincide.
                 </p>
               )}
             </div>
