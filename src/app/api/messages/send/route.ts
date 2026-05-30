@@ -168,6 +168,7 @@ export async function POST(req: Request): Promise<Response> {
     .update({
       last_message_text: body.text.slice(0, 200),
       last_message_at: new Date().toISOString(),
+      last_sender_type: "agent",
       updated_at: new Date().toISOString(),
     })
     .eq("id", (conversation as Conversation).id);

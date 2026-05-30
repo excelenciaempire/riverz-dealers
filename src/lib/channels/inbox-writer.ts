@@ -129,6 +129,7 @@ export async function ingestInboundEvent(
     .update({
       last_message_text: event.text.slice(0, 200),
       last_message_at: event.receivedAt,
+      last_sender_type: event.outbound ? "agent" : "customer",
       unread_count: event.outbound
         ? (conversation.unread_count ?? 0)
         : (conversation.unread_count ?? 0) + 1,

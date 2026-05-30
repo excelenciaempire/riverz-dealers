@@ -412,8 +412,7 @@ function ConversationItem({
     [conversation, deleting, onDelete],
   );
   const contact = conversation.contact;
-  const displayName =
-    contact?.name || contact?.email || contact?.phone || contact?.external_id || "Sin nombre";
+  const displayName = resolveDisplayName(conversation.channel, contact);
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -538,16 +537,51 @@ function ConversationItem({
                 {conversation.unread_count}
               </span>
             )}
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
-              )}
-              title={conversation.status}
-            />
+            {needsReplyDot(conversation) && (
+              <span
+                className={cn("h-2 w-2 rounded-full", STATUS_COLORS[conversation.status])}
+                title="Sin responder"
+              />
+            )}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * The status dot is an unread/unreplied signal — only show it while the
+ * conversation is open AND the last message came from the customer.
+ * Once an agent (or bot) replies, or the conversation is closed, the
+ * dot goes away.
+ */
+function needsReplyDot(conversation: Conversation): boolean {
+  if (conversation.status === "closed") return false;
+  const last = conversation.last_sender_type;
+  if (last === "agent" || last === "bot") return false;
+  return true;
+}
+
+/**
+ * Best-effort display label for a conversation row. Falls back through
+ * the contact's available identifiers, and for Meta DMs (whose names
+ * Meta withholds until the app has Advanced Access to
+ * instagram_manage_messages / pages_messaging) we render a friendly
+ * "Cliente Instagram · ...id" instead of pasting the raw 16-digit PSID.
+ */
+function resolveDisplayName(
+  channel: Conversation["channel"],
+  contact: Conversation["contact"],
+): string {
+  if (contact?.name) return contact.name;
+  if (contact?.email) return contact.email;
+  if (contact?.phone) return contact.phone;
+  const ext = contact?.external_id;
+  if (ext) {
+    if (channel === "instagram") return `Cliente Instagram · …${ext.slice(-5)}`;
+    if (channel === "messenger") return `Cliente Messenger · …${ext.slice(-5)}`;
+    return ext;
+  }
+  return "Sin nombre";
 }

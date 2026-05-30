@@ -146,6 +146,9 @@ export interface Conversation {
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
+  /** Sender type of the most recent message — drives the "needs reply"
+   * dot in the inbox row. Maintained by inbox-writer + send-route. */
+  last_sender_type?: SenderType;
   unread_count: number;
   created_at: string;
   updated_at: string;
