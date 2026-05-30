@@ -58,10 +58,15 @@ export async function GET(request: Request) {
     const token = decrypt(enc);
 
     const isMessenger = c.channel === "messenger";
-    const ownerId = isMessenger ? String(cfg.page_id ?? "") : String(cfg.ig_user_id ?? "");
+    // Graph lists conversations off the PAGE for both Messenger and
+    // Instagram (the latter via platform=instagram). The "self" id for
+    // detecting outbound messages differs though: messenger uses the
+    // page id, IG uses the IG user id.
+    const pageId = String(cfg.page_id ?? "");
+    const selfId = isMessenger ? pageId : String(cfg.ig_user_id ?? "");
     const platform = isMessenger ? "messenger" : "instagram";
-    if (!ownerId) {
-      results.push({ connection_id: c.id, channel: c.channel, ingested: 0, error: "no owner id" });
+    if (!pageId || !selfId) {
+      results.push({ connection_id: c.id, channel: c.channel, ingested: 0, error: "missing ids" });
       continue;
     }
 
@@ -76,9 +81,9 @@ export async function GET(request: Request) {
       try {
         const n = await backfillContact({
           token,
-          ownerId,
+          pageId,
+          selfId,
           platform,
-          ownerKey: isMessenger ? "page_id" : "ig_user_id",
           connection: c,
           contact,
         });
@@ -98,9 +103,9 @@ export async function GET(request: Request) {
 
 interface BackfillArgs {
   token: string;
-  ownerId: string;
+  pageId: string;
+  selfId: string;
   platform: "messenger" | "instagram";
-  ownerKey: "page_id" | "ig_user_id";
   connection: ChannelConnection;
   contact: Contact;
 }
@@ -108,8 +113,10 @@ interface BackfillArgs {
 async function backfillContact(args: BackfillArgs): Promise<number> {
   const externalId = args.contact.external_id;
   if (!externalId) return 0;
-  // 1. Resolve the thread id for this contact on this page/IG account.
-  const convUrl = new URL(`${GRAPH}/${args.ownerId}/conversations`);
+  // 1. Resolve the thread id for this contact. Both messenger and
+  //    instagram conversations are listed off the Page id with the
+  //    platform query param.
+  const convUrl = new URL(`${GRAPH}/${args.pageId}/conversations`);
   convUrl.searchParams.set("platform", args.platform);
   convUrl.searchParams.set("user_id", externalId);
   convUrl.searchParams.set("access_token", args.token);
@@ -142,7 +149,7 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
       if (!m.id) continue;
       const fromId = m.from?.id;
       // Outbound = the page / IG account itself sent it.
-      const isOutbound = fromId === args.ownerId;
+      const isOutbound = fromId === args.selfId;
       // For inbound we already have it through the webhook; only fill
       // outbound gaps here (the whole reason for this backfill).
       if (!isOutbound) continue;
