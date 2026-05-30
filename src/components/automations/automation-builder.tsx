@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -39,8 +39,19 @@ import type {
   AutomationStepType,
   AutomationTriggerType,
   KeywordMatchTriggerConfig,
+  MessageTemplate,
 } from "@/types"
+import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
+import type {
+  TemplateButtonInput,
+  TemplateHeaderType,
+} from "@/lib/whatsapp/template-components"
+
+/** Approved templates, shared with the send_template editor + the phone
+ *  preview without threading props through the recursive step tree. */
+const TemplatesContext = createContext<MessageTemplate[]>([])
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -165,6 +176,26 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
+
+  // Load the user's templates once — powers the send_template picker and
+  // the live phone preview. Approved first so the dropdown is useful.
+  useEffect(() => {
+    const supabase = createClient()
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from("message_templates")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("status", { ascending: true })
+        .order("name", { ascending: true })
+      setTemplates((data as MessageTemplate[]) ?? [])
+    })()
+  }, [])
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -245,6 +276,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   return (
+    <TemplatesContext.Provider value={templates}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -282,30 +314,140 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         </Button>
       </header>
 
-      {/* Canvas — horizontal flow (trigger → steps left-to-right), like the
-          reference design. Condition branches stay vertical beneath their
-          node. Scrolls both axes for long / branching flows. */}
-      <div className="relative flex-1 overflow-auto">
-        <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-        <div className="relative flex w-max items-start gap-0 px-8 py-10">
-          <TriggerCard
-            type={state.trigger_type}
-            config={state.trigger_config}
-            onTypeChange={(t) => patchTop("trigger_type", t)}
-            onConfigChange={(c) => patchTop("trigger_config", c)}
-          />
-          <StepList
-            steps={state.steps}
-            parentPath={[]}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            updateStep={updateStep}
-            addStepAt={addStepAt}
-            deleteStepAt={deleteStepAt}
-            moveStepAt={moveStepAt}
-          />
+      {/* Body: canvas + live phone preview rail (like the template builder). */}
+      <div className="flex min-h-0 flex-1">
+        {/* Canvas — horizontal flow (trigger → steps left-to-right), like the
+            reference design. Condition branches stay vertical beneath their
+            node. Scrolls both axes for long / branching flows. */}
+        <div className="relative flex-1 overflow-auto">
+          <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
+          <div className="relative flex w-max items-start gap-0 px-8 py-10">
+            <TriggerCard
+              type={state.trigger_type}
+              config={state.trigger_config}
+              onTypeChange={(t) => patchTop("trigger_type", t)}
+              onConfigChange={(c) => patchTop("trigger_config", c)}
+            />
+            <StepList
+              steps={state.steps}
+              parentPath={[]}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              updateStep={updateStep}
+              addStepAt={addStepAt}
+              deleteStepAt={deleteStepAt}
+              moveStepAt={moveStepAt}
+            />
+          </div>
         </div>
+
+        {/* Live phone preview of the message being composed. */}
+        <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
+          <MessagePreviewRail steps={state.steps} expandedId={expandedId} />
+        </aside>
       </div>
+    </div>
+    </TemplatesContext.Provider>
+  )
+}
+
+// ------------------------------------------------------------
+// Live phone preview rail
+// ------------------------------------------------------------
+
+/** Depth-first search for a step by cid across the branch tree. */
+function findStepByCid(steps: BuilderStep[], cid: string | null): BuilderStep | null {
+  if (!cid) return null
+  for (const s of steps) {
+    if (s.cid === cid) return s
+    if (s.branches) {
+      const found =
+        findStepByCid(s.branches.yes, cid) ?? findStepByCid(s.branches.no, cid)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/** First send_message / send_template anywhere in the tree (fallback). */
+function firstMessageStep(steps: BuilderStep[]): BuilderStep | null {
+  for (const s of steps) {
+    if (s.step_type === "send_message" || s.step_type === "send_template") return s
+    if (s.branches) {
+      const found =
+        firstMessageStep(s.branches.yes) ?? firstMessageStep(s.branches.no)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function MessagePreviewRail({
+  steps,
+  expandedId,
+}: {
+  steps: BuilderStep[]
+  expandedId: string | null
+}) {
+  const templates = useContext(TemplatesContext)
+
+  // Prefer the step being edited; otherwise show the first message step.
+  const expanded = findStepByCid(steps, expandedId)
+  const target =
+    expanded &&
+    (expanded.step_type === "send_message" || expanded.step_type === "send_template")
+      ? expanded
+      : firstMessageStep(steps)
+
+  const preview = useMemo(() => {
+    if (!target) return null
+    if (target.step_type === "send_message") {
+      return {
+        headerType: "none" as TemplateHeaderType,
+        bodyText: (target.step_config.text as string) || "",
+        footerText: undefined as string | undefined,
+        buttons: undefined as TemplateButtonInput[] | undefined,
+      }
+    }
+    // send_template → resolve the chosen template's content.
+    const name = target.step_config.template_name as string | undefined
+    const tpl = templates.find((t) => t.name === name)
+    if (!tpl) {
+      return {
+        headerType: "none" as TemplateHeaderType,
+        bodyText: name ? `Plantilla: ${name}` : "Selecciona una plantilla…",
+        footerText: undefined,
+        buttons: undefined,
+      }
+    }
+    return {
+      headerType: (tpl.header_type ?? "none") as TemplateHeaderType,
+      headerText: tpl.header_content ?? undefined,
+      bodyText: tpl.body_text || "",
+      footerText: tpl.footer_text ?? undefined,
+      buttons: undefined as TemplateButtonInput[] | undefined,
+    }
+  }, [target, templates])
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-foreground">Vista previa</p>
+      {preview ? (
+        <WhatsappPreview
+          headerType={preview.headerType}
+          headerText={
+            "headerText" in preview ? (preview.headerText as string | undefined) : undefined
+          }
+          bodyText={preview.bodyText}
+          footerText={preview.footerText}
+          buttons={preview.buttons}
+        />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Añade un paso de «Enviar mensaje» o «Enviar plantilla» para ver cómo lo
+          recibirá tu contacto.
+        </p>
+      )}
     </div>
   )
 }
@@ -734,6 +876,7 @@ function StepEditor({
   onChange: (s: BuilderStep) => void
 }) {
   const cfg = step.step_config
+  const templates = useContext(TemplatesContext)
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
 
@@ -752,17 +895,40 @@ function StepEditor({
     case "send_template":
       return (
         <>
-          <FieldBlock label="Nombre de la plantilla">
-            <Input
-              value={(cfg.template_name as string) ?? ""}
-              onChange={(e) => set({ template_name: e.target.value })}
-              className="bg-muted text-foreground"
-            />
+          <FieldBlock label="Plantilla">
+            {templates.length > 0 ? (
+              <select
+                value={(cfg.template_name as string) ?? ""}
+                onChange={(e) => {
+                  const tpl = templates.find((t) => t.name === e.target.value)
+                  set({
+                    template_name: e.target.value,
+                    language: tpl?.language ?? (cfg.language as string) ?? "es",
+                  })
+                }}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="">Selecciona una plantilla…</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.name}>
+                    {t.name} ({t.language}) · {t.status ?? "Draft"}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={(cfg.template_name as string) ?? ""}
+                onChange={(e) => set({ template_name: e.target.value })}
+                placeholder="nombre_de_plantilla"
+                className="bg-muted text-foreground"
+              />
+            )}
           </FieldBlock>
           <FieldBlock label="Idioma">
             <Input
               value={(cfg.language as string) ?? ""}
               onChange={(e) => set({ language: e.target.value })}
+              placeholder="es"
               className="bg-muted text-foreground"
             />
           </FieldBlock>

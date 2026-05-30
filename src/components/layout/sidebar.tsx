@@ -9,12 +9,13 @@ import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
 import {
   LayoutDashboard,
-  MessageSquare,
+  Inbox,
   Users,
-  Radio,
+  Megaphone,
+  LayoutTemplate,
   Zap,
-  Workflow,
-  FileText,
+  Waypoints,
+  Blocks,
   Settings,
   LogOut,
   User,
@@ -58,17 +59,22 @@ const navGroups: NavGroup[] = [
     title: "Principal",
     items: [
       { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
-      { href: "/inbox", label: "Bandeja", icon: MessageSquare },
+      { href: "/inbox", label: "Bandeja", icon: Inbox },
       { href: "/contacts", label: "Contactos", icon: Users },
     ],
   },
   {
-    title: "Campañas",
+    title: "Marketing",
     items: [
-      { href: "/broadcasts", label: "Difusión", icon: Radio },
-      { href: "/templates", label: "Plantillas", icon: FileText },
+      { href: "/broadcasts", label: "Difusión", icon: Megaphone },
+      { href: "/templates", label: "Plantillas", icon: LayoutTemplate },
+    ],
+  },
+  {
+    title: "Automatización",
+    items: [
       { href: "/automations", label: "Automatizaciones", icon: Zap },
-      { href: "/flows", label: "Flujos", icon: Workflow },
+      { href: "/flows", label: "Flujos", icon: Waypoints },
     ],
   },
 ];
@@ -225,13 +231,23 @@ export function Sidebar({
           ))}
         </nav>
 
-        {/* Settings + sign out */}
+        {/* Integraciones + Ajustes */}
         <div
           className={cn(
             "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
+          <NavLink
+            item={{
+              href: "/settings?tab=channels",
+              label: "Integraciones",
+              icon: Blocks,
+            }}
+            pathname={pathname}
+            collapsed={collapsed}
+            totalUnread={0}
+          />
           <NavLink
             item={{ href: "/settings", label: "Ajustes", icon: Settings }}
             pathname={pathname}

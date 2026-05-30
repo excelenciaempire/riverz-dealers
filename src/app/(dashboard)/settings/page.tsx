@@ -1,9 +1,8 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageSquare, Tag, User, Palette, Building2, Plug2 } from 'lucide-react';
+import { Tag, User, Palette, Building2, Plug2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
@@ -17,7 +16,6 @@ const TAB_VALUES = [
   'profile',
   'workspace',
   'channels',
-  'templates',
   'tags',
   'appearance',
 ] as const;
@@ -45,7 +43,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Ajustes</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Perfil, equipo, canales, plantillas y etiquetas — todo en un mismo sitio.
+          Perfil, equipo, canales, integraciones y etiquetas — todo en un mismo sitio.
         </p>
       </div>
 
@@ -71,13 +69,6 @@ export default function SettingsPage() {
           >
             <Plug2 className="size-4" />
             Canales
-          </TabsTrigger>
-          <TabsTrigger
-            value="templates"
-            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-          >
-            <MessageSquare className="size-4" />
-            Plantillas
           </TabsTrigger>
           <TabsTrigger
             value="tags"
@@ -108,10 +99,6 @@ export default function SettingsPage() {
         <TabsContent value="channels" className="space-y-6">
           <ChannelsPanel />
           <ShopifyCard />
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <TemplateManager />
         </TabsContent>
 
         <TabsContent value="tags">
