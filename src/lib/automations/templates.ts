@@ -10,6 +10,7 @@ export type TemplateSlug =
   | 'out_of_office'
   | 'lead_qualifier'
   | 'follow_up_reminder'
+  | 'cart_recovery'
 
 export interface TemplateStepSeed {
   step_type: AutomationStepType
@@ -122,6 +123,30 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
           text:
             "Solo retomando — ¿tenías alguna otra pregunta para nosotros? ¡Con gusto te ayudamos!",
         },
+      },
+    ],
+  },
+  cart_recovery: {
+    slug: 'cart_recovery',
+    name: 'Recuperación de carrito (Shopify)',
+    description:
+      'Cuando alguien deja un checkout en Shopify, espera 15 min y le escribe por WhatsApp para recuperar la venta.',
+    trigger_type: 'shopify_abandoned_checkout',
+    trigger_config: {},
+    steps: [
+      {
+        step_type: 'wait',
+        step_config: { amount: 15, unit: 'minutes' },
+      },
+      {
+        // Outside the 24h window a template is required for first-touch —
+        // pick an approved cart-recovery template in the step config.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es' },
+      },
+      {
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
       },
     ],
   },

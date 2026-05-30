@@ -113,6 +113,11 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
   { value: "conversation_assigned", label: "Conversación asignada", hint: "Cuando se asigna a un agente" },
   { value: "tag_added", label: "Etiqueta añadida", hint: "Cuando se añade una etiqueta a un contacto" },
   { value: "time_based", label: "Programada", hint: "En un horario recurrente" },
+  {
+    value: "shopify_abandoned_checkout",
+    label: "Carrito abandonado (Shopify)",
+    hint: "Cuando alguien deja un checkout en tu tienda Shopify conectada",
+  },
 ]
 
 function cid(): string {
