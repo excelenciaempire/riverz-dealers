@@ -282,10 +282,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         </Button>
       </header>
 
-      {/* Canvas */}
-      <div className="relative flex-1 overflow-y-auto">
+      {/* Canvas — horizontal flow (trigger → steps left-to-right), like the
+          reference design. Condition branches stay vertical beneath their
+          node. Scrolls both axes for long / branching flows. */}
+      <div className="relative flex-1 overflow-auto">
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
+        <div className="relative flex w-max items-start gap-0 px-8 py-10">
           <TriggerCard
             type={state.trigger_type}
             config={state.trigger_config}
@@ -472,6 +474,9 @@ interface StepListProps {
 
 function StepList(props: StepListProps) {
   const { steps, parentPath, ...rest } = props
+  // Root flow runs horizontally; condition branches (non-empty parentPath)
+  // keep the vertical stack so each lane reads top-to-bottom.
+  const horizontal = parentPath.length === 0
   const parentScope: ParentScope =
     parentPath.length === 0
       ? { kind: "root" }
@@ -482,14 +487,18 @@ function StepList(props: StepListProps) {
         })()
 
   return (
-    <div className="flex flex-col items-center">
-      <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
+    <div className={cn(horizontal ? "flex items-start" : "flex flex-col items-center")}>
+      <AddButton
+        orientation={horizontal ? "h" : "v"}
+        onPick={(t) => props.addStepAt(parentScope, 0, t)}
+      />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
           step={step}
           index={idx}
           total={steps.length}
+          horizontal={horizontal}
           parentScope={parentScope}
           parentPath={parentPath}
           {...rest}
@@ -503,6 +512,7 @@ function StepRenderer({
   step,
   index,
   total,
+  horizontal,
   parentScope,
   parentPath,
   ...props
@@ -510,6 +520,7 @@ function StepRenderer({
   step: BuilderStep
   index: number
   total: number
+  horizontal: boolean
   parentScope: ParentScope
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
@@ -605,6 +616,7 @@ function StepRenderer({
       </div>
 
       <AddButton
+        orientation={horizontal ? "h" : "v"}
         onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
       />
     </>
@@ -664,10 +676,25 @@ function BranchColumn({
   )
 }
 
-function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
+function AddButton({
+  onPick,
+  orientation = "v",
+}: {
+  onPick: (t: AutomationStepType) => void
+  orientation?: "h" | "v"
+}) {
+  const seg = orientation === "h" ? "h-[2px] w-4" : "h-4 w-[2px]"
   return (
-    <div className="relative flex flex-col items-center">
-      <div className="h-4 w-[2px] bg-border" aria-hidden />
+    <div
+      className={cn(
+        "relative flex items-center",
+        // Top-align in horizontal mode so the line meets the card header
+        // (cards grow downward when expanded / when conditions sprout
+        // branches), ~28px ≈ half the collapsed header height.
+        orientation === "h" ? "flex-row self-start mt-7" : "flex-col",
+      )}
+    >
+      <div className={cn(seg, "bg-border")} aria-hidden />
       <DropdownMenu>
         <DropdownMenuTrigger
           className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-accent-ink"
@@ -690,7 +717,7 @@ function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-      <div className="h-4 w-[2px] bg-border" aria-hidden />
+      <div className={cn(seg, "bg-border")} aria-hidden />
     </div>
   )
 }
