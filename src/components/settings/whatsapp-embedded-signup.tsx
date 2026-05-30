@@ -141,14 +141,9 @@ export function WhatsAppEmbeddedSignup({
     );
   }, [finish]);
 
-  // Without the env config the button can't work — tell the admin.
-  if (!APP_ID || !CONFIG_ID) {
-    return (
-      <p className="text-center text-[10px] leading-snug text-amber-300">
-        Falta configurar Embedded Signup (NEXT_PUBLIC_META_APP_ID / NEXT_PUBLIC_META_ES_CONFIG_ID).
-      </p>
-    );
-  }
+  // Without the env config we can't launch the popup — render nothing
+  // so the parent falls back to the manual-paste connect button.
+  if (!APP_ID || !CONFIG_ID) return null;
 
   return (
     <button

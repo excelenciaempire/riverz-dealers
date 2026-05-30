@@ -428,10 +428,13 @@ export function ChannelsPanel() {
               {/* CTA */}
               {isAdmin && (
                 <div className="mt-auto space-y-1.5">
-                  {/* WhatsApp: official Embedded Signup (Coexistence or new
-                      number) is the primary path; pasting a token stays as a
-                      secondary fallback. */}
-                  {g.connectChannel === "whatsapp" && ready ? (
+                  {/* WhatsApp: Embedded Signup (Coexistence/new number) is
+                      the primary path WHEN configured; otherwise fall through
+                      to the manual paste button so the WhatsApp card still
+                      lets the admin connect any number via token paste. */}
+                  {g.connectChannel === "whatsapp" &&
+                  ready &&
+                  process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
                     <>
                       <WhatsAppEmbeddedSignup
                         workspaceId={workspace.id}

@@ -243,6 +243,95 @@ function MessageContent({ message }: { message: Message }) {
   }
 }
 
+/**
+ * Email body renderer. Two jobs:
+ *   1. Decode the HTML entities (&gt;, &nbsp;, …) the raw text body
+ *      shows up with after our stripHtml pass at ingest time.
+ *   2. Detect the quoted reply chain (everything below "El X escribió:",
+ *      "On … wrote:", "From:", "De:", "-----Original Message-----", or
+ *      a run of lines starting with ">") and collapse it behind a
+ *      toggle, so the visible body is just the new content of THIS
+ *      message — like Gmail's "..." quote fold.
+ */
+function EmailBody({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const { primary, quoted } = splitEmailQuote(text);
+  return (
+    <div>
+      <p className="whitespace-pre-wrap break-words text-sm">
+        {primary || (quoted ? "" : "[sin contenido]")}
+      </p>
+      {quoted && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            ···
+            {open ? " ocultar mensaje citado" : " mostrar mensaje citado"}
+          </button>
+          {open && (
+            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted/30 p-2 text-[11px] text-muted-foreground">
+              {quoted}
+            </pre>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeHtmlEntities(s: string): string {
+  return s.replace(/&(amp|lt|gt|quot|apos|nbsp|#x?\d+);/gi, (full, name) => {
+    const key = name.toLowerCase();
+    if (HTML_ENTITIES[key]) return HTML_ENTITIES[key];
+    // numeric: &#39; or &#x27;
+    const num = /^#(x?)(\d+)$/i.exec(name);
+    if (num) {
+      const code = parseInt(num[2], num[1] ? 16 : 10);
+      if (!Number.isNaN(code)) return String.fromCodePoint(code);
+    }
+    return full;
+  });
+}
+
+function splitEmailQuote(raw: string): { primary: string; quoted: string } {
+  const decoded = decodeHtmlEntities(raw).replace(/\r\n/g, "\n");
+  // Common reply-chain markers (Outlook, Gmail, Apple Mail, ES + EN).
+  const markers: RegExp[] = [
+    /^[ \t>]*El\s+\w+,?\s.+escribi[oó]:\s*$/im,
+    /^[ \t>]*On\s.+wrote:\s*$/im,
+    /^[ \t>]*-{2,}\s*(Original\s*Message|Mensaje\s*original)\s*-{2,}\s*$/im,
+    /^[ \t>]*De:\s.+$/im,
+    /^[ \t>]*From:\s.+$/im,
+    /^[ \t>]*Enviado\s+desde\s+mi\s+\w+/im,
+    /^[ \t>]*Sent\s+from\s+my\s+\w+/im,
+    /^[ \t>]*Obtener\s+Outlook\s+para/im,
+    /^>+ /m,
+  ];
+  let cutAt = decoded.length;
+  for (const m of markers) {
+    const match = decoded.match(m);
+    if (match && match.index !== undefined && match.index < cutAt) {
+      cutAt = match.index;
+    }
+  }
+  return {
+    primary: decoded.slice(0, cutAt).trim(),
+    quoted: decoded.slice(cutAt).trim(),
+  };
+}
+
 export function MessageBubble({
   message,
   reply,
@@ -299,7 +388,7 @@ export function MessageBubble({
             {reply && (
               <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
             )}
-            <MessageContent message={message} />
+            <EmailBody text={message.content_text ?? ""} />
           </div>
         </div>
       </div>
