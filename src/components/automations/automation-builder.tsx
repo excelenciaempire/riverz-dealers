@@ -27,6 +27,8 @@ import {
   ZoomOut,
   Maximize2,
   MousePointer2,
+  Layers,
+  X as XIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -45,6 +47,7 @@ import type {
   KeywordMatchTriggerConfig,
   MessageTemplate,
 } from "@/types"
+import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
@@ -56,6 +59,10 @@ import type {
 /** Approved templates, shared with the send_template editor + the phone
  *  preview without threading props through the recursive step tree. */
 const TemplatesContext = createContext<MessageTemplate[]>([])
+
+/** Saved contact segments — used by the audience picker on the trigger
+ *  card and by the `in_segment` condition subject inside the step tree. */
+const SegmentsContext = createContext<ContactSegment[]>([])
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -75,6 +82,7 @@ export interface BuilderInitial {
   description: string
   trigger_type: AutomationTriggerType
   trigger_config: Record<string, unknown>
+  audience_segment_id?: string | null
   is_active: boolean
   steps: BuilderStep[]
 }
@@ -135,6 +143,152 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
   },
 ]
 
+/**
+ * Sub-bar between the header and the canvas. Lets the user scope the
+ * whole automation to a saved segment — the engine will skip firing
+ * for contacts that don't currently match.
+ */
+function AudienceStrip({
+  segments,
+  value,
+  onChange,
+}: {
+  segments: ContactSegment[]
+  value: string | null
+  onChange: (v: string | null) => void
+}) {
+  const selected = value ? segments.find((s) => s.id === value) : null
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2 text-xs">
+      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="text-muted-foreground">Audiencia:</span>
+      {segments.length === 0 ? (
+        <span className="text-muted-foreground">
+          Sin segmentos guardados.{" "}
+          <a href="/contacts?tab=segments" className="underline hover:text-foreground">
+            Crear uno
+          </a>{" "}
+          para acotar la audiencia.
+        </span>
+      ) : (
+        <>
+          <select
+            value={value ?? ""}
+            onChange={(e) => onChange(e.target.value || null)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Todos los contactos del workspace</option>
+            {segments.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          {selected && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              title="Quitar filtro"
+              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <span className="text-muted-foreground">
+            {selected
+              ? `Solo dispara para contactos del segmento "${selected.name}".`
+              : "Dispara para cualquier contacto que cumpla el trigger."}
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Condition step body. Lives in its own component so it can pull the
+ * saved-segment list from SegmentsContext (the `in_segment` subject
+ * needs a real dropdown, not a free-text segment-id field).
+ */
+function ConditionFields({
+  cfg,
+  set,
+}: {
+  cfg: Record<string, unknown>
+  set: (patch: Record<string, unknown>) => void
+}) {
+  const segments = useContext(SegmentsContext)
+  const subject = (cfg.subject as string) ?? "tag_presence"
+  return (
+    <>
+      <FieldBlock label="Sujeto">
+        <select
+          value={subject}
+          onChange={(e) => set({ subject: e.target.value, operand: "", value: "" })}
+          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+        >
+          <option value="tag_presence">Presencia de etiqueta</option>
+          <option value="contact_field">Campo del contacto</option>
+          <option value="message_content">Contenido del mensaje</option>
+          <option value="time_of_day">Hora del día</option>
+          <option value="in_segment">Pertenece a un segmento</option>
+        </select>
+      </FieldBlock>
+      {subject === "in_segment" ? (
+        <FieldBlock label="Segmento">
+          <select
+            value={(cfg.operand as string) ?? ""}
+            onChange={(e) => set({ operand: e.target.value })}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="">Elegir un segmento…</option>
+            {segments.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          {segments.length === 0 && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              No tenés segmentos guardados todavía.{" "}
+              <a href="/contacts?tab=segments" className="underline">
+                Crear uno
+              </a>
+              .
+            </p>
+          )}
+        </FieldBlock>
+      ) : (
+        <FieldBlock label="Operando">
+          <Input
+            placeholder={
+              subject === "time_of_day"
+                ? "HH:mm-HH:mm"
+                : subject === "contact_field"
+                ? "nombre / correo / empresa"
+                : subject === "tag_presence"
+                ? "ID de la etiqueta"
+                : ""
+            }
+            value={(cfg.operand as string) ?? ""}
+            onChange={(e) => set({ operand: e.target.value })}
+            className="bg-muted text-foreground"
+          />
+        </FieldBlock>
+      )}
+      {(subject === "contact_field" || subject === "message_content") && (
+        <FieldBlock label="Valor">
+          <Input
+            value={(cfg.value as string) ?? ""}
+            onChange={(e) => set({ value: e.target.value })}
+            className="bg-muted text-foreground"
+          />
+        </FieldBlock>
+      )}
+    </>
+  )
+}
+
 function cid(): string {
   return (
     "c_" +
@@ -181,9 +335,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
+  const [segments, setSegments] = useState<ContactSegment[]>([])
 
   // Load the user's templates once — powers the send_template picker and
   // the live phone preview. Approved first so the dropdown is useful.
+  // Segments load alongside so the audience filter dropdown is populated
+  // without a separate round-trip per render.
   useEffect(() => {
     const supabase = createClient()
     void (async () => {
@@ -191,13 +348,20 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
-      const { data } = await supabase
-        .from("message_templates")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("status", { ascending: true })
-        .order("name", { ascending: true })
-      setTemplates((data as MessageTemplate[]) ?? [])
+      const [{ data: tpl }, { data: seg }] = await Promise.all([
+        supabase
+          .from("message_templates")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("status", { ascending: true })
+          .order("name", { ascending: true }),
+        supabase
+          .from("contact_segments")
+          .select("*")
+          .order("name", { ascending: true }),
+      ])
+      setTemplates((tpl as MessageTemplate[]) ?? [])
+      setSegments((seg as ContactSegment[]) ?? [])
     })()
   }, [])
 
@@ -238,6 +402,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         description: state.description || null,
         trigger_type: state.trigger_type,
         trigger_config: state.trigger_config,
+        audience_segment_id: state.audience_segment_id ?? null,
         is_active: state.is_active,
         steps: toApiSteps(state.steps),
       }
@@ -281,6 +446,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 
   return (
     <TemplatesContext.Provider value={templates}>
+    <SegmentsContext.Provider value={segments}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -318,6 +484,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         </Button>
       </header>
 
+      <AudienceStrip
+        segments={segments}
+        value={state.audience_segment_id ?? null}
+        onChange={(v) => patchTop("audience_segment_id", v)}
+      />
+
       {/* Body: canvas + live phone preview rail (like the template builder). */}
       <div className="flex min-h-0 flex-1">
         {/* Canvas — Miro-style infinite viewport: pan with middle mouse or
@@ -351,6 +523,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         </aside>
       </div>
     </div>
+    </SegmentsContext.Provider>
     </TemplatesContext.Provider>
   )
 }
@@ -1022,47 +1195,8 @@ function StepEditor({
         </div>
       )
     case "condition":
-      return (
-        <>
-          <FieldBlock label="Sujeto">
-            <select
-              value={(cfg.subject as string) ?? "tag_presence"}
-              onChange={(e) => set({ subject: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="tag_presence">Presencia de etiqueta</option>
-              <option value="contact_field">Campo del contacto</option>
-              <option value="message_content">Contenido del mensaje</option>
-              <option value="time_of_day">Hora del día</option>
-            </select>
-          </FieldBlock>
-          <FieldBlock label="Operando">
-            <Input
-              placeholder={
-                cfg.subject === "time_of_day"
-                  ? "HH:mm-HH:mm"
-                  : cfg.subject === "contact_field"
-                  ? "nombre / correo / empresa"
-                  : cfg.subject === "tag_presence"
-                  ? "ID de la etiqueta"
-                  : ""
-              }
-              value={(cfg.operand as string) ?? ""}
-              onChange={(e) => set({ operand: e.target.value })}
-              className="bg-muted text-foreground"
-            />
-          </FieldBlock>
-          {(cfg.subject === "contact_field" || cfg.subject === "message_content") && (
-            <FieldBlock label="Valor">
-              <Input
-                value={(cfg.value as string) ?? ""}
-                onChange={(e) => set({ value: e.target.value })}
-                className="bg-muted text-foreground"
-              />
-            </FieldBlock>
-          )}
-        </>
-      )
+      return <ConditionFields cfg={cfg} set={set} />
+
     case "send_webhook":
       return (
         <>

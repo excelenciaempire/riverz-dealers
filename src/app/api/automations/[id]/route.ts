@@ -72,6 +72,7 @@ export async function PATCH(
     'description',
     'trigger_type',
     'trigger_config',
+    'audience_segment_id',
     'is_active',
   ] as const) {
     if (k in body) update[k] = body[k]

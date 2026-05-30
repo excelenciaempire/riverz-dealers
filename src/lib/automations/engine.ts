@@ -15,6 +15,9 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { resolveSegment } from '@/lib/segments/resolve'
+import type { ContactSegment } from '@/lib/segments/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ------------------------------------------------------------
 // Public API
@@ -65,6 +68,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
 
     for (const automation of automations as Automation[]) {
       if (!triggerMatches(automation, input.context)) continue
+      if (!(await audienceMatches(automation, input.contactId ?? null))) continue
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -458,6 +462,45 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   return data.id as string
 }
 
+/**
+ * If the automation is scoped to a segment, fire only when the
+ * contact matches the segment's current rules. Triggers without a
+ * contact (eg. time_based without a per-contact dispatch) can't be
+ * scoped — we fail closed in that case so the user notices.
+ */
+async function audienceMatches(automation: Automation, contactId: string | null): Promise<boolean> {
+  const segmentId = automation.audience_segment_id
+  if (!segmentId) return true
+  if (!contactId) return false
+  return isContactInSegment(supabaseAdmin(), segmentId, contactId)
+}
+
+async function isContactInSegment(
+  db: SupabaseClient,
+  segmentId: string,
+  contactId: string,
+): Promise<boolean> {
+  const { data: seg } = await db
+    .from('contact_segments')
+    .select('*')
+    .eq('id', segmentId)
+    .maybeSingle()
+  if (!seg) return false
+  const s = seg as ContactSegment
+  try {
+    const { contacts } = await resolveSegment(
+      db,
+      s.workspace_id,
+      s.rules ?? [],
+      s.match_mode,
+    )
+    return contacts.some((c) => c.id === contactId)
+  } catch (err) {
+    console.error('[automations] segment resolve failed:', err)
+    return false
+  }
+}
+
 function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
   if (automation.trigger_type !== 'keyword_match') return true
   const cfg = automation.trigger_config as KeywordMatchTriggerConfig
@@ -496,6 +539,10 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
     case 'message_content': {
       const text = (args.context.message_text ?? '').toString()
       return text.toLowerCase().includes((cfg.value ?? '').toLowerCase())
+    }
+    case 'in_segment': {
+      if (!args.contactId || !cfg.operand) return false
+      return isContactInSegment(db, cfg.operand, args.contactId)
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window

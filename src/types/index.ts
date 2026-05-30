@@ -408,7 +408,8 @@ export type ConditionSubject =
   | 'contact_field'
   | 'tag_presence'
   | 'message_content'
-  | 'time_of_day';
+  | 'time_of_day'
+  | 'in_segment';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;
@@ -443,6 +444,8 @@ export interface Automation {
   description?: string;
   trigger_type: AutomationTriggerType;
   trigger_config: AutomationTriggerConfig;
+  /** Optional saved segment that scopes which contacts the trigger fires for. */
+  audience_segment_id?: string | null;
   is_active: boolean;
   execution_count: number;
   last_executed_at?: string | null;
