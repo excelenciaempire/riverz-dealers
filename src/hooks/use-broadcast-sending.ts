@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
+import { resolveSegment } from '@/lib/segments/resolve';
+import type { ContactSegment } from '@/lib/segments/types';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -14,10 +16,12 @@ export interface CustomFieldFilter {
 }
 
 export interface AudienceConfig {
-  type: 'all' | 'tags' | 'custom_field' | 'csv';
+  type: 'all' | 'tags' | 'custom_field' | 'csv' | 'segment';
   tagIds?: string[];
   customField?: CustomFieldFilter;
   csvContacts?: { phone: string; name?: string }[];
+  /** When type === 'segment'. */
+  segmentId?: string;
   /** Contacts carrying any of these tags are subtracted from the result. */
   excludeTagIds?: string[];
 }
@@ -185,6 +189,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       contacts = await resolveCustomFieldAudience(supabase, audience.customField);
     } else if (audience.type === 'csv' && audience.csvContacts) {
       contacts = await upsertCsvContacts(supabase, audience.csvContacts);
+    } else if (audience.type === 'segment' && audience.segmentId) {
+      const { data: seg, error: segErr } = await supabase
+        .from('contact_segments')
+        .select('*')
+        .eq('id', audience.segmentId)
+        .maybeSingle();
+      if (segErr || !seg) {
+        throw new Error('No se encontró el segmento seleccionado.');
+      }
+      const s = seg as ContactSegment;
+      const resolved = await resolveSegment(
+        supabase,
+        s.workspace_id,
+        s.rules ?? [],
+        s.match_mode,
+      );
+      contacts = resolved.contacts;
     }
 
     // Apply exclude tags (works across all contact-derived audience
@@ -379,6 +400,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,
             customField: payload.audience.customField,
+            segmentId: payload.audience.segmentId,
             excludeTagIds: payload.audience.excludeTagIds,
           },
           create_conversations: payload.createConversations ?? false,

@@ -1342,6 +1342,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
   const [tx, setTx] = useState(0)
   const [ty, setTy] = useState(0)
   const [spaceDown, setSpaceDown] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{
     startX: number
     startY: number
@@ -1416,6 +1417,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
       startTx: tx,
       startTy: ty,
     }
+    setDragging(true)
   }
 
   useEffect(() => {
@@ -1425,7 +1427,10 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
       setTy(dragRef.current.startTy + (e.clientY - dragRef.current.startY))
     }
     function up() {
-      dragRef.current = null
+      if (dragRef.current) {
+        dragRef.current = null
+        setDragging(false)
+      }
     }
     window.addEventListener("mousemove", move)
     window.addEventListener("mouseup", up)
@@ -1447,11 +1452,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     setTy(0)
   }
 
-  const cursor = dragRef.current
-    ? "grabbing"
-    : spaceDown
-      ? "grab"
-      : "default"
+  const cursor = dragging ? "grabbing" : spaceDown ? "grab" : "default"
 
   return (
     <div

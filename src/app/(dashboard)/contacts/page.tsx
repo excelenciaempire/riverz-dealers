@@ -44,6 +44,8 @@ import {
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
+import { SegmentsPanel } from '@/components/contacts/segments-panel';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
 
@@ -70,6 +72,7 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [tab, setTab] = useState<'list' | 'segments'>('list');
 
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
@@ -215,24 +218,53 @@ export default function ContactsPage() {
             Gestiona tu lista de contactos. {totalCount > 0 && `${totalCount} contactos en total.`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-            className="border-border text-foreground hover:bg-accent"
-          >
-            <Upload className="size-4" />
-            Importar
-          </Button>
-          <Button
-            onClick={openAddForm}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="size-4" />
-            Añadir contacto
-          </Button>
-        </div>
+        {tab === 'list' && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="border-border text-foreground hover:bg-accent"
+            >
+              <Upload className="size-4" />
+              Importar
+            </Button>
+            <Button
+              onClick={openAddForm}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="size-4" />
+              Añadir contacto
+            </Button>
+          </div>
+        )}
       </div>
+
+      <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+        <button
+          onClick={() => setTab('list')}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm transition-colors',
+            tab === 'list'
+              ? 'bg-accent text-accent-ink'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Contactos
+        </button>
+        <button
+          onClick={() => setTab('segments')}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm transition-colors',
+            tab === 'segments'
+              ? 'bg-accent text-accent-ink'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Segmentos
+        </button>
+      </div>
+
+      {tab === 'segments' ? <SegmentsPanel /> : <>
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -428,6 +460,8 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
+
+      </>}
 
       {/* Contact Form Dialog */}
       <ContactForm

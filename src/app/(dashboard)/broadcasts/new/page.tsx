@@ -17,8 +17,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
+import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
+import type {
+  TemplateButtonInput,
+  TemplateHeaderType,
+} from '@/lib/whatsapp/template-components';
+import type { ContactSegment } from '@/lib/segments/types';
 
-type AudienceType = 'all' | 'tags';
+type AudienceType = 'all' | 'tags' | 'segment';
 
 export default function NewBroadcastPage() {
   const router = useRouter();
@@ -27,6 +33,8 @@ export default function NewBroadcastPage() {
   const [name, setName] = useState('');
   const [audienceType, setAudienceType] = useState<AudienceType>('all');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [segmentId, setSegmentId] = useState<string>('');
+  const [segments, setSegments] = useState<ContactSegment[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
@@ -48,6 +56,11 @@ export default function NewBroadcastPage() {
       .select('*')
       .order('name')
       .then(({ data }) => setTags((data ?? []) as Tag[]));
+    supabase
+      .from('contact_segments')
+      .select('*')
+      .order('name')
+      .then(({ data }) => setSegments((data ?? []) as ContactSegment[]));
   }, []);
 
   const template = useMemo(
@@ -77,6 +90,8 @@ export default function NewBroadcastPage() {
     if (!template) return 'Elegí una plantilla.';
     if (audienceType === 'tags' && selectedTagIds.length === 0)
       return 'Seleccioná al menos una etiqueta.';
+    if (audienceType === 'segment' && !segmentId)
+      return 'Elegí un segmento.';
     if (sendMode === 'schedule' && !scheduledAt) return 'Elegí cuándo programarla.';
     return null;
   }
@@ -92,6 +107,7 @@ export default function NewBroadcastPage() {
         audience: {
           type: audienceType,
           tagIds: audienceType === 'tags' ? selectedTagIds : undefined,
+          segmentId: audienceType === 'segment' ? segmentId : undefined,
         },
         variables: Object.fromEntries(
           templateVars.map((v) => [v, { type: 'static', value: variables[v] ?? '' }]),
@@ -135,8 +151,24 @@ export default function NewBroadcastPage() {
     router.push('/broadcasts');
   }
 
+  // Render the template body with the user's variable values substituted so
+  // the right-side phone preview reflects exactly what the recipient sees.
+  const previewBody = useMemo(() => {
+    if (!template?.body_text) {
+      return 'Elegí una plantilla aprobada para ver cómo se verá el mensaje.';
+    }
+    return template.body_text.replace(/\{\{(\d+)\}\}/g, (_, n: string) => {
+      const v = variables[n];
+      return v && v.trim() ? v : `{{${n}}}`;
+    });
+  }, [template, variables]);
+
+  const previewHeaderType: TemplateHeaderType =
+    (template?.header_type as TemplateHeaderType | undefined) ?? 'none';
+  const previewButtons = (template?.buttons ?? []) as unknown as TemplateButtonInput[];
+
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -149,6 +181,7 @@ export default function NewBroadcastPage() {
         <h1 className="text-xl font-semibold text-foreground">Nueva campaña</h1>
       </div>
 
+      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="space-y-5">
           <div className="space-y-1.5">
@@ -173,8 +206,34 @@ export default function NewBroadcastPage() {
               <SelectContent>
                 <SelectItem value="all">Todos los contactos</SelectItem>
                 <SelectItem value="tags">Por etiquetas</SelectItem>
+                <SelectItem value="segment">Por segmento guardado</SelectItem>
               </SelectContent>
             </Select>
+            {audienceType === 'segment' && (
+              <div className="mt-2 space-y-1">
+                <Select value={segmentId} onValueChange={(v) => setSegmentId(v ?? '')}>
+                  <SelectTrigger className="w-full bg-background">
+                    <SelectValue placeholder="Elegir un segmento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segments.length === 0 && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        No tenés segmentos. Creá uno en Contactos → Segmentos.
+                      </div>
+                    )}
+                    {segments.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Los contactos se resuelven al enviar, así que el segmento se mantiene
+                  actualizado.
+                </p>
+              </div>
+            )}
             {audienceType === 'tags' && (
               <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
                 {tags.length === 0 && (
@@ -259,15 +318,6 @@ export default function NewBroadcastPage() {
             </Select>
           </div>
 
-          {template && (
-            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-xs font-medium text-foreground">Vista previa</p>
-              <p className="whitespace-pre-wrap text-sm text-foreground">
-                {template.body_text}
-              </p>
-            </div>
-          )}
-
           {templateVars.length > 0 && (
             <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
               <p className="text-xs font-medium text-foreground">Valores de las variables</p>
@@ -335,6 +385,17 @@ export default function NewBroadcastPage() {
             )}
           </Button>
         </div>
+      </div>
+
+        <aside className="lg:sticky lg:top-4 lg:self-start">
+          <WhatsappPreview
+            headerType={previewHeaderType}
+            headerText={template?.header_content}
+            bodyText={previewBody}
+            footerText={template?.footer_text}
+            buttons={previewButtons}
+          />
+        </aside>
       </div>
     </div>
   );
