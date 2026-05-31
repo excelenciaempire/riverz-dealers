@@ -306,3 +306,231 @@ async function sendInteractiveViaMeta(
 
   return { whatsapp_message_id: waMessageId }
 }
+
+// ============================================================
+// v2 — Media + CTA URL senders
+// ============================================================
+
+import {
+  sendImageMessage,
+  sendVideoMessage,
+  sendDocumentMessage,
+  sendInteractiveCtaUrl,
+} from '@/lib/whatsapp/meta-api'
+
+type MediaKind = 'image' | 'video' | 'document'
+
+interface SendMediaEngineArgs {
+  userId: string
+  conversationId: string
+  contactId: string
+  url: string
+  caption?: string
+  /** Document only. */
+  filename?: string
+}
+
+async function engineSendMediaInner(
+  args: SendMediaEngineArgs,
+  kind: MediaKind,
+): Promise<{ whatsapp_message_id: string }> {
+  const db = supabaseAdmin()
+
+  const { data: contact, error: contactErr } = await db
+    .from('contacts')
+    .select('id, phone')
+    .eq('id', args.contactId)
+    .eq('user_id', args.userId)
+    .maybeSingle()
+  if (contactErr || !contact?.phone) {
+    throw new Error('contact not found for this user')
+  }
+
+  const sanitized = sanitizePhoneForMeta(contact.phone)
+  if (!isValidE164(sanitized)) {
+    throw new Error(`contact phone invalid: ${contact.phone}`)
+  }
+
+  const { data: config, error: configErr } = await db
+    .from('whatsapp_config')
+    .select('*')
+    .eq('user_id', args.userId)
+    .single()
+  if (configErr || !config) {
+    throw new Error('WhatsApp not configured for this account')
+  }
+
+  const accessToken = decrypt(config.access_token)
+
+  const sendFn =
+    kind === 'image'
+      ? sendImageMessage
+      : kind === 'video'
+        ? sendVideoMessage
+        : sendDocumentMessage
+
+  const attempt = async (phone: string): Promise<string> => {
+    const r = await sendFn({
+      phoneNumberId: config.phone_number_id,
+      accessToken,
+      to: phone,
+      url: args.url,
+      caption: args.caption,
+      filename: kind === 'document' ? args.filename : undefined,
+    })
+    return r.messageId
+  }
+
+  const variants = phoneVariants(sanitized)
+  let workingPhone = sanitized
+  let waMessageId = ''
+  let lastError: unknown = null
+  for (const v of variants) {
+    try {
+      waMessageId = await attempt(v)
+      workingPhone = v
+      lastError = null
+      break
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!isRecipientNotAllowedError(msg)) throw err
+      lastError = err
+    }
+  }
+  if (lastError) throw lastError
+
+  if (workingPhone !== sanitized) {
+    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+  }
+
+  const contentText = args.caption ?? args.url
+  const { error: msgErr } = await db.from('messages').insert({
+    conversation_id: args.conversationId,
+    sender_type: 'bot',
+    content_type: kind,
+    content_text: contentText,
+    media_url: args.url,
+    message_id: waMessageId,
+    status: 'sent',
+  })
+  if (msgErr) {
+    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+  }
+
+  await db
+    .from('conversations')
+    .update({
+      last_message_text: contentText.slice(0, 200),
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conversationId)
+
+  return { whatsapp_message_id: waMessageId }
+}
+
+export function engineSendImage(args: SendMediaEngineArgs) {
+  return engineSendMediaInner(args, 'image')
+}
+export function engineSendVideo(args: SendMediaEngineArgs) {
+  return engineSendMediaInner(args, 'video')
+}
+export function engineSendDocument(args: SendMediaEngineArgs) {
+  return engineSendMediaInner(args, 'document')
+}
+
+interface SendCtaUrlEngineArgs {
+  userId: string
+  conversationId: string
+  contactId: string
+  bodyText: string
+  buttonTitle: string
+  url: string
+  headerText?: string
+  footerText?: string
+}
+
+export async function engineSendCtaUrl(
+  args: SendCtaUrlEngineArgs,
+): Promise<{ whatsapp_message_id: string }> {
+  const db = supabaseAdmin()
+
+  const { data: contact } = await db
+    .from('contacts')
+    .select('id, phone')
+    .eq('id', args.contactId)
+    .eq('user_id', args.userId)
+    .maybeSingle()
+  if (!contact?.phone) throw new Error('contact not found for this user')
+
+  const sanitized = sanitizePhoneForMeta(contact.phone)
+  if (!isValidE164(sanitized)) throw new Error(`contact phone invalid: ${contact.phone}`)
+
+  const { data: config } = await db
+    .from('whatsapp_config')
+    .select('*')
+    .eq('user_id', args.userId)
+    .single()
+  if (!config) throw new Error('WhatsApp not configured for this account')
+
+  const accessToken = decrypt(config.access_token)
+
+  const attempt = async (phone: string): Promise<string> => {
+    const r = await sendInteractiveCtaUrl({
+      phoneNumberId: config.phone_number_id,
+      accessToken,
+      to: phone,
+      bodyText: args.bodyText,
+      headerText: args.headerText,
+      footerText: args.footerText,
+      buttonTitle: args.buttonTitle,
+      url: args.url,
+    })
+    return r.messageId
+  }
+
+  const variants = phoneVariants(sanitized)
+  let workingPhone = sanitized
+  let waMessageId = ''
+  let lastError: unknown = null
+  for (const v of variants) {
+    try {
+      waMessageId = await attempt(v)
+      workingPhone = v
+      lastError = null
+      break
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!isRecipientNotAllowedError(msg)) throw err
+      lastError = err
+    }
+  }
+  if (lastError) throw lastError
+
+  if (workingPhone !== sanitized) {
+    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+  }
+
+  const { error: msgErr } = await db.from('messages').insert({
+    conversation_id: args.conversationId,
+    sender_type: 'bot',
+    content_type: 'interactive',
+    content_text: args.bodyText,
+    message_id: waMessageId,
+    status: 'sent',
+  })
+  if (msgErr) {
+    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+  }
+
+  await db
+    .from('conversations')
+    .update({
+      last_message_text: args.bodyText.slice(0, 200),
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conversationId)
+
+  return { whatsapp_message_id: waMessageId }
+}

@@ -40,6 +40,13 @@ import {
   Inbox,
   GitFork,
   Tag,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  ExternalLink,
+  Hourglass,
+  Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -83,10 +90,17 @@ type NodeType =
   | "send_message"
   | "send_buttons"
   | "send_list"
+  | "send_image"
+  | "send_video"
+  | "send_document"
+  | "send_cta_url"
   | "collect_input"
   | "condition"
   | "set_tag"
   | "handoff"
+  | "wait"
+  | "ai_intent"
+  | "shopify_lookup"
   | "end";
 
 interface BuilderNode {
@@ -149,6 +163,25 @@ const NODE_META: Record<
     label: "Transferir a un agente",
     icon: UserPlus,
     color: "text-amber-400",
+  },
+  send_image: { label: "Enviar imagen", icon: ImageIcon, color: "text-sky-400" },
+  send_video: { label: "Enviar video", icon: Video, color: "text-sky-400" },
+  send_document: { label: "Enviar documento", icon: FileText, color: "text-sky-400" },
+  send_cta_url: {
+    label: "Botón con enlace",
+    icon: ExternalLink,
+    color: "text-indigo-400",
+  },
+  wait: { label: "Esperar", icon: Hourglass, color: "text-slate-400" },
+  ai_intent: {
+    label: "Clasificar con IA",
+    icon: Sparkles,
+    color: "text-fuchsia-400",
+  },
+  shopify_lookup: {
+    label: "Buscar en Shopify",
+    icon: ShoppingBag,
+    color: "text-emerald-400",
   },
   end: { label: "Fin", icon: Flag, color: "text-muted-foreground" },
 };
@@ -274,6 +307,40 @@ function summarizeNode(node: BuilderNode): string | null {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;
     }
+    case "send_image":
+    case "send_video":
+    case "send_document": {
+      const url = typeof cfg.url === "string" ? cfg.url : "";
+      const caption = typeof cfg.caption === "string" ? cfg.caption : "";
+      if (caption) return truncate(caption);
+      return url ? truncate(url, 60) : null;
+    }
+    case "send_cta_url": {
+      const title = typeof cfg.button_title === "string" ? cfg.button_title : "";
+      const url = typeof cfg.url === "string" ? cfg.url : "";
+      return title || url ? `${title} → ${truncate(url, 40)}` : null;
+    }
+    case "wait": {
+      const n = Number(cfg.amount ?? 0);
+      const unit = String(cfg.unit ?? "minutes");
+      return n > 0 ? `${n} ${unit}` : null;
+    }
+    case "ai_intent": {
+      const list = Array.isArray(cfg.intents) ? cfg.intents : [];
+      return list.length > 0
+        ? `${list.length} intenc${list.length === 1 ? "ión" : "iones"}`
+        : null;
+    }
+    case "shopify_lookup": {
+      const kind = String(cfg.kind ?? "");
+      const KIND_LABEL: Record<string, string> = {
+        order_by_number: "Pedido por número",
+        order_by_email: "Pedido por correo",
+        last_order: "Último pedido del contacto",
+        product_by_handle: "Producto por handle",
+      };
+      return KIND_LABEL[kind] ?? null;
+    }
   }
 }
 
@@ -320,6 +387,37 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
       return { mode: "add", tag_id: "", next_node_key: "" };
     case "handoff":
       return { note: "" };
+    case "send_image":
+    case "send_video":
+      return { url: "", caption: "", next_node_key: "" };
+    case "send_document":
+      return { url: "", filename: "", caption: "", next_node_key: "" };
+    case "send_cta_url":
+      return {
+        text: "",
+        button_title: "Ver más",
+        url: "https://",
+        next_node_key: "",
+      };
+    case "wait":
+      return { amount: 1, unit: "hours", next_node_key: "" };
+    case "ai_intent":
+      return {
+        prompt_text: "",
+        intents: [
+          { intent_key: "yes", description: "El cliente acepta", next_node_key: "" },
+          { intent_key: "no", description: "El cliente rechaza", next_node_key: "" },
+        ],
+        fallback_next_key: "",
+      };
+    case "shopify_lookup":
+      return {
+        kind: "order_by_number",
+        input_var: "order_number",
+        output_prefix: "order",
+        found_next_key: "",
+        not_found_next_key: "",
+      };
     case "end":
       return {};
   }
@@ -1187,6 +1285,166 @@ function NodeConfigForm({
           onChange={(v) => onUpdateConfig({ note: v })}
           rows={2}
         />
+      )}
+
+      {(node.node_type === "send_image" ||
+        node.node_type === "send_video" ||
+        node.node_type === "send_document") && (
+        <>
+          <TextRow
+            label="URL del archivo (https)"
+            value={(cfg as { url?: string }).url ?? ""}
+            onChange={(v) => onUpdateConfig({ url: v })}
+          />
+          {node.node_type === "send_document" && (
+            <TextRow
+              label="Nombre que ve el cliente"
+              value={(cfg as { filename?: string }).filename ?? ""}
+              onChange={(v) => onUpdateConfig({ filename: v })}
+            />
+          )}
+          <TextRow
+            label="Pie / descripción (opcional)"
+            value={(cfg as { caption?: string }).caption ?? ""}
+            onChange={(v) => onUpdateConfig({ caption: v })}
+            rows={2}
+          />
+          <NextNodeRow
+            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+            allNodes={allNodes}
+            currentKey={node.node_key}
+            onChange={(v) => onUpdateConfig({ next_node_key: v })}
+            label="Avanza a"
+          />
+        </>
+      )}
+
+      {node.node_type === "send_cta_url" && (
+        <>
+          <TextRow
+            label="Texto del mensaje"
+            value={(cfg as { text?: string }).text ?? ""}
+            onChange={(v) => onUpdateConfig({ text: v })}
+            rows={2}
+          />
+          <TextRow
+            label="Texto del botón (≤ 20 caracteres)"
+            value={(cfg as { button_title?: string }).button_title ?? ""}
+            onChange={(v) => onUpdateConfig({ button_title: v })}
+          />
+          <TextRow
+            label="URL a abrir (https)"
+            value={(cfg as { url?: string }).url ?? ""}
+            onChange={(v) => onUpdateConfig({ url: v })}
+          />
+          <NextNodeRow
+            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+            allNodes={allNodes}
+            currentKey={node.node_key}
+            onChange={(v) => onUpdateConfig({ next_node_key: v })}
+            label="Avanza a"
+          />
+        </>
+      )}
+
+      {node.node_type === "wait" && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Cantidad
+              </label>
+              <Input
+                type="number"
+                min={1}
+                value={String((cfg as { amount?: number }).amount ?? 1)}
+                onChange={(e) =>
+                  onUpdateConfig({ amount: Number(e.target.value) })
+                }
+                className="bg-muted text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Unidad
+              </label>
+              <select
+                value={String((cfg as { unit?: string }).unit ?? "hours")}
+                onChange={(e) => onUpdateConfig({ unit: e.target.value })}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="minutes">Minutos</option>
+                <option value="hours">Horas</option>
+                <option value="days">Días</option>
+              </select>
+            </div>
+          </div>
+          <NextNodeRow
+            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+            allNodes={allNodes}
+            currentKey={node.node_key}
+            onChange={(v) => onUpdateConfig({ next_node_key: v })}
+            label="Después de la espera, avanza a"
+          />
+        </>
+      )}
+
+      {node.node_type === "ai_intent" && (
+        <AiIntentForm
+          cfg={cfg as AiIntentCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      )}
+
+      {node.node_type === "shopify_lookup" && (
+        <>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Qué buscar
+            </label>
+            <select
+              value={String((cfg as { kind?: string }).kind ?? "order_by_number")}
+              onChange={(e) => onUpdateConfig({ kind: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="order_by_number">Pedido por número</option>
+              <option value="order_by_email">Pedido por correo</option>
+              <option value="last_order">Último pedido del contacto</option>
+              <option value="product_by_handle">Producto por handle</option>
+            </select>
+          </div>
+          {((cfg as { kind?: string }).kind ?? "order_by_number") !==
+            "last_order" && (
+            <TextRow
+              label={
+                "Variable de entrada (de un nodo \"Capturar entrada\" previo)"
+              }
+              value={(cfg as { input_var?: string }).input_var ?? ""}
+              onChange={(v) => onUpdateConfig({ input_var: v })}
+            />
+          )}
+          <TextRow
+            label="Prefijo donde guardar el resultado"
+            value={(cfg as { output_prefix?: string }).output_prefix ?? "order"}
+            onChange={(v) => onUpdateConfig({ output_prefix: v })}
+          />
+          <NextNodeRow
+            value={(cfg as { found_next_key?: string }).found_next_key ?? ""}
+            allNodes={allNodes}
+            currentKey={node.node_key}
+            onChange={(v) => onUpdateConfig({ found_next_key: v })}
+            label="Si encuentra → avanza a"
+          />
+          <NextNodeRow
+            value={(cfg as { not_found_next_key?: string }).not_found_next_key ?? ""}
+            allNodes={allNodes}
+            currentKey={node.node_key}
+            onChange={(v) => onUpdateConfig({ not_found_next_key: v })}
+            label="Si no encuentra → avanza a"
+          />
+        </>
       )}
 
       <div className="border-t border-border pt-3">
@@ -2108,5 +2366,111 @@ function IssueLine({
     >
       {body}
     </div>
+  );
+}
+
+interface AiIntentCfg {
+  prompt_text?: string;
+  intents?: Array<{ intent_key: string; description: string; next_node_key: string }>;
+  fallback_next_key?: string;
+}
+
+function AiIntentForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: AiIntentCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const intents = cfg.intents ?? [];
+  const updateIntent = (
+    idx: number,
+    patch: Partial<NonNullable<AiIntentCfg['intents']>[number]>,
+  ) => {
+    onUpdateConfig({
+      intents: intents.map((i, j) => (j === idx ? { ...i, ...patch } : i)),
+    });
+  };
+  const addIntent = () =>
+    onUpdateConfig({
+      intents: [
+        ...intents,
+        { intent_key: `intent_${intents.length + 1}`, description: '', next_node_key: '' },
+      ],
+    });
+  const removeIntent = (idx: number) =>
+    onUpdateConfig({ intents: intents.filter((_, j) => j !== idx) });
+
+  return (
+    <>
+      <TextRow
+        label="Mensaje al cliente antes de esperar su respuesta (opcional)"
+        value={cfg.prompt_text ?? ''}
+        onChange={(v) => onUpdateConfig({ prompt_text: v })}
+        rows={2}
+      />
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          Intenciones a clasificar
+        </label>
+        <div className="space-y-2">
+          {intents.map((it, idx) => (
+            <div
+              key={idx}
+              className="rounded-md border border-border bg-muted/40 p-2"
+            >
+              <div className="mb-2 grid grid-cols-2 gap-2">
+                <Input
+                  value={it.intent_key}
+                  onChange={(e) => updateIntent(idx, { intent_key: e.target.value })}
+                  placeholder="intent_key"
+                  className="bg-background font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeIntent(idx)}
+                  className="self-start justify-self-end rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+                  aria-label="Quitar intención"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+              <Input
+                value={it.description}
+                onChange={(e) => updateIntent(idx, { description: e.target.value })}
+                placeholder="Cuándo aplica (ej: 'cliente pregunta por envíos')"
+                className="mb-2 bg-background text-sm"
+              />
+              <NextNodeRow
+                value={it.next_node_key}
+                allNodes={allNodes}
+                currentKey={currentKey}
+                onChange={(v) => updateIntent(idx, { next_node_key: v })}
+                label="Si coincide → avanza a"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addIntent}
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+          >
+            <Plus className="h-3 w-3" />
+            Añadir intención
+          </button>
+        </div>
+      </div>
+      <NextNodeRow
+        value={cfg.fallback_next_key ?? ''}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ fallback_next_key: v })}
+        label="Si ninguna intención coincide → avanza a"
+      />
+    </>
   );
 }

@@ -34,12 +34,19 @@
 
 import { supabaseAdmin } from "./admin-client";
 import {
+  engineSendCtaUrl,
+  engineSendDocument,
+  engineSendImage,
   engineSendInteractiveButtons,
   engineSendInteractiveList,
   engineSendText,
+  engineSendVideo,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { runShopifyLookup } from "./shopify-lookup";
+import { classifyIntent } from "./ai-intent";
 import {
+  type AiIntentNodeConfig,
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
   type DispatchInboundInput,
@@ -49,11 +56,17 @@ import {
   type FlowRunRow,
   type ParsedInbound,
   type SendButtonsNodeConfig,
+  type SendCtaUrlNodeConfig,
+  type SendDocumentNodeConfig,
+  type SendImageNodeConfig,
   type SendListNodeConfig,
   type SendMessageNodeConfig,
+  type SendVideoNodeConfig,
   type SetTagNodeConfig,
+  type ShopifyLookupNodeConfig,
   type StartNodeConfig,
   type KeywordTriggerConfig,
+  type WaitNodeConfig,
 } from "./types";
 
 // ============================================================
@@ -112,8 +125,13 @@ export function isAutoAdvancing(node_type: string): boolean {
   return (
     node_type === "start" ||
     node_type === "send_message" ||
+    node_type === "send_image" ||
+    node_type === "send_video" ||
+    node_type === "send_document" ||
+    node_type === "send_cta_url" ||
     node_type === "condition" ||
-    node_type === "set_tag"
+    node_type === "set_tag" ||
+    node_type === "shopify_lookup"
   );
 }
 
@@ -122,7 +140,9 @@ export function isSuspending(node_type: string): boolean {
   return (
     node_type === "send_buttons" ||
     node_type === "send_list" ||
-    node_type === "collect_input"
+    node_type === "collect_input" ||
+    node_type === "ai_intent" ||
+    node_type === "wait"
   );
 }
 
@@ -726,6 +746,183 @@ async function advanceFromNodeKey(
       await executeHandoff(db, run, node);
       return { outcome: "handed_off" };
     }
+    if (
+      node.node_type === "send_image" ||
+      node.node_type === "send_video" ||
+      node.node_type === "send_document"
+    ) {
+      const cfg = node.config as unknown as
+        | SendImageNodeConfig
+        | SendVideoNodeConfig
+        | SendDocumentNodeConfig;
+      try {
+        const sender =
+          node.node_type === "send_image"
+            ? engineSendImage
+            : node.node_type === "send_video"
+              ? engineSendVideo
+              : engineSendDocument;
+        const { whatsapp_message_id } = await sender({
+          userId: run.workspace_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id!,
+          url: interpolateVars(cfg.url, run.vars),
+          caption: cfg.caption ? interpolateVars(cfg.caption, run.vars) : undefined,
+          filename:
+            node.node_type === "send_document"
+              ? (cfg as SendDocumentNodeConfig).filename
+              : undefined,
+        });
+        await logEvent(db, run.id, "message_sent", node.node_key, {
+          node_type: node.node_type,
+          whatsapp_message_id,
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: `${node.node_type}_failed`,
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", `${node.node_type}_failed`);
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "send_cta_url") {
+      const cfg = node.config as unknown as SendCtaUrlNodeConfig;
+      try {
+        const { whatsapp_message_id } = await engineSendCtaUrl({
+          userId: run.workspace_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id!,
+          bodyText: interpolateVars(cfg.text, run.vars),
+          buttonTitle: cfg.button_title,
+          url: interpolateVars(cfg.url, run.vars),
+          headerText: cfg.header_text
+            ? interpolateVars(cfg.header_text, run.vars)
+            : undefined,
+          footerText: cfg.footer_text
+            ? interpolateVars(cfg.footer_text, run.vars)
+            : undefined,
+        });
+        await logEvent(db, run.id, "message_sent", node.node_key, {
+          node_type: "send_cta_url",
+          whatsapp_message_id,
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_cta_url_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_cta_url_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "wait") {
+      const cfg = node.config as unknown as WaitNodeConfig;
+      const unitMs =
+        cfg.unit === "days"
+          ? 86_400_000
+          : cfg.unit === "hours"
+            ? 3_600_000
+            : 60_000;
+      const runAt = new Date(Date.now() + Math.max(1, cfg.amount) * unitMs);
+      await db.from("flow_pending_executions").insert({
+        flow_run_id: run.id,
+        next_node_key: cfg.next_node_key,
+        run_at: runAt.toISOString(),
+      });
+      await logEvent(db, run.id, "node_entered", node.node_key, {
+        node_type: "wait",
+        resume_at: runAt.toISOString(),
+      });
+      const advanced = await advanceCurrentNodeKey(
+        db,
+        run.id,
+        run.current_node_key,
+        node.node_key,
+      );
+      if (!advanced) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "lost_race_during_advance",
+        });
+      }
+      return { outcome: "advanced" };
+    }
+    if (node.node_type === "ai_intent") {
+      const cfg = node.config as unknown as AiIntentNodeConfig;
+      try {
+        if (cfg.prompt_text && cfg.prompt_text.trim()) {
+          const { whatsapp_message_id } = await engineSendText({
+            userId: run.workspace_id,
+            conversationId: run.conversation_id!,
+            contactId: run.contact_id!,
+            text: interpolateVars(cfg.prompt_text, run.vars),
+          });
+          await logEvent(db, run.id, "message_sent", node.node_key, {
+            node_type: "ai_intent",
+            whatsapp_message_id,
+          });
+        }
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "ai_intent_prompt_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "ai_intent_prompt_failed");
+        return { outcome: "completed" };
+      }
+      const advanced = await advanceCurrentNodeKey(
+        db,
+        run.id,
+        run.current_node_key,
+        node.node_key,
+      );
+      if (!advanced) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "lost_race_during_advance",
+        });
+      }
+      return { outcome: "advanced" };
+    }
+    if (node.node_type === "shopify_lookup") {
+      const cfg = node.config as unknown as ShopifyLookupNodeConfig;
+      try {
+        const input = cfg.input_var
+          ? String(run.vars[cfg.input_var] ?? "")
+          : "";
+        const result = await runShopifyLookup({
+          userId: run.workspace_id,
+          contactId: run.contact_id!,
+          kind: cfg.kind,
+          input,
+        });
+        if (result.found && result.vars) {
+          const merged = { ...run.vars };
+          for (const [k, v] of Object.entries(result.vars)) {
+            merged[`${cfg.output_prefix}_${k}`] = v;
+          }
+          await db.from("flow_runs").update({ vars: merged }).eq("id", run.id);
+          run.vars = merged;
+        }
+        await logEvent(db, run.id, "node_entered", node.node_key, {
+          node_type: "shopify_lookup",
+          found: result.found,
+        });
+        currentKey = result.found
+          ? cfg.found_next_key
+          : cfg.not_found_next_key;
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "shopify_lookup_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        currentKey = cfg.not_found_next_key;
+      }
+      continue;
+    }
     if (node.node_type === "end") {
       await logEvent(db, run.id, "completed", node.node_key);
       await endRun(db, run.id, "completed", "end_node");
@@ -918,6 +1115,34 @@ async function handleReplyForActiveRun(
         matched = cfg.next_node_key;
       }
     }
+  } else if (
+    message.kind === "text" &&
+    currentNode.node_type === "ai_intent"
+  ) {
+    // Classify the reply through the workspace AI agent and route on
+    // the returned intent_key. Falls back to fallback_next_key when
+    // no intent matches with confidence.
+    const cfg = currentNode.config as unknown as AiIntentNodeConfig;
+    try {
+      const intentKey = await classifyIntent({
+        workspaceId: run.workspace_id,
+        message: message.text,
+        intents: cfg.intents,
+      });
+      await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+        node_type: "ai_intent",
+        matched_intent: intentKey ?? null,
+      });
+      matched =
+        cfg.intents.find((i) => i.intent_key === intentKey)?.next_node_key ??
+        cfg.fallback_next_key;
+    } catch (err) {
+      await logEvent(db, run.id, "error", currentNode.node_key, {
+        reason: "ai_intent_classify_failed",
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      matched = cfg.fallback_next_key;
+    }
   }
 
   if (matched) {
@@ -1066,3 +1291,12 @@ async function startNewRun(
     outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
   };
 }
+
+// ------------------------------------------------------------
+// Resume bridge — used by the cron at /api/cron/flows-resume.
+// Kept separate from dispatchInboundToFlows because the cron has
+// no inbound message; it just needs to walk the engine forward
+// from the parked node.
+// ------------------------------------------------------------
+export const __advanceFromNodeKeyForResume = advanceFromNodeKey
+

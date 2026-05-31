@@ -147,6 +147,112 @@ export interface SetTagNodeConfig {
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
+// ============================================================
+// v2 — Media nodes (Cloud API image/video/document)
+// ============================================================
+
+export interface SendImageNodeConfig {
+  /** Public https URL of the image — Meta downloads it on the fly. */
+  url: string;
+  /** Optional caption (≤ 1024 chars per Meta). */
+  caption?: string;
+  next_node_key: string;
+}
+
+export interface SendVideoNodeConfig {
+  url: string;
+  caption?: string;
+  next_node_key: string;
+}
+
+export interface SendDocumentNodeConfig {
+  url: string;
+  /** Filename shown to the customer in WhatsApp. */
+  filename?: string;
+  caption?: string;
+  next_node_key: string;
+}
+
+/**
+ * Single tap-to-open URL button — Meta's `interactive.cta_url` shape.
+ * Reply-button messages can't mix with URLs; this is its own node.
+ */
+export interface SendCtaUrlNodeConfig {
+  text: string;
+  header_text?: string;
+  footer_text?: string;
+  /** Visible button label (≤ 20 chars per Meta). */
+  button_title: string;
+  /** Destination URL. https only. */
+  url: string;
+  /** Auto-advances after sending — no reply expected. */
+  next_node_key: string;
+}
+
+// ============================================================
+// v2 — Wait node (suspend & resume via cron)
+// ============================================================
+
+export interface WaitNodeConfig {
+  amount: number;
+  unit: 'minutes' | 'hours' | 'days';
+  next_node_key: string;
+}
+
+// ============================================================
+// v2 — AI intent router
+// ============================================================
+
+/**
+ * Suspend the run until the customer's next text reply, then run that
+ * text through the workspace AI agent to classify it into one of the
+ * declared intents. Routes on the matched intent_key.
+ */
+export interface AiIntentNodeConfig {
+  /** Optional prompt sent before listening for the reply. */
+  prompt_text?: string;
+  /** Each intent gets its own routing branch. */
+  intents: Array<{
+    intent_key: string;
+    /** Short description the model sees ("cliente pregunta por envíos"). */
+    description: string;
+    next_node_key: string;
+  }>;
+  /** Fallback when no intent matches with enough confidence. */
+  fallback_next_key: string;
+}
+
+// ============================================================
+// v2 — Shopify lookup (orders / customer / product)
+// ============================================================
+
+export type ShopifyLookupKind =
+  | 'order_by_number'
+  | 'order_by_email'
+  | 'last_order'
+  | 'product_by_handle';
+
+export interface ShopifyLookupNodeConfig {
+  kind: ShopifyLookupKind;
+  /**
+   * Var key (in flow_runs.vars) holding the input value:
+   *   - order_by_number    → order number ("1042" or "#1042")
+   *   - order_by_email     → email address
+   *   - last_order         → ignored (uses contact phone/email)
+   *   - product_by_handle  → product handle ("crema-antiarrugas")
+   */
+  input_var?: string;
+  /**
+   * Var prefix where the lookup result is stored.
+   * E.g. prefix='order' → vars.order_name, vars.order_status,
+   * vars.order_tracking_url, vars.order_total.
+   */
+  output_prefix: string;
+  /** Routing depending on whether the lookup found a result. */
+  found_next_key: string;
+  not_found_next_key: string;
+}
+
 /**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
@@ -160,10 +266,17 @@ export type FlowNodeConfig =
   | { node_type: "send_message"; config: SendMessageNodeConfig }
   | { node_type: "send_buttons"; config: SendButtonsNodeConfig }
   | { node_type: "send_list"; config: SendListNodeConfig }
+  | { node_type: "send_image"; config: SendImageNodeConfig }
+  | { node_type: "send_video"; config: SendVideoNodeConfig }
+  | { node_type: "send_document"; config: SendDocumentNodeConfig }
+  | { node_type: "send_cta_url"; config: SendCtaUrlNodeConfig }
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
+  | { node_type: "wait"; config: WaitNodeConfig }
+  | { node_type: "ai_intent"; config: AiIntentNodeConfig }
+  | { node_type: "shopify_lookup"; config: ShopifyLookupNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
 export type FlowNodeType = FlowNodeConfig["node_type"];

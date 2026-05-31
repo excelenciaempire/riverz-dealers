@@ -642,6 +642,194 @@ function validateNode(
       break;
     }
 
+    case "send_image":
+    case "send_video":
+    case "send_document": {
+      const cfg = node.config as {
+        url?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.url || !/^https?:\/\//.test(cfg.url)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `${node.node_type} requires a https URL.`,
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `${node.node_type} needs a next_node_key.`,
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `${node.node_type} points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+    case "send_cta_url": {
+      const cfg = node.config as {
+        text?: string;
+        button_title?: string;
+        url?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.text?.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "send_cta_url requires text.",
+        });
+      }
+      if (!cfg.button_title?.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "send_cta_url requires button_title.",
+        });
+      }
+      if (!cfg.url || !/^https:\/\//.test(cfg.url)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "send_cta_url URL must start with https://.",
+        });
+      }
+      if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `send_cta_url points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+    case "wait": {
+      const cfg = node.config as {
+        amount?: number;
+        unit?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.amount || cfg.amount < 1) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "wait amount must be ≥ 1.",
+        });
+      }
+      if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "wait unit must be minutes / hours / days.",
+        });
+      }
+      if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `wait points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+    case "ai_intent": {
+      const cfg = node.config as {
+        intents?: Array<{ intent_key?: string; next_node_key?: string }>;
+        fallback_next_key?: string;
+      };
+      if (!cfg.intents || cfg.intents.length === 0) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "ai_intent requires at least one intent.",
+        });
+      }
+      for (const i of cfg.intents ?? []) {
+        if (!i.intent_key) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            message: "ai_intent: every intent needs an intent_key.",
+          });
+        }
+        if (i.next_node_key && !knownKeys.has(i.next_node_key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            message: `ai_intent intent points to non-existent node "${i.next_node_key}".`,
+          });
+        }
+      }
+      if (cfg.fallback_next_key && !knownKeys.has(cfg.fallback_next_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: `ai_intent fallback points to non-existent node "${cfg.fallback_next_key}".`,
+        });
+      }
+      break;
+    }
+    case "shopify_lookup": {
+      const cfg = node.config as {
+        kind?: string;
+        output_prefix?: string;
+        found_next_key?: string;
+        not_found_next_key?: string;
+      };
+      const VALID_KINDS = [
+        "order_by_number",
+        "order_by_email",
+        "last_order",
+        "product_by_handle",
+      ];
+      if (!cfg.kind || !VALID_KINDS.includes(cfg.kind)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "shopify_lookup kind invalid.",
+        });
+      }
+      if (!cfg.output_prefix) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          message: "shopify_lookup needs an output_prefix (e.g. 'order').",
+        });
+      }
+      for (const k of [cfg.found_next_key, cfg.not_found_next_key]) {
+        if (k && !knownKeys.has(k)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            message: `shopify_lookup points to non-existent node "${k}".`,
+          });
+        }
+      }
+      break;
+    }
+
     case "handoff":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
@@ -690,10 +878,37 @@ function outgoingEdges(node: NodeInput): string[] {
   switch (node.node_type) {
     case "start":
     case "send_message":
+    case "send_image":
+    case "send_video":
+    case "send_document":
+    case "send_cta_url":
     case "collect_input":
-    case "set_tag": {
+    case "set_tag":
+    case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];
+    }
+    case "shopify_lookup": {
+      const cfg = node.config as {
+        found_next_key?: string;
+        not_found_next_key?: string;
+      };
+      const out: string[] = [];
+      if (cfg.found_next_key) out.push(cfg.found_next_key);
+      if (cfg.not_found_next_key) out.push(cfg.not_found_next_key);
+      return out;
+    }
+    case "ai_intent": {
+      const cfg = node.config as {
+        intents?: Array<{ next_node_key?: string }>;
+        fallback_next_key?: string;
+      };
+      const out: string[] = [];
+      for (const i of cfg.intents ?? []) {
+        if (i.next_node_key) out.push(i.next_node_key);
+      }
+      if (cfg.fallback_next_key) out.push(cfg.fallback_next_key);
+      return out;
     }
     case "condition": {
       const cfg = node.config as {

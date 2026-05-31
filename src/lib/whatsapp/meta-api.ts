@@ -653,3 +653,136 @@ export async function downloadMedia(
   const buffer = Buffer.from(await response.arrayBuffer())
   return { buffer, contentType }
 }
+
+// ============================================================
+// Media messages — image / video / document
+// ============================================================
+// Each takes a public https URL. Meta downloads the asset itself; we
+// never proxy media bytes for outbound sends. Callers are responsible
+// for keeping the URL reachable for at least a few minutes after the
+// request returns (Meta sometimes lazy-fetches).
+
+interface SendMediaArgs {
+  phoneNumberId: string
+  accessToken: string
+  to: string
+  url: string
+  caption?: string
+  /** Document filename shown to the recipient. Document only. */
+  filename?: string
+  contextMessageId?: string
+}
+
+async function sendMedia(
+  args: SendMediaArgs,
+  kind: 'image' | 'video' | 'document',
+): Promise<MetaSendResult> {
+  const payload: Record<string, unknown> = { link: args.url }
+  if (args.caption) payload.caption = args.caption
+  if (kind === 'document' && args.filename) payload.filename = args.filename
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: args.to,
+    type: kind,
+    [kind]: payload,
+  }
+  if (args.contextMessageId) body.context = { message_id: args.contextMessageId }
+
+  const url = `${META_API_BASE}/${args.phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${args.accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API ${kind} send failed: ${response.status}`)
+  }
+  const data = await response.json()
+  return { messageId: data.messages[0].id }
+}
+
+export function sendImageMessage(args: SendMediaArgs): Promise<MetaSendResult> {
+  return sendMedia(args, 'image')
+}
+export function sendVideoMessage(args: SendMediaArgs): Promise<MetaSendResult> {
+  return sendMedia(args, 'video')
+}
+export function sendDocumentMessage(args: SendMediaArgs): Promise<MetaSendResult> {
+  return sendMedia(args, 'document')
+}
+
+// ============================================================
+// interactive.cta_url — one tap-to-open URL button
+// ============================================================
+// This is the only Meta "interactive" type that links out of WhatsApp.
+// You can't mix reply buttons + URL buttons in a single message — Meta
+// requires this dedicated payload shape.
+
+export interface SendInteractiveCtaUrlArgs {
+  phoneNumberId: string
+  accessToken: string
+  to: string
+  bodyText: string
+  headerText?: string
+  footerText?: string
+  /** Visible button label (≤ 20 chars per Meta). */
+  buttonTitle: string
+  /** Destination URL — must be https. */
+  url: string
+  contextMessageId?: string
+}
+
+export async function sendInteractiveCtaUrl(
+  args: SendInteractiveCtaUrlArgs,
+): Promise<MetaSendResult> {
+  validateInteractiveBody(args.bodyText)
+  validateInteractiveHeaderFooter(args.headerText, args.footerText)
+  if (!args.buttonTitle || args.buttonTitle.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+    throw new Error(
+      `cta_url buttonTitle "${args.buttonTitle}" must be 1-${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`,
+    )
+  }
+  if (!/^https:\/\//.test(args.url)) {
+    throw new Error('cta_url URL must start with https://')
+  }
+
+  const interactive: Record<string, unknown> = {
+    type: 'cta_url',
+    body: { text: args.bodyText },
+    action: {
+      name: 'cta_url',
+      parameters: { display_text: args.buttonTitle, url: args.url },
+    },
+  }
+  if (args.headerText) interactive.header = { type: 'text', text: args.headerText }
+  if (args.footerText) interactive.footer = { text: args.footerText }
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: args.to,
+    type: 'interactive',
+    interactive,
+  }
+  if (args.contextMessageId) body.context = { message_id: args.contextMessageId }
+
+  const url = `${META_API_BASE}/${args.phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${args.accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API cta_url send failed: ${response.status}`)
+  }
+  const data = await response.json()
+  return { messageId: data.messages[0].id }
+}

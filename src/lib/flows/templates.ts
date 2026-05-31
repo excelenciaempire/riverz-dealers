@@ -1,45 +1,53 @@
 /**
- * Starter flow templates.
- *
- * Three pre-canned flows users can clone with one click instead of
- * building from scratch. Each template is a plain JS object describing
- * the same shape `/api/flows` PUT accepts — name, trigger config,
- * entry_node_id, fallback_policy, nodes[] — keyed by a stable
- * `slug`.
+ * Pre-canned flow templates oriented around the Shopify customer-service
+ * journey. Each one is a complete flow — clone it once, hook it up to
+ * an approved template / set of tags, activate, done.
  *
  * The clone path (`/api/flows` POST with `template_slug`) creates a
- * NEW flow_row + flow_nodes rows for the user. `node_key`s are kept
- * verbatim (they're stable strings, not UUIDs, so cloning never
- * needs to rewrite edge references).
+ * NEW flow_row + flow_nodes rows for the user; node_keys stay stable
+ * (they're not UUIDs), so cloning never needs to rewrite edges.
  *
- * Choosing a single static module over a DB-backed gallery for v1
- * because: (a) the set is small and changes with code releases, not
- * data; (b) keeps templates portable across self-hosted instances
- * without migrations; (c) editing in source is the lowest-friction
- * way to add the next template.
+ * Why hand-authored objects vs a DB gallery: the set changes with
+ * releases, not data, and shipping in source means no migration to
+ * add the next one.
  */
 
 import type {
+  AiIntentNodeConfig,
   CollectInputNodeConfig,
   ConditionNodeConfig,
   HandoffNodeConfig,
   KeywordTriggerConfig,
   SendButtonsNodeConfig,
+  SendCtaUrlNodeConfig,
+  SendDocumentNodeConfig,
+  SendImageNodeConfig,
   SendListNodeConfig,
   SendMessageNodeConfig,
+  SendVideoNodeConfig,
+  SetTagNodeConfig,
+  ShopifyLookupNodeConfig,
   StartNodeConfig,
-} from "./types";
+  WaitNodeConfig,
+} from './types';
 
 export type FlowTemplateNodeType =
-  | "start"
-  | "send_message"
-  | "send_buttons"
-  | "send_list"
-  | "collect_input"
-  | "condition"
-  | "set_tag"
-  | "handoff"
-  | "end";
+  | 'start'
+  | 'send_message'
+  | 'send_buttons'
+  | 'send_list'
+  | 'send_image'
+  | 'send_video'
+  | 'send_document'
+  | 'send_cta_url'
+  | 'collect_input'
+  | 'condition'
+  | 'set_tag'
+  | 'handoff'
+  | 'wait'
+  | 'ai_intent'
+  | 'shopify_lookup'
+  | 'end';
 
 export interface FlowTemplateNode {
   node_key: string;
@@ -49,9 +57,17 @@ export interface FlowTemplateNode {
     | SendMessageNodeConfig
     | SendButtonsNodeConfig
     | SendListNodeConfig
+    | SendImageNodeConfig
+    | SendVideoNodeConfig
+    | SendDocumentNodeConfig
+    | SendCtaUrlNodeConfig
     | CollectInputNodeConfig
     | ConditionNodeConfig
+    | SetTagNodeConfig
     | HandoffNodeConfig
+    | WaitNodeConfig
+    | AiIntentNodeConfig
+    | ShopifyLookupNodeConfig
     | Record<string, unknown>;
 }
 
@@ -59,240 +75,383 @@ export interface FlowTemplate {
   slug: string;
   name: string;
   description: string;
-  /** Used by the gallery to surface a relevant icon. lucide-react name. */
-  icon: "MessageSquare" | "HelpCircle" | "UserPlus";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  icon:
+    | 'MessageSquare'
+    | 'HelpCircle'
+    | 'UserPlus'
+    | 'Package'
+    | 'ShoppingBag'
+    | 'Truck';
+  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
   trigger_config: KeywordTriggerConfig | Record<string, unknown>;
   entry_node_id: string;
   nodes: FlowTemplateNode[];
 }
 
 // ============================================================
-// 1. Welcome menu — the example from the owner's brief
+// 1. Atención principal — main router menu
 // ============================================================
-const WELCOME_MENU: FlowTemplate = {
-  slug: "welcome_menu",
-  name: "Welcome menu",
+// First inbound message → 3 button menu → routes to specialized
+// branches. The first piece every Shopify store wants.
+const MAIN_MENU: FlowTemplate = {
+  slug: 'main_menu',
+  name: 'Atención principal',
   description:
-    "Greet customers who type a keyword and route them to the right agent based on whether they're new or existing.",
-  icon: "MessageSquare",
-  trigger_type: "keyword",
-  trigger_config: { keywords: ["support", "help", "hi"], match_type: "contains" },
-  entry_node_id: "start",
+    'Cuando alguien escribe por primera vez, le mostrás un menú con 3 botones: estado del pedido, soporte y hablar con un humano.',
+  icon: 'MessageSquare',
+  trigger_type: 'first_inbound_message',
+  trigger_config: {},
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "welcome" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'menu' } as StartNodeConfig,
     },
     {
-      node_key: "welcome",
-      node_type: "send_buttons",
+      node_key: 'menu',
+      node_type: 'send_buttons',
       config: {
-        text: "Hi! 👋 Welcome to support. Are you an existing customer or new here?",
-        footer_text: "Tap a button below to continue.",
+        header_text: '¡Hola!',
+        text: '¿En qué te podemos ayudar hoy?',
+        footer_text: 'Tocá una opción.',
         buttons: [
-          {
-            reply_id: "existing",
-            title: "Existing customer",
-            next_node_key: "existing_handoff",
-          },
-          {
-            reply_id: "new",
-            title: "New customer",
-            next_node_key: "new_handoff",
-          },
+          { reply_id: 'status', title: 'Mi pedido', next_node_key: 'ask_order_number' },
+          { reply_id: 'support', title: 'Tengo una duda', next_node_key: 'faq_router' },
+          { reply_id: 'human', title: 'Hablar con asesor', next_node_key: 'handoff_node' },
         ],
       } as SendButtonsNodeConfig,
     },
     {
-      node_key: "existing_handoff",
-      node_type: "handoff",
+      node_key: 'ask_order_number',
+      node_type: 'collect_input',
       config: {
-        note: "Existing customer needs assistance — please check account history before replying.",
-      } as HandoffNodeConfig,
+        prompt_text: 'Pasame el número de tu pedido (por ejemplo: 1042).',
+        var_key: 'order_number',
+        next_node_key: 'lookup',
+      } as CollectInputNodeConfig,
     },
     {
-      node_key: "new_handoff",
-      node_type: "handoff",
+      node_key: 'lookup',
+      node_type: 'shopify_lookup',
       config: {
-        note: "New customer — share pricing + onboarding link.",
-      } as HandoffNodeConfig,
-    },
-  ],
-};
-
-// ============================================================
-// 2. FAQ bot — list-message answers, fully automated
-// ============================================================
-const FAQ_BOT: FlowTemplate = {
-  slug: "faq_bot",
-  name: "FAQ bot",
-  description:
-    "Answer common questions automatically. Customer picks a topic from a list; the bot replies with the answer and ends.",
-  icon: "HelpCircle",
-  trigger_type: "keyword",
-  trigger_config: {
-    keywords: ["faq", "question", "info"],
-    match_type: "contains",
-  },
-  entry_node_id: "start",
-  nodes: [
-    {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "topics" },
+        kind: 'order_by_number',
+        input_var: 'order_number',
+        output_prefix: 'order',
+        found_next_key: 'order_found',
+        not_found_next_key: 'order_not_found',
+      } as ShopifyLookupNodeConfig,
     },
     {
-      node_key: "topics",
-      node_type: "send_list",
+      node_key: 'order_found',
+      node_type: 'send_message',
       config: {
-        text: "What can I help you with?",
-        button_label: "View topics",
+        text:
+          'Tu pedido {{vars.order_name}} está en estado *{{vars.order_fulfillment_status}}*.\n' +
+          'Total: {{vars.order_total}}.\n' +
+          '{{vars.order_tracking_url}}',
+        next_node_key: 'end_ok',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'order_not_found',
+      node_type: 'send_message',
+      config: {
+        text:
+          'No encontré un pedido con ese número. Te paso con un asesor para que te ayude.',
+        next_node_key: 'handoff_node',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'faq_router',
+      node_type: 'send_list',
+      config: {
+        text: '¿Sobre qué tema tenés la duda?',
+        button_label: 'Ver opciones',
         sections: [
           {
-            title: "Common questions",
+            title: 'Más consultadas',
             rows: [
-              {
-                reply_id: "hours",
-                title: "Opening hours",
-                next_node_key: "answer_hours",
-              },
-              {
-                reply_id: "pricing",
-                title: "Pricing",
-                next_node_key: "answer_pricing",
-              },
-              {
-                reply_id: "refunds",
-                title: "Refund policy",
-                next_node_key: "answer_refunds",
-              },
-            ],
-          },
-          {
-            title: "Other",
-            rows: [
-              {
-                reply_id: "human",
-                title: "Talk to a human",
-                next_node_key: "human_handoff",
-              },
+              { reply_id: 'shipping', title: 'Envíos', description: 'Tiempos y costos', next_node_key: 'faq_shipping' },
+              { reply_id: 'returns', title: 'Cambios y devoluciones', description: 'Política y plazos', next_node_key: 'faq_returns' },
+              { reply_id: 'payment', title: 'Pagos', description: 'Medios aceptados', next_node_key: 'faq_payment' },
             ],
           },
         ],
       } as SendListNodeConfig,
     },
     {
-      node_key: "answer_hours",
-      node_type: "send_message",
+      node_key: 'faq_shipping',
+      node_type: 'send_message',
       config: {
-        text: "We're open Mon–Fri, 9am–6pm local time. Weekend support is limited to urgent issues.",
-        next_node_key: "end",
+        text:
+          'Enviamos a todo el país en 2 a 5 días hábiles. El costo se calcula en el checkout según tu ciudad.',
+        next_node_key: 'end_ok',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "answer_pricing",
-      node_type: "send_message",
+      node_key: 'faq_returns',
+      node_type: 'send_message',
       config: {
-        text: "Our pricing starts at $9/mo. Visit https://example.com/pricing for the full breakdown.",
-        next_node_key: "end",
+        text:
+          'Aceptamos cambios y devoluciones dentro de los 15 días posteriores a recibir el pedido. El producto debe estar sin uso y con su empaque original.',
+        next_node_key: 'end_ok',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "answer_refunds",
-      node_type: "send_message",
+      node_key: 'faq_payment',
+      node_type: 'send_message',
       config: {
-        text: "Refunds are honored within 30 days of purchase. Reply with your order number and we'll process it.",
-        next_node_key: "end",
+        text:
+          'Aceptamos tarjeta de crédito, débito, PSE, Nequi y transferencia bancaria.',
+        next_node_key: 'end_ok',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "human_handoff",
-      node_type: "handoff",
+      node_key: 'handoff_node',
+      node_type: 'handoff',
       config: {
-        note: "Customer asked to talk to a human from the FAQ bot.",
+        note: 'Cliente pidió hablar con un humano desde el menú principal.',
       } as HandoffNodeConfig,
     },
     {
-      node_key: "end",
-      node_type: "end",
+      node_key: 'end_ok',
+      node_type: 'end',
       config: {},
     },
   ],
 };
 
 // ============================================================
-// 3. Lead capture — collect_input chain, ends in a handoff
+// 2. Estado del pedido — standalone
 // ============================================================
-const LEAD_CAPTURE: FlowTemplate = {
-  slug: "lead_capture",
-  name: "Lead capture",
+// Same lookup chain but launched by the keyword "pedido" / "orden",
+// for stores that already have a different main menu.
+const ORDER_STATUS: FlowTemplate = {
+  slug: 'order_status',
+  name: 'Estado del pedido',
   description:
-    "Greet first-time inbounds, capture name + email + company, then hand off to sales with the answers in the note.",
-  icon: "UserPlus",
-  trigger_type: "first_inbound_message",
-  trigger_config: {},
-  entry_node_id: "start",
+    'El cliente escribe "pedido" o "estado", le pedís el número y le devolvés el estado con el link de tracking real de Shopify.',
+  icon: 'Truck',
+  trigger_type: 'keyword',
+  trigger_config: {
+    keywords: ['pedido', 'orden', 'estado', 'tracking', 'mi compra'],
+    match_type: 'contains',
+  },
+  entry_node_id: 'start',
   nodes: [
     {
-      node_key: "start",
-      node_type: "start",
-      config: { next_node_key: "intro" },
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'ask_order_number' } as StartNodeConfig,
     },
     {
-      node_key: "intro",
-      node_type: "send_message",
+      node_key: 'ask_order_number',
+      node_type: 'collect_input',
       config: {
-        text: "Welcome! 👋 I'll ask a few quick questions so we can get you to the right person.",
-        next_node_key: "ask_name",
+        prompt_text:
+          'Con gusto te ayudamos. ¿Cuál es el número de tu pedido? (ej: 1042)',
+        var_key: 'order_number',
+        next_node_key: 'lookup',
+      } as CollectInputNodeConfig,
+    },
+    {
+      node_key: 'lookup',
+      node_type: 'shopify_lookup',
+      config: {
+        kind: 'order_by_number',
+        input_var: 'order_number',
+        output_prefix: 'order',
+        found_next_key: 'reply_found',
+        not_found_next_key: 'reply_not_found',
+      } as ShopifyLookupNodeConfig,
+    },
+    {
+      node_key: 'reply_found',
+      node_type: 'send_message',
+      config: {
+        text:
+          '📦 Pedido {{vars.order_name}}\n' +
+          'Estado: *{{vars.order_fulfillment_status}}*\n' +
+          'Total: {{vars.order_total}}',
+        next_node_key: 'reply_tracking',
       } as SendMessageNodeConfig,
     },
     {
-      node_key: "ask_name",
-      node_type: "collect_input",
+      node_key: 'reply_tracking',
+      node_type: 'send_cta_url',
       config: {
-        prompt_text: "What's your name?",
-        var_key: "name",
-        next_node_key: "ask_email",
-      } as CollectInputNodeConfig,
+        text: 'Acá podés ver el detalle y seguir el envío en tiempo real.',
+        button_title: 'Ver mi pedido',
+        url: '{{vars.order_status_url}}',
+        next_node_key: 'end_ok',
+      } as SendCtaUrlNodeConfig,
     },
     {
-      node_key: "ask_email",
-      node_type: "collect_input",
+      node_key: 'reply_not_found',
+      node_type: 'send_message',
       config: {
-        prompt_text: "Thanks {{vars.name}}! What's your work email?",
-        var_key: "email",
-        next_node_key: "ask_company",
-      } as CollectInputNodeConfig,
+        text:
+          'No encontré un pedido con ese número. Revisá que esté bien escrito o te conecto con un asesor.',
+        next_node_key: 'handoff_node',
+      } as SendMessageNodeConfig,
     },
     {
-      node_key: "ask_company",
-      node_type: "collect_input",
-      config: {
-        prompt_text: "Almost done — what's your company name?",
-        var_key: "company",
-        next_node_key: "handoff",
-      } as CollectInputNodeConfig,
+      node_key: 'handoff_node',
+      node_type: 'handoff',
+      config: { note: 'Búsqueda de pedido sin resultado.' } as HandoffNodeConfig,
+    },
+    { node_key: 'end_ok', node_type: 'end', config: {} },
+  ],
+};
+
+// ============================================================
+// 3. FAQ con IA — IA clasifica preguntas libres y responde
+// ============================================================
+const FAQ_AI: FlowTemplate = {
+  slug: 'faq_ai',
+  name: 'Preguntas frecuentes con IA',
+  description:
+    'El cliente escribe su duda libre, la IA la clasifica y le manda la respuesta correcta. Si no encaja, lo pasa a un humano.',
+  icon: 'HelpCircle',
+  trigger_type: 'first_inbound_message',
+  trigger_config: {},
+  entry_node_id: 'start',
+  nodes: [
+    {
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'classify' } as StartNodeConfig,
     },
     {
-      node_key: "handoff",
-      node_type: "handoff",
+      node_key: 'classify',
+      node_type: 'ai_intent',
       config: {
-        note: "New lead — name={{vars.name}}, email={{vars.email}}, company={{vars.company}}.",
-      } as HandoffNodeConfig,
+        prompt_text: '¡Hola! Contame en qué te puedo ayudar.',
+        intents: [
+          { intent_key: 'shipping', description: 'Pregunta sobre tiempos o costos de envío', next_node_key: 'reply_shipping' },
+          { intent_key: 'returns', description: 'Pregunta sobre cambios, devoluciones o reembolsos', next_node_key: 'reply_returns' },
+          { intent_key: 'product', description: 'Consulta sobre un producto específico, su precio o disponibilidad', next_node_key: 'handoff_product' },
+          { intent_key: 'order', description: 'Pregunta por el estado de un pedido o tracking', next_node_key: 'jump_status' },
+        ],
+        fallback_next_key: 'handoff_general',
+      } as AiIntentNodeConfig,
     },
+    {
+      node_key: 'reply_shipping',
+      node_type: 'send_message',
+      config: {
+        text: 'Enviamos a todo el país en 2-5 días hábiles. El costo se calcula al pagar según tu ciudad.',
+        next_node_key: 'end_ok',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'reply_returns',
+      node_type: 'send_message',
+      config: {
+        text: 'Aceptamos cambios y devoluciones dentro de los 15 días posteriores a recibir el pedido. Producto sin uso y con empaque.',
+        next_node_key: 'end_ok',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'jump_status',
+      node_type: 'send_message',
+      config: {
+        text: 'Para ver el estado de tu pedido, escribí "pedido" seguido del número.',
+        next_node_key: 'end_ok',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'handoff_product',
+      node_type: 'handoff',
+      config: { note: 'Consulta de producto — necesita asesor.' } as HandoffNodeConfig,
+    },
+    {
+      node_key: 'handoff_general',
+      node_type: 'handoff',
+      config: { note: 'Consulta no clasificada por la IA.' } as HandoffNodeConfig,
+    },
+    { node_key: 'end_ok', node_type: 'end', config: {} },
+  ],
+};
+
+// ============================================================
+// 4. Catálogo + asesoría
+// ============================================================
+const CATALOG_INTRO: FlowTemplate = {
+  slug: 'catalog_intro',
+  name: 'Catálogo + asesoría',
+  description:
+    'Saludo con imagen de portada, botones para ver el catálogo, hablar con asesor o ver pedidos.',
+  icon: 'ShoppingBag',
+  trigger_type: 'keyword',
+  trigger_config: {
+    keywords: ['catalogo', 'catálogo', 'productos', 'precios'],
+    match_type: 'contains',
+  },
+  entry_node_id: 'start',
+  nodes: [
+    {
+      node_key: 'start',
+      node_type: 'start',
+      config: { next_node_key: 'welcome_banner' } as StartNodeConfig,
+    },
+    {
+      node_key: 'welcome_banner',
+      node_type: 'send_image',
+      config: {
+        url: 'https://placehold.co/800x400.png',
+        caption: '¡Bienvenido! 👋 Mirá nuestras novedades.',
+        next_node_key: 'menu',
+      } as SendImageNodeConfig,
+    },
+    {
+      node_key: 'menu',
+      node_type: 'send_buttons',
+      config: {
+        text: '¿Qué te gustaría hacer?',
+        buttons: [
+          { reply_id: 'open_store', title: 'Ver catálogo', next_node_key: 'open_store_cta' },
+          { reply_id: 'advisor', title: 'Asesoría', next_node_key: 'handoff_node' },
+          { reply_id: 'orders', title: 'Mis pedidos', next_node_key: 'jump_orders' },
+        ],
+      } as SendButtonsNodeConfig,
+    },
+    {
+      node_key: 'open_store_cta',
+      node_type: 'send_cta_url',
+      config: {
+        text: 'Hacé click acá para entrar a la tienda.',
+        button_title: 'Abrir tienda',
+        url: 'https://tu-tienda.myshopify.com',
+        next_node_key: 'end_ok',
+      } as SendCtaUrlNodeConfig,
+    },
+    {
+      node_key: 'jump_orders',
+      node_type: 'send_message',
+      config: {
+        text: 'Escribí "pedido" y te ayudamos a ver el estado.',
+        next_node_key: 'end_ok',
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: 'handoff_node',
+      node_type: 'handoff',
+      config: { note: 'Quiere asesoría desde el menú de catálogo.' } as HandoffNodeConfig,
+    },
+    { node_key: 'end_ok', node_type: 'end', config: {} },
   ],
 };
 
 // ============================================================
 // Registry
 // ============================================================
-
 const TEMPLATES: Record<string, FlowTemplate> = {
-  welcome_menu: WELCOME_MENU,
-  faq_bot: FAQ_BOT,
-  lead_capture: LEAD_CAPTURE,
+  main_menu: MAIN_MENU,
+  order_status: ORDER_STATUS,
+  faq_ai: FAQ_AI,
+  catalog_intro: CATALOG_INTRO,
 };
 
 export function getFlowTemplate(slug: string): FlowTemplate | null {
