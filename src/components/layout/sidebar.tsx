@@ -72,11 +72,16 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    title: "Atención al cliente",
+    items: [
+      { href: "/ai", label: "Asistente con IA", icon: Sparkles },
+      { href: "/flows", label: "Menús con botones", icon: Waypoints },
+    ],
+  },
+  {
     title: "Automatización",
     items: [
-      { href: "/ai", label: "Servicio con IA", icon: Sparkles },
       { href: "/automations", label: "Automatizaciones", icon: Zap },
-      { href: "/flows", label: "Flujos", icon: Waypoints },
     ],
   },
 ];

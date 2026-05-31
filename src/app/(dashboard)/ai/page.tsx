@@ -15,6 +15,7 @@ import { useWorkspace } from '@/hooks/use-workspace';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AgentEditor } from '@/components/ai/agent-editor';
+import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
 
@@ -101,20 +102,10 @@ export default function AiAgentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
+      <SupportModeSwitcher current="ai" />
+
       <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Sparkles className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">
-              Servicio al cliente con IA
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Asistentes que responden 24/7 con todo el contexto de la conversación.
-            </p>
-          </div>
-        </div>
+        <h1 className="text-xl font-semibold text-foreground">Asistentes con IA</h1>
         <Button
           onClick={() => setEditing('new')}
           className="bg-primary text-primary-foreground hover:bg-primary/90"

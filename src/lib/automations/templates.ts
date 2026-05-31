@@ -123,10 +123,10 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { amount: 1, unit: 'days' },
       },
       {
-        step_type: 'send_message',
-        step_config: {
-          text: 'Hola, ¿pudiste ver mi mensaje? Quedo atento.',
-        },
+        // After 24h the WhatsApp customer-service window closes, so we
+        // must reopen the conversation with an approved template.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es' },
       },
     ],
   },

@@ -12,6 +12,10 @@ import {
   EyeOff,
   Search,
   Package,
+  User,
+  BookOpen,
+  Radio,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,6 +141,15 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [testMessage, setTestMessage] = useState('');
   const [testReply, setTestReply] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+
+  type TabKey = 'identity' | 'knowledge' | 'reach' | 'advanced';
+  const [tab, setTab] = useState<TabKey>('identity');
+  const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
+    { key: 'identity', label: 'Identidad', icon: User },
+    { key: 'knowledge', label: 'Conocimiento', icon: BookOpen },
+    { key: 'reach', label: 'Alcance', icon: Radio },
+    { key: 'advanced', label: 'Avanzado', icon: SettingsIcon },
+  ];
 
   function toggleEscalate(kw: string) {
     setEscalateKeywords((prev) => prev.filter((k) => k !== kw));
@@ -302,91 +315,225 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
           </div>
         </div>
 
-        <div className="grid min-h-0 gap-0 overflow-hidden sm:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-0 gap-0 overflow-hidden sm:grid-cols-[180px_minmax(0,1fr)_320px]">
+          {/* Section nav rail */}
+          <nav className="border-r border-border bg-card/40 p-2 sm:py-4">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                    active
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+
           {/* Form column */}
           <div className="space-y-6 overflow-y-auto p-6">
-            <Section title="Identidad">
-              <Field label="Nombre">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Asistente principal"
-                  className="bg-background"
-                />
-              </Field>
-              <Field label="Personalidad">
-                <Textarea
-                  value={persona}
-                  rows={4}
-                  onChange={(e) => setPersona(e.target.value)}
-                  placeholder="Sos María, asesora de Vitalú. Ayudás a clientes a elegir productos de skincare. Mantenés un tono cálido."
-                  className="resize-y bg-background"
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Idioma">
-                  <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
-                    <SelectTrigger className="w-full bg-background">
-                      <SelectValue labels={LANGUAGE_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LANGUAGES.map((l) => (
-                        <SelectItem key={l.code} value={l.code}>
-                          {l.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {tab === 'identity' && (
+              <>
+                <Field label="Nombre del asistente">
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Asistente principal"
+                    className="bg-background"
+                  />
                 </Field>
-                <Field label="Modelo">
-                  <Select value={model} onValueChange={(v) => setModel(v ?? '')}>
-                    <SelectTrigger className="w-full bg-background">
-                      <SelectValue labels={MODEL_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MODELS.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Field label="Cómo se presenta y actúa">
+                  <Textarea
+                    value={persona}
+                    rows={5}
+                    onChange={(e) => setPersona(e.target.value)}
+                    placeholder="Sos María, asesora de Vitalú. Ayudás a clientes a elegir productos de skincare. Mantenés un tono cálido."
+                    className="resize-y bg-background"
+                  />
                 </Field>
-              </div>
-            </Section>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Idioma">
+                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={LANGUAGE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((l) => (
+                          <SelectItem key={l.code} value={l.code}>
+                            {l.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Modelo">
+                    <Select value={model} onValueChange={(v) => setModel(v ?? '')}>
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={MODEL_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MODELS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                <Field label="Tono">
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    {TONES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setTone(t.value)}
+                        title={t.hint}
+                        className={cn(
+                          'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                          tone === t.value
+                            ? 'border-primary/60 bg-primary/10 text-foreground'
+                            : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </>
+            )}
 
-            <Section title="Tono">
-              <div className="grid gap-2 sm:grid-cols-4">
-                {TONES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setTone(t.value)}
-                    title={t.hint}
-                    className={cn(
-                      'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                      tone === t.value
-                        ? 'border-primary/60 bg-primary/10 text-foreground'
-                        : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
-            <Section title="Conocimiento del negocio">
-              <Textarea
+            {tab === 'knowledge' && (
+              <>
+                <Field label="Información del negocio">
+                  <Textarea
                 value={knowledge}
                 onChange={(e) => setKnowledge(e.target.value)}
                 rows={6}
                 placeholder={'Productos:\n- Crema antiarrugas $50.000\n- Sérum vitamina C $80.000\n\nPolíticas:\n- Envíos en 2 días hábiles\n- Devolución en 15 días'}
                 className="resize-y bg-background font-mono text-xs leading-relaxed"
-              />
-            </Section>
+                  />
+                </Field>
 
-            <Section title="¿En qué canales responde?">
+                <Field label="¿Sobre qué productos puede hablar?">
+                  <div className="grid grid-cols-2 gap-2">
+                    <ScopeCard
+                      active={productScope === 'all'}
+                      onClick={() => setProductScope('all')}
+                      title="Todo el catálogo"
+                      hint="Todos los productos sincronizados de Shopify."
+                    />
+                    <ScopeCard
+                      active={productScope === 'specific'}
+                      onClick={() => setProductScope('specific')}
+                      title="Solo algunos"
+                      hint="Elegí los productos abajo."
+                    />
+                  </div>
+                  {productScope === 'specific' && (
+                    <div className="mt-2 space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={productSearch}
+                          onChange={(e) => setProductSearch(e.target.value)}
+                          placeholder="Buscar producto…"
+                          className="bg-background pl-8 text-sm"
+                        />
+                      </div>
+                      <div className="max-h-[280px] overflow-y-auto rounded-lg border border-border bg-background">
+                        {catalogLoading ? (
+                          <div className="flex justify-center py-6">
+                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : filteredCatalog.length === 0 ? (
+                          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+                            {catalog.length === 0
+                              ? 'Sin productos sincronizados. Conectá Shopify primero.'
+                              : 'Sin resultados.'}
+                          </p>
+                        ) : (
+                          <ul className="divide-y divide-border">
+                            {filteredCatalog.map((p) => {
+                              const on = selectedProducts.includes(p.id);
+                              return (
+                                <li key={p.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleProduct(p.id)}
+                                    className={cn(
+                                      'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/40',
+                                      on && 'bg-primary/10',
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={on}
+                                      readOnly
+                                      className="accent-primary"
+                                    />
+                                    {p.image_url ? (
+                                      /* eslint-disable-next-line @next/next/no-img-element */
+                                      <img
+                                        src={p.image_url}
+                                        alt=""
+                                        className="size-8 shrink-0 rounded object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                                        <Package className="size-3.5" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm text-foreground">
+                                        {p.title}
+                                      </p>
+                                      <p className="truncate text-[11px] text-muted-foreground">
+                                        {[
+                                          p.product_type,
+                                          p.vendor,
+                                          p.price_min != null
+                                            ? p.price_min === p.price_max
+                                              ? `$${p.price_min}`
+                                              : `$${p.price_min}-${p.price_max}`
+                                            : null,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(' · ')}
+                                      </p>
+                                    </div>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {selectedProducts.length} producto
+                        {selectedProducts.length === 1 ? '' : 's'} asignado
+                        {selectedProducts.length === 1 ? '' : 's'}.
+                      </p>
+                    </div>
+                  )}
+                </Field>
+              </>
+            )}
+
+            {tab === 'reach' && (
+              <>
+                <Field label="¿En qué canales responde?">
               <div className="grid grid-cols-2 gap-2">
                 <ScopeCard
                   active={scope === 'workspace'}
@@ -423,221 +570,121 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                   })}
                 </div>
               )}
-            </Section>
+                </Field>
 
-            <Section title="¿Sobre qué productos puede hablar?">
-              <div className="grid grid-cols-2 gap-2">
-                <ScopeCard
-                  active={productScope === 'all'}
-                  onClick={() => setProductScope('all')}
-                  title="Todo el catálogo"
-                  hint="Usa todos los productos sincronizados de Shopify."
-                />
-                <ScopeCard
-                  active={productScope === 'specific'}
-                  onClick={() => setProductScope('specific')}
-                  title="Solo algunos"
-                  hint="Elegí los productos abajo."
-                />
-              </div>
-              {productScope === 'specific' && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      placeholder="Buscar producto…"
-                      className="bg-background pl-8 text-sm"
+                {/* Rules toggles + escalation chips share the Alcance tab. */}
+                <Field label="Reglas de respuesta">
+                  <div className="space-y-2">
+                    <ToggleRow
+                      checked={replyWhenAssigned}
+                      onChange={setReplyWhenAssigned}
+                      title="Responder aunque haya agente asignado"
+                      hint="Por defecto, si un humano está atendiendo, la IA calla."
+                    />
+                    <ToggleRow
+                      checked={replyOutsideHours}
+                      onChange={setReplyOutsideHours}
+                      title="Responder fuera del horario"
+                      hint="Apagá para que solo responda dentro del horario de oficina."
                     />
                   </div>
-                  <div className="max-h-[240px] overflow-y-auto rounded-lg border border-border bg-background">
-                    {catalogLoading ? (
-                      <div className="flex justify-center py-6">
-                        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : filteredCatalog.length === 0 ? (
-                      <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-                        {catalog.length === 0
-                          ? 'Sin productos sincronizados. Conectá Shopify primero.'
-                          : 'Sin resultados.'}
-                      </p>
-                    ) : (
-                      <ul className="divide-y divide-border">
-                        {filteredCatalog.map((p) => {
-                          const on = selectedProducts.includes(p.id);
-                          return (
-                            <li key={p.id}>
-                              <button
-                                type="button"
-                                onClick={() => toggleProduct(p.id)}
-                                className={cn(
-                                  'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/40',
-                                  on && 'bg-primary/10',
-                                )}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={on}
-                                  readOnly
-                                  className="accent-primary"
-                                />
-                                {p.image_url ? (
-                                  /* eslint-disable-next-line @next/next/no-img-element */
-                                  <img
-                                    src={p.image_url}
-                                    alt=""
-                                    className="size-8 shrink-0 rounded object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-                                    <Package className="size-3.5" />
-                                  </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm text-foreground">
-                                    {p.title}
-                                  </p>
-                                  <p className="truncate text-[11px] text-muted-foreground">
-                                    {[
-                                      p.product_type,
-                                      p.vendor,
-                                      p.price_min != null
-                                        ? p.price_min === p.price_max
-                                          ? `$${p.price_min}`
-                                          : `$${p.price_min}-${p.price_max}`
-                                        : null,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(' · ')}
-                                  </p>
-                                </div>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                </Field>
+
+                <Field label="Pasar a un humano si el mensaje contiene…">
+                  <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
+                    {escalateKeywords.map((kw) => (
+                      <span
+                        key={kw}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary"
+                      >
+                        {kw}
+                        <button
+                          type="button"
+                          onClick={() => toggleEscalate(kw)}
+                          className="rounded hover:text-red-400"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      value={escalateInput}
+                      onChange={(e) => setEscalateInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          addEscalate();
+                        }
+                      }}
+                      onBlur={addEscalate}
+                      placeholder="humano, reembolso…"
+                      className="min-w-[140px] flex-1 bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                    />
+                  </div>
+                </Field>
+              </>
+            )}
+
+            {tab === 'advanced' && (
+              <>
+                <SliderField
+                  label="Largo máximo de respuesta"
+                  value={maxChars}
+                  min={120}
+                  max={2000}
+                  step={20}
+                  suffix="caracteres"
+                  onChange={setMaxChars}
+                />
+                <SliderField
+                  label="Esperar antes de responder"
+                  value={delaySec}
+                  min={0}
+                  max={120}
+                  step={5}
+                  suffix="segundos"
+                  hint="Da sensación de que un humano está escribiendo."
+                  onChange={setDelaySec}
+                />
+                <SliderField
+                  label="Mensajes de contexto"
+                  value={contextMessages}
+                  min={1}
+                  max={30}
+                  step={1}
+                  suffix="últimos mensajes"
+                  onChange={setContextMessages}
+                />
+
+                <Field label="API key propia (opcional)">
+                  <div className="relative">
+                    <KeyRound className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type={showKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder={
+                        agent?.has_api_key
+                          ? '••••••••  (ya hay una key guardada)'
+                          : 'sk-ant-...'
+                      }
+                      className="bg-background pl-8 pr-9 font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowKey((s) => !s)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {selectedProducts.length} producto
-                    {selectedProducts.length === 1 ? '' : 's'} asignado
-                    {selectedProducts.length === 1 ? '' : 's'}.
+                    Usa tu cuenta de Anthropic en vez de la del servidor.
+                    Se guarda cifrada.
                   </p>
-                </div>
-              )}
-            </Section>
-
-            <Section title="Reglas">
-              <ToggleRow
-                checked={replyWhenAssigned}
-                onChange={setReplyWhenAssigned}
-                title="Responder aunque haya agente asignado"
-                hint="Por defecto, si un humano está atendiendo, la IA calla."
-              />
-              <ToggleRow
-                checked={replyOutsideHours}
-                onChange={setReplyOutsideHours}
-                title="Responder fuera del horario"
-                hint="Apagá para que la IA solo conteste dentro del horario de oficina."
-              />
-              <div className="space-y-2">
-                <Label className="text-foreground">Palabras de escalamiento</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Si el mensaje del cliente contiene cualquiera de estas, la IA
-                  no responde y queda esperando un humano.
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {escalateKeywords.map((kw) => (
-                    <span
-                      key={kw}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary"
-                    >
-                      {kw}
-                      <button
-                        type="button"
-                        onClick={() => toggleEscalate(kw)}
-                        className="rounded hover:text-red-400"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    value={escalateInput}
-                    onChange={(e) => setEscalateInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
-                        addEscalate();
-                      }
-                    }}
-                    onBlur={addEscalate}
-                    placeholder="Añadí palabra…"
-                    className="min-w-[120px] flex-1 rounded-md border border-dashed border-border bg-background px-2 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-              </div>
-            </Section>
-
-            <Section title="Comportamiento avanzado">
-              <SliderField
-                label="Largo máximo de respuesta"
-                value={maxChars}
-                min={120}
-                max={2000}
-                step={20}
-                suffix="caracteres"
-                onChange={setMaxChars}
-              />
-              <SliderField
-                label="Esperar antes de responder"
-                value={delaySec}
-                min={0}
-                max={120}
-                step={5}
-                suffix="segundos"
-                hint="Suaviza la respuesta para que no parezca un bot."
-                onChange={setDelaySec}
-              />
-              <SliderField
-                label="Mensajes de contexto"
-                value={contextMessages}
-                min={1}
-                max={30}
-                step={1}
-                suffix="últimos mensajes"
-                onChange={setContextMessages}
-              />
-            </Section>
-
-            <Section title="API key (opcional)">
-              <p className="text-[11px] text-muted-foreground">
-                Si querés usar tu propia cuenta de Anthropic en vez de la del
-                servidor. La key se guarda cifrada.
-              </p>
-              <div className="relative">
-                <KeyRound className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={
-                    agent?.has_api_key
-                      ? '••••••••  (ya hay una key guardada)'
-                      : 'sk-ant-...'
-                  }
-                  className="bg-background pl-8 pr-9 font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                </button>
-              </div>
-            </Section>
+                </Field>
+              </>
+            )}
           </div>
 
           {/* Test column */}
@@ -712,17 +759,6 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      <div className="space-y-3">{children}</div>
-    </div>
   );
 }
 

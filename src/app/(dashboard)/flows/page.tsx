@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
 
 /**
@@ -194,19 +195,19 @@ export default function FlowsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+      <SupportModeSwitcher current="flows" />
+
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-foreground">Flujos</h1>
-            <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-              Beta
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-foreground">Menús con botones</h1>
+          <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+            Beta
+          </span>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          Nuevo flujo
+          Nuevo menú
         </Button>
       </header>
 
@@ -309,8 +310,14 @@ function EmptyState() {
         <Workflow className="h-6 w-6 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-base font-medium text-foreground">
-        Sin flujos
+        Sin menús todavía
       </h2>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">
+        Creá un menú con el botón
+        <span className="mx-1 font-medium text-foreground">Nuevo menú</span>
+        arriba — el cliente toca botones y vos definís a dónde lo lleva
+        cada opción.
+      </p>
     </div>
   );
 }

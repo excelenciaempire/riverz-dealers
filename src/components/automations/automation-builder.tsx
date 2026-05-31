@@ -110,8 +110,12 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   close_conversation: { label: "Cerrar conversación", icon: CircleSlash, border: "border-l-primary" },
 }
 
+// `send_message` (free-text) is intentionally NOT in the picker — Meta
+// requires an approved template for any send that may fall outside the
+// 24-hour customer-service window, which is true for every automation
+// that includes a `wait` step. The type stays in the union so legacy
+// rows still load, but new steps must be a template.
 const ADDABLE_STEPS: AutomationStepType[] = [
-  "send_message",
   "send_template",
   "add_tag",
   "remove_tag",
