@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -98,22 +99,28 @@ interface StepMeta {
   /** Tailwind classes for the icon chip on the step card. */
   iconBg: string
   iconText: string
+  /** When set, the chip renders the brand SVG from /public/channels
+   *  instead of the lucide icon. Used for first-class WhatsApp/Shopify
+   *  step types so the canvas reads as "this is a WhatsApp action". */
+  brand?: 'whatsapp' | 'shopify'
 }
 
 const STEP_META: Record<AutomationStepType, StepMeta> = {
   send_message: {
     label: "Enviar mensaje",
     icon: MessageSquare,
-    border: "border-l-sky-500",
-    iconBg: "bg-sky-500/15",
-    iconText: "text-sky-400",
+    border: "border-l-emerald-500",
+    iconBg: "bg-white",
+    iconText: "text-emerald-500",
+    brand: "whatsapp",
   },
   send_template: {
     label: "Enviar plantilla",
     icon: FileText,
     border: "border-l-emerald-500",
-    iconBg: "bg-emerald-500/15",
-    iconText: "text-emerald-400",
+    iconBg: "bg-white",
+    iconText: "text-emerald-500",
+    brand: "whatsapp",
   },
   add_tag: {
     label: "Añadir etiqueta",
@@ -721,17 +728,40 @@ function TriggerCard({
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
     <div className="z-10 w-full max-w-[320px] sm:w-80">
-      <div className="rounded-lg border border-border border-l-4 border-l-blue-500 bg-card shadow-lg">
+      <div
+        className={cn(
+          "rounded-lg border border-border border-l-4 bg-card shadow-lg",
+          type.startsWith("shopify_")
+            ? "border-l-emerald-500"
+            : "border-l-blue-500",
+        )}
+      >
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="flex w-full items-center gap-3 px-4 py-3 text-left"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
-            <Zap className="h-4 w-4" />
+          <div
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-lg",
+              type.startsWith("shopify_") ? "bg-white" : "bg-blue-500/10 text-blue-400",
+            )}
+          >
+            {type.startsWith("shopify_") ? (
+              <Image src="/channels/shopify.svg" alt="" width={22} height={22} />
+            ) : (
+              <Zap className="h-4 w-4" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] uppercase tracking-wide text-blue-300">Activador</div>
+            <div
+              className={cn(
+                "text-[11px] uppercase tracking-wide",
+                type.startsWith("shopify_") ? "text-emerald-300" : "text-blue-300",
+              )}
+            >
+              {type.startsWith("shopify_") ? "Activador · Shopify" : "Activador"}
+            </div>
             <div className="truncate text-sm font-medium text-foreground">
               {TRIGGER_OPTIONS.find((o) => o.value === type)?.label ?? type}
             </div>
@@ -948,7 +978,13 @@ function StepRenderer({
                 meta.iconText,
               )}
             >
-              <Icon className="h-4 w-4" />
+              {meta.brand === "whatsapp" ? (
+                <Image src="/channels/whatsapp.svg" alt="" width={20} height={20} />
+              ) : meta.brand === "shopify" ? (
+                <Image src="/channels/shopify.svg" alt="" width={20} height={20} />
+              ) : (
+                <Icon className="h-4 w-4" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -1117,7 +1153,13 @@ function AddButton({
                     m.iconText,
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  {m.brand === "whatsapp" ? (
+                    <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
+                  ) : m.brand === "shopify" ? (
+                    <Image src="/channels/shopify.svg" alt="" width={14} height={14} />
+                  ) : (
+                    <Icon className="h-3.5 w-3.5" />
+                  )}
                 </span>
                 {m.label}
               </DropdownMenuItem>
@@ -1160,45 +1202,36 @@ function StepEditor({
       )
     case "send_template":
       return (
-        <>
-          <FieldBlock label="Plantilla">
-            {templates.length > 0 ? (
-              <select
-                value={(cfg.template_name as string) ?? ""}
-                onChange={(e) => {
-                  const tpl = templates.find((t) => t.name === e.target.value)
-                  set({
-                    template_name: e.target.value,
-                    language: tpl?.language ?? (cfg.language as string) ?? "es",
-                  })
-                }}
-                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-              >
-                <option value=""></option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name} ({t.language}) · {t.status ?? "Draft"}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                value={(cfg.template_name as string) ?? ""}
-                onChange={(e) => set({ template_name: e.target.value })}
-                placeholder="nombre_de_plantilla"
-                className="bg-muted text-foreground"
-              />
-            )}
-          </FieldBlock>
-          <FieldBlock label="Idioma">
-            <Input
-              value={(cfg.language as string) ?? ""}
-              onChange={(e) => set({ language: e.target.value })}
-              placeholder="es"
-              className="bg-muted text-foreground"
-            />
-          </FieldBlock>
-        </>
+        <FieldBlock label="Plantilla aprobada">
+          {templates.length > 0 ? (
+            <select
+              value={(cfg.template_name as string) ?? ""}
+              onChange={(e) => {
+                const tpl = templates.find((t) => t.name === e.target.value)
+                set({
+                  template_name: e.target.value,
+                  language: tpl?.language ?? "es",
+                })
+              }}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="">Elegí una plantilla…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.name}>
+                  {t.name} · {t.language ?? "es"}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              No hay plantillas aprobadas todavía.{" "}
+              <a href="/templates" className="text-accent-ink underline hover:opacity-80">
+                Crear una
+              </a>
+              .
+            </p>
+          )}
+        </FieldBlock>
       )
     case "add_tag":
     case "remove_tag":
