@@ -15,6 +15,7 @@ import {
   LayoutTemplate,
   Zap,
   Waypoints,
+  Sparkles,
   Blocks,
   Settings,
   LogOut,
@@ -73,6 +74,7 @@ const navGroups: NavGroup[] = [
   {
     title: "Automatización",
     items: [
+      { href: "/ai", label: "Servicio con IA", icon: Sparkles },
       { href: "/automations", label: "Automatizaciones", icon: Zap },
       { href: "/flows", label: "Flujos", icon: Waypoints },
     ],

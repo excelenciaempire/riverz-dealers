@@ -7,6 +7,7 @@ import type {
   Message,
 } from "@/types";
 import type { InboundEvent } from "./types";
+import { runAiAgent } from "@/lib/ai/runner";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -136,6 +137,21 @@ export async function ingestInboundEvent(
       updated_at: new Date().toISOString(),
     })
     .eq("id", conversation.id);
+
+  // Fire the AI customer-service agent for inbound (customer) text
+  // messages. Comments are skipped — the AI flow only owns 1:1 chat
+  // surfaces (DMs and email). Fire-and-forget so a slow LLM call
+  // never blocks the webhook response.
+  if (!event.outbound && channel !== "fb_comment" && channel !== "ig_comment") {
+    runAiAgent(db, {
+      workspaceId,
+      channel,
+      conversation,
+      contact,
+      connection: event.connection,
+      inboundMessage: message as Message,
+    }).catch((err) => console.error("[ai] dispatch failed:", err));
+  }
 
   return { contact, conversation, message: message as Message };
 }
