@@ -72,6 +72,7 @@ import {
   validateFlowForActivation,
   type ValidationIssue,
 } from "@/lib/flows/validate";
+import { CanvasViewport } from "@/components/canvas/canvas-viewport";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -691,72 +692,85 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
   // ---- Render ----
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col gap-6 p-6">
-      <Header
-        state={state}
-        setState={setStateDirty}
-        dirty={dirty}
-        saving={saving}
-        activating={activating}
-        onSave={handleSave}
-        onStatus={handleStatus}
-        onDelete={handleDelete}
-        canActivate={canActivate}
-        onBack={() => router.push("/flows")}
-        onViewRuns={() => router.push(`/flows/${initialFlow.id}/runs`)}
-      />
+    <div className="fixed inset-0 flex flex-col bg-background">
+      <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3">
+        <Header
+          state={state}
+          setState={setStateDirty}
+          dirty={dirty}
+          saving={saving}
+          activating={activating}
+          onSave={handleSave}
+          onStatus={handleStatus}
+          onDelete={handleDelete}
+          canActivate={canActivate}
+          onBack={() => router.push("/flows")}
+          onViewRuns={() => router.push(`/flows/${initialFlow.id}/runs`)}
+        />
+      </div>
 
-      <TriggerPanel
-        state={state}
-        setState={setStateDirty}
-        triggerIssues={issues.filter((i) => i.scope === "trigger")}
-      />
+      {/* Trigger + entry compactos en una barra encima del canvas */}
+      <div className="flex-shrink-0 space-y-3 border-b border-border bg-card/20 px-4 py-3">
+        <TriggerPanel
+          state={state}
+          setState={setStateDirty}
+          triggerIssues={issues.filter((i) => i.scope === "trigger")}
+        />
+        <EntryPicker state={state} setState={setStateDirty} />
+      </div>
 
-      <EntryPicker state={state} setState={setStateDirty} />
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">
-            Nodos ({state.nodes.length})
-          </h2>
-          <AddNodeButton onAdd={addNode} />
-        </div>
-
-        {state.nodes.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-            Sin nodos.
+      {/* Canvas — pan / zoom / drag, mismo wrapper que automatizaciones */}
+      <div className="relative flex min-h-0 flex-1">
+        <CanvasViewport>
+          <div className="flex w-max items-start gap-0 px-8 py-10">
+            {state.nodes.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-8 py-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Empezá añadiendo el primer nodo de tu flujo.
+                </p>
+                <AddNodeInlineButton onAdd={addNode} />
+              </div>
+            ) : (
+              <>
+                <AddNodeInlineButton onAdd={addNode} />
+                {state.nodes.map((node) => (
+                  <div key={node.node_key} className="flex items-start gap-0">
+                    <div className="w-[320px] sm:w-[360px]">
+                      <NodeCard
+                        node={node}
+                        allNodes={state.nodes}
+                        expanded={expanded.has(node.node_key)}
+                        isEntry={state.entry_node_id === node.node_key}
+                        isFlashed={flashedKey === node.node_key}
+                        cardRef={setNodeRef(node.node_key)}
+                        issues={issues.filter(
+                          (i) =>
+                            i.scope === "node" && i.node_key === node.node_key,
+                        )}
+                        onToggle={() => toggleExpanded(node.node_key)}
+                        onUpdate={(patch) => updateNode(node.node_key, patch)}
+                        onUpdateConfig={(patch) =>
+                          updateNodeConfig(node.node_key, patch)
+                        }
+                        onRemove={() => removeNode(node.node_key)}
+                        onSetEntry={() =>
+                          setStateDirty((s) => ({
+                            ...s,
+                            entry_node_id: node.node_key,
+                          }))
+                        }
+                      />
+                    </div>
+                    <AddNodeInlineButton onAdd={addNode} />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
-        ) : (
-          state.nodes.map((node) => (
-            <NodeCard
-              key={node.node_key}
-              node={node}
-              allNodes={state.nodes}
-              expanded={expanded.has(node.node_key)}
-              isEntry={state.entry_node_id === node.node_key}
-              isFlashed={flashedKey === node.node_key}
-              cardRef={setNodeRef(node.node_key)}
-              issues={issues.filter(
-                (i) => i.scope === "node" && i.node_key === node.node_key,
-              )}
-              onToggle={() => toggleExpanded(node.node_key)}
-              onUpdate={(patch) => updateNode(node.node_key, patch)}
-              onUpdateConfig={(patch) => updateNodeConfig(node.node_key, patch)}
-              onRemove={() => removeNode(node.node_key)}
-              onSetEntry={() =>
-                setStateDirty((s) => ({ ...s, entry_node_id: node.node_key }))
-              }
-            />
-          ))
-        )}
-      </section>
+        </CanvasViewport>
+      </div>
 
-      {/* Sticky-bottom so the activate-readiness status follows the
-          user as they scroll through nodes. The parent <main> in the
-          dashboard shell is the scroll container; this stays pinned
-          to the viewport bottom (with a 1rem gap) until the page
-          naturally ends, at which point it falls back into flow. */}
-      <div className="sticky bottom-4 z-10 shadow-xl shadow-black/40">
+      <div className="z-10 flex-shrink-0 border-t border-border bg-card/40 shadow-xl shadow-black/40">
         <ValidationPanel issues={issues} onJump={jumpToNode} />
       </div>
     </div>
@@ -2231,38 +2245,70 @@ function NodeKeySelect({
 // Add-node menu
 // ============================================================
 
-function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
-  const types: NodeType[] = [
-    "start",
-    "send_buttons",
-    "send_list",
-    "send_message",
-    "collect_input",
-    "condition",
-    "set_tag",
-    "handoff",
-    "end",
-  ];
+// All node types user can add, including the v2 Shopify-tuned set.
+const ADDABLE_NODE_TYPES: NodeType[] = [
+  "send_buttons",
+  "send_list",
+  "send_message",
+  "send_image",
+  "send_video",
+  "send_document",
+  "send_cta_url",
+  "collect_input",
+  "ai_intent",
+  "shopify_lookup",
+  "condition",
+  "set_tag",
+  "wait",
+  "handoff",
+  "end",
+];
+
+/**
+ * Compact pill rendered between every pair of nodes in the canvas —
+ * same visual language as the automations builder's AddButton. Opens
+ * the full picker so the user can drop any node type at that spot.
+ */
+function AddNodeInlineButton({
+  onAdd,
+}: {
+  onAdd: (type: NodeType) => void;
+}) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Añadir nodo
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="border-border bg-card">
-        {types.map((t) => {
-          const meta = NODE_META[t];
-          return (
-            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
-              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex shrink-0 items-center self-start pt-7">
+      <div className="h-[2px] w-6 bg-border" aria-hidden />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
+            "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
+            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
+          )}
+          aria-label="Añadir nodo"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Añadir
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
+        >
+          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Elegí qué nodo añadir
+          </div>
+          {ADDABLE_NODE_TYPES.map((t) => {
+            const meta = NODE_META[t];
+            return (
+              <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+                <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+                {meta.label}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <div className="h-[2px] w-6 bg-border" aria-hidden />
+    </div>
   );
 }
 
