@@ -93,21 +93,84 @@ export interface BuilderInitial {
 interface StepMeta {
   label: string
   icon: typeof Zap
-  /** Left-border accent color per spec. */
+  /** Left-border accent color (matches the icon hue). */
   border: string
+  /** Tailwind classes for the icon chip on the step card. */
+  iconBg: string
+  iconText: string
 }
 
 const STEP_META: Record<AutomationStepType, StepMeta> = {
-  send_message: { label: "Enviar mensaje", icon: MessageSquare, border: "border-l-primary" },
-  send_template: { label: "Enviar plantilla", icon: FileText, border: "border-l-primary" },
-  add_tag: { label: "Añadir etiqueta", icon: Tag, border: "border-l-primary" },
-  remove_tag: { label: "Quitar etiqueta", icon: TagIcon, border: "border-l-primary" },
-  assign_conversation: { label: "Asignar conversación", icon: UserCheck, border: "border-l-primary" },
-  update_contact_field: { label: "Actualizar campo del contacto", icon: PencilLine, border: "border-l-primary" },
-  wait: { label: "Esperar", icon: Hourglass, border: "border-l-border" },
-  condition: { label: "Condición (Si/Si no)", icon: GitBranch, border: "border-l-amber-500" },
-  send_webhook: { label: "Enviar webhook", icon: Webhook, border: "border-l-primary" },
-  close_conversation: { label: "Cerrar conversación", icon: CircleSlash, border: "border-l-primary" },
+  send_message: {
+    label: "Enviar mensaje",
+    icon: MessageSquare,
+    border: "border-l-sky-500",
+    iconBg: "bg-sky-500/15",
+    iconText: "text-sky-400",
+  },
+  send_template: {
+    label: "Enviar plantilla",
+    icon: FileText,
+    border: "border-l-emerald-500",
+    iconBg: "bg-emerald-500/15",
+    iconText: "text-emerald-400",
+  },
+  add_tag: {
+    label: "Añadir etiqueta",
+    icon: Tag,
+    border: "border-l-pink-500",
+    iconBg: "bg-pink-500/15",
+    iconText: "text-pink-400",
+  },
+  remove_tag: {
+    label: "Quitar etiqueta",
+    icon: TagIcon,
+    border: "border-l-rose-500",
+    iconBg: "bg-rose-500/15",
+    iconText: "text-rose-400",
+  },
+  assign_conversation: {
+    label: "Asignar conversación",
+    icon: UserCheck,
+    border: "border-l-cyan-500",
+    iconBg: "bg-cyan-500/15",
+    iconText: "text-cyan-400",
+  },
+  update_contact_field: {
+    label: "Actualizar campo del contacto",
+    icon: PencilLine,
+    border: "border-l-violet-500",
+    iconBg: "bg-violet-500/15",
+    iconText: "text-violet-400",
+  },
+  wait: {
+    label: "Esperar",
+    icon: Hourglass,
+    border: "border-l-slate-500",
+    iconBg: "bg-slate-500/15",
+    iconText: "text-slate-300",
+  },
+  condition: {
+    label: "Condición (Si / Si no)",
+    icon: GitBranch,
+    border: "border-l-amber-500",
+    iconBg: "bg-amber-500/15",
+    iconText: "text-amber-400",
+  },
+  send_webhook: {
+    label: "Enviar webhook",
+    icon: Webhook,
+    border: "border-l-indigo-500",
+    iconBg: "bg-indigo-500/15",
+    iconText: "text-indigo-400",
+  },
+  close_conversation: {
+    label: "Cerrar conversación",
+    icon: CircleSlash,
+    border: "border-l-red-500",
+    iconBg: "bg-red-500/15",
+    iconText: "text-red-400",
+  },
 }
 
 // `send_message` (free-text) is intentionally NOT in the picker — Meta
@@ -878,7 +941,13 @@ function StepRenderer({
             className="flex w-full items-center gap-3 px-4 py-3 text-left"
           >
             <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-foreground">
+            <div
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-lg",
+                meta.iconBg,
+                meta.iconText,
+              )}
+            >
               <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -1005,11 +1074,11 @@ function AddButton({
   onPick: (t: AutomationStepType) => void
   orientation?: "h" | "v"
 }) {
-  const seg = orientation === "h" ? "h-[2px] w-4" : "h-4 w-[2px]"
+  const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
   return (
     <div
       className={cn(
-        "relative flex items-center",
+        "group/add relative flex items-center",
         // Top-align in horizontal mode so the line meets the card header
         // (cards grow downward when expanded / when conditions sprout
         // branches), ~28px ≈ half the collapsed header height.
@@ -1019,21 +1088,38 @@ function AddButton({
       <div className={cn(seg, "bg-border")} aria-hidden />
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-accent-ink"
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
+            "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
+            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
+          )}
           aria-label="Añadir paso"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
+          Añadir
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="max-h-80 min-w-56 overflow-y-auto border-border bg-card"
+          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
         >
+          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Elegí qué hacer
+          </div>
           {ADDABLE_STEPS.map((t) => {
-            const Icon = STEP_META[t].icon
+            const m = STEP_META[t]
+            const Icon = m.icon
             return (
               <DropdownMenuItem key={t} onClick={() => onPick(t)}>
-                <Icon className="h-4 w-4" />
-                {STEP_META[t].label}
+                <span
+                  className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                    m.iconBg,
+                    m.iconText,
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                {m.label}
               </DropdownMenuItem>
             )
           })}
