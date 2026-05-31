@@ -785,54 +785,27 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         )}
       </div>
 
-      {/* Canvas — pan / zoom / drag, mismo wrapper que automatizaciones */}
+      {/* Canvas — árbol: cada rama de un nodo con varias salidas se
+          dibuja como una columna debajo. */}
       <div className="relative flex min-h-0 flex-1">
         <CanvasViewport>
-          <div className="flex w-max items-start gap-0 px-8 py-10">
-            {state.nodes.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-8 py-10 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Empezá añadiendo el primer nodo de tu flujo.
-                </p>
-                <AddNodeInlineButton onAdd={addNode} />
-              </div>
-            ) : (
-              <>
-                <AddNodeInlineButton onAdd={addNode} />
-                {state.nodes.map((node) => (
-                  <div key={node.node_key} className="flex items-start gap-0">
-                    <div className="w-[320px] sm:w-[360px]">
-                      <NodeCard
-                        node={node}
-                        allNodes={state.nodes}
-                        expanded={expanded.has(node.node_key)}
-                        isEntry={state.entry_node_id === node.node_key}
-                        isFlashed={flashedKey === node.node_key}
-                        cardRef={setNodeRef(node.node_key)}
-                        issues={issues.filter(
-                          (i) =>
-                            i.scope === "node" && i.node_key === node.node_key,
-                        )}
-                        onToggle={() => toggleExpanded(node.node_key)}
-                        onUpdate={(patch) => updateNode(node.node_key, patch)}
-                        onUpdateConfig={(patch) =>
-                          updateNodeConfig(node.node_key, patch)
-                        }
-                        onRemove={() => removeNode(node.node_key)}
-                        onSetEntry={() =>
-                          setStateDirty((s) => ({
-                            ...s,
-                            entry_node_id: node.node_key,
-                          }))
-                        }
-                      />
-                    </div>
-                    <AddNodeInlineButton onAdd={addNode} />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
+          <FlowTree
+            entryKey={state.entry_node_id}
+            allNodes={state.nodes}
+            expanded={expanded}
+            entryNodeId={state.entry_node_id}
+            flashedKey={flashedKey}
+            issues={issues}
+            setNodeRef={setNodeRef}
+            onToggle={toggleExpanded}
+            onUpdate={updateNode}
+            onUpdateConfig={updateNodeConfig}
+            onRemove={removeNode}
+            onSetEntry={(key) =>
+              setStateDirty((s) => ({ ...s, entry_node_id: key }))
+            }
+            onAdd={addNode}
+          />
         </CanvasViewport>
       </div>
 
@@ -2319,54 +2292,6 @@ const ADDABLE_NODE_TYPES: NodeType[] = [
   "end",
 ];
 
-/**
- * Compact pill rendered between every pair of nodes in the canvas —
- * same visual language as the automations builder's AddButton. Opens
- * the full picker so the user can drop any node type at that spot.
- */
-function AddNodeInlineButton({
-  onAdd,
-}: {
-  onAdd: (type: NodeType) => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center self-start pt-7">
-      <div className="h-[2px] w-6 bg-border" aria-hidden />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
-            "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
-            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
-          )}
-          aria-label="Añadir nodo"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Añadir
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
-        >
-          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Elegí qué nodo añadir
-          </div>
-          {ADDABLE_NODE_TYPES.map((t) => {
-            const meta = NODE_META[t];
-            return (
-              <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
-                <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-                {meta.label}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <div className="h-[2px] w-6 bg-border" aria-hidden />
-    </div>
-  );
-}
-
 // ============================================================
 // Validation panel — bottom of the editor
 // ============================================================
@@ -2574,4 +2499,351 @@ function AiIntentForm({
       />
     </>
   );
+}
+
+// ============================================================
+// Tree renderer — the whole point of button flows
+// ============================================================
+// A flow has a graph shape, not a list. Walking outgoing edges from
+// the entry node gives us the actual chain of cards the user sees,
+// with branches (send_buttons / send_list / condition / ai_intent /
+// shopify_lookup) dropped as labeled columns below their source.
+// ============================================================
+
+interface OutgoingEdge {
+  /** Visible chip label for the branch ("Sí", "Botón: Pedido", etc). */
+  label: string | null
+  /** node_key the edge points to. Empty string = unset (user to wire). */
+  nextKey: string
+}
+
+function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
+  const cfg = node.config
+  switch (node.node_type) {
+    case "start":
+    case "send_message":
+    case "send_image":
+    case "send_video":
+    case "send_document":
+    case "send_cta_url":
+    case "collect_input":
+    case "set_tag":
+    case "wait": {
+      const next = (cfg as { next_node_key?: string }).next_node_key ?? ""
+      return [{ label: null, nextKey: next }]
+    }
+    case "send_buttons": {
+      const btns = ((cfg as { buttons?: Array<{ reply_id?: string; title?: string; next_node_key?: string }> }).buttons) ?? []
+      return btns.map((b) => ({
+        label: b.title || b.reply_id || "Botón",
+        nextKey: b.next_node_key ?? "",
+      }))
+    }
+    case "send_list": {
+      const sections = ((cfg as { sections?: Array<{ rows?: Array<{ reply_id?: string; title?: string; next_node_key?: string }> }> }).sections) ?? []
+      return sections.flatMap((s) =>
+        (s.rows ?? []).map((r) => ({
+          label: r.title || r.reply_id || "Opción",
+          nextKey: r.next_node_key ?? "",
+        })),
+      )
+    }
+    case "condition": {
+      const c = cfg as { true_next?: string; false_next?: string }
+      return [
+        { label: "Sí", nextKey: c.true_next ?? "" },
+        { label: "No", nextKey: c.false_next ?? "" },
+      ]
+    }
+    case "ai_intent": {
+      const c = cfg as {
+        intents?: Array<{ intent_key?: string; next_node_key?: string }>
+        fallback_next_key?: string
+      }
+      const out: OutgoingEdge[] = (c.intents ?? []).map((i) => ({
+        label: i.intent_key || "Intención",
+        nextKey: i.next_node_key ?? "",
+      }))
+      out.push({ label: "No entendí", nextKey: c.fallback_next_key ?? "" })
+      return out
+    }
+    case "shopify_lookup": {
+      const c = cfg as { found_next_key?: string; not_found_next_key?: string }
+      return [
+        { label: "Encontrado", nextKey: c.found_next_key ?? "" },
+        { label: "No encontrado", nextKey: c.not_found_next_key ?? "" },
+      ]
+    }
+    case "handoff":
+    case "end":
+      return []
+  }
+}
+
+interface FlowTreeProps {
+  entryKey: string | null
+  allNodes: BuilderNode[]
+  expanded: Set<string>
+  entryNodeId: string | null
+  flashedKey: string | null
+  issues: ValidationIssue[]
+  setNodeRef: (key: string) => (el: HTMLDivElement | null) => void
+  onToggle: (key: string) => void
+  onUpdate: (key: string, patch: Partial<BuilderNode>) => void
+  onUpdateConfig: (key: string, patch: Record<string, unknown>) => void
+  onRemove: (key: string) => void
+  onSetEntry: (key: string) => void
+  onAdd: (type: NodeType) => void
+}
+
+function FlowTree(props: FlowTreeProps) {
+  const nodesByKey = useMemo(() => {
+    const m = new Map<string, BuilderNode>()
+    for (const n of props.allNodes) m.set(n.node_key, n)
+    return m
+  }, [props.allNodes])
+
+  // First pass: walk from entry to know which nodes are reachable.
+  // Anything NOT reachable shows up as "Sin conexión" below the tree
+  // so the user can rewire it or delete it.
+  const reachable = useMemo(() => {
+    const seen = new Set<string>()
+    const stack = props.entryKey ? [props.entryKey] : []
+    while (stack.length) {
+      const k = stack.pop()!
+      if (seen.has(k)) continue
+      seen.add(k)
+      const n = nodesByKey.get(k)
+      if (!n) continue
+      for (const e of getOutgoingEdges(n)) {
+        if (e.nextKey && !seen.has(e.nextKey)) stack.push(e.nextKey)
+      }
+    }
+    return seen
+  }, [nodesByKey, props.entryKey])
+
+  const orphans = props.allNodes.filter((n) => !reachable.has(n.node_key))
+
+  if (props.allNodes.length === 0) {
+    return (
+      <div className="flex items-start gap-0 px-8 py-10">
+        <EmptyFlowCta onAdd={props.onAdd} />
+      </div>
+    )
+  }
+  if (!props.entryKey) {
+    return (
+      <div className="px-8 py-10">
+        <p className="rounded-lg border border-dashed border-border bg-card/60 px-4 py-3 text-sm text-muted-foreground">
+          Elegí el nodo de entrada desde &quot;Cuándo dispara&quot; arriba.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-6 px-12 py-10">
+      <FlowBranch startKey={props.entryKey} visited={new Set()} props={props} nodesByKey={nodesByKey} />
+
+      {orphans.length > 0 && (
+        <div className="mt-12 w-full max-w-3xl space-y-3">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-amber-300">
+            <CircleAlert className="h-3.5 w-3.5" />
+            Sin conexión ({orphans.length})
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Estos nodos existen pero ninguna rama los enlaza.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {orphans.map((node) => (
+              <div key={node.node_key} className="w-full">
+                <NodeCard
+                  node={node}
+                  allNodes={props.allNodes}
+                  expanded={props.expanded.has(node.node_key)}
+                  isEntry={false}
+                  isFlashed={props.flashedKey === node.node_key}
+                  cardRef={props.setNodeRef(node.node_key)}
+                  issues={props.issues.filter(
+                    (i) => i.scope === "node" && i.node_key === node.node_key,
+                  )}
+                  onToggle={() => props.onToggle(node.node_key)}
+                  onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
+                  onUpdateConfig={(patch) =>
+                    props.onUpdateConfig(node.node_key, patch)
+                  }
+                  onRemove={() => props.onRemove(node.node_key)}
+                  onSetEntry={() => props.onSetEntry(node.node_key)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Render one node, then its descendants. A node with one outgoing
+ * edge produces a vertical chain (card · arrow · card · arrow · …).
+ * A node with multiple outgoing edges drops the branches side-by-side
+ * as labeled columns under it.
+ */
+function FlowBranch({
+  startKey,
+  visited,
+  nodesByKey,
+  props,
+}: {
+  startKey: string
+  visited: Set<string>
+  nodesByKey: Map<string, BuilderNode>
+  props: FlowTreeProps
+}) {
+  if (visited.has(startKey)) {
+    return <LoopChip targetKey={startKey} />
+  }
+  const node = nodesByKey.get(startKey)
+  if (!node) {
+    return <MissingChip targetKey={startKey} />
+  }
+  const next = new Set(visited)
+  next.add(startKey)
+  const edges = getOutgoingEdges(node)
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="w-[320px] sm:w-[360px]">
+        <NodeCard
+          node={node}
+          allNodes={props.allNodes}
+          expanded={props.expanded.has(node.node_key)}
+          isEntry={props.entryNodeId === node.node_key}
+          isFlashed={props.flashedKey === node.node_key}
+          cardRef={props.setNodeRef(node.node_key)}
+          issues={props.issues.filter(
+            (i) => i.scope === "node" && i.node_key === node.node_key,
+          )}
+          onToggle={() => props.onToggle(node.node_key)}
+          onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
+          onUpdateConfig={(patch) => props.onUpdateConfig(node.node_key, patch)}
+          onRemove={() => props.onRemove(node.node_key)}
+          onSetEntry={() => props.onSetEntry(node.node_key)}
+        />
+      </div>
+
+      {edges.length === 0 ? null : edges.length === 1 ? (
+        <>
+          <DownArrow />
+          {edges[0].nextKey ? (
+            <FlowBranch
+              startKey={edges[0].nextKey}
+              visited={next}
+              nodesByKey={nodesByKey}
+              props={props}
+            />
+          ) : (
+            <AddNextNodePill onAdd={props.onAdd} />
+          )}
+        </>
+      ) : (
+        <>
+          <DownArrow />
+          <div className="flex items-start gap-6">
+            {edges.map((e, idx) => (
+              <div key={`${e.label}-${idx}`} className="flex flex-col items-center">
+                <BranchLabelChip label={e.label ?? "—"} />
+                <div className="h-3 w-[2px] bg-border" />
+                {e.nextKey ? (
+                  <FlowBranch
+                    startKey={e.nextKey}
+                    visited={next}
+                    nodesByKey={nodesByKey}
+                    props={props}
+                  />
+                ) : (
+                  <AddNextNodePill onAdd={props.onAdd} />
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function DownArrow() {
+  return <div className="h-6 w-[2px] bg-border" aria-hidden />
+}
+
+function BranchLabelChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+      {label}
+    </span>
+  )
+}
+
+function AddNextNodePill({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
+          "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
+          "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
+        )}
+        aria-label="Añadir nodo aquí"
+      >
+        <Plus className="h-3 w-3" />
+        Añadir
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
+      >
+        <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          ¿Qué pasa a continuación?
+        </div>
+        {ADDABLE_NODE_TYPES.map((t) => {
+          const meta = NODE_META[t]
+          return (
+            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+              {meta.label}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function LoopChip({ targetKey }: { targetKey: string }) {
+  return (
+    <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+      ↺ Vuelve a {targetKey}
+    </span>
+  )
+}
+
+function MissingChip({ targetKey }: { targetKey: string }) {
+  return (
+    <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] text-red-300">
+      Nodo &quot;{targetKey}&quot; no existe
+    </span>
+  )
+}
+
+function EmptyFlowCta({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-8 py-10 text-center">
+      <p className="max-w-xs text-sm text-muted-foreground">
+        Empezá con el primer mensaje que verá el cliente.
+      </p>
+      <AddNextNodePill onAdd={onAdd} />
+    </div>
+  )
 }
