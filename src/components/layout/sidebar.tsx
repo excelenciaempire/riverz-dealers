@@ -14,7 +14,6 @@ import {
   Megaphone,
   LayoutTemplate,
   Zap,
-  Waypoints,
   Sparkles,
   Blocks,
   Settings,
@@ -46,6 +45,9 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   /** Renders a small "Beta" chip after the label. Informational only. */
   beta?: boolean;
+  /** Extra path prefixes that should also light up this item — used by
+   *  "Servicio al cliente" so /flows highlights it as well as /ai. */
+  alsoActiveOn?: string[];
 }
 
 interface NavGroup {
@@ -72,15 +74,14 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "Atención al cliente",
-    items: [
-      { href: "/ai", label: "Asistente con IA", icon: Sparkles },
-      { href: "/flows", label: "Menús con botones", icon: Waypoints },
-    ],
-  },
-  {
     title: "Automatización",
     items: [
+      {
+        href: "/ai",
+        label: "Servicio al cliente",
+        icon: Sparkles,
+        alsoActiveOn: ["/flows"],
+      },
       { href: "/automations", label: "Automatizaciones", icon: Zap },
     ],
   },
@@ -375,7 +376,8 @@ function NavLink({
 }) {
   const isActive =
     pathname === item.href ||
-    (item.href !== "/dashboard" && pathname.startsWith(item.href));
+    (item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
+    (item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(p)) ?? false);
 
   const showUnreadDot = item.href === "/inbox" && totalUnread > 0 && !isActive;
 
