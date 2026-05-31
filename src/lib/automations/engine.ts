@@ -544,6 +544,13 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       if (!args.contactId || !cfg.operand) return false
       return isContactInSegment(db, cfg.operand, args.contactId)
     }
+    case 'context_var': {
+      // Reads from context.vars, populated by the dispatching webhook
+      // (e.g. shopify_order_created exposes is_repeat_customer here).
+      if (!cfg.operand) return false
+      const v = (args.context.vars as Record<string, unknown> | undefined)?.[cfg.operand]
+      return v != null && String(v) === String(cfg.value ?? '')
+    }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window
       // (supports over-midnight ranges like "18:00-09:00").

@@ -336,7 +336,9 @@ export type AutomationTriggerType =
   | 'conversation_assigned'
   | 'tag_added'
   | 'time_based'
-  | 'shopify_abandoned_checkout';
+  | 'shopify_abandoned_checkout'
+  | 'shopify_order_created'
+  | 'shopify_order_fulfilled';
 
 export type AutomationStepType =
   | 'send_message'
@@ -409,7 +411,8 @@ export type ConditionSubject =
   | 'tag_presence'
   | 'message_content'
   | 'time_of_day'
-  | 'in_segment';
+  | 'in_segment'
+  | 'context_var';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

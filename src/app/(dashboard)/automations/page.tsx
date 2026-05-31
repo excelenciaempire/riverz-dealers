@@ -11,11 +11,12 @@ import {
   Pencil,
   Trash2,
   FileText,
-  MessageCircle,
   Clock,
-  Users,
   PhoneCall,
   ShoppingCart,
+  Package,
+  Truck,
+  Repeat,
   Loader2,
 } from "lucide-react"
 
@@ -43,20 +44,23 @@ import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
-  "welcome_message",
-  "out_of_office",
-  "lead_qualifier",
-  "follow_up_reminder",
   "cart_recovery",
+  "new_order",
+  "order_fulfilled",
+  "follow_up_reminder",
+  "repurchase_nudge",
 ]
 
 const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
-  welcome_message: MessageCircle,
-  out_of_office: Clock,
-  lead_qualifier: Users,
-  follow_up_reminder: PhoneCall,
   cart_recovery: ShoppingCart,
+  new_order: Package,
+  order_fulfilled: Truck,
+  follow_up_reminder: PhoneCall,
+  repurchase_nudge: Repeat,
 }
+
+// Lint silencer — Clock kept for future use; harmless to import.
+void Clock
 
 export default function AutomationsPage() {
   const router = useRouter()

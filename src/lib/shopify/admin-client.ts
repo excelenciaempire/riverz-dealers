@@ -54,6 +54,8 @@ export class ShopifyAdminClient {
     const topics: { topic: string; path: string }[] = [
       { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
       { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
+      { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
+      { topic: 'orders/fulfilled', path: '/api/shopify/webhooks/orders' },
       { topic: 'app/uninstalled', path: '/api/shopify/webhooks/app-uninstalled' },
     ]
     for (const { topic, path } of topics) {

@@ -132,6 +132,8 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
   { value: "tag_added", label: "Etiqueta añadida" },
   { value: "time_based", label: "Programada" },
   { value: "shopify_abandoned_checkout", label: "Carrito abandonado (Shopify)" },
+  { value: "shopify_order_created", label: "Nuevo pedido (Shopify)" },
+  { value: "shopify_order_fulfilled", label: "Pedido despachado (Shopify)" },
 ]
 
 /**
@@ -214,6 +216,7 @@ function ConditionFields({
           <option value="message_content">Contenido del mensaje</option>
           <option value="time_of_day">Hora del día</option>
           <option value="in_segment">Pertenece a un segmento</option>
+          <option value="context_var">Variable del evento (Shopify, etc.)</option>
         </select>
       </FieldBlock>
       {subject === "in_segment" ? (
@@ -241,6 +244,8 @@ function ConditionFields({
                 ? "nombre / correo / empresa"
                 : subject === "tag_presence"
                 ? "ID de la etiqueta"
+                : subject === "context_var"
+                ? "is_repeat_customer / total_price / tracking_number…"
                 : ""
             }
             value={(cfg.operand as string) ?? ""}
@@ -249,7 +254,9 @@ function ConditionFields({
           />
         </FieldBlock>
       )}
-      {(subject === "contact_field" || subject === "message_content") && (
+      {(subject === "contact_field" ||
+        subject === "message_content" ||
+        subject === "context_var") && (
         <FieldBlock label="Valor">
           <Input
             value={(cfg.value as string) ?? ""}

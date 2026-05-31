@@ -39,6 +39,14 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Carrito abandonado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
   },
+  shopify_order_created: {
+    label: 'Nuevo pedido (Shopify)',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
+  shopify_order_fulfilled: {
+    label: 'Pedido despachado (Shopify)',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
