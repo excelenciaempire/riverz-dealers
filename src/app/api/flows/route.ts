@@ -154,6 +154,7 @@ export async function POST(request: Request) {
     .from('flows')
     .insert({
       user_id: userId,
+      workspace_id: workspaceId,
       name: body.name.trim(),
       description: body.description ?? null,
       status: 'draft',
