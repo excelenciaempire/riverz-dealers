@@ -1116,15 +1116,15 @@ function NodeCard({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
       >
         <div
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
             meta.bg,
           )}
         >
-          <meta.icon className={cn("h-4 w-4", meta.color)} />
+          <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -1132,32 +1132,20 @@ function NodeCard({
               {meta.label}
             </span>
             {isEntry && (
-              <Badge
-                variant="outline"
-                className="border-primary/40 bg-primary/10 text-[10px] text-accent-ink"
-              >
+              <span className="rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
                 Inicio
-              </Badge>
+              </span>
+            )}
+            {hasError && (
+              <CircleAlert className="h-3 w-3 shrink-0 text-red-400" />
             )}
           </div>
-          {preview ? (
-            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+          {preview && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
               {preview}
-            </p>
-          ) : (
-            <p className="mt-0.5 text-xs italic text-muted-foreground">
-              Sin configurar
             </p>
           )}
         </div>
-        {hasError && (
-          <CircleAlert className="h-3.5 w-3.5 shrink-0 text-red-400" />
-        )}
-        {expanded ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
       </button>
       {expanded && (
         <div className="border-t border-border px-4 py-4">
@@ -2642,11 +2630,11 @@ function FlowTree(props: FlowTreeProps) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 px-12 py-10">
+    <div className="flex flex-col items-start gap-10 px-12 py-10">
       <FlowBranch startKey={props.entryKey} visited={new Set()} props={props} nodesByKey={nodesByKey} />
 
       {orphans.length > 0 && (
-        <div className="mt-12 w-full max-w-3xl space-y-3">
+        <div className="w-full max-w-3xl space-y-3">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-amber-300">
             <CircleAlert className="h-3.5 w-3.5" />
             Sin conexión ({orphans.length})
@@ -2685,10 +2673,15 @@ function FlowTree(props: FlowTreeProps) {
 }
 
 /**
- * Render one node, then its descendants. A node with one outgoing
- * edge produces a vertical chain (card · arrow · card · arrow · …).
- * A node with multiple outgoing edges drops the branches side-by-side
- * as labeled columns under it.
+ * Render one node, then its descendants. The whole tree reads
+ * left-to-right: a linear chain (one outgoing edge) extends right,
+ * and a node with multiple outgoing edges fans out as parallel rows
+ * (each labeled with the branch chip) that themselves keep flowing
+ * rightward.
+ *
+ *   [Bienvenida] → [Menú] ─┬─ [Pedido]   → [Buscar] → [Responder]
+ *                          ├─ [FAQ]      → [Lista]
+ *                          └─ [Asesor]   → [Handoff]
  */
 function FlowBranch({
   startKey,
@@ -2713,8 +2706,8 @@ function FlowBranch({
   const edges = getOutgoingEdges(node)
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="w-[320px] sm:w-[360px]">
+    <div className="flex items-start gap-3">
+      <div className="w-[260px]">
         <NodeCard
           node={node}
           allNodes={props.allNodes}
@@ -2734,8 +2727,8 @@ function FlowBranch({
       </div>
 
       {edges.length === 0 ? null : edges.length === 1 ? (
-        <>
-          <DownArrow />
+        <div className="flex items-start gap-3 pt-7">
+          <RightArrow />
           {edges[0].nextKey ? (
             <FlowBranch
               startKey={edges[0].nextKey}
@@ -2746,36 +2739,35 @@ function FlowBranch({
           ) : (
             <AddNextNodePill onAdd={props.onAdd} />
           )}
-        </>
+        </div>
       ) : (
-        <>
-          <DownArrow />
-          <div className="flex items-start gap-6">
-            {edges.map((e, idx) => (
-              <div key={`${e.label}-${idx}`} className="flex flex-col items-center">
-                <BranchLabelChip label={e.label ?? "—"} />
-                <div className="h-3 w-[2px] bg-border" />
-                {e.nextKey ? (
-                  <FlowBranch
-                    startKey={e.nextKey}
-                    visited={next}
-                    nodesByKey={nodesByKey}
-                    props={props}
-                  />
-                ) : (
-                  <AddNextNodePill onAdd={props.onAdd} />
-                )}
-              </div>
-            ))}
-          </div>
-        </>
+        <div className="flex flex-col gap-4 pt-1">
+          {edges.map((e, idx) => (
+            <div key={`${e.label}-${idx}`} className="flex items-start gap-2">
+              <BranchLabelChip label={e.label ?? "—"} />
+              <RightArrow />
+              {e.nextKey ? (
+                <FlowBranch
+                  startKey={e.nextKey}
+                  visited={next}
+                  nodesByKey={nodesByKey}
+                  props={props}
+                />
+              ) : (
+                <AddNextNodePill onAdd={props.onAdd} />
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
 }
 
-function DownArrow() {
-  return <div className="h-6 w-[2px] bg-border" aria-hidden />
+function RightArrow() {
+  return (
+    <div className="mt-7 h-[2px] w-6 shrink-0 bg-border" aria-hidden />
+  )
 }
 
 function BranchLabelChip({ label }: { label: string }) {

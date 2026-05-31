@@ -269,9 +269,9 @@ export default function FlowsPage() {
             </div>
           )}
 
-          <div className="space-y-2 border-t border-border pt-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              O empieza en blanco
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Ponle un nombre a este menú para empezar.
             </p>
             <Input
               value={newName}
