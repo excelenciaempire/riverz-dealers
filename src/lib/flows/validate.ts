@@ -60,7 +60,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "name",
-      message: "Flow name is required.",
+      message: "Falta el nombre del menú.",
     });
   }
 
@@ -73,7 +73,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "entry_node_id",
-      message: "Pick an entry node before activating.",
+      message: "Elegí dónde empieza el menú antes de activarlo.",
     });
   }
 
@@ -82,7 +82,7 @@ export function validateFlowForActivation(
     issues.push({
       severity: "error",
       scope: "flow",
-      message: "A flow needs at least one node before activation.",
+      message: "Añadí al menos un paso antes de activar.",
     });
   }
 
@@ -154,7 +154,7 @@ function validateTrigger(
         severity: "error",
         scope: "trigger",
         field: "trigger_config.keywords",
-        message: "Keyword triggers need at least one keyword.",
+        message: "Tenés que escribir al menos una palabra clave.",
       });
     } else {
       // Empty / whitespace-only keywords are silent no-ops at match
@@ -197,7 +197,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Start node must point to a next node.",
+          message: "El nodo de inicio tiene que apuntar a un siguiente paso.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -219,7 +219,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Send-message node needs a text body.",
+          message: "Escribí el texto del mensaje.",
         });
       }
       if (!cfg.next_node_key) {
@@ -228,7 +228,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Send-message node must point to a next node.",
+          message: "Conectá este mensaje al siguiente paso.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -257,7 +257,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Send-buttons node needs a text body.",
+          message: "Escribí el texto que acompaña los botones.",
         });
       }
       const btns = cfg.buttons ?? [];
@@ -267,7 +267,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "buttons",
-          message: "Send-buttons needs at least one button.",
+          message: "Añadí al menos un botón.",
         });
       }
       if (btns.length > INTERACTIVE_LIMITS.maxButtons) {
@@ -360,7 +360,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Send-list node needs a text body.",
+          message: "Escribí el texto que acompaña la lista.",
         });
       }
       if (!cfg.button_label?.trim()) {
@@ -369,7 +369,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "button_label",
-          message: "Send-list needs a button label (the tap-to-expand text).",
+          message: "Escribí el texto del botón que abre la lista.",
         });
       }
       const sections = cfg.sections ?? [];
@@ -383,7 +383,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "sections",
-          message: "Send-list needs at least one row.",
+          message: "Añadí al menos una opción a la lista.",
         });
       }
       if (totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
@@ -485,7 +485,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "prompt_text",
-          message: "Collect-input needs a prompt to send the customer.",
+          message: "Escribí la pregunta que se le hace al cliente.",
         });
       }
       if (!cfg.var_key?.trim()) {
@@ -494,7 +494,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "var_key",
-          message: "Collect-input needs a var_key to store the answer under.",
+          message: "Ponle un nombre a la variable donde se guarda la respuesta.",
         });
       } else if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cfg.var_key)) {
         issues.push({
@@ -511,7 +511,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Collect-input must point to a next node.",
+          message: "Conectá este paso al siguiente.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -540,7 +540,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "subject",
-          message: "Condition needs a subject (var / tag / contact_field).",
+          message: "Elegí qué evaluar (variable, etiqueta o campo).",
         });
       }
       if (!cfg.subject_key?.trim()) {
@@ -549,7 +549,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "subject_key",
-          message: "Condition needs a subject_key (var name, tag id, or field name).",
+          message: "Indicá qué variable, etiqueta o campo evaluar.",
         });
       }
       if (
@@ -561,7 +561,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "operator",
-          message: "Condition needs an operator.",
+          message: "Elegí cómo comparar.",
         });
       } else if (
         (cfg.operator === "equals" || cfg.operator === "contains") &&
@@ -610,7 +610,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "mode",
-          message: "Set-tag needs a mode (add or remove).",
+          message: "Elegí si la etiqueta se añade o se quita.",
         });
       }
       if (!cfg.tag_id) {
@@ -619,7 +619,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "tag_id",
-          message: "Set-tag needs a tag to apply.",
+          message: "Elegí la etiqueta.",
         });
       }
       if (!cfg.next_node_key) {
@@ -628,7 +628,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Set-tag must point to a next node.",
+          message: "Conectá este paso al siguiente.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -686,7 +686,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "send_cta_url requires text.",
+          message: "Escribí el texto del mensaje.",
         });
       }
       if (!cfg.button_title?.trim()) {
@@ -694,7 +694,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "send_cta_url requires button_title.",
+          message: "Ponle texto al botón.",
         });
       }
       if (!cfg.url || !/^https:\/\//.test(cfg.url)) {
@@ -702,7 +702,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "send_cta_url URL must start with https://.",
+          message: "La URL tiene que empezar con https://.",
         });
       }
       if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
@@ -726,7 +726,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "wait amount must be ≥ 1.",
+          message: "La cantidad de espera tiene que ser al menos 1.",
         });
       }
       if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
@@ -734,7 +734,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "wait unit must be minutes / hours / days.",
+          message: "Elegí minutos, horas o días.",
         });
       }
       if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
@@ -757,7 +757,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "ai_intent requires at least one intent.",
+          message: "Añadí al menos una intención.",
         });
       }
       for (const i of cfg.intents ?? []) {
@@ -766,7 +766,7 @@ function validateNode(
             severity: "error",
             scope: "node",
             node_key: node.node_key,
-            message: "ai_intent: every intent needs an intent_key.",
+            message: "Cada intención necesita un nombre.",
           });
         }
         if (i.next_node_key && !knownKeys.has(i.next_node_key)) {
@@ -806,7 +806,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "shopify_lookup kind invalid.",
+          message: "Elegí qué buscar en Shopify.",
         });
       }
       if (!cfg.output_prefix) {
@@ -814,7 +814,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "shopify_lookup needs an output_prefix (e.g. 'order').",
+          message: "Ponle un nombre al resultado (ej: pedido).",
         });
       }
       for (const k of [cfg.found_next_key, cfg.not_found_next_key]) {

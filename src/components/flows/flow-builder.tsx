@@ -32,7 +32,6 @@ import {
   MessageCircle,
   ListChecks,
   ListPlus,
-  CornerDownRight,
   UserPlus,
   Flag,
   PlayCircle,
@@ -48,6 +47,7 @@ import {
   Sparkles,
   ShoppingBag,
   MoreHorizontal,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -668,11 +668,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         return {
           ...s,
           nodes: [...s.nodes, next],
-          // If this is the first node and it's a start, pick it as
-          // the entry automatically. Saves a click.
-          entry_node_id:
-            s.entry_node_id ??
-            (type === "start" ? node_key : s.entry_node_id ?? null),
+          // First node of an empty flow auto-becomes the entry —
+          // saves the user from also having to pick it in a
+          // separate "entry" picker.
+          entry_node_id: s.entry_node_id ?? (s.nodes.length === 0 ? node_key : null),
         };
       });
     },
@@ -734,11 +733,6 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [],
   );
 
-  // Trigger + entry picker collapsed by default. They're configuration
-  // most users touch once; surface them behind a small toggle so the
-  // canvas owns the screen.
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   // ---- Render ----
   return (
     // z-50 puts the editor above the dashboard sidebar (z-40) so the
@@ -761,35 +755,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         />
       </div>
 
-      {/* Configuración (trigger + entry) — colapsada por defecto para
-          que el canvas quede limpio al abrir el flujo. */}
-      <div className="flex-shrink-0 border-b border-border bg-card/20 px-4 py-2">
-        <button
-          type="button"
-          onClick={() => setSettingsOpen((v) => !v)}
-          className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-        >
-          {settingsOpen ? (
-            <ChevronUp className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )}
-          Cuándo dispara
-        </button>
-        {settingsOpen && (
-          <div className="mt-3 space-y-3 pb-2">
-            <TriggerPanel
-              state={state}
-              setState={setStateDirty}
-              triggerIssues={issues.filter((i) => i.scope === "trigger")}
-            />
-            <EntryPicker state={state} setState={setStateDirty} />
-          </div>
-        )}
-      </div>
-
       {/* Canvas — árbol: cada rama de un nodo con varias salidas se
-          dibuja como una columna debajo. */}
+          dibuja como una columna debajo. El disparador vive como la
+          primera tarjeta del canvas (no en un panel aparte). */}
       <div className="relative flex min-h-0 flex-1">
         <CanvasViewport>
           <FlowTree
@@ -808,6 +776,16 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
               setStateDirty((s) => ({ ...s, entry_node_id: key }))
             }
             onAdd={addNode}
+            triggerType={state.trigger_type}
+            triggerConfig={state.trigger_config}
+            triggerIssues={issues.filter((i) => i.scope === "trigger")}
+            onTriggerChange={(type, config) =>
+              setStateDirty((s) => ({
+                ...s,
+                trigger_type: type,
+                trigger_config: config,
+              }))
+            }
           />
         </CanvasViewport>
       </div>
@@ -953,120 +931,6 @@ function StatusBadge({ status }: { status: BuilderState["status"] }) {
   );
 }
 
-// ============================================================
-// Trigger panel
-// ============================================================
-
-function TriggerPanel({
-  state,
-  setState,
-  triggerIssues,
-}: {
-  state: BuilderState;
-  setState: React.Dispatch<React.SetStateAction<BuilderState>>;
-  triggerIssues: ValidationIssue[];
-}) {
-  return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <h2 className="mb-3 text-sm font-semibold text-foreground">Activador</h2>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Cuándo</label>
-          <Select
-            value={state.trigger_type}
-            onValueChange={(v) =>
-              setState((s) => ({
-                ...s,
-                trigger_type: v as BuilderState["trigger_type"],
-                trigger_config:
-                  v === "keyword" ? { keywords: [] } : v === "manual" ? {} : {},
-              }))
-            }
-          >
-            <SelectTrigger className="bg-muted">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="keyword">
-                Un mensaje contiene una palabra clave
-              </SelectItem>
-              <SelectItem value="first_inbound_message">
-                Primer mensaje entrante del cliente
-              </SelectItem>
-              <SelectItem value="manual">
-                Solo manual (sin activación automática)
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {state.trigger_type === "keyword" && (
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
-              Palabras clave
-            </label>
-            <Input
-              value={
-                Array.isArray(state.trigger_config.keywords)
-                  ? (state.trigger_config.keywords as string[]).join(", ")
-                  : ""
-              }
-              onChange={(e) =>
-                setState((s) => ({
-                  ...s,
-                  trigger_config: {
-                    ...s.trigger_config,
-                    keywords: e.target.value
-                      .split(",")
-                      .map((k) => k.trim())
-                      .filter(Boolean),
-                  },
-                }))
-              }
-              placeholder="soporte, ayuda, hola"
-              className="bg-muted"
-            />
-          </div>
-        )}
-      </div>
-      {triggerIssues.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1">
-          {triggerIssues.map((i, ix) => (
-            <IssueLine key={ix} issue={i} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ============================================================
-// Entry-node picker
-// ============================================================
-
-function EntryPicker({
-  state,
-  setState,
-}: {
-  state: BuilderState;
-  setState: React.Dispatch<React.SetStateAction<BuilderState>>;
-}) {
-  if (state.nodes.length === 0) return null;
-  return (
-    <section className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-      <CornerDownRight className="h-4 w-4 shrink-0 text-accent-ink" />
-      <span className="text-xs text-muted-foreground">Nodo de entrada:</span>
-      <NodeKeySelect
-        value={state.entry_node_id}
-        nodes={state.nodes}
-        onChange={(key) =>
-          setState((s) => ({ ...s, entry_node_id: key }))
-        }
-        placeholder=""
-        className="flex-1 max-w-xs"
-      />
-    </section>
-  );
-}
 
 // ============================================================
 // Node card — collapsed summary + expanded config form
@@ -2585,6 +2449,13 @@ interface FlowTreeProps {
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
   onAdd: (type: NodeType) => void
+  triggerType: BuilderState["trigger_type"]
+  triggerConfig: Record<string, unknown>
+  triggerIssues: ValidationIssue[]
+  onTriggerChange: (
+    type: BuilderState["trigger_type"],
+    config: Record<string, unknown>,
+  ) => void
 }
 
 function FlowTree(props: FlowTreeProps) {
@@ -2617,24 +2488,40 @@ function FlowTree(props: FlowTreeProps) {
 
   if (props.allNodes.length === 0) {
     return (
-      <div className="flex items-start gap-0 px-8 py-10">
+      <div className="flex items-start gap-3 px-8 py-10">
+        <CanvasTriggerCard
+          triggerType={props.triggerType}
+          triggerConfig={props.triggerConfig}
+          triggerIssues={props.triggerIssues}
+          onChange={props.onTriggerChange}
+        />
+        <RightArrow />
         <EmptyFlowCta onAdd={props.onAdd} />
-      </div>
-    )
-  }
-  if (!props.entryKey) {
-    return (
-      <div className="px-8 py-10">
-        <p className="rounded-lg border border-dashed border-border bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-          Elegí el nodo de entrada desde &quot;Cuándo dispara&quot; arriba.
-        </p>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col items-start gap-10 px-12 py-10">
-      <FlowBranch startKey={props.entryKey} visited={new Set()} props={props} nodesByKey={nodesByKey} />
+      <div className="flex items-start gap-3">
+        <CanvasTriggerCard
+          triggerType={props.triggerType}
+          triggerConfig={props.triggerConfig}
+          triggerIssues={props.triggerIssues}
+          onChange={props.onTriggerChange}
+        />
+        {props.entryKey ? (
+          <>
+            <RightArrow />
+            <FlowBranch
+              startKey={props.entryKey}
+              visited={new Set()}
+              props={props}
+              nodesByKey={nodesByKey}
+            />
+          </>
+        ) : null}
+      </div>
 
       {orphans.length > 0 && (
         <div className="w-full max-w-3xl space-y-3">
@@ -2882,6 +2769,150 @@ function EmptyFlowCta({ onAdd }: { onAdd: (type: NodeType) => void }) {
         <span className="text-[11px] text-muted-foreground">¿Otro?</span>
         <AddNextNodePill onAdd={onAdd} />
       </div>
+    </div>
+  )
+}
+
+
+// ============================================================
+// Canvas trigger card — first tile in the flow tree
+// ============================================================
+// Renders the flow's trigger as the very first element on the canvas
+// (same visual language as a NodeCard) so the user reads the trigger
+// the same way they read every other step. The flow's trigger lives
+// on the FLOW row, not as a node, so this card writes directly to
+// flow.trigger_type / flow.trigger_config via the onChange prop.
+
+const TRIGGER_TYPE_LABEL: Record<BuilderState["trigger_type"], string> = {
+  keyword: "Cuando contiene una palabra clave",
+  first_inbound_message: "Primer mensaje del cliente",
+  manual: "Solo manual",
+}
+
+function CanvasTriggerCard({
+  triggerType,
+  triggerConfig,
+  triggerIssues,
+  onChange,
+}: {
+  triggerType: BuilderState["trigger_type"]
+  triggerConfig: Record<string, unknown>
+  triggerIssues: ValidationIssue[]
+  onChange: (
+    type: BuilderState["trigger_type"],
+    config: Record<string, unknown>,
+  ) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const hasError = triggerIssues.some((i) => i.severity === "error")
+  const summary =
+    triggerType === "keyword"
+      ? Array.isArray(triggerConfig.keywords) && triggerConfig.keywords.length > 0
+        ? (triggerConfig.keywords as string[]).join(", ")
+        : null
+      : null
+
+  return (
+    <div
+      className={cn(
+        "w-[260px] rounded-lg border bg-card",
+        hasError ? "border-red-500/40" : "border-emerald-500/40",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+      >
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/15">
+          <Zap className="h-3.5 w-3.5 text-emerald-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-foreground">
+              Cuándo dispara
+            </span>
+            {hasError && (
+              <CircleAlert className="h-3 w-3 shrink-0 text-red-400" />
+            )}
+          </div>
+          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+            {TRIGGER_TYPE_LABEL[triggerType]}
+            {summary ? ` · ${summary}` : ""}
+          </p>
+        </div>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-border px-3 py-3">
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">
+              Cuándo
+            </label>
+            <Select
+              value={triggerType}
+              onValueChange={(v) =>
+                onChange(
+                  v as BuilderState["trigger_type"],
+                  v === "keyword" ? { keywords: [] } : {},
+                )
+              }
+            >
+              <SelectTrigger className="bg-muted text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keyword">
+                  Un mensaje contiene una palabra clave
+                </SelectItem>
+                <SelectItem value="first_inbound_message">
+                  Primer mensaje del cliente
+                </SelectItem>
+                <SelectItem value="manual">Solo manual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {triggerType === "keyword" && (
+            <div>
+              <label className="mb-1 block text-[11px] text-muted-foreground">
+                Palabras clave (separadas por coma)
+              </label>
+              <Input
+                value={
+                  Array.isArray(triggerConfig.keywords)
+                    ? (triggerConfig.keywords as string[]).join(", ")
+                    : ""
+                }
+                onChange={(e) =>
+                  onChange(triggerType, {
+                    ...triggerConfig,
+                    keywords: e.target.value
+                      .split(",")
+                      .map((k) => k.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="soporte, ayuda, hola"
+                className="bg-muted text-sm"
+              />
+            </div>
+          )}
+          {triggerIssues.length > 0 && (
+            <div className="space-y-1">
+              {triggerIssues.map((i, ix) => (
+                <p
+                  key={ix}
+                  className={cn(
+                    "text-[11px]",
+                    i.severity === "error" ? "text-red-300" : "text-amber-300",
+                  )}
+                >
+                  {i.message}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
