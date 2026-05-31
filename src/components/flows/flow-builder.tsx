@@ -47,6 +47,7 @@ import {
   Hourglass,
   Sparkles,
   ShoppingBag,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -770,7 +771,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           ) : (
             <ChevronDown className="h-3 w-3" />
           )}
-          Configuración del flujo · ¿cuándo dispara y por dónde empieza?
+          Cuándo dispara
         </button>
         {settingsOpen && (
           <div className="mt-3 space-y-3 pb-2">
@@ -872,107 +873,88 @@ function Header({
   onViewRuns: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 hover:text-foreground"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Flujos
-        </button>
-      </div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Workflow className="h-5 w-5 shrink-0 text-accent-ink" />
-          <Input
-            value={state.name}
-            onChange={(e) =>
-              setState((s) => ({ ...s, name: e.target.value }))
-            }
-            placeholder="Nombre del flujo"
-            className="max-w-md bg-card text-lg font-semibold"
-          />
-          <StatusBadge status={state.status} />
-          {dirty && (
-            <span
-              className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-amber-300"
-              aria-live="polite"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              Editado
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Volver a flujos"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
+      <Input
+        value={state.name}
+        onChange={(e) =>
+          setState((s) => ({ ...s, name: e.target.value }))
+        }
+        placeholder="Nombre del flujo"
+        className="min-w-0 max-w-xs flex-1 border-transparent bg-transparent px-2 text-base font-semibold focus-visible:border-border focus-visible:bg-card"
+      />
+      <StatusBadge status={state.status} />
+      {dirty && (
+        <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title="Cambios sin guardar" />
+      )}
+      <div className="ml-auto flex items-center gap-1.5">
+        {state.status === "active" ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            onClick={() => onViewRuns()}
+            onClick={() => onStatus("draft")}
+            disabled={activating}
           >
-            <History className="h-3.5 w-3.5" />
-            Ejecuciones
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </Button>
-          {state.status === "active" ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onStatus("draft")}
-              disabled={activating}
-            >
-              {activating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <PauseCircle className="h-3.5 w-3.5" />
-              )}
-              Pausar
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onStatus("active")}
-              disabled={activating || !canActivate}
-              title={
-                !canActivate ? "Corrige los errores antes de activar" : undefined
-              }
-            >
-              {activating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <PlayCircle className="h-3.5 w-3.5" />
-              )}
-              Activar
-            </Button>
-          )}
-          <Button onClick={onSave} disabled={saving} size="sm">
-            {saving ? (
+            {activating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Save className="h-3.5 w-3.5" />
+              <PauseCircle className="h-3.5 w-3.5" />
             )}
-            Guardar
+            Pausar
           </Button>
-        </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onStatus("active")}
+            disabled={activating || !canActivate}
+            title={!canActivate ? "Corrige los errores antes de activar" : undefined}
+          >
+            {activating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlayCircle className="h-3.5 w-3.5" />
+            )}
+            Activar
+          </Button>
+        )}
+        <Button onClick={onSave} disabled={saving} size="sm">
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          Guardar
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Más opciones"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="border-border bg-card">
+            <DropdownMenuItem onClick={() => onViewRuns()}>
+              <History className="h-3.5 w-3.5" />
+              Ejecuciones
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-red-400 focus:bg-red-500/10 focus:text-red-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar flujo
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <Input
-        value={state.description}
-        onChange={(e) =>
-          setState((s) => ({ ...s, description: e.target.value }))
-        }
-        placeholder="Descripción interna"
-        className="bg-card text-sm"
-      />
     </div>
   );
 }
