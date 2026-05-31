@@ -72,6 +72,26 @@ export async function POST(request: Request) {
 
   const admin = supabaseAdmin()
 
+  // Resolve the user's primary workspace — flows.workspace_id is NOT
+  // NULL per migration 013's RLS policy (`is_workspace_member(...)`),
+  // and the previous insert was leaving it null which made every
+  // freshly-created flow invisible to the auth-scoped GET that
+  // /flows/[id] uses (→ "Flujo no encontrado").
+  const { data: membership } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', userId)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const workspaceId = (membership as { workspace_id?: string } | null)?.workspace_id
+  if (!workspaceId) {
+    return NextResponse.json(
+      { error: 'El usuario no tiene un workspace asignado.' },
+      { status: 500 },
+    )
+  }
+
   // -------- Template clone path --------
   if (body.template_slug) {
     const template = getFlowTemplate(body.template_slug)
@@ -85,6 +105,7 @@ export async function POST(request: Request) {
       .from('flows')
       .insert({
         user_id: userId,
+        workspace_id: workspaceId,
         name: body.name?.trim() || template.name,
         description: template.description,
         status: 'draft',
