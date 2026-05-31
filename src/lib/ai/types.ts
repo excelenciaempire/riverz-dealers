@@ -3,6 +3,7 @@ import type { Channel } from '@/types';
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';
+export type AiProductScope = 'all' | 'specific';
 
 export interface BusinessHours {
   /** IANA timezone, e.g. "America/Bogota". */
@@ -38,6 +39,7 @@ export interface AiAgent {
   api_key_encrypted?: string | null;
 
   scope: AiScope;
+  product_scope: AiProductScope;
   priority: number;
 
   created_at: string;
@@ -48,4 +50,15 @@ export interface AiAgent {
 export interface AiAgentChannel {
   agent_id: string;
   channel: Channel;
+}
+
+export interface ShopifyProductSummary {
+  id: string;
+  title: string;
+  handle: string;
+  product_type: string | null;
+  vendor: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  image_url: string | null;
 }

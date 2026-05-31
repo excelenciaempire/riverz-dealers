@@ -52,7 +52,8 @@ export async function runAiAgent(
     }
 
     const context = await loadContext(db, args.conversation.id, agent.context_messages);
-    const reply = await generateReply(agent, args.contact, context);
+    const products = await loadProductCatalog(db, agent);
+    const reply = await generateReply(agent, args.contact, context, products);
     if (!reply.text) {
       await logReply(db, agent, args, { status: 'skipped', skip_reason: 'empty_reply' });
       return;
@@ -254,10 +255,63 @@ interface ReplyResult {
   completionTokens?: number;
 }
 
+async function loadProductCatalog(
+  db: SupabaseClient,
+  agent: AiAgent,
+): Promise<ProductRow[]> {
+  // Workspace = Riverz "tenant" — modeled as user_id on shopify_products.
+  // The owner of the agent is the workspace owner, which lives in
+  // workspaces.owner_id. Resolve to user_id once.
+  const { data: ws } = await db
+    .from('workspaces')
+    .select('owner_id')
+    .eq('id', agent.workspace_id)
+    .maybeSingle();
+  const userId = (ws as { owner_id?: string } | null)?.owner_id;
+  if (!userId) return [];
+
+  if (agent.product_scope === 'specific') {
+    const { data: links } = await db
+      .from('ai_agent_products')
+      .select('product_id')
+      .eq('agent_id', agent.id);
+    const ids = ((links ?? []) as { product_id: string }[]).map((l) => l.product_id);
+    if (ids.length === 0) return [];
+    const { data: products } = await db
+      .from('shopify_products')
+      .select('title, description, price_min, price_max, url, product_type, vendor, tags')
+      .in('id', ids);
+    return (products ?? []) as ProductRow[];
+  }
+
+  // Scope = 'all' — cap at the 80 most-recently-synced rows so the
+  // system prompt stays inside Anthropic's budget. Workspaces with
+  // bigger catalogs should switch the agent to 'specific'.
+  const { data: products } = await db
+    .from('shopify_products')
+    .select('title, description, price_min, price_max, url, product_type, vendor, tags')
+    .eq('user_id', userId)
+    .order('synced_at', { ascending: false })
+    .limit(80);
+  return (products ?? []) as ProductRow[];
+}
+
+interface ProductRow {
+  title: string;
+  description: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  url: string | null;
+  product_type: string | null;
+  vendor: string | null;
+  tags: string[] | null;
+}
+
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
   context: ContextMessage[],
+  products: ProductRow[],
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -270,7 +324,7 @@ async function generateReply(
   }
 
   const client = new Anthropic({ apiKey });
-  const system = buildSystemPrompt(agent, contact);
+  const system = buildSystemPrompt(agent, contact, products);
 
   // Ensure the conversation starts with a user turn — required by the API.
   let messages: ContextMessage[] = context;
@@ -306,15 +360,25 @@ async function generateReply(
   };
 }
 
-function buildSystemPrompt(agent: AiAgent, contact: Contact): string {
+function buildSystemPrompt(
+  agent: AiAgent,
+  contact: Contact,
+  products: ProductRow[],
+): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(agent.persona.trim());
   lines.push(TONE_INSTRUCTIONS[agent.tone]);
   lines.push(`Responde en ${agent.language || 'es'}.`);
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   if (agent.knowledge && agent.knowledge.trim()) {
-    lines.push('Contexto adicional sobre el negocio y productos:');
+    lines.push('Contexto adicional sobre el negocio:');
     lines.push(agent.knowledge.trim());
+  }
+  if (products.length > 0) {
+    lines.push(
+      `Catálogo de productos${agent.product_scope === 'specific' ? ' (asignados a este asistente)' : ''}:`,
+    );
+    lines.push(products.map(formatProductLine).join('\n'));
   }
   const knownContact: string[] = [];
   if (contact.name) knownContact.push(`Nombre: ${contact.name}`);
@@ -329,6 +393,20 @@ function buildSystemPrompt(agent: AiAgent, contact: Contact): string {
     'Si la consulta requiere intervención humana (precios complejos, reembolsos, queja seria), pedile amablemente al cliente que espere a que un agente humano se conecte.',
   );
   return lines.join('\n\n');
+}
+
+function formatProductLine(p: ProductRow): string {
+  const price =
+    p.price_min != null
+      ? p.price_min === p.price_max
+        ? `$${p.price_min}`
+        : `$${p.price_min}-${p.price_max}`
+      : null;
+  const meta = [p.product_type, p.vendor, price].filter(Boolean).join(' · ');
+  const desc = (p.description ?? '').slice(0, 180);
+  return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${
+    p.url ? ` <${p.url}>` : ''
+  }`;
 }
 
 function safeDecrypt(value: string): string | null {

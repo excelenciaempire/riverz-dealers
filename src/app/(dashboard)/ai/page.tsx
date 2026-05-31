@@ -21,6 +21,7 @@ import type { Channel } from '@/types';
 export type AgentSummary = Omit<AiAgent, 'api_key_encrypted'> & {
   has_api_key: boolean;
   ai_agent_channels?: { channel: Channel }[];
+  ai_agent_products?: { product_id: string }[];
 };
 
 const CHANNEL_LABEL: Record<Channel, string> = {
@@ -59,29 +60,43 @@ export default function AiAgentsPage() {
   }, [load]);
 
   async function toggleActive(agent: AgentSummary) {
+    // Optimistic — flip the UI immediately so the active/paused chip
+    // changes the moment the user clicks; revert on failure.
+    const next = !agent.is_active;
+    setAgents((prev) =>
+      prev.map((a) => (a.id === agent.id ? { ...a, is_active: next } : a)),
+    );
     const res = await fetch(`/api/ai/agents/${agent.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: !agent.is_active }),
+      body: JSON.stringify({ is_active: next }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       toast.error(json.error ?? 'No se pudo actualizar');
-      return;
+      setAgents((prev) =>
+        prev.map((a) => (a.id === agent.id ? { ...a, is_active: !next } : a)),
+      );
     }
-    toast.success(agent.is_active ? 'Desactivado' : 'Activado');
-    void load();
   }
 
   async function handleDelete(agent: AgentSummary) {
     if (!confirm(`¿Eliminar "${agent.name}"?`)) return;
+    const prev = agents;
+    setAgents((p) => p.filter((a) => a.id !== agent.id));
     const res = await fetch(`/api/ai/agents/${agent.id}`, { method: 'DELETE' });
     if (!res.ok) {
       toast.error('No se pudo eliminar');
-      return;
+      setAgents(prev);
     }
-    toast.success('Eliminado');
-    void load();
+  }
+
+  function applySavedAgent(saved: AgentSummary) {
+    setAgents((prev) => {
+      const exists = prev.some((a) => a.id === saved.id);
+      if (exists) return prev.map((a) => (a.id === saved.id ? saved : a));
+      return [saved, ...prev];
+    });
   }
 
   return (
@@ -134,9 +149,9 @@ export default function AiAgentsPage() {
           workspaceId={workspace.id}
           agent={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={async () => {
+          onSaved={(saved) => {
+            applySavedAgent(saved);
             setEditing(null);
-            await load();
           }}
         />
       )}
@@ -159,20 +174,31 @@ function AgentCard({
     () => (agent.ai_agent_channels ?? []).map((c) => c.channel as Channel),
     [agent.ai_agent_channels],
   );
+  const active = agent.is_active;
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm transition-colors',
-        agent.is_active
-          ? 'border-emerald-500/40'
-          : 'border-border hover:border-foreground/30',
+        'relative flex flex-col gap-3 overflow-hidden rounded-2xl border bg-card p-4 transition-all',
+        active
+          ? 'border-emerald-500/60 shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_8px_24px_-12px_rgba(16,185,129,0.4)]'
+          : 'border-border opacity-70 hover:opacity-100',
       )}
     >
+      {/* Top bleed: emerald glow when active, muted bar when paused */}
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-x-0 top-0 h-[2px]',
+          active ? 'bg-emerald-400' : 'bg-muted-foreground/20',
+        )}
+      />
+
       <div className="flex items-start gap-3">
         <div
           className={cn(
             'flex size-9 shrink-0 items-center justify-center rounded-lg',
-            agent.is_active ? 'bg-emerald-500/15 text-emerald-300' : 'bg-muted text-muted-foreground',
+            active
+              ? 'bg-emerald-500/15 text-emerald-300'
+              : 'bg-muted text-muted-foreground',
           )}
         >
           <Sparkles className="size-4" />
@@ -189,18 +215,29 @@ function AgentCard({
         </div>
         <span
           className={cn(
-            'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-            agent.is_active
-              ? 'bg-emerald-500/15 text-emerald-300'
-              : 'bg-muted text-muted-foreground',
+            'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+            active
+              ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+              : 'border-border bg-muted text-muted-foreground',
           )}
         >
-          {agent.is_active ? 'Activo' : 'Pausado'}
+          <span
+            className={cn(
+              'size-1.5 rounded-full',
+              active ? 'animate-pulse bg-emerald-400' : 'bg-muted-foreground/60',
+            )}
+          />
+          {active ? 'En línea' : 'Pausado'}
         </span>
       </div>
 
       {agent.persona && (
-        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        <p
+          className={cn(
+            'line-clamp-2 text-xs leading-relaxed',
+            active ? 'text-muted-foreground' : 'text-muted-foreground/70',
+          )}
+        >
           {agent.persona}
         </p>
       )}
@@ -212,8 +249,13 @@ function AgentCard({
         <div className="flex items-center gap-1">
           <button
             onClick={onToggle}
-            title={agent.is_active ? 'Pausar' : 'Activar'}
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={active ? 'Pausar' : 'Activar'}
+            className={cn(
+              'rounded p-1 transition-colors',
+              active
+                ? 'text-emerald-400 hover:bg-emerald-500/10'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
           >
             <Power className="size-4" />
           </button>

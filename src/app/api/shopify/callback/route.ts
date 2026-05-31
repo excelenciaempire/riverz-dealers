@@ -8,6 +8,7 @@ import {
 } from '@/lib/shopify/oauth'
 import { persistShopifyConnection } from '@/lib/shopify/connection'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
+import { syncShopifyProducts } from '@/lib/shopify/product-sync'
 
 /**
  * Complete Shopify OAuth: verify HMAC + state + shop, exchange the code for
@@ -88,6 +89,17 @@ export async function GET(request: Request) {
     const callbackBase =
       process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
     await client.registerWebhooks(callbackBase)
+
+    // 6. Background-sync the product catalog so the AI assistant has
+    //    something to reason about immediately. Fire-and-forget — never
+    //    block the OAuth redirect on a 5 s catalog scan.
+    syncShopifyProducts(admin, {
+      userId,
+      shopDomain: shop,
+      accessToken: access_token,
+    }).catch((err) =>
+      console.error('[shopify] initial product sync failed:', err),
+    )
 
     const res = bounce(request, { shopify: 'connected', shop })
     res.cookies.delete('shopify_oauth_state')

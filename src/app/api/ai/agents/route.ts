@@ -54,6 +54,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Partial<AiAgent> & {
     workspace_id?: string;
     channels?: string[];
+    product_ids?: string[];
     api_key?: string;
   } | null;
   if (!body?.workspace_id || !body.name?.trim()) {
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-haiku-4-5-20251001',
     scope: body.scope ?? 'workspace',
+    product_scope: body.product_scope ?? 'all',
     priority: body.priority ?? 0,
     created_by: user.id,
   };
@@ -118,8 +120,30 @@ export async function POST(request: Request) {
       })),
     );
   }
+  if (
+    body.product_scope === 'specific' &&
+    Array.isArray(body.product_ids) &&
+    body.product_ids.length
+  ) {
+    await admin.from('ai_agent_products').insert(
+      body.product_ids.map((product_id) => ({
+        agent_id: (created as AiAgent).id,
+        product_id,
+      })),
+    );
+  }
 
-  return NextResponse.json({ agent: stripKey(created as AiAgent) }, { status: 201 });
+  // Re-read with relations so the client can drop it into its grid
+  // optimistically.
+  const { data: fresh } = await admin
+    .from('ai_agents')
+    .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
+    .eq('id', (created as AiAgent).id)
+    .maybeSingle();
+  return NextResponse.json(
+    { agent: stripKey((fresh ?? created) as AiAgent) },
+    { status: 201 },
+  );
 }
 
 type AgentWithChannels = AiAgent & {

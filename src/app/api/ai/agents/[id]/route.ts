@@ -37,7 +37,11 @@ export async function PATCH(
   if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as
-    | (Partial<AiAgent> & { channels?: string[]; api_key?: string })
+    | (Partial<AiAgent> & {
+        channels?: string[];
+        product_ids?: string[];
+        api_key?: string;
+      })
     | null;
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
@@ -61,6 +65,7 @@ export async function PATCH(
     'provider',
     'model',
     'scope',
+    'product_scope',
     'priority',
   ];
   for (const k of ALLOWED) {
@@ -89,7 +94,33 @@ export async function PATCH(
     await admin.from('ai_agent_channels').delete().eq('agent_id', id);
   }
 
-  return NextResponse.json({ ok: true });
+  // Replace per-product bindings when provided.
+  if (Array.isArray(body.product_ids)) {
+    await admin.from('ai_agent_products').delete().eq('agent_id', id);
+    if ((update.product_scope ?? 'all') === 'specific' && body.product_ids.length) {
+      await admin
+        .from('ai_agent_products')
+        .insert(body.product_ids.map((product_id) => ({ agent_id: id, product_id })));
+    }
+  }
+  if ((update.product_scope as AiAgent['product_scope'] | undefined) === 'all') {
+    await admin.from('ai_agent_products').delete().eq('agent_id', id);
+  }
+
+  // Re-read the agent (with relations) so the client can optimistically
+  // patch its local state without a follow-up GET.
+  const { data: fresh } = await admin
+    .from('ai_agents')
+    .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
+    .eq('id', id)
+    .maybeSingle();
+  const safe = fresh
+    ? (() => {
+        const { api_key_encrypted, ...rest } = fresh as AiAgent;
+        return { ...rest, has_api_key: Boolean(api_key_encrypted) };
+      })()
+    : null;
+  return NextResponse.json({ ok: true, agent: safe });
 }
 
 export async function DELETE(

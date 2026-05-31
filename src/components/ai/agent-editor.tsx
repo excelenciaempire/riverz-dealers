@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -10,6 +10,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Search,
+  Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +31,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { AiAgent, AiScope, AiTone } from '@/lib/ai/types';
+import type {
+  AiAgent,
+  AiProductScope,
+  AiScope,
+  AiTone,
+  ShopifyProductSummary,
+} from '@/lib/ai/types';
 import type { AgentSummary } from '@/app/(dashboard)/ai/page';
 import type { Channel } from '@/types';
 
@@ -80,7 +88,7 @@ interface AgentEditorProps {
   workspaceId: string;
   agent: AgentSummary | null;
   onClose: () => void;
-  onSaved: () => void | Promise<void>;
+  onSaved: (saved: AgentSummary) => void | Promise<void>;
 }
 
 export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEditorProps) {
@@ -113,6 +121,15 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [channels, setChannels] = useState<Channel[]>(
     (agent?.ai_agent_channels ?? []).map((c) => c.channel as Channel),
   );
+  const [productScope, setProductScope] = useState<AiProductScope>(
+    agent?.product_scope ?? 'all',
+  );
+  const [selectedProducts, setSelectedProducts] = useState<string[]>(
+    (agent?.ai_agent_products ?? []).map((p) => p.product_id),
+  );
+  const [catalog, setCatalog] = useState<ShopifyProductSummary[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
 
@@ -137,6 +154,40 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   }
 
+  function toggleProduct(id: string) {
+    setSelectedProducts((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  // Load the synced Shopify catalog the first time the user expands
+  // "Productos asignados" so we don't pull it for every editor open.
+  useEffect(() => {
+    if (productScope !== 'specific' || catalog.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      setCatalogLoading(true);
+      try {
+        const res = await fetch('/api/shopify/products');
+        const json = await res.json();
+        if (!cancelled && res.ok) {
+          setCatalog((json.products ?? []) as ShopifyProductSummary[]);
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [productScope, catalog.length]);
+
+  const filteredCatalog = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    if (!q) return catalog;
+    return catalog.filter((p) => p.title.toLowerCase().includes(q));
+  }, [catalog, productSearch]);
+
   async function save() {
     if (!name.trim()) {
       toast.error('Falta el nombre');
@@ -146,6 +197,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     const payload: Partial<AiAgent> & {
       workspace_id?: string;
       channels?: string[];
+      product_ids?: string[];
       api_key?: string;
     } = {
       workspace_id: workspaceId,
@@ -164,6 +216,8 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       model,
       scope,
       channels: scope === 'channels' ? channels : [],
+      product_scope: productScope,
+      product_ids: productScope === 'specific' ? selectedProducts : [],
     };
     if (apiKey.trim()) payload.api_key = apiKey.trim();
 
@@ -175,13 +229,17 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       body: JSON.stringify(payload),
     });
     setSaving(false);
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
       toast.error(json.error ?? 'No se pudo guardar');
       return;
     }
     toast.success(editing ? 'Guardado' : 'Asistente creado');
-    await onSaved();
+    if (json.agent) {
+      await onSaved(json.agent as AgentSummary);
+    } else {
+      await onSaved(agent as AgentSummary);
+    }
   }
 
   async function runTest() {
@@ -363,6 +421,109 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                       </button>
                     );
                   })}
+                </div>
+              )}
+            </Section>
+
+            <Section title="¿Sobre qué productos puede hablar?">
+              <div className="grid grid-cols-2 gap-2">
+                <ScopeCard
+                  active={productScope === 'all'}
+                  onClick={() => setProductScope('all')}
+                  title="Todo el catálogo"
+                  hint="Usa todos los productos sincronizados de Shopify."
+                />
+                <ScopeCard
+                  active={productScope === 'specific'}
+                  onClick={() => setProductScope('specific')}
+                  title="Solo algunos"
+                  hint="Elegí los productos abajo."
+                />
+              </div>
+              {productScope === 'specific' && (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Buscar producto…"
+                      className="bg-background pl-8 text-sm"
+                    />
+                  </div>
+                  <div className="max-h-[240px] overflow-y-auto rounded-lg border border-border bg-background">
+                    {catalogLoading ? (
+                      <div className="flex justify-center py-6">
+                        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : filteredCatalog.length === 0 ? (
+                      <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+                        {catalog.length === 0
+                          ? 'Sin productos sincronizados. Conectá Shopify primero.'
+                          : 'Sin resultados.'}
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border">
+                        {filteredCatalog.map((p) => {
+                          const on = selectedProducts.includes(p.id);
+                          return (
+                            <li key={p.id}>
+                              <button
+                                type="button"
+                                onClick={() => toggleProduct(p.id)}
+                                className={cn(
+                                  'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/40',
+                                  on && 'bg-primary/10',
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={on}
+                                  readOnly
+                                  className="accent-primary"
+                                />
+                                {p.image_url ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={p.image_url}
+                                    alt=""
+                                    className="size-8 shrink-0 rounded object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                                    <Package className="size-3.5" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm text-foreground">
+                                    {p.title}
+                                  </p>
+                                  <p className="truncate text-[11px] text-muted-foreground">
+                                    {[
+                                      p.product_type,
+                                      p.vendor,
+                                      p.price_min != null
+                                        ? p.price_min === p.price_max
+                                          ? `$${p.price_min}`
+                                          : `$${p.price_min}-${p.price_max}`
+                                        : null,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')}
+                                  </p>
+                                </div>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {selectedProducts.length} producto
+                    {selectedProducts.length === 1 ? '' : 's'} asignado
+                    {selectedProducts.length === 1 ? '' : 's'}.
+                  </p>
                 </div>
               )}
             </Section>
