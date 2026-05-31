@@ -127,64 +127,104 @@ interface BuilderState {
 
 const NODE_META: Record<
   NodeType,
-  { label: string; icon: typeof Workflow; color: string }
+  { label: string; icon: typeof Workflow; color: string; bg: string }
 > = {
-  start: { label: "Inicio", icon: PlayCircle, color: "text-emerald-400" },
+  start: {
+    label: "Inicio",
+    icon: PlayCircle,
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/15",
+  },
   send_message: {
     label: "Enviar mensaje",
     icon: MessageCircle,
-    color: "text-sky-400",
+    color: "text-emerald-500",
+    bg: "bg-white",
   },
   send_buttons: {
     label: "Enviar botones",
     icon: ListChecks,
-    color: "text-accent-ink",
+    color: "text-amber-400",
+    bg: "bg-amber-500/15",
   },
   send_list: {
     label: "Enviar lista",
     icon: ListPlus,
     color: "text-indigo-400",
+    bg: "bg-indigo-500/15",
   },
   collect_input: {
-    label: "Capturar entrada",
+    label: "Pedir un dato al cliente",
     icon: Inbox,
     color: "text-teal-400",
+    bg: "bg-teal-500/15",
   },
   condition: {
-    label: "Si / si no",
+    label: "Si / Si no",
     icon: GitFork,
     color: "text-fuchsia-400",
+    bg: "bg-fuchsia-500/15",
   },
   set_tag: {
-    label: "Etiquetar contacto",
+    label: "Etiquetar al cliente",
     icon: Tag,
     color: "text-pink-400",
+    bg: "bg-pink-500/15",
   },
   handoff: {
-    label: "Transferir a un agente",
+    label: "Pasar a un humano",
     icon: UserPlus,
     color: "text-amber-400",
+    bg: "bg-amber-500/15",
   },
-  send_image: { label: "Enviar imagen", icon: ImageIcon, color: "text-sky-400" },
-  send_video: { label: "Enviar video", icon: Video, color: "text-sky-400" },
-  send_document: { label: "Enviar documento", icon: FileText, color: "text-sky-400" },
+  send_image: {
+    label: "Enviar imagen",
+    icon: ImageIcon,
+    color: "text-sky-400",
+    bg: "bg-sky-500/15",
+  },
+  send_video: {
+    label: "Enviar video",
+    icon: Video,
+    color: "text-sky-400",
+    bg: "bg-sky-500/15",
+  },
+  send_document: {
+    label: "Enviar documento",
+    icon: FileText,
+    color: "text-sky-400",
+    bg: "bg-sky-500/15",
+  },
   send_cta_url: {
     label: "Botón con enlace",
     icon: ExternalLink,
     color: "text-indigo-400",
+    bg: "bg-indigo-500/15",
   },
-  wait: { label: "Esperar", icon: Hourglass, color: "text-slate-400" },
+  wait: {
+    label: "Esperar",
+    icon: Hourglass,
+    color: "text-slate-300",
+    bg: "bg-slate-500/15",
+  },
   ai_intent: {
-    label: "Clasificar con IA",
+    label: "Entender con IA",
     icon: Sparkles,
     color: "text-fuchsia-400",
+    bg: "bg-fuchsia-500/15",
   },
   shopify_lookup: {
     label: "Buscar en Shopify",
     icon: ShoppingBag,
     color: "text-emerald-400",
+    bg: "bg-emerald-500/15",
   },
-  end: { label: "Fin", icon: Flag, color: "text-muted-foreground" },
+  end: {
+    label: "Fin",
+    icon: Flag,
+    color: "text-muted-foreground",
+    bg: "bg-muted",
+  },
 };
 
 // ============================================================
@@ -448,7 +488,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(initialNodes.map((n) => n.node_key)),
+    // Collapsed by default — a fresh template can have 10+ nodes and
+    // dumping all their config forms on the canvas at once is a wall
+    // of fields for a first-time user. Click a card to expand it.
+    () => new Set<string>(),
   );
   // Tracks whether the in-memory state has user edits that haven't been
   // PUT yet. We use a wrapper setState (`setStateDirty`) for user edits;
@@ -690,6 +733,11 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [],
   );
 
+  // Trigger + entry picker collapsed by default. They're configuration
+  // most users touch once; surface them behind a small toggle so the
+  // canvas owns the screen.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   // ---- Render ----
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
@@ -709,14 +757,31 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         />
       </div>
 
-      {/* Trigger + entry compactos en una barra encima del canvas */}
-      <div className="flex-shrink-0 space-y-3 border-b border-border bg-card/20 px-4 py-3">
-        <TriggerPanel
-          state={state}
-          setState={setStateDirty}
-          triggerIssues={issues.filter((i) => i.scope === "trigger")}
-        />
-        <EntryPicker state={state} setState={setStateDirty} />
+      {/* Configuración (trigger + entry) — colapsada por defecto para
+          que el canvas quede limpio al abrir el flujo. */}
+      <div className="flex-shrink-0 border-b border-border bg-card/20 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen((v) => !v)}
+          className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {settingsOpen ? (
+            <ChevronUp className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+          Configuración del flujo · ¿cuándo dispara y por dónde empieza?
+        </button>
+        {settingsOpen && (
+          <div className="mt-3 space-y-3 pb-2">
+            <TriggerPanel
+              state={state}
+              setState={setStateDirty}
+              triggerIssues={issues.filter((i) => i.scope === "trigger")}
+            />
+            <EntryPicker state={state} setState={setStateDirty} />
+          </div>
+        )}
       </div>
 
       {/* Canvas — pan / zoom / drag, mismo wrapper que automatizaciones */}
@@ -1098,27 +1163,35 @@ function NodeCard({
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
-        <meta.icon className={cn("h-4 w-4 shrink-0", meta.color)} />
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            meta.bg,
+          )}
+        >
+          <meta.icon className={cn("h-4 w-4", meta.color)} />
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="truncate text-sm font-medium text-foreground">
               {meta.label}
             </span>
-            <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {node.node_key}
-            </code>
             {isEntry && (
               <Badge
                 variant="outline"
                 className="border-primary/40 bg-primary/10 text-[10px] text-accent-ink"
               >
-                Entrada
+                Inicio
               </Badge>
             )}
           </div>
-          {!expanded && preview && (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {preview ? (
+            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
               {preview}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-xs italic text-muted-foreground">
+              Sin configurar
             </p>
           )}
         </div>

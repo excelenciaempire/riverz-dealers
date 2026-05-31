@@ -32,9 +32,20 @@ const INTERACTIVE_SELECTOR =
 export function CanvasViewport({
   children,
   className,
+  initialFit = 'top-left',
 }: {
   children: React.ReactNode;
   className?: string;
+  /**
+   * 'top-left'  → render at 100% with a 32px gutter from the top-left
+   *               corner. Best for editors where readability of the
+   *               first card matters more than seeing everything at
+   *               once (the user can pan/zoom themselves).
+   * 'fit'       → auto-scale-down so the whole content is visible.
+   *               Good for read-only previews, bad when it crushes
+   *               cards down to 25% and makes labels unreadable.
+   */
+  initialFit?: 'top-left' | 'fit';
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -85,11 +96,18 @@ export function CanvasViewport({
   useEffect(() => {
     if (hasCenteredRef.current) return;
     const id = requestAnimationFrame(() => {
-      fitToView();
+      if (initialFit === 'fit') {
+        fitToView();
+      } else {
+        // 100% with a tiny gutter — keeps cards readable from frame 1.
+        setScale(1);
+        setTx(32);
+        setTy(32);
+      }
       hasCenteredRef.current = true;
     });
     return () => cancelAnimationFrame(id);
-  }, [fitToView]);
+  }, [fitToView, initialFit]);
 
   useEffect(() => {
     const el = containerRef.current;
