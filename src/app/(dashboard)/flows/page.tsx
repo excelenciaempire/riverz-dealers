@@ -13,9 +13,6 @@ import {
   PlayCircle,
   PauseCircle,
   Archive,
-  HelpCircle,
-  UserPlus,
-  FileText,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -64,21 +61,6 @@ const STATUS_COLORS: Record<FlowRow["status"], string> = {
   archived: "border-border bg-muted/50 text-muted-foreground",
 };
 
-interface TemplateSummary {
-  slug: string;
-  name: string;
-  description: string;
-  icon: "MessageSquare" | "HelpCircle" | "UserPlus";
-  trigger_type: string;
-  node_count: number;
-}
-
-const TEMPLATE_ICONS = {
-  MessageSquare,
-  HelpCircle,
-  UserPlus,
-} as const;
-
 export default function FlowsPage() {
   const router = useRouter();
   const [flows, setFlows] = useState<FlowRow[]>([]);
@@ -86,29 +68,17 @@ export default function FlowsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [flowsRes, tmplRes] = await Promise.all([
-          fetch("/api/flows"),
-          fetch("/api/flows/templates"),
-        ]);
+        const flowsRes = await fetch("/api/flows");
         if (!flowsRes.ok) {
           throw new Error(`Failed to load flows: ${flowsRes.status}`);
         }
         const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
         if (!cancelled) setFlows(flowsJson.flows ?? []);
-        // Templates endpoint is forward-looking — if it 404s on an
-        // older deployment, gracefully fall through.
-        if (tmplRes.ok) {
-          const tmplJson = (await tmplRes.json()) as {
-            templates: TemplateSummary[];
-          };
-          if (!cancelled) setTemplates(tmplJson.templates ?? []);
-        }
       } catch (err) {
         if (!cancelled) {
           console.error(err);
@@ -149,29 +119,6 @@ export default function FlowsPage() {
     }
   }
 
-  async function handleUseTemplate(slug: string) {
-    setCreating(true);
-    try {
-      const res = await fetch("/api/flows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_slug: slug }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Clone failed: ${res.status}`);
-      }
-      const json = (await res.json()) as { flow: FlowRow };
-      setCreateOpen(false);
-      router.push(`/flows/${json.flow.id}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Clone failed";
-      toast.error(msg);
-    } finally {
-      setCreating(false);
-    }
-  }
-
   async function handleDelete(flow: FlowRow) {
     const yes = window.confirm(`¿Eliminar "${flow.name}"?`);
     if (!yes) return;
@@ -198,18 +145,12 @@ export default function FlowsPage() {
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <SupportModeSwitcher current="flows" />
 
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-foreground">Menús con botones</h1>
-          <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-            Beta
-          </span>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
           Nuevo menú
         </Button>
-      </header>
+      </div>
 
       {flows.length === 0 ? (
         <EmptyState />
@@ -227,62 +168,21 @@ export default function FlowsPage() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        {/* `sm:max-w-4xl` not `max-w-4xl` — shadcn's DialogContent has
-            `sm:max-w-sm` baked into its default classes. Without the
-            sm: prefix our override applies at base only and the
-            sm-scoped 384px wins at every real desktop breakpoint. */}
-        <DialogContent className="sm:max-w-4xl bg-card text-foreground">
+        <DialogContent className="bg-card text-foreground sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Nuevo flujo</DialogTitle>
+            <DialogTitle>Nuevo menú</DialogTitle>
           </DialogHeader>
 
-          {templates.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Empieza desde una plantilla
-              </p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {templates.map((t) => {
-                  const Icon = TEMPLATE_ICONS[t.icon] ?? FileText;
-                  return (
-                    <button
-                      key={t.slug}
-                      type="button"
-                      onClick={() => handleUseTemplate(t.slug)}
-                      disabled={creating}
-                      className="flex flex-col gap-2.5 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent disabled:opacity-50"
-                    >
-                      <Icon className="h-5 w-5 text-accent-ink" />
-                      <span className="text-sm font-semibold text-foreground">
-                        {t.name}
-                      </span>
-                      <span className="text-xs leading-relaxed text-muted-foreground">
-                        {t.description}
-                      </span>
-                      <span className="mt-auto border-t border-border pt-2 text-[11px] text-muted-foreground">
-                        {t.node_count} {t.node_count === 1 ? "nodo" : "nodos"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Ponle un nombre a este menú para empezar.
-            </p>
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Menú de bienvenida"
-              className="bg-muted"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
-              }}
-            />
-          </div>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Ej: Menú de bienvenida"
+            className="bg-muted"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
+          />
 
           <DialogFooter>
             <Button

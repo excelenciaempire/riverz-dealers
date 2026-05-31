@@ -741,7 +741,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
   // ---- Render ----
   return (
-    <div className="fixed inset-0 flex flex-col bg-background">
+    // z-50 puts the editor above the dashboard sidebar (z-40) so the
+    // user gets a dedicated full-screen canvas environment, no
+    // sidebar chrome poking in from the left.
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3">
         <Header
           state={state}
@@ -2830,12 +2833,55 @@ function MissingChip({ targetKey }: { targetKey: string }) {
 }
 
 function EmptyFlowCta({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  // The 4 most common starting nodes — clicking one drops it into
+  // the flow as the entry point. The full picker stays available
+  // for the rest of the tree via the "+ Añadir" pill at every
+  // unconnected edge.
+  const STARTERS: NodeType[] = [
+    "send_message",
+    "send_buttons",
+    "send_list",
+    "collect_input",
+  ]
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-8 py-10 text-center">
-      <p className="max-w-xs text-sm text-muted-foreground">
-        Empezá con el primer mensaje que verá el cliente.
-      </p>
-      <AddNextNodePill onAdd={onAdd} />
+    <div className="flex max-w-xl flex-col gap-4 rounded-2xl border border-border bg-card/60 p-6">
+      <div>
+        <p className="text-sm font-semibold text-foreground">
+          Elegí cómo empieza el menú
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Después conectás cada botón a una sub-ruta.
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {STARTERS.map((t) => {
+          const meta = NODE_META[t]
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onAdd(t)}
+              className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+            >
+              <div
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                  meta.bg,
+                )}
+              >
+                <meta.icon className={cn("h-4 w-4", meta.color)} />
+              </div>
+              <span className="text-sm font-medium text-foreground">
+                {meta.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-2 border-t border-border pt-3">
+        <span className="text-[11px] text-muted-foreground">¿Otro?</span>
+        <AddNextNodePill onAdd={onAdd} />
+      </div>
     </div>
   )
 }
