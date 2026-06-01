@@ -74,6 +74,7 @@ import {
   type ValidationIssue,
 } from "@/lib/flows/validate";
 import { CanvasViewport } from "@/components/canvas/canvas-viewport";
+import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -755,6 +756,22 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         />
       </div>
 
+      {/* Mini banner educativo — separa visualmente este modo
+          (interactivo, dentro de ventana 24h) de las Automatizaciones
+          (asíncronas, plantillas HSM). Es el gap más grande que la
+          competencia mezcla en un solo editor y confunde al merchant. */}
+      <div className="flex-shrink-0 border-b border-border bg-emerald-500/5 px-4 py-2 text-[11px] text-emerald-300">
+        <span className="font-semibold">Se activa cuando el cliente te escribe.</span>{" "}
+        <span className="text-muted-foreground">
+          Para mensajes que iniciás vos (carrito, despacho, marketing), usá
+          {" "}
+          <a href="/automations" className="underline hover:text-foreground">
+            Automatizaciones
+          </a>
+          .
+        </span>
+      </div>
+
       {/* Canvas — árbol: cada rama de un nodo con varias salidas se
           dibuja como una columna debajo. El disparador vive como la
           primera tarjeta del canvas (no en un panel aparte). */}
@@ -1014,6 +1031,10 @@ function NodeCard({
           )}
         </div>
       </button>
+      {/* WhatsApp bubble preview — shows the merchant exactly what the
+          customer will see in their phone. Honest about Meta's 3-button
+          / 20-char / 10-row limits via truncation. */}
+      <NodeBubblePreview node={node} />
       {expanded && (
         <div className="border-t border-border px-4 py-4">
           <NodeConfigForm
@@ -1051,6 +1072,134 @@ function NodeCard({
       )}
     </div>
   );
+}
+
+// ============================================================
+// Node bubble preview — small WhatsApp chat preview inside the card
+// ============================================================
+// Only renders for node types the customer actually sees. Internal-only
+// types (condition / set_tag / wait / shopify_lookup / handoff / start /
+// end / ai_intent) skip the bubble — they don't produce a message.
+function NodeBubblePreview({ node }: { node: BuilderNode }) {
+  const cfg = node.config as Record<string, unknown>;
+  switch (node.node_type) {
+    case "send_message": {
+      const text = (cfg.text as string) ?? "";
+      if (!text.trim()) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview kind="text" text={text} />
+        </div>
+      );
+    }
+    case "send_buttons": {
+      const text = (cfg.text as string) ?? "";
+      const buttons = Array.isArray(cfg.buttons)
+        ? (cfg.buttons as Array<{ title?: string }>).map((b) => ({
+            title: b.title ?? "",
+          }))
+        : [];
+      if (!text.trim() && buttons.length === 0) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview kind="buttons" text={text} buttons={buttons} />
+        </div>
+      );
+    }
+    case "send_list": {
+      const text = (cfg.text as string) ?? "";
+      const label = (cfg.button_label as string) ?? "Ver opciones";
+      const sections = Array.isArray(cfg.sections)
+        ? (cfg.sections as Array<{
+            rows?: Array<{ title?: string; description?: string }>
+          }>)
+        : [];
+      const rows = sections.flatMap((s) =>
+        (s.rows ?? []).map((r) => ({
+          title: r.title ?? "",
+          description: r.description,
+        })),
+      );
+      if (!text.trim() && rows.length === 0) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview
+            kind="list"
+            text={text}
+            listButtonLabel={label}
+            listRows={rows}
+          />
+        </div>
+      );
+    }
+    case "send_cta_url": {
+      const text = (cfg.text as string) ?? "";
+      const title = (cfg.button_title as string) ?? "";
+      const url = (cfg.url as string) ?? "";
+      if (!text.trim() && !title) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview
+            kind="cta_url"
+            text={text}
+            ctaTitle={title}
+            ctaUrl={url}
+          />
+        </div>
+      );
+    }
+    case "send_image":
+    case "send_video": {
+      const url = (cfg.url as string) ?? "";
+      const caption = (cfg.caption as string) ?? "";
+      if (!url && !caption) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview
+            kind={node.node_type === "send_image" ? "image" : "video"}
+            mediaUrl={url}
+            text=""
+            caption={caption}
+          />
+        </div>
+      );
+    }
+    case "send_document": {
+      const filename = (cfg.filename as string) ?? "";
+      const caption = (cfg.caption as string) ?? "";
+      if (!filename && !caption) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview
+            kind="document"
+            filename={filename}
+            text=""
+            caption={caption}
+          />
+        </div>
+      );
+    }
+    case "collect_input": {
+      const text = (cfg.prompt_text as string) ?? "";
+      if (!text.trim()) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview kind="text" text={text} />
+        </div>
+      );
+    }
+    case "ai_intent": {
+      const text = (cfg.prompt_text as string) ?? "";
+      if (!text.trim()) return null;
+      return (
+        <div className="border-t border-border px-3 pb-3 pt-2">
+          <WhatsappBubblePreview kind="text" text={text} />
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
 }
 
 // ============================================================
@@ -1489,7 +1638,7 @@ function SendButtonsForm({
             </div>
           ))}
         </div>
-        {buttons.length < 3 && (
+        {buttons.length < 3 ? (
           <Button
             variant="ghost"
             size="sm"
@@ -1499,6 +1648,11 @@ function SendButtonsForm({
             <Plus className="h-3.5 w-3.5" />
             Añadir botón
           </Button>
+        ) : (
+          <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+            <CircleAlert className="h-3 w-3" />
+            WhatsApp permite máximo 3 botones de respuesta. Usá una lista para más opciones.
+          </p>
         )}
       </div>
     </>
@@ -1631,9 +1785,19 @@ function SendListForm({
       </div>
 
       <div className="mt-2">
-        <label className="mb-2 block text-xs text-muted-foreground">
-          Filas (1–10 en total)
-        </label>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="text-xs text-muted-foreground">
+            Filas (máximo 10 en total)
+          </label>
+          <span
+            className={cn(
+              "text-[11px] tabular-nums",
+              totalRows >= 10 ? "text-amber-300" : "text-muted-foreground",
+            )}
+          >
+            {totalRows}/10
+          </span>
+        </div>
         {sections.map((section, sIdx) => (
           <div
             key={sIdx}
@@ -1713,7 +1877,7 @@ function SendListForm({
                 </Button>
               </div>
             ))}
-            {totalRows < 10 && (
+            {totalRows < 10 ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -1723,6 +1887,11 @@ function SendListForm({
                 <Plus className="h-3.5 w-3.5" />
                 Añadir fila
               </Button>
+            ) : (
+              <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+                <CircleAlert className="h-3 w-3" />
+                Límite WhatsApp: 10 filas por mensaje. Encadená otro nodo de lista.
+              </p>
             )}
           </div>
         ))}
