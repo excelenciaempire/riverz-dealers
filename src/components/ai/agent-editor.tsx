@@ -539,7 +539,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                   active={scope === 'workspace'}
                   onClick={() => setScope('workspace')}
                   title="Todos los canales"
-                  hint="Aplica al workspace entero."
+                  hint="Vale para todos los canales conectados."
                 />
                 <ScopeCard
                   active={scope === 'channels'}

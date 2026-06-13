@@ -1237,7 +1237,7 @@ function NodeConfigForm({
           allNodes={allNodes}
           currentKey={node.node_key}
           onChange={(v) => onUpdateConfig({ next_node_key: v })}
-          label="Advances to"
+          label="Avanza a"
         />
       )}
 

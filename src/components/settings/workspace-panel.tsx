@@ -199,13 +199,13 @@ export function WorkspacePanel() {
                     onChange={(e) => handleChangeRole(m.id, e.target.value as "admin" | "agent")}
                     className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
                   >
-                    <option value="admin">Admin</option>
+                    <option value="admin">Administrador</option>
                     <option value="agent">Agente</option>
                   </select>
                 ) : (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     {m.role === "admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
-                    {m.role}
+                    {m.role === "admin" ? "Administrador" : "Agente"}
                   </span>
                 )}
                 {isAdmin && (
@@ -233,7 +233,7 @@ export function WorkspacePanel() {
               <Input
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="companero@email.com"
+                placeholder="compañero@email.com"
                 className="bg-muted text-foreground"
               />
               <select
@@ -242,7 +242,7 @@ export function WorkspacePanel() {
                 className="rounded-md border border-border bg-muted px-2 text-sm text-foreground"
               >
                 <option value="agent">Agente</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Administrador</option>
               </select>
               <Button
                 onClick={handleInvite}
@@ -269,7 +269,7 @@ export function WorkspacePanel() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-foreground">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    Rol: {inv.role} · expira el {new Date(inv.expires_at).toLocaleDateString('es-ES')}
+                    Rol: {inv.role === "admin" ? "Administrador" : "Agente"} · expira el {new Date(inv.expires_at).toLocaleDateString('es-ES')}
                   </p>
                 </div>
                 {isAdmin && (

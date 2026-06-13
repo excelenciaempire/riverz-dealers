@@ -69,7 +69,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "gmail",
     label: "Gmail",
-    description: "Cuentas @gmail o Workspace.",
+    description: "Cuentas @gmail o Google Workspace.",
     logoChannel: "gmail",
     members: ["gmail"],
     connectChannel: "gmail",
@@ -196,7 +196,7 @@ export function ChannelsPanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        No se encontró el workspace.
+        No se encontró tu espacio de trabajo.
       </div>
     );
   }

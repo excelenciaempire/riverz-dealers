@@ -542,7 +542,7 @@ function SegmentEditor({
               {preview.length}
             </p>
             <p className="text-xs text-muted-foreground">
-              de {total} contactos del workspace
+              de {total} contactos de tu equipo
             </p>
 
             <div className="mt-4 max-h-[360px] space-y-1 overflow-y-auto pr-1">

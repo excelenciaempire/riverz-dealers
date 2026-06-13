@@ -38,21 +38,21 @@ export default function AcceptInvitePage({ params }: PageProps) {
         .maybeSingle();
       if (error || !invite) {
         setState("error");
-        setErrorMsg("This invite is invalid or has already been used.");
+        setErrorMsg("Esta invitación no es válida o ya fue usada.");
         return;
       }
       if (invite.accepted_at) {
         setState("error");
-        setErrorMsg("This invite has already been accepted.");
+        setErrorMsg("Esta invitación ya fue aceptada.");
         return;
       }
       if (new Date(invite.expires_at).getTime() < Date.now()) {
         setState("error");
-        setErrorMsg("This invite has expired. Ask your admin for a new one.");
+        setErrorMsg("La invitación caducó. Pedile al administrador que te envíe una nueva.");
         return;
       }
       const ws = Array.isArray(invite.workspace) ? invite.workspace[0] : invite.workspace;
-      setWorkspaceName(ws?.name ?? "your team's workspace");
+      setWorkspaceName(ws?.name ?? "tu equipo");
       setState("ready");
     })();
   }, [token]);
@@ -67,7 +67,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
     setAccepting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? "Failed to accept invite");
+      toast.error(payload.error ?? "No se pudo aceptar la invitación");
       return;
     }
     setState("accepted");
@@ -80,22 +80,22 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "loading" && (
           <div className="flex flex-col items-center gap-3 py-6">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading invite…</p>
+            <p className="text-sm text-muted-foreground">Cargando invitación…</p>
           </div>
         )}
 
         {state === "needs_login" && (
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
-            <h1 className="text-lg font-semibold text-foreground">You have an invite</h1>
+            <h1 className="text-lg font-semibold text-foreground">Tenés una invitación</h1>
             <p className="text-sm text-muted-foreground">
-              Sign in to continue.
+              Iniciá sesión para continuar.
             </p>
             <Link
               href={`/login?redirect=/invite/${token}`}
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Sign in to continue
+              Iniciar sesión
             </Link>
           </div>
         )}
@@ -103,13 +103,13 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "ready" && (
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
-            <h1 className="text-lg font-semibold text-foreground">Join “{workspaceName}”</h1>
+            <h1 className="text-lg font-semibold text-foreground">Unirte a “{workspaceName}”</h1>
             <Button
               onClick={accept}
               disabled={accepting}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {accepting ? <Loader2 className="size-4 animate-spin" /> : "Accept invite"}
+              {accepting ? <Loader2 className="size-4 animate-spin" /> : "Aceptar invitación"}
             </Button>
           </div>
         )}
@@ -117,21 +117,21 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "accepted" && (
           <div className="space-y-3 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
-            <h1 className="text-lg font-semibold text-foreground">You're in!</h1>
-            <p className="text-sm text-muted-foreground">Redirecting to the inbox…</p>
+            <h1 className="text-lg font-semibold text-foreground">¡Listo!</h1>
+            <p className="text-sm text-muted-foreground">Llevándote a la bandeja…</p>
           </div>
         )}
 
         {state === "error" && (
           <div className="space-y-3 text-center">
             <XCircle className="mx-auto h-8 w-8 text-red-400" />
-            <h1 className="text-lg font-semibold text-foreground">Invite not valid</h1>
+            <h1 className="text-lg font-semibold text-foreground">Invitación no válida</h1>
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
             <Link
               href="/dashboard"
               className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
             >
-              Back to dashboard
+              Volver al panel
             </Link>
           </div>
         )}
