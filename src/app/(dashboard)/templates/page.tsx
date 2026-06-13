@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { MessageTemplate } from '@/types';
+import { SeedDemoButton } from '@/components/dev/seed-demo-button';
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
@@ -102,8 +103,13 @@ export default function TemplatesPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Plantillas</h1>
+        <h1 className="text-2xl font-bold text-foreground">Plantillas de WhatsApp</h1>
         <div className="flex items-center gap-2">
+          <SeedDemoButton
+            type="templates"
+            label="Crear datos de prueba"
+            onDone={() => location.reload()}
+          />
           <Button
             variant="outline"
             onClick={handleSync}

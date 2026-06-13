@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table';
 import { Radio, Plus, Loader2 } from 'lucide-react';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { SeedDemoButton } from '@/components/dev/seed-demo-button';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -176,15 +177,22 @@ export default function BroadcastsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Difusiones</h1>
+          <h1 className="text-2xl font-bold text-foreground">Campañas masivas</h1>
         </div>
-        <Button
-          onClick={() => router.push('/broadcasts/new')}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva difusión
-        </Button>
+        <div className="flex items-center gap-2">
+          <SeedDemoButton
+            type="broadcasts"
+            label="Crear datos de prueba"
+            onDone={() => location.reload()}
+          />
+          <Button
+            onClick={() => router.push('/broadcasts/new')}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva campaña
+          </Button>
+        </div>
       </div>
 
       {broadcasts.length === 0 ? (
@@ -196,7 +204,7 @@ export default function BroadcastsPage() {
             className="mt-3 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
-            Nueva difusión
+            Nueva campaña
           </Button>
         </div>
       ) : (

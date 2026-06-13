@@ -70,7 +70,7 @@ const navGroups: NavGroup[] = [
     title: "Marketing",
     items: [
       { href: "/broadcasts", label: "Campañas masivas", icon: Megaphone },
-      { href: "/templates", label: "Plantillas", icon: LayoutTemplate },
+      { href: "/templates", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
     ],
   },
   {
