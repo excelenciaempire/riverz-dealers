@@ -807,9 +807,14 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         </CanvasViewport>
       </div>
 
-      <div className="z-10 flex-shrink-0 border-t border-border bg-card/40 shadow-xl shadow-black/40">
-        <ValidationPanel issues={issues} onJump={jumpToNode} />
-      </div>
+      {/* Validation panel sólo cuando el usuario ya empezó a armar el
+          menú. Si la lona está vacía, los errores de "te falta esto" son
+          ruido visual — el empty state ya guía qué hacer. */}
+      {state.nodes.length > 0 && (
+        <div className="z-10 flex-shrink-0 border-t border-border bg-card/40 shadow-xl shadow-black/40">
+          <ValidationPanel issues={issues} onJump={jumpToNode} />
+        </div>
+      )}
     </div>
   );
 }

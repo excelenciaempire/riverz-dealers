@@ -13,6 +13,10 @@ import {
   PlayCircle,
   PauseCircle,
   Archive,
+  FilePlus2,
+  Sparkles,
+  ArrowLeft,
+  Check,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,13 +31,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
+import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
 
 /**
  * Flows list page.
  *
- * Open to every authenticated user. Flows is in soft-GA — the "Beta"
- * chip in the header is the only remaining signal that the surface
- * is new. The previous per-account beta gate was removed in PR #134.
+ * "Nuevo menú" opens a two-step picker: first the user chooses between
+ * cloning a template or starting blank, then either confirms the
+ * template or types a name. The template path skips the name input —
+ * the user can rename inside the editor.
  */
 
 interface FlowRow {
@@ -61,11 +67,15 @@ const STATUS_COLORS: Record<FlowRow["status"], string> = {
   archived: "border-border bg-muted/50 text-muted-foreground",
 };
 
+type CreateStep = "choose" | "name" | "template";
+
 export default function FlowsPage() {
   const router = useRouter();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [createOpen, setCreateOpen] = useState(false);
+  const [step, setStep] = useState<CreateStep>("choose");
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -82,7 +92,7 @@ export default function FlowsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudieron cargar los flujos.");
+          toast.error("No se pudieron cargar los menús.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -93,18 +103,25 @@ export default function FlowsPage() {
     };
   }, []);
 
-  async function handleCreate() {
+  function openCreate() {
+    setStep("choose");
+    setNewName("");
+    setCreateOpen(true);
+  }
+
+  function closeCreate() {
+    if (creating) return;
+    setCreateOpen(false);
+  }
+
+  async function handleCreateBlank() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
       const res = await fetch("/api/flows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName.trim(),
-          trigger_type: "keyword",
-          trigger_config: { keywords: [] },
-        }),
+        body: JSON.stringify({ name: newName.trim() }),
       });
       if (!res.ok) throw new Error(`Create failed: ${res.status}`);
       const json = (await res.json()) as { flow: FlowRow };
@@ -113,7 +130,27 @@ export default function FlowsPage() {
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo crear el flujo.");
+      toast.error("No se pudo crear el menú.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleUseTemplate(template: FlowTemplate) {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/flows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template_slug: template.slug }),
+      });
+      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      const json = (await res.json()) as { flow: FlowRow };
+      setCreateOpen(false);
+      router.push(`/flows/${json.flow.id}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo usar la plantilla.");
     } finally {
       setCreating(false);
     }
@@ -129,7 +166,7 @@ export default function FlowsPage() {
       toast.success("Eliminado.");
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo eliminar el flujo.");
+      toast.error("No se pudo eliminar.");
     }
   }
 
@@ -141,19 +178,21 @@ export default function FlowsPage() {
     );
   }
 
+  const templates = listFlowTemplates();
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <SupportModeSwitcher current="flows" />
 
       <div className="flex justify-end">
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={openCreate}>
           <Plus className="h-4 w-4" />
           Nuevo menú
         </Button>
       </div>
 
       {flows.length === 0 ? (
-        <EmptyState />
+        <EmptyState onCreate={openCreate} />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {flows.map((flow) => (
@@ -167,43 +206,179 @@ export default function FlowsPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-card text-foreground sm:max-w-sm">
+      <Dialog open={createOpen} onOpenChange={(o) => (o ? openCreate() : closeCreate())}>
+        <DialogContent
+          className={cn(
+            "bg-card text-foreground",
+            step === "choose" ? "sm:max-w-md" : "sm:max-w-lg",
+          )}
+        >
           <DialogHeader>
-            <DialogTitle>Nuevo menú</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {step !== "choose" && (
+                <button
+                  onClick={() => setStep("choose")}
+                  disabled={creating}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
+              {step === "choose" && "¿Cómo querés empezar?"}
+              {step === "name" && "Nombre del menú"}
+              {step === "template" && "Elegí una plantilla"}
+            </DialogTitle>
           </DialogHeader>
 
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Ej: Menú de bienvenida"
-            className="bg-muted"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-            }}
-          />
+          {step === "choose" && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ChoiceCard
+                icon={<Sparkles className="h-5 w-5 text-accent-ink" />}
+                title="Usar una plantilla"
+                description="Empezás con un menú ya armado de ejemplo y lo editás."
+                badge="Recomendado"
+                onClick={() => setStep("template")}
+              />
+              <ChoiceCard
+                icon={<FilePlus2 className="h-5 w-5 text-muted-foreground" />}
+                title="Empezar en blanco"
+                description="Lona vacía. Vos armás cada paso desde cero."
+                onClick={() => setStep("name")}
+              />
+            </div>
+          )}
 
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setCreateOpen(false)}
-              disabled={creating}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
-              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Crear
-            </Button>
-          </DialogFooter>
+          {step === "name" && (
+            <>
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Ej: Menú de bienvenida"
+                className="bg-muted"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateBlank();
+                }}
+              />
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => setStep("choose")}
+                  disabled={creating}
+                >
+                  Volver
+                </Button>
+                <Button
+                  onClick={handleCreateBlank}
+                  disabled={!newName.trim() || creating}
+                >
+                  {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Crear menú vacío
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {step === "template" && (
+            <div className="space-y-2">
+              {templates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Todavía no hay plantillas disponibles.
+                </p>
+              ) : (
+                templates.map((tpl) => (
+                  <TemplateCard
+                    key={tpl.slug}
+                    template={tpl}
+                    onUse={() => handleUseTemplate(tpl)}
+                    disabled={creating}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function EmptyState() {
+function ChoiceCard({
+  icon,
+  title,
+  description,
+  badge,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  badge?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col items-start gap-2 rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors hover:border-foreground/40 hover:bg-muted/60"
+    >
+      <div className="flex w-full items-start justify-between gap-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-background">
+          {icon}
+        </div>
+        {badge && (
+          <Badge className="border-primary/30 bg-primary/10 text-[10px] text-accent-ink">
+            {badge}
+          </Badge>
+        )}
+      </div>
+      <div>
+        <h4 className="text-sm font-medium text-foreground">{title}</h4>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      </div>
+    </button>
+  );
+}
+
+function TemplateCard({
+  template,
+  onUse,
+  disabled,
+}: {
+  template: FlowTemplate;
+  onUse: () => void;
+  disabled: boolean;
+}) {
+  const stepCount = template.nodes.length;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 shrink-0 text-accent-ink" />
+          <h4 className="truncate text-sm font-medium text-foreground">
+            {template.name}
+          </h4>
+          <Badge variant="outline" className="border-border text-[10px]">
+            {stepCount} pasos
+          </Badge>
+        </div>
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+          {template.description}
+        </p>
+      </div>
+      <Button onClick={onUse} disabled={disabled} size="sm" className="shrink-0">
+        {disabled ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Check className="h-3.5 w-3.5" />
+        )}
+        Usar
+      </Button>
+    </div>
+  );
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-16 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
@@ -213,11 +388,13 @@ function EmptyState() {
         Sin menús todavía
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Creá un menú con el botón
-        <span className="mx-1 font-medium text-foreground">Nuevo menú</span>
-        arriba — el cliente toca botones y vos definís a dónde lo lleva
-        cada opción.
+        Un menú es la conversación que ve tu cliente cuando escribe.
+        Empezá con una plantilla lista o armala desde cero.
       </p>
+      <Button onClick={onCreate} className="mt-5">
+        <Plus className="h-4 w-4" />
+        Crear mi primer menú
+      </Button>
     </div>
   );
 }
@@ -266,7 +443,8 @@ function FlowCard({
       <div className="mt-4 flex items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <MessageSquare className="h-3 w-3" />
-          {flow.execution_count} {flow.execution_count === 1 ? "ejecución" : "ejecuciones"}
+          {flow.execution_count}{" "}
+          {flow.execution_count === 1 ? "vez usado" : "veces usado"}
         </span>
       </div>
 
@@ -294,11 +472,12 @@ function describeTrigger(flow: FlowRow): string {
     const keywords = Array.isArray(flow.trigger_config.keywords)
       ? (flow.trigger_config.keywords as string[])
       : [];
-    if (keywords.length === 0) return "Se activa por palabra clave (ninguna definida)";
+    if (keywords.length === 0)
+      return "Se activa cuando el cliente escribe una palabra clave (ninguna definida)";
     return `Se activa con: ${keywords.join(", ")}`;
   }
   if (flow.trigger_type === "first_inbound_message") {
-    return "Se activa con el primer mensaje entrante del contacto";
+    return "Se activa con el primer mensaje del cliente";
   }
-  return "Activación manual";
+  return "Lo activás vos a mano";
 }

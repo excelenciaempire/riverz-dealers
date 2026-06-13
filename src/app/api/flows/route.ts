@@ -148,7 +148,11 @@ export async function POST(request: Request) {
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
-  const trigger_type = body.trigger_type ?? 'keyword'
+  // Default to first_inbound_message: it has no required config, so the
+  // editor opens without a red "missing keywords" error blocking the
+  // brand-new draft. Users who actually want keyword routing change it
+  // from the trigger card on the canvas.
+  const trigger_type = body.trigger_type ?? 'first_inbound_message'
 
   const { data, error } = await admin
     .from('flows')
