@@ -132,13 +132,16 @@ export default function TemplatesPage() {
       ) : (
         <>
           {templates.length === 0 && (
-            <p className="-mb-1 text-[11px] italic text-muted-foreground">
-              Vista previa con datos de ejemplo. Cuando creés tu primera plantilla, esta lista se reemplaza con tus datos reales.
-            </p>
+            <div className="-mb-1 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <span className="inline-flex h-5 items-center rounded-full border border-border bg-background px-2 text-[10px] font-medium uppercase tracking-wide text-foreground">
+                Ejemplos
+              </span>
+              <span>
+                Así se ve la lista cuando tenés plantillas. Estas tarjetas son sólo ilustrativas — desaparecen cuando creás la primera tuya.
+              </span>
+            </div>
           )}
-          <div
-            className={`grid gap-3 ${templates.length === 0 ? 'opacity-60' : ''}`}
-          >
+          <div className="grid gap-3">
             {(templates.length === 0 ? PLACEHOLDER_TEMPLATES : templates).map((template) => {
               const isPlaceholder = template.id.startsWith('demo-');
               return (
