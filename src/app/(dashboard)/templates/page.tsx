@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { MessageTemplate } from '@/types';
-import { SeedDemoButton } from '@/components/dev/seed-demo-button';
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
@@ -105,11 +104,6 @@ export default function TemplatesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Plantillas de WhatsApp</h1>
         <div className="flex items-center gap-2">
-          <SeedDemoButton
-            type="templates"
-            label="Crear datos de prueba"
-            onDone={() => location.reload()}
-          />
           <Button
             variant="outline"
             onClick={handleSync}
@@ -135,58 +129,160 @@ export default function TemplatesPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-accent-ink" />
         </div>
-      ) : templates.length === 0 ? (
-        <Card className="bg-card border-border ring-0">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm text-muted-foreground">Aún no hay plantillas.</p>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="grid gap-3">
-          {templates.map((template) => (
-            <Card key={template.id} className="bg-card border-border ring-0">
-              <CardContent className="flex items-start justify-between pt-4">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-medium text-foreground">{template.name}</h3>
-                    <Badge
-                      className={`border text-xs ${categoryColors[template.category] || ''}`}
+        <>
+          {templates.length === 0 && (
+            <p className="-mb-1 text-[11px] italic text-muted-foreground">
+              Vista previa con datos de ejemplo. Cuando creés tu primera plantilla, esta lista se reemplaza con tus datos reales.
+            </p>
+          )}
+          <div
+            className={`grid gap-3 ${templates.length === 0 ? 'opacity-60' : ''}`}
+          >
+            {(templates.length === 0 ? PLACEHOLDER_TEMPLATES : templates).map((template) => {
+              const isPlaceholder = template.id.startsWith('demo-');
+              return (
+                <Card key={template.id} className="bg-card border-border ring-0">
+                  <CardContent className="flex items-start justify-between pt-4">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-medium text-foreground">{template.name}</h3>
+                        <Badge
+                          className={`border text-xs ${categoryColors[template.category] || ''}`}
+                        >
+                          {template.category}
+                        </Badge>
+                        <Badge
+                          className={`border text-xs ${statusColors[template.status || 'Draft'] || ''}`}
+                        >
+                          {statusLabels[template.status || 'Draft']}
+                        </Badge>
+                        {template.language && (
+                          <span className="text-xs uppercase text-muted-foreground">
+                            {template.language}
+                          </span>
+                        )}
+                      </div>
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {template.body_text}
+                      </p>
+                      {template.footer_text && (
+                        <p className="text-xs italic text-muted-foreground">
+                          {template.footer_text}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => !isPlaceholder && handleDelete(template.id)}
+                      disabled={isPlaceholder}
+                      className="ml-2 shrink-0 text-muted-foreground hover:bg-red-950/30 hover:text-red-400 disabled:cursor-default disabled:opacity-40"
                     >
-                      {template.category}
-                    </Badge>
-                    <Badge
-                      className={`border text-xs ${statusColors[template.status || 'Draft'] || ''}`}
-                    >
-                      {statusLabels[template.status || 'Draft']}
-                    </Badge>
-                    {template.language && (
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {template.language}
-                      </span>
-                    )}
-                  </div>
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {template.body_text}
-                  </p>
-                  {template.footer_text && (
-                    <p className="text-xs italic text-muted-foreground">
-                      {template.footer_text}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(template.id)}
-                  className="ml-2 shrink-0 text-muted-foreground hover:bg-red-950/30 hover:text-red-400"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
 }
+
+// ============================================================
+// Placeholder data — shown while the merchant doesn't have any real
+// templates yet so the list reads as populated and they can see how
+// each category / status badge renders. Rows have id "demo-*" so
+// the delete handler short-circuits.
+// ============================================================
+const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
+  {
+    id: 'demo-1',
+    user_id: 'demo',
+    name: 'bienvenida_nuevo_cliente',
+    category: 'Utility',
+    language: 'es',
+    header_type: 'text',
+    header_content: '¡Bienvenido a Vitalú!',
+    body_text:
+      'Hola {{1}} 👋, gracias por unirte a Vitalú. Soy María, tu asesora. ¿En qué te puedo ayudar hoy?',
+    footer_text: 'Equipo Vitalú',
+    buttons: undefined,
+    status: 'Approved',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-2',
+    user_id: 'demo',
+    name: 'confirmacion_pedido',
+    category: 'Utility',
+    language: 'es',
+    body_text:
+      '¡Listo {{1}}! Tu pedido *{{2}}* fue confirmado por {{3}}. Te avisamos cuando salga del centro de despacho. 📦',
+    status: 'Approved',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-3',
+    user_id: 'demo',
+    name: 'despacho_con_tracking',
+    category: 'Utility',
+    language: 'es',
+    body_text:
+      '🚚 ¡Tu pedido {{1}} ya está en camino! Lo lleva {{2}} con la guía {{3}}. Seguilo con el botón de abajo.',
+    footer_text: 'Llega entre 2 y 5 días hábiles.',
+    status: 'Approved',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-4',
+    user_id: 'demo',
+    name: 'carrito_abandonado_24h',
+    category: 'Marketing',
+    language: 'es',
+    header_type: 'text',
+    header_content: '¿Lo dejaste pendiente?',
+    body_text:
+      'Hola {{1}}, ayer dejaste {{2}} en el carrito. Te dejamos un 10% con el código *VUELVE10* — vale por 24 horas. 💚',
+    footer_text: 'Sin presión, vos sabés cuándo es el momento.',
+    status: 'Approved',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-5',
+    user_id: 'demo',
+    name: 'recompra_30dias',
+    category: 'Marketing',
+    language: 'es',
+    body_text:
+      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitás reponer, te dejamos envío gratis con *FIDELIDAD*. 🌿',
+    status: 'Pending',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-6',
+    user_id: 'demo',
+    name: 'codigo_verificacion_otp',
+    category: 'Authentication',
+    language: 'es',
+    body_text:
+      'Tu código de verificación de Vitalú es {{1}}. Vence en 10 minutos. No lo compartas con nadie.',
+    footer_text: 'Si no fuiste vos, ignorá este mensaje.',
+    status: 'Draft',
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+  } as unknown as MessageTemplate,
+  {
+    id: 'demo-7',
+    user_id: 'demo',
+    name: 'aviso_stock_agotado',
+    category: 'Utility',
+    language: 'es',
+    body_text:
+      'Hola {{1}}, lamentablemente *{{2}}* se agotó antes de despacharlo. Te devolvemos el dinero a {{3}} en 24-48 hs. Disculpá la molestia. 🙏',
+    status: 'Rejected',
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
+  } as unknown as MessageTemplate,
+];
