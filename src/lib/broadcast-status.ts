@@ -20,54 +20,66 @@ export interface StatusDisplay {
   pulse?: boolean;
 }
 
+/**
+ * Paleta minimalista: solo coloreamos los estados que el comerciante
+ * necesita reconocer de un vistazo (éxito = verde sutil, error = rojo
+ * sutil, en vuelo = ámbar sutil). El resto queda neutro para no
+ * inundar la tabla de pastillas multicolor.
+ */
 export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
   draft: {
     label: "Borrador",
-    classes: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+    classes: "border-border bg-muted text-muted-foreground",
   },
   scheduled: {
     label: "Programada",
-    classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    classes: "border-border bg-muted text-foreground",
   },
   sending: {
     label: "Enviando",
-    classes: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    classes:
+      "border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     pulse: true,
   },
   sent: {
     label: "Enviada",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes:
+      "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   failed: {
     label: "Fallida",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes:
+      "border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-400",
   },
 };
 
 export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
   pending: {
     label: "Pendiente",
-    classes: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+    classes: "border-border bg-muted text-muted-foreground",
   },
   sent: {
     label: "Enviado",
-    classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    classes: "border-border bg-muted text-foreground",
   },
   delivered: {
     label: "Entregado",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes:
+      "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   read: {
     label: "Leído",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes:
+      "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   replied: {
     label: "Respondido",
-    classes: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    classes: "border-border bg-muted text-foreground",
   },
   failed: {
     label: "Fallido",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes:
+      "border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-400",
   },
 };
 

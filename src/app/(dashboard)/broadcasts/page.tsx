@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Radio, Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Search, Info, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 
@@ -29,29 +30,18 @@ function percent(numerator: number, denominator: number): number {
   return Math.round((numerator / denominator) * 100);
 }
 
-function RateCell({
-  value,
-  total,
-  color,
-}: {
-  value: number;
-  total: number;
-  /** Tailwind bg class for the fill, e.g. "bg-primary" */
-  color: string;
-}) {
-  const pct = percent(value, total);
+/**
+ * RateCell — solo el número, sin barra coloreada. El competidor que el
+ * cliente compartió usa puro texto tabular; menos ruido cromático.
+ */
+function RateCell({ value, total }: { value: number; total: number }) {
+  if (!total) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-10 text-right text-xs tabular-nums text-foreground">
-        {pct}%
-      </span>
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
-        <div
-          className={`h-1.5 rounded-full ${color}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
+    <span className="text-sm tabular-nums text-foreground">
+      {percent(value, total)}%
+    </span>
   );
 }
 
@@ -60,6 +50,7 @@ export default function BroadcastsPage() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   // Used to kick off polling only while something is actively sending.
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -75,7 +66,7 @@ export default function BroadcastsPage() {
       if (fetchError) throw fetchError;
       setBroadcasts(data ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se cargaron las difusiones');
+      setError(err instanceof Error ? err.message : 'No se cargaron las campañas');
     } finally {
       setLoading(false);
     }
@@ -126,10 +117,21 @@ export default function BroadcastsPage() {
     };
   }, [anySending]);
 
+  const rows = broadcasts.length === 0 ? PLACEHOLDER_BROADCASTS : broadcasts;
+  const filteredRows = useMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.trim().toLowerCase();
+    return rows.filter(
+      (b) =>
+        b.name.toLowerCase().includes(q) ||
+        (b.template_name ?? '').toLowerCase().includes(q),
+    );
+  }, [rows, query]);
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent-ink" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -137,7 +139,7 @@ export default function BroadcastsPage() {
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-red-500">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
           Reintentar
         </Button>
@@ -146,16 +148,16 @@ export default function BroadcastsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Top indeterminate progress bar: only visible while a broadcast
           is mid-send. Pure CSS animation so no extra deps. */}
       {anySending && (
         <div
           role="progressbar"
-          aria-label="Difusión en curso"
+          aria-label="Campaña en curso"
           className="broadcast-indeterminate fixed inset-x-0 top-0 z-40 h-0.5 overflow-hidden bg-muted"
         >
-          <div className="broadcast-indeterminate-bar h-0.5 bg-primary" />
+          <div className="broadcast-indeterminate-bar h-0.5 bg-foreground" />
           <style jsx>{`
             .broadcast-indeterminate-bar {
               width: 33%;
@@ -175,60 +177,110 @@ export default function BroadcastsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Campañas masivas</h1>
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          Campañas masivas
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Enviá una plantilla aprobada a una lista de contactos.{' '}
+          <a
+            href="https://www.facebook.com/business/help/2055875911147364"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-0.5 text-foreground underline underline-offset-2 hover:text-accent-ink"
+          >
+            Saber más
+            <ExternalLink className="size-3" />
+          </a>
+        </p>
+      </div>
+
+      {/* ── Toolbar: search + action ── */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar campaña…"
+            className="h-9 pl-8"
+          />
         </div>
         <Button
           onClick={() => router.push('/broadcasts/new')}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
+          className="h-9 bg-foreground text-background hover:bg-foreground/90"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" />
           Nueva campaña
         </Button>
       </div>
 
+      {/* ── Empty-state info banner ── */}
       {broadcasts.length === 0 && (
-        <div className="-mb-2 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          <span className="inline-flex h-5 items-center rounded-full border border-border bg-background px-2 text-[10px] font-medium uppercase tracking-wide text-foreground">
-            Ejemplos
-          </span>
-          <span>
-            Así se ve la lista cuando tenés campañas. Estas tarjetas son sólo ilustrativas — desaparecen cuando creás la primera tuya.
-          </span>
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Vista previa con datos de ejemplo
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Estas filas son ilustrativas — desaparecen cuando creás tu primera campaña.
+            </p>
+          </div>
         </div>
       )}
-      <div
-        className={cn(
-          'overflow-x-auto rounded-xl border border-border bg-card',
-        )}
-      >
-          <Table>
-            <TableHeader>
+
+      {/* ── Table ── */}
+      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="text-xs font-medium text-muted-foreground">
+                Nombre
+              </TableHead>
+              <TableHead className="hidden text-xs font-medium text-muted-foreground md:table-cell">
+                Plantilla
+              </TableHead>
+              <TableHead className="hidden text-right text-xs font-medium text-muted-foreground sm:table-cell">
+                Destinatarios
+              </TableHead>
+              <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
+                Entrega
+              </TableHead>
+              <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
+                Lectura
+              </TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">
+                Estado
+              </TableHead>
+              <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell">
+                Fecha
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredRows.length === 0 ? (
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Nombre</TableHead>
-                <TableHead className="hidden text-muted-foreground md:table-cell">Plantilla</TableHead>
-                <TableHead className="hidden text-right text-muted-foreground sm:table-cell">
-                  Destinatarios
-                </TableHead>
-                <TableHead className="hidden text-muted-foreground lg:table-cell">Entrega</TableHead>
-                <TableHead className="hidden text-muted-foreground lg:table-cell">Lectura</TableHead>
-                <TableHead className="text-muted-foreground">Estado</TableHead>
-                <TableHead className="hidden text-muted-foreground sm:table-cell">Fecha</TableHead>
+                <TableCell
+                  colSpan={7}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No encontramos campañas que coincidan con “{query}”.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(broadcasts.length === 0 ? PLACEHOLDER_BROADCASTS : broadcasts).map((broadcast) => {
+            ) : (
+              filteredRows.map((broadcast) => {
                 const status = getBroadcastStatus(broadcast.status);
                 const isPlaceholder = broadcast.id.startsWith('demo-');
                 return (
                   <TableRow
                     key={broadcast.id}
                     className={cn(
-                      "border-border",
+                      'border-border',
                       isPlaceholder
-                        ? "cursor-default"
-                        : "cursor-pointer hover:bg-accent/50",
+                        ? 'cursor-default'
+                        : 'cursor-pointer hover:bg-muted/40',
                     )}
                     onClick={() =>
                       !isPlaceholder && router.push(`/broadcasts/${broadcast.id}`)
@@ -237,53 +289,53 @@ export default function BroadcastsPage() {
                     <TableCell className="font-medium text-foreground">
                       {broadcast.name}
                     </TableCell>
-                    <TableCell className="hidden text-foreground md:table-cell">
+                    <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                       {broadcast.template_name}
                     </TableCell>
-                    <TableCell className="hidden text-right text-foreground tabular-nums sm:table-cell">
-                      {broadcast.total_recipients}
+                    <TableCell className="hidden text-right text-sm tabular-nums text-foreground sm:table-cell">
+                      {broadcast.total_recipients || '—'}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <RateCell
                         value={broadcast.delivered_count}
                         total={broadcast.total_recipients}
-                        color="bg-primary"
                       />
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <RateCell
                         value={broadcast.read_count}
                         total={broadcast.total_recipients}
-                        color="bg-blue-500"
                       />
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                          status.classes,
+                        )}
                       >
                         {status.pulse && (
                           <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
                           </span>
                         )}
                         {status.label}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
-                      {new Date(broadcast.created_at).toLocaleDateString('es-ES')}
+                    <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
+                      {new Date(broadcast.created_at).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: 'short',
+                      })}
                     </TableCell>
                   </TableRow>
                 );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        {/* Lint silencer — Radio icon kept for the eventual empty-state
-            illustration once real broadcasts arrive. */}
-        <span className="hidden">
-          <Radio />
-        </span>
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

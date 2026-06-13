@@ -1,35 +1,75 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Search,
+  Info,
+  ExternalLink,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import type { MessageTemplate } from '@/types';
 
-const categoryColors: Record<string, string> = {
-  Marketing: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
-  Utility: 'bg-blue-600/20 text-blue-400 border-blue-600/30',
-  Authentication: 'bg-amber-600/20 text-amber-400 border-amber-600/30',
+const CATEGORY_LABELS: Record<string, string> = {
+  Marketing: 'Marketing',
+  Utility: 'Utilidad',
+  Authentication: 'Autenticación',
 };
 
-const statusColors: Record<string, string> = {
-  Draft: 'bg-muted text-muted-foreground border-border',
-  Pending: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30',
-  Approved: 'bg-primary/20 text-accent-ink border-primary/30',
-  Rejected: 'bg-red-600/20 text-red-400 border-red-600/30',
-};
-
-const statusLabels: Record<string, string> = {
+const STATUS_LABELS: Record<string, string> = {
   Draft: 'Borrador',
   Pending: 'Pendiente',
   Approved: 'Aprobada',
   Rejected: 'Rechazada',
 };
+
+/**
+ * Status pill — only color the states the merchant needs to react to:
+ * Approved (verde sutil) and Rejected (rojo sutil). Borrador y Pendiente
+ * quedan neutros para reducir ruido cromático.
+ */
+function StatusPill({ status }: { status: string }) {
+  const tone =
+    status === 'Approved'
+      ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+      : status === 'Rejected'
+        ? 'border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-300'
+        : status === 'Pending'
+          ? 'border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : 'border-border bg-muted text-muted-foreground';
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+        tone,
+      )}
+    >
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+}
 
 export default function TemplatesPage() {
   const supabase = createClient();
@@ -38,6 +78,7 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -99,25 +140,63 @@ export default function TemplatesPage() {
     }
   }
 
+  const rows = templates.length === 0 ? PLACEHOLDER_TEMPLATES : templates;
+  const filteredRows = useMemo(() => {
+    if (!query.trim()) return rows;
+    const q = query.trim().toLowerCase();
+    return rows.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.body_text ?? '').toLowerCase().includes(q) ||
+        (t.category ?? '').toLowerCase().includes(q),
+    );
+  }, [rows, query]);
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Plantillas de WhatsApp</h1>
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          Plantillas de WhatsApp
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Prepará el mensaje antes de enviarlo a tus clientes.{' '}
+          <a
+            href="https://www.facebook.com/business/help/2055875911147364"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-0.5 text-foreground underline underline-offset-2 hover:text-accent-ink"
+          >
+            Saber más
+            <ExternalLink className="size-3" />
+          </a>
+        </p>
+      </div>
+
+      {/* ── Top toolbar: search + actions ── */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar plantilla…"
+            className="h-9 pl-8"
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             onClick={handleSync}
             disabled={syncing}
-            className="border-border bg-transparent text-foreground hover:bg-accent"
+            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
           >
-            <RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={cn('size-4', syncing && 'animate-spin')} />
             {syncing ? 'Sincronizando…' : 'Sincronizar'}
           </Button>
           <Button
-            render={
-              <Link href="/templates/new" />
-            }
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            render={<Link href="/templates/new" />}
+            className="h-9 bg-foreground text-background hover:bg-foreground/90"
           >
             <Plus className="size-4" />
             Nueva plantilla
@@ -125,71 +204,103 @@ export default function TemplatesPage() {
         </div>
       </div>
 
+      {/* ── Empty-state info banner (only when real list is empty) ── */}
+      {!loading && templates.length === 0 && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Vista previa con datos de ejemplo
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Estas filas son ilustrativas — desaparecen cuando creás tu primera plantilla o sincronizás las que ya tenés en Meta.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Table ── */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-6 animate-spin text-accent-ink" />
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <>
-          {templates.length === 0 && (
-            <div className="-mb-1 flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <span className="inline-flex h-5 items-center rounded-full border border-border bg-background px-2 text-[10px] font-medium uppercase tracking-wide text-foreground">
-                Ejemplos
-              </span>
-              <span>
-                Así se ve la lista cuando tenés plantillas. Estas tarjetas son sólo ilustrativas — desaparecen cuando creás la primera tuya.
-              </span>
-            </div>
-          )}
-          <div className="grid gap-3">
-            {(templates.length === 0 ? PLACEHOLDER_TEMPLATES : templates).map((template) => {
-              const isPlaceholder = template.id.startsWith('demo-');
-              return (
-                <Card key={template.id} className="bg-card border-border ring-0">
-                  <CardContent className="flex items-start justify-between pt-4">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium text-foreground">{template.name}</h3>
-                        <Badge
-                          className={`border text-xs ${categoryColors[template.category] || ''}`}
-                        >
-                          {template.category}
-                        </Badge>
-                        <Badge
-                          className={`border text-xs ${statusColors[template.status || 'Draft'] || ''}`}
-                        >
-                          {statusLabels[template.status || 'Draft']}
-                        </Badge>
-                        {template.language && (
-                          <span className="text-xs uppercase text-muted-foreground">
-                            {template.language}
-                          </span>
-                        )}
-                      </div>
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {template.body_text}
-                      </p>
-                      {template.footer_text && (
-                        <p className="text-xs italic text-muted-foreground">
-                          {template.footer_text}
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => !isPlaceholder && handleDelete(template.id)}
-                      disabled={isPlaceholder}
-                      className="ml-2 shrink-0 text-muted-foreground hover:bg-red-950/30 hover:text-red-400 disabled:cursor-default disabled:opacity-40"
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Nombre
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Categoría
+                </TableHead>
+                <TableHead className="hidden text-xs font-medium text-muted-foreground md:table-cell">
+                  Mensaje
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Estado
+                </TableHead>
+                <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell">
+                  Actualizada
+                </TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRows.length === 0 ? (
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableCell
+                    colSpan={6}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    No encontramos plantillas que coincidan con “{query}”.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRows.map((template) => {
+                  const isPlaceholder = template.id.startsWith('demo-');
+                  return (
+                    <TableRow
+                      key={template.id}
+                      className="border-border hover:bg-muted/40"
                     >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </>
+                      <TableCell className="font-medium text-foreground">
+                        {template.name}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {CATEGORY_LABELS[template.category] ?? template.category}
+                      </TableCell>
+                      <TableCell className="hidden max-w-[420px] truncate text-sm text-muted-foreground md:table-cell">
+                        {template.body_text}
+                      </TableCell>
+                      <TableCell>
+                        <StatusPill status={template.status || 'Draft'} />
+                      </TableCell>
+                      <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
+                        {formatRelative(template.created_at)}
+                      </TableCell>
+                      <TableCell className="w-10 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            !isPlaceholder && handleDelete(template.id)
+                          }
+                          disabled={isPlaceholder}
+                          className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 disabled:cursor-default disabled:opacity-30"
+                          aria-label="Eliminar plantilla"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );
@@ -197,9 +308,8 @@ export default function TemplatesPage() {
 
 // ============================================================
 // Placeholder data — shown while the merchant doesn't have any real
-// templates yet so the list reads as populated and they can see how
-// each category / status badge renders. Rows have id "demo-*" so
-// the delete handler short-circuits.
+// templates yet so the list reads as populated. Rows have id "demo-*"
+// so the delete handler short-circuits.
 // ============================================================
 const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
   {
@@ -211,7 +321,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     header_type: 'text',
     header_content: '¡Bienvenido a Vitalú!',
     body_text:
-      'Hola {{1}} 👋, gracias por unirte a Vitalú. Soy María, tu asesora. ¿En qué te puedo ayudar hoy?',
+      'Hola {{1}}, gracias por unirte a Vitalú. Soy María, tu asesora. ¿En qué te puedo ayudar hoy?',
     footer_text: 'Equipo Vitalú',
     buttons: undefined,
     status: 'Approved',
@@ -224,7 +334,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     category: 'Utility',
     language: 'es',
     body_text:
-      '¡Listo {{1}}! Tu pedido *{{2}}* fue confirmado por {{3}}. Te avisamos cuando salga del centro de despacho. 📦',
+      '¡Listo {{1}}! Tu pedido {{2}} fue confirmado por {{3}}. Te avisamos cuando salga del centro de despacho.',
     status: 'Approved',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
   } as unknown as MessageTemplate,
@@ -235,7 +345,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     category: 'Utility',
     language: 'es',
     body_text:
-      '🚚 ¡Tu pedido {{1}} ya está en camino! Lo lleva {{2}} con la guía {{3}}. Seguilo con el botón de abajo.',
+      '¡Tu pedido {{1}} ya está en camino! Lo lleva {{2}} con la guía {{3}}. Seguilo con el botón de abajo.',
     footer_text: 'Llega entre 2 y 5 días hábiles.',
     status: 'Approved',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
@@ -249,7 +359,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     header_type: 'text',
     header_content: '¿Lo dejaste pendiente?',
     body_text:
-      'Hola {{1}}, ayer dejaste {{2}} en el carrito. Te dejamos un 10% con el código *VUELVE10* — vale por 24 horas. 💚',
+      'Hola {{1}}, ayer dejaste {{2}} en el carrito. Te dejamos un 10% con el código VUELVE10 — vale por 24 horas.',
     footer_text: 'Sin presión, vos sabés cuándo es el momento.',
     status: 'Approved',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
@@ -261,7 +371,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     category: 'Marketing',
     language: 'es',
     body_text:
-      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitás reponer, te dejamos envío gratis con *FIDELIDAD*. 🌿',
+      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitás reponer, te dejamos envío gratis con FIDELIDAD.',
     status: 'Pending',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
   } as unknown as MessageTemplate,
@@ -284,7 +394,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     category: 'Utility',
     language: 'es',
     body_text:
-      'Hola {{1}}, lamentablemente *{{2}}* se agotó antes de despacharlo. Te devolvemos el dinero a {{3}} en 24-48 hs. Disculpá la molestia. 🙏',
+      'Hola {{1}}, lamentablemente {{2}} se agotó antes de despacharlo. Te devolvemos el dinero a {{3}} en 24-48 hs. Disculpá la molestia.',
     status: 'Rejected',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
   } as unknown as MessageTemplate,
