@@ -1,0 +1,197 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+/**
+ * POST /api/broadcasts/audience-preview
+ *
+ * Devuelve hasta `limit` contactos representativos del segmento
+ * configurado en el wizard de campaña. Sirve para que el merchant vea
+ * los nombres concretos antes de mandar 5000 mensajes.
+ *
+ * Body:
+ *   {
+ *     audience: {
+ *       type: 'all' | 'tags' | 'custom_field' | 'csv',
+ *       tagIds?: string[],
+ *       customField?: { fieldId, operator: 'is'|'is_not'|'contains', value },
+ *       csvContacts?: { phone, name? }[],
+ *       excludeTagIds?: string[],
+ *     },
+ *     limit?: number (max 50)
+ *   }
+ */
+
+interface AudienceBody {
+  audience: {
+    type: 'all' | 'tags' | 'custom_field' | 'csv';
+    tagIds?: string[];
+    customField?: {
+      fieldId: string;
+      operator: 'is' | 'is_not' | 'contains';
+      value: string;
+    };
+    csvContacts?: Array<{ phone: string; name?: string }>;
+    excludeTagIds?: string[];
+  };
+  limit?: number;
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = (await request.json().catch(() => null)) as AudienceBody | null;
+  if (!body?.audience) {
+    return NextResponse.json({ error: 'Falta audience' }, { status: 400 });
+  }
+  const limit = Math.max(1, Math.min(50, body.limit ?? 12));
+  const a = body.audience;
+
+  // CSV: el preview son los primeros N del CSV. No están en la DB.
+  if (a.type === 'csv') {
+    return NextResponse.json({
+      contacts: (a.csvContacts ?? []).slice(0, limit).map((c, i) => ({
+        id: `csv-${i}`,
+        name: c.name ?? null,
+        phone: c.phone,
+        is_shopify_customer: false,
+        tags: [] as string[],
+      })),
+    });
+  }
+
+  // Resolver los contact_ids del segmento.
+  let candidateIds: string[] | null = null;
+
+  if (a.type === 'tags' && a.tagIds && a.tagIds.length > 0) {
+    const { data } = await supabase
+      .from('contact_tags')
+      .select('contact_id')
+      .in('tag_id', a.tagIds)
+      .limit(500);
+    candidateIds = Array.from(
+      new Set(
+        (data ?? []).map((r: { contact_id: string }) => r.contact_id),
+      ),
+    );
+  } else if (
+    a.type === 'custom_field' &&
+    a.customField?.fieldId &&
+    a.customField.value
+  ) {
+    let q = supabase
+      .from('contact_custom_values')
+      .select('contact_id')
+      .eq('custom_field_id', a.customField.fieldId)
+      .limit(500);
+    if (a.customField.operator === 'is') q = q.eq('value', a.customField.value);
+    else if (a.customField.operator === 'is_not')
+      q = q.neq('value', a.customField.value);
+    else q = q.ilike('value', `%${a.customField.value}%`);
+    const { data } = await q;
+    candidateIds = Array.from(
+      new Set(
+        (data ?? []).map((r: { contact_id: string }) => r.contact_id),
+      ),
+    );
+  }
+
+  // Excludes — sacamos del set.
+  if (a.excludeTagIds && a.excludeTagIds.length > 0) {
+    const { data: ex } = await supabase
+      .from('contact_tags')
+      .select('contact_id')
+      .in('tag_id', a.excludeTagIds);
+    const exSet = new Set(
+      (ex ?? []).map((r: { contact_id: string }) => r.contact_id),
+    );
+    if (candidateIds) {
+      candidateIds = candidateIds.filter((id) => !exSet.has(id));
+    } else {
+      // type === 'all' con exclude: pedimos N+exSet.size por las dudas
+      // y filtramos. Simple porque preview es chico.
+      const { data: rows } = await supabase
+        .from('contacts')
+        .select('id, name, phone, is_shopify_customer')
+        .order('updated_at', { ascending: false })
+        .limit(limit + exSet.size);
+      const filtered = (rows ?? [])
+        .filter((r: { id: string }) => !exSet.has(r.id))
+        .slice(0, limit);
+      return NextResponse.json({
+        contacts: await enrichWithTags(supabase, filtered),
+      });
+    }
+  }
+
+  if (!candidateIds && a.type === 'all') {
+    const { data: rows } = await supabase
+      .from('contacts')
+      .select('id, name, phone, is_shopify_customer')
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+    return NextResponse.json({
+      contacts: await enrichWithTags(supabase, rows ?? []),
+    });
+  }
+
+  if (!candidateIds || candidateIds.length === 0) {
+    return NextResponse.json({ contacts: [] });
+  }
+
+  // Sacamos los primeros N de los candidatos resueltos.
+  const subset = candidateIds.slice(0, limit);
+  const { data: rows } = await supabase
+    .from('contacts')
+    .select('id, name, phone, is_shopify_customer')
+    .in('id', subset);
+
+  return NextResponse.json({
+    contacts: await enrichWithTags(supabase, rows ?? []),
+  });
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+interface ContactRow {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  is_shopify_customer: boolean | null;
+}
+
+async function enrichWithTags(
+  supabase: SupabaseClient,
+  rows: Array<ContactRow | Record<string, unknown>>,
+) {
+  const ids = rows
+    .map((r) => (r as ContactRow).id)
+    .filter((x): x is string => !!x);
+  if (ids.length === 0) return [];
+  const { data: tagRows } = await supabase
+    .from('contact_tags')
+    .select('contact_id, tags(name)')
+    .in('contact_id', ids);
+  const tagsByContact = new Map<string, string[]>();
+  for (const r of tagRows ?? []) {
+    const cId = (r as { contact_id: string }).contact_id;
+    const tagJoin = (r as { tags: { name?: string } | { name?: string }[] | null }).tags;
+    const name = Array.isArray(tagJoin) ? tagJoin[0]?.name : tagJoin?.name;
+    if (!name) continue;
+    const arr = tagsByContact.get(cId) ?? [];
+    arr.push(name);
+    tagsByContact.set(cId, arr);
+  }
+  return (rows as ContactRow[]).map((r) => ({
+    id: r.id,
+    name: r.name ?? null,
+    phone: r.phone ?? null,
+    is_shopify_customer: r.is_shopify_customer ?? false,
+    tags: tagsByContact.get(r.id) ?? [],
+  }));
+}

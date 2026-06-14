@@ -38,6 +38,10 @@ import {
   type TemplateButtonInput,
   type TemplateHeaderType,
 } from '@/lib/whatsapp/template-components';
+import {
+  validateTemplate,
+  type TemplateIssue,
+} from '@/lib/whatsapp/template-validate';
 import { cn } from '@/lib/utils';
 
 const CATEGORIES: {
@@ -126,6 +130,41 @@ export function TemplateBuilder() {
 
   const variables = useMemo(() => extractVariables(bodyText), [bodyText]);
 
+  /**
+   * Validación en vivo contra las reglas de Meta. Se recomputa con
+   * cada cambio en el form y se muestra como panel debajo del botón
+   * de enviar. Bloquea el submit si hay errores; warnings dejan
+   * pasar pero los señala.
+   */
+  const issues: TemplateIssue[] = useMemo(
+    () =>
+      validateTemplate({
+        name,
+        language,
+        category,
+        headerType,
+        headerText,
+        bodyText,
+        footerText,
+        buttons: buttonsOn ? buttons : [],
+        bodySamples: variables.map((v) => samples[v] ?? ''),
+      }),
+    [
+      name,
+      language,
+      category,
+      headerType,
+      headerText,
+      bodyText,
+      footerText,
+      buttonsOn,
+      buttons,
+      samples,
+      variables,
+    ],
+  );
+  const blockers = issues.filter((i) => i.severity === 'error');
+
   function insertVariable() {
     const next = variables.length > 0 ? Math.max(...variables) + 1 : 1;
     setBodyText((prev) => `${prev}{{${next}}}`);
@@ -154,6 +193,12 @@ export function TemplateBuilder() {
   }
 
   async function handleSubmit() {
+    if (blockers.length > 0) {
+      toast.error(
+        `Corrige ${blockers.length} ${blockers.length === 1 ? 'error' : 'errores'} antes de enviar a Meta.`,
+      );
+      return;
+    }
     if (!name.trim()) {
       toast.error('Falta el nombre.');
       return;
@@ -402,6 +447,11 @@ export function TemplateBuilder() {
             </div>
           </div>
 
+          {/* Validación en vivo contra las reglas de Meta. Aparece
+              solo cuando hay issues; cuando todo está limpio, la
+              tarjeta no se muestra. */}
+          {issues.length > 0 && <TemplateIssuesPanel issues={issues} />}
+
           {/* Footer actions */}
           <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
             <Button
@@ -413,7 +463,7 @@ export function TemplateBuilder() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              disabled={submitting || blockers.length > 0}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {submitting ? (
@@ -522,6 +572,57 @@ function ButtonRow({
           className="mt-2 bg-background"
         />
       )}
+    </div>
+  );
+}
+
+function TemplateIssuesPanel({ issues }: { issues: TemplateIssue[] }) {
+  const errors = issues.filter((i) => i.severity === 'error');
+  const warnings = issues.filter((i) => i.severity === 'warning');
+  return (
+    <div
+      className={cn(
+        'border-t px-6 py-4',
+        errors.length > 0
+          ? 'border-red-500/30 bg-red-500/5'
+          : 'border-amber-500/30 bg-amber-500/5',
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2 text-xs">
+        <Info
+          className={cn(
+            'size-4',
+            errors.length > 0
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-amber-600 dark:text-amber-400',
+          )}
+        />
+        <span className="font-medium text-foreground">
+          {errors.length > 0
+            ? `${errors.length} error${errors.length === 1 ? '' : 'es'} bloquean el envío`
+            : `${warnings.length} sugerencia${warnings.length === 1 ? '' : 's'} antes de enviar`}
+        </span>
+        <span className="text-muted-foreground">
+          {warnings.length > 0 && errors.length > 0 &&
+            ` y ${warnings.length} advertencia${warnings.length === 1 ? '' : 's'}`}
+        </span>
+      </div>
+      <ul className="space-y-1">
+        {issues.map((it, i) => (
+          <li
+            key={i}
+            className={cn(
+              'flex items-start gap-2 text-xs',
+              it.severity === 'error'
+                ? 'text-red-700 dark:text-red-300'
+                : 'text-amber-700 dark:text-amber-300',
+            )}
+          >
+            <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-current opacity-70" />
+            <span>{it.message}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

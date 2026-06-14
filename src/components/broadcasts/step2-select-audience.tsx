@@ -449,6 +449,13 @@ export function Step2SelectAudience({
         )}
       </div>
 
+      {/* Preview real de hasta 12 contactos que recibirían la campaña
+          con la audiencia configurada. Atrapa errores antes de mandar
+          5000 mensajes (ej: "esperaba VIP de Bogotá y me sale Lima"). */}
+      {estimatedCount !== null && estimatedCount > 0 && (
+        <AudiencePreview audience={audience} />
+      )}
+
       <div className="flex items-center justify-between border-t border-border pt-4">
         <Button
           variant="outline"
@@ -467,6 +474,95 @@ export function Step2SelectAudience({
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Llama a /api/broadcasts/audience-preview con el AudienceConfig y
+ * muestra hasta 12 contactos representativos (nombre, teléfono,
+ * última compra si está disponible) para que el merchant verifique
+ * que la audiencia es la que esperaba antes de mandar.
+ */
+function AudiencePreview({ audience }: { audience: AudienceConfig }) {
+  const [contacts, setContacts] = useState<Array<{
+    id: string;
+    name: string | null;
+    phone: string | null;
+    is_shopify_customer: boolean;
+    tags: string[];
+  }> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/broadcasts/audience-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience, limit: 12 }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { contacts?: typeof contacts } | null) => {
+        setContacts(d?.contacts ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [audience]);
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-border bg-muted/20 p-4">
+        <p className="text-xs text-muted-foreground">Cargando muestra…</p>
+      </div>
+    );
+  }
+  if (!contacts || contacts.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-medium text-foreground">
+          Muestra de quienes van a recibir
+        </p>
+        <span className="text-[10px] text-muted-foreground">
+          {contacts.length} primeros
+        </span>
+      </div>
+      <ul className="divide-y divide-border rounded-md border border-border bg-card">
+        {contacts.map((c) => (
+          <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-xs font-medium text-foreground">
+                  {c.name || 'Sin nombre'}
+                </span>
+                {c.is_shopify_customer && (
+                  <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                    Shopify
+                  </span>
+                )}
+              </div>
+              {c.phone && (
+                <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                  {c.phone}
+                </p>
+              )}
+            </div>
+            {c.tags.length > 0 && (
+              <div className="flex shrink-0 flex-wrap gap-1">
+                {c.tags.slice(0, 2).map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
