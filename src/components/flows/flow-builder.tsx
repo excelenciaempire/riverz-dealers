@@ -58,6 +58,11 @@ import {
   Sparkles,
   ShoppingBag,
   MessageSquareReply,
+  StickyNote,
+  Search,
+  Command,
+  GitBranch,
+  ChevronRight,
   MoreHorizontal,
   Zap,
 } from "lucide-react";
@@ -90,6 +95,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
+  reachableFromEntry,
   validateFlowForActivation,
   type ValidationIssue,
 } from "@/lib/flows/validate";
@@ -102,6 +108,10 @@ import {
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import { AiBuilderPanel } from "@/components/flows/ai-builder-panel";
 import { VariablesPanel } from "@/components/flows/variables-panel";
+import {
+  CommandPalette,
+  type CommandItem,
+} from "@/components/flows/command-palette";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -848,10 +858,55 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const blockers = issues.filter((i) => i.severity === "error");
   const canActivate = blockers.length === 0;
 
+  /**
+   * Linter visual EN VIVO (independiente del gate showValidation):
+   *   - `unreachable`: nodos que existen pero no se alcanzan desde el
+   *     entry. Halo amarillo punteado en el card.
+   *   - `nodesWithError`: cualquier nodo con al menos un error de
+   *     severity="error". Punto rojo chico en la esquina del card.
+   *
+   * No reemplaza al panel inferior — la idea es dar una señal sutil
+   * mientras se construye sin meter el ruido completo del panel.
+   */
+  const liveLinter = useMemo(() => {
+    const unreachable = new Set<string>();
+    if (state.entry_node_id) {
+      const reached = reachableFromEntry(state.entry_node_id, state.nodes);
+      for (const n of state.nodes) {
+        if (!reached.has(n.node_key)) unreachable.add(n.node_key);
+      }
+    } else {
+      // Sin entry, todos quedan "sueltos" visualmente excepto el primero
+      // (que el auto-entry-on-create-first hace que casi nunca ocurra).
+      for (const n of state.nodes) unreachable.add(n.node_key);
+    }
+    const nodesWithError = new Set<string>();
+    for (const i of issues) {
+      if (i.severity === "error" && i.scope === "node" && i.node_key) {
+        nodesWithError.add(i.node_key);
+      }
+    }
+    return { unreachable, nodesWithError };
+  }, [state.nodes, state.entry_node_id, issues]);
+
   // Los errores en el lienzo (borde rojo + panel inferior) no se
   // muestran mientras el usuario arma el flujo. Aparecen solo cuando
   // intenta guardar — y se ocultan cuando el flujo queda limpio.
   const [showValidation, setShowValidation] = useState(false);
+  // Command palette Cmd/Ctrl+K. Mantenemos open en state local del
+  // FlowBuilder (no FlowCanvas) para que las acciones puedan llamar
+  // setState directamente sin threading.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const visibleIssues: ValidationIssue[] = showValidation ? issues : [];
 
   // ---- Save (PUT) ----
@@ -2215,6 +2270,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             selectedNodeKeys={selectedNodeKeys}
             onSelectNode={toggleNodeSelection}
             onClearMultiSelect={clearNodeSelection}
+            liveLinter={liveLinter}
             onAdd={addNode}
             triggerType={state.trigger_type}
             triggerConfig={state.trigger_config}
@@ -2311,9 +2367,104 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         onConfirmButtonOnly={() => performRowRemoval(false)}
         onConfirmWithDownstream={() => performRowRemoval(true)}
       />
+
+      {/* Command palette: Cmd/Ctrl+K para todo. Saltar a nodo,
+          insertar tipo, guardar, auto-organizar, centrar, abrir IA. */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        items={buildCommandItems({
+          nodes: state.nodes,
+          jumpToNode,
+          addNode,
+          handleSave,
+          handleAutoLayout,
+          fitToView: () =>
+            canvasViewportRef.current?.zoomToRect(computeContentBounds(), 0.7),
+        })}
+      />
     </div>
     </FlowBubbleActionsContext.Provider>
   );
+}
+
+/**
+ * Construye la lista de comandos disponibles en el palette. Combina:
+ *   - "Saltar a paso": un item por cada nodo del flujo (resaltado por
+ *     etiqueta de tipo + título inline).
+ *   - "Agregar paso": un item por cada NodeType disponible.
+ *   - "Acciones": guardar, auto-organizar, centrar.
+ */
+function buildCommandItems(args: {
+  nodes: BuilderNode[];
+  jumpToNode: (key: string) => void;
+  addNode: (type: NodeType) => void;
+  handleSave: () => void;
+  handleAutoLayout: () => void;
+  fitToView: () => void;
+}): CommandItem[] {
+  const items: CommandItem[] = [];
+
+  // Acciones globales primero — son lo que el merchant más busca.
+  items.push(
+    {
+      group: "Acción",
+      label: "Guardar",
+      hint: "Aplica los cambios y revisa la validación.",
+      run: args.handleSave,
+      shortcut: "Cmd+S",
+    },
+    {
+      group: "Acción",
+      label: "Auto-organizar nodos",
+      hint: "Reordena el grafo en columnas según el flujo.",
+      run: args.handleAutoLayout,
+    },
+    {
+      group: "Acción",
+      label: "Centrar todo el flujo",
+      hint: "Encuadra todos los pasos en pantalla.",
+      run: args.fitToView,
+    },
+  );
+
+  // Saltar a nodo: usamos la etiqueta del tipo + el texto inline para
+  // que el usuario reconozca el paso ("Enviar mensaje · Hola, gracias").
+  for (const n of args.nodes) {
+    const meta = NODE_META[n.node_type];
+    const inline = inlineNodeTitle(n);
+    items.push({
+      group: "Saltar a paso",
+      label: meta.label,
+      hint: inline || `Paso ${n.node_key}`,
+      run: () => args.jumpToNode(n.node_key),
+    });
+  }
+
+  // Agregar paso: un comando por tipo agregable.
+  for (const t of ADDABLE_NODE_TYPES) {
+    const meta = NODE_META[t];
+    items.push({
+      group: "Agregar paso",
+      label: meta.label,
+      hint: `Crea un nuevo ${meta.label.toLowerCase()}.`,
+      run: () => args.addNode(t),
+    });
+  }
+
+  return items;
+}
+
+function inlineNodeTitle(n: BuilderNode): string | null {
+  const cfg = n.config as Record<string, unknown>;
+  let raw: unknown;
+  if (typeof cfg.text === "string") raw = cfg.text;
+  else if (typeof cfg.prompt_text === "string") raw = cfg.prompt_text;
+  else if (typeof cfg.button_title === "string") raw = cfg.button_title;
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  if (!t) return null;
+  return t.length > 60 ? `${t.slice(0, 60)}…` : t;
 }
 
 // ============================================================
@@ -2522,6 +2673,13 @@ function NodeCard({
   onSetEntry: () => void;
 }) {
   const hasError = issues.some((i) => i.severity === "error");
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  // Nota anclada al nodo. Vive en config._notes para no chocar con
+  // ningún campo de runtime (todos los configs usan keys planos sin
+  // underscore). El engine la ignora al ejecutar.
+  const noteText = (
+    (node.config as Record<string, unknown>)._notes as string | undefined
+  ) ?? "";
   return (
     <div
       ref={cardRef}
@@ -2539,6 +2697,19 @@ function NodeCard({
           "ring-2 ring-[#00a5f4] ring-offset-2 ring-offset-background shadow-[0_0_24px_rgba(0,165,244,0.45)]",
       )}
     >
+      {noteText && (
+        <div
+          className="flex items-start gap-1.5 rounded-t-lg border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5"
+          onClick={() => setNoteEditorOpen(true)}
+          role="button"
+          tabIndex={0}
+        >
+          <StickyNote className="mt-0.5 size-3 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="line-clamp-2 text-[10px] leading-snug text-amber-700 dark:text-amber-300">
+            {noteText}
+          </p>
+        </div>
+      )}
       <EditableNodeBubble
         node={node}
         allNodes={allNodes}
@@ -2547,29 +2718,124 @@ function NodeCard({
         onConnectStart={onConnectStart}
       />
       <NodeHoverToolbar
+        hasNote={!!noteText}
+        onEditNote={() => setNoteEditorOpen(true)}
         onDuplicate={onDuplicate}
         onRemove={onRemove}
       />
+      {noteEditorOpen && (
+        <NoteEditorPopover
+          initial={noteText}
+          onSave={(v) => {
+            onUpdateConfig({ _notes: v.trim() ? v.trim() : undefined });
+            setNoteEditorOpen(false);
+          }}
+          onClose={() => setNoteEditorOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Popover inline para editar la nota anclada al nodo. Sale a la
+ * derecha del card para no tapar el bubble preview. Save al apretar
+ * Cmd/Ctrl+Enter o el botón Guardar; Esc descarta.
+ */
+function NoteEditorPopover({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial: string;
+  onSave: (v: string) => void;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <div
+      className="absolute -right-2 top-0 z-30 w-64 translate-x-full rounded-lg border border-amber-500/30 bg-card p-2 shadow-2xl shadow-black/40"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="mb-1.5 flex items-center gap-1.5 px-1">
+        <StickyNote className="size-3 text-amber-600" />
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Nota del nodo
+        </span>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          }
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            onSave(value);
+          }
+        }}
+        placeholder="Nota interna. No se envía al cliente. Sirve para coordinar con tu equipo."
+        rows={4}
+        autoFocus
+        className="w-full resize-none rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-foreground/30"
+      />
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-[10px] text-muted-foreground">
+          Cmd+Enter guarda
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(value)}
+            className="rounded bg-foreground px-2 py-0.5 text-[11px] text-background hover:opacity-90"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function NodeHoverToolbar({
+  hasNote,
+  onEditNote,
   onDuplicate,
   onRemove,
 }: {
+  hasNote: boolean;
+  onEditNote: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
-  // El botón "Marcar como entrada" (Flag) se removió a pedido del
-  // usuario — el primer nodo de un flujo se auto-marca como entrada
-  // (ver addNode) y reconectar el disparador a otro nodo se hace por
-  // drag-to-connect desde el disparador.
   return (
     <div
       className="absolute -right-1 -top-2 z-10 flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/card:opacity-100"
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <button
+        type="button"
+        onClick={onEditNote}
+        className={cn(
+          "rounded-full p-1 transition-colors",
+          hasNote
+            ? "text-amber-600 hover:bg-amber-500/10"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+        aria-label={hasNote ? "Editar nota" : "Agregar nota"}
+        title={hasNote ? "Editar nota" : "Agregar nota"}
+      >
+        <StickyNote className="h-3 w-3" />
+      </button>
       <button
         type="button"
         onClick={onDuplicate}
@@ -5332,6 +5598,8 @@ function FlowCanvas(props: FlowTreeProps) {
           isFlashed={props.flashedKey === node.node_key}
           isDropTarget={dropTargetKey === node.node_key}
           isSelected={props.selectedNodeKeys.has(node.node_key)}
+          isUnreachable={props.liveLinter.unreachable.has(node.node_key)}
+          hasLiveError={props.liveLinter.nodesWithError.has(node.node_key)}
           cardRef={props.setNodeRef(node.node_key)}
           issues={
             props.silenced.has(node.node_key)
@@ -5417,6 +5685,10 @@ interface DraggableNodeProps {
   isDropTarget: boolean
   /** True cuando el nodo está en el set de seleccionados multi. */
   isSelected: boolean
+  /** Live linter: halo amarillo si el flujo no lo alcanza. */
+  isUnreachable: boolean
+  /** Live linter: punto rojo si el nodo tiene al menos un error. */
+  hasLiveError: boolean
   cardRef: (el: HTMLDivElement | null) => void
   issues: ValidationIssue[]
   onMove: (x: number, y: number) => void
@@ -5505,10 +5777,13 @@ function DraggableNode(props: DraggableNodeProps) {
           ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
           : "cursor-grab",
         dragging && "scale-[1.02]",
-        // Halo de selección múltiple. No reemplaza el borde rojo de
-        // error ni el flash — se suma como un ring exterior.
         props.isSelected &&
           "rounded-lg ring-2 ring-[#00a5f4] ring-offset-2 ring-offset-background",
+        // Halo amarillo punteado para nodos inalcanzables. Pasivo
+        // (siempre visible mientras lo sean) sin gate de validación.
+        props.isUnreachable &&
+          !props.isSelected &&
+          "rounded-lg outline-dashed outline-2 outline-amber-500/60 outline-offset-2",
       )}
       style={{
         left: props.node.position_x,
@@ -5517,6 +5792,14 @@ function DraggableNode(props: DraggableNodeProps) {
       }}
       onMouseDown={onDragMouseDown}
     >
+      {/* Punto rojo en la esquina superior izquierda si hay errores en
+          vivo. No reemplaza el panel inferior — es solo un avisador. */}
+      {props.hasLiveError && (
+        <span
+          aria-label="Tiene errores"
+          className="absolute -left-1 -top-1 z-20 size-2.5 rounded-full bg-red-500 ring-2 ring-background"
+        />
+      )}
       <NodeCard
         node={props.node}
         allNodes={props.allNodes}
@@ -5724,6 +6007,9 @@ interface FlowTreeProps {
   onDuplicate: (key: string) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
+  /** Linter en vivo: nodos inalcanzables (halo amarillo) + nodos con
+   *  errores (punto rojo). Independiente del gate showValidation. */
+  liveLinter: { unreachable: Set<string>; nodesWithError: Set<string> }
   /** Set de node_keys seleccionados por Shift+click. Si el set tiene
    *  un nodo, su card aterriza con borde de acento. */
   selectedNodeKeys: Set<string>
