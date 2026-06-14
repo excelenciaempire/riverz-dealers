@@ -182,7 +182,7 @@ export function TemplateBuilder() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'No se pudo crear la plantilla');
       toast.success('Plantilla enviada');
-      router.push('/templates');
+      router.push('/plantillas');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo crear la plantilla');
     } finally {
@@ -197,7 +197,7 @@ export function TemplateBuilder() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => router.push('/templates')}
+          onClick={() => router.push('/plantillas')}
           className="border-border"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -406,7 +406,7 @@ export function TemplateBuilder() {
           <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
             <Button
               variant="outline"
-              onClick={() => router.push('/templates')}
+              onClick={() => router.push('/plantillas')}
               className="border-border text-foreground hover:bg-accent"
             >
               Cancelar

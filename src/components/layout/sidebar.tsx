@@ -61,28 +61,28 @@ const navGroups: NavGroup[] = [
   {
     title: "Principal",
     items: [
-      { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
-      { href: "/inbox", label: "Bandeja", icon: Inbox },
-      { href: "/contacts", label: "Contactos", icon: Users },
+      { href: "/panel", label: "Panel", icon: LayoutDashboard },
+      { href: "/bandeja", label: "Bandeja", icon: Inbox },
+      { href: "/contactos", label: "Contactos", icon: Users },
     ],
   },
   {
     title: "Marketing",
     items: [
-      { href: "/broadcasts", label: "Campañas masivas", icon: Megaphone },
-      { href: "/templates", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
+      { href: "/campanas", label: "Campañas masivas", icon: Megaphone },
+      { href: "/plantillas", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
     ],
   },
   {
     title: "Automatización",
     items: [
       {
-        href: "/ai",
+        href: "/asistente",
         label: "Servicio al cliente",
         icon: Sparkles,
-        alsoActiveOn: ["/flows"],
+        alsoActiveOn: ["/menus"],
       },
-      { href: "/automations", label: "Automatizaciones", icon: Zap },
+      { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
     ],
   },
 ];
@@ -166,7 +166,7 @@ export function Sidebar({
           )}
         >
           <Link
-            href="/dashboard"
+            href="/panel"
             aria-label="riverz"
             className={cn(
               "text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
@@ -257,7 +257,7 @@ export function Sidebar({
             totalUnread={0}
           />
           <NavLink
-            item={{ href: "/settings", label: "Ajustes", icon: Settings }}
+            item={{ href: "/ajustes", label: "Ajustes", icon: Settings }}
             pathname={pathname}
             collapsed={collapsed}
             totalUnread={0}
@@ -376,10 +376,10 @@ function NavLink({
 }) {
   const isActive =
     pathname === item.href ||
-    (item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
+    (item.href !== "/panel" && pathname.startsWith(item.href)) ||
     (item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(p)) ?? false);
 
-  const showUnreadDot = item.href === "/inbox" && totalUnread > 0 && !isActive;
+  const showUnreadDot = item.href === "/bandeja" && totalUnread > 0 && !isActive;
 
   const link = (
     <Link

@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
-    window.location.href = "/login";
+    window.location.href = "/ingresar";
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -215,7 +215,7 @@ export function useAuth(): AuthContextValue {
       loading: false,
       profileLoading: false,
       signOut: async () => {
-        window.location.href = "/login";
+        window.location.href = "/ingresar";
       },
       refreshProfile: async () => {},
     };

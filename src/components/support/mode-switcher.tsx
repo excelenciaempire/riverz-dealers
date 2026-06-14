@@ -14,14 +14,14 @@ export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <ModeCard
-        href="/ai"
+        href="/asistente"
         icon={<Sparkles className="size-4" />}
         title="Asistente con IA"
         hint="Responde solo, 24/7, con el contexto de cada chat."
         active={current === 'ai'}
       />
       <ModeCard
-        href="/flows"
+        href="/menus"
         icon={<Waypoints className="size-4" />}
         title="Menús con botones"
         hint="Vos definís las opciones; el cliente toca y avanza."

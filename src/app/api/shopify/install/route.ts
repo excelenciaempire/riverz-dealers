@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/ingresar', request.url))
   }
 
   const apiKey = process.env.SHOPIFY_API_KEY

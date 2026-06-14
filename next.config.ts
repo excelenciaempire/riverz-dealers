@@ -53,7 +53,52 @@ const SECURITY_HEADERS = [
   },
 ] as const;
 
+/**
+ * URL rename map (Phase 12): rutas internas en español. Cualquier link
+ * antiguo (bookmarks, emails ya enviados, integraciones externas) se
+ * redirige al equivalente en español con un 301 permanente.
+ *
+ * Mantener este array sincronizado con la estructura de carpetas en
+ * src/app/(dashboard) y src/app/(auth). Si renombrás otra ruta, añadí
+ * aquí su par y el redirect aparece sin tocar nada más.
+ */
+const URL_REDIRECTS: { from: string; to: string }[] = [
+  // auth
+  { from: "/login", to: "/ingresar" },
+  { from: "/signup", to: "/registro" },
+  { from: "/forgot-password", to: "/recuperar-clave" },
+  { from: "/invite/:token", to: "/invitacion/:token" },
+  // dashboard top-level
+  { from: "/dashboard", to: "/panel" },
+  { from: "/inbox", to: "/bandeja" },
+  { from: "/contacts", to: "/contactos" },
+  { from: "/ai", to: "/asistente" },
+  { from: "/settings", to: "/ajustes" },
+  // collections
+  { from: "/broadcasts", to: "/campanas" },
+  { from: "/broadcasts/new", to: "/campanas/nueva" },
+  { from: "/broadcasts/:id", to: "/campanas/:id" },
+  { from: "/templates", to: "/plantillas" },
+  { from: "/templates/new", to: "/plantillas/nueva" },
+  { from: "/flows", to: "/menus" },
+  { from: "/flows/:id", to: "/menus/:id" },
+  { from: "/flows/:id/runs", to: "/menus/:id/usos" },
+  { from: "/automations", to: "/automatizaciones" },
+  { from: "/automations/new", to: "/automatizaciones/nueva" },
+  { from: "/automations/:id", to: "/automatizaciones/:id" },
+  { from: "/automations/:id/edit", to: "/automatizaciones/:id/editar" },
+  { from: "/automations/:id/logs", to: "/automatizaciones/:id/registros" },
+];
+
 const nextConfig: NextConfig = {
+  async redirects() {
+    return URL_REDIRECTS.map(({ from, to }) => ({
+      source: from,
+      destination: to,
+      permanent: true,
+    }));
+  },
+
   /**
    * Cache-Control policy.
    *

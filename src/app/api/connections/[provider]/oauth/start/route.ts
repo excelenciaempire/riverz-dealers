@@ -26,7 +26,7 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL("/login", req.url));
+  if (!user) return NextResponse.redirect(new URL("/ingresar", req.url));
 
   const url = new URL(req.url);
   const workspaceId = url.searchParams.get("workspace_id");

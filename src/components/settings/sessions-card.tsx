@@ -36,7 +36,7 @@ export function SessionsCard() {
         toast.error(error.message);
         return;
       }
-      window.location.href = '/login';
+      window.location.href = '/ingresar';
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error';
       toast.error(msg);

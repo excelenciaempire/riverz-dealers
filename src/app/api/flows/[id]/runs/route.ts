@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
  *
  * Newest-first list of flow runs for a single flow, with the latest
  * event timeline embedded for each. Used by the run-history viewer
- * page (`/flows/[id]/runs`) to give the owner end-to-end visibility
+ * page (`/menus/[id]/usos`) to give the owner end-to-end visibility
  * into what the bot did with each customer.
  *
  * RLS does the ownership check (flow_runs has a `user_id` policy);

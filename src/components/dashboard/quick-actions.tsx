@@ -15,10 +15,10 @@ interface Action {
 }
 
 const ACTIONS: Action[] = [
-  { label: 'Abrir bandeja', href: '/inbox', icon: MessageSquare },
-  { label: 'Nuevo contacto', href: '/contacts', icon: UserPlus },
-  { label: 'Nueva difusión', href: '/broadcasts/new', icon: Radio },
-  { label: 'Nueva automatización', href: '/automations/new', icon: Zap },
+  { label: 'Abrir bandeja', href: '/bandeja', icon: MessageSquare },
+  { label: 'Nuevo contacto', href: '/contactos', icon: UserPlus },
+  { label: 'Nueva difusión', href: '/campanas/nueva', icon: Radio },
+  { label: 'Nueva automatización', href: '/automatizaciones/nueva', icon: Zap },
 ]
 
 export function QuickActions() {

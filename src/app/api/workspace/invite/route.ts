@@ -55,7 +55,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // TODO Phase 9: actually email the recipient with the accept-invite link.
   const acceptUrl = new URL(req.url);
-  acceptUrl.pathname = `/invite/${token}`;
+  acceptUrl.pathname = `/invitacion/${token}`;
   acceptUrl.search = "";
 
   return NextResponse.json({ ok: true, accept_url: acceptUrl.toString() });

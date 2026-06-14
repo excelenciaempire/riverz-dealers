@@ -492,7 +492,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       }
       toast.success(isEditing ? "Guardada" : "Creada")
       if (!isEditing && body?.automation?.id) {
-        router.replace(`/automations/${body.automation.id}/edit`)
+        router.replace(`/automatizaciones/${body.automation.id}/edit`)
       }
     } finally {
       setSaving(false)
@@ -509,7 +509,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       <header className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-card/80 px-3 py-3 sm:gap-3 sm:px-4">
         <button
           type="button"
-          onClick={() => router.push("/automations")}
+          onClick={() => router.push("/automatizaciones")}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label="Atrás"
         >
@@ -1225,7 +1225,7 @@ function StepEditor({
           ) : (
             <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               No hay plantillas aprobadas todavía.{" "}
-              <a href="/templates" className="text-accent-ink underline hover:opacity-80">
+              <a href="/plantillas" className="text-accent-ink underline hover:opacity-80">
                 Crear una
               </a>
               .

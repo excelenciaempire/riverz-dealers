@@ -624,7 +624,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      router.push("/flows");
+      router.push("/menus");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo eliminar";
       toast.error(msg);
@@ -751,8 +751,8 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           onStatus={handleStatus}
           onDelete={handleDelete}
           canActivate={canActivate}
-          onBack={() => router.push("/flows")}
-          onViewRuns={() => router.push(`/flows/${initialFlow.id}/runs`)}
+          onBack={() => router.push("/menus")}
+          onViewRuns={() => router.push(`/menus/${initialFlow.id}/runs`)}
         />
       </div>
 
@@ -765,7 +765,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         <span className="text-muted-foreground">
           Para mensajes que iniciás vos (carrito, despacho, marketing), usá
           {" "}
-          <a href="/automations" className="underline hover:text-foreground">
+          <a href="/automatizaciones" className="underline hover:text-foreground">
             Automatizaciones
           </a>
           .

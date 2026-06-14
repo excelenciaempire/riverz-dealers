@@ -42,7 +42,7 @@ import type {
   AiTone,
   ShopifyProductSummary,
 } from '@/lib/ai/types';
-import type { AgentSummary } from '@/app/(dashboard)/ai/page';
+import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
 
 const TONES: { value: AiTone; label: string; hint: string }[] = [

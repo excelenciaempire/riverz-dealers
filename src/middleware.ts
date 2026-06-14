@@ -7,12 +7,12 @@ export async function middleware(request: NextRequest) {
   // project. The dashboard then loads its data from the mock client.
   if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
     if (
-      request.nextUrl.pathname === '/login' ||
-      request.nextUrl.pathname === '/signup' ||
-      request.nextUrl.pathname === '/forgot-password'
+      request.nextUrl.pathname === '/ingresar' ||
+      request.nextUrl.pathname === '/registro' ||
+      request.nextUrl.pathname === '/recuperar-clave'
     ) {
       const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
+      url.pathname = '/panel'
       return NextResponse.redirect(url)
     }
     return NextResponse.next({ request })
@@ -43,20 +43,20 @@ export async function middleware(request: NextRequest) {
 
   // Auth pages - redirect to dashboard if already logged in
   if (user && (
-    request.nextUrl.pathname === '/login' ||
-    request.nextUrl.pathname === '/signup' ||
-    request.nextUrl.pathname === '/forgot-password'
+    request.nextUrl.pathname === '/ingresar' ||
+    request.nextUrl.pathname === '/registro' ||
+    request.nextUrl.pathname === '/recuperar-clave'
   )) {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = '/panel'
     return NextResponse.redirect(url)
   }
 
   // Protected pages - redirect to login if not authenticated
-  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/broadcasts', '/automations', '/flows', '/settings']
+  const protectedPaths = ['/panel', '/bandeja', '/contactos', '/campanas', '/automatizaciones', '/menus', '/ajustes']
   if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/ingresar'
     return NextResponse.redirect(url)
   }
 

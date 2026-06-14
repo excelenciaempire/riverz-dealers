@@ -26,7 +26,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         <Menu className="h-5 w-5" />
       </button>
       <Link
-        href="/dashboard"
+        href="/panel"
         aria-label="riverz"
         className="text-[19px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink"
       >

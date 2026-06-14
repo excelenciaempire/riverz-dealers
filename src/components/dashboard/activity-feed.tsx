@@ -56,7 +56,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">Actividad reciente</h2>
         <Link
-          href="/inbox"
+          href="/bandeja"
           className="text-xs font-medium text-accent-ink hover:text-accent-ink/80"
         >
           Ver todo →
