@@ -2781,11 +2781,11 @@ function LogicNodeBody({
         />
       )}
       {node.node_type === "shopify_lookup" && (
-        <CompactInput
-          label="Prefijo del resultado"
-          value={(cfg.output_prefix as string) ?? ""}
-          placeholder="order"
-          onChange={(v) => onUpdateConfig({ output_prefix: v })}
+        <ShopifyLookupForm
+          kind={(cfg.kind as string) ?? "order_by_number"}
+          inputVar={(cfg.input_var as string) ?? ""}
+          outputPrefix={(cfg.output_prefix as string) ?? ""}
+          onUpdateConfig={onUpdateConfig}
         />
       )}
       {node.node_type === "set_tag" && (
@@ -2974,6 +2974,135 @@ function CompactInput({
     </label>
   );
 }
+
+/**
+ * Form completo para shopify_lookup. Antes solo se editaba el prefijo;
+ * ahora exponemos picker de `kind`, input_var (oculto para last_order
+ * que usa el email/teléfono del contacto), y una vista previa de qué
+ * variables va a llenar el nodo cuando corra.
+ *
+ * El picker de `kind` evita que el merchant tenga que editar JSON para
+ * cambiar entre buscar por número de pedido, por email, último pedido,
+ * o producto por handle. La vista previa de vars es informativa: ayuda
+ * a saber qué placeholders tiene disponibles para el siguiente nodo
+ * send_message ({{vars.pedido_total}}, {{vars.pedido_status_url}}, etc).
+ */
+function ShopifyLookupForm({
+  kind,
+  inputVar,
+  outputPrefix,
+  onUpdateConfig,
+}: {
+  kind: string;
+  inputVar: string;
+  outputPrefix: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  // last_order resuelve por el contacto, no necesita variable de entrada.
+  const needsInputVar = kind !== "last_order";
+  // Qué keys llena cada kind. La fuente de verdad vive en
+  // src/lib/flows/shopify-lookup.ts (orderToVars / productToVars). Acá
+  // copiamos los sufijos en español neutro para que el merchant los
+  // vea sin tener que abrir docs.
+  const isProduct = kind === "product_by_handle";
+  const prefix = outputPrefix.trim() || (isProduct ? "producto" : "pedido");
+  const suffixes = isProduct
+    ? ["title", "handle", "vendor", "type", "price", "image_url"]
+    : [
+        "name",
+        "number",
+        "email",
+        "financial_status",
+        "fulfillment_status",
+        "total",
+        "status_url",
+        "tracking_number",
+        "tracking_url",
+        "item_count",
+      ];
+  const inputVarHelp: Record<string, string> = {
+    order_by_number: "Variable con el número de pedido (ej: numero_pedido).",
+    order_by_email: "Variable con el correo del cliente.",
+    product_by_handle: "Variable con el handle del producto.",
+  };
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Qué buscar
+        </span>
+        <Select
+          value={kind}
+          onValueChange={(v) => onUpdateConfig({ kind: v })}
+        >
+          <SelectTrigger className="mt-0.5 bg-muted/30 text-sm">
+            <span>{KIND_LABEL[kind] ?? kind}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="order_by_number">
+              Pedido por número
+            </SelectItem>
+            <SelectItem value="order_by_email">
+              Pedido por correo
+            </SelectItem>
+            <SelectItem value="last_order">
+              Último pedido del contacto
+            </SelectItem>
+            <SelectItem value="product_by_handle">
+              Producto por handle
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </label>
+      {needsInputVar && (
+        <div>
+          <CompactInput
+            label="Variable con el dato a buscar"
+            value={inputVar}
+            placeholder="numero_pedido"
+            onChange={(v) => onUpdateConfig({ input_var: v })}
+          />
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {inputVarHelp[kind] ??
+              "Variable con el dato que la búsqueda va a usar."}
+          </p>
+        </div>
+      )}
+      <CompactInput
+        label="Prefijo del resultado"
+        value={outputPrefix}
+        placeholder={isProduct ? "producto" : "pedido"}
+        onChange={(v) => onUpdateConfig({ output_prefix: v })}
+      />
+      <div className="rounded-md border border-border bg-muted/20 p-2">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Variables que vas a tener disponibles
+        </p>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Después de esta búsqueda, en el siguiente paso podés
+          interpolar:
+        </p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {suffixes.map((s) => (
+            <code
+              key={s}
+              className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-foreground"
+            >
+              {"{{vars."}{prefix}_{s}{"}}"}
+            </code>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const KIND_LABEL: Record<string, string> = {
+  order_by_number: "Pedido por número",
+  order_by_email: "Pedido por correo",
+  last_order: "Último pedido del contacto",
+  product_by_handle: "Producto por handle",
+};
 
 // ============================================================
 // Per-node-type config form
