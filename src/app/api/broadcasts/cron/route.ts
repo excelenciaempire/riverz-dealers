@@ -10,6 +10,8 @@ import {
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { isOptedOut } from '@/lib/whatsapp/opt-out'
+import { acquire } from '@/lib/whatsapp/throttle'
 
 /**
  * Send scheduled broadcast campaigns whose time has come.
@@ -88,6 +90,7 @@ async function sendOneBroadcast(
   const templateName = broadcast.template_name as string
   const templateLanguage = (broadcast.template_language as string) || 'en_US'
   const createConversations = Boolean(broadcast.create_conversations)
+  const variableMapping = (broadcast.variable_mapping as Record<string, string> | null) ?? null
 
   // WhatsApp credentials for the campaign owner.
   const { data: config } = await admin
@@ -129,6 +132,22 @@ async function sendOneBroadcast(
   for (let i = 0; i < recipients.length; i += SEND_BATCH_SIZE) {
     const batch = recipients.slice(i, i + SEND_BATCH_SIZE)
     for (const recipient of batch) {
+      const contactId = recipient.contact?.id as string | undefined
+      const workspaceId = recipient.contact?.workspace_id as string | undefined
+      if (contactId && workspaceId) {
+        const optedOut = await isOptedOut(admin, workspaceId, contactId)
+        if (optedOut) {
+          await admin
+            .from('broadcast_recipients')
+            .update({
+              status: 'skipped_opt_out',
+              error_message: 'Contacto dado de baja',
+            })
+            .eq('id', recipient.id)
+          continue
+        }
+      }
+
       const phone = recipient.contact?.phone as string | undefined
       const sanitized = phone ? sanitizePhoneForMeta(phone) : ''
       if (!sanitized || !isValidE164(sanitized)) {
@@ -140,7 +159,14 @@ async function sendOneBroadcast(
         continue
       }
 
-      const params = (recipient.params as string[] | null) ?? []
+      const params = await resolveParams(
+        admin,
+        recipient.contact as Record<string, unknown> | null,
+        recipient.params as string[] | null,
+        variableMapping,
+      )
+
+      await acquire(workspaceId ?? userId)
       let sentId: string | null = null
       let lastError: string | null = null
       for (const variant of phoneVariants(sanitized)) {
@@ -202,4 +228,69 @@ async function sendOneBroadcast(
     .from('broadcasts')
     .update({ status: failed === recipients.length ? 'failed' : 'sent' })
     .eq('id', broadcastId)
+}
+
+const BUILTIN_FIELDS: ReadonlySet<string> = new Set([
+  'name',
+  'first_name',
+  'last_name',
+  'phone',
+  'email',
+  'company',
+])
+
+/**
+ * Si la campaña define `variable_mapping`, releemos los valores del
+ * contacto (built-in o custom field) en el momento del envío para que
+ * los datos sean los más recientes. Si no hay mapping, usamos los
+ * params resueltos en tiempo de programación.
+ */
+async function resolveParams(
+  admin: AdminClient,
+  contact: Record<string, unknown> | null,
+  fallback: string[] | null,
+  mapping: Record<string, string> | null,
+): Promise<string[]> {
+  if (!mapping || Object.keys(mapping).length === 0) return fallback ?? []
+  if (!contact) return fallback ?? []
+
+  const keys = Object.keys(mapping).sort((a, b) => Number(a) - Number(b))
+  const customFieldIds = keys
+    .map((k) => mapping[k])
+    .filter((field) => field && !BUILTIN_FIELDS.has(field))
+
+  const customValues = new Map<string, string>()
+  if (customFieldIds.length > 0 && contact.id) {
+    const { data: rows } = await admin
+      .from('contact_custom_values')
+      .select('custom_field_id, value')
+      .eq('contact_id', contact.id as string)
+      .in('custom_field_id', customFieldIds)
+    for (const row of (rows ?? []) as Array<{ custom_field_id: string; value: string | null }>) {
+      customValues.set(row.custom_field_id, row.value ?? '')
+    }
+  }
+
+  return keys.map((key) => {
+    const field = mapping[key]
+    if (!field) return ''
+    if (field === 'name') return readString(contact.name)
+    if (field === 'first_name') {
+      const full = readString(contact.name)
+      return full.split(/\s+/)[0] ?? ''
+    }
+    if (field === 'last_name') {
+      const full = readString(contact.name)
+      const parts = full.split(/\s+/)
+      return parts.length > 1 ? parts.slice(1).join(' ') : ''
+    }
+    if (field === 'phone') return readString(contact.phone)
+    if (field === 'email') return readString(contact.email)
+    if (field === 'company') return readString(contact.company)
+    return customValues.get(field) ?? ''
+  })
+}
+
+function readString(v: unknown): string {
+  return typeof v === 'string' ? v : ''
 }

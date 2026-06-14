@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, CalendarClock, Loader2, Plus, Send } from 'lucide-react';
-import type { MessageTemplate, Tag } from '@/types';
+import type { CustomField, MessageTemplate, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +32,26 @@ const AUDIENCE_LABELS: Record<AudienceType, string> = {
   tags: 'Por etiquetas',
   segment: 'Por segmento guardado',
 };
+
+const BUILTIN_FIELD_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Valor fijo' },
+  { value: 'name', label: 'Nombre completo' },
+  { value: 'first_name', label: 'Primer nombre' },
+  { value: 'last_name', label: 'Apellido' },
+  { value: 'phone', label: 'Teléfono' },
+  { value: 'email', label: 'Correo' },
+  { value: 'company', label: 'Empresa' },
+];
+
+function parseUsdRate(): number {
+  const raw = process.env.NEXT_PUBLIC_META_MSG_COST_USD;
+  const n = raw ? parseFloat(raw) : 0.02;
+  return Number.isFinite(n) && n >= 0 ? n : 0.02;
+}
+
+function formatUsd(amount: number): string {
+  return `USD ${amount.toFixed(2)}`;
+}
 
 /** Quick chips above the manual datetime picker. Keeps the common case
  *  ("Programar para mañana 9 am") one click away. */
@@ -90,9 +110,14 @@ export default function NewBroadcastPage() {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
   const [createConversations, setCreateConversations] = useState(false);
+  const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [testPhone, setTestPhone] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -112,7 +137,66 @@ export default function NewBroadcastPage() {
       .select('*')
       .order('name')
       .then(({ data }) => setSegments((data ?? []) as ContactSegment[]));
+    supabase
+      .from('custom_fields')
+      .select('*')
+      .order('field_name')
+      .then(({ data }) => setCustomFields((data ?? []) as CustomField[]));
   }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+    async function loadCount() {
+      try {
+        if (audienceType === 'all') {
+          const { count } = await supabase
+            .from('contacts')
+            .select('id', { count: 'exact', head: true });
+          if (!cancelled) setRecipientCount(count ?? 0);
+          return;
+        }
+        if (audienceType === 'tags') {
+          if (selectedTagIds.length === 0) {
+            if (!cancelled) setRecipientCount(0);
+            return;
+          }
+          const { data } = await supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .in('tag_id', selectedTagIds);
+          const ids = new Set((data ?? []).map((r) => r.contact_id));
+          if (!cancelled) setRecipientCount(ids.size);
+          return;
+        }
+        if (audienceType === 'segment') {
+          if (!segmentId) {
+            if (!cancelled) setRecipientCount(0);
+            return;
+          }
+          const res = await fetch('/api/broadcasts/audience-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audience: { type: 'all' },
+              limit: 1,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled)
+              setRecipientCount(Array.isArray(data.contacts) ? data.contacts.length : 0);
+          }
+        }
+      } catch {
+        if (!cancelled) setRecipientCount(null);
+      }
+    }
+    void loadCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [audienceType, selectedTagIds, segmentId]);
 
   const template = useMemo(
     () => templates.find((t) => t.id === templateId) ?? null,
@@ -139,6 +223,12 @@ export default function NewBroadcastPage() {
     while ((m = re.exec(template.body_text)) !== null) out.add(m[1]);
     return [...out].sort((a, b) => Number(a) - Number(b));
   }, [template]);
+
+  const usdRate = useMemo(() => parseUsdRate(), []);
+  const estimatedCost = useMemo(() => {
+    if (recipientCount === null) return null;
+    return recipientCount * usdRate;
+  }, [recipientCount, usdRate]);
 
   function toggleTag(id: string) {
     setSelectedTagIds((prev) =>
@@ -175,15 +265,62 @@ export default function NewBroadcastPage() {
           segmentId: audienceType === 'segment' ? segmentId : undefined,
         },
         variables: Object.fromEntries(
-          templateVars.map((v) => [v, { type: 'static', value: variables[v] ?? '' }]),
+          templateVars.map((v) => {
+            const mapped = variableMapping[v];
+            if (mapped) {
+              if (BUILTIN_FIELD_OPTIONS.some((b) => b.value === mapped)) {
+                return [v, { type: 'field' as const, value: mapped }];
+              }
+              return [v, { type: 'custom_field' as const, value: mapped }];
+            }
+            return [v, { type: 'static' as const, value: variables[v] ?? '' }];
+          }),
         ),
         scheduledAt:
           sendMode === 'schedule' ? new Date(scheduledAt).toISOString() : null,
         createConversations,
       });
+
+      const cleanMapping = Object.fromEntries(
+        Object.entries(variableMapping).filter(([, v]) => v),
+      );
+      if (Object.keys(cleanMapping).length > 0) {
+        await createClient()
+          .from('broadcasts')
+          .update({ variable_mapping: cleanMapping })
+          .eq('id', broadcastId);
+      }
+
       router.push(`/campanas/${broadcastId}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se envió');
+    }
+  }
+
+  async function handleSendTest() {
+    if (!template) return toast.error('Elige una plantilla.');
+    if (!testPhone.trim()) return toast.error('Falta el número de prueba.');
+    setSendingTest(true);
+    try {
+      const res = await fetch('/api/broadcasts/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: template.id,
+          phone: testPhone.trim(),
+          variables,
+        }),
+      });
+      const data = await res.json();
+      if (data?.sent) {
+        toast.success('Prueba enviada.');
+      } else {
+        toast.error(data?.error ?? 'No se envió la prueba.');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se envió la prueba.');
+    } finally {
+      setSendingTest(false);
     }
   }
 
@@ -197,12 +334,16 @@ export default function NewBroadcastPage() {
     } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) return toast.error('Sin sesión.');
+    const cleanMapping = Object.fromEntries(
+      Object.entries(variableMapping).filter(([, v]) => v),
+    );
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       name: name.trim(),
       template_name: template.name,
       template_language: template.language ?? 'es',
       template_variables: variables,
+      variable_mapping: Object.keys(cleanMapping).length > 0 ? cleanMapping : null,
       audience_filter: { type: audienceType, tagIds: selectedTagIds },
       status: 'draft',
       total_recipients: 0,
@@ -385,28 +526,112 @@ export default function NewBroadcastPage() {
 
             {templateVars.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Por cada variable, elige un campo del contacto o escribe un valor fijo.
+                </p>
                 <div className="space-y-2">
-                  {templateVars.map((v) => (
-                    <div
-                      key={v}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5"
-                    >
-                      <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
-                        {`{{${v}}}`}
-                      </span>
-                      <Input
-                        placeholder="Valor"
-                        value={variables[v] ?? ''}
-                        onChange={(e) =>
-                          setVariables((prev) => ({ ...prev, [v]: e.target.value }))
-                        }
-                        className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
-                      />
-                    </div>
-                  ))}
+                  {templateVars.map((v) => {
+                    const mapped = variableMapping[v] ?? '';
+                    const isFixed = !mapped;
+                    return (
+                      <div
+                        key={v}
+                        className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5"
+                      >
+                        <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                          {`{{${v}}}`}
+                        </span>
+                        <select
+                          value={mapped}
+                          onChange={(e) =>
+                            setVariableMapping((prev) => ({
+                              ...prev,
+                              [v]: e.target.value,
+                            }))
+                          }
+                          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {BUILTIN_FIELD_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                          {customFields.length > 0 && (
+                            <optgroup label="Campos personalizados">
+                              {customFields.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.field_name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                        {isFixed && (
+                          <Input
+                            placeholder="Valor fijo"
+                            value={variables[v] ?? ''}
+                            onChange={(e) =>
+                              setVariables((prev) => ({ ...prev, [v]: e.target.value }))
+                            }
+                            className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
+
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Resumen</p>
+                  <p className="text-xs text-muted-foreground">
+                    {recipientCount === null
+                      ? 'Calculando destinatarios…'
+                      : `${recipientCount.toLocaleString('es')} destinatarios`}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Costo estimado</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {estimatedCost === null ? '—' : formatUsd(estimatedCost)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <p className="text-sm font-medium text-foreground">Envío de prueba</p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Envía esta plantilla a un número para verla en WhatsApp antes de lanzar la campaña.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  placeholder="+57 300 1234567"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  className="h-9 flex-1 min-w-[180px] bg-background"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSendTest}
+                  disabled={sendingTest || !template}
+                  className="border-border"
+                >
+                  {sendingTest ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Enviando…
+                    </>
+                  ) : (
+                    'Enviar prueba'
+                  )}
+                </Button>
+              </div>
+            </div>
 
             <label className="flex items-start gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
               <input
