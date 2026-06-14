@@ -72,7 +72,10 @@ import {
   validateFlowForActivation,
   type ValidationIssue,
 } from "@/lib/flows/validate";
-import { CanvasViewport } from "@/components/canvas/canvas-viewport";
+import {
+  CanvasViewport,
+  useCanvasTransform,
+} from "@/components/canvas/canvas-viewport";
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
@@ -109,6 +112,13 @@ interface BuilderNode {
   node_key: string;
   node_type: NodeType;
   config: Record<string, unknown>;
+  /**
+   * Coordenadas en el lienzo libre. 0/0 significa "todavía no
+   * posicionado" — el auto-layout las completa la primera vez y a
+   * partir de ahí persisten en flow_nodes (PUT /api/flows/[id]).
+   */
+  position_x: number;
+  position_y: number;
 }
 
 interface BuilderState {
@@ -483,8 +493,38 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       node_key: n.node_key,
       node_type: n.node_type as NodeType,
       config: n.config as Record<string, unknown>,
+      position_x: typeof n.position_x === 'number' ? n.position_x : 0,
+      position_y: typeof n.position_y === 'number' ? n.position_y : 0,
     })),
   }));
+
+  // ---- One-shot auto-layout when nothing is positioned yet ----
+  // El disparador queda anclado en TRIGGER_POS (no draggeable, no se
+  // persiste — siempre vive en el mismo lugar del lienzo). Los demás
+  // nodos sí se posicionan libremente y persisten en flow_nodes.
+  const layoutInitRef = useRef(false);
+  useEffect(() => {
+    if (layoutInitRef.current) return;
+    if (state.nodes.length === 0) return;
+    const allAtZero = state.nodes.every(
+      (n) => n.position_x === 0 && n.position_y === 0,
+    );
+    if (!allAtZero) {
+      layoutInitRef.current = true;
+      return;
+    }
+    layoutInitRef.current = true;
+    const layouted = autoLayout(state.nodes, state.entry_node_id);
+    setState((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => {
+        const pos = layouted.get(n.node_key);
+        return pos ? { ...n, position_x: pos.x, position_y: pos.y } : n;
+      }),
+    }));
+    setDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -555,7 +595,13 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
-          nodes: state.nodes,
+          nodes: state.nodes.map((n) => ({
+            node_key: n.node_key,
+            node_type: n.node_type,
+            config: n.config,
+            position_x: n.position_x,
+            position_y: n.position_y,
+          })),
         }),
       });
       if (!res.ok) {
@@ -659,10 +705,19 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       const base = slugify(meta.label, type);
       setStateDirty((s) => {
         const node_key = uniqueNodeKey(base, s.nodes);
+        // Posición por defecto del nuevo nodo: lo dejamos a la derecha
+        // del nodo más a la derecha actualmente en el lienzo + un
+        // offset, así no aparece encima de otro y el usuario lo ve.
+        const maxX = s.nodes.reduce(
+          (m, n) => Math.max(m, n.position_x),
+          TRIGGER_POS.x + CARD_WIDTH + 80,
+        );
         const next: BuilderNode = {
           node_key,
           node_type: type,
           config: defaultConfigFor(type),
+          position_x: maxX + CARD_GAP_X,
+          position_y: TRIGGER_POS.y,
         };
         setExpanded((prev) => new Set([...prev, node_key]));
         return {
@@ -674,6 +729,21 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           entry_node_id: s.entry_node_id ?? (s.nodes.length === 0 ? node_key : null),
         };
       });
+    },
+    [setStateDirty],
+  );
+
+  /**
+   * Move a node to a new position. Called from the canvas drag handler.
+   */
+  const moveNode = useCallback(
+    (key: string, x: number, y: number) => {
+      setStateDirty((s) => ({
+        ...s,
+        nodes: s.nodes.map((n) =>
+          n.node_key === key ? { ...n, position_x: x, position_y: y } : n,
+        ),
+      }));
     },
     [setStateDirty],
   );
@@ -762,7 +832,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       <div className="flex-shrink-0 border-b border-border bg-emerald-500/5 px-4 py-2 text-[11px] text-emerald-300">
         <span className="font-semibold">Se activa cuando el cliente te escribe.</span>{" "}
         <span className="text-muted-foreground">
-          Para mensajes que iniciás vos (carrito, despacho, marketing), usá
+          Para mensajes que inicias tú (carrito, despacho, marketing), usa
           {" "}
           <a href="/automatizaciones" className="underline hover:text-foreground">
             Automatizaciones
@@ -771,12 +841,13 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         </span>
       </div>
 
-      {/* Canvas — árbol: cada rama de un nodo con varias salidas se
-          dibuja como una columna debajo. El disparador vive como la
-          primera tarjeta del canvas (no en un panel aparte). */}
+      {/* Canvas libre: cada nodo posicionado en (position_x, position_y),
+          conectados por líneas SVG curvas que se re-calculan en cada
+          re-render → arrastrá cualquier card y las líneas se estiran
+          solas. El disparador queda fijo en la esquina (no draggeable). */}
       <div className="relative flex min-h-0 flex-1">
         <CanvasViewport>
-          <FlowTree
+          <FlowCanvas
             entryKey={state.entry_node_id}
             allNodes={state.nodes}
             expanded={expanded}
@@ -787,6 +858,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onToggle={toggleExpanded}
             onUpdate={updateNode}
             onUpdateConfig={updateNodeConfig}
+            onMove={moveNode}
             onRemove={removeNode}
             onSetEntry={(key) =>
               setStateDirty((s) => ({ ...s, entry_node_id: key }))
@@ -2551,6 +2623,361 @@ interface OutgoingEdge {
   nextKey: string
 }
 
+// ============================================================
+// Free-form canvas: posiciones absolutas + drag + líneas SVG
+// ============================================================
+
+/** Ancho del NodeCard (debe coincidir con el className del wrapper). */
+const CARD_WIDTH = 260
+/** Altura del header del NodeCard donde sale/entra la línea (centro del ícono). */
+const CARD_AXIS_PX = 28
+/** Gap horizontal y vertical entre columnas/filas del auto-layout. */
+const CARD_GAP_X = 100
+const CARD_GAP_Y = 180
+/** Posición fija del disparador. No es draggeable (no se persiste). */
+const TRIGGER_POS = { x: 40, y: 200 }
+const TRIGGER_WIDTH = 260
+
+/**
+ * Auto-layout hierárquico: BFS desde el entry, agrupa por profundidad,
+ * apila las ramas verticalmente en cada columna. Sólo corre la primera
+ * vez (cuando todas las posiciones son 0/0). Después, el usuario
+ * arrastra a su gusto.
+ *
+ * Salida: Map<node_key, {x, y}>. Nodos no alcanzables desde el entry
+ * caen como huérfanos abajo, en columna -1, para que el usuario los
+ * vea y los conecte o borre.
+ */
+function autoLayout(
+  nodes: BuilderNode[],
+  entryKey: string | null,
+): Map<string, { x: number; y: number }> {
+  const byKey = new Map(nodes.map((n) => [n.node_key, n]))
+  const depth = new Map<string, number>()
+  if (entryKey && byKey.has(entryKey)) {
+    const queue: Array<[string, number]> = [[entryKey, 0]]
+    while (queue.length) {
+      const [k, d] = queue.shift()!
+      if (depth.has(k)) continue
+      depth.set(k, d)
+      const node = byKey.get(k)
+      if (!node) continue
+      for (const e of getOutgoingEdges(node)) {
+        if (e.nextKey && !depth.has(e.nextKey)) {
+          queue.push([e.nextKey, d + 1])
+        }
+      }
+    }
+  }
+  const byDepth = new Map<number, string[]>()
+  for (const [k, d] of depth) {
+    if (!byDepth.has(d)) byDepth.set(d, [])
+    byDepth.get(d)!.push(k)
+  }
+  const positions = new Map<string, { x: number; y: number }>()
+  const colW = CARD_WIDTH + CARD_GAP_X
+  const baseX = TRIGGER_POS.x + TRIGGER_WIDTH + CARD_GAP_X
+  const sortedDepths = Array.from(byDepth.keys()).sort((a, b) => a - b)
+  for (const d of sortedDepths) {
+    const keys = byDepth.get(d)!
+    const x = baseX + d * colW
+    const totalH = (keys.length - 1) * CARD_GAP_Y
+    const startY = TRIGGER_POS.y - totalH / 2
+    keys.forEach((k, i) => {
+      positions.set(k, { x, y: startY + i * CARD_GAP_Y })
+    })
+  }
+  let orphanY = TRIGGER_POS.y + 600
+  for (const n of nodes) {
+    if (!positions.has(n.node_key)) {
+      positions.set(n.node_key, { x: TRIGGER_POS.x, y: orphanY })
+      orphanY += CARD_GAP_Y
+    }
+  }
+  return positions
+}
+
+interface CanvasEdge {
+  /** Key del nodo origen, o "__trigger__" cuando sale del disparador. */
+  fromKey: string
+  /** Key del nodo destino. */
+  toKey: string
+  /** Coordenadas absolutas del punto de salida (lado derecho del origen). */
+  from: { x: number; y: number }
+  /** Coordenadas absolutas del punto de entrada (lado izquierdo del destino). */
+  to: { x: number; y: number }
+  /** Etiqueta de la rama (Mi pedido, Sí/No, Encontrado, …). null = lineal. */
+  label: string | null
+}
+
+function FlowCanvas(props: FlowTreeProps) {
+  const nodesByKey = useMemo(() => {
+    const m = new Map<string, BuilderNode>()
+    for (const n of props.allNodes) m.set(n.node_key, n)
+    return m
+  }, [props.allNodes])
+
+  /**
+   * Calcula todas las aristas con sus coordenadas absolutas, leyendo
+   * la posición actual de cada nodo. Se re-ejecuta cuando cualquier
+   * nodo se mueve (las líneas se "estiran" automáticamente).
+   */
+  const edges = useMemo<CanvasEdge[]>(() => {
+    const out: CanvasEdge[] = []
+    // Disparador → nodo de entrada
+    if (props.entryKey && nodesByKey.has(props.entryKey)) {
+      const target = nodesByKey.get(props.entryKey)!
+      out.push({
+        fromKey: "__trigger__",
+        toKey: target.node_key,
+        from: {
+          x: TRIGGER_POS.x + TRIGGER_WIDTH,
+          y: TRIGGER_POS.y + CARD_AXIS_PX,
+        },
+        to: {
+          x: target.position_x,
+          y: target.position_y + CARD_AXIS_PX,
+        },
+        label: null,
+      })
+    }
+    // Aristas entre nodos
+    for (const node of props.allNodes) {
+      for (const e of getOutgoingEdges(node)) {
+        if (!e.nextKey) continue
+        const target = nodesByKey.get(e.nextKey)
+        if (!target) continue
+        out.push({
+          fromKey: node.node_key,
+          toKey: target.node_key,
+          from: {
+            x: node.position_x + CARD_WIDTH,
+            y: node.position_y + CARD_AXIS_PX,
+          },
+          to: {
+            x: target.position_x,
+            y: target.position_y + CARD_AXIS_PX,
+          },
+          label: e.label,
+        })
+      }
+    }
+    return out
+  }, [props.allNodes, props.entryKey, nodesByKey])
+
+  // Caja virtual del lienzo — grande para que el usuario pueda mover
+  // nodos lejos sin que la página se "termine". El viewport hace pan
+  // y zoom encima.
+  const CANVAS_W = 6000
+  const CANVAS_H = 4000
+
+  return (
+    <div
+      className="relative"
+      style={{ width: CANVAS_W, height: CANVAS_H }}
+    >
+      {/* SVG con todas las líneas — capa de fondo. pointer-events:none
+          para que el drag de los nodos funcione. */}
+      <svg
+        className="pointer-events-none absolute inset-0"
+        width={CANVAS_W}
+        height={CANVAS_H}
+      >
+        {edges.map((e, i) => (
+          <ConnectorPath key={i} edge={e} />
+        ))}
+      </svg>
+
+      {/* Etiquetas de las ramas — HTML overlay, no SVG, para que el
+          texto se vea nítido y respete fuentes/tamaño. Posicionadas en
+          el midpoint del path. */}
+      {edges.map((e, i) =>
+        e.label ? <ConnectorLabel key={`l${i}`} edge={e} /> : null,
+      )}
+
+      {/* Disparador — fijo en TRIGGER_POS, NO draggeable */}
+      <div
+        className="absolute"
+        style={{
+          left: TRIGGER_POS.x,
+          top: TRIGGER_POS.y,
+          width: TRIGGER_WIDTH,
+        }}
+      >
+        <CanvasTriggerCard
+          triggerType={props.triggerType}
+          triggerConfig={props.triggerConfig}
+          triggerIssues={props.triggerIssues}
+          onChange={props.onTriggerChange}
+        />
+      </div>
+
+      {/* Nodos — cada uno absoluto, con drag handle integrado */}
+      {props.allNodes.map((node) => (
+        <DraggableNode
+          key={node.node_key}
+          node={node}
+          allNodes={props.allNodes}
+          expanded={props.expanded.has(node.node_key)}
+          isEntry={props.entryNodeId === node.node_key}
+          isFlashed={props.flashedKey === node.node_key}
+          cardRef={props.setNodeRef(node.node_key)}
+          issues={props.issues.filter(
+            (i) => i.scope === "node" && i.node_key === node.node_key,
+          )}
+          onMove={(x, y) => props.onMove(node.node_key, x, y)}
+          onToggle={() => props.onToggle(node.node_key)}
+          onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
+          onUpdateConfig={(patch) =>
+            props.onUpdateConfig(node.node_key, patch)
+          }
+          onRemove={() => props.onRemove(node.node_key)}
+          onSetEntry={() => props.onSetEntry(node.node_key)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ConnectorPath({ edge }: { edge: CanvasEdge }) {
+  // Curva Bezier suave en horizontal: el control point está a 1/3 del
+  // delta-X de cada lado. Se ve como "tubo" que respeta el sentido
+  // izquierda→derecha del flujo.
+  const dx = Math.max(40, (edge.to.x - edge.from.x) * 0.35)
+  const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${edge.to.x - dx} ${edge.to.y}, ${edge.to.x} ${edge.to.y}`
+  return (
+    <path
+      d={d}
+      fill="none"
+      stroke="var(--border)"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    />
+  )
+}
+
+function ConnectorLabel({ edge }: { edge: CanvasEdge }) {
+  // Midpoint del path. La curva Bezier no es exactamente el midpoint
+  // geométrico, pero para una pastilla de etiqueta es suficiente — el
+  // usuario lee "Sí / No / Mi pedido" sin necesidad de precisión sub-px.
+  const midX = (edge.from.x + edge.to.x) / 2
+  const midY = (edge.from.y + edge.to.y) / 2
+  return (
+    <div
+      className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2"
+      style={{ left: midX, top: midY }}
+    >
+      <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm">
+        {edge.label}
+      </span>
+    </div>
+  )
+}
+
+interface DraggableNodeProps {
+  node: BuilderNode
+  allNodes: BuilderNode[]
+  expanded: boolean
+  isEntry: boolean
+  isFlashed: boolean
+  cardRef: (el: HTMLDivElement | null) => void
+  issues: ValidationIssue[]
+  onMove: (x: number, y: number) => void
+  onToggle: () => void
+  onUpdate: (patch: Partial<BuilderNode>) => void
+  onUpdateConfig: (patch: Record<string, unknown>) => void
+  onRemove: () => void
+  onSetEntry: () => void
+}
+
+function DraggableNode(props: DraggableNodeProps) {
+  const { scale } = useCanvasTransform()
+  const [dragging, setDragging] = useState(false)
+  const startRef = useRef<{
+    mouseX: number
+    mouseY: number
+    nodeX: number
+    nodeY: number
+  } | null>(null)
+
+  const onDragMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return
+      // No iniciar drag si el click es sobre un control interactivo
+      // (botón, input, select). El usuario está editando, no moviendo.
+      const t = e.target as HTMLElement
+      if (
+        t.closest(
+          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"]',
+        )
+      ) {
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      startRef.current = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        nodeX: props.node.position_x,
+        nodeY: props.node.position_y,
+      }
+      setDragging(true)
+    },
+    [props.node.position_x, props.node.position_y],
+  )
+
+  useEffect(() => {
+    if (!dragging) return
+    function move(e: MouseEvent) {
+      const s = startRef.current
+      if (!s) return
+      const dx = (e.clientX - s.mouseX) / scale
+      const dy = (e.clientY - s.mouseY) / scale
+      props.onMove(s.nodeX + dx, s.nodeY + dy)
+    }
+    function up() {
+      startRef.current = null
+      setDragging(false)
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+    return () => {
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+  }, [dragging, scale, props])
+
+  return (
+    <div
+      className={cn(
+        "absolute",
+        dragging && "z-30 cursor-grabbing",
+      )}
+      style={{
+        left: props.node.position_x,
+        top: props.node.position_y,
+        width: CARD_WIDTH,
+      }}
+      onMouseDown={onDragMouseDown}
+    >
+      <NodeCard
+        node={props.node}
+        allNodes={props.allNodes}
+        expanded={props.expanded}
+        isEntry={props.isEntry}
+        isFlashed={props.isFlashed}
+        cardRef={props.cardRef}
+        issues={props.issues}
+        onToggle={props.onToggle}
+        onUpdate={props.onUpdate}
+        onUpdateConfig={props.onUpdateConfig}
+        onRemove={props.onRemove}
+        onSetEntry={props.onSetEntry}
+      />
+    </div>
+  )
+}
+
 function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
   const cfg = node.config
   switch (node.node_type) {
@@ -2625,6 +3052,7 @@ interface FlowTreeProps {
   onToggle: (key: string) => void
   onUpdate: (key: string, patch: Partial<BuilderNode>) => void
   onUpdateConfig: (key: string, patch: Record<string, unknown>) => void
+  onMove: (key: string, x: number, y: number) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
   onAdd: (type: NodeType) => void
@@ -2637,340 +3065,12 @@ interface FlowTreeProps {
   ) => void
 }
 
-function FlowTree(props: FlowTreeProps) {
-  const nodesByKey = useMemo(() => {
-    const m = new Map<string, BuilderNode>()
-    for (const n of props.allNodes) m.set(n.node_key, n)
-    return m
-  }, [props.allNodes])
-
-  // First pass: walk from entry to know which nodes are reachable.
-  // Anything NOT reachable shows up as "Sin conexión" below the tree
-  // so the user can rewire it or delete it.
-  const reachable = useMemo(() => {
-    const seen = new Set<string>()
-    const stack = props.entryKey ? [props.entryKey] : []
-    while (stack.length) {
-      const k = stack.pop()!
-      if (seen.has(k)) continue
-      seen.add(k)
-      const n = nodesByKey.get(k)
-      if (!n) continue
-      for (const e of getOutgoingEdges(n)) {
-        if (e.nextKey && !seen.has(e.nextKey)) stack.push(e.nextKey)
-      }
-    }
-    return seen
-  }, [nodesByKey, props.entryKey])
-
-  const orphans = props.allNodes.filter((n) => !reachable.has(n.node_key))
-
-  if (props.allNodes.length === 0) {
-    return (
-      <div className="flex items-start gap-3 px-8 py-10">
-        <CanvasTriggerCard
-          triggerType={props.triggerType}
-          triggerConfig={props.triggerConfig}
-          triggerIssues={props.triggerIssues}
-          onChange={props.onTriggerChange}
-        />
-        <BranchEdge />
-        <EmptyFlowCta onAdd={props.onAdd} />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col items-start gap-10 px-12 py-10">
-      <div className="flex items-start gap-3">
-        <CanvasTriggerCard
-          triggerType={props.triggerType}
-          triggerConfig={props.triggerConfig}
-          triggerIssues={props.triggerIssues}
-          onChange={props.onTriggerChange}
-        />
-        {props.entryKey ? (
-          <>
-            <BranchEdge />
-            <FlowBranch
-              startKey={props.entryKey}
-              visited={new Set()}
-              props={props}
-              nodesByKey={nodesByKey}
-            />
-          </>
-        ) : null}
-      </div>
-
-      {orphans.length > 0 && (
-        <div className="w-full max-w-3xl space-y-3">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-amber-300">
-            <CircleAlert className="h-3.5 w-3.5" />
-            Sin conexión ({orphans.length})
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Estos nodos existen pero ninguna rama los enlaza.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {orphans.map((node) => (
-              <div key={node.node_key} className="w-full">
-                <NodeCard
-                  node={node}
-                  allNodes={props.allNodes}
-                  expanded={props.expanded.has(node.node_key)}
-                  isEntry={false}
-                  isFlashed={props.flashedKey === node.node_key}
-                  cardRef={props.setNodeRef(node.node_key)}
-                  issues={props.issues.filter(
-                    (i) => i.scope === "node" && i.node_key === node.node_key,
-                  )}
-                  onToggle={() => props.onToggle(node.node_key)}
-                  onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
-                  onUpdateConfig={(patch) =>
-                    props.onUpdateConfig(node.node_key, patch)
-                  }
-                  onRemove={() => props.onRemove(node.node_key)}
-                  onSetEntry={() => props.onSetEntry(node.node_key)}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 /**
- * Render one node, then its descendants. The whole tree reads
- * left-to-right: a linear chain (one outgoing edge) extends right,
- * and a node with multiple outgoing edges fans out as parallel rows
- * (each labeled with the branch chip) that themselves keep flowing
- * rightward.
- *
- *   [Bienvenida] → [Menú] ─┬─ [Pedido]   → [Buscar] → [Responder]
- *                          ├─ [FAQ]      → [Lista]
- *                          └─ [Asesor]   → [Handoff]
- */
-function FlowBranch({
-  startKey,
-  visited,
-  nodesByKey,
-  props,
-}: {
-  startKey: string
-  visited: Set<string>
-  nodesByKey: Map<string, BuilderNode>
-  props: FlowTreeProps
-}) {
-  if (visited.has(startKey)) {
-    return <LoopChip targetKey={startKey} />
-  }
-  const node = nodesByKey.get(startKey)
-  if (!node) {
-    return <MissingChip targetKey={startKey} />
-  }
-  const next = new Set(visited)
-  next.add(startKey)
-  const edges = getOutgoingEdges(node)
-
-  return (
-    <div className="flex items-start gap-0">
-      <div className="w-[260px] shrink-0">
-        <NodeCard
-          node={node}
-          allNodes={props.allNodes}
-          expanded={props.expanded.has(node.node_key)}
-          isEntry={props.entryNodeId === node.node_key}
-          isFlashed={props.flashedKey === node.node_key}
-          cardRef={props.setNodeRef(node.node_key)}
-          issues={props.issues.filter(
-            (i) => i.scope === "node" && i.node_key === node.node_key,
-          )}
-          onToggle={() => props.onToggle(node.node_key)}
-          onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
-          onUpdateConfig={(patch) => props.onUpdateConfig(node.node_key, patch)}
-          onRemove={() => props.onRemove(node.node_key)}
-          onSetEntry={() => props.onSetEntry(node.node_key)}
-        />
-      </div>
-
-      {edges.length === 0 ? null : edges.length === 1 ? (
-        // Linear chain: una sola línea horizontal entre nodos. La línea
-        // sale del centro vertical-superior del card (mt-CARD_AXIS) y
-        // llega al siguiente card o al "+" si está suelto.
-        <div className="flex items-start">
-          <BranchEdge />
-          {edges[0].nextKey ? (
-            <FlowBranch
-              startKey={edges[0].nextKey}
-              visited={next}
-              nodesByKey={nodesByKey}
-              props={props}
-            />
-          ) : (
-            <EndPlus onAdd={props.onAdd} />
-          )}
-        </div>
-      ) : (
-        // Multi-branch: el card de origen se conecta a un divisor
-        // vertical; de ahí salen tantas ramas como salidas tenga el
-        // nodo, cada una con su chip de etiqueta colgando sobre la
-        // línea. Lleva al destino o al "+" si está suelta.
-        <BranchFan
-          edges={edges}
-          visited={next}
-          nodesByKey={nodesByKey}
-          props={props}
-        />
-      )}
-    </div>
-  )
-}
-
-// CARD_AXIS_PX: la coordenada Y dentro del NodeCard donde nace el
-// conector. 28px = altura del header (icono + título) → la línea sale
-// alineada con el ícono, no con el body. Cambiar de un solo lugar.
-const CARD_AXIS_PX = 28
-
-function BranchEdge() {
-  // Línea horizontal limpia desde el card hasta el siguiente. Más
-  // ancha que la versión anterior (40px vs 24px) para que el camino
-  // se lea como "camino", no como "guion".
-  return (
-    <div
-      className="h-px w-10 shrink-0 bg-border"
-      style={{ marginTop: CARD_AXIS_PX }}
-      aria-hidden
-    />
-  )
-}
-
-function BranchFan({
-  edges,
-  visited,
-  nodesByKey,
-  props,
-}: {
-  edges: ReturnType<typeof getOutgoingEdges>
-  visited: Set<string>
-  nodesByKey: Map<string, BuilderNode>
-  props: FlowTreeProps
-}) {
-  // El divisor vertical va del "techo" de la primera rama al de la
-  // última. Cada rama dibuja su tramo horizontal con position relative
-  // + un div pseudo-borde a la izquierda.
-  return (
-    <div className="flex items-start">
-      {/* Tramo corto que sale del card hacia el divisor */}
-      <div
-        className="h-px w-6 shrink-0 bg-border"
-        style={{ marginTop: CARD_AXIS_PX }}
-        aria-hidden
-      />
-      {/* Bloque de ramas: posición relativa para que el divisor
-          vertical (absolute) cubra exactamente el rango de filas. */}
-      <div className="relative flex flex-col gap-6 pl-6">
-        {/* Divisor vertical. top y bottom = CARD_AXIS_PX para que
-            quede de centro-del-primer-card a centro-del-último. */}
-        <div
-          className="absolute left-0 w-px bg-border"
-          style={{ top: CARD_AXIS_PX, bottom: CARD_AXIS_PX }}
-          aria-hidden
-        />
-        {edges.map((e, idx) => (
-          <div key={`${e.label}-${idx}`} className="relative flex items-start">
-            {/* Tramo horizontal de la rama, sale del divisor a la izquierda.
-                left:-24px (= -pl-6) para que arranque pegado al divisor. */}
-            <div
-              className="absolute h-px w-6 bg-border"
-              style={{ left: -24, top: CARD_AXIS_PX }}
-              aria-hidden
-            />
-            {/* Chip de etiqueta — flota sobre la línea, no la rompe */}
-            <div
-              className="relative z-10"
-              style={{ marginTop: CARD_AXIS_PX - 11 }}
-            >
-              <BranchLabelChip label={e.label ?? "—"} />
-            </div>
-            {/* Tramo final hasta el destino */}
-            <div
-              className="h-px w-6 shrink-0 bg-border"
-              style={{ marginTop: CARD_AXIS_PX }}
-              aria-hidden
-            />
-            {e.nextKey ? (
-              <FlowBranch
-                startKey={e.nextKey}
-                visited={visited}
-                nodesByKey={nodesByKey}
-                props={props}
-              />
-            ) : (
-              <EndPlus onAdd={props.onAdd} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/**
- * EndPlus — botón circular "+" al final de una rama que aún no tiene
- * siguiente paso. Visualmente más prominente que un pill dasheado
- * porque el usuario espera ver un "+" claro al final de cada camino.
- * Sigue siendo el mismo dropdown debajo (mismo NodeType picker).
- */
-function EndPlus({ onAdd }: { onAdd: (type: NodeType) => void }) {
-  return (
-    <div
-      className="flex h-6 items-center"
-      style={{ marginTop: CARD_AXIS_PX - 12 }}
-    >
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-all",
-            "hover:border-foreground hover:text-foreground",
-            "data-[popup-open]:border-foreground data-[popup-open]:text-foreground",
-          )}
-          aria-label="Agregar el siguiente paso"
-        >
-          <Plus className="h-3 w-3" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
-        >
-          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            ¿Qué pasa a continuación?
-          </div>
-          {ADDABLE_NODE_TYPES.map((t) => {
-            const meta = NODE_META[t]
-            return (
-              <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
-                <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-                {meta.label}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
-}
-
-/**
- * Floating palette anchored bottom-right of the canvas. Always available
- * so the user can drop a new step anywhere — the step lands as an
- * orphan (no incoming edge yet) and the user wires it from any existing
- * node's "Avanza a" picker.
- *
- * Diferencia con AddNextNodePill: éste es global (no asociado a un
- * slot de "siguiente"), pensado para cuando armas el flujo por
- * pedazos y todavía no decidiste dónde encaja.
+ * Paleta flotante anclada abajo-derecha del lienzo. Despliega los
+ * tipos de paso para que el usuario agregue uno sin importar qué
+ * parte del flujo está mirando. El nodo recién creado aparece a la
+ * derecha de todos los demás (ver addNode) — listo para arrastrar a
+ * la posición que el usuario quiera y conectarlo con "Avanza a".
  */
 function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
   return (
@@ -3005,120 +3105,6 @@ function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
     </DropdownMenu>
   )
 }
-
-function BranchLabelChip({ label }: { label: string }) {
-  return (
-    <span className="rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-      {label}
-    </span>
-  )
-}
-
-function AddNextNodePill({ onAdd }: { onAdd: (type: NodeType) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
-          "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
-          "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
-        )}
-        aria-label="Añadir nodo aquí"
-      >
-        <Plus className="h-3 w-3" />
-        Añadir
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
-      >
-        <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          ¿Qué pasa a continuación?
-        </div>
-        {ADDABLE_NODE_TYPES.map((t) => {
-          const meta = NODE_META[t]
-          return (
-            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
-              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function LoopChip({ targetKey }: { targetKey: string }) {
-  return (
-    <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-      ↺ Vuelve a {targetKey}
-    </span>
-  )
-}
-
-function MissingChip({ targetKey }: { targetKey: string }) {
-  return (
-    <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] text-red-300">
-      Nodo &quot;{targetKey}&quot; no existe
-    </span>
-  )
-}
-
-function EmptyFlowCta({ onAdd }: { onAdd: (type: NodeType) => void }) {
-  // The 4 most common starting nodes — clicking one drops it into
-  // the flow as the entry point. The full picker stays available
-  // for the rest of the tree via the "+ Añadir" pill at every
-  // unconnected edge.
-  const STARTERS: NodeType[] = [
-    "send_message",
-    "send_buttons",
-    "send_list",
-    "collect_input",
-  ]
-  return (
-    <div className="flex max-w-xl flex-col gap-4 rounded-2xl border border-border bg-card/60 p-6">
-      <div>
-        <p className="text-sm font-semibold text-foreground">
-          Elige cómo empieza el menú
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Después conectas cada botón a una sub-ruta.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {STARTERS.map((t) => {
-          const meta = NODE_META[t]
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => onAdd(t)}
-              className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
-            >
-              <div
-                className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-                  meta.bg,
-                )}
-              >
-                <meta.icon className={cn("h-4 w-4", meta.color)} />
-              </div>
-              <span className="text-sm font-medium text-foreground">
-                {meta.label}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-      <div className="flex items-center gap-2 border-t border-border pt-3">
-        <span className="text-[11px] text-muted-foreground">¿Otro?</span>
-        <AddNextNodePill onAdd={onAdd} />
-      </div>
-    </div>
-  )
-}
-
 
 // ============================================================
 // Canvas trigger card — first tile in the flow tree

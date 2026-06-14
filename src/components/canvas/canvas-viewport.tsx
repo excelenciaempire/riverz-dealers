@@ -1,11 +1,37 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2;
+
+/**
+ * Scale + pan exposed to children so a draggable item inside the
+ * canvas can convert client-coord mouse deltas into canvas-coord
+ * position updates (dx_canvas = dx_client / scale).
+ */
+interface CanvasTransform {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+const CanvasTransformContext = createContext<CanvasTransform>({
+  scale: 1,
+  tx: 0,
+  ty: 0,
+});
+export function useCanvasTransform(): CanvasTransform {
+  return useContext(CanvasTransformContext);
+}
 
 function clampScale(s: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
@@ -194,7 +220,9 @@ export function CanvasViewport({
           transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
         }}
       >
-        {children}
+        <CanvasTransformContext.Provider value={{ scale, tx, ty }}>
+          {children}
+        </CanvasTransformContext.Provider>
       </div>
 
       <div className="absolute bottom-4 right-4 flex items-center gap-0.5 rounded-lg border border-border bg-card/95 px-1 py-1 shadow-lg backdrop-blur">
