@@ -319,7 +319,7 @@ export function TemplateBuilder() {
                 </button>
               </div>
               <Textarea
-                placeholder="Escribí el mensaje. Usá {{1}}, {{2}} para datos variables."
+                placeholder="Escribe el mensaje. Usa {{1}}, {{2}} para datos variables."
                 value={bodyText}
                 rows={10}
                 maxLength={1024}

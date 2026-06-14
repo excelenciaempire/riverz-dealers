@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  CircleCheck,
   CircleAlert,
   History,
   Loader2,
@@ -805,6 +804,17 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             }
           />
         </CanvasViewport>
+        {/* Floating palette — siempre disponible en la esquina del lienzo
+            para agregar un paso sin importar dónde estés viendo el árbol.
+            El paso recién creado aparece como "huérfano" abajo y el
+            usuario lo conecta donde quiera con el selector "Avanza a". */}
+        {state.nodes.length > 0 && (
+          <div className="pointer-events-none absolute bottom-4 right-4 z-20">
+            <div className="pointer-events-auto">
+              <FloatingAddPalette onAdd={addNode} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Validation panel sólo cuando el usuario ya empezó a armar el
@@ -2333,15 +2343,10 @@ function ValidationPanel({
   onJump: (key: string) => void;
 }) {
   if (issues.length === 0) {
-    // Slate-950 base + emerald accents so the panel stays readable when
-    // sticky-positioned over scrolled-behind node cards (a translucent
-    // bg-emerald-500/10 would bleed through ugly).
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-600/50 bg-card p-3 text-sm font-medium text-emerald-300">
-        <CircleCheck className="h-4 w-4 shrink-0" />
-        Listo para activar.
-      </div>
-    );
+    // El usuario pidió quitar la pastilla "Listo para activar" porque
+    // distrae sin aportar — el botón Activar arriba ya comunica el
+    // estado. Cuando el editor no tiene problemas, no mostramos nada.
+    return null;
   }
   const errors = issues.filter((i) => i.severity === "error");
   const warnings = issues.filter((i) => i.severity === "warning");
@@ -2834,6 +2839,50 @@ function RightArrow() {
   )
 }
 
+/**
+ * Floating palette anchored bottom-right of the canvas. Always available
+ * so the user can drop a new step anywhere — the step lands as an
+ * orphan (no incoming edge yet) and the user wires it from any existing
+ * node's "Avanza a" picker.
+ *
+ * Diferencia con AddNextNodePill: éste es global (no asociado a un
+ * slot de "siguiente"), pensado para cuando armas el flujo por
+ * pedazos y todavía no decidiste dónde encaja.
+ */
+function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "inline-flex h-10 items-center gap-2 rounded-full border border-border bg-foreground px-4 text-sm font-medium text-background shadow-lg shadow-black/30 transition-all",
+          "hover:opacity-90",
+        )}
+        aria-label="Agregar un paso al menú"
+      >
+        <Plus className="h-4 w-4" />
+        Agregar paso
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="max-h-96 min-w-72 overflow-y-auto border-border bg-card"
+      >
+        <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          ¿Qué tipo de paso?
+        </div>
+        {ADDABLE_NODE_TYPES.map((t) => {
+          const meta = NODE_META[t]
+          return (
+            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+              {meta.label}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function BranchLabelChip({ label }: { label: string }) {
   return (
     <span className="rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -2908,10 +2957,10 @@ function EmptyFlowCta({ onAdd }: { onAdd: (type: NodeType) => void }) {
     <div className="flex max-w-xl flex-col gap-4 rounded-2xl border border-border bg-card/60 p-6">
       <div>
         <p className="text-sm font-semibold text-foreground">
-          Elegí cómo empieza el menú
+          Elige cómo empieza el menú
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Después conectás cada botón a una sub-ruta.
+          Después conectas cada botón a una sub-ruta.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -3032,7 +3081,11 @@ function CanvasTriggerCard({
               }
             >
               <SelectTrigger className="bg-muted text-sm">
-                <SelectValue />
+                {/* Render the human label directly; Base UI's SelectValue
+                    sometimes falls through to the raw `value` ("first_
+                    inbound_message") in initial paint, which leaks tech
+                    jargon into the UI. */}
+                <span>{TRIGGER_TYPE_LABEL[triggerType]}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keyword">

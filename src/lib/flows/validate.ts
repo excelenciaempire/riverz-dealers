@@ -73,7 +73,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "entry_node_id",
-      message: "Elegí dónde empieza el menú antes de activarlo.",
+      message: "Elige dónde empieza el menú antes de activarlo.",
     });
   }
 
@@ -82,7 +82,7 @@ export function validateFlowForActivation(
     issues.push({
       severity: "error",
       scope: "flow",
-      message: "Añadí al menos un paso antes de activar.",
+      message: "Añade al menos un paso antes de activar.",
     });
   }
 
@@ -154,7 +154,7 @@ function validateTrigger(
         severity: "error",
         scope: "trigger",
         field: "trigger_config.keywords",
-        message: "Tenés que escribir al menos una palabra clave.",
+        message: "Tienes que escribir al menos una palabra clave.",
       });
     } else {
       // Empty / whitespace-only keywords are silent no-ops at match
@@ -219,7 +219,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribí el texto del mensaje.",
+          message: "Escribe el texto del mensaje.",
         });
       }
       if (!cfg.next_node_key) {
@@ -228,7 +228,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Conectá este mensaje al siguiente paso.",
+          message: "Conecta este mensaje al siguiente paso.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -257,7 +257,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribí el texto que acompaña los botones.",
+          message: "Escribe el texto que acompaña los botones.",
         });
       }
       const btns = cfg.buttons ?? [];
@@ -267,7 +267,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "buttons",
-          message: "Añadí al menos un botón.",
+          message: "Añade al menos un botón.",
         });
       }
       if (btns.length > INTERACTIVE_LIMITS.maxButtons) {
@@ -360,7 +360,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribí el texto que acompaña la lista.",
+          message: "Escribe el texto que acompaña la lista.",
         });
       }
       if (!cfg.button_label?.trim()) {
@@ -369,7 +369,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "button_label",
-          message: "Escribí el texto del botón que abre la lista.",
+          message: "Escribe el texto del botón que abre la lista.",
         });
       }
       const sections = cfg.sections ?? [];
@@ -383,7 +383,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "sections",
-          message: "Añadí al menos una opción a la lista.",
+          message: "Añade al menos una opción a la lista.",
         });
       }
       if (totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
@@ -485,7 +485,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "prompt_text",
-          message: "Escribí la pregunta que se le hace al cliente.",
+          message: "Escribe la pregunta que se le hace al cliente.",
         });
       }
       if (!cfg.var_key?.trim()) {
@@ -511,7 +511,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Conectá este paso al siguiente.",
+          message: "Conecta este paso al siguiente.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -540,7 +540,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "subject",
-          message: "Elegí qué evaluar (variable, etiqueta o campo).",
+          message: "Elige qué evaluar (variable, etiqueta o campo).",
         });
       }
       if (!cfg.subject_key?.trim()) {
@@ -561,7 +561,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "operator",
-          message: "Elegí cómo comparar.",
+          message: "Elige cómo comparar.",
         });
       } else if (
         (cfg.operator === "equals" || cfg.operator === "contains") &&
@@ -610,7 +610,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "mode",
-          message: "Elegí si la etiqueta se añade o se quita.",
+          message: "Elige si la etiqueta se añade o se quita.",
         });
       }
       if (!cfg.tag_id) {
@@ -619,7 +619,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "tag_id",
-          message: "Elegí la etiqueta.",
+          message: "Elige la etiqueta.",
         });
       }
       if (!cfg.next_node_key) {
@@ -628,7 +628,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Conectá este paso al siguiente.",
+          message: "Conecta este paso al siguiente.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -686,7 +686,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Escribí el texto del mensaje.",
+          message: "Escribe el texto del mensaje.",
         });
       }
       if (!cfg.button_title?.trim()) {
@@ -734,7 +734,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Elegí minutos, horas o días.",
+          message: "Elige minutos, horas o días.",
         });
       }
       if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
@@ -757,7 +757,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Añadí al menos una intención.",
+          message: "Añade al menos una intención.",
         });
       }
       for (const i of cfg.intents ?? []) {
@@ -806,7 +806,7 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Elegí qué buscar en Shopify.",
+          message: "Elige qué buscar en Shopify.",
         });
       }
       if (!cfg.output_prefix) {

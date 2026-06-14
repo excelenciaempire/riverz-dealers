@@ -413,7 +413,7 @@ export function TemplateManager() {
             <div className="space-y-2">
               <Label className="text-foreground">Cuerpo</Label>
               <Textarea
-                placeholder="Usá {{1}}, {{2}} para variables."
+                placeholder="Usa {{1}}, {{2}} para variables."
                 value={form.body_text}
                 onChange={(e) => setForm({ ...form, body_text: e.target.value })}
                 rows={4}

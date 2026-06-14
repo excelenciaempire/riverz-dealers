@@ -91,7 +91,7 @@ const ATENCION_CLIENTE: FlowTemplate = {
       config: {
         header_text: '¡Hola! 👋',
         text: 'Soy el asistente de la tienda. ¿En qué te ayudo?',
-        footer_text: 'Tocá una opción.',
+        footer_text: 'Toca una opción.',
         buttons: [
           { reply_id: 'pedido', title: 'Mi pedido', next_node_key: 'pedido_pedir_numero' },
           { reply_id: 'preguntas', title: 'Preguntas', next_node_key: 'preguntas_list' },
@@ -105,7 +105,7 @@ const ATENCION_CLIENTE: FlowTemplate = {
       node_key: 'pedido_pedir_numero',
       node_type: 'collect_input',
       config: {
-        prompt_text: 'Pasame el número de tu pedido (por ejemplo: 1042).',
+        prompt_text: 'Comparte el número de tu pedido (por ejemplo: 1042).',
         var_key: 'numero_pedido',
         next_node_key: 'pedido_buscar',
       } as CollectInputNodeConfig,
@@ -129,7 +129,7 @@ const ATENCION_CLIENTE: FlowTemplate = {
           '📦 Pedido {{vars.order_name}}\n' +
           'Estado: *{{vars.order_fulfillment_status}}*\n' +
           'Total: {{vars.order_total}}\n\n' +
-          'Acá podés ver el detalle: {{vars.order_status_url}}',
+          'Aquí puedes ver el detalle: {{vars.order_status_url}}',
         next_node_key: 'fin_ok',
       } as SendMessageNodeConfig,
     },
@@ -148,7 +148,7 @@ const ATENCION_CLIENTE: FlowTemplate = {
       node_key: 'preguntas_list',
       node_type: 'send_list',
       config: {
-        text: '¿Sobre qué tema querés saber?',
+        text: '¿Sobre qué tema quieres saber?',
         button_label: 'Ver temas',
         sections: [
           {
@@ -196,7 +196,7 @@ const ATENCION_CLIENTE: FlowTemplate = {
       node_type: 'send_message',
       config: {
         text:
-          'Cada producto tiene su propia guía de tallas en la ficha. Si tenés dudas con una prenda específica, escribime el nombre y te ayudo. 📏',
+          'Cada producto tiene su propia guía de tallas en la ficha. Si tienes dudas con una prenda específica, escribe el nombre y te ayudo. 📏',
         next_node_key: 'handoff_directo',
       } as SendMessageNodeConfig,
     },

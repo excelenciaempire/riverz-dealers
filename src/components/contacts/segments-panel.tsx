@@ -93,7 +93,7 @@ const RULE_TYPES: {
   { type: 'created', label: 'Fecha de creación', description: 'Cuándo se creó el contacto.', Icon: CalendarClock },
   { type: 'text', label: 'Texto del contacto', description: 'El nombre, correo, teléfono o empresa contiene algo.', Icon: TypeIcon },
   { type: 'has_field', label: 'Tiene dato', description: 'Si el contacto tiene cargado un campo.', Icon: CircleSlash },
-  { type: 'custom_field', label: 'Campo personalizado', description: 'Filtra por un campo que vos creaste.', Icon: Database },
+  { type: 'custom_field', label: 'Campo personalizado', description: 'Filtra por un campo que tú creaste.', Icon: Database },
 ];
 
 // Operator labels used by SelectValue.labels — shown human-readable on the
@@ -669,7 +669,7 @@ function AddRuleMenu({
                 <p className="text-sm font-medium text-foreground">{r.label}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {r.description}
-                  {disabled ? ' (no tenés campos personalizados)' : ''}
+                  {disabled ? ' (no tienes campos personalizados)' : ''}
                 </p>
               </div>
             </DropdownMenuItem>

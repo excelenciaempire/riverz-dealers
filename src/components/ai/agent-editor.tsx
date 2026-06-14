@@ -102,7 +102,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
   const [persona, setPersona] = useState(
     agent?.persona ??
-      'Sos un asistente de atención al cliente. Respondés con calidez y vas directo al grano.',
+      'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.',
   );
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
   const [language, setLanguage] = useState(agent?.language ?? 'es');
@@ -258,7 +258,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   async function runTest() {
     if (!testMessage.trim()) return;
     if (!editing) {
-      toast.error('Guardá primero para probar.');
+      toast.error('Guarda primero para probar.');
       return;
     }
     setTesting(true);
@@ -357,7 +357,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                     value={persona}
                     rows={5}
                     onChange={(e) => setPersona(e.target.value)}
-                    placeholder="Sos María, asesora de Vitalú. Ayudás a clientes a elegir productos de skincare. Mantenés un tono cálido."
+                    placeholder="Eres María, asesora de Vitalú. Ayudas a clientes a elegir productos de skincare. Mantienes un tono cálido."
                     className="resize-y bg-background"
                   />
                 </Field>
@@ -438,7 +438,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                       active={productScope === 'specific'}
                       onClick={() => setProductScope('specific')}
                       title="Solo algunos"
-                      hint="Elegí los productos abajo."
+                      hint="Elige los productos abajo."
                     />
                   </div>
                   {productScope === 'specific' && (
@@ -460,7 +460,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                         ) : filteredCatalog.length === 0 ? (
                           <p className="px-3 py-4 text-center text-xs text-muted-foreground">
                             {catalog.length === 0
-                              ? 'Sin productos sincronizados. Conectá Shopify primero.'
+                              ? 'Sin productos sincronizados. Conecta Shopify primero.'
                               : 'Sin resultados.'}
                           </p>
                         ) : (
@@ -545,7 +545,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                   active={scope === 'channels'}
                   onClick={() => setScope('channels')}
                   title="Solo algunos"
-                  hint="Elegí los canales abajo."
+                  hint="Elige los canales abajo."
                 />
               </div>
               {scope === 'channels' && (

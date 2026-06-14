@@ -24,7 +24,7 @@ export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
         href="/menus"
         icon={<Waypoints className="size-4" />}
         title="Menús con botones"
-        hint="Vos definís las opciones; el cliente toca y avanza."
+        hint="Tú defines las opciones; el cliente toca y avanza."
         active={current === 'flows'}
       />
     </div>

@@ -360,7 +360,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     header_content: '¿Lo dejaste pendiente?',
     body_text:
       'Hola {{1}}, ayer dejaste {{2}} en el carrito. Te dejamos un 10% con el código VUELVE10 — vale por 24 horas.',
-    footer_text: 'Sin presión, vos sabés cuándo es el momento.',
+    footer_text: 'Sin presión, tú sabes cuándo es el momento.',
     status: 'Approved',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
   } as unknown as MessageTemplate,
@@ -371,7 +371,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     category: 'Marketing',
     language: 'es',
     body_text:
-      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitás reponer, te dejamos envío gratis con FIDELIDAD.',
+      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitas reponer, te dejamos envío gratis con FIDELIDAD.',
     status: 'Pending',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
   } as unknown as MessageTemplate,
@@ -383,7 +383,7 @@ const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
     language: 'es',
     body_text:
       'Tu código de verificación de Vitalú es {{1}}. Vence en 10 minutos. No lo compartas con nadie.',
-    footer_text: 'Si no fuiste vos, ignorá este mensaje.',
+    footer_text: 'Si no fuiste tú, ignorá este mensaje.',
     status: 'Draft',
     created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
   } as unknown as MessageTemplate,

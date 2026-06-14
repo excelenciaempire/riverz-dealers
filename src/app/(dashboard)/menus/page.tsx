@@ -225,9 +225,9 @@ export default function FlowsPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               )}
-              {step === "choose" && "¿Cómo querés empezar?"}
+              {step === "choose" && "¿Cómo quieres empezar?"}
               {step === "name" && "Nombre del menú"}
-              {step === "template" && "Elegí una plantilla"}
+              {step === "template" && "Elige una plantilla"}
             </DialogTitle>
           </DialogHeader>
 
@@ -236,14 +236,14 @@ export default function FlowsPage() {
               <ChoiceCard
                 icon={<Sparkles className="h-5 w-5 text-accent-ink" />}
                 title="Usar una plantilla"
-                description="Empezás con un menú ya armado de ejemplo y lo editás."
+                description="Empezás con un menú ya armado de ejemplo y lo editas."
                 badge="Recomendado"
                 onClick={() => setStep("template")}
               />
               <ChoiceCard
                 icon={<FilePlus2 className="h-5 w-5 text-muted-foreground" />}
                 title="Empezar en blanco"
-                description="Lona vacía. Vos armás cada paso desde cero."
+                description="Lona vacía. Tú armas cada paso desde cero."
                 onClick={() => setStep("name")}
               />
             </div>
@@ -479,5 +479,5 @@ function describeTrigger(flow: FlowRow): string {
   if (flow.trigger_type === "first_inbound_message") {
     return "Se activa con el primer mensaje del cliente";
   }
-  return "Lo activás vos a mano";
+  return "Lo activas tú a mano";
 }

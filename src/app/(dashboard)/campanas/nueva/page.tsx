@@ -148,12 +148,12 @@ export default function NewBroadcastPage() {
 
   function validate(): string | null {
     if (!name.trim()) return 'Falta el nombre.';
-    if (!template) return 'Elegí una plantilla.';
+    if (!template) return 'Elige una plantilla.';
     if (audienceType === 'tags' && selectedTagIds.length === 0)
-      return 'Elegí una etiqueta.';
-    if (audienceType === 'segment' && !segmentId) return 'Elegí un segmento.';
+      return 'Elige una etiqueta.';
+    if (audienceType === 'segment' && !segmentId) return 'Elige un segmento.';
     if (sendMode === 'schedule') {
-      if (!scheduledAt) return 'Elegí cuándo programarla.';
+      if (!scheduledAt) return 'Elige cuándo programarla.';
       const t = new Date(scheduledAt).getTime();
       if (Number.isNaN(t)) return 'Fecha no válida.';
       if (t <= Date.now()) return 'La fecha debe ser futura.';
@@ -219,7 +219,7 @@ export default function NewBroadcastPage() {
 
   const previewBody = useMemo(() => {
     if (!template?.body_text) {
-      return 'Elegí una plantilla.';
+      return 'Elige una plantilla.';
     }
     return template.body_text.replace(/\{\{(\d+)\}\}/g, (_, n: string) => {
       const v = variables[n];
