@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -13,32 +13,44 @@ import {
   PauseCircle,
   ChevronDown,
   ChevronRight,
+  Info,
+  Search,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * Run history viewer.
- *
- * Lists the 50 most recent runs for a flow, newest first. Each row
- * collapses to a one-liner (contact + status + time); expanding shows
- * the full `flow_run_events` timeline for that run — useful for
- * debugging "why didn't my flow advance?" by surfacing the engine's
- * own log.
+ * Vista de "Usos" de un menú: cuántas veces se ejecutó, cómo le fue
+ * a cada cliente, dónde se trabó. Diseño minimalista — mismo lenguaje
+ * que /campanas/[id]: métricas grandes arriba sin íconos coloridos,
+ * sparkline neutro, tabla compacta abajo con búsqueda + filtro de
+ * estado. Mientras el menú no tenga ejecuciones reales, mostramos un
+ * banner "Ejemplos" + filas placeholder para que el merchant entienda
+ * qué va a ver.
  */
+
+type RunStatus =
+  | "active"
+  | "completed"
+  | "handed_off"
+  | "timed_out"
+  | "paused_by_agent"
+  | "failed";
 
 interface RunRow {
   id: string;
-  status:
-    | "active"
-    | "completed"
-    | "handed_off"
-    | "timed_out"
-    | "paused_by_agent"
-    | "failed";
+  status: RunStatus;
   current_node_key: string | null;
   started_at: string;
   last_advanced_at: string;
@@ -57,41 +69,178 @@ interface EventRow {
   created_at: string;
 }
 
-const STATUS_META: Record<
-  RunRow["status"],
-  { label: string; classes: string; icon: typeof Clock }
-> = {
-  active: {
-    label: "Activo",
-    classes: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
-    icon: PlayCircle,
-  },
-  completed: {
-    label: "Completado",
-    classes: "border-border bg-muted text-foreground",
-    icon: CircleCheck,
-  },
-  handed_off: {
-    label: "Transferido",
-    classes: "border-amber-600/40 bg-amber-500/10 text-amber-300",
-    icon: UserPlus,
-  },
-  timed_out: {
-    label: "Expirado",
-    classes: "border-border bg-muted/60 text-muted-foreground",
-    icon: Clock,
-  },
-  paused_by_agent: {
-    label: "Pausado por un agente",
-    classes: "border-border bg-muted text-foreground",
-    icon: PauseCircle,
-  },
-  failed: {
-    label: "Fallido",
-    classes: "border-red-600/40 bg-red-500/10 text-red-300",
-    icon: CircleAlert,
-  },
+const STATUS_LABEL: Record<RunStatus, string> = {
+  active: "Activo",
+  completed: "Completado",
+  handed_off: "Transferido",
+  timed_out: "Expirado",
+  paused_by_agent: "Pausado",
+  failed: "Fallido",
 };
+
+const STATUS_TONE: Record<RunStatus, string> = {
+  active:
+    "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  completed: "border-border bg-muted text-foreground",
+  handed_off:
+    "border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  timed_out: "border-border bg-muted/60 text-muted-foreground",
+  paused_by_agent: "border-border bg-muted text-foreground",
+  failed: "border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-400",
+};
+
+const STATUS_ICON: Record<RunStatus, typeof Clock> = {
+  active: PlayCircle,
+  completed: CircleCheck,
+  handed_off: UserPlus,
+  timed_out: Clock,
+  paused_by_agent: PauseCircle,
+  failed: CircleAlert,
+};
+
+const RUN_STATUSES: readonly RunStatus[] = [
+  "active",
+  "completed",
+  "handed_off",
+  "timed_out",
+  "paused_by_agent",
+  "failed",
+];
+
+/**
+ * Tarjeta de métrica: número tabular grande + etiqueta. Sin íconos ni
+ * cajas de color — coincide con /campanas/[id].
+ */
+function MetricCard({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string | number;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex-1 rounded-lg border bg-card p-4",
+        emphasis ? "border-border" : "border-border/60",
+      )}
+    >
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+        {typeof value === "number" ? value.toLocaleString("es-ES") : value}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Sparkline simple: array de N puntos, dibuja un area + line. SVG puro,
+ * sin librería. Color foreground/60 — muy neutro para no competir con
+ * las cifras de arriba.
+ */
+function Sparkline({
+  series,
+  labels,
+}: {
+  series: number[];
+  labels: string[];
+}) {
+  if (series.length === 0) return null;
+  const max = Math.max(...series, 1);
+  const W = 600;
+  const H = 120;
+  const stepX = W / Math.max(series.length - 1, 1);
+  const points = series
+    .map((v, i) => `${i * stepX},${H - (v / max) * (H - 20) - 10}`)
+    .join(" ");
+  const areaPath = `M 0,${H} L ${points.replace(/,/g, "/")
+    .split(" ")
+    .map((p) => p.replace("/", ","))
+    .join(" L ")} L ${W},${H} Z`;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="mb-1 text-sm font-medium text-foreground">
+        Usos por día
+      </h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Últimos {series.length} días.
+      </p>
+      <svg
+        viewBox={`0 0 ${W} ${H + 20}`}
+        className="h-32 w-full"
+        preserveAspectRatio="none"
+      >
+        <path d={areaPath} fill="currentColor" className="text-foreground/10" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          className="text-foreground/60"
+        />
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+        {labels.map((l, i) => (
+          <span key={i} className={i % 2 === 1 ? "hidden sm:block" : undefined}>
+            {l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Distribución de estado: barras horizontales con cuenta + % del total.
+ */
+function StatusBreakdown({
+  counts,
+  total,
+}: {
+  counts: Record<RunStatus, number>;
+  total: number;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="mb-1 text-sm font-medium text-foreground">
+        Cómo terminaron
+      </h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Reparto por estado del último corte.
+      </p>
+      <div className="space-y-1.5">
+        {RUN_STATUSES.map((s) => {
+          const n = counts[s] ?? 0;
+          const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+          return (
+            <div key={s} className="flex items-center gap-3">
+              <span className="w-28 shrink-0 text-xs text-muted-foreground">
+                {STATUS_LABEL[s]}
+              </span>
+              <div className="relative h-5 flex-1 rounded-md bg-muted/60">
+                <div
+                  className="h-5 rounded-md bg-foreground/70 transition-[width] duration-500"
+                  style={{ width: `${Math.max(2, pct)}%` }}
+                />
+                <span className="absolute inset-0 flex items-center px-2 text-[11px] font-medium text-background mix-blend-screen tabular-nums">
+                  {n}
+                </span>
+              </div>
+              <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+                {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function FlowRunsPage() {
   const router = useRouter();
@@ -103,6 +252,8 @@ export default function FlowRunsPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [notFound, setNotFound] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<RunStatus | "all">("all");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!params.id) return;
@@ -128,7 +279,7 @@ export default function FlowRunsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudieron cargar las ejecuciones.");
+          toast.error("No se pudieron cargar los usos.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -138,6 +289,80 @@ export default function FlowRunsPage() {
       cancelled = true;
     };
   }, [params.id]);
+
+  // Fuente: reales si hay; placeholder si no.
+  const sourceRuns = runs.length > 0 ? runs : PLACEHOLDER_RUNS;
+  const sourceEvents = runs.length > 0 ? events : PLACEHOLDER_EVENTS;
+  const isPlaceholderView = runs.length === 0;
+
+  // ── Métricas ──
+  const counts = useMemo(() => {
+    const c: Record<RunStatus, number> = {
+      active: 0,
+      completed: 0,
+      handed_off: 0,
+      timed_out: 0,
+      paused_by_agent: 0,
+      failed: 0,
+    };
+    for (const r of sourceRuns) c[r.status]++;
+    return c;
+  }, [sourceRuns]);
+
+  const totalRuns = sourceRuns.length;
+  const completedPct =
+    totalRuns > 0 ? Math.round((counts.completed / totalRuns) * 100) : 0;
+
+  // Duración promedio (sólo runs terminados).
+  const avgDurationMs = useMemo(() => {
+    const ended = sourceRuns.filter((r) => r.ended_at);
+    if (ended.length === 0) return null;
+    const sum = ended.reduce((acc, r) => {
+      return (
+        acc +
+        (new Date(r.ended_at!).getTime() - new Date(r.started_at).getTime())
+      );
+    }, 0);
+    return sum / ended.length;
+  }, [sourceRuns]);
+
+  // ── Serie temporal (últimos 14 días) ──
+  const { series, sparkLabels } = useMemo(() => {
+    const buckets: number[] = new Array(14).fill(0);
+    const labels: string[] = [];
+    const now = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      labels.push(format(d, "d/M"));
+    }
+    for (const r of sourceRuns) {
+      const d = new Date(r.started_at);
+      const diffDays = Math.floor(
+        (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const idx = 13 - diffDays;
+      if (idx >= 0 && idx < 14) buckets[idx]++;
+    }
+    return { series: buckets, sparkLabels: labels };
+  }, [sourceRuns]);
+
+  // ── Filtros sobre la tabla ──
+  const filteredRuns = useMemo(() => {
+    let rows = sourceRuns;
+    if (statusFilter !== "all") {
+      rows = rows.filter((r) => r.status === statusFilter);
+    }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          (r.contact?.name ?? "").toLowerCase().includes(q) ||
+          (r.contact?.phone ?? "").toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [sourceRuns, statusFilter, query]);
 
   function toggle(runId: string) {
     setExpanded((prev) => {
@@ -151,56 +376,174 @@ export default function FlowRunsPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
   if (notFound || !flow) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Flujo no encontrado.</p>
-        <button
-          type="button"
+        <p className="text-sm text-muted-foreground">Menú no encontrado.</p>
+        <Button
+          variant="outline"
           onClick={() => router.push("/menus")}
-          className="text-sm text-accent-ink hover:opacity-80"
+          className="text-sm"
         >
-          ← Volver a flujos
-        </button>
+          Volver
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <button
-        type="button"
-        onClick={() => router.push(`/menus/${flow.id}`)}
-        className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-3 w-3" />
-        {flow.name}
-      </button>
-      <h1 className="text-xl font-semibold text-foreground">Ejecuciones</h1>
-
-      {runs.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center text-sm text-muted-foreground">
-          Sin ejecuciones.
+    <div className="mx-auto max-w-6xl space-y-5 p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push(`/menus/${flow.id}`)}
+          className="h-8 w-8 border-border"
+          aria-label="Volver al editor del menú"
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">
+            Menú · <span className="text-foreground">{flow.name}</span>
+          </p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Usos
+          </h1>
         </div>
-      ) : (
-        <div className="mt-6 flex flex-col gap-2">
-          {runs.map((run) => (
-            <RunCard
-              key={run.id}
-              run={run}
-              events={events.filter((e) => e.flow_run_id === run.id)}
-              expanded={expanded.has(run.id)}
-              onToggle={() => toggle(run.id)}
-            />
-          ))}
+      </div>
+
+      {/* Banner de ejemplos */}
+      {isPlaceholderView && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Vista previa con datos de ejemplo
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Estos números y filas son ilustrativos — desaparecen cuando un
+              cliente real ejecute este menú por primera vez.
+            </p>
+          </div>
         </div>
       )}
+
+      {/* Métricas top */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetricCard label="Usos totales" value={totalRuns} emphasis />
+        <MetricCard label="Activos" value={counts.active} />
+        <MetricCard label="Completados" value={`${completedPct}%`} />
+        <MetricCard label="Transferidos" value={counts.handed_off} />
+        <MetricCard
+          label="Duración prom."
+          value={
+            avgDurationMs == null
+              ? "—"
+              : formatDurationShort(avgDurationMs)
+          }
+        />
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Sparkline series={series} labels={sparkLabels} />
+        <StatusBreakdown counts={counts} total={totalRuns} />
+      </div>
+
+      {/* Tabla de runs */}
+      <div className="rounded-lg border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <h2 className="text-sm font-medium text-foreground">
+            Conversaciones{" "}
+            <span className="tabular-nums text-muted-foreground">
+              ({filteredRuns.length}
+              {statusFilter !== "all" || query
+                ? ` de ${sourceRuns.length}`
+                : ""}
+              )
+            </span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar contacto…"
+                className="h-8 w-56 pl-8"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+                  />
+                }
+              >
+                <Filter className="size-3.5" />
+                {statusFilter === "all"
+                  ? "Todos"
+                  : STATUS_LABEL[statusFilter]}
+                <ChevronDown className="size-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="border-border bg-card">
+                <DropdownMenuItem
+                  onClick={() => setStatusFilter("all")}
+                  className="text-foreground"
+                >
+                  Todos los estados
+                </DropdownMenuItem>
+                {RUN_STATUSES.map((s) => (
+                  <DropdownMenuItem
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className="text-foreground"
+                  >
+                    {STATUS_LABEL[s]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {filteredRuns.length === 0 ? (
+          <div className="flex h-32 items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Sin resultados.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {filteredRuns.map((run) => (
+              <RunCard
+                key={run.id}
+                run={run}
+                events={sourceEvents.filter((e) => e.flow_run_id === run.id)}
+                expanded={expanded.has(run.id)}
+                onToggle={() => toggle(run.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function formatDurationShort(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} min`;
+  return `${(ms / 3_600_000).toFixed(1)} h`;
 }
 
 function RunCard({
@@ -214,44 +557,45 @@ function RunCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const meta = STATUS_META[run.status];
-  const StatusIcon = meta.icon;
+  const StatusIcon = STATUS_ICON[run.status];
   const contactLabel =
     run.contact?.name?.trim() || run.contact?.phone || "Contacto desconocido";
   const duration = run.ended_at
-    ? formatDistanceToNow(new Date(run.ended_at), {
+    ? formatDistanceToNow(new Date(run.started_at), {
         addSuffix: false,
       })
     : null;
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div>
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">
               {contactLabel}
             </span>
-            <Badge variant="outline" className={cn("gap-1", meta.classes)}>
-              <StatusIcon className="h-3 w-3" />
-              {meta.label}
-            </Badge>
-            {run.status === "active" && run.current_node_key && (
-              <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                en {run.current_node_key}
-              </code>
-            )}
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                STATUS_TONE[run.status],
+              )}
+            >
+              <StatusIcon className="size-3" />
+              {STATUS_LABEL[run.status]}
+            </span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span>Iniciado {format(new Date(run.started_at), "PP p")}</span>
+            <span>
+              {format(new Date(run.started_at), "d MMM, HH:mm")}
+            </span>
             {run.reprompt_count > 0 && (
               <span>· {run.reprompt_count} reintentos</span>
             )}
@@ -260,21 +604,21 @@ function RunCard({
         </div>
       </button>
       {expanded && (
-        <div className="border-t border-border px-4 py-3">
+        <div className="bg-muted/30 px-12 py-3">
           {Object.keys(run.vars).length > 0 && (
-            <details className="mb-3">
+            <details className="mb-2">
               <summary className="cursor-pointer text-xs text-muted-foreground">
-                Variables capturadas ({Object.keys(run.vars).length})
+                Datos capturados ({Object.keys(run.vars).length})
               </summary>
-              <pre className="mt-2 overflow-x-auto rounded-md bg-background p-2 text-[11px] text-foreground">
+              <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-card p-2 text-[11px] text-foreground">
                 {JSON.stringify(run.vars, null, 2)}
               </pre>
             </details>
           )}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5">
             {events.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Sin eventos.
+                Sin eventos registrados.
               </p>
             ) : (
               events.map((ev, ix) => <EventLine key={ix} ev={ev} />)
@@ -286,32 +630,38 @@ function RunCard({
   );
 }
 
-const EVENT_COLOR: Record<string, string> = {
-  started: "text-emerald-300",
-  node_entered: "text-foreground",
-  message_sent: "text-sky-300",
-  reply_received: "text-accent-ink",
-  fallback_fired: "text-amber-300",
-  handoff: "text-amber-300",
-  timeout: "text-muted-foreground",
-  error: "text-red-300",
-  completed: "text-emerald-300",
+/**
+ * Eventos del runtime — antes mostraba "event_type" en inglés crudo
+ * (node_entered, message_sent, fallback_fired). Traducidos a frases
+ * legibles para que el merchant entienda qué pasó sin pelearse con
+ * el log.
+ */
+const EVENT_HUMAN: Record<string, string> = {
+  started: "Conversación iniciada",
+  node_entered: "Entró al paso",
+  message_sent: "Mensaje enviado",
+  reply_received: "Respuesta recibida",
+  fallback_fired: "Alternativa activada",
+  handoff: "Pasó a un humano",
+  timeout: "Sin actividad",
+  error: "Error",
+  completed: "Conversación terminada",
 };
 
 function EventLine({ ev }: { ev: EventRow }) {
-  const cls = EVENT_COLOR[ev.event_type] ?? "text-muted-foreground";
+  const human = EVENT_HUMAN[ev.event_type] ?? ev.event_type;
   return (
-    <div className="flex items-start gap-2 rounded-md px-2 py-1 text-xs">
-      <span className="w-32 shrink-0 text-[10px] text-muted-foreground">
+    <div className="flex items-start gap-2 px-2 py-1 text-xs">
+      <span className="w-16 shrink-0 text-[10px] tabular-nums text-muted-foreground">
         {format(new Date(ev.created_at), "HH:mm:ss")}
       </span>
-      <span className={cn("w-32 shrink-0 font-mono text-[10px]", cls)}>
-        {ev.event_type}
+      <span className="w-44 shrink-0 text-[11px] text-foreground">
+        {human}
       </span>
       {ev.node_key && (
-        <code className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+        <span className="shrink-0 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">
           {ev.node_key}
-        </code>
+        </span>
       )}
       {Object.keys(ev.payload).length > 0 && (
         <span className="min-w-0 truncate text-[10px] text-muted-foreground">
@@ -323,8 +673,6 @@ function EventLine({ ev }: { ev: EventRow }) {
 }
 
 function summarizePayload(payload: Record<string, unknown>): string {
-  // Show the keys that matter most to a human debugger; full JSON is
-  // available via the "Captured vars" details panel for the run.
   const keys = ["reply_id", "captured_key", "reason", "advancing_to"];
   for (const k of keys) {
     if (k in payload && payload[k] !== null && payload[k] !== undefined) {
@@ -333,3 +681,214 @@ function summarizePayload(payload: Record<string, unknown>): string {
   }
   return "";
 }
+
+// ============================================================
+// Placeholder data — mostrado cuando el menú todavía no se ejecutó
+// con ningún cliente real. Marca con id "demo-*" así nada pretende
+// ser navegable a un detalle externo.
+// ============================================================
+const now = () => new Date(2026, 5, 13, 16, 30, 0);
+const daysAgo = (d: number, hours = 0): string => {
+  const x = now();
+  x.setDate(x.getDate() - d);
+  x.setHours(x.getHours() - hours);
+  return x.toISOString();
+};
+
+const PLACEHOLDER_RUNS: RunRow[] = [
+  {
+    id: "demo-1",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(0, 2),
+    last_advanced_at: daysAgo(0, 1),
+    ended_at: daysAgo(0, 1),
+    end_reason: "completed",
+    vars: { numero_pedido: "1042" },
+    reprompt_count: 0,
+    contact: { id: "c1", name: "Lucía Méndez", phone: "+57 312 555 7740" },
+  },
+  {
+    id: "demo-2",
+    status: "handed_off",
+    current_node_key: "handoff_directo",
+    started_at: daysAgo(0, 4),
+    last_advanced_at: daysAgo(0, 3),
+    ended_at: daysAgo(0, 3),
+    end_reason: "handoff",
+    vars: {},
+    reprompt_count: 1,
+    contact: { id: "c2", name: "Carlos Rivera", phone: "+57 318 444 9921" },
+  },
+  {
+    id: "demo-3",
+    status: "active",
+    current_node_key: "preguntas_list",
+    started_at: daysAgo(0, 0),
+    last_advanced_at: daysAgo(0, 0),
+    ended_at: null,
+    end_reason: null,
+    vars: {},
+    reprompt_count: 0,
+    contact: { id: "c3", name: "Andrea Silva", phone: "+57 301 233 8800" },
+  },
+  {
+    id: "demo-4",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(1, 1),
+    last_advanced_at: daysAgo(1, 0),
+    ended_at: daysAgo(1, 0),
+    end_reason: "completed",
+    vars: { faq_tema: "envios" },
+    reprompt_count: 0,
+    contact: { id: "c4", name: "María Torres", phone: "+57 312 998 1142" },
+  },
+  {
+    id: "demo-5",
+    status: "timed_out",
+    current_node_key: "pedido_pedir_numero",
+    started_at: daysAgo(2, 5),
+    last_advanced_at: daysAgo(2, 4),
+    ended_at: daysAgo(2, 0),
+    end_reason: "no_activity_24h",
+    vars: {},
+    reprompt_count: 2,
+    contact: { id: "c5", name: null, phone: "+57 322 776 5511" },
+  },
+  {
+    id: "demo-6",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(2, 8),
+    last_advanced_at: daysAgo(2, 7),
+    ended_at: daysAgo(2, 7),
+    end_reason: "completed",
+    vars: { numero_pedido: "1041" },
+    reprompt_count: 0,
+    contact: { id: "c6", name: "Federico Núñez", phone: "+57 319 220 1133" },
+  },
+  {
+    id: "demo-7",
+    status: "failed",
+    current_node_key: "pedido_buscar",
+    started_at: daysAgo(3, 6),
+    last_advanced_at: daysAgo(3, 6),
+    ended_at: daysAgo(3, 6),
+    end_reason: "shopify_unreachable",
+    vars: { numero_pedido: "X" },
+    reprompt_count: 0,
+    contact: { id: "c7", name: "Paula Gómez", phone: "+57 311 005 8800" },
+  },
+  {
+    id: "demo-8",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(4, 2),
+    last_advanced_at: daysAgo(4, 1),
+    ended_at: daysAgo(4, 1),
+    end_reason: "completed",
+    vars: {},
+    reprompt_count: 0,
+    contact: { id: "c8", name: "Diego Ortiz", phone: "+57 315 332 1100" },
+  },
+  {
+    id: "demo-9",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(6, 9),
+    last_advanced_at: daysAgo(6, 8),
+    ended_at: daysAgo(6, 8),
+    end_reason: "completed",
+    vars: {},
+    reprompt_count: 1,
+    contact: { id: "c9", name: "Sofía Bernal", phone: "+57 313 887 5544" },
+  },
+  {
+    id: "demo-10",
+    status: "completed",
+    current_node_key: null,
+    started_at: daysAgo(9, 4),
+    last_advanced_at: daysAgo(9, 3),
+    ended_at: daysAgo(9, 3),
+    end_reason: "completed",
+    vars: {},
+    reprompt_count: 0,
+    contact: { id: "c10", name: "Miguel Castro", phone: "+57 318 119 2200" },
+  },
+];
+
+const PLACEHOLDER_EVENTS: EventRow[] = [
+  // demo-1: completó comprando estado de pedido
+  {
+    flow_run_id: "demo-1",
+    event_type: "started",
+    node_key: "menu_root",
+    payload: {},
+    created_at: daysAgo(0, 2),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "message_sent",
+    node_key: "menu_root",
+    payload: {},
+    created_at: daysAgo(0, 2),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "reply_received",
+    node_key: "menu_root",
+    payload: { reply_id: "pedido" },
+    created_at: daysAgo(0, 2),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "node_entered",
+    node_key: "pedido_pedir_numero",
+    payload: {},
+    created_at: daysAgo(0, 2),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "reply_received",
+    node_key: "pedido_pedir_numero",
+    payload: { captured_key: "numero_pedido" },
+    created_at: daysAgo(0, 1),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "node_entered",
+    node_key: "pedido_buscar",
+    payload: { advancing_to: "pedido_responder_encontrado" },
+    created_at: daysAgo(0, 1),
+  },
+  {
+    flow_run_id: "demo-1",
+    event_type: "completed",
+    node_key: "fin_ok",
+    payload: {},
+    created_at: daysAgo(0, 1),
+  },
+  // demo-2: handoff
+  {
+    flow_run_id: "demo-2",
+    event_type: "started",
+    node_key: "menu_root",
+    payload: {},
+    created_at: daysAgo(0, 4),
+  },
+  {
+    flow_run_id: "demo-2",
+    event_type: "reply_received",
+    node_key: "menu_root",
+    payload: { reply_id: "asesor" },
+    created_at: daysAgo(0, 4),
+  },
+  {
+    flow_run_id: "demo-2",
+    event_type: "handoff",
+    node_key: "handoff_directo",
+    payload: { reason: "client_requested" },
+    created_at: daysAgo(0, 3),
+  },
+];
