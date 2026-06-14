@@ -1,24 +1,25 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import {
   FileText,
   Image as ImageIcon,
   Video as VideoIcon,
   ExternalLink,
   List,
+  Plus,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Mini WhatsApp message bubble — rendered inside every flow node card
- * that produces a customer-facing message (send_message, send_buttons,
- * send_list, send_cta_url, media). Mirrors WhatsApp's incoming-bubble
- * chrome (white card, double check, beige canvas tint) so the merchant
- * sees exactly what the customer will see.
- *
- * Kept narrow on purpose — the bubble is decorative-but-honest, not a
- * full chat simulator. Quick Reply buttons enforce Meta's 3-max and
- * 20-char title cap visually (extra titles truncate with ellipsis).
+ * Mini WhatsApp message bubble — rendered como única vista de cada
+ * nodo "mensaje" en el lienzo. Cuando `editable` está en true, el texto
+ * y los labels de botones/filas pasan a ser inputs in-place; cualquier
+ * cambio dispara los handlers correspondientes (onTextChange,
+ * onButtonChange…) que escriben al config del nodo en flow-builder
+ * via onUpdateConfig. Sin formularios paralelos, sin paneles abajo —
+ * lo que ves es lo que el cliente va a ver, y lo editas ahí mismo.
  */
 
 export type BubbleKind =
@@ -39,35 +40,48 @@ interface BubbleListRow {
   description?: string;
 }
 
-interface WhatsappBubblePreviewProps {
+export interface WhatsappBubblePreviewProps {
   kind: BubbleKind;
   text?: string;
-  /** For buttons (≤3 — Meta cap). */
   buttons?: BubbleButton[];
-  /** For list — flattened rows across all sections (≤10 total). */
   listRows?: BubbleListRow[];
-  /** For list — visible label on the tap-to-expand chip. */
   listButtonLabel?: string;
-  /** For cta_url — visible button label. */
   ctaTitle?: string;
-  /** For cta_url — URL the chip points at (rendered as small hint). */
   ctaUrl?: string;
-  /** For media — public preview URL. */
   mediaUrl?: string;
-  /** For media — optional caption shown beneath the asset. */
   caption?: string;
-  /** For document — filename shown to the recipient. */
   filename?: string;
+  // ── Edición inline ──
+  /** Activa el modo edición — el texto y los botones pasan a ser inputs. */
+  editable?: boolean;
+  onTextChange?: (text: string) => void;
+  onCaptionChange?: (caption: string) => void;
+  onMediaUrlChange?: (url: string) => void;
+  onFilenameChange?: (filename: string) => void;
+  onButtonChange?: (idx: number, title: string) => void;
+  onAddButton?: () => void;
+  onRemoveButton?: (idx: number) => void;
+  onListLabelChange?: (label: string) => void;
+  onListRowChange?: (
+    rowIdx: number,
+    patch: { title?: string; description?: string },
+  ) => void;
+  onAddListRow?: () => void;
+  onRemoveListRow?: (rowIdx: number) => void;
+  onCtaTitleChange?: (title: string) => void;
+  onCtaUrlChange?: (url: string) => void;
 }
 
-const BG = '#e5ddd5'; // WhatsApp chat canvas (light beige)
+const BG = '#e5ddd5';
 const BUBBLE = '#ffffff';
 const META = '#667781';
 const TITLE = '#111b21';
 const LINK = '#00a5f4';
 
 export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
-  const text = (props.text ?? '').trim();
+  const text = props.text ?? '';
+  const editable = !!props.editable;
+
   return (
     <div
       className="space-y-1.5 rounded-md p-2"
@@ -80,16 +94,43 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
     >
       <Bubble>
         {props.kind === 'image' && (
-          <MediaPlaceholder kind="image" url={props.mediaUrl} />
+          <MediaPlaceholder
+            kind="image"
+            url={props.mediaUrl}
+            editable={editable}
+            onUrlChange={props.onMediaUrlChange}
+          />
         )}
         {props.kind === 'video' && (
-          <MediaPlaceholder kind="video" url={props.mediaUrl} />
+          <MediaPlaceholder
+            kind="video"
+            url={props.mediaUrl}
+            editable={editable}
+            onUrlChange={props.onMediaUrlChange}
+          />
         )}
         {props.kind === 'document' && (
-          <DocumentRow filename={props.filename} />
+          <DocumentRow
+            filename={props.filename}
+            editable={editable}
+            onFilenameChange={props.onFilenameChange}
+          />
         )}
 
-        {text ? (
+        {/* Texto principal — el área editable más grande */}
+        {editable ? (
+          <BubbleTextarea
+            value={text}
+            placeholder={
+              props.kind === 'image' ||
+              props.kind === 'video' ||
+              props.kind === 'document'
+                ? 'Caption (opcional)…'
+                : 'Escribe el mensaje…'
+            }
+            onChange={(v) => props.onTextChange?.(v)}
+          />
+        ) : text.trim() ? (
           <p
             className="whitespace-pre-wrap break-words text-[11px] leading-snug"
             style={{ color: TITLE }}
@@ -102,14 +143,24 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
           </p>
         )}
 
-        {props.caption && (
-          <p
-            className="mt-0.5 whitespace-pre-wrap break-words text-[10px] leading-snug"
-            style={{ color: META }}
-          >
-            {props.caption}
-          </p>
-        )}
+        {props.caption !== undefined &&
+          (editable ? (
+            <BubbleTextarea
+              value={props.caption}
+              placeholder="Caption (opcional)…"
+              tiny
+              onChange={(v) => props.onCaptionChange?.(v)}
+            />
+          ) : (
+            props.caption.trim() && (
+              <p
+                className="mt-0.5 whitespace-pre-wrap break-words text-[10px] leading-snug"
+                style={{ color: META }}
+              >
+                {props.caption}
+              </p>
+            )
+          ))}
 
         {/* List trigger button — sits INSIDE the bubble */}
         {props.kind === 'list' && (
@@ -118,56 +169,161 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
             style={{ color: LINK, backgroundColor: '#f0f2f5' }}
           >
             <List className="h-3 w-3" />
-            {(props.listButtonLabel ?? 'Ver opciones').slice(0, 20)}
+            {editable ? (
+              <InlineInput
+                value={props.listButtonLabel ?? ''}
+                placeholder="Ver opciones"
+                maxLength={20}
+                style={{ color: LINK }}
+                onChange={(v) => props.onListLabelChange?.(v)}
+              />
+            ) : (
+              (props.listButtonLabel ?? 'Ver opciones').slice(0, 20)
+            )}
           </div>
         )}
 
         <Meta />
       </Bubble>
 
-      {/* Reply / cta_url buttons render as their own bubbles below */}
-      {props.kind === 'buttons' && (props.buttons ?? []).length > 0 && (
+      {/* Reply buttons render as their own bubbles below */}
+      {props.kind === 'buttons' && (
         <div className="space-y-0.5">
           {(props.buttons ?? []).slice(0, 3).map((b, i) => (
-            <div
+            <ButtonChip
               key={i}
-              className="flex items-center justify-center rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
-              style={{ color: LINK }}
               title={b.title}
-            >
-              {(b.title || 'Botón').slice(0, 20)}
-            </div>
+              editable={editable}
+              onChange={(v) => props.onButtonChange?.(i, v)}
+              onRemove={
+                editable ? () => props.onRemoveButton?.(i) : undefined
+              }
+            />
           ))}
+          {editable && (props.buttons ?? []).length < 3 && (
+            <button
+              type="button"
+              onClick={() => props.onAddButton?.()}
+              className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed bg-white/60 px-2 py-1 text-[11px] font-medium shadow-sm transition-colors hover:bg-white"
+              style={{ color: LINK, borderColor: '#cfd9df' }}
+            >
+              <Plus className="h-3 w-3" />
+              Agregar botón
+            </button>
+          )}
+          {editable && (props.buttons ?? []).length === 3 && (
+            <p
+              className="px-1 text-[9px] italic"
+              style={{ color: META }}
+            >
+              WhatsApp permite máximo 3 botones.
+            </p>
+          )}
         </div>
       )}
 
-      {props.kind === 'cta_url' && props.ctaTitle && (
+      {props.kind === 'cta_url' && (
         <div
           className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
           style={{ color: LINK }}
-          title={props.ctaUrl}
         >
           <ExternalLink className="h-3 w-3" />
-          {props.ctaTitle.slice(0, 20)}
+          {editable ? (
+            <InlineInput
+              value={props.ctaTitle ?? ''}
+              placeholder="Botón…"
+              maxLength={20}
+              style={{ color: LINK }}
+              onChange={(v) => props.onCtaTitleChange?.(v)}
+            />
+          ) : (
+            (props.ctaTitle ?? 'Botón').slice(0, 20)
+          )}
+        </div>
+      )}
+      {props.kind === 'cta_url' && editable && (
+        <div className="flex items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-[10px] shadow-sm">
+          <span style={{ color: META }}>URL:</span>
+          <InlineInput
+            value={props.ctaUrl ?? ''}
+            placeholder="https://…"
+            style={{ color: TITLE }}
+            onChange={(v) => props.onCtaUrlChange?.(v)}
+          />
         </div>
       )}
 
-      {/* List rows preview — collapsed below the bubble for honesty */}
-      {props.kind === 'list' && (props.listRows ?? []).length > 0 && (
+      {/* List rows preview — collapsed below the bubble */}
+      {props.kind === 'list' && (
         <div className="space-y-0.5 rounded-md bg-white px-1.5 py-1 shadow-sm">
-          {(props.listRows ?? []).slice(0, 4).map((r, i) => (
-            <div key={i} className="border-b border-black/5 py-0.5 last:border-b-0">
-              <p className="text-[10px] font-medium" style={{ color: TITLE }}>
-                {(r.title || 'Opción').slice(0, 24)}
-              </p>
-              {r.description && (
-                <p className="text-[9px]" style={{ color: META }}>
-                  {r.description.slice(0, 72)}
-                </p>
+          {(props.listRows ?? []).slice(0, 10).map((r, i) => (
+            <div
+              key={i}
+              className="group/row flex items-start gap-1 border-b border-black/5 py-0.5 last:border-b-0"
+            >
+              <div className="min-w-0 flex-1">
+                {editable ? (
+                  <InlineInput
+                    value={r.title}
+                    placeholder={`Opción ${i + 1}`}
+                    maxLength={24}
+                    className="font-medium"
+                    style={{ color: TITLE, fontSize: 10 }}
+                    onChange={(v) =>
+                      props.onListRowChange?.(i, { title: v })
+                    }
+                  />
+                ) : (
+                  <p
+                    className="text-[10px] font-medium"
+                    style={{ color: TITLE }}
+                  >
+                    {(r.title || 'Opción').slice(0, 24)}
+                  </p>
+                )}
+                {editable ? (
+                  <InlineInput
+                    value={r.description ?? ''}
+                    placeholder="Descripción (opcional)"
+                    maxLength={72}
+                    style={{ color: META, fontSize: 9 }}
+                    onChange={(v) =>
+                      props.onListRowChange?.(i, { description: v })
+                    }
+                  />
+                ) : (
+                  r.description && (
+                    <p className="text-[9px]" style={{ color: META }}>
+                      {r.description.slice(0, 72)}
+                    </p>
+                  )
+                )}
+              </div>
+              {editable && (
+                <button
+                  type="button"
+                  onClick={() => props.onRemoveListRow?.(i)}
+                  className="rounded p-0.5 opacity-0 transition-opacity group-hover/row:opacity-100"
+                  style={{ color: META }}
+                  aria-label="Quitar fila"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
               )}
             </div>
           ))}
-          {(props.listRows ?? []).length > 4 && (
+          {editable && (props.listRows ?? []).length < 10 && (
+            <button
+              type="button"
+              onClick={() => props.onAddListRow?.()}
+              className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-0.5 text-[10px] font-medium transition-colors hover:bg-white"
+              style={{ color: LINK, borderColor: '#cfd9df' }}
+            >
+              <Plus className="h-2.5 w-2.5" />
+              Agregar fila
+            </button>
+          )}
+          {!editable && (props.listRows ?? []).length > 4 && (
             <p
               className="px-0.5 py-0.5 text-[9px]"
               style={{ color: META }}
@@ -206,45 +362,197 @@ function Meta() {
   );
 }
 
+/**
+ * Textarea que crece sola con el contenido y se ve como texto normal
+ * dentro del bubble (sin borde, sin fondo). Usa onInput para auto-
+ * resize. El valor se commit-ea en cada cambio (onChange espejo) así
+ * la edición es 100% controlada.
+ */
+function BubbleTextarea({
+  value,
+  placeholder,
+  onChange,
+  tiny = false,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  tiny?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={(e) => e.stopPropagation()}
+      rows={1}
+      className={cn(
+        'w-full resize-none border-0 bg-transparent p-0 leading-snug outline-none focus:ring-0',
+        tiny ? 'text-[10px]' : 'text-[11px]',
+      )}
+      style={{ color: TITLE }}
+    />
+  );
+}
+
+/**
+ * Input pequeño in-place — usado para labels de botones, filas de lista,
+ * URL, etc. Sin borde por defecto; subrayado azul claro al hover/focus
+ * para que el usuario sepa que se puede editar.
+ */
+function InlineInput({
+  value,
+  placeholder,
+  maxLength,
+  onChange,
+  className,
+  style,
+}: {
+  value: string;
+  placeholder: string;
+  maxLength?: number;
+  onChange: (v: string) => void;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={cn(
+        'w-full min-w-0 border-0 bg-transparent p-0 leading-snug outline-none focus:ring-0',
+        className,
+      )}
+      style={style}
+    />
+  );
+}
+
 function MediaPlaceholder({
   kind,
   url,
+  editable,
+  onUrlChange,
 }: {
   kind: 'image' | 'video';
   url?: string;
+  editable: boolean;
+  onUrlChange?: (url: string) => void;
 }) {
   const Icon = kind === 'image' ? ImageIcon : VideoIcon;
   return (
-    <div
-      className={cn(
-        'mb-1 flex h-14 items-center justify-center rounded',
-        'bg-[#ccd0d5]',
-      )}
-    >
-      {url ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={url}
-          alt=""
-          className="h-full w-full rounded object-cover"
-        />
-      ) : (
-        <Icon className="h-5 w-5 text-white/70" />
+    <div className="mb-1 space-y-1">
+      <div className="flex h-14 items-center justify-center rounded bg-[#ccd0d5]">
+        {url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={url}
+            alt=""
+            className="h-full w-full rounded object-cover"
+          />
+        ) : (
+          <Icon className="h-5 w-5 text-white/70" />
+        )}
+      </div>
+      {editable && (
+        <div className="flex items-center gap-1 rounded bg-white/60 px-1.5 py-0.5 text-[10px]">
+          <span style={{ color: META }}>URL:</span>
+          <InlineInput
+            value={url ?? ''}
+            placeholder="https://…"
+            style={{ color: TITLE }}
+            onChange={(v) => onUrlChange?.(v)}
+          />
+        </div>
       )}
     </div>
   );
 }
 
-function DocumentRow({ filename }: { filename?: string }) {
+function DocumentRow({
+  filename,
+  editable,
+  onFilenameChange,
+}: {
+  filename?: string;
+  editable: boolean;
+  onFilenameChange?: (v: string) => void;
+}) {
   return (
     <div className="mb-1 flex items-center gap-1.5 rounded bg-[#f0f2f5] px-1.5 py-1">
       <FileText className="h-3.5 w-3.5" style={{ color: META }} />
-      <span
-        className="truncate text-[10px] font-medium"
-        style={{ color: TITLE }}
-      >
-        {filename || 'archivo.pdf'}
-      </span>
+      {editable ? (
+        <InlineInput
+          value={filename ?? ''}
+          placeholder="archivo.pdf"
+          style={{ color: TITLE, fontSize: 10 }}
+          className="font-medium"
+          onChange={(v) => onFilenameChange?.(v)}
+        />
+      ) : (
+        <span
+          className="truncate text-[10px] font-medium"
+          style={{ color: TITLE }}
+        >
+          {filename || 'archivo.pdf'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ButtonChip({
+  title,
+  editable,
+  onChange,
+  onRemove,
+}: {
+  title: string;
+  editable: boolean;
+  onChange: (v: string) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div
+      className="group/btn relative flex items-center justify-center rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
+      style={{ color: LINK }}
+    >
+      {editable ? (
+        <InlineInput
+          value={title}
+          placeholder="Botón"
+          maxLength={20}
+          className="text-center"
+          style={{ color: LINK }}
+          onChange={onChange}
+        />
+      ) : (
+        <span>{(title || 'Botón').slice(0, 20)}</span>
+      )}
+      {editable && onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute right-1 rounded p-0.5 opacity-0 transition-opacity group-hover/btn:opacity-100"
+          style={{ color: META }}
+          aria-label="Quitar botón"
+        >
+          <X className="h-2.5 w-2.5" />
+        </button>
+      )}
     </div>
   );
 }

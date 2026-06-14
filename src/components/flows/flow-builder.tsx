@@ -28,6 +28,7 @@ import {
   Workflow,
   ChevronDown,
   ChevronUp,
+  Copy,
   MessageCircle,
   ListChecks,
   ListPlus,
@@ -677,12 +678,23 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   }, [initialFlow.id, router, state.name]);
 
   // ---- Node helpers ----
+  // `silenced` set + `unsilence` están declarados más abajo; las
+  // referenciamos en updateNode/updateNodeConfig via closure. Para
+  // mantener las dependencias correctas pasamos `unsilenceFn` por
+  // ref-like — useCallback no nos deja referenciar identificadores
+  // todavía no declarados, así que usamos un wrapper indirecto.
   const updateNode = useCallback(
     (key: string, patch: Partial<BuilderNode>) => {
       setStateDirty((s) => ({
         ...s,
         nodes: s.nodes.map((n) => (n.node_key === key ? { ...n, ...patch } : n)),
       }));
+      setSilenced((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     },
     [setStateDirty],
   );
@@ -900,6 +912,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           <FlowCanvas
             entryKey={state.entry_node_id}
             allNodes={state.nodes}
+            silenced={silenced}
             expanded={expanded}
             entryNodeId={state.entry_node_id}
             flashedKey={flashedKey}
@@ -909,6 +922,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onUpdate={updateNode}
             onUpdateConfig={updateNodeConfig}
             onMove={moveNode}
+            onDuplicate={duplicateNode}
             onRemove={removeNode}
             onSetEntry={(key) =>
               setStateDirty((s) => ({ ...s, entry_node_id: key }))
@@ -1096,38 +1110,34 @@ function StatusBadge({ status }: { status: BuilderState["status"] }) {
 function NodeCard({
   node,
   allNodes,
-  expanded,
   isEntry,
   isFlashed,
   cardRef,
   issues,
-  onToggle,
   onUpdate,
   onUpdateConfig,
+  onDuplicate,
   onRemove,
   onSetEntry,
 }: {
   node: BuilderNode;
   allNodes: BuilderNode[];
-  expanded: boolean;
   isEntry: boolean;
   isFlashed: boolean;
   cardRef: (el: HTMLDivElement | null) => void;
   issues: ValidationIssue[];
-  onToggle: () => void;
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
+  onDuplicate: () => void;
   onRemove: () => void;
   onSetEntry: () => void;
 }) {
-  const meta = NODE_META[node.node_type];
   const hasError = issues.some((i) => i.severity === "error");
-  const preview = summarizeNode(node);
   return (
     <div
       ref={cardRef}
       className={cn(
-        "rounded-lg border bg-card transition-shadow duration-500",
+        "group/card relative rounded-lg border bg-card transition-shadow duration-500",
         hasError
           ? "border-red-500/40"
           : isEntry
@@ -1137,11 +1147,307 @@ function NodeCard({
           "ring-2 ring-primary ring-offset-2 ring-offset-background",
       )}
     >
+      {/* Una sola superficie de edición — el bubble (para tipos
+          "mensaje") o el card compacto (para tipos lógicos). El usuario
+          edita inline lo que vea, no abre formularios separados. */}
+      <EditableNodeBubble
+        node={node}
+        allNodes={allNodes}
+        onUpdate={onUpdate}
+        onUpdateConfig={onUpdateConfig}
+      />
+
+      {/* Toolbar flotante (top-right) — sale en hover. Duplicar /
+          marcar como entrada / eliminar. */}
+      <NodeHoverToolbar
+        isEntry={isEntry}
+        onSetEntry={onSetEntry}
+        onDuplicate={onDuplicate}
+        onRemove={onRemove}
+      />
+    </div>
+  );
+}
+
+function NodeHoverToolbar({
+  isEntry,
+  onSetEntry,
+  onDuplicate,
+  onRemove,
+}: {
+  isEntry: boolean;
+  onSetEntry: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      className="absolute -right-1 -top-2 z-10 flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/card:opacity-100"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {!isEntry && (
+        <button
+          type="button"
+          onClick={onSetEntry}
+          className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Marcar como entrada"
+          title="Marcar como entrada"
+        >
+          <Flag className="h-3 w-3" />
+        </button>
+      )}
       <button
         type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+        onClick={onDuplicate}
+        className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="Duplicar nodo"
+        title="Duplicar"
       >
+        <Copy className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
+        aria-label="Eliminar nodo"
+        title="Eliminar"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// Node bubble preview — small WhatsApp chat preview inside the card
+// ============================================================
+// EditableNodeBubble — la superficie única de edición del nodo.
+// ============================================================
+// Para los tipos que producen un mensaje (send_message, send_buttons,
+// send_list, send_image/video/document, send_cta_url, collect_input,
+// ai_intent) renderiza el WhatsApp bubble en modo editable: cualquier
+// cambio adentro escribe directo al config via onUpdateConfig. Para
+// los tipos puramente lógicos (condition, set_tag, wait, shopify_lookup,
+// handoff, end, start) renderiza un mini card compacto con los campos
+// clave editables inline.
+function EditableNodeBubble({
+  node,
+  allNodes,
+  onUpdate,
+  onUpdateConfig,
+}: {
+  node: BuilderNode;
+  allNodes: BuilderNode[];
+  onUpdate: (patch: Partial<BuilderNode>) => void;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const cfg = node.config as Record<string, unknown>;
+  void onUpdate; // reservado para casos futuros (renombrar node_key)
+  switch (node.node_type) {
+    case "send_message": {
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="text"
+            text={(cfg.text as string) ?? ""}
+            editable
+            onTextChange={(v) => onUpdateConfig({ text: v })}
+          />
+        </div>
+      );
+    }
+    case "send_buttons": {
+      const buttons = Array.isArray(cfg.buttons)
+        ? (cfg.buttons as Array<{ reply_id?: string; title?: string; next_node_key?: string }>)
+        : [];
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="buttons"
+            text={(cfg.text as string) ?? ""}
+            buttons={buttons.map((b) => ({ title: b.title ?? "" }))}
+            editable
+            onTextChange={(v) => onUpdateConfig({ text: v })}
+            onButtonChange={(idx, title) => {
+              const next = buttons.map((b, i) =>
+                i === idx ? { ...b, title } : b,
+              );
+              onUpdateConfig({ buttons: next });
+            }}
+            onAddButton={() => {
+              const next = [
+                ...buttons,
+                {
+                  reply_id: `btn_${buttons.length + 1}`,
+                  title: "",
+                  next_node_key: "",
+                },
+              ];
+              onUpdateConfig({ buttons: next });
+            }}
+            onRemoveButton={(idx) => {
+              onUpdateConfig({
+                buttons: buttons.filter((_, i) => i !== idx),
+              });
+            }}
+          />
+        </div>
+      );
+    }
+    case "send_list": {
+      const sections = Array.isArray(cfg.sections)
+        ? (cfg.sections as Array<{
+            title?: string;
+            rows?: Array<{
+              reply_id?: string;
+              title?: string;
+              description?: string;
+              next_node_key?: string;
+            }>;
+          }>)
+        : [];
+      const rows = sections.flatMap((s) => s.rows ?? []);
+      const writeRows = (
+        nextFlat: Array<{
+          reply_id?: string;
+          title?: string;
+          description?: string;
+          next_node_key?: string;
+        }>,
+      ) => {
+        // Mantenemos una sola sección (la primera) — el config soporta
+        // varias pero la UI las renderiza planas. Si no hay ninguna,
+        // creamos una con título genérico.
+        const firstTitle = sections[0]?.title ?? "Opciones";
+        onUpdateConfig({
+          sections: [{ title: firstTitle, rows: nextFlat }],
+        });
+      };
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="list"
+            text={(cfg.text as string) ?? ""}
+            listButtonLabel={(cfg.button_label as string) ?? ""}
+            listRows={rows.map((r) => ({
+              title: r.title ?? "",
+              description: r.description,
+            }))}
+            editable
+            onTextChange={(v) => onUpdateConfig({ text: v })}
+            onListLabelChange={(v) => onUpdateConfig({ button_label: v })}
+            onListRowChange={(idx, patch) => {
+              const next = rows.map((r, i) =>
+                i === idx ? { ...r, ...patch } : r,
+              );
+              writeRows(next);
+            }}
+            onAddListRow={() => {
+              writeRows([
+                ...rows,
+                {
+                  reply_id: `row_${rows.length + 1}`,
+                  title: "",
+                  description: "",
+                  next_node_key: "",
+                },
+              ]);
+            }}
+            onRemoveListRow={(idx) => {
+              writeRows(rows.filter((_, i) => i !== idx));
+            }}
+          />
+        </div>
+      );
+    }
+    case "send_cta_url": {
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="cta_url"
+            text={(cfg.text as string) ?? ""}
+            ctaTitle={(cfg.button_title as string) ?? ""}
+            ctaUrl={(cfg.url as string) ?? ""}
+            editable
+            onTextChange={(v) => onUpdateConfig({ text: v })}
+            onCtaTitleChange={(v) => onUpdateConfig({ button_title: v })}
+            onCtaUrlChange={(v) => onUpdateConfig({ url: v })}
+          />
+        </div>
+      );
+    }
+    case "send_image":
+    case "send_video": {
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind={node.node_type === "send_image" ? "image" : "video"}
+            mediaUrl={(cfg.url as string) ?? ""}
+            caption={(cfg.caption as string) ?? ""}
+            text=""
+            editable
+            onMediaUrlChange={(v) => onUpdateConfig({ url: v })}
+            onCaptionChange={(v) => onUpdateConfig({ caption: v })}
+          />
+        </div>
+      );
+    }
+    case "send_document": {
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="document"
+            filename={(cfg.filename as string) ?? ""}
+            caption={(cfg.caption as string) ?? ""}
+            text=""
+            editable
+            onFilenameChange={(v) => onUpdateConfig({ filename: v })}
+            onCaptionChange={(v) => onUpdateConfig({ caption: v })}
+          />
+        </div>
+      );
+    }
+    case "collect_input":
+    case "ai_intent": {
+      return (
+        <div className="px-3 py-2">
+          <WhatsappBubblePreview
+            kind="text"
+            text={(cfg.prompt_text as string) ?? ""}
+            editable
+            onTextChange={(v) => onUpdateConfig({ prompt_text: v })}
+          />
+        </div>
+      );
+    }
+    // Tipos lógicos: card mini con campos editables inline. Sin bubble
+    // porque no producen un mensaje al cliente.
+    default:
+      return (
+        <LogicNodeBody
+          node={node}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+  }
+}
+
+/**
+ * Mini-card para nodos lógicos: header con ícono + tipo, abajo los
+ * campos clave editables inline. Sin formularios grandes.
+ */
+function LogicNodeBody({
+  node,
+  onUpdateConfig,
+}: {
+  node: BuilderNode;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const meta = NODE_META[node.node_type];
+  const cfg = node.config as Record<string, unknown>;
+  return (
+    <div className="space-y-2 p-3">
+      <div className="flex items-center gap-2">
         <div
           className={cn(
             "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
@@ -1150,196 +1456,94 @@ function NodeCard({
         >
           <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">
-              {meta.label}
-            </span>
-            {isEntry && (
-              <span className="rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                Inicio
-              </span>
-            )}
-            {hasError && (
-              <CircleAlert className="h-3 w-3 shrink-0 text-red-400" />
-            )}
-          </div>
-          {preview && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-              {preview}
-            </p>
-          )}
-        </div>
-      </button>
-      {/* WhatsApp bubble preview — shows the merchant exactly what the
-          customer will see in their phone. Honest about Meta's 3-button
-          / 20-char / 10-row limits via truncation. */}
-      <NodeBubblePreview node={node} />
-      {expanded && (
-        <div className="border-t border-border px-4 py-4">
-          <NodeConfigForm
-            node={node}
-            allNodes={allNodes}
-            onUpdate={onUpdate}
-            onUpdateConfig={onUpdateConfig}
+        <span className="text-sm font-medium text-foreground">
+          {meta.label}
+        </span>
+      </div>
+
+      {node.node_type === "condition" && (
+        <div className="space-y-1.5">
+          <CompactInput
+            label="Valor"
+            value={(cfg.value as string) ?? ""}
+            placeholder="Texto a comparar…"
+            onChange={(v) => onUpdateConfig({ value: v })}
           />
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-            <div className="flex items-center gap-2">
-              {!isEntry && (
-                <Button variant="ghost" size="sm" onClick={onSetEntry}>
-                  Marcar como entrada
-                </Button>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRemove}
-              className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Eliminar nodo
-            </Button>
-          </div>
-          {issues.length > 0 && (
-            <div className="mt-3 flex flex-col gap-1 rounded-md bg-red-500/5 p-2">
-              {issues.map((i, ix) => (
-                <IssueLine key={ix} issue={i} />
-              ))}
-            </div>
-          )}
         </div>
+      )}
+      {node.node_type === "wait" && (
+        <div className="flex gap-1.5">
+          <CompactInput
+            label="Tiempo"
+            value={String((cfg.amount as number) ?? "")}
+            placeholder="5"
+            onChange={(v) =>
+              onUpdateConfig({ amount: Number(v) || 0 })
+            }
+          />
+        </div>
+      )}
+      {node.node_type === "handoff" && (
+        <CompactInput
+          label="Nota interna"
+          value={(cfg.note as string) ?? ""}
+          placeholder="Por qué se pasa a un humano…"
+          onChange={(v) => onUpdateConfig({ note: v })}
+        />
+      )}
+      {node.node_type === "shopify_lookup" && (
+        <CompactInput
+          label="Prefijo del resultado"
+          value={(cfg.output_prefix as string) ?? ""}
+          placeholder="order"
+          onChange={(v) => onUpdateConfig({ output_prefix: v })}
+        />
+      )}
+      {node.node_type === "set_tag" && (
+        <p className="text-[11px] italic text-muted-foreground">
+          {(cfg.mode as string) === "remove" ? "Quita la etiqueta." : "Agrega la etiqueta."}
+        </p>
+      )}
+      {node.node_type === "end" && (
+        <p className="text-[11px] italic text-muted-foreground">
+          Fin del flujo. El cliente sale acá.
+        </p>
+      )}
+      {node.node_type === "start" && (
+        <p className="text-[11px] italic text-muted-foreground">
+          Punto de inicio.
+        </p>
       )}
     </div>
   );
 }
 
-// ============================================================
-// Node bubble preview — small WhatsApp chat preview inside the card
-// ============================================================
-// Only renders for node types the customer actually sees. Internal-only
-// types (condition / set_tag / wait / shopify_lookup / handoff / start /
-// end / ai_intent) skip the bubble — they don't produce a message.
-function NodeBubblePreview({ node }: { node: BuilderNode }) {
-  const cfg = node.config as Record<string, unknown>;
-  switch (node.node_type) {
-    case "send_message": {
-      const text = (cfg.text as string) ?? "";
-      if (!text.trim()) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview kind="text" text={text} />
-        </div>
-      );
-    }
-    case "send_buttons": {
-      const text = (cfg.text as string) ?? "";
-      const buttons = Array.isArray(cfg.buttons)
-        ? (cfg.buttons as Array<{ title?: string }>).map((b) => ({
-            title: b.title ?? "",
-          }))
-        : [];
-      if (!text.trim() && buttons.length === 0) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview kind="buttons" text={text} buttons={buttons} />
-        </div>
-      );
-    }
-    case "send_list": {
-      const text = (cfg.text as string) ?? "";
-      const label = (cfg.button_label as string) ?? "Ver opciones";
-      const sections = Array.isArray(cfg.sections)
-        ? (cfg.sections as Array<{
-            rows?: Array<{ title?: string; description?: string }>
-          }>)
-        : [];
-      const rows = sections.flatMap((s) =>
-        (s.rows ?? []).map((r) => ({
-          title: r.title ?? "",
-          description: r.description,
-        })),
-      );
-      if (!text.trim() && rows.length === 0) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview
-            kind="list"
-            text={text}
-            listButtonLabel={label}
-            listRows={rows}
-          />
-        </div>
-      );
-    }
-    case "send_cta_url": {
-      const text = (cfg.text as string) ?? "";
-      const title = (cfg.button_title as string) ?? "";
-      const url = (cfg.url as string) ?? "";
-      if (!text.trim() && !title) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview
-            kind="cta_url"
-            text={text}
-            ctaTitle={title}
-            ctaUrl={url}
-          />
-        </div>
-      );
-    }
-    case "send_image":
-    case "send_video": {
-      const url = (cfg.url as string) ?? "";
-      const caption = (cfg.caption as string) ?? "";
-      if (!url && !caption) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview
-            kind={node.node_type === "send_image" ? "image" : "video"}
-            mediaUrl={url}
-            text=""
-            caption={caption}
-          />
-        </div>
-      );
-    }
-    case "send_document": {
-      const filename = (cfg.filename as string) ?? "";
-      const caption = (cfg.caption as string) ?? "";
-      if (!filename && !caption) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview
-            kind="document"
-            filename={filename}
-            text=""
-            caption={caption}
-          />
-        </div>
-      );
-    }
-    case "collect_input": {
-      const text = (cfg.prompt_text as string) ?? "";
-      if (!text.trim()) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview kind="text" text={text} />
-        </div>
-      );
-    }
-    case "ai_intent": {
-      const text = (cfg.prompt_text as string) ?? "";
-      if (!text.trim()) return null;
-      return (
-        <div className="border-t border-border px-3 pb-3 pt-2">
-          <WhatsappBubblePreview kind="text" text={text} />
-        </div>
-      );
-    }
-    default:
-      return null;
-  }
+function CompactInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="mt-0.5 w-full rounded-md border border-border bg-muted/30 px-2 py-1 text-sm text-foreground outline-none focus:border-foreground/40"
+      />
+    </label>
+  );
 }
 
 // ============================================================
@@ -2900,19 +3104,22 @@ function FlowCanvas(props: FlowTreeProps) {
           key={node.node_key}
           node={node}
           allNodes={props.allNodes}
-          expanded={props.expanded.has(node.node_key)}
           isEntry={props.entryNodeId === node.node_key}
           isFlashed={props.flashedKey === node.node_key}
           cardRef={props.setNodeRef(node.node_key)}
-          issues={props.issues.filter(
-            (i) => i.scope === "node" && i.node_key === node.node_key,
-          )}
+          issues={
+            props.silenced.has(node.node_key)
+              ? []
+              : props.issues.filter(
+                  (i) => i.scope === "node" && i.node_key === node.node_key,
+                )
+          }
           onMove={(x, y) => props.onMove(node.node_key, x, y)}
-          onToggle={() => props.onToggle(node.node_key)}
           onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
           onUpdateConfig={(patch) =>
             props.onUpdateConfig(node.node_key, patch)
           }
+          onDuplicate={() => props.onDuplicate(node.node_key)}
           onRemove={() => props.onRemove(node.node_key)}
           onSetEntry={() => props.onSetEntry(node.node_key)}
         />
@@ -2941,15 +3148,14 @@ function ConnectorPath({ edge }: { edge: CanvasEdge }) {
 interface DraggableNodeProps {
   node: BuilderNode
   allNodes: BuilderNode[]
-  expanded: boolean
   isEntry: boolean
   isFlashed: boolean
   cardRef: (el: HTMLDivElement | null) => void
   issues: ValidationIssue[]
   onMove: (x: number, y: number) => void
-  onToggle: () => void
   onUpdate: (patch: Partial<BuilderNode>) => void
   onUpdateConfig: (patch: Record<string, unknown>) => void
+  onDuplicate: () => void
   onRemove: () => void
   onSetEntry: () => void
 }
@@ -3027,14 +3233,13 @@ function DraggableNode(props: DraggableNodeProps) {
       <NodeCard
         node={props.node}
         allNodes={props.allNodes}
-        expanded={props.expanded}
         isEntry={props.isEntry}
         isFlashed={props.isFlashed}
         cardRef={props.cardRef}
         issues={props.issues}
-        onToggle={props.onToggle}
         onUpdate={props.onUpdate}
         onUpdateConfig={props.onUpdateConfig}
+        onDuplicate={props.onDuplicate}
         onRemove={props.onRemove}
         onSetEntry={props.onSetEntry}
       />
@@ -3108,6 +3313,11 @@ function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
 interface FlowTreeProps {
   entryKey: string | null
   allNodes: BuilderNode[]
+  /**
+   * Set de node_keys cuyos errores no deben mostrarse en su tarjeta
+   * (recién creados / aún no editados por el usuario).
+   */
+  silenced: Set<string>
   expanded: Set<string>
   entryNodeId: string | null
   flashedKey: string | null
@@ -3117,6 +3327,7 @@ interface FlowTreeProps {
   onUpdate: (key: string, patch: Partial<BuilderNode>) => void
   onUpdateConfig: (key: string, patch: Record<string, unknown>) => void
   onMove: (key: string, x: number, y: number) => void
+  onDuplicate: (key: string) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
   onAdd: (type: NodeType) => void
