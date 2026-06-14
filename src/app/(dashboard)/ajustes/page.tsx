@@ -1,23 +1,21 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Tag, User, Palette, Building2, Plug2 } from 'lucide-react';
+import Link from 'next/link';
+import { Tag, User, Palette, Building2, Blocks, ArrowRight } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
-import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
 
-const TAB_VALUES = [
-  'profile',
-  'workspace',
-  'channels',
-  'tags',
-  'appearance',
-] as const;
+/**
+ * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
+ * viven en /integraciones (es su propia página, no un tab acá).
+ */
+const TAB_VALUES = ['profile', 'workspace', 'tags', 'appearance'] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 function isTabValue(v: string | null): v is TabValue {
@@ -34,13 +32,23 @@ export default function SettingsPage() {
   const onChange = (next: TabValue) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
-    router.replace(`/settings?${params.toString()}`, { scroll: false });
+    // Fix del bug previo: el router.replace apuntaba a `/settings` pero
+    // la ruta real es `/ajustes`. Cambiar tabs producía un 404.
+    router.replace(`/ajustes?${params.toString()}`, { scroll: false });
   };
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Ajustes</h1>
+        <Link
+          href="/integraciones"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Blocks className="size-4" />
+          Integraciones
+          <ArrowRight className="size-3.5" />
+        </Link>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
@@ -58,13 +66,6 @@ export default function SettingsPage() {
           >
             <Building2 className="size-4" />
             Equipo
-          </TabsTrigger>
-          <TabsTrigger
-            value="channels"
-            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-          >
-            <Plug2 className="size-4" />
-            Canales
           </TabsTrigger>
           <TabsTrigger
             value="tags"
@@ -90,10 +91,6 @@ export default function SettingsPage() {
 
         <TabsContent value="workspace">
           <WorkspacePanel />
-        </TabsContent>
-
-        <TabsContent value="channels" className="space-y-6">
-          <ChannelsPanel />
         </TabsContent>
 
         <TabsContent value="tags">

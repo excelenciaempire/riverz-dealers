@@ -17,6 +17,7 @@ import {
   Sparkles,
   Blocks,
   Settings,
+  ShoppingBag,
   LogOut,
   User,
   X,
@@ -67,14 +68,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "Marketing",
-    items: [
-      { href: "/campanas", label: "Campañas masivas", icon: Megaphone },
-      { href: "/plantillas", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
-    ],
-  },
-  {
-    title: "Automatización",
+    title: "Atención",
     items: [
       {
         href: "/asistente",
@@ -83,6 +77,19 @@ const navGroups: NavGroup[] = [
         alsoActiveOn: ["/menus"],
       },
       { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
+    ],
+  },
+  {
+    title: "Marketing",
+    items: [
+      { href: "/campanas", label: "Campañas masivas", icon: Megaphone },
+      { href: "/plantillas", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
+    ],
+  },
+  {
+    title: "Catálogo",
+    items: [
+      { href: "/productos", label: "Productos", icon: ShoppingBag },
     ],
   },
 ];
@@ -239,7 +246,10 @@ export function Sidebar({
           ))}
         </nav>
 
-        {/* Integraciones + Ajustes */}
+        {/* Configuración: Integraciones (canales y apps externas) + Ajustes
+            (perfil, equipo, etiquetas, apariencia). Antes Integraciones
+            era un deep-link a /settings?tab=channels — ahora es su propia
+            página. */}
         <div
           className={cn(
             "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
@@ -248,7 +258,7 @@ export function Sidebar({
         >
           <NavLink
             item={{
-              href: "/settings?tab=channels",
+              href: "/integraciones",
               label: "Integraciones",
               icon: Blocks,
             }}
@@ -309,7 +319,7 @@ export function Sidebar({
               <DropdownMenuItem
                 render={
                   <Link
-                    href="/settings?tab=profile"
+                    href="/ajustes?tab=profile"
                     onClick={onClose}
                     className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
                   />
@@ -321,7 +331,7 @@ export function Sidebar({
               <DropdownMenuItem
                 render={
                   <Link
-                    href="/settings?tab=channels"
+                    href="/ajustes"
                     onClick={onClose}
                     className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
                   />
