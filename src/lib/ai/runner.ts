@@ -9,7 +9,7 @@ import type {
 } from '@/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
-import type { AiAgent, AiTone, BusinessHours } from './types';
+import type { AiAgent, AiResponseMode, AiTone, BusinessHours } from './types';
 import {
   detectProductMention,
   type CandidateProduct,
@@ -80,6 +80,29 @@ export async function runAiAgent(
       return;
     }
 
+    // Inbound debounce: si el agente tiene > 0, esperamos esa cantidad
+    // de segundos y después chequeamos si llegó un inbound MÁS NUEVO
+    // que el que disparó este runner. Si sí, abortamos — el runner del
+    // mensaje más nuevo va a cubrir todo. Esto evita que la IA conteste
+    // 3 veces seguidas a un cliente que mandó 3 mensajes en ráfaga.
+    if (agent.inbound_debounce_seconds > 0) {
+      await sleep(agent.inbound_debounce_seconds * 1000);
+      const { data: laterRows } = await db
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', args.conversation.id)
+        .eq('sender_type', 'customer')
+        .gt('created_at', args.inboundMessage.created_at)
+        .limit(1);
+      if ((laterRows ?? []).length > 0) {
+        await logReply(db, agent, args, {
+          status: 'skipped',
+          skip_reason: 'debounced_by_newer_inbound',
+        });
+        return;
+      }
+    }
+
     const context = await loadContext(db, args.conversation.id, agent.context_messages);
     const products = await loadProductCatalog(db, agent, ownerUserId, productMatch);
     const reply = await generateReply(agent, args.contact, context, products, productMatch);
@@ -92,33 +115,49 @@ export async function runAiAgent(
       await sleep(agent.reply_delay_seconds * 1000);
     }
 
-    const adapter = getAdapter(args.channel);
-    const sendResult = await adapter.sendText({
-      channel: args.channel,
-      connection: args.connection,
-      conversation: args.conversation,
-      contact: args.contact,
-      text: reply.text,
-    });
+    // Modo de respuesta: single = 1 mensaje (default histórico).
+    // multi = partir por \n\n y enviar c/u como un mensaje aparte con
+    // un pequeño delay entre chunks. dynamic = decide según el largo
+    // (corto va en 1, largo se parte).
+    const chunks = splitReplyForMode(reply.text, agent.response_mode);
 
-    const { data: persistedMessage } = await db
-      .from('messages')
-      .insert({
-        conversation_id: args.conversation.id,
+    const adapter = getAdapter(args.channel);
+    const insertedIds: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const sendResult = await adapter.sendText({
         channel: args.channel,
-        sender_type: 'bot',
-        content_type:
-          args.channel === 'gmail' || args.channel === 'outlook'
-            ? 'email'
-            : args.channel === 'fb_comment' || args.channel === 'ig_comment'
-              ? 'comment'
-              : 'text',
-        content_text: reply.text,
-        message_id: sendResult.externalMessageId,
-        status: sendResult.status ?? 'sent',
-      })
-      .select()
-      .single();
+        connection: args.connection,
+        conversation: args.conversation,
+        contact: args.contact,
+        text: chunk,
+      });
+      const { data: persistedMessage } = await db
+        .from('messages')
+        .insert({
+          conversation_id: args.conversation.id,
+          channel: args.channel,
+          sender_type: 'bot',
+          content_type:
+            args.channel === 'gmail' || args.channel === 'outlook'
+              ? 'email'
+              : args.channel === 'fb_comment' || args.channel === 'ig_comment'
+                ? 'comment'
+                : 'text',
+          content_text: chunk,
+          message_id: sendResult.externalMessageId,
+          status: sendResult.status ?? 'sent',
+        })
+        .select()
+        .single();
+      const id = (persistedMessage as { id: string } | null)?.id;
+      if (id) insertedIds.push(id);
+      // Inter-chunk pause: 700ms-1.2s para sensación natural. No se
+      // aplica antes del último chunk.
+      if (i < chunks.length - 1) {
+        await sleep(700 + Math.floor(Math.random() * 500));
+      }
+    }
 
     await db
       .from('conversations')
@@ -132,7 +171,7 @@ export async function runAiAgent(
 
     await logReply(db, agent, args, {
       status: 'sent',
-      message_id: (persistedMessage as { id: string } | null)?.id ?? null,
+      message_id: insertedIds[0] ?? null,
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
     });
@@ -728,4 +767,34 @@ async function logReply(
     prompt_tokens: patch.prompt_tokens ?? null,
     completion_tokens: patch.completion_tokens ?? null,
   });
+}
+
+/**
+ * Parte la respuesta de la IA en chunks según el modo configurado.
+ * - single  : devuelve [text] siempre (un solo bubble).
+ * - multi   : parte por dos saltos de línea seguidos (\n\n+). Cada
+ *             párrafo va como un mensaje separado en WhatsApp.
+ * - dynamic : si el texto es corto (<280 chars) o no tiene separador
+ *             explícito, devuelve [text]. Si es largo Y tiene \n\n,
+ *             parte como multi. La heurística cubre el caso usual:
+ *             un saludo corto va de una; una FAQ larga se separa para
+ *             que se lea más natural.
+ *
+ * Si el modelo devuelve solo un chunk no vacío, los modos multi y
+ * dynamic colapsan a un solo bubble (no enviamos un mensaje vacío).
+ */
+function splitReplyForMode(
+  text: string,
+  mode: AiResponseMode,
+): string[] {
+  if (mode === 'single') return [text];
+  if (mode === 'dynamic') {
+    if (text.length < 280) return [text];
+    if (!/\n\s*\n/.test(text)) return [text];
+  }
+  const parts = text
+    .split(/\n\s*\n+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [text];
 }

@@ -4,6 +4,17 @@ export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';
 export type AiProductScope = 'all' | 'specific';
+/**
+ * Modo de respuesta del asistente IA. Migration 034.
+ *   - single  : una sola burbuja (default histórico).
+ *   - multi   : el modelo arma su respuesta con \n\n como separador
+ *               de ideas; el runner manda cada chunk como un mensaje
+ *               separado para que sienta conversacional.
+ *   - dynamic : el modelo decide según el largo. Respuesta corta
+ *               (<280 chars) va en una burbuja; respuesta larga se
+ *               parte en varios chunks naturales.
+ */
+export type AiResponseMode = 'single' | 'multi' | 'dynamic';
 
 export interface BusinessHours {
   /** IANA timezone, e.g. "America/Bogota". */
@@ -26,6 +37,12 @@ export interface AiAgent {
   max_response_chars: number;
   reply_delay_seconds: number;
   context_messages: number;
+  /** Cómo el asistente entrega su respuesta. Migration 034. */
+  response_mode: AiResponseMode;
+  /** Segundos que el runner espera tras un inbound antes de generar
+   *  la réplica. Si llega otro inbound durante la espera, este runner
+   *  se cancela. 0 = desactivado. Migration 034. */
+  inbound_debounce_seconds: number;
 
   reply_when_assigned: boolean;
   reply_outside_hours: boolean;

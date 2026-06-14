@@ -23,7 +23,7 @@ export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
       <ModeCard
         href="/menus"
         icon={<Waypoints className="size-4" />}
-        title="Menús con botones"
+        title="Flujos"
         hint="Tú defines las opciones; el cliente toca y avanza."
         active={current === 'flows'}
       />

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
 import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
@@ -201,6 +202,37 @@ export default function FlowsPage() {
               flow={flow}
               onEdit={() => router.push(`/menus/${flow.id}`)}
               onDelete={() => handleDelete(flow)}
+              onToggle={async (next) => {
+                // Optimistic flip así el switch se siente instantáneo.
+                setFlows((prev) =>
+                  prev.map((f) =>
+                    f.id === flow.id
+                      ? { ...f, status: next ? "active" : "draft" }
+                      : f,
+                  ),
+                );
+                try {
+                  const res = await fetch(`/api/flows/${flow.id}/activate`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      status: next ? "active" : "draft",
+                    }),
+                  });
+                  if (!res.ok) throw new Error("activate failed");
+                  toast.success(next ? "Flujo activado" : "Flujo pausado");
+                } catch {
+                  // Rollback en error.
+                  setFlows((prev) =>
+                    prev.map((f) =>
+                      f.id === flow.id
+                        ? { ...f, status: next ? "draft" : "active" }
+                        : f,
+                    ),
+                  );
+                  toast.error("No se pudo cambiar el estado");
+                }
+              }}
             />
           ))}
         </div>
@@ -403,18 +435,14 @@ function FlowCard({
   flow,
   onEdit,
   onDelete,
+  onToggle,
 }: {
   flow: FlowRow;
   onEdit: () => void;
   onDelete: () => void;
+  onToggle: (next: boolean) => void | Promise<void>;
 }) {
   const triggerSummary = describeTrigger(flow);
-  const StatusIcon =
-    flow.status === "active"
-      ? PlayCircle
-      : flow.status === "archived"
-        ? Archive
-        : PauseCircle;
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-foreground/30">
       <div className="flex items-start justify-between gap-2">
@@ -424,16 +452,23 @@ function FlowCard({
             {flow.name}
           </h3>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            "shrink-0 gap-1 text-[10px]",
-            STATUS_COLORS[flow.status],
-          )}
-        >
-          <StatusIcon className="h-3 w-3" />
-          {STATUS_LABELS[flow.status]}
-        </Badge>
+        {/* Toggle on/off al lado del título. Reemplaza el badge
+            "Borrador / Activo" + el botón "Activar" del editor: ahora
+            el merchant prende o apaga desde la lista misma. Disabled
+            cuando el flujo está archivado (no aplica). */}
+        {flow.status !== "archived" ? (
+          <Switch
+            checked={flow.status === "active"}
+            onCheckedChange={(v) => onToggle(!!v)}
+            aria-label={
+              flow.status === "active" ? "Pausar flujo" : "Activar flujo"
+            }
+          />
+        ) : (
+          <Badge variant="outline" className="shrink-0 gap-1 text-[10px]">
+            Archivado
+          </Badge>
+        )}
       </div>
 
       <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">

@@ -466,43 +466,185 @@ export function SimulatorPanel({
     setInput("");
   }
 
+  // Hora simulada para los timestamps del chat (HH:MM).
+  const nowStamp = "10:24";
+
   return (
-    <div className="absolute inset-y-4 right-4 z-40 flex w-[380px] flex-col rounded-xl border border-border bg-card shadow-2xl shadow-black/40">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-md bg-emerald-500/15">
-            <Play className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-foreground">
-              Simulador WhatsApp
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              Probá el flujo como cliente, sin tocar tu teléfono.
-            </div>
-          </div>
-        </div>
+    <div className="absolute inset-y-4 right-4 z-40 flex flex-col items-center">
+      {/* Header de control fuera del frame del teléfono — botones de
+          reiniciar, cerrar y toggle de variables. No es parte del
+          "celular" para que la ilusión visual del frame sea pareja. */}
+      <div className="mb-2 flex w-[360px] items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setState(initial());
+            setTimeout(start, 0);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+          title="Reiniciar simulación"
+        >
+          <RefreshCw className="size-3" />
+          Reiniciar
+        </button>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Simulador
+        </span>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="rounded-md border border-border bg-card p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Cerrar"
         >
-          <X className="size-4" />
+          <X className="size-3.5" />
         </button>
       </div>
 
-      {/* Vars panel */}
+      {/* Frame del teléfono. Marco negro grueso + notch + esquinas
+          redondeadas que imitan un iPhone moderno. Dimensiones fijas
+          (~iPhone 14 ratio: 360x720). Sombra acentuada para que se
+          despegue visualmente del lienzo del editor. */}
+      <div
+        className="relative flex flex-col overflow-hidden rounded-[2.5rem] bg-[#111] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55)]"
+        style={{ width: 360, height: 720, padding: 12 }}
+      >
+        {/* Pantalla interior con borde mate. Toda la app vive dentro. */}
+        <div className="relative flex h-full flex-col overflow-hidden rounded-[1.8rem] bg-[#ece5dd]">
+          {/* Notch (Dynamic Island estilo). Es decorativo. */}
+          <div className="pointer-events-none absolute left-1/2 top-2 z-30 h-6 w-24 -translate-x-1/2 rounded-full bg-[#111]" />
+
+          {/* Status bar — hora + iconos de wifi / batería como un
+              celular real. */}
+          <div className="z-10 flex shrink-0 items-center justify-between bg-[#111] px-5 pb-2 pt-2 text-[11px] font-medium text-white">
+            <span>{nowStamp}</span>
+            <div className="flex items-center gap-1 opacity-80">
+              <SignalIcon />
+              <WifiIcon />
+              <BatteryIcon />
+            </div>
+          </div>
+
+          {/* Header verde de WhatsApp con avatar + nombre. */}
+          <div className="z-10 flex shrink-0 items-center gap-2 bg-[#075e54] px-3 py-2 text-white">
+            <ChevronLeftIcon />
+            <div className="flex size-8 items-center justify-center rounded-full bg-[#128c7e] text-sm font-semibold">
+              T
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium">Tu tienda</p>
+              <p className="text-[10px] opacity-80">en línea</p>
+            </div>
+            <VideoIcon />
+            <PhoneIcon />
+            <MenuVerticalIcon />
+          </div>
+
+          {/* Historial de mensajes con el background típico de WhatsApp
+              (beige con doodles tenues). */}
+          <div
+            ref={scrollRef}
+            className="relative flex-1 space-y-2 overflow-y-auto px-3 py-3"
+            style={{
+              backgroundColor: "#ece5dd",
+              backgroundImage:
+                "radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)",
+              backgroundSize: "12px 12px",
+            }}
+          >
+            {state.history.length === 0 && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-[#7a8a91]">
+                <Bot className="size-8" />
+                <p className="text-xs">
+                  Toca &quot;Iniciar&quot; para correr el flujo desde el inicio.
+                </p>
+                <button
+                  type="button"
+                  onClick={start}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#25d366] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#1ebe5a]"
+                >
+                  <Play className="size-3" />
+                  Iniciar
+                </button>
+                {triggerType === "keyword" && (
+                  <p className="text-[10px] text-[#7a8a91]">
+                    Disparador real: keyword{" "}
+                    {Array.isArray((triggerConfig as { keywords?: string[] }).keywords)
+                      ? `(${(triggerConfig as { keywords: string[] }).keywords.join(", ")})`
+                      : ""}
+                  </p>
+                )}
+              </div>
+            )}
+            {state.history.map((m, i) => (
+              <MessageBubble
+                key={i}
+                msg={m}
+                stamp={nowStamp}
+                onButton={handleButtonReply}
+              />
+            ))}
+          </div>
+
+          {/* Composer estilo WhatsApp con iconos a izq/der. */}
+          <div className="z-10 flex shrink-0 items-center gap-2 bg-[#f0f0f0] px-2 py-2">
+            <SmileIcon />
+            {state.awaiting === "text" ? (
+              <>
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleTextSend(input);
+                    }
+                  }}
+                  placeholder="Mensaje"
+                  className="flex-1 rounded-full border border-[#dcdcdc] bg-white px-3 py-1.5 text-sm text-[#111b21] outline-none"
+                />
+                <PaperclipIcon />
+                <button
+                  type="button"
+                  onClick={() => handleTextSend(input)}
+                  disabled={!input.trim()}
+                  className="inline-flex size-9 items-center justify-center rounded-full bg-[#25d366] text-white shadow-sm disabled:opacity-40"
+                  aria-label="Enviar"
+                >
+                  <Send className="size-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <div
+                  className="flex-1 rounded-full border border-[#dcdcdc] bg-white px-3 py-1.5 text-sm text-[#9aa6ad]"
+                  aria-hidden
+                >
+                  Esperando bot…
+                </div>
+                <PaperclipIcon />
+                <span
+                  className="inline-flex size-9 items-center justify-center rounded-full bg-[#25d366] opacity-60"
+                  aria-hidden
+                >
+                  <MicIcon />
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Vars panel (debajo del teléfono, no dentro). */}
       {Object.keys(state.vars).length > 0 && (
-        <div className="border-b border-border bg-muted/30 px-3 py-2">
+        <div className="mt-3 w-[360px] rounded-lg border border-border bg-card px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            Variables vivas
+            Variables capturadas
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {Object.entries(state.vars).map(([k, v]) => (
               <span
                 key={k}
-                className="rounded-full bg-card px-1.5 py-0.5 text-[10px] text-foreground"
+                className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-foreground"
               >
                 <code className="text-muted-foreground">{k}</code>={v}
               </span>
@@ -510,99 +652,114 @@ export function SimulatorPanel({
           </div>
         </div>
       )}
-
-      {/* History */}
-      <div
-        ref={scrollRef}
-        className="flex-1 space-y-2 overflow-y-auto bg-[#0c1418] px-3 py-3"
-        style={{
-          backgroundImage:
-            'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
-          backgroundSize: '10px 10px',
-        }}
-      >
-        {state.history.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-            <Bot className="size-8" />
-            <p className="text-xs">
-              Pulsa “Iniciar” para correr el flujo desde el inicio.
-            </p>
-            <button
-              type="button"
-              onClick={start}
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/30"
-            >
-              <Play className="size-3" />
-              Iniciar
-            </button>
-            {triggerType === "keyword" && (
-              <p className="text-[10px] text-muted-foreground">
-                Disparador real: keyword{" "}
-                {Array.isArray((triggerConfig as { keywords?: string[] }).keywords) ? `(${(triggerConfig as { keywords: string[] }).keywords.join(", ")})` : ""}
-              </p>
-            )}
-          </div>
-        )}
-        {state.history.map((m, i) => (
-          <MessageBubble key={i} msg={m} onButton={handleButtonReply} />
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-border bg-card px-3 py-2">
-        {state.awaiting === "text" ? (
-          <div className="flex items-end gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleTextSend(input);
-                }
-              }}
-              placeholder="Escribe como cliente…"
-              className="flex-1 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-sm text-foreground outline-none focus:border-foreground/30"
-            />
-            <button
-              type="button"
-              onClick={() => handleTextSend(input)}
-              disabled={!input.trim()}
-              className="inline-flex size-9 items-center justify-center rounded-md bg-emerald-500 text-white disabled:opacity-40"
-              aria-label="Enviar"
-            >
-              <Send className="size-4" />
-            </button>
-          </div>
-        ) : state.history.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => {
-              setState(initial());
-              setTimeout(start, 0);
-            }}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-muted px-3 py-1.5 text-xs text-foreground hover:bg-accent"
-          >
-            <RefreshCw className="size-3.5" />
-            Reiniciar simulación
-          </button>
-        ) : null}
-      </div>
     </div>
+  );
+}
+
+// Iconos SVG inline minimalistas para imitar el status bar y el
+// header de WhatsApp. Inline para no agregar otra dependencia.
+function SignalIcon() {
+  return (
+    <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor">
+      <rect x="0" y="6" width="2" height="4" rx="0.5" />
+      <rect x="3" y="4" width="2" height="6" rx="0.5" />
+      <rect x="6" y="2" width="2" height="8" rx="0.5" />
+      <rect x="9" y="0" width="2" height="10" rx="0.5" />
+    </svg>
+  );
+}
+function WifiIcon() {
+  return (
+    <svg width="12" height="10" viewBox="0 0 12 10" fill="currentColor">
+      <path d="M6 8.5a1 1 0 110 2 1 1 0 010-2zm0-3a3 3 0 012.5 1.35L7.1 8.1A1.5 1.5 0 006 7.6c-.4 0-.8.15-1.1.5L3.5 6.85A3 3 0 016 5.5zm0-3.5a6 6 0 015.2 3l-1.4 1.4A4 4 0 006 4a4 4 0 00-3.8 2.4L.8 5A6 6 0 016 2z" />
+    </svg>
+  );
+}
+function BatteryIcon() {
+  return (
+    <svg width="22" height="10" viewBox="0 0 22 10" fill="none" stroke="currentColor" strokeWidth="1">
+      <rect x="0.5" y="0.5" width="18" height="9" rx="2" />
+      <rect x="19" y="3" width="2" height="4" rx="0.5" fill="currentColor" />
+      <rect x="2" y="2" width="14" height="6" fill="currentColor" />
+    </svg>
+  );
+}
+function ChevronLeftIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M10 4L6 8l4 4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function VideoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2" y="5" width="10" height="8" rx="1.5" />
+      <path d="M12 8l4-2v6l-4-2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function PhoneIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M3.7 1.4c.6-.2 1.3.1 1.6.7l1 2c.3.6.1 1.3-.4 1.7l-.9.7c.7 1.5 1.9 2.7 3.4 3.4l.7-.9c.4-.5 1.1-.7 1.7-.4l2 1c.6.3.9 1 .7 1.6l-.7 1.8c-.2.6-.8 1-1.4 1C5.8 14 2 10.2 2 5.4c0-.6.4-1.2 1-1.4l.7-1.6z" />
+    </svg>
+  );
+}
+function MenuVerticalIcon() {
+  return (
+    <svg width="4" height="16" viewBox="0 0 4 16" fill="currentColor">
+      <circle cx="2" cy="3" r="1.5" />
+      <circle cx="2" cy="8" r="1.5" />
+      <circle cx="2" cy="13" r="1.5" />
+    </svg>
+  );
+}
+function SmileIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#7a8a91" strokeWidth="1.5">
+      <circle cx="11" cy="11" r="8" />
+      <circle cx="8" cy="9" r="0.8" fill="#7a8a91" />
+      <circle cx="14" cy="9" r="0.8" fill="#7a8a91" />
+      <path d="M7.5 13.5c.8 1.5 2.2 2.3 3.5 2.3s2.7-.8 3.5-2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function PaperclipIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#7a8a91" strokeWidth="1.5">
+      <path d="M14.5 4.5L7 12a3 3 0 104.24 4.24L18 9.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+function MicIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
+      <rect x="6" y="2" width="4" height="8" rx="2" />
+      <path
+        d="M4 8a4 4 0 008 0M8 12v2"
+        fill="none"
+        stroke="white"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
 function MessageBubble({
   msg,
+  stamp,
   onButton,
 }: {
   msg: Msg;
+  stamp: string;
   onButton: (b: { label: string; replyId: string; nextKey?: string }) => void;
 }) {
   if (msg.from === "system") {
     return (
       <div className="flex justify-center">
-        <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] text-white/60">
+        <span className="rounded-md bg-[#fef6c5] px-3 py-1 text-[10px] text-[#5a4a00] shadow-sm">
           {msg.text}
         </span>
       </div>
@@ -613,20 +770,20 @@ function MessageBubble({
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[80%] space-y-1 rounded-lg px-2.5 py-1.5 text-xs",
+          "relative max-w-[78%] space-y-1 px-2 py-1.5 text-[13px] leading-snug shadow-sm",
           isUser
-            ? "rounded-br-sm bg-emerald-600 text-white"
-            : "rounded-bl-sm bg-white text-gray-900",
+            ? "rounded-lg rounded-br-none bg-[#dcf8c6] text-[#111b21]"
+            : "rounded-lg rounded-bl-none bg-white text-[#111b21]",
         )}
       >
-        {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
+        {msg.text && <p className="whitespace-pre-wrap pr-10">{msg.text}</p>}
         {msg.kind === "buttons" && msg.buttons && (
-          <div className="mt-1 flex flex-col gap-1">
+          <div className="mt-1 flex flex-col gap-1 border-t border-black/5 pt-1">
             {msg.buttons.map((b) => (
               <button
                 key={b.replyId}
                 onClick={() => onButton(b)}
-                className="rounded border border-blue-500/40 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
+                className="rounded-md bg-white px-2 py-1 text-[12px] font-medium text-[#075e54] hover:bg-[#f5f5f5]"
               >
                 {b.label}
               </button>
@@ -634,12 +791,12 @@ function MessageBubble({
           </div>
         )}
         {msg.kind === "list" && msg.listRows && (
-          <div className="mt-1 flex flex-col gap-1">
+          <div className="mt-1 flex flex-col gap-1 border-t border-black/5 pt-1">
             {msg.listRows.map((r) => (
               <button
                 key={r.replyId}
                 onClick={() => onButton(r)}
-                className="rounded border border-gray-300 bg-gray-50 px-2 py-1 text-left text-[11px] text-gray-800 hover:bg-gray-100"
+                className="rounded-md bg-white px-2 py-1 text-left text-[12px] text-[#111b21] hover:bg-[#f5f5f5]"
               >
                 {r.label}
               </button>
@@ -651,21 +808,20 @@ function MessageBubble({
             href={msg.url}
             target="_blank"
             rel="noreferrer"
-            className="mt-1 inline-block rounded border border-blue-500/40 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700"
+            className="mt-1 inline-block rounded-md bg-white px-2 py-1 text-[12px] font-medium text-[#075e54]"
           >
             {msg.ctaLabel} ↗
           </a>
         )}
         {msg.kind === "media" && msg.url && (
-          <div className="mt-1 rounded bg-gray-100 px-2 py-1 text-[10px] text-gray-600">
+          <div className="mt-1 rounded bg-black/5 px-2 py-1 text-[10px] text-[#54656f]">
             {msg.url}
           </div>
         )}
-        {isUser && (
-          <div className="mt-0.5 flex items-center justify-end gap-0.5 text-[9px] text-white/70">
-            <CheckCheck className="size-2.5" /> Visto
-          </div>
-        )}
+        <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781]">
+          <span>{stamp}</span>
+          {isUser && <CheckCheck className="size-3 text-[#53bdeb]" />}
+        </div>
       </div>
     </div>
   );

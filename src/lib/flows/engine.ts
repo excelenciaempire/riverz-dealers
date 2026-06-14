@@ -543,6 +543,73 @@ async function evaluateConditionNode(
  * ("Thanks {{vars.name}}, what's your email?"). Missing vars render as
  * empty string — the same behavior as the automations engine.
  */
+/**
+ * Auto-resuelve el input para shopify_lookup cuando el merchant no
+ * setea input_var en el card. El card de la UI lo oculta para reducir
+ * fricción; el engine cubre el caso común:
+ *   - Si input_var está seteado y tiene valor en vars, lo usa.
+ *   - Si no, busca el último valor "razonable" en vars (heurística por
+ *     kind):
+ *       order_by_number → busca vars con keys que contengan "numero",
+ *         "pedido", "order"; cae al último valor string que parezca
+ *         número.
+ *       order_by_email  → busca vars con "email" o "correo"; el contact
+ *         por email lo hace runShopifyLookup directamente, esto es para
+ *         cuando el merchant pasa el email vía vars.
+ *       product_by_handle → vars con "handle".
+ *       last_order      → no necesita input (usa email/phone del
+ *         contacto via runShopifyLookup).
+ *
+ * Si no encuentra nada, devuelve "" y runShopifyLookup retorna found
+ * false (rama no_encontrado).
+ */
+function resolveShopifyInput(
+  kind: string,
+  explicitVar: string | undefined,
+  vars: Record<string, unknown>,
+): string {
+  if (explicitVar) {
+    const v = vars[explicitVar];
+    if (v != null) return String(v);
+  }
+  if (kind === "last_order") return ""; // no input needed
+  const keywords: Record<string, string[]> = {
+    order_by_number: ["numero", "número", "pedido", "order", "orden", "id"],
+    order_by_email: ["email", "correo", "mail"],
+    product_by_handle: ["handle", "producto", "product"],
+  };
+  const wanted = keywords[kind] ?? [];
+  // Prefer keys que contengan los keywords del kind.
+  for (const [k, v] of Object.entries(vars)) {
+    if (v == null) continue;
+    const lower = k.toLowerCase();
+    if (wanted.some((w) => lower.includes(w))) {
+      return String(v);
+    }
+  }
+  // Fallback: para order_by_number, devuelve el último valor que
+  // parezca un número (heurística). Para email, busca string con @.
+  if (kind === "order_by_number") {
+    let best: string | null = null;
+    for (const [, v] of Object.entries(vars)) {
+      if (v == null) continue;
+      const s = String(v);
+      if (/^\s*#?\d{3,}\s*$/.test(s)) best = s;
+    }
+    if (best) return best;
+  }
+  if (kind === "order_by_email") {
+    let best: string | null = null;
+    for (const [, v] of Object.entries(vars)) {
+      if (v == null) continue;
+      const s = String(v);
+      if (s.includes("@")) best = s;
+    }
+    if (best) return best;
+  }
+  return "";
+}
+
 function interpolateVars(template: string, vars: Record<string, unknown>): string {
   if (!template) return "";
   return template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
@@ -1012,9 +1079,15 @@ async function advanceFromNodeKey(
     if (node.node_type === "shopify_lookup") {
       const cfg = node.config as unknown as ShopifyLookupNodeConfig;
       try {
-        const input = cfg.input_var
-          ? String(run.vars[cfg.input_var] ?? "")
-          : "";
+        // input_var es opcional: si no está, auto-resolvemos según
+        // el kind y el último dato capturado por collect_input. Esto
+        // alivia al merchant de tener que setear input_var en el card
+        // (la UI lo oculta a propósito).
+        const input = resolveShopifyInput(cfg.kind, cfg.input_var, run.vars);
+        // output_prefix también opcional: si está vacío, default por kind.
+        const outputPrefix =
+          (cfg.output_prefix && cfg.output_prefix.trim()) ||
+          (cfg.kind === "product_by_handle" ? "product" : "order");
         const result = await runShopifyLookup({
           userId: run.workspace_id,
           contactId: run.contact_id!,
@@ -1024,7 +1097,7 @@ async function advanceFromNodeKey(
         if (result.found && result.vars) {
           const merged = { ...run.vars };
           for (const [k, v] of Object.entries(result.vars)) {
-            merged[`${cfg.output_prefix}_${k}`] = v;
+            merged[`${outputPrefix}_${k}`] = v;
           }
           await db.from("flow_runs").update({ vars: merged }).eq("id", run.id);
           run.vars = merged;

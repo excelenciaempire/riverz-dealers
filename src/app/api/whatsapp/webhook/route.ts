@@ -911,7 +911,21 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     .select()
     .single()
 
+  // Race-safe: si dos webhooks llegaron a la vez ambos pasaron el
+  // SELECT inicial (no hay fila) y ambos intentan INSERT. Con el
+  // índice único de migration 035, el segundo INSERT falla con
+  // 23505 (unique_violation). En vez de tirar 500, re-SELECT a la
+  // fila ya creada por el primer webhook y devolvemos esa.
   if (createError) {
+    if ((createError as { code?: string }).code === '23505') {
+      const { data: winner } = await admin
+        .from('conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('contact_id', contactId)
+        .maybeSingle()
+      if (winner) return winner
+    }
     console.error('Error creating conversation:', createError)
     return null
   }

@@ -70,6 +70,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -2644,36 +2645,46 @@ function Header({
             <Redo2 className="h-3.5 w-3.5" />
           </button>
         </div>
-        {state.status === "active" ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onStatus("draft")}
-            disabled={activating}
-          >
-            {activating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <PauseCircle className="h-3.5 w-3.5" />
+        {/* Toggle on/off para activar/pausar. Reemplaza el viejo botón
+            "Activar / Pausar" que era textual y siempre estaba ahí —
+            ahora es un switch igual al de Automatizaciones, así el
+            patrón es consistente en todo Riverz. El label arriba del
+            switch refleja el estado actual ("Activo" / "Pausado") para
+            que el merchant entienda en qué modo está sin tener que
+            adivinar por el color. */}
+        <label
+          className="flex items-center gap-2 px-1"
+          title={
+            state.status === "active"
+              ? "El flujo está activo. Toca para pausar."
+              : canActivate
+                ? "El flujo está pausado. Toca para activar."
+                : "Corrige los errores antes de activar"
+          }
+        >
+          <Switch
+            checked={state.status === "active"}
+            disabled={
+              activating || (state.status !== "active" && !canActivate)
+            }
+            onCheckedChange={(v) => onStatus(v ? "active" : "draft")}
+            aria-label={state.status === "active" ? "Pausar" : "Activar"}
+          />
+          <span
+            className={cn(
+              "text-xs font-medium",
+              state.status === "active"
+                ? "text-foreground"
+                : "text-muted-foreground",
             )}
-            Pausar
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onStatus("active")}
-            disabled={activating || !canActivate}
-            title={!canActivate ? "Corrige los errores antes de activar" : undefined}
           >
-            {activating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <PlayCircle className="h-3.5 w-3.5" />
-            )}
-            Activar
-          </Button>
-        )}
+            {activating
+              ? "Cambiando…"
+              : state.status === "active"
+                ? "Activo"
+                : "Pausado"}
+          </span>
+        </label>
         <Button
           variant="outline"
           size="sm"
