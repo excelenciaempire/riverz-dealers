@@ -4479,6 +4479,26 @@ interface OutgoingEdge {
 
 /** Ancho del NodeCard (debe coincidir con el className del wrapper). */
 const CARD_WIDTH = 260
+
+/**
+ * Selector que BLOQUEA el inicio de drag. Si el mousedown ocurre sobre
+ * uno de estos elementos, el card NO se arrastra (porque el usuario
+ * está intentando interactuar, no mover el nodo).
+ *
+ * Mantenemos solo lo estrictamente necesario:
+ *   - input, textarea, contenteditable: para que el usuario pueda tipear.
+ *   - button: para que los botones del card (Eliminar, Duplicar, Agregar,
+ *     toolbar al hover) hagan click sin moverlo.
+ *   - role="combobox": shadcn Select.
+ *   - data-connection-port="true": el círculo de drag-to-connect.
+ *
+ * Antes había select, a, label, role="button" y role="textbox" — todos
+ * sobre-bloqueaban (label envolvía captions sin ser controles reales).
+ * El usuario pidió poder agarrar el card desde cualquier parte, así que
+ * solo bloqueamos los controles reales.
+ */
+const DRAG_BLOCK_SELECTOR =
+  'input, textarea, button, [role="combobox"], [contenteditable="true"], [data-connection-port="true"]'
 /** Altura del header del NodeCard donde sale/entra la línea (centro del ícono). */
 const CARD_AXIS_PX = 28
 /**
@@ -5242,9 +5262,7 @@ function DraggableNode(props: DraggableNodeProps) {
       if (e.button !== 0) return
       const t = e.target as HTMLElement
       if (
-        t.closest(
-          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-connection-port="true"]',
-        )
+        t.closest(DRAG_BLOCK_SELECTOR)
       ) {
         return
       }
@@ -5354,11 +5372,7 @@ function DraggableTriggerWrapper({
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
       const t = e.target as HTMLElement
-      if (
-        t.closest(
-          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-connection-port="true"]',
-        )
-      ) {
+      if (t.closest(DRAG_BLOCK_SELECTOR)) {
         return
       }
       e.preventDefault()
