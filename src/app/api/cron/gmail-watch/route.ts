@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
+import { assertCronAuth } from "@/lib/auth/cron";
 import type { ChannelConnection } from "@/types";
 
 /**
@@ -16,10 +17,11 @@ import type { ChannelConnection } from "@/types";
  * polling uses — saves provisioning another secret).
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET;
-  const supplied = request.headers.get("x-cron-secret");
-  if (!expected || supplied !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    assertCronAuth(request, "AUTOMATION_CRON_SECRET");
+  } catch (r) {
+    if (r instanceof Response) return r;
+    throw r;
   }
 
   const admin = supabaseAdmin();

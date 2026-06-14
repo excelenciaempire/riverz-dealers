@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resumeFlowRun } from '@/lib/flows/resume'
+import { assertCronAuth } from '@/lib/auth/cron'
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
@@ -13,13 +14,11 @@ import { resumeFlowRun } from '@/lib/flows/resume'
  * overlapping invocations without needing FOR UPDATE locks.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET
-  if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
-  }
-  const supplied = request.headers.get('x-cron-secret')
-  if (supplied !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
+  } catch (r) {
+    if (r instanceof Response) return r
+    throw r
   }
 
   const admin = supabaseAdmin()

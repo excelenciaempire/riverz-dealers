@@ -13,7 +13,7 @@ services:
     autoDeploy: true
     buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /login
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: "20"
@@ -65,3 +65,13 @@ services:
         value: "2025-10"
       - key: SHOPIFY_SCOPES
         value: "read_orders,read_checkouts,read_customers"
+      # Sentry — observabilidad de errores en producción.
+      - key: SENTRY_DSN
+        sync: false
+      # Secreto compartido para crons de automatizaciones, flows
+      # (resume + barrido), backfills de Meta y polling Gmail/Outlook.
+      - key: AUTOMATION_CRON_SECRET
+        sync: false
+      # Secreto compartido para el cron de reintentos de flows pendientes.
+      - key: FLOWS_RETRY_CRON_SECRET
+        sync: false

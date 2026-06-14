@@ -9,6 +9,7 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
+import { assertCronAuth } from '@/lib/auth/cron'
 
 /**
  * Send scheduled broadcast campaigns whose time has come.
@@ -29,12 +30,11 @@ function sleep(ms: number) {
 }
 
 export async function GET(request: Request) {
-  const expected = process.env.BROADCAST_CRON_SECRET
-  if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
-  }
-  if (request.headers.get('x-cron-secret') !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    assertCronAuth(request, 'BROADCAST_CRON_SECRET')
+  } catch (r) {
+    if (r instanceof Response) return r
+    throw r
   }
 
   const admin = supabaseAdmin()

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
+import { assertCronAuth } from "@/lib/auth/cron";
 import type { ChannelConnection, Contact } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -24,10 +25,11 @@ const GRAPH = "https://graph.facebook.com/v22.0";
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET;
-  const supplied = request.headers.get("x-cron-secret");
-  if (!expected || supplied !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    assertCronAuth(request, "AUTOMATION_CRON_SECRET");
+  } catch (r) {
+    if (r instanceof Response) return r;
+    throw r;
   }
 
   const admin = supabaseAdmin();
