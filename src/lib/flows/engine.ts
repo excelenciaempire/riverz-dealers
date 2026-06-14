@@ -53,6 +53,7 @@ import {
   type DispatchInboundResult,
   type FlowNodeRow,
   type FlowRow,
+  type FlowRunCallFrame,
   type FlowRunRow,
   type ParsedInbound,
   type SendButtonsNodeConfig,
@@ -243,6 +244,20 @@ async function loadFlow(
  * cleanly (every subsequent .get() returns undefined → the run
  * fails with node_not_found, same as the old per-node lookup).
  */
+/**
+ * Devuelve el flow_id que el run está EJECUTANDO en este momento.
+ * Si call_stack está vacía, es el flujo raíz del run; si no, es el
+ * flujo del frame superior (el subflujo más profundo). Lo usan los
+ * dispatchers para cargar los nodos correctos en la resume path
+ * (cuando un cliente responde a un collect_input dentro de un
+ * subflujo, los nodos del flujo raíz no contienen ese node_key).
+ */
+function getActiveFlowIdForRun(run: FlowRunRow): string {
+  const stack = Array.isArray(run.call_stack) ? run.call_stack : [];
+  if (stack.length === 0) return run.flow_id;
+  return stack[stack.length - 1].flow_id;
+}
+
 async function loadAllNodes(
   db: AdminClient,
   flowId: string,
@@ -566,6 +581,21 @@ async function advanceFromNodeKey(
   nodes: Map<string, FlowNodeRow>,
 ): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
   let currentKey: string | null = startNodeKey;
+  // Mutable: cuando entramos a un subflujo, swappeamos esto por los
+  // nodos del flujo referenciado. Cuando salimos (end/handoff con
+  // call_stack no vacía), restauramos el del padre.
+  let currentNodes: Map<string, FlowNodeRow> = nodes;
+  // Espejo en memoria de run.call_stack. Lo persistimos antes de
+  // cualquier suspend (collect_input, send_buttons, etc.) y antes de
+  // cualquier return temprano para que un resume futuro vuelva al
+  // subflujo correcto. Frames: {flow_id, return_to_node_key}.
+  const activeCallStack: FlowRunCallFrame[] = Array.isArray(run.call_stack)
+    ? [...run.call_stack]
+    : [];
+  // Profundidad máxima de subflujos. Más que esto y es casi seguro un
+  // bug del merchant (ciclo entre dos subflujos que se llaman entre sí).
+  const MAX_SUBFLOW_DEPTH = 5;
+
   // Defensive cap — if a flow has a cycle (which the validator
   // SHOULD catch but doesn't yet in v1), we bail rather than loop.
   for (let safety = 0; safety < 64; safety += 1) {
@@ -576,7 +606,7 @@ async function advanceFromNodeKey(
       await endRun(db, run.id, "failed", "missing_next_node");
       return { outcome: "completed" };
     }
-    const node: FlowNodeRow | null = nodes.get(currentKey) ?? null;
+    const node: FlowNodeRow | null = currentNodes.get(currentKey) ?? null;
     if (!node) {
       await logEvent(db, run.id, "error", currentKey, {
         reason: "node_not_found",
@@ -684,24 +714,67 @@ async function advanceFromNodeKey(
       return { outcome: "advanced" };
     }
     if (node.node_type === "subflow") {
-      // v1: passthrough. Emitimos el evento subflow_invoked con el id
-      // del flujo referenciado para que el merchant pueda auditar
-      // cuándo se dispararía la entrada al subflujo, y avanzamos al
-      // next_node_key como si el subflujo hubiera terminado de forma
-      // inmediata. La ejecución recursiva real (push de call_stack,
-      // cambio de flow_id, pop al terminar) llega en migración aparte
-      // y requiere `flow_runs.call_stack JSONB` para sobrevivir a las
-      // pausas (collect_input dentro del subflujo, etc.).
+      // v2 runtime real: empujamos un frame al call_stack, swappeamos
+      // los nodos en memoria por los del subflujo, y seteamos
+      // currentKey al entry del subflujo. Cuando el subflujo termine
+      // (end o handoff) hacemos pop y continuamos en next_node_key
+      // del nodo subflow actual.
       const cfg = node.config as unknown as {
         sub_flow_id?: string;
         next_node_key?: string;
       };
+      if (!cfg.sub_flow_id || !cfg.next_node_key) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "subflow_misconfigured",
+          sub_flow_id: cfg.sub_flow_id ?? null,
+        });
+        await endRun(db, run.id, "failed", "subflow_misconfigured");
+        return { outcome: "completed" };
+      }
+      if (activeCallStack.length >= MAX_SUBFLOW_DEPTH) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "subflow_max_depth",
+          depth: activeCallStack.length,
+        });
+        await endRun(db, run.id, "failed", "subflow_max_depth");
+        return { outcome: "completed" };
+      }
+      const subFlow = await loadFlow(db, cfg.sub_flow_id);
+      if (!subFlow || subFlow.status !== "active") {
+        // Si el flujo referenciado no existe o no está activo, log y
+        // saltar al next_node_key (pasarela suave en vez de fallar).
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "subflow_not_active",
+          sub_flow_id: cfg.sub_flow_id,
+        });
+        currentKey = cfg.next_node_key;
+        continue;
+      }
+      if (!subFlow.entry_node_id) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "subflow_no_entry",
+          sub_flow_id: cfg.sub_flow_id,
+        });
+        currentKey = cfg.next_node_key;
+        continue;
+      }
+      activeCallStack.push({
+        flow_id: cfg.sub_flow_id,
+        return_to_node_key: cfg.next_node_key,
+      });
+      currentNodes = await loadAllNodes(db, cfg.sub_flow_id);
+      currentKey = subFlow.entry_node_id;
+      // Persistir el call_stack al toque para que un crash o un
+      // resume futuro respete el estado.
+      await db
+        .from("flow_runs")
+        .update({ call_stack: activeCallStack })
+        .eq("id", run.id);
       await logEvent(db, run.id, "node_entered", node.node_key, {
         node_type: "subflow",
-        sub_flow_id: cfg.sub_flow_id ?? null,
-        runtime_note: "v1_passthrough_no_recursion",
+        sub_flow_id: cfg.sub_flow_id,
+        depth: activeCallStack.length,
       });
-      currentKey = cfg.next_node_key ?? null;
       continue;
     }
     if (node.node_type === "condition") {
@@ -787,6 +860,11 @@ async function advanceFromNodeKey(
       return { outcome: "advanced" };
     }
     if (node.node_type === "handoff") {
+      // handoff dentro de un subflujo: el handoff es una decisión
+      // fuerte del flujo padre o del subflujo — siempre cierra el
+      // run completo, no solo el subflujo. (Si el merchant quiere
+      // que el subflujo "vuelva al padre" usa un nodo end, no
+      // handoff.)
       await executeHandoff(db, run, node);
       return { outcome: "handed_off" };
     }
@@ -968,6 +1046,32 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "end") {
+      // Si el end está DENTRO de un subflujo (activeCallStack no
+      // vacía), no terminamos el run — hacemos pop del frame,
+      // cargamos los nodos del padre, y continuamos en el
+      // return_to_node_key del frame. Si no hay frames, el end
+      // sí cierra el run.
+      if (activeCallStack.length > 0) {
+        const popped = activeCallStack.pop()!;
+        // Cargar los nodos del flujo padre: si quedan más frames es
+        // el flujo del nuevo top; si no, es el flujo raíz del run.
+        const parentFlowId =
+          activeCallStack.length > 0
+            ? activeCallStack[activeCallStack.length - 1].flow_id
+            : run.flow_id;
+        currentNodes = await loadAllNodes(db, parentFlowId);
+        currentKey = popped.return_to_node_key;
+        await db
+          .from("flow_runs")
+          .update({ call_stack: activeCallStack })
+          .eq("id", run.id);
+        await logEvent(db, run.id, "node_entered", node.node_key, {
+          node_type: "end",
+          returned_from_subflow: popped.flow_id,
+          remaining_depth: activeCallStack.length,
+        });
+        continue;
+      }
       await logEvent(db, run.id, "completed", node.node_key);
       await endRun(db, run.id, "completed", "end_node");
       return { outcome: "completed" };
@@ -1055,8 +1159,11 @@ export async function dispatchInboundToFlows(
         };
       }
       // One SELECT for the whole flow's nodes — advance loop is now
-      // in-memory. See loadAllNodes.
-      const nodes = await loadAllNodes(db, activeRun.flow_id);
+      // in-memory. See loadAllNodes. Si el run está pausado DENTRO de
+      // un subflujo (call_stack no vacía), cargamos los nodos del
+      // subflujo activo, no del flujo raíz.
+      const activeFlowId = getActiveFlowIdForRun(activeRun);
+      const nodes = await loadAllNodes(db, activeFlowId);
       return handleReplyForActiveRun(db, activeRun, input.message, nodes);
     }
 

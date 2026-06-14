@@ -382,6 +382,18 @@ export interface FlowNodeRow {
   created_at: string;
 }
 
+/**
+ * Frame de la pila de subflujos. Cuando un run entra a un nodo subflow,
+ * empujamos `{flow_id: id_del_subflujo, return_to_node_key: nodo del
+ * padre al que volver al terminar}`. El TOP del array es el subflujo
+ * MÁS PROFUNDO en ejecución. Pila vacía = el run está ejecutando su
+ * flujo raíz (run.flow_id).
+ */
+export interface FlowRunCallFrame {
+  flow_id: string;
+  return_to_node_key: string;
+}
+
 export interface FlowRunRow {
   id: string;
   flow_id: string;
@@ -403,6 +415,8 @@ export interface FlowRunRow {
   last_advanced_at: string;
   ended_at: string | null;
   end_reason: string | null;
+  /** Pila de subflujos invocados. Migration 033. */
+  call_stack: FlowRunCallFrame[];
 }
 
 // ============================================================

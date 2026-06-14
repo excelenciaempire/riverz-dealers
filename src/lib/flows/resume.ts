@@ -30,10 +30,16 @@ export async function resumeFlowRun(args: {
   // the cron route and the engine module.
   const { advanceParkedRun } = await import('./engine-internal')
 
+  // Si el run quedó pausado dentro de un subflujo, los nodos del flujo
+  // raíz no contienen el current_node_key — cargamos los del subflujo
+  // activo (top del call_stack).
+  const callStack = Array.isArray(r.call_stack) ? r.call_stack : []
+  const activeFlowId =
+    callStack.length > 0 ? callStack[callStack.length - 1].flow_id : r.flow_id
   const { data: nodeRows } = await db
     .from('flow_nodes')
     .select('*')
-    .eq('flow_id', r.flow_id)
+    .eq('flow_id', activeFlowId)
   const nodes = new Map<string, FlowNodeRow>()
   for (const n of (nodeRows ?? []) as FlowNodeRow[]) nodes.set(n.node_key, n)
 

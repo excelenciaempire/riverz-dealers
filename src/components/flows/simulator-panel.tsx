@@ -364,12 +364,18 @@ export function SimulatorPanel({
         }
         case "subflow": {
           const c = cfg as { sub_flow_id?: string; next_node_key?: string };
+          // En el simulador no tenemos los nodos del flujo referenciado
+          // (necesitaría un fetch a /api/flows/[sub_flow_id] con sus
+          // nodos). Marcamos el invoke y avanzamos al next como
+          // approximation. La ejecución completa del subflujo en
+          // runtime real ya funciona en el engine (call_stack +
+          // switch de nodos mid-run, migration 033).
           next.history = [
             ...next.history,
             {
               from: "system",
               kind: "note",
-              text: `Subflujo invocado (${c.sub_flow_id ?? "sin id"}). En la simulación se trata como passthrough y se continúa al siguiente paso.`,
+              text: `Subflujo invocado (${c.sub_flow_id ?? "sin id"}). El simulador no carga los nodos del subflujo todavía; se continúa al siguiente paso del padre.`,
             },
           ];
           next.currentKey = c.next_node_key ?? null;
