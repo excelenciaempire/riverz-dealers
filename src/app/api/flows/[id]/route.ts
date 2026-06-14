@@ -77,6 +77,9 @@ interface PutBody {
   trigger_config?: Record<string, unknown>
   entry_node_id?: string | null
   fallback_policy?: Record<string, unknown>
+  /** Posición del disparador en el lienzo (migration 028). */
+  trigger_position_x?: number
+  trigger_position_y?: number
   nodes?: Array<{
     node_key: string
     node_type: string
@@ -123,6 +126,10 @@ export async function PUT(
     flowPatch.entry_node_id = body.entry_node_id
   if (body.fallback_policy !== undefined)
     flowPatch.fallback_policy = body.fallback_policy
+  if (body.trigger_position_x !== undefined)
+    flowPatch.trigger_position_x = body.trigger_position_x
+  if (body.trigger_position_y !== undefined)
+    flowPatch.trigger_position_y = body.trigger_position_y
 
   const { error: updErr } = await admin
     .from('flows')

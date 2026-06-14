@@ -16,7 +16,9 @@
  */
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -77,6 +79,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   validateFlowForActivation,
@@ -92,6 +102,32 @@ import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 interface FlowBuilderProps {
   initialFlow: FlowRow;
   initialNodes: FlowNodeRow[];
+}
+
+/**
+ * Acciones disponibles para los bubbles editables (los previews de
+ * WhatsApp dentro de cada card). El bubble necesita pedirle al
+ * FlowBuilder root cosas como "el usuario quiere borrar este botón —
+ * preguntale qué hacer con los pasos que le siguen". Threading una
+ * prop a través de 4 niveles era tedioso, así que va por contexto.
+ *
+ * Si el contexto no está presente (improbable, pero por seguridad),
+ * el bubble se cae a la implementación in-line vieja (borrado directo
+ * sin confirmación).
+ */
+interface FlowBubbleActions {
+  /** Pide confirmación antes de borrar un botón de send_buttons. */
+  requestRemoveButton: (parentKey: string, btnIdx: number) => void;
+  /** Pide confirmación antes de borrar una fila de send_list. */
+  requestRemoveRow: (
+    parentKey: string,
+    sectionIdx: number,
+    rowIdx: number,
+  ) => void;
+}
+const FlowBubbleActionsContext = createContext<FlowBubbleActions | null>(null);
+function useFlowBubbleActions(): FlowBubbleActions | null {
+  return useContext(FlowBubbleActionsContext);
 }
 
 // ============================================================
@@ -139,6 +175,14 @@ interface BuilderState {
   entry_node_id: string | null;
   status: FlowRow["status"];
   nodes: BuilderNode[];
+  /**
+   * Posición del disparador en el lienzo. Persistida en
+   * flows.trigger_position_x/y (migration 028). El disparador NO es
+   * un nodo (vive en la fila `flows`) pero se mueve igual que los
+   * demás elementos del canvas.
+   */
+  trigger_position_x: number;
+  trigger_position_y: number;
 }
 
 // ============================================================
@@ -153,7 +197,7 @@ const NODE_META: Record<
   start: {
     label: "Inicio",
     icon: PlayCircle,
-    color: "text-emerald-400",
+    color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-500/15",
   },
   send_message: {
@@ -165,7 +209,7 @@ const NODE_META: Record<
   send_buttons: {
     label: "Enviar botones",
     icon: ListChecks,
-    color: "text-amber-400",
+    color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/15",
   },
   send_list: {
@@ -177,7 +221,7 @@ const NODE_META: Record<
   collect_input: {
     label: "Pedir un dato al cliente",
     icon: Inbox,
-    color: "text-teal-400",
+    color: "text-teal-700 dark:text-teal-400",
     bg: "bg-teal-500/15",
   },
   condition: {
@@ -189,31 +233,31 @@ const NODE_META: Record<
   set_tag: {
     label: "Etiquetar al cliente",
     icon: Tag,
-    color: "text-pink-400",
+    color: "text-pink-600 dark:text-pink-400",
     bg: "bg-pink-500/15",
   },
   handoff: {
     label: "Pasar a un humano",
     icon: UserPlus,
-    color: "text-amber-400",
+    color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/15",
   },
   send_image: {
     label: "Enviar imagen",
     icon: ImageIcon,
-    color: "text-sky-400",
+    color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_video: {
     label: "Enviar video",
     icon: Video,
-    color: "text-sky-400",
+    color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_document: {
     label: "Enviar documento",
     icon: FileText,
-    color: "text-sky-400",
+    color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_cta_url: {
@@ -237,7 +281,7 @@ const NODE_META: Record<
   shopify_lookup: {
     label: "Buscar en Shopify",
     icon: ShoppingBag,
-    color: "text-emerald-400",
+    color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-500/15",
   },
   end: {
@@ -506,6 +550,16 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       position_x: typeof n.position_x === 'number' ? n.position_x : 0,
       position_y: typeof n.position_y === 'number' ? n.position_y : 0,
     })),
+    // Default 80/240 — mismo lugar donde estaba el disparador hard-codeado
+    // antes. Flujos viejos sin estas columnas reciben el default del DB.
+    trigger_position_x:
+      typeof initialFlow.trigger_position_x === 'number'
+        ? initialFlow.trigger_position_x
+        : TRIGGER_POS.x,
+    trigger_position_y:
+      typeof initialFlow.trigger_position_y === 'number'
+        ? initialFlow.trigger_position_y
+        : TRIGGER_POS.y,
   }));
 
   // ---- One-shot auto-layout when nothing is positioned yet ----
@@ -740,9 +794,18 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const blockers = issues.filter((i) => i.severity === "error");
   const canActivate = blockers.length === 0;
 
+  // Los errores en el lienzo (borde rojo + panel inferior) no se
+  // muestran mientras el usuario arma el flujo. Aparecen solo cuando
+  // intenta guardar — y se ocultan cuando el flujo queda limpio.
+  const [showValidation, setShowValidation] = useState(false);
+  const visibleIssues: ValidationIssue[] = showValidation ? issues : [];
+
   // ---- Save (PUT) ----
   const handleSave = useCallback(async () => {
     setSaving(true);
+    // Al pulsar Guardar, los errores quedan visibles si los hay; si el
+    // estado terminó sin errores, ocultamos el panel de nuevo al final.
+    setShowValidation(true);
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
         method: "PUT",
@@ -753,6 +816,8 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
+          trigger_position_x: state.trigger_position_x,
+          trigger_position_y: state.trigger_position_y,
           nodes: state.nodes.map((n) => ({
             node_key: n.node_key,
             node_type: n.node_type,
@@ -767,6 +832,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         throw new Error(json.error ?? `Save failed: ${res.status}`);
       }
       setDirty(false);
+      // Si después del save no quedan errores, ocultamos el panel
+      // de nuevo — el flujo está limpio, no hace falta el ruido.
+      if (canActivate) setShowValidation(false);
       toast.success("Guardado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo guardar";
@@ -774,7 +842,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state]);
+  }, [initialFlow.id, state, canActivate]);
 
   // ---- Activate / Pause / Archive ----
   const handleStatus = useCallback(
@@ -1006,6 +1074,50 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   );
 
   /**
+   * Move el disparador. Mismo razonamiento que `moveNode` — no pasa por
+   * el undo stack porque el drag genera 60 mutaciones/seg; el snapshot
+   * pre-drag lo toma `onDragStart` antes del primer move.
+   */
+  const moveTrigger = useCallback((x: number, y: number) => {
+    setDirty(true);
+    setState((s) => ({ ...s, trigger_position_x: x, trigger_position_y: y }));
+  }, []);
+
+  /**
+   * Bounding box real del flujo en el lienzo — alimenta al
+   * fit-to-view del CanvasViewport. El lienzo es un div virtual de
+   * 6000x4000 (ver CANVAS_W/H), así que scrollWidth devuelve 6000
+   * aunque el flujo viva en una esquina; calcular la bbox de los
+   * objetos visibles (trigger + nodos) hace que "centrar" se ajuste
+   * al contenido real.
+   *
+   * Altura de card estimada: el bubble preview + el header ronda los
+   * 360px en colapsado; aproximación suficiente para que el fit no
+   * recorte la última fila.
+   */
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const computeContentBounds = useCallback(() => {
+    const s = stateRef.current;
+    const CARD_HEIGHT_ESTIMATE = 360;
+    let minX = s.trigger_position_x;
+    let minY = s.trigger_position_y;
+    let maxX = s.trigger_position_x + TRIGGER_WIDTH;
+    let maxY = s.trigger_position_y + CARD_HEIGHT_ESTIMATE;
+    for (const n of s.nodes) {
+      if (n.position_x < minX) minX = n.position_x;
+      if (n.position_y < minY) minY = n.position_y;
+      const rx = n.position_x + CARD_WIDTH;
+      const ry = n.position_y + CARD_HEIGHT_ESTIMATE;
+      if (rx > maxX) maxX = rx;
+      if (ry > maxY) maxY = ry;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }, []);
+
+  /**
    * Wire una conexión: el usuario soltó el drag del port (kind, idx) en
    * un nodo destino. Mapeamos kind+idx → la propiedad correcta del
    * config y actualizamos.
@@ -1191,11 +1303,319 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [],
   );
 
+  // ─── Confirmación al borrar un botón / fila con downstream ───
+  //
+  // Cuando el usuario hace click en la papelera de un botón del bubble
+  // editable (o de una fila de send_list), si ese botón apuntaba a
+  // otro paso, le preguntamos qué hacer con la cadena que le sigue:
+  //   - "Sólo el botón" → quita el botón, los pasos posteriores quedan
+  //     huérfanos (recuperables: el usuario los puede reconectar).
+  //   - "El botón y los pasos siguientes" → borra la subcadena que
+  //     SÓLO era alcanzable por este botón (no toca pasos compartidos
+  //     con otra rama).
+  // Para botones SIN next_node_key, borramos directo (no hay nada que
+  // perder).
+  type PendingButtonRemoval = {
+    parentKey: string;
+    btnIdx: number;
+    // Pasos a borrar si elige "todo" — incluye el destino directo del
+    // botón + cadena exclusiva. Calculados al abrir el diálogo.
+    downstreamKeys: string[];
+  };
+  type PendingRowRemoval = {
+    parentKey: string;
+    sectionIdx: number;
+    rowIdx: number;
+    downstreamKeys: string[];
+  };
+  const [pendingBtnRemoval, setPendingBtnRemoval] =
+    useState<PendingButtonRemoval | null>(null);
+  const [pendingRowRemoval, setPendingRowRemoval] =
+    useState<PendingRowRemoval | null>(null);
+
+  /**
+   * Subárbol de nodos alcanzables SÓLO a través del edge que estamos
+   * por borrar. Hacemos BFS desde startKey y filtramos los nodos que
+   * tienen otra arista entrante desde fuera del subárbol.
+   *
+   * Conservador: si un nodo del subárbol tiene un padre fuera, NO se
+   * borra (y todo lo que dependía sólo de él via ese nodo tampoco se
+   * borrará — el flood-fill lo trata como "frontera").
+   */
+  const computeExclusiveSubtree = useCallback(
+    (
+      startKey: string,
+      sourceParentKey: string,
+      /**
+       * Índice de la arista (en el orden de getOutgoingEdges) que
+       * estamos por borrar dentro del nodo `sourceParentKey`. Es un
+       * ÍNDICE, no un label/key: dos botones con el mismo texto o el
+       * mismo next_node_key son aristas distintas, así que matchear
+       * por contenido fallaría — sólo el índice los distingue.
+       */
+      sourceEdgeIdx: number,
+    ): string[] => {
+      const s = stateRef.current;
+      const byKey = new Map(s.nodes.map((n) => [n.node_key, n]));
+      // 1) Subárbol naive: BFS desde startKey por aristas salientes.
+      const subtree = new Set<string>();
+      const queue = [startKey];
+      while (queue.length) {
+        const k = queue.shift()!;
+        if (subtree.has(k)) continue;
+        subtree.add(k);
+        const node = byKey.get(k);
+        if (!node) continue;
+        for (const e of getOutgoingEdges(node)) {
+          if (e.nextKey) queue.push(e.nextKey);
+        }
+      }
+      // 2) Para cada nodo del subárbol, checamos si alguien fuera lo
+      //    apunta (sin contar UNA arista — la que vamos a borrar).
+      const hasExternalParent = (target: string): boolean => {
+        if (target === s.entry_node_id) return true; // el entry siempre vive
+        for (const n of s.nodes) {
+          if (subtree.has(n.node_key)) continue; // padres dentro no cuentan
+          const edges = getOutgoingEdges(n);
+          for (let ei = 0; ei < edges.length; ei++) {
+            const e = edges[ei];
+            if (e.nextKey !== target) continue;
+            // La arista exacta que estamos por borrar no cuenta como
+            // padre externo. Match por (parentKey, índice de arista).
+            if (n.node_key === sourceParentKey && ei === sourceEdgeIdx) {
+              continue;
+            }
+            return true;
+          }
+        }
+        return false;
+      };
+      // 3) Quitamos del subárbol todo nodo con padre externo (y, por
+      //    transitividad, lo que sólo era alcanzable desde esos —
+      //    haciendo un nuevo BFS desde startKey por aristas que no
+      //    cruzan a un nodo con padre externo).
+      const safeToDelete = new Set<string>();
+      const queue2 = [startKey];
+      while (queue2.length) {
+        const k = queue2.shift()!;
+        if (safeToDelete.has(k)) continue;
+        if (!subtree.has(k)) continue;
+        if (hasExternalParent(k)) continue;
+        safeToDelete.add(k);
+        const node = byKey.get(k);
+        if (!node) continue;
+        for (const e of getOutgoingEdges(node)) {
+          if (e.nextKey) queue2.push(e.nextKey);
+        }
+      }
+      return Array.from(safeToDelete);
+    },
+    [],
+  );
+
+  const requestRemoveButton = useCallback(
+    (parentKey: string, btnIdx: number) => {
+      const s = stateRef.current;
+      const parent = s.nodes.find((n) => n.node_key === parentKey);
+      if (!parent) return;
+      const buttons =
+        (parent.config as { buttons?: Array<{ next_node_key?: string }> })
+          .buttons ?? [];
+      const btn = buttons[btnIdx];
+      const nextKey = btn?.next_node_key;
+      if (!nextKey) {
+        // No hay downstream — borrado directo, sin confirmación.
+        commit(
+          (state) => ({
+            ...state,
+            nodes: state.nodes.map((n) =>
+              n.node_key === parentKey
+                ? {
+                    ...n,
+                    config: {
+                      ...(n.config as Record<string, unknown>),
+                      buttons: buttons.filter((_, i) => i !== btnIdx),
+                    },
+                  }
+                : n,
+            ),
+          }),
+          { record: true, coalesceKey: null },
+        );
+        return;
+      }
+      // En send_buttons, getOutgoingEdges emite las aristas en el
+      // mismo orden que el array `buttons`, así que el índice del
+      // botón es el índice de la arista.
+      const downstreamKeys = computeExclusiveSubtree(
+        nextKey,
+        parentKey,
+        btnIdx,
+      );
+      setPendingBtnRemoval({ parentKey, btnIdx, downstreamKeys });
+    },
+    [commit, computeExclusiveSubtree],
+  );
+
+  const requestRemoveRow = useCallback(
+    (parentKey: string, sectionIdx: number, rowIdx: number) => {
+      const s = stateRef.current;
+      const parent = s.nodes.find((n) => n.node_key === parentKey);
+      if (!parent) return;
+      const sections =
+        (
+          parent.config as {
+            sections?: Array<{
+              rows?: Array<{ next_node_key?: string }>;
+            }>;
+          }
+        ).sections ?? [];
+      const row = sections[sectionIdx]?.rows?.[rowIdx];
+      const nextKey = row?.next_node_key;
+      if (!nextKey) {
+        // Sin downstream — borrado directo.
+        commit(
+          (state) => ({
+            ...state,
+            nodes: state.nodes.map((n) => {
+              if (n.node_key !== parentKey) return n;
+              const cfg = n.config as Record<string, unknown>;
+              const ss = Array.isArray(cfg.sections)
+                ? (cfg.sections as Array<{
+                    title?: string;
+                    rows?: Array<unknown>;
+                  }>)
+                : [];
+              const nextSections = ss.map((sec, si) =>
+                si === sectionIdx
+                  ? {
+                      ...sec,
+                      rows: (sec.rows ?? []).filter(
+                        (_, ri) => ri !== rowIdx,
+                      ),
+                    }
+                  : sec,
+              );
+              return { ...n, config: { ...cfg, sections: nextSections } };
+            }),
+          }),
+          { record: true, coalesceKey: null },
+        );
+        return;
+      }
+      // En send_list, getOutgoingEdges aplana las secciones (rows[0]
+      // de la sección 0, rows[1], …, después rows[0] de la sección 1,
+      // …). Calculamos el índice plano de la fila objetivo.
+      let flatEdgeIdx = 0;
+      for (let si = 0; si < sectionIdx; si++) {
+        flatEdgeIdx += sections[si]?.rows?.length ?? 0;
+      }
+      flatEdgeIdx += rowIdx;
+      const downstreamKeys = computeExclusiveSubtree(
+        nextKey,
+        parentKey,
+        flatEdgeIdx,
+      );
+      setPendingRowRemoval({ parentKey, sectionIdx, rowIdx, downstreamKeys });
+    },
+    [commit, computeExclusiveSubtree],
+  );
+
+  const performBtnRemoval = useCallback(
+    (alsoDeleteDownstream: boolean) => {
+      if (!pendingBtnRemoval) return;
+      const { parentKey, btnIdx, downstreamKeys } = pendingBtnRemoval;
+      commit(
+        (state) => {
+          const removed = alsoDeleteDownstream
+            ? new Set(downstreamKeys)
+            : new Set<string>();
+          return {
+            ...state,
+            nodes: state.nodes
+              .map((n) => {
+                if (n.node_key !== parentKey) return n;
+                const cfg = n.config as Record<string, unknown>;
+                const buttons = Array.isArray(cfg.buttons)
+                  ? (cfg.buttons as Array<{
+                      reply_id?: string;
+                      title?: string;
+                      next_node_key?: string;
+                    }>)
+                  : [];
+                return {
+                  ...n,
+                  config: {
+                    ...cfg,
+                    buttons: buttons.filter((_, i) => i !== btnIdx),
+                  },
+                };
+              })
+              .filter((n) => !removed.has(n.node_key)),
+          };
+        },
+        { record: true, coalesceKey: null },
+      );
+      setPendingBtnRemoval(null);
+    },
+    [commit, pendingBtnRemoval],
+  );
+
+  const performRowRemoval = useCallback(
+    (alsoDeleteDownstream: boolean) => {
+      if (!pendingRowRemoval) return;
+      const { parentKey, sectionIdx, rowIdx, downstreamKeys } =
+        pendingRowRemoval;
+      commit(
+        (state) => {
+          const removed = alsoDeleteDownstream
+            ? new Set(downstreamKeys)
+            : new Set<string>();
+          return {
+            ...state,
+            nodes: state.nodes
+              .map((n) => {
+                if (n.node_key !== parentKey) return n;
+                const cfg = n.config as Record<string, unknown>;
+                const sections = Array.isArray(cfg.sections)
+                  ? (cfg.sections as Array<{
+                      title?: string;
+                      rows?: Array<unknown>;
+                    }>)
+                  : [];
+                const nextSections = sections.map((sec, si) =>
+                  si === sectionIdx
+                    ? {
+                        ...sec,
+                        rows: (sec.rows ?? []).filter(
+                          (_, ri) => ri !== rowIdx,
+                        ),
+                      }
+                    : sec,
+                );
+                return { ...n, config: { ...cfg, sections: nextSections } };
+              })
+              .filter((n) => !removed.has(n.node_key)),
+          };
+        },
+        { record: true, coalesceKey: null },
+      );
+      setPendingRowRemoval(null);
+    },
+    [commit, pendingRowRemoval],
+  );
+
+  const bubbleActions = useMemo<FlowBubbleActions>(
+    () => ({ requestRemoveButton, requestRemoveRow }),
+    [requestRemoveButton, requestRemoveRow],
+  );
+
   // ---- Render ----
   return (
     // z-50 puts the editor above the dashboard sidebar (z-40) so the
     // user gets a dedicated full-screen canvas environment, no
     // sidebar chrome poking in from the left.
+    <FlowBubbleActionsContext.Provider value={bubbleActions}>
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3">
         <Header
@@ -1221,7 +1641,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           (interactivo, dentro de ventana 24h) de las Automatizaciones
           (asíncronas, plantillas HSM). Es el gap más grande que la
           competencia mezcla en un solo editor y confunde al merchant. */}
-      <div className="flex-shrink-0 border-b border-border bg-emerald-500/5 px-4 py-2 text-[11px] text-emerald-300">
+      <div className="flex-shrink-0 border-b border-border bg-emerald-500/5 px-4 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
         <span className="font-semibold">Se activa cuando el cliente te escribe.</span>{" "}
         <span className="text-muted-foreground">
           Para mensajes que inicias tú (carrito, despacho, marketing), usa
@@ -1236,9 +1656,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       {/* Canvas libre: cada nodo posicionado en (position_x, position_y),
           conectados por líneas SVG curvas que se re-calculan en cada
           re-render → arrastrá cualquier card y las líneas se estiran
-          solas. El disparador queda fijo en la esquina (no draggeable). */}
+          solas. Disparador y nodos son draggeables. */}
       <div className="relative flex min-h-0 flex-1">
-        <CanvasViewport>
+        <CanvasViewport onComputeContentBounds={computeContentBounds}>
           <FlowCanvas
             entryKey={state.entry_node_id}
             allNodes={state.nodes}
@@ -1246,7 +1666,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             expanded={expanded}
             entryNodeId={state.entry_node_id}
             flashedKey={flashedKey}
-            issues={issues}
+            issues={visibleIssues}
             setNodeRef={setNodeRef}
             onToggle={toggleExpanded}
             onUpdate={updateNode}
@@ -1263,7 +1683,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onAdd={addNode}
             triggerType={state.trigger_type}
             triggerConfig={state.trigger_config}
-            triggerIssues={issues.filter((i) => i.scope === "trigger")}
+            triggerIssues={visibleIssues.filter((i) => i.scope === "trigger")}
             onTriggerChange={(type, config) =>
               setStateDirty((s) => ({
                 ...s,
@@ -1271,6 +1691,11 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
                 trigger_config: config,
               }))
             }
+            triggerPosition={{
+              x: state.trigger_position_x,
+              y: state.trigger_position_y,
+            }}
+            onTriggerMove={moveTrigger}
           />
         </CanvasViewport>
         {/* Floating palette — siempre disponible en la esquina del lienzo
@@ -1289,15 +1714,40 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         )}
       </div>
 
-      {/* Validation panel sólo cuando el usuario ya empezó a armar el
-          menú. Si la lona está vacía, los errores de "te falta esto" son
-          ruido visual — el empty state ya guía qué hacer. */}
-      {state.nodes.length > 0 && (
+      {/* Validation panel — solo aparece después de que el usuario
+          intentó guardar (showValidation === true) y hay errores.
+          Mientras arma, no queremos meter ruido. */}
+      {showValidation && state.nodes.length > 0 && issues.length > 0 && (
         <div className="z-10 flex-shrink-0 border-t border-border bg-card/40 shadow-xl shadow-black/40">
-          <ValidationPanel issues={issues} onJump={jumpToNode} />
+          <ValidationPanel
+            issues={issues}
+            onJump={jumpToNode}
+            nodes={state.nodes}
+          />
         </div>
       )}
+
+      {/* Diálogos de confirmación al borrar un botón/fila con downstream.
+          La elección impacta cuántos pasos se borran en cascada — el
+          subtree exclusivo se calcula cuando se abre el diálogo. */}
+      <CascadeDeleteDialog
+        open={!!pendingBtnRemoval}
+        downstreamCount={pendingBtnRemoval?.downstreamKeys.length ?? 0}
+        kind="button"
+        onClose={() => setPendingBtnRemoval(null)}
+        onConfirmButtonOnly={() => performBtnRemoval(false)}
+        onConfirmWithDownstream={() => performBtnRemoval(true)}
+      />
+      <CascadeDeleteDialog
+        open={!!pendingRowRemoval}
+        downstreamCount={pendingRowRemoval?.downstreamKeys.length ?? 0}
+        kind="row"
+        onClose={() => setPendingRowRemoval(null)}
+        onConfirmButtonOnly={() => performRowRemoval(false)}
+        onConfirmWithDownstream={() => performRowRemoval(true)}
+      />
     </div>
+    </FlowBubbleActionsContext.Provider>
   );
 }
 
@@ -1437,7 +1887,7 @@ function Header({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDelete}
-              className="text-red-400 focus:bg-red-500/10 focus:text-red-300"
+              className="text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Eliminar flujo
@@ -1452,7 +1902,7 @@ function Header({
 function StatusBadge({ status }: { status: BuilderState["status"] }) {
   const cls = {
     draft: "border-border bg-muted text-foreground",
-    active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
+    active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     archived: "border-border bg-muted/50 text-muted-foreground",
   }[status];
   const label = {
@@ -1532,8 +1982,6 @@ function NodeCard({
         onConnectStart={onConnectStart}
       />
       <NodeHoverToolbar
-        isEntry={isEntry}
-        onSetEntry={onSetEntry}
         onDuplicate={onDuplicate}
         onRemove={onRemove}
       />
@@ -1542,32 +1990,21 @@ function NodeCard({
 }
 
 function NodeHoverToolbar({
-  isEntry,
-  onSetEntry,
   onDuplicate,
   onRemove,
 }: {
-  isEntry: boolean;
-  onSetEntry: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
+  // El botón "Marcar como entrada" (Flag) se removió a pedido del
+  // usuario — el primer nodo de un flujo se auto-marca como entrada
+  // (ver addNode) y reconectar el disparador a otro nodo se hace por
+  // drag-to-connect desde el disparador.
   return (
     <div
       className="absolute -right-1 -top-2 z-10 flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/card:opacity-100"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {!isEntry && (
-        <button
-          type="button"
-          onClick={onSetEntry}
-          className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Marcar como entrada"
-          title="Marcar como entrada"
-        >
-          <Flag className="h-3 w-3" />
-        </button>
-      )}
       <button
         type="button"
         onClick={onDuplicate}
@@ -1626,6 +2063,11 @@ function EditableNodeBubble({
   ) => void;
 }) {
   const cfg = node.config as Record<string, unknown>;
+  // Acciones de confirmación expuestas por el FlowBuilder root. Para
+  // borrar un botón/fila con downstream, usamos requestRemove* en vez
+  // del fallback directo (filter de buttons). Si el context no está
+  // (no debería pasar), caemos al borrado directo.
+  const bubbleActions = useFlowBubbleActions();
   void onUpdate;
   switch (node.node_type) {
     case "send_message": {
@@ -1676,9 +2118,13 @@ function EditableNodeBubble({
               onUpdateConfig({ buttons: next });
             }}
             onRemoveButton={(idx) => {
-              onUpdateConfig({
-                buttons: buttons.filter((_, i) => i !== idx),
-              });
+              if (bubbleActions) {
+                bubbleActions.requestRemoveButton(node.node_key, idx);
+              } else {
+                onUpdateConfig({
+                  buttons: buttons.filter((_, i) => i !== idx),
+                });
+              }
             }}
           />
         </div>
@@ -1781,7 +2227,26 @@ function EditableNodeBubble({
               ]);
             }}
             onRemoveListRow={(idx) => {
-              writeRows(rows.filter((_, i) => i !== idx));
+              if (bubbleActions) {
+                // Traducir el idx plano que usa el bubble (0..N-1
+                // entre todas las secciones) a (sectionIdx, rowIdx)
+                // que es lo que persiste el config. Recorremos las
+                // secciones y vamos descontando.
+                let remaining = idx;
+                for (let si = 0; si < sections.length; si++) {
+                  const sec = sections[si];
+                  const rowsHere = sec.rows?.length ?? 0;
+                  if (remaining < rowsHere) {
+                    bubbleActions.requestRemoveRow(node.node_key, si, remaining);
+                    return;
+                  }
+                  remaining -= rowsHere;
+                }
+                // No mapeó (no debería pasar) — fallback al borrado plano.
+                writeRows(rows.filter((_, i) => i !== idx));
+              } else {
+                writeRows(rows.filter((_, i) => i !== idx));
+              }
             }}
           />
         </div>
@@ -2489,7 +2954,7 @@ function SendButtonsForm({
                 variant="ghost"
                 size="sm"
                 onClick={() => removeButton(i)}
-                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -2507,9 +2972,9 @@ function SendButtonsForm({
             Añadir botón
           </Button>
         ) : (
-          <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+          <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
             <CircleAlert className="h-3 w-3" />
-            WhatsApp permite máximo 3 botones de respuesta. Usá una lista para más opciones.
+            WhatsApp permite máximo 3 botones de respuesta. Usa una lista para más opciones.
           </p>
         )}
       </div>
@@ -2650,7 +3115,7 @@ function SendListForm({
           <span
             className={cn(
               "text-[11px] tabular-nums",
-              totalRows >= 10 ? "text-amber-300" : "text-muted-foreground",
+              totalRows >= 10 ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground",
             )}
           >
             {totalRows}/10
@@ -2675,7 +3140,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeSection(sIdx)}
-                  className="shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="shrink-0 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
                   aria-label="Eliminar sección"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -2729,7 +3194,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeRow(sIdx, rIdx)}
-                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -2746,7 +3211,7 @@ function SendListForm({
                 Añadir fila
               </Button>
             ) : (
-              <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+              <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
                 <CircleAlert className="h-3 w-3" />
                 Límite WhatsApp: 10 filas por mensaje. Encadená otro nodo de lista.
               </p>
@@ -3181,18 +3646,30 @@ const ADDABLE_NODE_TYPES: NodeType[] = [
 function ValidationPanel({
   issues,
   onJump,
+  nodes,
 }: {
   issues: ValidationIssue[];
   onJump: (key: string) => void;
+  nodes: BuilderNode[];
 }) {
   if (issues.length === 0) {
-    // El usuario pidió quitar la pastilla "Listo para activar" porque
-    // distrae sin aportar — el botón Activar arriba ya comunica el
-    // estado. Cuando el editor no tiene problemas, no mostramos nada.
     return null;
   }
   const errors = issues.filter((i) => i.severity === "error");
   const warnings = issues.filter((i) => i.severity === "warning");
+  // Diccionario node_key → etiqueta amigable que se muestra antes de
+  // cada error. Combina el label del tipo (Enviar botones, Si/Si no...)
+  // con el texto que el usuario escribió, así un mismo tipo se distingue
+  // entre varios pasos.
+  const labelByKey = new Map<string, string>();
+  for (const n of nodes) {
+    const typeLabel = NODE_META[n.node_type].label;
+    const inlineTitle = nodeInlineTitle(n);
+    labelByKey.set(
+      n.node_key,
+      inlineTitle ? `${typeLabel} · ${inlineTitle}` : typeLabel,
+    );
+  }
   return (
     <div
       className={cn(
@@ -3202,49 +3679,78 @@ function ValidationPanel({
     >
       <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
         {errors.length > 0 ? (
-          <CircleAlert className="h-4 w-4 text-red-400" />
+          <CircleAlert className="h-4 w-4 text-red-600 dark:text-red-400" />
         ) : (
-          <CircleAlert className="h-4 w-4 text-amber-400" />
+          <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         )}
-        {errors.length} error{errors.length === 1 ? "" : "es"},{" "}
-        {warnings.length} advertencia{warnings.length === 1 ? "" : "s"}
+        <span>
+          {errors.length} error{errors.length === 1 ? "" : "es"},{" "}
+          {warnings.length} advertencia{warnings.length === 1 ? "" : "s"}
+        </span>
+        <span className="ml-1 text-[10px] text-muted-foreground/80">
+          (haz clic en uno para ir al paso)
+        </span>
       </div>
       <div className="flex flex-col gap-1">
         {issues.map((i, ix) => (
-          <IssueLine key={ix} issue={i} onJump={onJump} />
+          <IssueLine
+            key={ix}
+            issue={i}
+            onJump={onJump}
+            nodeLabel={i.node_key ? labelByKey.get(i.node_key) : undefined}
+          />
         ))}
       </div>
     </div>
   );
 }
 
+/**
+ * Texto inline corto que el usuario escribió en el cuerpo del nodo —
+ * lo usamos para diferenciar varios nodos del mismo tipo en la lista
+ * de errores. Se trunca a 28 chars con elipsis para no romper la línea.
+ */
+function nodeInlineTitle(node: BuilderNode): string | null {
+  const cfg = node.config as Record<string, unknown>;
+  let raw: unknown;
+  if (typeof cfg.text === "string") raw = cfg.text;
+  else if (typeof cfg.prompt_text === "string") raw = cfg.prompt_text;
+  else if (typeof cfg.button_title === "string") raw = cfg.button_title;
+  else if (typeof cfg.button_label === "string") raw = cfg.button_label;
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  if (!t) return null;
+  return t.length > 28 ? `${t.slice(0, 28)}…` : t;
+}
+
 function IssueLine({
   issue,
   onJump,
+  nodeLabel,
 }: {
   issue: ValidationIssue;
   onJump?: (key: string) => void;
+  /** Etiqueta amigable del nodo. Reemplaza el viejo chip con node_key. */
+  nodeLabel?: string;
 }) {
   const tone =
-    issue.severity === "error" ? "text-red-300" : "text-amber-300";
+    issue.severity === "error" ? "text-red-600 dark:text-red-300" : "text-amber-700 dark:text-amber-300";
   const iconTone =
-    issue.severity === "error" ? "text-red-400" : "text-amber-400";
+    issue.severity === "error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400";
   const body = (
     <>
       <CircleAlert className={cn("mt-0.5 h-3 w-3 shrink-0", iconTone)} />
       <span className="min-w-0 flex-1">
-        {issue.node_key && (
-          <code className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-            {issue.node_key}
-          </code>
+        {nodeLabel && (
+          <span className="mr-1.5 inline-flex max-w-[220px] truncate rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium text-foreground">
+            {nodeLabel}
+          </span>
         )}
         {issue.message}
       </span>
     </>
   );
 
-  // Only node-scoped issues can jump; trigger-scoped issues have no
-  // destination (the trigger panel is already at the top of the page).
   if (issue.node_key && onJump) {
     return (
       <button
@@ -3254,7 +3760,7 @@ function IssueLine({
           "flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-accent",
           tone,
         )}
-        aria-label={`Ir al nodo ${issue.node_key}`}
+        aria-label={nodeLabel ? `Ir a ${nodeLabel}` : "Ir al paso"}
       >
         {body}
       </button>
@@ -3625,8 +4131,8 @@ function FlowCanvas(props: FlowTreeProps) {
         fromKey: "__trigger__",
         toKey: target.node_key,
         from: {
-          x: TRIGGER_POS.x + TRIGGER_WIDTH,
-          y: TRIGGER_POS.y + CARD_AXIS_PX,
+          x: props.triggerPosition.x + TRIGGER_WIDTH,
+          y: props.triggerPosition.y + CARD_AXIS_PX,
         },
         to: {
           x: target.position_x,
@@ -3673,7 +4179,7 @@ function FlowCanvas(props: FlowTreeProps) {
       })
     }
     return out
-  }, [props.allNodes, props.entryKey, nodesByKey, portPositions])
+  }, [props.allNodes, props.entryKey, nodesByKey, portPositions, props.triggerPosition.x, props.triggerPosition.y])
 
   // ── Estado y handlers de drag-to-connect ──
   //
@@ -3833,6 +4339,24 @@ function FlowCanvas(props: FlowTreeProps) {
         width={CANVAS_W}
         height={CANVAS_H}
       >
+        {/* Marker definitions — la flecha al final de cada conexión.
+            refX=8 + viewBox 0 0 10 10 ubica la punta justo en el
+            extremo del path. `currentColor` toma el stroke del path
+            para que la flecha herede el color exacto del conector. */}
+        <defs>
+          <marker
+            id="flow-arrow"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerUnits="strokeWidth"
+            markerWidth="4.5"
+            markerHeight="4.5"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border)" />
+          </marker>
+        </defs>
         {edges.map((e, i) => (
           <ConnectorPath key={i} edge={e} />
         ))}
@@ -3853,13 +4377,10 @@ function FlowCanvas(props: FlowTreeProps) {
         )}
       </svg>
 
-      <div
-        className="absolute"
-        style={{
-          left: TRIGGER_POS.x,
-          top: TRIGGER_POS.y,
-          width: TRIGGER_WIDTH,
-        }}
+      <DraggableTriggerWrapper
+        position={props.triggerPosition}
+        onMove={props.onTriggerMove}
+        onDragStart={props.onSnapshotHistory}
       >
         <CanvasTriggerCard
           triggerType={props.triggerType}
@@ -3867,7 +4388,7 @@ function FlowCanvas(props: FlowTreeProps) {
           triggerIssues={props.triggerIssues}
           onChange={props.onTriggerChange}
         />
-      </div>
+      </DraggableTriggerWrapper>
 
       {props.allNodes.map((node) => (
         <DraggableNode
@@ -3912,16 +4433,25 @@ function ConnectorPath({
   dashed?: boolean
   color?: string
 }) {
+  // Curva con horizontal tangent en cada extremo — el `dx` es la
+  // pendiente del bezier. Al final se acorta 10px porque el arrow
+  // marker tiene su propio "alto" y si no, la punta queda metida
+  // dentro del card destino. Las líneas punteadas (drag-to-connect)
+  // NO llevan flecha — su punta es el cursor.
   const dx = Math.max(40, (edge.to.x - edge.from.x) * 0.35)
-  const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${edge.to.x - dx} ${edge.to.y}, ${edge.to.x} ${edge.to.y}`
+  // Acortar 10px sólo en X — la curva entra horizontal así que el
+  // recorte horizontal es suficiente para que el arrow no se incruste.
+  const endX = dashed ? edge.to.x : edge.to.x - 10
+  const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${endX - dx} ${edge.to.y}, ${endX} ${edge.to.y}`
   return (
     <path
       d={d}
       fill="none"
       stroke={color ?? "var(--border)"}
-      strokeWidth={dashed ? 2 : 1.5}
+      strokeWidth={dashed ? 2 : 2.5}
       strokeLinecap="round"
       strokeDasharray={dashed ? "5 4" : undefined}
+      markerEnd={dashed ? undefined : "url(#flow-arrow)"}
     />
   )
 }
@@ -4041,6 +4571,103 @@ function DraggableNode(props: DraggableNodeProps) {
   )
 }
 
+/**
+ * Wrapper draggeable para el CanvasTriggerCard. Misma mecánica que
+ * DraggableNode pero sin labels/issues — solo posiciona y mueve. El
+ * disparador no es un nodo así que no recibe `onConnectStart` /
+ * `onRemove` / etc.; sólo posición + onMove.
+ *
+ * Los inputs internos del card (selector de tipo, textbox de keyword)
+ * NO disparan el drag — el guard por selector replica el que usa
+ * DraggableNode (input, textarea, button, role=combobox, etc.).
+ */
+function DraggableTriggerWrapper({
+  position,
+  onMove,
+  onDragStart,
+  children,
+}: {
+  position: { x: number; y: number }
+  onMove: (x: number, y: number) => void
+  onDragStart: () => void
+  children: React.ReactNode
+}) {
+  const { scale } = useCanvasTransform()
+  const [dragging, setDragging] = useState(false)
+  const startRef = useRef<{
+    mouseX: number
+    mouseY: number
+    nodeX: number
+    nodeY: number
+  } | null>(null)
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return
+      const t = e.target as HTMLElement
+      if (
+        t.closest(
+          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-connection-port="true"]',
+        )
+      ) {
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      startRef.current = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        nodeX: position.x,
+        nodeY: position.y,
+      }
+      onDragStart()
+      setDragging(true)
+    },
+    [position.x, position.y, onDragStart],
+  )
+
+  useEffect(() => {
+    if (!dragging) return
+    function move(e: MouseEvent) {
+      const s = startRef.current
+      if (!s) return
+      const dx = (e.clientX - s.mouseX) / scale
+      const dy = (e.clientY - s.mouseY) / scale
+      onMove(s.nodeX + dx, s.nodeY + dy)
+    }
+    function up() {
+      startRef.current = null
+      setDragging(false)
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+    return () => {
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+  }, [dragging, scale, onMove])
+
+  return (
+    <div
+      className={cn(
+        "absolute select-none transition-transform",
+        dragging
+          ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
+          : "cursor-grab",
+        dragging && "scale-[1.02]",
+      )}
+      style={{
+        left: position.x,
+        top: position.y,
+        width: TRIGGER_WIDTH,
+      }}
+      onMouseDown={onMouseDown}
+    >
+      {children}
+    </div>
+  )
+}
+
 function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
   const cfg = node.config
   switch (node.node_type) {
@@ -4143,6 +4770,10 @@ interface FlowTreeProps {
     type: BuilderState["trigger_type"],
     config: Record<string, unknown>,
   ) => void
+  /** Posición actual del disparador (migration 028). */
+  triggerPosition: { x: number; y: number }
+  /** Mover el disparador desde el drag handler del canvas. */
+  onTriggerMove: (x: number, y: number) => void
 }
 
 /**
@@ -4152,6 +4783,69 @@ interface FlowTreeProps {
  * derecha de todos los demás (ver addNode) — listo para arrastrar a
  * la posición que el usuario quiera y conectarlo con "Avanza a".
  */
+/**
+ * Diálogo que se abre cuando el usuario borra un botón/fila que
+ * apunta a una cadena de pasos. Le pregunta si querer borrar también
+ * esos pasos (sólo los que quedarían huérfanos — el cálculo del
+ * subárbol exclusivo vive en el FlowBuilder).
+ */
+function CascadeDeleteDialog({
+  open,
+  downstreamCount,
+  kind,
+  onClose,
+  onConfirmButtonOnly,
+  onConfirmWithDownstream,
+}: {
+  open: boolean;
+  downstreamCount: number;
+  kind: "button" | "row";
+  onClose: () => void;
+  onConfirmButtonOnly: () => void;
+  onConfirmWithDownstream: () => void;
+}) {
+  const noun = kind === "button" ? "botón" : "opción";
+  const stepsLabel =
+    downstreamCount === 1 ? "1 paso" : `${downstreamCount} pasos`;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>¿Borrar también los pasos siguientes?</DialogTitle>
+          <DialogDescription>
+            {downstreamCount > 0 ? (
+              <>
+                Este {noun} conecta con {stepsLabel} que sólo se usan
+                desde acá. Si lo borras solo, esos pasos van a quedar
+                desconectados (y te van a aparecer como pasos sueltos).
+              </>
+            ) : (
+              <>
+                Este {noun} apunta a un paso que también usan otras ramas,
+                así que solo borraremos el {noun} — los pasos siguientes
+                quedan intactos.
+              </>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="outline" onClick={onConfirmButtonOnly}>
+            Sólo el {noun}
+          </Button>
+          {downstreamCount > 0 && (
+            <Button variant="destructive" onClick={onConfirmWithDownstream}>
+              Borrar el {noun} y los {stepsLabel}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
   return (
     <DropdownMenu>
@@ -4237,7 +4931,7 @@ function CanvasTriggerCard({
         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
       >
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/15">
-          <Zap className="h-3.5 w-3.5 text-emerald-400" />
+          <Zap className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -4245,7 +4939,7 @@ function CanvasTriggerCard({
               Cuándo dispara
             </span>
             {hasError && (
-              <CircleAlert className="h-3 w-3 shrink-0 text-red-400" />
+              <CircleAlert className="h-3 w-3 shrink-0 text-red-600 dark:text-red-400" />
             )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
@@ -4319,7 +5013,7 @@ function CanvasTriggerCard({
                   key={ix}
                   className={cn(
                     "text-[11px]",
-                    i.severity === "error" ? "text-red-300" : "text-amber-300",
+                    i.severity === "error" ? "text-red-600 dark:text-red-300" : "text-amber-700 dark:text-amber-300",
                   )}
                 >
                   {i.message}

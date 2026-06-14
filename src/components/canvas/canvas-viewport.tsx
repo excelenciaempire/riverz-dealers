@@ -59,6 +59,7 @@ export function CanvasViewport({
   children,
   className,
   initialFit = 'top-left',
+  onComputeContentBounds,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -72,6 +73,18 @@ export function CanvasViewport({
    *               cards down to 25% and makes labels unreadable.
    */
   initialFit?: 'top-left' | 'fit';
+  /**
+   * Opcional. Cuando el contenedor del canvas tiene un tamaño virtual
+   * (ej. flow-builder usa un 6000x4000 fijo), `scrollWidth/scrollHeight`
+   * miden ese tamaño virtual, no la bounding box real de los nodos —
+   * y el fit-to-view termina ajustando contra 6000px en vez del flujo
+   * real. Si el padre provee esta callback, fit-to-view usa la bbox
+   * que devuelve (en coordenadas del lienzo, sin escalar). Si retorna
+   * null o no se pasa, caemos al cálculo viejo basado en scroll*.
+   */
+  onComputeContentBounds?: () =>
+    | { x: number; y: number; w: number; h: number }
+    | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -108,16 +121,32 @@ export function CanvasViewport({
     if (!container || !content) return;
     const cw = container.clientWidth;
     const ch = container.clientHeight;
+    const padding = 80;
+    const bounds = onComputeContentBounds?.() ?? null;
+    if (bounds && bounds.w > 0 && bounds.h > 0) {
+      // El padre conoce la bbox real (ej. nodos en flow-builder). El
+      // tx/ty arrastra la esquina top-left de la bbox al origen y la
+      // centra dentro del container.
+      const scaleFit = Math.min(
+        1,
+        (cw - padding) / bounds.w,
+        (ch - padding) / bounds.h,
+      );
+      const s = clampScale(scaleFit);
+      setScale(s);
+      setTx((cw - bounds.w * s) / 2 - bounds.x * s);
+      setTy((ch - bounds.h * s) / 2 - bounds.y * s);
+      return;
+    }
     const w = content.scrollWidth;
     const h = content.scrollHeight;
     if (!w || !h) return;
-    const padding = 80;
     const scaleFit = Math.min(1, (cw - padding) / w, (ch - padding) / h);
     const s = clampScale(scaleFit);
     setScale(s);
     setTx((cw - w * s) / 2);
     setTy((ch - h * s) / 2);
-  }, []);
+  }, [onComputeContentBounds]);
 
   useEffect(() => {
     if (hasCenteredRef.current) return;
@@ -125,7 +154,7 @@ export function CanvasViewport({
       if (initialFit === 'fit') {
         fitToView();
       } else {
-        // Arranca al 70% — la primera vez que abrís el lienzo querés ver
+        // Arranca al 70% — la primera vez que abres el lienzo quieres ver
         // el conjunto del flujo, no un solo card al 100%. El usuario
         // hace zoom-in con Ctrl+rueda si quiere detalle de un nodo.
         setScale(0.7);

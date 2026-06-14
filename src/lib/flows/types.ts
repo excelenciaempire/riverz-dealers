@@ -315,6 +315,9 @@ export interface FlowRow {
   trigger_type: "keyword" | "first_inbound_message" | "manual";
   trigger_config: KeywordTriggerConfig | FirstInboundTriggerConfig | Record<string, unknown>;
   entry_node_id: string | null;
+  /** Coordenadas del disparador en el lienzo. Migration 028. */
+  trigger_position_x: number;
+  trigger_position_y: number;
   fallback_policy: FlowFallbackPolicy;
   execution_count: number;
   last_executed_at: string | null;

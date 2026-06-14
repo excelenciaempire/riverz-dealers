@@ -25,6 +25,12 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
+/** Capitaliza la primera letra. Para encajar fragmentos como `el botón "X"`
+ *  al principio de una frase ("El botón ..."). */
+function capFirst(s: string): string {
+  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export interface ValidationIssue {
   severity: "error" | "warning";
   scope: "flow" | "trigger" | "node";
@@ -91,7 +97,8 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "entry_node_id",
-      message: `Entry node "${flow.entry_node_id}" doesn't exist.`,
+      message:
+        "El paso por el que empieza el menú ya no existe. Elige otro paso para empezar.",
     });
   }
 
@@ -104,7 +111,8 @@ export function validateFlowForActivation(
         severity: "error",
         scope: "node",
         node_key: n.node_key,
-        message: `Duplicate node_key "${n.node_key}".`,
+        message:
+          "Hay dos pasos con el mismo nombre interno. Borra uno o cambia el nombre.",
       });
     }
     seen.add(n.node_key);
@@ -126,7 +134,8 @@ export function validateFlowForActivation(
           severity: "warning",
           scope: "node",
           node_key: n.node_key,
-          message: `Node "${n.node_key}" is unreachable from the entry node.`,
+          message:
+            "Este paso queda suelto: no se llega desde el inicio. Conéctalo a algún paso anterior o bórralo.",
         });
       }
     }
@@ -154,7 +163,8 @@ function validateTrigger(
         severity: "error",
         scope: "trigger",
         field: "trigger_config.keywords",
-        message: "Tienes que escribir al menos una palabra clave.",
+        message:
+          "Escribe al menos una palabra clave que dispare el menú (ej: \"menú\", \"hola\").",
       });
     } else {
       // Empty / whitespace-only keywords are silent no-ops at match
@@ -168,7 +178,10 @@ function validateTrigger(
           severity: "warning",
           scope: "trigger",
           field: "trigger_config.keywords",
-          message: `${blanks} keyword${blanks === 1 ? " is" : "s are"} blank — they won't match anything.`,
+          message:
+            blanks === 1
+              ? "Hay una palabra clave vacía. No va a disparar el menú — bórrala o escríbele algo."
+              : `Hay ${blanks} palabras clave vacías. No van a disparar el menú — bórralas o escríbeles algo.`,
         });
       }
     }
@@ -197,7 +210,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "El nodo de inicio tiene que apuntar a un siguiente paso.",
+          message:
+            "El paso de inicio no está conectado a nada. Conéctalo al primer paso real del menú.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -205,7 +219,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: `Start points to non-existent node "${cfg.next_node_key}".`,
+          message:
+            "El paso de inicio apunta a un paso que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -219,7 +234,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribe el texto del mensaje.",
+          message: "Escribe el texto del mensaje que se le va a enviar al cliente.",
         });
       }
       if (!cfg.next_node_key) {
@@ -228,7 +243,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Conecta este mensaje al siguiente paso.",
+          message:
+            "Este mensaje no está conectado al siguiente paso. Arrastra desde el círculo de la derecha hasta el próximo paso.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -236,7 +252,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: `Send-message points to non-existent node "${cfg.next_node_key}".`,
+          message:
+            "Este mensaje apunta a un paso que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -257,7 +274,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribe el texto que acompaña los botones.",
+          message: "Escribe el texto que va arriba de los botones.",
         });
       }
       const btns = cfg.buttons ?? [];
@@ -267,7 +284,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "buttons",
-          message: "Añade al menos un botón.",
+          message: "Agrega al menos un botón.",
         });
       }
       if (btns.length > INTERACTIVE_LIMITS.maxButtons) {
@@ -276,10 +293,12 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "buttons",
-          message: `WhatsApp allows at most ${INTERACTIVE_LIMITS.maxButtons} buttons per message.`,
+          message: `WhatsApp solo permite ${INTERACTIVE_LIMITS.maxButtons} botones por mensaje. Quita los que sobran o pasa a una lista (Enviar lista) si necesitas más opciones.`,
         });
       }
       const seenIds = new Set<string>();
+      const btnLabel = (b: { title?: string }, i: number) =>
+        b.title?.trim() ? `el botón "${b.title.trim()}"` : `el botón ${i + 1}`;
       btns.forEach((b, i) => {
         const field = `buttons.${i}`;
         if (!b.reply_id?.trim()) {
@@ -288,7 +307,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.reply_id`,
-            message: `Button ${i + 1} needs a reply id.`,
+            message: `${capFirst(btnLabel(b, i))} no tiene identificador interno. Escribe uno corto (ej: "comprar", "soporte").`,
           });
         } else if (seenIds.has(b.reply_id)) {
           issues.push({
@@ -296,7 +315,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.reply_id`,
-            message: `Duplicate button reply id "${b.reply_id}".`,
+            message: `Hay otro botón con el mismo identificador "${b.reply_id}". Cámbiale el identificador a uno de los dos.`,
           });
         }
         if (b.reply_id) seenIds.add(b.reply_id);
@@ -307,7 +326,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.title`,
-            message: `Button ${i + 1} needs a title.`,
+            message: `El botón ${i + 1} no tiene texto. Escribe lo que va a ver el cliente.`,
           });
         } else if (b.title.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
           issues.push({
@@ -315,7 +334,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.title`,
-            message: `Button ${i + 1} title is over ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars (WhatsApp limit).`,
+            message: `El texto de ${btnLabel(b, i)} es muy largo. WhatsApp solo permite ${INTERACTIVE_LIMITS.buttonTitleMaxLength} caracteres.`,
           });
         }
 
@@ -325,7 +344,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.next_node_key`,
-            message: `Button ${i + 1} needs a next node.`,
+            message: `${capFirst(btnLabel(b, i))} no está conectado a ningún paso. Arrastra desde el círculo del botón hasta el próximo paso.`,
           });
         } else if (!knownKeys.has(b.next_node_key)) {
           issues.push({
@@ -333,7 +352,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: `${field}.next_node_key`,
-            message: `Button ${i + 1} points to non-existent node "${b.next_node_key}".`,
+            message: `${capFirst(btnLabel(b, i))} apunta a un paso que ya no existe. Vuélvelo a conectar.`,
           });
         }
       });
@@ -360,7 +379,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "text",
-          message: "Escribe el texto que acompaña la lista.",
+          message: "Escribe el texto que se le muestra al cliente arriba de la lista.",
         });
       }
       if (!cfg.button_label?.trim()) {
@@ -369,7 +388,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "button_label",
-          message: "Escribe el texto del botón que abre la lista.",
+          message:
+            "Escribe el texto del botón que abre la lista (ej: \"Ver opciones\").",
         });
       }
       const sections = cfg.sections ?? [];
@@ -383,7 +403,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "sections",
-          message: "Añade al menos una opción a la lista.",
+          message: "Agrega al menos una opción a la lista.",
         });
       }
       if (totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
@@ -392,10 +412,14 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "sections",
-          message: `Send-list allows at most ${INTERACTIVE_LIMITS.maxListRowsTotal} rows total across sections.`,
+          message: `La lista tiene más de ${INTERACTIVE_LIMITS.maxListRowsTotal} opciones. WhatsApp solo permite hasta ${INTERACTIVE_LIMITS.maxListRowsTotal} en total — quita las que sobran.`,
         });
       }
       const seenIds = new Set<string>();
+      const rowLabel = (row: { title?: string }, ri: number) =>
+        row.title?.trim()
+          ? `la opción "${row.title.trim()}"`
+          : `la opción ${ri + 1}`;
       sections.forEach((section, si) => {
         const rows = section.rows ?? [];
         rows.forEach((row, ri) => {
@@ -406,7 +430,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.reply_id`,
-              message: `Row ${ri + 1} in section ${si + 1} needs a reply id.`,
+              message: `${capFirst(rowLabel(row, ri))} no tiene identificador interno. Escribe uno corto (ej: "comprar", "soporte").`,
             });
           } else if (seenIds.has(row.reply_id)) {
             issues.push({
@@ -414,7 +438,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.reply_id`,
-              message: `Duplicate list row id "${row.reply_id}".`,
+              message: `Hay otra opción con el mismo identificador "${row.reply_id}". Cámbiale el identificador a una de las dos.`,
             });
           }
           if (row.reply_id) seenIds.add(row.reply_id);
@@ -425,7 +449,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.title`,
-              message: `Row ${ri + 1} needs a title.`,
+              message: `La opción ${ri + 1} no tiene texto. Escribe lo que va a ver el cliente.`,
             });
           } else if (
             row.title.length > INTERACTIVE_LIMITS.listRowTitleMaxLength
@@ -435,7 +459,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.title`,
-              message: `Row ${ri + 1} title exceeds ${INTERACTIVE_LIMITS.listRowTitleMaxLength} chars.`,
+              message: `El texto de ${rowLabel(row, ri)} es muy largo. WhatsApp solo permite ${INTERACTIVE_LIMITS.listRowTitleMaxLength} caracteres.`,
             });
           }
           if (
@@ -448,7 +472,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.description`,
-              message: `Row ${ri + 1} description exceeds ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} chars.`,
+              message: `La descripción de ${rowLabel(row, ri)} es muy larga. WhatsApp solo permite ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} caracteres.`,
             });
           }
           if (!row.next_node_key) {
@@ -457,7 +481,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.next_node_key`,
-              message: `Row ${ri + 1} needs a next node.`,
+              message: `${capFirst(rowLabel(row, ri))} no está conectada a ningún paso. Arrastra desde el círculo de la opción hasta el próximo paso.`,
             });
           } else if (!knownKeys.has(row.next_node_key)) {
             issues.push({
@@ -465,7 +489,7 @@ function validateNode(
               scope: "node",
               node_key: node.node_key,
               field: `${field}.next_node_key`,
-              message: `Row ${ri + 1} points to non-existent node "${row.next_node_key}".`,
+              message: `${capFirst(rowLabel(row, ri))} apunta a un paso que ya no existe. Vuélvela a conectar.`,
             });
           }
         });
@@ -494,7 +518,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "var_key",
-          message: "Ponle un nombre a la variable donde se guarda la respuesta.",
+          message:
+            "Ponle un nombre a la variable donde se guarda la respuesta del cliente (ej: nombre, ciudad).",
         });
       } else if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cfg.var_key)) {
         issues.push({
@@ -502,7 +527,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "var_key",
-          message: `var_key "${cfg.var_key}" must be alphanumeric+underscore and start with a letter or underscore.`,
+          message: `El nombre de la variable "${cfg.var_key}" solo puede tener letras, números y guion bajo, y debe empezar con letra. Ej: nombre, telefono, codigo_pedido.`,
         });
       }
       if (!cfg.next_node_key) {
@@ -511,7 +536,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: "Conecta este paso al siguiente.",
+          message:
+            "Conecta este paso al siguiente. Arrastra desde el círculo de la derecha.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
@@ -519,7 +545,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: `Collect-input points to non-existent node "${cfg.next_node_key}".`,
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -540,7 +567,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "subject",
-          message: "Elige qué evaluar (variable, etiqueta o campo).",
+          message: "Elige qué quieres comparar: una variable, una etiqueta o un campo del contacto.",
         });
       }
       if (!cfg.subject_key?.trim()) {
@@ -549,7 +576,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "subject_key",
-          message: "Indicá qué variable, etiqueta o campo evaluar.",
+          message:
+            "Falta el nombre exacto de la variable, etiqueta o campo que vas a comparar.",
         });
       }
       if (
@@ -561,7 +589,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "operator",
-          message: "Elige cómo comparar.",
+          message: "Elige cómo comparar (igual a, contiene, existe, no existe).",
         });
       } else if (
         (cfg.operator === "equals" || cfg.operator === "contains") &&
@@ -572,18 +600,19 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "value",
-          message: `Operator "${cfg.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
+          message: `Estás comparando con "${cfg.operator === "equals" ? "igual a" : "contiene"}" pero no escribiste con qué. Si lo dejas vacío, solo va a coincidir cuando el valor también esté vacío.`,
         });
       }
       for (const branch of ["true_next", "false_next"] as const) {
         const key = cfg[branch];
+        const branchName = branch === "true_next" ? "Sí" : "No";
         if (!key) {
           issues.push({
             severity: "error",
             scope: "node",
             node_key: node.node_key,
             field: branch,
-            message: `Condition needs a node for the "${branch === "true_next" ? "true" : "false"}" branch.`,
+            message: `La rama "${branchName}" no está conectada a ningún paso. Arrastra desde el círculo de esa rama hasta el próximo paso.`,
           });
         } else if (!knownKeys.has(key)) {
           issues.push({
@@ -591,7 +620,7 @@ function validateNode(
             scope: "node",
             node_key: node.node_key,
             field: branch,
-            message: `Condition's "${branch}" points to non-existent node "${key}".`,
+            message: `La rama "${branchName}" apunta a un paso que ya no existe. Vuélvela a conectar.`,
           });
         }
       }
@@ -610,7 +639,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "mode",
-          message: "Elige si la etiqueta se añade o se quita.",
+          message: "Elige si la etiqueta se agrega o se quita al contacto.",
         });
       }
       if (!cfg.tag_id) {
@@ -619,7 +648,7 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "tag_id",
-          message: "Elige la etiqueta.",
+          message: "Elige qué etiqueta agregar o quitar.",
         });
       }
       if (!cfg.next_node_key) {
@@ -636,7 +665,8 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "next_node_key",
-          message: `Set-tag points to non-existent node "${cfg.next_node_key}".`,
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -649,12 +679,19 @@ function validateNode(
         url?: string;
         next_node_key?: string;
       };
+      const mediaName =
+        node.node_type === "send_image"
+          ? "la imagen"
+          : node.node_type === "send_video"
+            ? "el video"
+            : "el documento";
       if (!cfg.url || !/^https?:\/\//.test(cfg.url)) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `${node.node_type} requires a https URL.`,
+          field: "url",
+          message: `Pega la URL pública de ${mediaName}. Tiene que empezar con http:// o https://.`,
         });
       }
       if (!cfg.next_node_key) {
@@ -662,14 +699,17 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `${node.node_type} needs a next_node_key.`,
+          field: "next_node_key",
+          message: "Conecta este paso al siguiente.",
         });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `${node.node_type} points to non-existent node "${cfg.next_node_key}".`,
+          field: "next_node_key",
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -686,7 +726,8 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Escribe el texto del mensaje.",
+          field: "text",
+          message: "Escribe el texto del mensaje que va con el botón.",
         });
       }
       if (!cfg.button_title?.trim()) {
@@ -694,7 +735,8 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Ponle texto al botón.",
+          field: "button_title",
+          message: "Escribe el texto del botón (ej: \"Ver oferta\").",
         });
       }
       if (!cfg.url || !/^https:\/\//.test(cfg.url)) {
@@ -702,7 +744,9 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "La URL tiene que empezar con https://.",
+          field: "url",
+          message:
+            "La URL del botón tiene que empezar con https:// (WhatsApp no acepta http).",
         });
       }
       if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
@@ -710,7 +754,9 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `send_cta_url points to non-existent node "${cfg.next_node_key}".`,
+          field: "next_node_key",
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -726,7 +772,8 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "La cantidad de espera tiene que ser al menos 1.",
+          field: "amount",
+          message: "Escribe cuánto tiempo esperar (mínimo 1).",
         });
       }
       if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
@@ -734,7 +781,8 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Elige minutos, horas o días.",
+          field: "unit",
+          message: "Elige la unidad de tiempo: minutos, horas o días.",
         });
       }
       if (cfg.next_node_key && !knownKeys.has(cfg.next_node_key)) {
@@ -742,7 +790,9 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `wait points to non-existent node "${cfg.next_node_key}".`,
+          field: "next_node_key",
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
         });
       }
       break;
@@ -757,16 +807,19 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Añade al menos una intención.",
+          field: "intents",
+          message:
+            "Agrega al menos una intención (ej: \"quiere comprar\", \"pide ayuda\").",
         });
       }
-      for (const i of cfg.intents ?? []) {
+      (cfg.intents ?? []).forEach((i, idx) => {
         if (!i.intent_key) {
           issues.push({
             severity: "error",
             scope: "node",
             node_key: node.node_key,
-            message: "Cada intención necesita un nombre.",
+            field: `intents.${idx}.intent_key`,
+            message: `Falta el nombre de la intención ${idx + 1}.`,
           });
         }
         if (i.next_node_key && !knownKeys.has(i.next_node_key)) {
@@ -774,16 +827,19 @@ function validateNode(
             severity: "error",
             scope: "node",
             node_key: node.node_key,
-            message: `ai_intent intent points to non-existent node "${i.next_node_key}".`,
+            field: `intents.${idx}.next_node_key`,
+            message: `La intención "${i.intent_key ?? idx + 1}" apunta a un paso que ya no existe. Vuélvela a conectar.`,
           });
         }
-      }
+      });
       if (cfg.fallback_next_key && !knownKeys.has(cfg.fallback_next_key)) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: `ai_intent fallback points to non-existent node "${cfg.fallback_next_key}".`,
+          field: "fallback_next_key",
+          message:
+            "La rama \"No entendí\" apunta a un paso que ya no existe. Vuélvela a conectar.",
         });
       }
       break;
@@ -806,7 +862,9 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Elige qué buscar en Shopify.",
+          field: "kind",
+          message:
+            "Elige qué buscar en Shopify (pedido por número, último pedido, producto, etc.).",
         });
       }
       if (!cfg.output_prefix) {
@@ -814,16 +872,24 @@ function validateNode(
           severity: "error",
           scope: "node",
           node_key: node.node_key,
-          message: "Ponle un nombre al resultado (ej: pedido).",
+          field: "output_prefix",
+          message:
+            "Ponle un nombre al resultado para usarlo después en variables (ej: pedido, producto).",
         });
       }
-      for (const k of [cfg.found_next_key, cfg.not_found_next_key]) {
+      const branches: Array<["found_next_key" | "not_found_next_key", string]> = [
+        ["found_next_key", "Encontrado"],
+        ["not_found_next_key", "No encontrado"],
+      ];
+      for (const [field, label] of branches) {
+        const k = cfg[field];
         if (k && !knownKeys.has(k)) {
           issues.push({
             severity: "error",
             scope: "node",
             node_key: node.node_key,
-            message: `shopify_lookup points to non-existent node "${k}".`,
+            field,
+            message: `La rama "${label}" apunta a un paso que ya no existe. Vuélvela a conectar.`,
           });
         }
       }
@@ -841,7 +907,7 @@ function validateNode(
         severity: "error",
         scope: "node",
         node_key: node.node_key,
-        message: `Unknown node type "${node.node_type}".`,
+        message: `Tipo de paso desconocido: "${node.node_type}". Bórralo y vuelve a agregarlo desde el menú.`,
       });
   }
 
