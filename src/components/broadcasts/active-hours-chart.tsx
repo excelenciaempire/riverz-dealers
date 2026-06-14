@@ -42,7 +42,7 @@ export function ActiveHoursChart({ timestamps }: ActiveHoursChartProps) {
             <div
               key={hour}
               className="group relative flex flex-1 flex-col items-center justify-end"
-              title={`${hour}:00 — ${count} envío${count === 1 ? '' : 's'}`}
+              title={`${hour}:00 · ${count} envío${count === 1 ? '' : 's'}`}
             >
               <div
                 className="w-full rounded-sm bg-foreground/40 transition-all group-hover:bg-foreground/70"

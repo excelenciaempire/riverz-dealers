@@ -1,24 +1,24 @@
 "use client";
 
 /**
- * Panel del constructor IA — chat embebido dentro del lienzo del
- * editor de flujos. Hablás en lenguaje natural ("agrega un botón que
- * lleve a un menú con tres opciones: envíos, devoluciones, contacto")
- * y la IA aplica los cambios al estado del builder via patches
+ * Panel del constructor IA. Chat embebido dentro del lienzo del editor
+ * de flujos. Le hablas en lenguaje natural ("agrega un botón que lleve
+ * a un menú con tres opciones: envíos, devoluciones, contacto") y la IA
+ * aplica los cambios al estado del builder por medio de patches
  * estructurados.
  *
- * Anclado a la esquina derecha. Cerrado por defecto: un botón con un
+ * Anclado en la esquina derecha. Cerrado por defecto: un botón con un
  * ícono de chispas (Sparkles) abre el panel y mantiene su historial
- * durante la sesión. El historial se pasa al endpoint en cada turn
+ * durante la sesión. El historial se pasa al endpoint en cada turno
  * (limitado a los últimos 10) para que la IA tenga continuidad si el
- * usuario refine.
+ * usuario refina.
  *
- * El panel se aplica al estado local — la persistencia ocurre cuando
- * el usuario pulsa Guardar arriba. Si arruina algo, Ctrl+Z reverte el
- * turn entero.
+ * Los cambios se aplican al estado local. La persistencia ocurre cuando
+ * el usuario pulsa Guardar arriba. Si la IA se equivoca, Ctrl+Z reverte
+ * el turno completo (un commit por turno).
  */
 
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { Sparkles, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,31 @@ export function AiBuilderPanel({
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Productos del workspace. Los cargamos UNA vez al abrir el panel
+  // (no en mount: si el usuario nunca lo abre, no gastamos round-trip).
+  // Los pasamos a buildExampleSuggestions para que las sugerencias
+  // referencien productos reales en lugar de placeholders genéricos.
+  const [products, setProducts] = useState<Array<{ title: string; handle: string }>>([]);
+  useEffect(() => {
+    if (!open || products.length > 0) return;
+    let cancelled = false;
+    fetch("/api/products?limit=20")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.products) return;
+        setProducts(
+          (data.products as Array<{ title?: string; handle?: string }>)
+            .filter((p) => p.title && p.handle)
+            .slice(0, 20)
+            .map((p) => ({ title: p.title!, handle: p.handle! })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, products.length]);
+
   // Auto-scroll al final cada vez que cambia el historial.
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -92,8 +117,10 @@ export function AiBuilderPanel({
         body: JSON.stringify({
           message,
           flow_snapshot: getSnapshot(),
-          // Solo mandamos historial textual (no patches anteriores) —
-          // la IA reconstruye intención de los turnos previos.
+          // Productos sincronizados: la IA los usa para sugerir nombres
+          // reales y handles correctos al armar nodos send_cta_url o
+          // send_message con links a la tienda.
+          products,
           history: turns.map((t) => ({ role: t.role, content: t.content })),
         }),
       });
@@ -195,28 +222,11 @@ export function AiBuilderPanel({
             className="flex-1 overflow-y-auto px-3 py-3"
           >
             {turns.length === 0 ? (
-              <div className="space-y-3 text-xs text-muted-foreground">
-                <p>
-                  Pídele a la IA que construya o modifique el flujo. Ejemplos:
-                </p>
-                <ul className="space-y-2">
-                  {EXAMPLE_PROMPTS.map((ex) => (
-                    <li key={ex}>
-                      <button
-                        type="button"
-                        onClick={() => setInput(ex)}
-                        className="w-full rounded-md border border-border bg-muted/30 px-2.5 py-2 text-left text-xs text-foreground transition-colors hover:bg-muted"
-                      >
-                        {ex}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-[10px]">
-                  Los cambios se aplican al lienzo pero NO se guardan hasta
-                  que pulses Guardar arriba. Ctrl+Z reverte el último turno.
-                </p>
-              </div>
+              <ExamplePrompts
+                snapshot={getSnapshot()}
+                products={products}
+                onPick={setInput}
+              />
             ) : (
               <div className="space-y-3">
                 {turns.map((t, i) => (
@@ -238,7 +248,7 @@ export function AiBuilderPanel({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="¿Qué querés que arme?"
+                placeholder="¿Qué quieres armar?"
                 rows={2}
                 className={cn(
                   "min-h-[44px] flex-1 resize-none rounded-md border border-border bg-muted/30 px-2.5 py-1.5",
@@ -297,8 +307,112 @@ function TurnBubble({ turn }: { turn: ChatTurn }) {
   );
 }
 
-const EXAMPLE_PROMPTS = [
-  "Agrega un mensaje de bienvenida con tres botones: Comprar, Soporte, Catálogo.",
-  "Cambia el texto del nodo de bienvenida para que sea más cálido.",
-  "Conecta el botón Catálogo a un nodo que envíe el link de la tienda.",
-];
+/**
+ * Sugerencias contextuales para la IA. Se adaptan a lo que ya hay en
+ * el lienzo (cantidad y tipo de nodos) y a los productos sincronizados
+ * del workspace. La idea: que cada ejemplo sea aplicable AHORA al flujo
+ * real del merchant, no copy genérico.
+ *
+ * Reglas:
+ *   - Flujo vacío: sugerencias de "armar de cero" basadas en el producto
+ *     principal del merchant (si tiene productos) o en patrones comunes.
+ *   - Flujo con 1-3 nodos: sugerencias de "completar" — pedir respuesta,
+ *     conectar a un siguiente paso, agregar el botón final.
+ *   - Flujo con muchos nodos: sugerencias de "limpiar o ajustar" — quitar
+ *     ramas sueltas, ajustar textos.
+ *   - Si hay productos sincronizados, al menos UNA sugerencia los menciona.
+ */
+function ExamplePrompts({
+  snapshot,
+  products,
+  onPick,
+}: {
+  snapshot: AiBuilderPanelProps extends { getSnapshot: () => infer S } ? S : never;
+  products: Array<{ title: string; handle: string }>;
+  onPick: (text: string) => void;
+}) {
+  const examples = useMemo(
+    () => buildExampleSuggestions(snapshot, products),
+    [snapshot, products],
+  );
+  return (
+    <div className="space-y-3 text-xs text-muted-foreground">
+      <p>Algunas ideas para tu flujo:</p>
+      <ul className="space-y-2">
+        {examples.map((ex) => (
+          <li key={ex}>
+            <button
+              type="button"
+              onClick={() => onPick(ex)}
+              className="w-full rounded-md border border-border bg-muted/30 px-2.5 py-2 text-left text-xs text-foreground transition-colors hover:bg-muted"
+            >
+              {ex}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[10px]">
+        Los cambios se aplican al lienzo, pero NO se guardan hasta que
+        pulses Guardar arriba. Ctrl+Z reverte el último turno.
+      </p>
+    </div>
+  );
+}
+
+function buildExampleSuggestions(
+  snapshot: {
+    nodes: Array<{ node_key: string; node_type: string; config: Record<string, unknown> }>;
+  },
+  products: Array<{ title: string; handle: string }>,
+): string[] {
+  const nodes = snapshot.nodes;
+  const featured = products[0]?.title;
+  const hasSendMessage = nodes.some((n) => n.node_type === "send_message");
+  const hasButtons = nodes.some((n) => n.node_type === "send_buttons");
+  const hasShopify = nodes.some((n) => n.node_type === "shopify_lookup");
+  const out: string[] = [];
+
+  if (nodes.length === 0) {
+    out.push(
+      "Arma un menú de bienvenida con tres botones: Comprar, Soporte, Estado de mi pedido.",
+    );
+    if (featured) {
+      out.push(
+        `Manda un mensaje que ofrezca ${featured} con un botón que abra el link de la tienda.`,
+      );
+    } else {
+      out.push(
+        "Pregunta al cliente qué necesita y deriva según su respuesta con IA.",
+      );
+    }
+    out.push("Configura un flujo para responder dudas de envío y devoluciones.");
+    return out;
+  }
+
+  if (nodes.length <= 3) {
+    if (hasSendMessage) {
+      out.push("Después del primer mensaje, espera la respuesta del cliente y deriva con IA según lo que diga.");
+    }
+    if (!hasButtons) {
+      out.push("Agrega un paso con botones para que el cliente elija entre Comprar o Soporte.");
+    }
+    if (featured) {
+      out.push(`Termina el flujo con un botón que mande el link de ${featured}.`);
+    } else {
+      out.push("Termina el flujo derivando a un humano cuando el cliente pida ayuda.");
+    }
+    return out;
+  }
+
+  // Flujo más armado: sugerir ajustes
+  out.push("Revisa los pasos sueltos y conéctalos al flujo principal.");
+  if (!hasShopify) {
+    out.push("Agrega un paso de Buscar en Shopify para mostrar el estado del pedido cuando el cliente lo pida.");
+  }
+  if (featured) {
+    out.push(`Suma una rama que recomiende ${featured} cuando el cliente pregunte por novedades.`);
+  } else {
+    out.push("Ajusta los textos para que suenen más cercanos y naturales.");
+  }
+  return out;
+}

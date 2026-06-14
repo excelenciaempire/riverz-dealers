@@ -97,6 +97,7 @@ import type { AiPatch } from "@/lib/flows/ai-patches";
 import {
   CanvasViewport,
   useCanvasTransform,
+  type CanvasViewportHandle,
 } from "@/components/canvas/canvas-viewport";
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import { AiBuilderPanel } from "@/components/flows/ai-builder-panel";
@@ -126,6 +127,17 @@ interface FlowBubbleActions {
     parentKey: string,
     sectionIdx: number,
     rowIdx: number,
+  ) => void;
+  /**
+   * Quick-add: agrega un nodo de `type` y lo wirea automáticamente al
+   * port (parentKey, kind, idx) — la línea + ya viene conectada cuando
+   * el botón se sueltía. Usado por el "+" al final de cada salida.
+   */
+  quickAdd: (
+    parentKey: string,
+    kind: "text" | "button" | "list_row" | "cta",
+    idx: number,
+    type: NodeType,
   ) => void;
 }
 const FlowBubbleActionsContext = createContext<FlowBubbleActions | null>(null);
@@ -689,6 +701,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           ? (updaterOrValue as (s: BuilderState) => BuilderState)
           : (() => updaterOrValue);
       commit(updater);
+      // Cualquier edición esconde el panel de errores. Reaparece solo
+      // cuando el usuario vuelve a pulsar Guardar. Mientras está
+      // construyendo, las líneas rojas son ruido.
+      setShowValidation(false);
     },
     [commit],
   );
@@ -1000,35 +1016,50 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [commit, unsilence],
   );
 
+  /**
+   * Agrega un nodo al lienzo. Si se pasa `wireFrom`, además wirea el
+   * port indicado del padre al nodo recién creado — usado por los
+   * botones de quick-add que están al final de cada nodo: con un solo
+   * click el merchant agrega el siguiente paso y queda ya conectado.
+   */
   const addNode = useCallback(
-    (type: NodeType) => {
+    (
+      type: NodeType,
+      wireFrom?: {
+        parentKey: string;
+        kind: "text" | "button" | "list_row" | "cta";
+        idx: number;
+      },
+    ) => {
       const meta = NODE_META[type];
       const base = slugify(meta.label, type);
       setStateDirty((s) => {
         const node_key = uniqueNodeKey(base, s.nodes);
-        // Posición por defecto del nuevo nodo: lo dejamos a la derecha
-        // del nodo más a la derecha actualmente en el lienzo + un
-        // offset, así no aparece encima de otro y el usuario lo ve.
-        const maxX = s.nodes.reduce(
+        // Si viene de un quick-add, posicionar a la derecha del padre
+        // (no del nodo más a la derecha del lienzo) — así el wire es
+        // visualmente corto y entendible.
+        const parent = wireFrom
+          ? s.nodes.find((n) => n.node_key === wireFrom.parentKey)
+          : undefined;
+        const fallbackX = s.nodes.reduce(
           (m, n) => Math.max(m, n.position_x),
           TRIGGER_POS.x + CARD_WIDTH + 80,
         );
+        const baseX = parent ? parent.position_x : fallbackX;
+        const baseY = parent ? parent.position_y : TRIGGER_POS.y;
         const next: BuilderNode = {
           node_key,
           node_type: type,
           config: defaultConfigFor(type),
-          position_x: maxX + CARD_GAP_X,
-          position_y: TRIGGER_POS.y,
+          position_x: baseX + CARD_GAP_X,
+          position_y: baseY,
         };
         // Auto-insert "Cliente responde" después de un send_message.
-        // Razón: tras un mensaje del bot lo más común es que el
-        // cliente conteste antes de seguir; antes encadenar dos
-        // send_message sin pausa hacía que el bot mandara ráfaga.
         // Si el usuario no quiere la pausa, borra el customer_reply.
         const needsReplyWait = type === "send_message";
         let nextNodes: BuilderNode[] = [...s.nodes, next];
-        let newExpanded = new Set([node_key]);
-        let newSilenced = new Set([node_key]);
+        const newExpanded = new Set([node_key]);
+        const newSilenced = new Set([node_key]);
         if (needsReplyWait) {
           const replyKey = uniqueNodeKey("cliente_responde", nextNodes);
           const replyNode: BuilderNode = {
@@ -1041,17 +1072,74 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           nextNodes = [...nextNodes, replyNode];
           newExpanded.add(replyKey);
           newSilenced.add(replyKey);
-          // Conecta el send_message → customer_reply automáticamente.
           (next.config as { next_node_key?: string }).next_node_key = replyKey;
+        }
+        // Wire desde el padre (quick-add) al nodo nuevo. Reusa la
+        // mecánica de wireConnection inline para no pasar por otra
+        // mutación de estado.
+        if (wireFrom) {
+          nextNodes = nextNodes.map((n) => {
+            if (n.node_key !== wireFrom.parentKey) return n;
+            const cfg = n.config as Record<string, unknown>;
+            switch (wireFrom.kind) {
+              case "text":
+                return { ...n, config: { ...cfg, next_node_key: node_key } };
+              case "button": {
+                const btns = Array.isArray(cfg.buttons)
+                  ? (cfg.buttons as Array<{
+                      reply_id?: string;
+                      title?: string;
+                      next_node_key?: string;
+                    }>)
+                  : [];
+                if (wireFrom.idx < 0 || wireFrom.idx >= btns.length) return n;
+                return {
+                  ...n,
+                  config: {
+                    ...cfg,
+                    buttons: btns.map((b, i) =>
+                      i === wireFrom.idx ? { ...b, next_node_key: node_key } : b,
+                    ),
+                  },
+                };
+              }
+              case "list_row": {
+                const sections = Array.isArray(cfg.sections)
+                  ? (cfg.sections as Array<{
+                      title?: string;
+                      rows?: Array<{ next_node_key?: string }>;
+                    }>)
+                  : [];
+                let rem = wireFrom.idx;
+                const nextSections = sections.map((sec) => {
+                  const rows = sec.rows ?? [];
+                  if (rem < 0) return sec;
+                  if (rem < rows.length) {
+                    const ri = rem;
+                    rem = -1;
+                    return {
+                      ...sec,
+                      rows: rows.map((r, i) =>
+                        i === ri ? { ...r, next_node_key: node_key } : r,
+                      ),
+                    };
+                  }
+                  rem -= rows.length;
+                  return sec;
+                });
+                return { ...n, config: { ...cfg, sections: nextSections } };
+              }
+              case "cta":
+                return { ...n, config: { ...cfg, next_node_key: node_key } };
+            }
+            return n;
+          });
         }
         setExpanded((prev) => new Set([...prev, ...newExpanded]));
         setSilenced((prev) => new Set([...prev, ...newSilenced]));
         return {
           ...s,
           nodes: nextNodes,
-          // First node of an empty flow auto-becomes the entry —
-          // saves the user from also having to pick it in a
-          // separate "entry" picker.
           entry_node_id: s.entry_node_id ?? (s.nodes.length === 0 ? node_key : null),
         };
       });
@@ -1528,11 +1616,16 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     });
   }, []);
 
-  // Jump-to-node: invoked when a user clicks an issue in the validation
-  // panel. Expand the offending card (so the broken field is visible),
-  // scroll it into the viewport, then flash its border so the eye lands
-  // on it. requestAnimationFrame defers the scroll until after React
-  // commits the expanded layout.
+  /** Handle del CanvasViewport para hacer auto-zoom programático al
+   *  paso roto cuando el usuario clickea "Ver error". */
+  const canvasViewportRef = useRef<CanvasViewportHandle>(null);
+
+  // Cuando el usuario clickea un error en el panel:
+  //   1) Expandimos el card del paso (para que se vea el campo roto).
+  //   2) Hacemos auto-zoom y centramos el viewport sobre el nodo
+  //      a escala 1.2 — suficientemente cerca para leer los detalles
+  //      sin perder contexto.
+  //   3) Flasheamos el borde por 1.6s para guiar el ojo.
   const jumpToNode = useCallback((key: string) => {
     setExpanded((prev) => {
       if (prev.has(key)) return prev;
@@ -1541,10 +1634,23 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       return next;
     });
     setFlashedKey(key);
-    requestAnimationFrame(() => {
-      const el = nodeRefs.current.get(key);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    // Auto-zoom: leemos la posición + tamaño del nodo y pedimos al
+    // viewport que centre+escale a 1.2x. El timeout deja que el
+    // expand re-renderee y el useLayoutEffect mida el alto real
+    // antes de calcular el centro.
+    window.setTimeout(() => {
+      const node = stateRef.current.nodes.find((n) => n.node_key === key);
+      if (node && canvasViewportRef.current) {
+        const el = nodeRefs.current.get(key);
+        // Si el ref está, usamos su altura real (ya re-medida tras el
+        // expand). Si no, fallback a 280 (card mediano).
+        const h = el?.getBoundingClientRect().height ?? 280;
+        canvasViewportRef.current.zoomToRect(
+          { x: node.position_x, y: node.position_y, w: CARD_WIDTH, h },
+          1.2,
+        );
+      }
+    }, 80);
     window.setTimeout(() => {
       setFlashedKey((cur) => (cur === key ? null : cur));
     }, 1600);
@@ -1860,9 +1966,20 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [commit, pendingRowRemoval],
   );
 
+  const quickAdd = useCallback(
+    (
+      parentKey: string,
+      kind: "text" | "button" | "list_row" | "cta",
+      idx: number,
+      type: NodeType,
+    ) => {
+      addNode(type, { parentKey, kind, idx });
+    },
+    [addNode],
+  );
   const bubbleActions = useMemo<FlowBubbleActions>(
-    () => ({ requestRemoveButton, requestRemoveRow }),
-    [requestRemoveButton, requestRemoveRow],
+    () => ({ requestRemoveButton, requestRemoveRow, quickAdd }),
+    [requestRemoveButton, requestRemoveRow, quickAdd],
   );
 
   // ---- Render ----
@@ -1892,28 +2009,15 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         />
       </div>
 
-      {/* Mini banner educativo — separa visualmente este modo
-          (interactivo, dentro de ventana 24h) de las Automatizaciones
-          (asíncronas, plantillas HSM). Es el gap más grande que la
-          competencia mezcla en un solo editor y confunde al merchant. */}
-      <div className="flex-shrink-0 border-b border-border bg-emerald-500/5 px-4 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
-        <span className="font-semibold">Se activa cuando el cliente te escribe.</span>{" "}
-        <span className="text-muted-foreground">
-          Para mensajes que inicias tú (carrito, despacho, marketing), usa
-          {" "}
-          <a href="/automatizaciones" className="underline hover:text-foreground">
-            Automatizaciones
-          </a>
-          .
-        </span>
-      </div>
-
       {/* Canvas libre: cada nodo posicionado en (position_x, position_y),
           conectados por líneas SVG curvas que se re-calculan en cada
           re-render → arrastra cualquier card y las líneas se estiran
           solas. Disparador y nodos son draggeables. */}
       <div className="relative flex min-h-0 flex-1">
-        <CanvasViewport onComputeContentBounds={computeContentBounds}>
+        <CanvasViewport
+          ref={canvasViewportRef}
+          onComputeContentBounds={computeContentBounds}
+        >
           <FlowCanvas
             entryKey={state.entry_node_id}
             allNodes={state.nodes}
@@ -2721,6 +2825,13 @@ function LogicNodeBody({
               <span className="text-[11px] text-muted-foreground">
                 {o.label}
               </span>
+              {/* "+" Quick-add SOLO si el port no está conectado.
+                  Click → menú compacto → elige tipo → addNode con
+                  wireFrom = (este nodo, "text", i). El menú reusa el
+                  mismo set de tipos que la paleta flotante. */}
+              {!o.connected && (
+                <QuickAddPortButton parentKey={node.node_key} kind="text" idx={i} />
+              )}
               <span
                 data-connection-port="true"
                 onMouseDown={(e) => {
@@ -2742,6 +2853,59 @@ function LogicNodeBody({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Botón "+" inline al lado de un port no conectado. Despliega un menú
+ * con los tipos de nodo más comunes para agregar+conectar de un solo
+ * paso. Usa el FlowBubbleActionsContext para hablar con el FlowBuilder
+ * sin threading.
+ */
+function QuickAddPortButton({
+  parentKey,
+  kind,
+  idx,
+}: {
+  parentKey: string;
+  kind: "text" | "button" | "list_row" | "cta";
+  idx: number;
+}) {
+  const actions = useFlowBubbleActions();
+  if (!actions) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="ml-1 inline-flex h-5 items-center gap-1 rounded-full border border-border bg-card px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="Agregar el siguiente paso"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Plus className="size-3" />
+        Agregar
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="max-h-80 min-w-56 overflow-y-auto border-border bg-card"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Siguiente paso
+        </div>
+        {ADDABLE_NODE_TYPES.map((t) => {
+          const meta = NODE_META[t];
+          return (
+            <DropdownMenuItem
+              key={t}
+              onClick={() => actions.quickAdd(parentKey, kind, idx, t)}
+            >
+              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+              {meta.label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -3880,10 +4044,10 @@ function NodeKeySelect({
       onValueChange={(v) => onChange(v === "__none__" ? null : v)}
     >
       <SelectTrigger className={cn("bg-muted", className)}>
-        <SelectValue placeholder={placeholder ?? "—"} />
+        <SelectValue placeholder={placeholder ?? "Elegir"} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">— Ninguno —</SelectItem>
+        <SelectItem value="__none__">Sin conexión</SelectItem>
         {options.map((n) => {
           const Icon = NODE_META[n.node_type].icon;
           return (
@@ -3975,7 +4139,7 @@ function ValidationPanel({
           {warnings.length} advertencia{warnings.length === 1 ? "" : "s"}
         </span>
         <span className="ml-1 text-[10px] text-muted-foreground/80">
-          (haz clic en uno para ir al paso)
+          Toca &quot;Ver error&quot; para ir al paso
         </span>
       </div>
       <div className="flex flex-col gap-1">
@@ -4017,50 +4181,43 @@ function IssueLine({
 }: {
   issue: ValidationIssue;
   onJump?: (key: string) => void;
-  /** Etiqueta amigable del nodo. Reemplaza el viejo chip con node_key. */
   nodeLabel?: string;
 }) {
   const tone =
     issue.severity === "error" ? "text-red-600 dark:text-red-300" : "text-amber-700 dark:text-amber-300";
   const iconTone =
     issue.severity === "error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400";
-  const body = (
-    <>
-      <CircleAlert className={cn("mt-0.5 h-3 w-3 shrink-0", iconTone)} />
-      <span className="min-w-0 flex-1">
-        {nodeLabel && (
-          <span className="mr-1.5 inline-flex max-w-[220px] truncate rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium text-foreground">
-            {nodeLabel}
-          </span>
-        )}
-        {issue.message}
-      </span>
-    </>
-  );
-
-  if (issue.node_key && onJump) {
-    return (
-      <button
-        type="button"
-        onClick={() => onJump(issue.node_key!)}
-        className={cn(
-          "flex w-full items-start gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-accent",
-          tone,
-        )}
-        aria-label={nodeLabel ? `Ir a ${nodeLabel}` : "Ir al paso"}
-      >
-        {body}
-      </button>
-    );
-  }
+  const canJump = !!(issue.node_key && onJump);
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md px-2 py-1 text-xs",
+        "flex items-start gap-2 rounded-md px-2 py-1.5 text-xs",
         tone,
       )}
     >
-      {body}
+      <CircleAlert className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", iconTone)} />
+      <div className="min-w-0 flex-1">
+        {nodeLabel && (
+          <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {nodeLabel}
+          </div>
+        )}
+        <p className="leading-snug">{issue.message}</p>
+        {canJump && (
+          <button
+            type="button"
+            onClick={() => onJump!(issue.node_key!)}
+            className={cn(
+              "mt-1 inline-flex items-center gap-1 rounded-sm text-[11px] font-medium underline-offset-2 hover:underline",
+              tone,
+            )}
+            aria-label={nodeLabel ? `Ver error en ${nodeLabel}` : "Ver error"}
+          >
+            Ver error
+            <span aria-hidden>→</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -4534,6 +4691,14 @@ function FlowCanvas(props: FlowTreeProps) {
   //     closure.
   const [connecting, setConnecting] = useState<ConnectingState | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
+  // Línea seleccionada (para borrarla con Delete/Backspace). El usuario
+  // hace click sobre el path y queda resaltada; click en lienzo vacío
+  // o sobre otro elemento la deselecciona. Una sola seleccionada por vez.
+  const [selectedEdge, setSelectedEdge] = useState<{
+    fromKey: string
+    kind: "button" | "list_row" | "cta" | "text"
+    idx: number
+  } | null>(null)
   const cursorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   /** Última coord cliente vista (no canvas) — para recomputar cursorRef
    *  cuando el usuario hace wheel-pan / zoom sin mover el mouse. */
@@ -4580,6 +4745,24 @@ function FlowCanvas(props: FlowTreeProps) {
     },
     [scale, props.connectingActiveRef],
   )
+
+  // Delete / Backspace borra la conexión seleccionada. Se desactiva si
+  // el foco está en un input, textarea o el panel del constructor IA
+  // (no queremos comer pulsaciones que el usuario está tipiando).
+  useEffect(() => {
+    if (!selectedEdge) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return
+      const t = e.target as HTMLElement | null
+      if (t && t.closest('input, textarea, [contenteditable="true"]')) return
+      e.preventDefault()
+      const s = selectedEdge!
+      props.onWireConnection(s.fromKey, s.kind, s.idx, "")
+      setSelectedEdge(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selectedEdge, props])
 
   // El useEffect SE MONTA UNA VEZ cuando `connecting` pasa a no-null,
   // y se desmonta cuando vuelve a null. Adentro, los handlers leen
@@ -4668,11 +4851,21 @@ function FlowCanvas(props: FlowTreeProps) {
       ref={canvasRef}
       className="relative"
       style={{ width: CANVAS_W, height: CANVAS_H }}
+      onMouseDown={(e) => {
+        // Click en lienzo vacío (no sobre card, port o línea) deselecciona
+        // la conexión activa. El hit target de las líneas ya hace
+        // stopPropagation, y los cards/ports también; así que cualquier
+        // mousedown que LLEGUE acá es sobre fondo vacío.
+        if (selectedEdge && e.target === e.currentTarget) {
+          setSelectedEdge(null)
+        }
+      }}
     >
       <svg
-        className="pointer-events-none absolute inset-0 text-muted-foreground"
+        className="absolute inset-0 text-muted-foreground"
         width={CANVAS_W}
         height={CANVAS_H}
+        style={{ pointerEvents: "none" }}
         // overflow="visible" — el SVG por default tiene overflow:hidden
         // y recorta cualquier path que se salga de su rect (0..CANVAS_W
         // x 0..CANVAS_H). Si el usuario arrastró un nodo a una posición
@@ -4707,9 +4900,68 @@ function FlowCanvas(props: FlowTreeProps) {
             <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
           </marker>
         </defs>
-        {edges.map((e, i) => (
-          <ConnectorPath key={i} edge={e} />
-        ))}
+        {edges.map((e, i) => {
+          // Edge desde el disparador no tiene fromNode en el grafo y no
+          // se puede seleccionar/borrar desde acá (la "conexión" del
+          // disparador la maneja entry_node_id en la fila del flujo).
+          if (e.fromKey === "__trigger__") {
+            return <ConnectorPath key={i} edge={e} />
+          }
+          const fromNode = nodesByKey.get(e.fromKey)
+          if (!fromNode) {
+            return <ConnectorPath key={i} edge={e} />
+          }
+          // Mapeamos el toKey de la edge al índice dentro de
+          // getOutgoingEdges para identificar el slot (botón #2, fila
+          // #3, etc.). Si hay duplicados (dos botones al mismo destino)
+          // tomamos el primero — el comportamiento es consistente con
+          // computeExclusiveSubtree y permite Delete sobre el "primero
+          // que coincide", que es lo que el usuario espera ver
+          // resaltado primero.
+          const outgoing = getOutgoingEdges(fromNode)
+          const edgeIdx = outgoing.findIndex((og) => og.nextKey === e.toKey)
+          if (edgeIdx === -1) {
+            return <ConnectorPath key={i} edge={e} />
+          }
+          const portKey = (() => {
+            switch (fromNode.node_type) {
+              case "send_buttons":
+                return { kind: "button" as const, idx: edgeIdx }
+              case "send_list":
+                return { kind: "list_row" as const, idx: edgeIdx }
+              case "send_cta_url":
+                return { kind: "cta" as const, idx: 0 }
+              default:
+                return { kind: "text" as const, idx: 0 }
+            }
+          })()
+          const isSelected =
+            selectedEdge !== null &&
+            selectedEdge.fromKey === e.fromKey &&
+            selectedEdge.kind === portKey.kind &&
+            selectedEdge.idx === portKey.idx
+          return (
+            <g key={i}>
+              <ConnectorPath edge={e} highlighted={isSelected} />
+              {/* Hit target invisible 22px de ancho — el click sobre
+                  la línea visible (2.5px) es muy frágil; este target
+                  oculto agarra clicks cerca de la línea sin alterar
+                  el visual. */}
+              <ConnectorPath
+                edge={e}
+                hitTarget
+                onClick={(evt) => {
+                  evt.stopPropagation()
+                  setSelectedEdge({
+                    fromKey: e.fromKey,
+                    kind: portKey.kind,
+                    idx: portKey.idx,
+                  })
+                }}
+              />
+            </g>
+          )
+        })}
         {connecting && (
           <ConnectorPath
             edge={{
@@ -4778,29 +5030,45 @@ function ConnectorPath({
   edge,
   dashed = false,
   color,
+  highlighted = false,
+  hitTarget = false,
+  onClick,
 }: {
   edge: CanvasEdge
   dashed?: boolean
   color?: string
+  /** Estado seleccionado — se pinta más gruesa y en color de acento. */
+  highlighted?: boolean
+  /** Path invisible de 22px para captar el click cerca de la línea
+   *  sin necesidad de apuntar exacto sobre los 2.5px del trazo. */
+  hitTarget?: boolean
+  onClick?: (e: React.MouseEvent) => void
 }) {
-  // Curva con horizontal tangent en cada extremo — el `dx` es la
-  // pendiente del bezier. La línea llega hasta el borde mismo del
-  // card destino (sin recorte) y el arrow marker se encarga del
-  // espaciado: refX=8 dentro de un viewBox 0-10 deja la mayor parte
-  // de la flecha PASADA hacia adentro del endpoint, así no queda
-  // gap entre la línea y el card.
   const dx = Math.max(40, (edge.to.x - edge.from.x) * 0.35)
   const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${edge.to.x - dx} ${edge.to.y}, ${edge.to.x} ${edge.to.y}`
+  if (hitTarget) {
+    return (
+      <path
+        d={d}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={22}
+        strokeLinecap="round"
+        style={{ cursor: "pointer", pointerEvents: "stroke" }}
+        onClick={onClick}
+      />
+    )
+  }
+  const strokeColor = highlighted
+    ? "#00a5f4"
+    : color ?? "var(--muted-foreground)"
   return (
     <path
       d={d}
       fill="none"
-      // Color más claro que `--border` para que se distinga sobre el
-      // fondo del lienzo. `--muted-foreground` se adapta a tema oscuro
-      // / claro (gris claro en oscuro, gris medio en claro).
-      stroke={color ?? "var(--muted-foreground)"}
-      strokeOpacity={color ? 1 : 0.7}
-      strokeWidth={dashed ? 2 : 2.5}
+      stroke={strokeColor}
+      strokeOpacity={highlighted || color ? 1 : 0.7}
+      strokeWidth={highlighted ? 3.5 : dashed ? 2 : 2.5}
       strokeLinecap="round"
       strokeDasharray={dashed ? "5 4" : undefined}
       markerEnd={dashed ? undefined : "url(#flow-arrow)"}
@@ -5115,7 +5383,14 @@ interface FlowTreeProps {
   onDuplicate: (key: string) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
-  onAdd: (type: NodeType) => void
+  onAdd: (
+    type: NodeType,
+    wireFrom?: {
+      parentKey: string;
+      kind: "text" | "button" | "list_row" | "cta";
+      idx: number;
+    },
+  ) => void
   triggerType: BuilderState["trigger_type"]
   triggerConfig: Record<string, unknown>
   triggerIssues: ValidationIssue[]
@@ -5243,7 +5518,7 @@ function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
 // flow.trigger_type / flow.trigger_config via the onChange prop.
 
 const TRIGGER_TYPE_LABEL: Record<BuilderState["trigger_type"], string> = {
-  keyword: "Cuando contiene una palabra clave",
+  keyword: "Contiene una palabra clave",
   first_inbound_message: "Primer mensaje del cliente",
   manual: "Solo manual",
 }
@@ -5326,7 +5601,7 @@ function CanvasTriggerCard({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keyword">
-                  Un mensaje contiene una palabra clave
+                  Contiene una palabra clave
                 </SelectItem>
                 <SelectItem value="first_inbound_message">
                   Primer mensaje del cliente

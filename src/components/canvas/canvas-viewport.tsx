@@ -2,9 +2,11 @@
 
 import {
   createContext,
+  forwardRef,
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
@@ -55,37 +57,34 @@ const INTERACTIVE_SELECTOR =
  * Auto-centers the content on first paint (one rAF after mount) so
  * the first node isn't pinned against the left edge.
  */
-export function CanvasViewport({
-  children,
-  className,
-  initialFit = 'top-left',
-  onComputeContentBounds,
-}: {
+/**
+ * Handle imperativo expuesto por CanvasViewport. El editor de flujos lo
+ * usa para hacer auto-zoom sobre un nodo cuando el usuario clickea en
+ * un error del panel de validación.
+ */
+export interface CanvasViewportHandle {
+  /** Centra y escala el viewport sobre un rect del lienzo (en coords del
+   *  contenido, sin escalar). `targetScale` se clampa al rango permitido. */
+  zoomToRect: (
+    bounds: { x: number; y: number; w: number; h: number },
+    targetScale?: number,
+  ) => void;
+}
+
+interface CanvasViewportProps {
   children: React.ReactNode;
   className?: string;
-  /**
-   * 'top-left'  → render at 100% with a 32px gutter from the top-left
-   *               corner. Best for editors where readability of the
-   *               first card matters more than seeing everything at
-   *               once (the user can pan/zoom themselves).
-   * 'fit'       → auto-scale-down so the whole content is visible.
-   *               Good for read-only previews, bad when it crushes
-   *               cards down to 25% and makes labels unreadable.
-   */
   initialFit?: 'top-left' | 'fit';
-  /**
-   * Opcional. Cuando el contenedor del canvas tiene un tamaño virtual
-   * (ej. flow-builder usa un 6000x4000 fijo), `scrollWidth/scrollHeight`
-   * miden ese tamaño virtual, no la bounding box real de los nodos —
-   * y el fit-to-view termina ajustando contra 6000px en vez del flujo
-   * real. Si el padre provee esta callback, fit-to-view usa la bbox
-   * que devuelve (en coordenadas del lienzo, sin escalar). Si retorna
-   * null o no se pasa, caemos al cálculo viejo basado en scroll*.
-   */
   onComputeContentBounds?: () =>
     | { x: number; y: number; w: number; h: number }
     | null;
-}) {
+}
+
+export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
+  function CanvasViewport(
+    { children, className, initialFit = 'top-left', onComputeContentBounds },
+    ref,
+  ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -113,6 +112,27 @@ export function CanvasViewport({
       setScale(next);
     },
     [scale, tx, ty],
+  );
+
+  // Auto-zoom imperativo. El editor de flujos lo dispara cuando el
+  // usuario clickea "Ver error" en el panel de validación.
+  useImperativeHandle(
+    ref,
+    () => ({
+      zoomToRect: (bounds, targetScale = 1.2) => {
+        const container = containerRef.current;
+        if (!container) return;
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        const s = clampScale(targetScale);
+        const cx = bounds.x + bounds.w / 2;
+        const cy = bounds.y + bounds.h / 2;
+        setScale(s);
+        setTx(cw / 2 - cx * s);
+        setTy(ch / 2 - cy * s);
+      },
+    }),
+    [],
   );
 
   const fitToView = useCallback(() => {
@@ -296,4 +316,4 @@ export function CanvasViewport({
       </div>
     </div>
   );
-}
+});

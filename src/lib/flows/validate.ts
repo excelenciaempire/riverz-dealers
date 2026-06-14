@@ -25,8 +25,27 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
-/** Capitaliza la primera letra. Para encajar fragmentos como `el botón "X"`
- *  al principio de una frase ("El botón ..."). */
+/**
+ * Límites de WhatsApp Cloud API que no están en INTERACTIVE_LIMITS
+ * (que solo cubre mensajes interactivos). Los aplicamos al guardar
+ * para que el merchant no descubra el rechazo cuando el flujo ya está
+ * activo y un cliente real lo dispara.
+ *
+ * Referencias:
+ *  - text body: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages#text-object
+ *  - media caption: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages#media-object
+ *  - list body: igual que interactivos.
+ */
+const POLICY_LIMITS = {
+  /** send_message body (texto simple). */
+  textMessageMax: 4096,
+  /** Caption de imagen / video / documento. */
+  mediaCaptionMax: 1024,
+  /** Título de cada sección de send_list. */
+  listSectionTitleMax: 24,
+} as const;
+
+/** Capitaliza la primera letra. */
 function capFirst(s: string): string {
   return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -236,6 +255,14 @@ function validateNode(
           field: "text",
           message: "Escribe el texto del mensaje que se le va a enviar al cliente.",
         });
+      } else if (cfg.text.length > POLICY_LIMITS.textMessageMax) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "text",
+          message: `El texto pasa de ${POLICY_LIMITS.textMessageMax} caracteres. WhatsApp no lo va a aceptar (${cfg.text.length} actuales).`,
+        });
       }
       if (!cfg.next_node_key) {
         issues.push({
@@ -262,6 +289,8 @@ function validateNode(
     case "send_buttons": {
       const cfg = node.config as {
         text?: string;
+        header_text?: string;
+        footer_text?: string;
         buttons?: Array<{
           reply_id?: string;
           title?: string;
@@ -275,6 +304,38 @@ function validateNode(
           node_key: node.node_key,
           field: "text",
           message: "Escribe el texto que va arriba de los botones.",
+        });
+      } else if (cfg.text.length > INTERACTIVE_LIMITS.bodyMaxLength) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "text",
+          message: `El texto pasa de ${INTERACTIVE_LIMITS.bodyMaxLength} caracteres. WhatsApp lo rechaza (${cfg.text.length} actuales).`,
+        });
+      }
+      if (
+        cfg.header_text &&
+        cfg.header_text.length > INTERACTIVE_LIMITS.headerTextMaxLength
+      ) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "header_text",
+          message: `El encabezado pasa de ${INTERACTIVE_LIMITS.headerTextMaxLength} caracteres (${cfg.header_text.length} actuales).`,
+        });
+      }
+      if (
+        cfg.footer_text &&
+        cfg.footer_text.length > INTERACTIVE_LIMITS.footerMaxLength
+      ) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "footer_text",
+          message: `El pie de página pasa de ${INTERACTIVE_LIMITS.footerMaxLength} caracteres (${cfg.footer_text.length} actuales).`,
         });
       }
       const btns = cfg.buttons ?? [];
@@ -381,6 +442,14 @@ function validateNode(
           field: "text",
           message: "Escribe el texto que se le muestra al cliente arriba de la lista.",
         });
+      } else if (cfg.text.length > POLICY_LIMITS.textMessageMax) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "text",
+          message: `El texto pasa de ${POLICY_LIMITS.textMessageMax} caracteres. WhatsApp lo rechaza (${cfg.text.length} actuales).`,
+        });
       }
       if (!cfg.button_label?.trim()) {
         issues.push({
@@ -391,8 +460,39 @@ function validateNode(
           message:
             "Escribe el texto del botón que abre la lista (ej: \"Ver opciones\").",
         });
+      } else if (cfg.button_label.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "button_label",
+          message: `El texto del botón pasa de ${INTERACTIVE_LIMITS.buttonTitleMaxLength} caracteres.`,
+        });
       }
       const sections = cfg.sections ?? [];
+      if (sections.length > INTERACTIVE_LIMITS.maxListSections) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "sections",
+          message: `La lista tiene ${sections.length} secciones. WhatsApp solo permite ${INTERACTIVE_LIMITS.maxListSections}.`,
+        });
+      }
+      sections.forEach((s, si) => {
+        if (
+          s.title &&
+          s.title.length > POLICY_LIMITS.listSectionTitleMax
+        ) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: `sections.${si}.title`,
+            message: `El título de la sección ${si + 1} pasa de ${POLICY_LIMITS.listSectionTitleMax} caracteres.`,
+          });
+        }
+      });
       const totalRows = sections.reduce(
         (sum, s) => sum + (s.rows?.length ?? 0),
         0,
@@ -677,6 +777,7 @@ function validateNode(
     case "send_document": {
       const cfg = node.config as {
         url?: string;
+        caption?: string;
         next_node_key?: string;
       };
       const mediaName =
@@ -692,6 +793,18 @@ function validateNode(
           node_key: node.node_key,
           field: "url",
           message: `Pega la URL pública de ${mediaName}. Tiene que empezar con http:// o https://.`,
+        });
+      }
+      if (
+        cfg.caption &&
+        cfg.caption.length > POLICY_LIMITS.mediaCaptionMax
+      ) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "caption",
+          message: `El texto al pie pasa de ${POLICY_LIMITS.mediaCaptionMax} caracteres (${cfg.caption.length} actuales).`,
         });
       }
       if (!cfg.next_node_key) {
@@ -729,6 +842,14 @@ function validateNode(
           field: "text",
           message: "Escribe el texto del mensaje que va con el botón.",
         });
+      } else if (cfg.text.length > INTERACTIVE_LIMITS.bodyMaxLength) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "text",
+          message: `El texto pasa de ${INTERACTIVE_LIMITS.bodyMaxLength} caracteres. WhatsApp lo rechaza (${cfg.text.length} actuales).`,
+        });
       }
       if (!cfg.button_title?.trim()) {
         issues.push({
@@ -737,6 +858,14 @@ function validateNode(
           node_key: node.node_key,
           field: "button_title",
           message: "Escribe el texto del botón (ej: \"Ver oferta\").",
+        });
+      } else if (cfg.button_title.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "button_title",
+          message: `El texto del botón pasa de ${INTERACTIVE_LIMITS.buttonTitleMaxLength} caracteres.`,
         });
       }
       if (!cfg.url || !/^https:\/\//.test(cfg.url)) {

@@ -18,8 +18,8 @@ const interTight = Inter_Tight({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "Riverz",
+    template: "%s · Riverz",
   },
   description: "Self-hostable CRM template for WhatsApp.",
   robots: {
