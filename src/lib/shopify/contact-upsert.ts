@@ -33,19 +33,33 @@ export function extractShopifyName(payload: Record<string, unknown>): string | u
   return composed || (payload.name as string) || undefined
 }
 
-/** Find-or-create a WhatsApp contact in the unified inbox keyed by phone. */
+/** Find-or-create a WhatsApp contact in the unified inbox keyed by phone.
+ *  Marks `is_shopify_customer=true` siempre que se llame desde un
+ *  webhook Shopify — la lista de Contactos lo usa para mostrar el
+ *  badge "Cliente Shopify". Si el contacto ya existía sin la marca,
+ *  la levantamos con un update separado. */
 export async function upsertWhatsappContact(
   admin: SupabaseClient,
   args: { workspaceId: string; phone: string; name?: string; email?: string },
 ): Promise<string | null> {
   const { data: existing } = await admin
     .from('contacts')
-    .select('id')
+    .select('id, is_shopify_customer')
     .eq('workspace_id', args.workspaceId)
     .eq('channel', 'whatsapp')
     .eq('external_id', args.phone)
     .maybeSingle()
-  if (existing?.id) return existing.id as string
+  if (existing?.id) {
+    if (!(existing as { is_shopify_customer?: boolean }).is_shopify_customer) {
+      // No esperamos al resultado — fire-and-forget para no demorar
+      // el webhook. Si falla, el siguiente webhook lo intentará.
+      void admin
+        .from('contacts')
+        .update({ is_shopify_customer: true })
+        .eq('id', existing.id);
+    }
+    return existing.id as string
+  }
 
   const { data: created, error } = await admin
     .from('contacts')
@@ -56,6 +70,7 @@ export async function upsertWhatsappContact(
       phone: args.phone,
       name: args.name ?? null,
       email: args.email ?? null,
+      is_shopify_customer: true,
     })
     .select('id')
     .single()

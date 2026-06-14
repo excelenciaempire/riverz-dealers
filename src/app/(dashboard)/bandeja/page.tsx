@@ -17,6 +17,7 @@ import {
   channelBelongsToTab,
 } from "@/components/inbox/inbox-tabs";
 import { ResizablePane } from "@/components/inbox/resizable-pane";
+import { InboxSearchBox } from "@/components/inbox/search-box";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Plug2 } from "lucide-react";
@@ -641,6 +642,15 @@ export default function InboxPage() {
               value={inboxTab}
               onChange={handleTabChange}
               counts={tabCounts}
+            />
+            {/* Búsqueda full-text + filtros guardados. Cuando hay match,
+                el panel se sobrepone al ConversationList con resultados
+                clickeables. */}
+            <InboxSearchBox
+              onSelect={(convId) => {
+                const conv = conversations.find((c) => c.id === convId);
+                if (conv) handleSelectConversation(conv);
+              }}
             />
             <ChannelFilter
               value={channelFilter}

@@ -419,7 +419,20 @@ export default function ContactsPage() {
                   onClick={() => openDetail(contact.id)}
                 >
                   <TableCell className="text-foreground font-medium">
-                    {contact.name || <span className="text-muted-foreground italic">Sin nombre</span>}
+                    <div className="flex items-center gap-2">
+                      <span>
+                        {contact.name || <span className="text-muted-foreground italic">Sin nombre</span>}
+                      </span>
+                      {contact.is_shopify_customer && (
+                        <span
+                          aria-label="Cliente Shopify"
+                          title="Cliente Shopify"
+                          className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                        >
+                          Shopify
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-foreground font-mono text-xs">
                     {contact.phone}

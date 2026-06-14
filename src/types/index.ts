@@ -83,6 +83,9 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** True si el contacto fue visto en una orden o customer de Shopify.
+   *  Migration 030. La lista de Contactos lo usa para mostrar un badge. */
+  is_shopify_customer?: boolean;
   created_at: string;
   updated_at: string;
 }
