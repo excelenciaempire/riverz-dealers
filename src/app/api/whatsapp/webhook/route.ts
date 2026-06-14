@@ -4,6 +4,13 @@ import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
+import {
+  isOptOutKeyword,
+  isOptInKeyword,
+  markOptedOut,
+  markOptedIn,
+} from '@/lib/whatsapp/opt-out'
+import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 
@@ -163,11 +170,12 @@ export async function POST(request: Request) {
   const signature = request.headers.get('x-hub-signature-256')
 
   if (!verifyMetaWebhookSignature(rawBody, signature)) {
-    // 401 (not 200) — we want Meta's delivery dashboard to show failures
-    // loudly if a misconfiguration causes signatures to stop matching,
-    // rather than silently eating events.
-    console.warn('[webhook] rejected request with invalid signature')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    // Devolvemos 200 para que Meta no entre en loop de reintentos
+    // contra un secreto mal configurado o un atacante. La señal de
+    // alerta queda en el log warn — el operador la pesca por logs,
+    // no por la cola de eventos de Meta.
+    console.warn('[webhook] firma inválida, evento descartado')
+    return NextResponse.json({ status: 'ignored' }, { status: 200 })
   }
 
   let body: { entry?: WhatsAppWebhookEntry[] }
@@ -226,7 +234,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           message,
           contact,
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          phoneNumberId
         )
       }
     }
@@ -450,7 +459,8 @@ async function processMessage(
   message: WhatsAppMessage,
   contact: { profile: { name: string }; wa_id: string },
   userId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -551,6 +561,14 @@ async function processMessage(
   })
 
   if (msgError) {
+    // Idempotencia: Meta a veces reentrega el mismo evento. Con el índice
+    // único parcial de migration 036 sobre (conversation_id, message_id),
+    // el segundo INSERT cae acá con 23505. Salimos sin re-procesar para
+    // no duplicar conv.update, flows, ni automations.
+    if ((msgError as { code?: string }).code === '23505') {
+      console.debug('[webhook] mensaje duplicado ignorado:', message.id)
+      return
+    }
     console.error('Error inserting message:', msgError)
     return
   }
@@ -574,6 +592,55 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(userId, contactRecord.id)
+
+  // ============================================================
+  // STOP / SUSCRIBIR — opt-out / opt-in por palabra clave.
+  //
+  // El mensaje ya quedó persistido (cumplimiento WhatsApp: hay que
+  // poder mostrar la prueba del STOP), pero cortamos antes de los
+  // flows y la IA: ningún bot debe contestar a un cliente que pidió
+  // darse de baja salvo el acuse oficial.
+  // ============================================================
+  const inboundTextRaw = contentText ?? message.text?.body ?? ''
+  const contactWorkspaceId = (contactRecord as { workspace_id?: string | null })
+    .workspace_id ?? null
+  if (inboundTextRaw && contactWorkspaceId) {
+    if (isOptOutKeyword(inboundTextRaw)) {
+      await markOptedOut(
+        supabaseAdmin(),
+        contactWorkspaceId,
+        contactRecord.id,
+        'inbound_keyword',
+      )
+      try {
+        await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: senderPhone,
+          text:
+            'Has sido dado de baja. Para volver a recibir mensajes, ' +
+            'escribe SUSCRIBIR.',
+        })
+      } catch (err) {
+        console.error('[webhook] acuse opt-out falló:', err)
+      }
+      return
+    }
+    if (isOptInKeyword(inboundTextRaw)) {
+      await markOptedIn(supabaseAdmin(), contactWorkspaceId, contactRecord.id)
+      try {
+        await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: senderPhone,
+          text: 'Bienvenido nuevamente. Recibirás nuestros mensajes.',
+        })
+      } catch (err) {
+        console.error('[webhook] acuse opt-in falló:', err)
+      }
+      return
+    }
+  }
 
   // ============================================================
   // Flow runner dispatch.
@@ -620,7 +687,7 @@ async function processMessage(
   // message all exist before any step — including send_message — runs.
   // Fire-and-forget: a slow or failing automation must not block the
   // webhook's 200 OK response to Meta.
-  const inboundText = contentText ?? message.text?.body ?? ''
+  const inboundText = inboundTextRaw
   const automationTriggers: (
     | 'new_contact_created'
     | 'first_inbound_message'
