@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
+import { useSetupStatus } from "@/hooks/use-setup-status";
 import {
-  LayoutDashboard,
+  Home,
   Inbox,
   Users,
   Megaphone,
@@ -18,6 +19,7 @@ import {
   Blocks,
   Settings,
   ShoppingBag,
+  Workflow,
   LogOut,
   User,
   X,
@@ -25,6 +27,7 @@ import {
   PanelLeftOpen,
   Moon,
   Sun,
+  UserRound,
 } from "lucide-react";
 import {
   Avatar,
@@ -43,11 +46,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 interface NavItem {
   href: string;
   label: string;
-  icon: typeof LayoutDashboard;
-  /** Renders a small "Beta" chip after the label. Informational only. */
+  icon: typeof Home;
   beta?: boolean;
-  /** Extra path prefixes that should also light up this item — used by
-   *  "Servicio al cliente" so /flows highlights it as well as /ai. */
   alsoActiveOn?: string[];
 }
 
@@ -56,38 +56,38 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// Grouped navigation, mirroring Riverz's sidebar sections. Group labels
-// render as tiny uppercase eyebrows above each cluster.
+// IA-first sidebar: "Día a día" arriba (operación), "IA y constructor"
+// (las dos herramientas que crean experiencias), "Envíos" (los tres
+// surfaces de outbound consolidados), "Tienda" (catálogo) y abajo
+// configuración. Antes "Atención" mezclaba IA con outbound asíncrono,
+// que es lo opuesto. Antes "Menús" no estaba en el rail; ahora es
+// "Flujos" y es item raíz.
 const navGroups: NavGroup[] = [
   {
-    title: "Principal",
+    title: "Día a día",
     items: [
-      { href: "/panel", label: "Panel", icon: LayoutDashboard },
+      { href: "/panel", label: "Inicio", icon: Home },
       { href: "/bandeja", label: "Bandeja", icon: Inbox },
       { href: "/contactos", label: "Contactos", icon: Users },
     ],
   },
   {
-    title: "Atención",
+    title: "IA y constructor",
     items: [
-      {
-        href: "/asistente",
-        label: "Servicio al cliente",
-        icon: Sparkles,
-        alsoActiveOn: ["/menus"],
-      },
+      { href: "/asistente", label: "Asistente IA", icon: Sparkles },
+      { href: "/menus", label: "Flujos", icon: Workflow },
+    ],
+  },
+  {
+    title: "Envíos",
+    items: [
+      { href: "/campanas", label: "Campañas", icon: Megaphone },
       { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
+      { href: "/plantillas", label: "Plantillas", icon: LayoutTemplate },
     ],
   },
   {
-    title: "Marketing",
-    items: [
-      { href: "/campanas", label: "Campañas masivas", icon: Megaphone },
-      { href: "/plantillas", label: "Plantillas de WhatsApp", icon: LayoutTemplate },
-    ],
-  },
-  {
-    title: "Catálogo",
+    title: "Tienda",
     items: [
       { href: "/productos", label: "Productos", icon: ShoppingBag },
     ],
@@ -115,6 +115,7 @@ export function Sidebar({
   const { profile, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const { theme, setTheme } = useTheme();
+  const setup = useSetupStatus();
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -246,16 +247,22 @@ export function Sidebar({
           ))}
         </nav>
 
-        {/* Configuración: Integraciones (canales y apps externas) + Ajustes
-            (perfil, equipo, etiquetas, apariencia). Antes Integraciones
-            era un deep-link a /settings?tab=channels — ahora es su propia
-            página. */}
+        {/* Pie del sidebar: Equipo (promovido desde Ajustes porque es
+            tarea de la primera semana), Integraciones (con badge
+            pendiente hasta que WhatsApp y Shopify estén conectados) y
+            Ajustes (perfil, workspace, apariencia). */}
         <div
           className={cn(
             "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
+          <NavLink
+            item={{ href: "/ajustes?tab=workspace", label: "Equipo", icon: UserRound }}
+            pathname={pathname}
+            collapsed={collapsed}
+            totalUnread={0}
+          />
           <NavLink
             item={{
               href: "/integraciones",
@@ -265,6 +272,7 @@ export function Sidebar({
             pathname={pathname}
             collapsed={collapsed}
             totalUnread={0}
+            setupPending={!setup.ready}
           />
           <NavLink
             item={{ href: "/ajustes", label: "Ajustes", icon: Settings }}
@@ -378,18 +386,24 @@ function NavLink({
   pathname,
   collapsed,
   totalUnread,
+  setupPending = false,
 }: {
   item: NavItem;
   pathname: string;
   collapsed: boolean;
   totalUnread: number;
+  /** Cuando Integraciones todavía no tiene WhatsApp+Shopify conectados,
+   *  mostramos un chip "Conecta" para guiar el onboarding. */
+  setupPending?: boolean;
 }) {
   const isActive =
     pathname === item.href ||
-    (item.href !== "/panel" && pathname.startsWith(item.href)) ||
+    (item.href !== "/panel" && pathname.startsWith(item.href.split("?")[0])) ||
     (item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(p)) ?? false);
 
-  const showUnreadDot = item.href === "/bandeja" && totalUnread > 0 && !isActive;
+  const showUnreadBadge =
+    item.href === "/bandeja" && totalUnread > 0 && !isActive;
+  const unreadLabel = totalUnread > 99 ? "99+" : String(totalUnread);
 
   const link = (
     <Link
@@ -412,16 +426,28 @@ function NavLink({
           Beta
         </span>
       )}
-      {showUnreadDot && (
+      {setupPending && !collapsed && (
         <span
-          aria-label={`${totalUnread} conversación${totalUnread === 1 ? "" : "es"} sin leer`}
-          className={cn(
-            "relative flex h-2 w-2",
-            collapsed && "lg:absolute lg:right-1 lg:top-1",
-          )}
+          aria-label="Falta conectar WhatsApp o Shopify"
+          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
         >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sidebar-primary opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-sidebar-primary" />
+          Conecta
+        </span>
+      )}
+      {showUnreadBadge && !collapsed && (
+        <span
+          aria-label={`${totalUnread} sin leer`}
+          className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[10px] font-semibold leading-none text-sidebar-primary-foreground"
+        >
+          {unreadLabel}
+        </span>
+      )}
+      {showUnreadBadge && collapsed && (
+        <span
+          aria-label={`${totalUnread} sin leer`}
+          className="absolute right-1 top-1 inline-flex min-w-[14px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-semibold leading-none text-sidebar-primary-foreground lg:flex"
+        >
+          {unreadLabel}
         </span>
       )}
     </Link>

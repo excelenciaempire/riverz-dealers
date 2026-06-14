@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ContactTags } from "@/components/contacts/contact-tags";
+import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -145,6 +146,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/* Shopify context: si el contacto matchea con un customer
+              de Shopify (por email o teléfono), aquí aparece su LTV,
+              últimos pedidos y acciones rápidas. Si no hay match,
+              el componente no renderiza nada. */}
+          <ShopifyContactPanel
+            contactEmail={contact.email ?? null}
+            contactPhone={contact.phone ?? null}
+          />
 
           {/* Tags */}
           <div>

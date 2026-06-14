@@ -10,6 +10,7 @@ import {
   Inbox,
 } from 'lucide-react'
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
+import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 
 import {
   loadActivity,
@@ -109,9 +110,13 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <p className="app-eyebrow">Panel de control</p>
+        <p className="app-eyebrow">Inicio</p>
         <h1 className="app-page-title mt-1.5">Resumen</h1>
       </div>
+
+      {/* Checklist de onboarding. Solo aparece mientras falte algo. */}
+      <SetupChecklist />
+
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

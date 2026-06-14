@@ -101,6 +101,7 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import { AiBuilderPanel } from "@/components/flows/ai-builder-panel";
+import { VariablesPanel } from "@/components/flows/variables-panel";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -790,6 +791,29 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [flashedKey, setFlashedKey] = useState<string | null>(null);
 
+  // Selección múltiple de nodos: Shift+click sobre un card lo agrega
+  // o quita del set; click en lienzo vacío lo limpia. Cuando hay 1+
+  // nodos seleccionados, Delete borra todos a la vez. Cmd/Ctrl+C
+  // copia los configs al portapapeles interno; Cmd/Ctrl+V los pega
+  // como nodos nuevos a la derecha del flujo.
+  const [selectedNodeKeys, setSelectedNodeKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const clipboardRef = useRef<BuilderNode[] | null>(null);
+
+  const toggleNodeSelection = useCallback((key: string, additive: boolean) => {
+    setSelectedNodeKeys((prev) => {
+      const next = new Set(additive ? prev : []);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const clearNodeSelection = useCallback(() => {
+    setSelectedNodeKeys((prev) => (prev.size === 0 ? prev : new Set()));
+  }, []);
+
   // Browser-level reload / tab-close / external-link guard. SPA
   // navigation (sidebar links, back button) isn't covered here — Next 16
   // routes through the App Router and beforeunload doesn't fire on
@@ -1461,6 +1485,27 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   }, []);
 
   /**
+   * Reordena los nodos en columnas BFS desde el entry. Usado por el
+   * botón "Auto-organizar" de la barra de zoom. Un solo commit al
+   * undo stack para que Ctrl+Z reverte el layout entero si al merchant
+   * no le gusta.
+   */
+  const handleAutoLayout = useCallback(() => {
+    setStateDirty((s) => {
+      if (s.nodes.length === 0) return s;
+      const layouted = autoLayout(s.nodes, s.entry_node_id);
+      return {
+        ...s,
+        nodes: s.nodes.map((n) => {
+          const pos = layouted.get(n.node_key);
+          return pos ? { ...n, position_x: pos.x, position_y: pos.y } : n;
+        }),
+      };
+    });
+    toast.success("Nodos reordenados");
+  }, [setStateDirty]);
+
+  /**
    * Wire una conexión: el usuario soltó el drag del port (kind, idx) en
    * un nodo destino. Mapeamos kind+idx → la propiedad correcta del
    * config y actualizamos.
@@ -1606,6 +1651,133 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     },
     [setStateDirty],
   );
+
+  /**
+   * Borra todos los nodos en `selectedNodeKeys` en un solo commit del
+   * undo stack. Usado por la tecla Delete cuando hay 2+ nodos
+   * seleccionados con Shift+click.
+   */
+  const removeSelectedNodes = useCallback(() => {
+    if (selectedNodeKeys.size === 0) return;
+    const keysToRemove = new Set(selectedNodeKeys);
+    setStateDirty((s) => ({
+      ...s,
+      nodes: s.nodes.filter((n) => !keysToRemove.has(n.node_key)),
+      entry_node_id:
+        s.entry_node_id && keysToRemove.has(s.entry_node_id)
+          ? null
+          : s.entry_node_id,
+    }));
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      keysToRemove.forEach((k) => next.delete(k));
+      return next;
+    });
+    clearNodeSelection();
+    toast.success(
+      keysToRemove.size === 1
+        ? "Paso eliminado"
+        : `${keysToRemove.size} pasos eliminados`,
+    );
+  }, [selectedNodeKeys, setStateDirty, clearNodeSelection]);
+
+  /**
+   * Copia los nodos seleccionados al clipboard interno (un ref, no el
+   * portapapeles del SO — los configs pueden tener objetos anidados
+   * que no serializan a texto plano). El pegado los inserta a la
+   * derecha del flujo con node_keys nuevos.
+   */
+  const copySelectedNodes = useCallback(() => {
+    if (selectedNodeKeys.size === 0) return;
+    const copied = stateRef.current.nodes.filter((n) =>
+      selectedNodeKeys.has(n.node_key),
+    );
+    clipboardRef.current = copied.map((n) => ({
+      ...n,
+      config: JSON.parse(JSON.stringify(n.config)),
+    }));
+    toast.success(
+      copied.length === 1 ? "Paso copiado" : `${copied.length} pasos copiados`,
+    );
+  }, [selectedNodeKeys]);
+
+  const pasteCopiedNodes = useCallback(() => {
+    const copied = clipboardRef.current;
+    if (!copied || copied.length === 0) return;
+    setStateDirty((s) => {
+      // Renombramos cada node_key añadiendo sufijo _copia, _copia_2, etc.
+      // Mantenemos un mapa old → new para reescribir las referencias
+      // internas (next_node_key, buttons[].next_node_key, etc.) y que
+      // los wires copiados queden enganchados a las copias, no a los
+      // originales.
+      const keyMap = new Map<string, string>();
+      const existingKeys = new Set(s.nodes.map((n) => n.node_key));
+      for (const original of copied) {
+        let candidate = `${original.node_key}_copia`;
+        let i = 2;
+        while (existingKeys.has(candidate) || keyMap.has(candidate)) {
+          candidate = `${original.node_key}_copia_${i++}`;
+        }
+        keyMap.set(original.node_key, candidate);
+        existingKeys.add(candidate);
+      }
+      // Rewriter recursivo: cualquier string que sea exactamente
+      // un node_key del set copiado se reemplaza por su nuevo nombre.
+      const rewrite = (val: unknown): unknown => {
+        if (typeof val === "string") return keyMap.get(val) ?? val;
+        if (Array.isArray(val)) return val.map(rewrite);
+        if (val && typeof val === "object") {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+            out[k] = rewrite(v);
+          }
+          return out;
+        }
+        return val;
+      };
+      // Offset visual para que las copias no caigan exactamente encima
+      // de los originales y el merchant las vea.
+      const newNodes = copied.map((orig) => ({
+        node_key: keyMap.get(orig.node_key)!,
+        node_type: orig.node_type,
+        config: rewrite(orig.config) as Record<string, unknown>,
+        position_x: orig.position_x + 40,
+        position_y: orig.position_y + 40,
+      }));
+      return { ...s, nodes: [...s.nodes, ...newNodes] };
+    });
+    toast.success(
+      copied.length === 1 ? "Paso pegado" : `${copied.length} pasos pegados`,
+    );
+  }, [setStateDirty]);
+
+  // Atajos de teclado a nivel del editor: Delete borra la selección
+  // múltiple cuando hay 2+ nodos; Cmd/Ctrl+C copia; Cmd/Ctrl+V pega.
+  // Se desactiva si el foco está en un input para no comer tipeo.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, [contenteditable="true"]')) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeKeys.size > 1) {
+        e.preventDefault();
+        removeSelectedNodes();
+        return;
+      }
+      if (meta && e.key.toLowerCase() === "c" && selectedNodeKeys.size > 0) {
+        e.preventDefault();
+        copySelectedNodes();
+        return;
+      }
+      if (meta && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteCopiedNodes();
+        return;
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedNodeKeys, removeSelectedNodes, copySelectedNodes, pasteCopiedNodes]);
 
   const toggleExpanded = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -2017,6 +2189,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         <CanvasViewport
           ref={canvasViewportRef}
           onComputeContentBounds={computeContentBounds}
+          onAutoLayout={handleAutoLayout}
         >
           <FlowCanvas
             entryKey={state.entry_node_id}
@@ -2039,6 +2212,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onSetEntry={(key) =>
               setStateDirty((s) => ({ ...s, entry_node_id: key }))
             }
+            selectedNodeKeys={selectedNodeKeys}
+            onSelectNode={toggleNodeSelection}
+            onClearMultiSelect={clearNodeSelection}
             onAdd={addNode}
             triggerType={state.trigger_type}
             triggerConfig={state.trigger_config}
@@ -2064,8 +2240,14 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         {state.nodes.length > 0 && (
           // Bottom-LEFT — los controles de zoom del CanvasViewport viven
           // en bottom-right, así que llevamos la paleta al otro lado
-          // para que no se solapen.
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20">
+          // para que no se solapen. Paleta "Agregar paso" + panel
+          // flotante de variables disponibles. Variables se apila
+          // arriba de la paleta para que el merchant las tenga a mano
+          // mientras edita textos.
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2">
+            <div className="pointer-events-auto">
+              <VariablesPanel nodes={state.nodes} />
+            </div>
             <div className="pointer-events-auto">
               <FloatingAddPalette onAdd={addNode} />
             </div>
@@ -5001,12 +5183,12 @@ function FlowCanvas(props: FlowTreeProps) {
       className="relative"
       style={{ width: CANVAS_W, height: CANVAS_H }}
       onMouseDown={(e) => {
-        // Click en lienzo vacío (no sobre card, port o línea) deselecciona
-        // la conexión activa. El hit target de las líneas ya hace
-        // stopPropagation, y los cards/ports también; así que cualquier
-        // mousedown que LLEGUE acá es sobre fondo vacío.
-        if (selectedEdge && e.target === e.currentTarget) {
-          setSelectedEdge(null)
+        // Click en lienzo vacío (no sobre card, port o línea):
+        // deselecciona tanto la conexión activa como la selección
+        // múltiple de nodos.
+        if (e.target === e.currentTarget) {
+          if (selectedEdge) setSelectedEdge(null)
+          if (props.selectedNodeKeys.size > 0) props.onClearMultiSelect()
         }
       }}
     >
@@ -5149,6 +5331,7 @@ function FlowCanvas(props: FlowTreeProps) {
           isEntry={props.entryNodeId === node.node_key}
           isFlashed={props.flashedKey === node.node_key}
           isDropTarget={dropTargetKey === node.node_key}
+          isSelected={props.selectedNodeKeys.has(node.node_key)}
           cardRef={props.setNodeRef(node.node_key)}
           issues={
             props.silenced.has(node.node_key)
@@ -5159,6 +5342,7 @@ function FlowCanvas(props: FlowTreeProps) {
           }
           onMove={(x, y) => props.onMove(node.node_key, x, y)}
           onDragStart={() => props.onSnapshotHistory()}
+          onSelect={(additive) => props.onSelectNode(node.node_key, additive)}
           onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
           onUpdateConfig={(patch) =>
             props.onUpdateConfig(node.node_key, patch)
@@ -5231,10 +5415,15 @@ interface DraggableNodeProps {
   isEntry: boolean
   isFlashed: boolean
   isDropTarget: boolean
+  /** True cuando el nodo está en el set de seleccionados multi. */
+  isSelected: boolean
   cardRef: (el: HTMLDivElement | null) => void
   issues: ValidationIssue[]
   onMove: (x: number, y: number) => void
   onDragStart: () => void
+  /** Llamado en mousedown sobre el card. `additive=true` si Shift estaba
+   *  presionado (toggle), false si fue click normal (selecciona solo). */
+  onSelect: (additive: boolean) => void
   onUpdate: (patch: Partial<BuilderNode>) => void
   onUpdateConfig: (patch: Record<string, unknown>) => void
   onConnectStart: (
@@ -5266,6 +5455,11 @@ function DraggableNode(props: DraggableNodeProps) {
       ) {
         return
       }
+      // Selección por click: si Shift, toggle dentro del set; si no,
+      // reemplaza (solo este nodo). Lo notificamos ANTES de empezar
+      // el drag para que la selección visual se aplique en el primer
+      // frame del arrastre.
+      props.onSelect(e.shiftKey)
       e.preventDefault()
       e.stopPropagation()
       startRef.current = {
@@ -5311,6 +5505,10 @@ function DraggableNode(props: DraggableNodeProps) {
           ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
           : "cursor-grab",
         dragging && "scale-[1.02]",
+        // Halo de selección múltiple. No reemplaza el borde rojo de
+        // error ni el flash — se suma como un ring exterior.
+        props.isSelected &&
+          "rounded-lg ring-2 ring-[#00a5f4] ring-offset-2 ring-offset-background",
       )}
       style={{
         left: props.node.position_x,
@@ -5526,6 +5724,16 @@ interface FlowTreeProps {
   onDuplicate: (key: string) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void
+  /** Set de node_keys seleccionados por Shift+click. Si el set tiene
+   *  un nodo, su card aterriza con borde de acento. */
+  selectedNodeKeys: Set<string>
+  /** Llamado en mousedown del card. additive=true cuando el usuario
+   *  está manteniendo Shift (toggle dentro del set), false cuando
+   *  es un click normal (resetea a solo ese nodo). */
+  onSelectNode: (key: string, additive: boolean) => void
+  /** Limpia el set entero — llamado cuando el usuario hace click
+   *  sobre lienzo vacío. */
+  onClearMultiSelect: () => void
   onAdd: (
     type: NodeType,
     wireFrom?: {

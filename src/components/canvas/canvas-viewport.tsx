@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, AlignStartHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const MIN_SCALE = 0.25;
@@ -78,11 +78,15 @@ interface CanvasViewportProps {
   onComputeContentBounds?: () =>
     | { x: number; y: number; w: number; h: number }
     | null;
+  /** Callback opcional. Si se provee, aparece un botón "Auto-organizar"
+   *  en la barra de zoom que el usuario puede usar para reordenar
+   *  todos los nodos en columnas tidy según el grafo del flujo. */
+  onAutoLayout?: () => void;
 }
 
 export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
   function CanvasViewport(
-    { children, className, initialFit = 'top-left', onComputeContentBounds },
+    { children, className, initialFit = 'top-left', onComputeContentBounds, onAutoLayout },
     ref,
   ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,6 +317,17 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         >
           <Maximize2 className="h-4 w-4" />
         </button>
+        {onAutoLayout && (
+          <button
+            type="button"
+            onClick={onAutoLayout}
+            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Reordenar nodos automáticamente"
+            aria-label="Auto-organizar"
+          >
+            <AlignStartHorizontal className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );

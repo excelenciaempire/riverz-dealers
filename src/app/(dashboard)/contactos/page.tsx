@@ -44,6 +44,7 @@ import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { SegmentsPanel } from '@/components/contacts/segments-panel';
+import { TagsPanel } from '@/components/contacts/tags-panel';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
@@ -72,11 +73,12 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState<'list' | 'segments'>(() => {
+  const [tab, setTab] = useState<'list' | 'tags' | 'segments'>(() => {
     if (typeof window === 'undefined') return 'list';
-    return new URLSearchParams(window.location.search).get('tab') === 'segments'
-      ? 'segments'
-      : 'list';
+    const param = new URLSearchParams(window.location.search).get('tab');
+    if (param === 'segments') return 'segments';
+    if (param === 'tags') return 'tags';
+    return 'list';
   });
 
   // All tags for display
@@ -280,6 +282,17 @@ export default function ContactsPage() {
           Contactos
         </button>
         <button
+          onClick={() => setTab('tags')}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm transition-colors',
+            tab === 'tags'
+              ? 'bg-accent text-accent-ink'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Etiquetas
+        </button>
+        <button
           onClick={() => setTab('segments')}
           className={cn(
             'rounded-md px-3 py-1.5 text-sm transition-colors',
@@ -292,7 +305,11 @@ export default function ContactsPage() {
         </button>
       </div>
 
-      {tab === 'segments' ? <SegmentsPanel /> : <>
+      {tab === 'segments' ? (
+        <SegmentsPanel />
+      ) : tab === 'tags' ? (
+        <TagsPanel />
+      ) : <>
 
       {/* Search */}
       <div className="relative max-w-sm">
