@@ -62,7 +62,11 @@ const SNIPPETS: Snippet[] = [
 interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
-  onSend: (text: string, replyToId?: string) => void;
+  /** Devuelve una Promise para que el composer pueda esperar al envío
+   *  real antes de re-habilitar el botón. Sin esto el botón quedaba
+   *  clickeable en el mismo tick que se disparaba el envío y un
+   *  spam de Enter mandaba el mismo mensaje 5 veces. */
+  onSend: (text: string, replyToId?: string) => void | Promise<void>;
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
@@ -78,6 +82,11 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // Ref-guard adicional: setState es async, así que si el agente
+  // pulsa Enter rapidísimo el segundo handler todavía lee
+  // `sending=false` del closure viejo. El ref es síncrono y bloquea
+  // el segundo disparo en el mismo tick.
+  const sendingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Snippet picker: aparece cuando el usuario tipea "/" al inicio del
@@ -129,19 +138,24 @@ export function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending || sessionExpired) return;
-
+    if (!trimmed || sendingRef.current || sessionExpired) return;
+    sendingRef.current = true;
     setSending(true);
+    setText("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
     try {
-      onSend(trimmed, replyTo?.id);
-      setText("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      // await garantiza que el botón siga deshabilitado hasta que el
+      // POST resuelva. Antes onSend no se esperaba y setSending(false)
+      // se ejecutaba en el mismo tick que setSending(true), dejando el
+      // botón clickeable mientras el mensaje viajaba.
+      await onSend(trimmed, replyTo?.id);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sessionExpired, onSend, replyTo?.id]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {

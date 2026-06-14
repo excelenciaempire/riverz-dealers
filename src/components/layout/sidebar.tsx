@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -73,7 +73,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "IA y constructor",
+    title: "Servicio al cliente",
     items: [
       { href: "/asistente", label: "Asistente IA", icon: Sparkles },
       { href: "/menus", label: "Flujos", icon: Workflow },
@@ -119,6 +119,13 @@ export function Sidebar({
   onToggleCollapsed,
 }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Recombinar pathname + ?param=valor para que NavLink pueda
+  // distinguir entre /ajustes (general) y /ajustes?tab=workspace
+  // (Equipo). Antes ambos se activaban juntos.
+  const fullPath = searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
   const { profile, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const { theme, setTheme } = useTheme();
@@ -244,7 +251,7 @@ export function Sidebar({
                   <NavLink
                     key={item.href}
                     item={item}
-                    pathname={pathname}
+                    pathname={pathname} fullPath={fullPath}
                     collapsed={collapsed}
                     totalUnread={totalUnread}
                   />
@@ -266,7 +273,7 @@ export function Sidebar({
         >
           <NavLink
             item={{ href: "/ajustes?tab=workspace", label: "Equipo", icon: UserRound }}
-            pathname={pathname}
+            pathname={pathname} fullPath={fullPath}
             collapsed={collapsed}
             totalUnread={0}
           />
@@ -276,14 +283,14 @@ export function Sidebar({
               label: "Integraciones",
               icon: Blocks,
             }}
-            pathname={pathname}
+            pathname={pathname} fullPath={fullPath}
             collapsed={collapsed}
             totalUnread={0}
             setupPending={!setup.ready}
           />
           <NavLink
             item={{ href: "/ajustes", label: "Ajustes", icon: Settings }}
-            pathname={pathname}
+            pathname={pathname} fullPath={fullPath}
             collapsed={collapsed}
             totalUnread={0}
           />
@@ -391,22 +398,56 @@ export function Sidebar({
 function NavLink({
   item,
   pathname,
+  fullPath,
   collapsed,
   totalUnread,
   setupPending = false,
 }: {
   item: NavItem;
   pathname: string;
+  /** pathname + ?param=valor. Permite distinguir entre items que
+   *  comparten pathname pero difieren en tab (ej. Equipo vs Ajustes). */
+  fullPath: string;
   collapsed: boolean;
   totalUnread: number;
   /** Cuando Integraciones todavía no tiene WhatsApp+Shopify conectados,
    *  mostramos un chip "Conecta" para guiar el onboarding. */
   setupPending?: boolean;
 }) {
-  const isActive =
-    pathname === item.href ||
-    (item.href !== "/panel" && pathname.startsWith(item.href.split("?")[0])) ||
-    (item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(p)) ?? false);
+  // Lógica de activo:
+  //   1) Si el item.href tiene "?tab=X", es "qualified": solo se activa
+  //      cuando el fullPath actual coincide exactamente con item.href.
+  //      Antes Equipo (/ajustes?tab=workspace) y Ajustes (/ajustes) se
+  //      activaban juntos porque ambos hacían pathname.startsWith
+  //      ("/ajustes").
+  //   2) Si el item.href NO tiene "?", se activa por prefix del pathname
+  //      (comportamiento original — Bandeja activa para /bandeja/abc, etc.).
+  //   3) Items "generales" (sin tab) NO se activan cuando hay un tab que
+  //      apunta a su mismo pathname; si no, Ajustes se activaría también
+  //      cuando estoy en /ajustes?tab=workspace.
+  const itemPath = item.href.split("?")[0];
+  const itemHasTab = item.href.includes("?");
+  const currentTab = fullPath.includes("?")
+    ? fullPath.split("?")[1]
+    : null;
+  let isActive = false;
+  if (itemHasTab) {
+    // Qualified: match exacto contra fullPath.
+    isActive = fullPath === item.href;
+  } else if (item.href === "/panel") {
+    isActive = pathname === "/panel";
+  } else {
+    // General: pathname start with itemPath PERO solo si no hay un tab
+    // en la URL actual (porque en ese caso el item "qualified" gana).
+    const pathMatches = pathname === itemPath || pathname.startsWith(itemPath + "/");
+    isActive = pathMatches && !currentTab;
+  }
+  if (
+    !isActive &&
+    item.alsoActiveOn?.some((p) => pathname === p || pathname.startsWith(p + "/"))
+  ) {
+    isActive = true;
+  }
 
   const showUnreadBadge =
     item.href === "/bandeja" && totalUnread > 0 && !isActive;

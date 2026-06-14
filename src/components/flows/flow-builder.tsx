@@ -2512,6 +2512,34 @@ function buildCommandItems(args: {
   return items;
 }
 
+/**
+ * True para nodos de UNA sola salida donde el `next_node_key` está
+ * sin asignar. Esos son los candidatos a mostrar el tail "⊕" a nivel
+ * card. Los nodos lógicos con múltiples branches (condition,
+ * shopify_lookup, ai_intent) y los multi-port (send_buttons,
+ * send_list) renderizan el tail por slot, no a nivel card.
+ */
+function hasSingleUnconnectedOutput(n: BuilderNode): boolean {
+  const cfg = n.config as Record<string, unknown>;
+  switch (n.node_type) {
+    case "send_message":
+    case "send_image":
+    case "send_video":
+    case "send_document":
+    case "send_cta_url":
+    case "collect_input":
+    case "customer_reply":
+    case "subflow":
+    case "set_tag":
+    case "wait":
+    case "start":
+      return !((cfg as { next_node_key?: string }).next_node_key);
+    default:
+      // Multi-output o terminal — no aplica el tail a nivel card.
+      return false;
+  }
+}
+
 function inlineNodeTitle(n: BuilderNode): string | null {
   const cfg = n.config as Record<string, unknown>;
   let raw: unknown;
@@ -3362,13 +3390,6 @@ function LogicNodeBody({
               <span className="text-[11px] text-muted-foreground">
                 {o.label}
               </span>
-              {/* "+" Quick-add SOLO si el port no está conectado.
-                  Click → menú compacto → elige tipo → addNode con
-                  wireFrom = (este nodo, "text", i). El menú reusa el
-                  mismo set de tipos que la paleta flotante. */}
-              {!o.connected && (
-                <QuickAddPortButton parentKey={node.node_key} kind="text" idx={i} />
-              )}
               <span
                 data-connection-port="true"
                 onMouseDown={(e) => {
@@ -3385,6 +3406,19 @@ function LogicNodeBody({
                 role="button"
                 aria-label={o.connected ? "Conexión existente" : "Conectar a otro paso"}
               />
+              {/* Tail visual: línea + "⊕" cuando el port no está
+                  conectado. Sale por fuera del card a la derecha y
+                  abre el menú de "Siguiente paso". Es la afordancia
+                  principal — el chip viejo "+ Agregar" inline lo
+                  sustituyó. Se oculta solo si node.node_type === "end"
+                  (terminal). */}
+              {!o.connected && node.node_type !== "end" && (
+                <QuickAddTail
+                  parentKey={node.node_key}
+                  kind="text"
+                  idx={i}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -3423,6 +3457,86 @@ function QuickAddPortButton({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        className="max-h-80 min-w-56 overflow-y-auto border-border bg-card"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Siguiente paso
+        </div>
+        {ADDABLE_NODE_TYPES.map((t) => {
+          const meta = NODE_META[t];
+          return (
+            <DropdownMenuItem
+              key={t}
+              onClick={() => actions.quickAdd(parentKey, kind, idx, t)}
+            >
+              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+              {meta.label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * Afordancia visible "líneita + ⊕" anclada a la derecha del card.
+ * Aparece SIEMPRE que el nodo tenga una salida sin conectar (excepto
+ * el nodo Fin que es terminal). Estética: línea horizontal de ~36px
+ * que sale del borde del card hasta un círculo con "+" — el patrón
+ * que el usuario reconoce de Figma/Linear/Manychat.
+ *
+ * Comportamiento: click abre el mismo menú que QuickAddPortButton
+ * (un item por NodeType) y el nodo recién agregado queda wired al
+ * port (parentKey, kind, idx).
+ *
+ * Se posiciona con absolute: top según la altura del slot al que
+ * pertenece. Cada port pasivo (sin conexión) lo renderiza al lado del
+ * círculo de conexión existente.
+ */
+function QuickAddTail({
+  parentKey,
+  kind,
+  idx,
+}: {
+  parentKey: string;
+  kind: "text" | "button" | "list_row" | "cta";
+  idx: number;
+}) {
+  const actions = useFlowBubbleActions();
+  if (!actions) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Agregar el siguiente paso"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "group/tail absolute left-full top-1/2 z-20 -translate-y-1/2 pl-[6px]",
+          "flex items-center pointer-events-auto",
+        )}
+      >
+        {/* Línea horizontal */}
+        <span
+          aria-hidden
+          className="block h-px w-9 bg-muted-foreground/40 group-hover/tail:bg-muted-foreground/80"
+        />
+        {/* Círculo con + */}
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-5 items-center justify-center rounded-full",
+            "border border-border bg-card text-muted-foreground shadow-sm",
+            "transition-colors group-hover/tail:border-foreground/40",
+            "group-hover/tail:text-foreground group-hover/tail:shadow",
+          )}
+        >
+          <Plus className="size-3" />
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
         className="max-h-80 min-w-56 overflow-y-auto border-border bg-card"
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -3527,8 +3641,6 @@ function CompactInput({
  */
 function ShopifyLookupForm({
   kind,
-  inputVar,
-  outputPrefix,
   onUpdateConfig,
 }: {
   kind: string;
@@ -3536,33 +3648,19 @@ function ShopifyLookupForm({
   outputPrefix: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
-  // last_order resuelve por el contacto, no necesita variable de entrada.
-  const needsInputVar = kind !== "last_order";
-  // Qué keys llena cada kind. La fuente de verdad vive en
-  // src/lib/flows/shopify-lookup.ts (orderToVars / productToVars). Acá
-  // copiamos los sufijos en español neutro para que el merchant los
-  // vea sin tener que abrir docs.
-  const isProduct = kind === "product_by_handle";
-  const prefix = outputPrefix.trim() || (isProduct ? "producto" : "pedido");
-  const suffixes = isProduct
-    ? ["title", "handle", "vendor", "type", "price", "image_url"]
-    : [
-        "name",
-        "number",
-        "email",
-        "financial_status",
-        "fulfillment_status",
-        "total",
-        "status_url",
-        "tracking_number",
-        "tracking_url",
-        "item_count",
-      ];
-  const inputVarHelp: Record<string, string> = {
-    order_by_number: "Variable con el número de pedido (ej: numero_pedido).",
-    order_by_email: "Variable con el correo del cliente.",
-    product_by_handle: "Variable con el handle del producto.",
-  };
+  // UI radicalmente simplificada: lo único que el merchant edita es
+  // QUÉ BUSCAR. El resto (variable de entrada, prefijo del resultado,
+  // lista de variables disponibles) lo resuelve el backend con
+  // defaults sensatos:
+  //
+  //   - `input_var`: el engine lo auto-detecta — toma la última
+  //     variable que el cliente capturó con collect_input (o el email/
+  //     teléfono del contacto para order_by_email / last_order).
+  //   - `output_prefix`: "order" para pedidos, "product" para
+  //     productos. Sin opción de cambiarlo.
+  //   - Variables resultantes: el merchant las ve listadas en el
+  //     panel Variables de la esquina inferior izquierda del lienzo,
+  //     no metidas dentro del card.
   return (
     <div className="space-y-2">
       <label className="block">
@@ -3577,12 +3675,8 @@ function ShopifyLookupForm({
             <span>{KIND_LABEL[kind] ?? kind}</span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="order_by_number">
-              Pedido por número
-            </SelectItem>
-            <SelectItem value="order_by_email">
-              Pedido por correo
-            </SelectItem>
+            <SelectItem value="order_by_number">Pedido por número</SelectItem>
+            <SelectItem value="order_by_email">Pedido por correo</SelectItem>
             <SelectItem value="last_order">
               Último pedido del contacto
             </SelectItem>
@@ -3592,45 +3686,11 @@ function ShopifyLookupForm({
           </SelectContent>
         </Select>
       </label>
-      {needsInputVar && (
-        <div>
-          <CompactInput
-            label="Variable con el dato a buscar"
-            value={inputVar}
-            placeholder="numero_pedido"
-            onChange={(v) => onUpdateConfig({ input_var: v })}
-          />
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {inputVarHelp[kind] ??
-              "Variable con el dato que la búsqueda va a usar."}
-          </p>
-        </div>
-      )}
-      <CompactInput
-        label="Prefijo del resultado"
-        value={outputPrefix}
-        placeholder={isProduct ? "producto" : "pedido"}
-        onChange={(v) => onUpdateConfig({ output_prefix: v })}
-      />
-      <div className="rounded-md border border-border bg-muted/20 p-2">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          Variables que vas a tener disponibles
-        </p>
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          Después de esta búsqueda, en el siguiente paso podés
-          interpolar:
-        </p>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {suffixes.map((s) => (
-            <code
-              key={s}
-              className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-foreground"
-            >
-              {"{{vars."}{prefix}_{s}{"}}"}
-            </code>
-          ))}
-        </div>
-      </div>
+      <p className="text-[10px] italic text-muted-foreground">
+        El número, correo o handle se toma automáticamente del último
+        dato que el cliente compartió en el chat. Las variables del
+        resultado (total, tracking, etc.) están en el panel Variables.
+      </p>
     </div>
   );
 }
@@ -5996,6 +6056,20 @@ function DraggableNode(props: DraggableNodeProps) {
         onRemove={props.onRemove}
         onSetEntry={props.onSetEntry}
       />
+      {/* Tail visual a nivel CARD: línea + "⊕" del borde derecho. Solo
+          para nodos de UNA sola salida (send_message, customer_reply,
+          collect_input, etc.). Los nodos con MÚLTIPLES outputs ya tienen
+          su tail por cada slot dentro del LogicNodeBody. El nodo Fin
+          no lleva tail (es terminal). El tail solo aparece cuando la
+          salida única todavía no está conectada. */}
+      {hasSingleUnconnectedOutput(props.node) &&
+        props.node.node_type !== "end" && (
+          <QuickAddTail
+            parentKey={props.node.node_key}
+            kind="text"
+            idx={0}
+          />
+        )}
     </div>
   )
 }
