@@ -181,6 +181,7 @@ type NodeType =
   | "ai_intent"
   | "shopify_lookup"
   | "customer_reply"
+  | "subflow"
   | "end";
 
 interface BuilderNode {
@@ -318,6 +319,12 @@ const NODE_META: Record<
     icon: MessageSquareReply,
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
+  },
+  subflow: {
+    label: "Subflujo",
+    icon: Workflow,
+    color: "text-indigo-600 dark:text-indigo-400",
+    bg: "bg-indigo-500/15",
   },
   end: {
     label: "Fin",
@@ -484,6 +491,10 @@ function summarizeNode(node: BuilderNode): string | null {
     }
     case "customer_reply":
       return "Esperando respuesta del cliente";
+    case "subflow": {
+      const id = String(cfg.sub_flow_id ?? "");
+      return id ? `Subflujo ${id.slice(0, 8)}…` : "Sin flujo elegido";
+    }
   }
 }
 
@@ -563,6 +574,8 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
       };
     case "customer_reply":
       return { next_node_key: "" };
+    case "subflow":
+      return { sub_flow_id: "", next_node_key: "" };
     case "end":
       return {};
   }
@@ -3328,6 +3341,13 @@ function LogicNodeBody({
           No se guarda nada — solo se espera.
         </p>
       )}
+      {node.node_type === "subflow" && (
+        <SubflowPicker
+          currentNodeKey={node.node_key}
+          value={(cfg.sub_flow_id as string) ?? ""}
+          onChange={(v) => onUpdateConfig({ sub_flow_id: v })}
+        />
+      )}
 
       {/* Ports de salida — uno por output. Sólo si el nodo tiene
           ≥1 salida (los terminales como handoff/end no muestran). */}
@@ -3453,6 +3473,7 @@ function logicOutputs(
     case "set_tag":
     case "start":
     case "customer_reply":
+    case "subflow":
       return [
         { label: "Avanza a", connected: !!(cfg.next_node_key as string) },
       ];
@@ -3620,6 +3641,73 @@ const KIND_LABEL: Record<string, string> = {
   last_order: "Último pedido del contacto",
   product_by_handle: "Producto por handle",
 };
+
+/**
+ * Picker para elegir qué flujo se ejecuta dentro de un nodo subflow.
+ * Carga la lista de flujos del workspace al montar y ofrece un Select
+ * con name + slug. Filtra el flujo actual para evitar recursión
+ * directa (modelo no soporta auto-llamadas — todavía).
+ *
+ * El runtime v1 pasa por aquí como passthrough; ver SubflowNodeConfig
+ * en types.ts para el plan de ejecución recursiva.
+ */
+function SubflowPicker({
+  currentNodeKey: _currentNodeKey,
+  value,
+  onChange,
+}: {
+  currentNodeKey: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [flows, setFlows] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/flows")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { flows?: Array<{ id: string; name: string }> } | null) => {
+        if (!cancelled) {
+          setFlows(d?.flows ?? []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        Flujo a ejecutar
+      </p>
+      <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={loading}>
+        <SelectTrigger className="bg-muted/30 text-sm">
+          <span>
+            {loading
+              ? "Cargando…"
+              : flows.find((f) => f.id === value)?.name ?? "Elegir un flujo"}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          {flows.map((f) => (
+            <SelectItem key={f.id} value={f.id}>
+              {f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-[10px] italic text-muted-foreground">
+        Hoy el subflujo se registra como evento y pasa al siguiente paso
+        directamente. La ejecución completa del subflujo llega en una
+        actualización aparte.
+      </p>
+    </div>
+  );
+}
 
 // ============================================================
 // Per-node-type config form
@@ -4732,6 +4820,7 @@ const ADDABLE_NODE_TYPES: NodeType[] = [
   "condition",
   "set_tag",
   "wait",
+  "subflow",
   "handoff",
   "end",
 ];
@@ -6015,6 +6104,7 @@ function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
     case "send_cta_url":
     case "collect_input":
     case "customer_reply":
+    case "subflow":
     case "set_tag":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key ?? ""

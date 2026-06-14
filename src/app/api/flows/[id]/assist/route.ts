@@ -199,6 +199,7 @@ Tipos de nodo y su \`config\`:
 - \`send_cta_url\`: { text: string, button_title: string, url: string (https), next_node_key?: string }
 - \`collect_input\`: { prompt_text: string, var_key: string (snake_case), next_node_key?: string }
 - \`customer_reply\`: { next_node_key?: string }. Pausa el flujo hasta que el cliente envíe un mensaje (cualquier texto). No envía nada, no captura nada. Úsalo entre dos send_message cuando quieres que el bot mande algo, deje al cliente responder, y recién después siga. NO lo uses después de send_buttons, send_list, collect_input o ai_intent: esos ya esperan respuesta.
+- \`subflow\`: { sub_flow_id: string, next_node_key?: string }. Ejecuta otro flujo reutilizable dentro de este. Usalo para encapsular secuencias comunes (ej: "pedir email y verificar") y referenciarlas desde varios flujos sin duplicar nodos. Si el usuario te pide insertar un subflow, pídele primero el nombre o el id del flujo destino antes de proponer la configuración.
 - \`condition\`: { subject: "var"|"tag"|"contact_field", subject_key: string, operator: "equals"|"contains"|"present"|"absent", value?: string, true_next?: string, false_next?: string }
 - \`set_tag\`: { mode: "add"|"remove", tag_id: string, next_node_key?: string }
 - \`handoff\`: { reason?: string, message?: string }

@@ -148,6 +148,29 @@ export interface SetTagNodeConfig {
 export type EndNodeConfig = Record<string, never>;
 
 /**
+ * Subflujo reutilizable. Permite encapsular una secuencia común (ej:
+ * "pedir email y verificar") en un flujo separado y referenciarla
+ * desde otros flujos sin duplicar nodos.
+ *
+ * Runtime (a ratificar en migración futura): el engine empuja un
+ * frame al call_stack y entra al flujo referenciado por sub_flow_id.
+ * Cuando el subflujo termina (handoff o end), pop del frame y se
+ * continúa en `next_node_key`. Recursión limitada a profundidad 5
+ * para evitar bucles.
+ *
+ * Hoy (v1 del nodo): el engine emite el evento `subflow_invoked` y
+ * avanza directamente a `next_node_key` como pasarela. El merchant
+ * puede MODELAR la estructura completa en el editor; la ejecución
+ * recursiva del subflujo llega en una migración aparte.
+ */
+export interface SubflowNodeConfig {
+  /** UUID del flujo a invocar. Debe ser otro flujo del mismo workspace. */
+  sub_flow_id: string;
+  /** Paso al que el flujo padre vuelve cuando el subflujo termina. */
+  next_node_key: string;
+}
+
+/**
  * Espera pasiva por una respuesta del cliente. NO envía ningún prompt
  * y NO captura variables — solo deja el run en estado "esperando" y
  * cuando llega el próximo mensaje de texto del cliente, avanza al
@@ -299,6 +322,7 @@ export type FlowNodeConfig =
   | { node_type: "ai_intent"; config: AiIntentNodeConfig }
   | { node_type: "shopify_lookup"; config: ShopifyLookupNodeConfig }
   | { node_type: "customer_reply"; config: CustomerReplyNodeConfig }
+  | { node_type: "subflow"; config: SubflowNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
 export type FlowNodeType = FlowNodeConfig["node_type"];

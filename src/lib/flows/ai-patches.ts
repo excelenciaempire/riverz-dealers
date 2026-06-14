@@ -132,6 +132,7 @@ export const ASSIST_TOOL_SCHEMA = {
                   "wait",
                   "ai_intent",
                   "shopify_lookup",
+                  "subflow",
                   "end",
                 ],
               },
@@ -265,6 +266,7 @@ const VALID_NODE_TYPES = new Set<string>([
   "wait",
   "ai_intent",
   "shopify_lookup",
+  "subflow",
   "end",
 ]);
 

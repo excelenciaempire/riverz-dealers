@@ -362,6 +362,19 @@ export function SimulatorPanel({
           next.currentKey = c.fallback_next_key ?? c.intents?.[0]?.next_node_key ?? null;
           break;
         }
+        case "subflow": {
+          const c = cfg as { sub_flow_id?: string; next_node_key?: string };
+          next.history = [
+            ...next.history,
+            {
+              from: "system",
+              kind: "note",
+              text: `Subflujo invocado (${c.sub_flow_id ?? "sin id"}). En la simulación se trata como passthrough y se continúa al siguiente paso.`,
+            },
+          ];
+          next.currentKey = c.next_node_key ?? null;
+          break;
+        }
         case "handoff":
         case "end":
         case "start":

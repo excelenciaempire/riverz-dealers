@@ -683,6 +683,27 @@ async function advanceFromNodeKey(
       });
       return { outcome: "advanced" };
     }
+    if (node.node_type === "subflow") {
+      // v1: passthrough. Emitimos el evento subflow_invoked con el id
+      // del flujo referenciado para que el merchant pueda auditar
+      // cuándo se dispararía la entrada al subflujo, y avanzamos al
+      // next_node_key como si el subflujo hubiera terminado de forma
+      // inmediata. La ejecución recursiva real (push de call_stack,
+      // cambio de flow_id, pop al terminar) llega en migración aparte
+      // y requiere `flow_runs.call_stack JSONB` para sobrevivir a las
+      // pausas (collect_input dentro del subflujo, etc.).
+      const cfg = node.config as unknown as {
+        sub_flow_id?: string;
+        next_node_key?: string;
+      };
+      await logEvent(db, run.id, "node_entered", node.node_key, {
+        node_type: "subflow",
+        sub_flow_id: cfg.sub_flow_id ?? null,
+        runtime_note: "v1_passthrough_no_recursion",
+      });
+      currentKey = cfg.next_node_key ?? null;
+      continue;
+    }
     if (node.node_type === "condition") {
       const cfg = node.config as unknown as ConditionNodeConfig;
       let branch: "true" | "false";

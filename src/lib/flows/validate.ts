@@ -1025,6 +1025,43 @@ function validateNode(
       break;
     }
 
+    case "subflow": {
+      const cfg = node.config as {
+        sub_flow_id?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.sub_flow_id) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "sub_flow_id",
+          message:
+            "Elige qué flujo se va a ejecutar dentro de este subflujo.",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message:
+            "Conecta este subflujo al siguiente paso. Cuando el subflujo termine, el flujo continúa ahí.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message:
+            "Este subflujo apunta a un paso que ya no existe. Vuélvelo a conectar.",
+        });
+      }
+      break;
+    }
+
     case "customer_reply": {
       const cfg = node.config as { next_node_key?: string };
       if (!cfg.next_node_key) {
@@ -1103,6 +1140,7 @@ function outgoingEdges(node: NodeInput): string[] {
     case "send_cta_url":
     case "collect_input":
     case "customer_reply":
+    case "subflow":
     case "set_tag":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };
