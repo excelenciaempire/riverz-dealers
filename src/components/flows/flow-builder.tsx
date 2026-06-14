@@ -4581,6 +4581,15 @@ function FlowCanvas(props: FlowTreeProps) {
         className="pointer-events-none absolute inset-0 text-muted-foreground"
         width={CANVAS_W}
         height={CANVAS_H}
+        // overflow="visible" — el SVG por default tiene overflow:hidden
+        // y recorta cualquier path que se salga de su rect (0..CANVAS_W
+        // x 0..CANVAS_H). Si el usuario arrastró un nodo a una posición
+        // negativa o más allá del límite (o si dos nodos en extremos
+        // opuestos producen un bezier con control points fuera del
+        // rect), parte de la línea desaparecía mid-canvas. Con
+        // overflow:visible las paths se pintan completas y el clipping
+        // queda a cargo del CanvasViewport contenedor.
+        overflow="visible"
       >
         {/* Marker definitions — la flecha al final de cada conexión.
             refX=9 dentro del viewBox 0-10 deja la punta exactamente
