@@ -176,6 +176,20 @@ export async function PUT(
       .eq('flow_id', id)
       .order('created_at', { ascending: true }),
   ])
+
+  // Auto-snapshot del draft: cada save reemplaza el draft anterior.
+  // Sirve para "Versiones" — el merchant ve el último estado guardado
+  // y puede comparar contra la versión publicada activa.
+  if (flow) {
+    await admin.from('flow_versions').delete().eq('flow_id', id).eq('kind', 'draft')
+    await admin.from('flow_versions').insert({
+      flow_id: id,
+      kind: 'draft',
+      snapshot: { flow, nodes: nodes ?? [] },
+      created_by: guard.userId,
+    })
+  }
+
   return NextResponse.json({ flow, nodes: nodes ?? [] })
 }
 

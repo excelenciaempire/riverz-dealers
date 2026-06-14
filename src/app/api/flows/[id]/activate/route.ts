@@ -104,5 +104,23 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+  // Cuando se ACTIVA por primera vez o se reactiva tras cambios,
+  // snapshot del estado actual como `published`. Es la versión que
+  // realmente está corriendo en producción.
+  if (status === 'active') {
+    const [{ data: flowRow }, { data: nodesRow }] = await Promise.all([
+      admin.from('flows').select('*').eq('id', id).maybeSingle(),
+      admin.from('flow_nodes').select('*').eq('flow_id', id),
+    ])
+    if (flowRow) {
+      await admin.from('flow_versions').insert({
+        flow_id: id,
+        kind: 'published',
+        snapshot: { flow: flowRow, nodes: nodesRow ?? [] },
+        created_by: user.id,
+        note: 'Publicado desde el editor',
+      })
+    }
+  }
   return NextResponse.json({ flow: updated })
 }

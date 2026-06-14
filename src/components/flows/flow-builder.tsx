@@ -112,6 +112,7 @@ import {
   CommandPalette,
   type CommandItem,
 } from "@/components/flows/command-palette";
+import { FlowVersionsDialog } from "@/components/flows/versions-dialog";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -907,6 +908,24 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Historial de versiones (dialog) y overlay de analítica por nodo.
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  const [analytics, setAnalytics] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!analyticsOn) return;
+    let cancelled = false;
+    fetch(`/api/flows/${initialFlow.id}/node-analytics?days=7`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { by_node?: Record<string, number> } | null) => {
+        if (!cancelled) setAnalytics(d?.by_node ?? {});
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [analyticsOn, initialFlow.id]);
   const visibleIssues: ValidationIssue[] = showValidation ? issues : [];
 
   // ---- Save (PUT) ----
@@ -2229,6 +2248,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           canActivate={canActivate}
           onBack={() => router.push("/menus")}
           onViewRuns={() => router.push(`/menus/${initialFlow.id}/runs`)}
+          onOpenVersions={() => setVersionsOpen(true)}
+          showAnalytics={analyticsOn}
+          onToggleAnalytics={() => setAnalyticsOn((v) => !v)}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={handleUndo}
@@ -2271,6 +2293,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onSelectNode={toggleNodeSelection}
             onClearMultiSelect={clearNodeSelection}
             liveLinter={liveLinter}
+            analyticsOverlay={{ active: analyticsOn, byNode: analytics }}
             onAdd={addNode}
             triggerType={state.trigger_type}
             triggerConfig={state.trigger_config}
@@ -2383,6 +2406,13 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             canvasViewportRef.current?.zoomToRect(computeContentBounds(), 0.7),
         })}
       />
+
+      <FlowVersionsDialog
+        flowId={initialFlow.id}
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        onRestored={() => router.refresh()}
+      />
     </div>
     </FlowBubbleActionsContext.Provider>
   );
@@ -2483,6 +2513,9 @@ function Header({
   canActivate,
   onBack,
   onViewRuns,
+  onOpenVersions,
+  showAnalytics,
+  onToggleAnalytics,
   canUndo,
   canRedo,
   onUndo,
@@ -2499,6 +2532,9 @@ function Header({
   canActivate: boolean;
   onBack: () => void;
   onViewRuns: () => void;
+  onOpenVersions: () => void;
+  showAnalytics: boolean;
+  onToggleAnalytics: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -2600,6 +2636,14 @@ function Header({
             <DropdownMenuItem onClick={() => onViewRuns()}>
               <History className="h-3.5 w-3.5" />
               Ejecuciones
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onOpenVersions()}>
+              <History className="h-3.5 w-3.5" />
+              Versiones
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onToggleAnalytics()}>
+              <GitBranch className="h-3.5 w-3.5" />
+              {showAnalytics ? "Ocultar analítica" : "Mostrar analítica por nodo"}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDelete}
@@ -5600,6 +5644,11 @@ function FlowCanvas(props: FlowTreeProps) {
           isSelected={props.selectedNodeKeys.has(node.node_key)}
           isUnreachable={props.liveLinter.unreachable.has(node.node_key)}
           hasLiveError={props.liveLinter.nodesWithError.has(node.node_key)}
+          analyticsCount={
+            props.analyticsOverlay.active
+              ? (props.analyticsOverlay.byNode[node.node_key] ?? 0)
+              : null
+          }
           cardRef={props.setNodeRef(node.node_key)}
           issues={
             props.silenced.has(node.node_key)
@@ -5689,6 +5738,9 @@ interface DraggableNodeProps {
   isUnreachable: boolean
   /** Live linter: punto rojo si el nodo tiene al menos un error. */
   hasLiveError: boolean
+  /** Overlay de analítica: si !== null, se renderiza el badge con
+   *  el conteo de entries de los últimos 7 días en el nodo. */
+  analyticsCount: number | null
   cardRef: (el: HTMLDivElement | null) => void
   issues: ValidationIssue[]
   onMove: (x: number, y: number) => void
@@ -5799,6 +5851,21 @@ function DraggableNode(props: DraggableNodeProps) {
           aria-label="Tiene errores"
           className="absolute -left-1 -top-1 z-20 size-2.5 rounded-full bg-red-500 ring-2 ring-background"
         />
+      )}
+      {/* Badge de analítica (toggle desde el header). Esquina sup
+          derecha. Muestra entries de los últimos 7 días. */}
+      {props.analyticsCount !== null && (
+        <span
+          className={cn(
+            "absolute -right-1 -top-2 z-20 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-2 ring-background",
+            props.analyticsCount > 0
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+              : "bg-muted text-muted-foreground",
+          )}
+          title={`${props.analyticsCount} entradas en 7 días`}
+        >
+          {props.analyticsCount}
+        </span>
       )}
       <NodeCard
         node={props.node}
@@ -6010,6 +6077,9 @@ interface FlowTreeProps {
   /** Linter en vivo: nodos inalcanzables (halo amarillo) + nodos con
    *  errores (punto rojo). Independiente del gate showValidation. */
   liveLinter: { unreachable: Set<string>; nodesWithError: Set<string> }
+  /** Si está activo, se renderiza un badge con la cantidad de
+   *  entries del nodo en los últimos 7 días encima del card. */
+  analyticsOverlay: { active: boolean; byNode: Record<string, number> }
   /** Set de node_keys seleccionados por Shift+click. Si el set tiene
    *  un nodo, su card aterriza con borde de acento. */
   selectedNodeKeys: Set<string>
