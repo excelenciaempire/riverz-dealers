@@ -125,10 +125,12 @@ export function CanvasViewport({
       if (initialFit === 'fit') {
         fitToView();
       } else {
-        // 100% with a tiny gutter — keeps cards readable from frame 1.
-        setScale(1);
-        setTx(32);
-        setTy(32);
+        // Arranca al 70% — la primera vez que abrís el lienzo querés ver
+        // el conjunto del flujo, no un solo card al 100%. El usuario
+        // hace zoom-in con Ctrl+rueda si quiere detalle de un nodo.
+        setScale(0.7);
+        setTx(40);
+        setTy(40);
       }
       hasCenteredRef.current = true;
     });

@@ -687,6 +687,23 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     [setStateDirty],
   );
 
+  /**
+   * Set of node_keys cuyos errores de validación están "silenciados"
+   * por ser recién creados. Apenas el usuario edita cualquier campo del
+   * nodo (updateNode / updateNodeConfig), lo sacamos del set y los
+   * errores vuelven a aparecer. Evita que al arrastrar "Enviar video" a
+   * la lona te aparezcan 3 chips rojos antes de tocar nada.
+   */
+  const [silenced, setSilenced] = useState<Set<string>>(() => new Set());
+  const unsilence = useCallback((key: string) => {
+    setSilenced((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
   const updateNodeConfig = useCallback(
     (key: string, configPatch: Record<string, unknown>) => {
       setStateDirty((s) => ({
@@ -695,8 +712,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           n.node_key === key ? { ...n, config: { ...n.config, ...configPatch } } : n,
         ),
       }));
+      unsilence(key);
     },
-    [setStateDirty],
+    [setStateDirty, unsilence],
   );
 
   const addNode = useCallback(
@@ -720,6 +738,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           position_y: TRIGGER_POS.y,
         };
         setExpanded((prev) => new Set([...prev, node_key]));
+        setSilenced((prev) => new Set([...prev, node_key]));
         return {
           ...s,
           nodes: [...s.nodes, next],
@@ -728,6 +747,37 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           // separate "entry" picker.
           entry_node_id: s.entry_node_id ?? (s.nodes.length === 0 ? node_key : null),
         };
+      });
+    },
+    [setStateDirty],
+  );
+
+  /**
+   * Duplicate an existing node — copia su config, le pone un node_key
+   * nuevo y lo deja a la derecha + abajo del original. Las aristas que
+   * salen del original NO se copian (next_node_key del original queda;
+   * el nuevo arranca sin conexión saliente).
+   */
+  const duplicateNode = useCallback(
+    (key: string) => {
+      setStateDirty((s) => {
+        const src = s.nodes.find((n) => n.node_key === key);
+        if (!src) return s;
+        const base = `${src.node_key}_copia`;
+        const new_key = uniqueNodeKey(base, s.nodes);
+        const clone: BuilderNode = {
+          node_key: new_key,
+          node_type: src.node_type,
+          // Deep-copy de config para que editar el clon no toque al
+          // original — JSON parse/stringify alcanza para nuestros configs
+          // (sin functions, sin Dates, sin circulars).
+          config: JSON.parse(JSON.stringify(src.config)) as Record<string, unknown>,
+          position_x: src.position_x + 40,
+          position_y: src.position_y + 60,
+        };
+        setExpanded((prev) => new Set([...prev, new_key]));
+        setSilenced((prev) => new Set([...prev, new_key]));
+        return { ...s, nodes: [...s.nodes, clone] };
       });
     },
     [setStateDirty],
@@ -881,7 +931,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             El paso recién creado aparece como "huérfano" abajo y el
             usuario lo conecta donde quiera con el selector "Avanza a". */}
         {state.nodes.length > 0 && (
-          <div className="pointer-events-none absolute bottom-4 right-4 z-20">
+          // Bottom-LEFT — los controles de zoom del CanvasViewport viven
+          // en bottom-right, así que llevamos la paleta al otro lado
+          // para que no se solapen.
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20">
             <div className="pointer-events-auto">
               <FloatingAddPalette onAdd={addNode} />
             </div>
@@ -2631,12 +2684,27 @@ interface OutgoingEdge {
 const CARD_WIDTH = 260
 /** Altura del header del NodeCard donde sale/entra la línea (centro del ícono). */
 const CARD_AXIS_PX = 28
-/** Gap horizontal y vertical entre columnas/filas del auto-layout. */
-const CARD_GAP_X = 100
-const CARD_GAP_Y = 180
+/**
+ * Gaps entre columnas/filas del auto-layout. Generosos a propósito —
+ * cards expandidos con bubble preview pueden medir 250-350px de alto,
+ * así que el gap vertical tiene que cubrir ese caso o se ven encimados
+ * apenas el usuario abre uno. El horizontal deja espacio cómodo para
+ * que las pastillas de etiqueta (si vuelven) y los conectores
+ * respiren.
+ */
+const CARD_GAP_X = 220
+const CARD_GAP_Y = 360
 /** Posición fija del disparador. No es draggeable (no se persiste). */
-const TRIGGER_POS = { x: 40, y: 200 }
+const TRIGGER_POS = { x: 80, y: 240 }
 const TRIGGER_WIDTH = 260
+/**
+ * Altura estimada de un card colapsado (header + bubble preview chico).
+ * Usada para distribuir verticalmente los puntos de salida de un nodo
+ * con varias ramas — cada rama nace de su slot dentro del card, no de
+ * un único punto. Aproximación: el bubble preview agrega ~60-180px
+ * según el tipo.
+ */
+const CARD_BODY_PX = 90
 
 /**
  * Auto-layout hierárquico: BFS desde el entry, agrupa por profundidad,
@@ -2741,18 +2809,32 @@ function FlowCanvas(props: FlowTreeProps) {
         label: null,
       })
     }
-    // Aristas entre nodos
+    // Aristas entre nodos — cuando un nodo tiene VARIAS salidas (botones,
+    // filas de lista, condición Sí/No, intents IA, found/not_found), las
+    // distribuimos verticalmente sobre el lado derecho del card en vez
+    // de salir todas del mismo punto. Resultado tipo ManyChat: cada
+    // opción origina su propia línea desde su slot del card.
     for (const node of props.allNodes) {
-      for (const e of getOutgoingEdges(node)) {
-        if (!e.nextKey) continue
+      const edgeList = getOutgoingEdges(node)
+      const n = edgeList.length
+      edgeList.forEach((e, idx) => {
+        if (!e.nextKey) return
         const target = nodesByKey.get(e.nextKey)
-        if (!target) continue
+        if (!target) return
+        // Punto de salida vertical: si hay 1 sola arista, sale del eje
+        // del header (CARD_AXIS_PX). Si hay N > 1, las distribuimos en
+        // CARD_BODY_PX dejando un padding superior para no chocar con
+        // el header.
+        const yOffset =
+          n === 1
+            ? CARD_AXIS_PX
+            : CARD_AXIS_PX + 28 + (idx + 0.5) * (CARD_BODY_PX / n)
         out.push({
           fromKey: node.node_key,
           toKey: target.node_key,
           from: {
             x: node.position_x + CARD_WIDTH,
-            y: node.position_y + CARD_AXIS_PX,
+            y: node.position_y + yOffset,
           },
           to: {
             x: target.position_x,
@@ -2760,7 +2842,7 @@ function FlowCanvas(props: FlowTreeProps) {
           },
           label: e.label,
         })
-      }
+      })
     }
     return out
   }, [props.allNodes, props.entryKey, nodesByKey])
@@ -2788,12 +2870,12 @@ function FlowCanvas(props: FlowTreeProps) {
         ))}
       </svg>
 
-      {/* Etiquetas de las ramas — HTML overlay, no SVG, para que el
-          texto se vea nítido y respete fuentes/tamaño. Posicionadas en
-          el midpoint del path. */}
-      {edges.map((e, i) =>
-        e.label ? <ConnectorLabel key={`l${i}`} edge={e} /> : null,
-      )}
+      {/* Etiquetas de rama eliminadas: chocaban con otros nodos y
+          duplicaban texto que el bubble preview del card origen ya
+          muestra ("Mi pedido" aparece como botón dentro del card de
+          send_buttons; ponerlo otra vez en la línea era ruido). El
+          texto de la opción adentro del card alcanza para saber qué
+          camino va a dónde. */}
 
       {/* Disparador — fijo en TRIGGER_POS, NO draggeable */}
       <div
@@ -2853,24 +2935,6 @@ function ConnectorPath({ edge }: { edge: CanvasEdge }) {
       strokeWidth={1.5}
       strokeLinecap="round"
     />
-  )
-}
-
-function ConnectorLabel({ edge }: { edge: CanvasEdge }) {
-  // Midpoint del path. La curva Bezier no es exactamente el midpoint
-  // geométrico, pero para una pastilla de etiqueta es suficiente — el
-  // usuario lee "Sí / No / Mi pedido" sin necesidad de precisión sub-px.
-  const midX = (edge.from.x + edge.to.x) / 2
-  const midY = (edge.from.y + edge.to.y) / 2
-  return (
-    <div
-      className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2"
-      style={{ left: midX, top: midY }}
-    >
-      <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm">
-        {edge.label}
-      </span>
-    </div>
   )
 }
 
