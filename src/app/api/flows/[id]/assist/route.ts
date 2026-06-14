@@ -181,6 +181,7 @@ Tipos de nodo y su \`config\`:
 - \`send_image\`/\`send_video\`/\`send_document\`: { url: string (https), caption?: string, next_node_key?: string }
 - \`send_cta_url\`: { text: string, button_title: string, url: string (https), next_node_key?: string }
 - \`collect_input\`: { prompt_text: string, var_key: string (snake_case), next_node_key?: string }
+- \`customer_reply\`: { next_node_key?: string } — pausa el flujo hasta que el cliente envíe un mensaje (cualquier texto). No envía nada, no captura nada. Usalo entre dos send_message cuando querés que el bot mande algo, deje al cliente responder, y recién después siga. NO lo uses después de send_buttons/send_list/collect_input/ai_intent — esos ya esperan respuesta.
 - \`condition\`: { subject: "var"|"tag"|"contact_field", subject_key: string, operator: "equals"|"contains"|"present"|"absent", value?: string, true_next?: string, false_next?: string }
 - \`set_tag\`: { mode: "add"|"remove", tag_id: string, next_node_key?: string }
 - \`handoff\`: { reason?: string, message?: string }

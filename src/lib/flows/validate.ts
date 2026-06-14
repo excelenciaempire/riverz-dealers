@@ -896,6 +896,30 @@ function validateNode(
       break;
     }
 
+    case "customer_reply": {
+      const cfg = node.config as { next_node_key?: string };
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message:
+            "Falta conectar este paso al siguiente. Después de que el cliente responda, ¿qué pasa?",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message:
+            "Este paso apunta a otro que ya no existe. Vuélvelo a conectar.",
+        });
+      }
+      break;
+    }
+
     case "handoff":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
@@ -949,6 +973,7 @@ function outgoingEdges(node: NodeInput): string[] {
     case "send_document":
     case "send_cta_url":
     case "collect_input":
+    case "customer_reply":
     case "set_tag":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };

@@ -142,7 +142,10 @@ export function isSuspending(node_type: string): boolean {
     node_type === "send_list" ||
     node_type === "collect_input" ||
     node_type === "ai_intent" ||
-    node_type === "wait"
+    node_type === "wait" ||
+    // customer_reply suspende sin enviar nada — espera el próximo
+    // mensaje inbound y avanza, sin capturar nada.
+    node_type === "customer_reply"
   );
 }
 
@@ -660,6 +663,26 @@ async function advanceFromNodeKey(
       }
       return { outcome: "advanced" };
     }
+    if (node.node_type === "customer_reply") {
+      // No envía nada — solo suspende. Marca el run como "esperando
+      // en este nodo" y vuelve. El próximo mensaje inbound del cliente
+      // dispara handleReplyForActiveRun → advance al next_node_key.
+      const advanced = await advanceCurrentNodeKey(
+        db,
+        run.id,
+        run.current_node_key,
+        node.node_key,
+      );
+      if (!advanced) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "lost_race_during_advance",
+        });
+      }
+      await logEvent(db, run.id, "node_entered", node.node_key, {
+        node_type: "customer_reply",
+      });
+      return { outcome: "advanced" };
+    }
     if (node.node_type === "condition") {
       const cfg = node.config as unknown as ConditionNodeConfig;
       let branch: "true" | "false";
@@ -1114,6 +1137,30 @@ async function handleReplyForActiveRun(
         });
         matched = cfg.next_node_key;
       }
+    }
+  } else if (currentNode.node_type === "customer_reply") {
+    // Cualquier mensaje (text / interactive / media) consume el wait.
+    // No capturamos nada — solo avanzamos a next_node_key.
+    const cfg = currentNode.config as unknown as {
+      next_node_key?: string;
+    };
+    if (cfg.next_node_key) {
+      await logEvent(db, run.id, "node_entered", currentNode.node_key, {
+        node_type: "customer_reply",
+        advancing_to: cfg.next_node_key,
+      });
+      matched = cfg.next_node_key;
+    } else {
+      // customer_reply sin destino — dead-end. La validación pre-activación
+      // lo bloquea, pero un draft activado a fuerza o un patch de la IA
+      // podría dejar uno sin wire. En vez de caer al fallback de reprompt
+      // (que para customer_reply sería un loop infinito porque NO hay
+      // prompt que re-enviar), terminamos el run limpiamente.
+      await logEvent(db, run.id, "error", currentNode.node_key, {
+        reason: "customer_reply_dead_end",
+      });
+      await endRun(db, run.id, "failed", "customer_reply_dead_end");
+      return { consumed: true, flow_run_id: run.id, outcome: "completed" };
     }
   } else if (
     message.kind === "text" &&

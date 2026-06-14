@@ -147,6 +147,27 @@ export interface SetTagNodeConfig {
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
+/**
+ * Espera pasiva por una respuesta del cliente. NO envía ningún prompt
+ * y NO captura variables — solo deja el run en estado "esperando" y
+ * cuando llega el próximo mensaje de texto del cliente, avanza al
+ * siguiente nodo. Útil entre dos `send_message` cuando querés que el
+ * bot mande un mensaje, deje al cliente responder, y recién después
+ * mande el siguiente.
+ *
+ * Comportamiento del runtime:
+ *   - Al ENTRAR al nodo: el engine setea `current_node_key` y suspende
+ *     (sin enviar nada). isSuspending() == true.
+ *   - En el próximo mensaje INBOUND del cliente (kind: text o
+ *     interactive_reply), el engine avanza a `next_node_key`. El
+ *     contenido del mensaje se IGNORA — solo importa que llegó.
+ *   - Si llega un mensaje no-text (media, sticker), también consume y
+ *     avanza — el cliente "respondió", aunque sea con un emoji.
+ */
+export interface CustomerReplyNodeConfig {
+  next_node_key: string;
+}
+
 // ============================================================
 // v2 — Media nodes (Cloud API image/video/document)
 // ============================================================
@@ -277,6 +298,7 @@ export type FlowNodeConfig =
   | { node_type: "wait"; config: WaitNodeConfig }
   | { node_type: "ai_intent"; config: AiIntentNodeConfig }
   | { node_type: "shopify_lookup"; config: ShopifyLookupNodeConfig }
+  | { node_type: "customer_reply"; config: CustomerReplyNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
 export type FlowNodeType = FlowNodeConfig["node_type"];

@@ -57,6 +57,7 @@ import {
   Hourglass,
   Sparkles,
   ShoppingBag,
+  MessageSquareReply,
   MoreHorizontal,
   Zap,
 } from "lucide-react";
@@ -154,6 +155,7 @@ type NodeType =
   | "wait"
   | "ai_intent"
   | "shopify_lookup"
+  | "customer_reply"
   | "end";
 
 interface BuilderNode {
@@ -285,6 +287,12 @@ const NODE_META: Record<
     icon: ShoppingBag,
     color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-500/15",
+  },
+  customer_reply: {
+    label: "Cliente responde",
+    icon: MessageSquareReply,
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-500/15",
   },
   end: {
     label: "Fin",
@@ -449,6 +457,8 @@ function summarizeNode(node: BuilderNode): string | null {
       };
       return KIND_LABEL[kind] ?? null;
     }
+    case "customer_reply":
+      return "Esperando respuesta del cliente";
   }
 }
 
@@ -526,6 +536,8 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
         found_next_key: "",
         not_found_next_key: "",
       };
+    case "customer_reply":
+      return { next_node_key: "" };
     case "end":
       return {};
   }
@@ -1008,11 +1020,35 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           position_x: maxX + CARD_GAP_X,
           position_y: TRIGGER_POS.y,
         };
-        setExpanded((prev) => new Set([...prev, node_key]));
-        setSilenced((prev) => new Set([...prev, node_key]));
+        // Auto-insert "Cliente responde" después de un send_message.
+        // Razón: tras un mensaje del bot lo más común es que el
+        // cliente conteste antes de seguir; antes encadenar dos
+        // send_message sin pausa hacía que el bot mandara ráfaga.
+        // Si el usuario no quiere la pausa, borra el customer_reply.
+        const needsReplyWait = type === "send_message";
+        let nextNodes: BuilderNode[] = [...s.nodes, next];
+        let newExpanded = new Set([node_key]);
+        let newSilenced = new Set([node_key]);
+        if (needsReplyWait) {
+          const replyKey = uniqueNodeKey("cliente_responde", nextNodes);
+          const replyNode: BuilderNode = {
+            node_key: replyKey,
+            node_type: "customer_reply",
+            config: { next_node_key: "" },
+            position_x: next.position_x + CARD_GAP_X,
+            position_y: next.position_y,
+          };
+          nextNodes = [...nextNodes, replyNode];
+          newExpanded.add(replyKey);
+          newSilenced.add(replyKey);
+          // Conecta el send_message → customer_reply automáticamente.
+          (next.config as { next_node_key?: string }).next_node_key = replyKey;
+        }
+        setExpanded((prev) => new Set([...prev, ...newExpanded]));
+        setSilenced((prev) => new Set([...prev, ...newSilenced]));
         return {
           ...s,
-          nodes: [...s.nodes, next],
+          nodes: nextNodes,
           // First node of an empty flow auto-becomes the entry —
           // saves the user from also having to pick it in a
           // separate "entry" picker.
@@ -2665,6 +2701,12 @@ function LogicNodeBody({
           Punto de inicio.
         </p>
       )}
+      {node.node_type === "customer_reply" && (
+        <p className="text-[11px] italic text-muted-foreground">
+          El flujo se pausa hasta que el cliente envíe un mensaje.
+          No se guarda nada — solo se espera.
+        </p>
+      )}
 
       {/* Ports de salida — uno por output. Sólo si el nodo tiene
           ≥1 salida (los terminales como handoff/end no muestran). */}
@@ -2729,6 +2771,7 @@ function logicOutputs(
     case "wait":
     case "set_tag":
     case "start":
+    case "customer_reply":
       return [
         { label: "Avanza a", connected: !!(cfg.next_node_key as string) },
       ];
@@ -3868,6 +3911,7 @@ const ADDABLE_NODE_TYPES: NodeType[] = [
   "send_buttons",
   "send_list",
   "send_message",
+  "customer_reply",
   "send_image",
   "send_video",
   "send_document",
@@ -4278,12 +4322,23 @@ function FlowCanvas(props: FlowTreeProps) {
   const [portPositions, setPortPositions] = useState<
     Map<string, { x: number; y: number }>
   >(new Map())
+  // Alturas medidas de cada card (key = node_key, o "__trigger__").
+  // Necesario para que las líneas aterricen en el CENTRO vertical real
+  // del card destino — los cards expandidos pueden medir 300+px, los
+  // colapsados ~90px, y usar un offset fijo dejaba el endpoint en el
+  // header (visible "arriba" del card) cuando el usuario lo esperaba
+  // en el medio.
+  const [cardHeights, setCardHeights] = useState<Map<string, number>>(
+    new Map(),
+  )
 
   /**
    * Mide la posición de cada port DOM y la guarda en `portPositions`.
-   * Gatillado sólo cuando: cambia la lista de nodos (alguien
-   * movió/agregó/borró/editó), zoom o pan cambian. La guard de diff
-   * adentro evita loops si la medición no cambió.
+   * También mide la altura visible de cada card para que las líneas
+   * aterricen en su centro vertical (no en el header). Gatillado sólo
+   * cuando: cambia la lista de nodos (alguien movió/agregó/borró/
+   * editó), zoom o pan cambian. La guard de diff adentro evita loops
+   * si la medición no cambió.
    */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
@@ -4291,6 +4346,7 @@ function FlowCanvas(props: FlowTreeProps) {
     if (!root) return
     const rootRect = root.getBoundingClientRect()
     const next = new Map<string, { x: number; y: number }>()
+    const nextHeights = new Map<string, number>()
     // Cada NodeCard tiene data-node-key. Adentro, cada port chip
     // (botón / fila / chip CTA / wrapper text) tiene data-port-kind.
     // El port en sí (el círculo) tiene data-connection-port="true".
@@ -4298,6 +4354,9 @@ function FlowCanvas(props: FlowTreeProps) {
     nodes.forEach((nodeEl) => {
       const key = nodeEl.dataset.nodeKey
       if (!key) return
+      // Altura del card entero — usada para centrar el endpoint.
+      const cardRect = nodeEl.getBoundingClientRect()
+      nextHeights.set(key, cardRect.height / scale)
       const ports = nodeEl.querySelectorAll<HTMLElement>(
         '[data-port-kind]',
       )
@@ -4321,6 +4380,18 @@ function FlowCanvas(props: FlowTreeProps) {
         next.set(`${key}:${kind}:${idx}`, { x, y })
       })
     })
+    // Trigger card — sin data-node-key pero medible por su prop ref.
+    // Lo identificamos por la clase de su wrapper (DraggableTriggerWrapper
+    // setea width=TRIGGER_WIDTH inline).
+    const triggerEl = root.querySelector<HTMLElement>(
+      '[data-trigger-card="true"]',
+    )
+    if (triggerEl) {
+      nextHeights.set(
+        "__trigger__",
+        triggerEl.getBoundingClientRect().height / scale,
+      )
+    }
 
     // Diff vs previo: sólo actualizamos state si cambió algo. Sin esto,
     // useLayoutEffect → setState → re-render → useLayoutEffect = loop.
@@ -4336,6 +4407,17 @@ function FlowCanvas(props: FlowTreeProps) {
       }
     }
     if (changed) setPortPositions(next)
+    let heightsChanged = cardHeights.size !== nextHeights.size
+    if (!heightsChanged) {
+      for (const [k, h] of nextHeights) {
+        const prev = cardHeights.get(k)
+        if (prev === undefined || Math.abs(prev - h) > 0.5) {
+          heightsChanged = true
+          break
+        }
+      }
+    }
+    if (heightsChanged) setCardHeights(nextHeights)
   }, [props.allNodes, scale, tx, ty])
 
   /**
@@ -4366,6 +4448,13 @@ function FlowCanvas(props: FlowTreeProps) {
    * deterministico. Re-corre cuando los nodos se mueven o los ports
    * son re-medidos.
    */
+  // Centro vertical real de cada card (usa altura medida; cae a 120
+  // si todavía no se midió). El endpoint de las líneas usa este Y para
+  // aterrizar en la mitad del card destino, no en el header.
+  const centerYOf = (key: string, position_y: number): number => {
+    const h = cardHeights.get(key)
+    return position_y + (h ?? 120) / 2
+  }
   const edges = useMemo<CanvasEdge[]>(() => {
     const out: CanvasEdge[] = []
     if (props.entryKey && nodesByKey.has(props.entryKey)) {
@@ -4375,11 +4464,11 @@ function FlowCanvas(props: FlowTreeProps) {
         toKey: target.node_key,
         from: {
           x: props.triggerPosition.x + TRIGGER_WIDTH,
-          y: props.triggerPosition.y + CARD_AXIS_PX,
+          y: centerYOf("__trigger__", props.triggerPosition.y),
         },
         to: {
           x: target.position_x,
-          y: target.position_y + CARD_AXIS_PX,
+          y: centerYOf(target.node_key, target.position_y),
         },
         label: null,
       })
@@ -4392,7 +4481,9 @@ function FlowCanvas(props: FlowTreeProps) {
         if (!target) return
         // Source: posición real del port si está medido; si no, offset
         // estimado (igual que antes — funciona como fallback durante el
-        // primer paint antes de que el useLayoutEffect mida).
+        // primer paint antes de que el useLayoutEffect mida). Para
+        // nodos con UNA SOLA salida (lineales y lógicos no-buttons),
+        // el fallback usa el centro vertical del card medido.
         const portKey = portKeyFor(node, idx)
         const portPos = portPositions.get(portKey)
         let from: { x: number; y: number }
@@ -4402,7 +4493,7 @@ function FlowCanvas(props: FlowTreeProps) {
           const n = edgeList.length
           const yOffset =
             n === 1
-              ? CARD_AXIS_PX
+              ? (cardHeights.get(node.node_key) ?? 120) / 2
               : CARD_AXIS_PX + 28 + (idx + 0.5) * (CARD_BODY_PX / n)
           from = {
             x: node.position_x + CARD_WIDTH,
@@ -4415,14 +4506,15 @@ function FlowCanvas(props: FlowTreeProps) {
           from,
           to: {
             x: target.position_x,
-            y: target.position_y + CARD_AXIS_PX,
+            y: centerYOf(target.node_key, target.position_y),
           },
           label: e.label,
         })
       })
     }
     return out
-  }, [props.allNodes, props.entryKey, nodesByKey, portPositions, props.triggerPosition.x, props.triggerPosition.y])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.allNodes, props.entryKey, nodesByKey, portPositions, props.triggerPosition.x, props.triggerPosition.y, cardHeights])
 
   // ── Estado y handlers de drag-to-connect ──
   //
@@ -4938,6 +5030,7 @@ function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
     case "send_document":
     case "send_cta_url":
     case "collect_input":
+    case "customer_reply":
     case "set_tag":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key ?? ""
@@ -5180,6 +5273,7 @@ function CanvasTriggerCard({
 
   return (
     <div
+      data-trigger-card="true"
       className={cn(
         "w-[260px] rounded-lg border bg-card",
         hasError ? "border-red-500/40" : "border-emerald-500/40",
