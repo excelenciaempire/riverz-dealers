@@ -2674,7 +2674,7 @@ function FlowTree(props: FlowTreeProps) {
           triggerIssues={props.triggerIssues}
           onChange={props.onTriggerChange}
         />
-        <RightArrow />
+        <BranchEdge />
         <EmptyFlowCta onAdd={props.onAdd} />
       </div>
     )
@@ -2691,7 +2691,7 @@ function FlowTree(props: FlowTreeProps) {
         />
         {props.entryKey ? (
           <>
-            <RightArrow />
+            <BranchEdge />
             <FlowBranch
               startKey={props.entryKey}
               visited={new Set()}
@@ -2775,8 +2775,8 @@ function FlowBranch({
   const edges = getOutgoingEdges(node)
 
   return (
-    <div className="flex items-start gap-3">
-      <div className="w-[260px]">
+    <div className="flex items-start gap-0">
+      <div className="w-[260px] shrink-0">
         <NodeCard
           node={node}
           allNodes={props.allNodes}
@@ -2796,8 +2796,11 @@ function FlowBranch({
       </div>
 
       {edges.length === 0 ? null : edges.length === 1 ? (
-        <div className="flex items-start gap-3 pt-7">
-          <RightArrow />
+        // Linear chain: una sola línea horizontal entre nodos. La línea
+        // sale del centro vertical-superior del card (mt-CARD_AXIS) y
+        // llega al siguiente card o al "+" si está suelto.
+        <div className="flex items-start">
+          <BranchEdge />
           {edges[0].nextKey ? (
             <FlowBranch
               startKey={edges[0].nextKey}
@@ -2806,36 +2809,156 @@ function FlowBranch({
               props={props}
             />
           ) : (
-            <AddNextNodePill onAdd={props.onAdd} />
+            <EndPlus onAdd={props.onAdd} />
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 pt-1">
-          {edges.map((e, idx) => (
-            <div key={`${e.label}-${idx}`} className="flex items-start gap-2">
-              <BranchLabelChip label={e.label ?? "—"} />
-              <RightArrow />
-              {e.nextKey ? (
-                <FlowBranch
-                  startKey={e.nextKey}
-                  visited={next}
-                  nodesByKey={nodesByKey}
-                  props={props}
-                />
-              ) : (
-                <AddNextNodePill onAdd={props.onAdd} />
-              )}
-            </div>
-          ))}
-        </div>
+        // Multi-branch: el card de origen se conecta a un divisor
+        // vertical; de ahí salen tantas ramas como salidas tenga el
+        // nodo, cada una con su chip de etiqueta colgando sobre la
+        // línea. Lleva al destino o al "+" si está suelta.
+        <BranchFan
+          edges={edges}
+          visited={next}
+          nodesByKey={nodesByKey}
+          props={props}
+        />
       )}
     </div>
   )
 }
 
-function RightArrow() {
+// CARD_AXIS_PX: la coordenada Y dentro del NodeCard donde nace el
+// conector. 28px = altura del header (icono + título) → la línea sale
+// alineada con el ícono, no con el body. Cambiar de un solo lugar.
+const CARD_AXIS_PX = 28
+
+function BranchEdge() {
+  // Línea horizontal limpia desde el card hasta el siguiente. Más
+  // ancha que la versión anterior (40px vs 24px) para que el camino
+  // se lea como "camino", no como "guion".
   return (
-    <div className="mt-7 h-[2px] w-6 shrink-0 bg-border" aria-hidden />
+    <div
+      className="h-px w-10 shrink-0 bg-border"
+      style={{ marginTop: CARD_AXIS_PX }}
+      aria-hidden
+    />
+  )
+}
+
+function BranchFan({
+  edges,
+  visited,
+  nodesByKey,
+  props,
+}: {
+  edges: ReturnType<typeof getOutgoingEdges>
+  visited: Set<string>
+  nodesByKey: Map<string, BuilderNode>
+  props: FlowTreeProps
+}) {
+  // El divisor vertical va del "techo" de la primera rama al de la
+  // última. Cada rama dibuja su tramo horizontal con position relative
+  // + un div pseudo-borde a la izquierda.
+  return (
+    <div className="flex items-start">
+      {/* Tramo corto que sale del card hacia el divisor */}
+      <div
+        className="h-px w-6 shrink-0 bg-border"
+        style={{ marginTop: CARD_AXIS_PX }}
+        aria-hidden
+      />
+      {/* Bloque de ramas: posición relativa para que el divisor
+          vertical (absolute) cubra exactamente el rango de filas. */}
+      <div className="relative flex flex-col gap-6 pl-6">
+        {/* Divisor vertical. top y bottom = CARD_AXIS_PX para que
+            quede de centro-del-primer-card a centro-del-último. */}
+        <div
+          className="absolute left-0 w-px bg-border"
+          style={{ top: CARD_AXIS_PX, bottom: CARD_AXIS_PX }}
+          aria-hidden
+        />
+        {edges.map((e, idx) => (
+          <div key={`${e.label}-${idx}`} className="relative flex items-start">
+            {/* Tramo horizontal de la rama, sale del divisor a la izquierda.
+                left:-24px (= -pl-6) para que arranque pegado al divisor. */}
+            <div
+              className="absolute h-px w-6 bg-border"
+              style={{ left: -24, top: CARD_AXIS_PX }}
+              aria-hidden
+            />
+            {/* Chip de etiqueta — flota sobre la línea, no la rompe */}
+            <div
+              className="relative z-10"
+              style={{ marginTop: CARD_AXIS_PX - 11 }}
+            >
+              <BranchLabelChip label={e.label ?? "—"} />
+            </div>
+            {/* Tramo final hasta el destino */}
+            <div
+              className="h-px w-6 shrink-0 bg-border"
+              style={{ marginTop: CARD_AXIS_PX }}
+              aria-hidden
+            />
+            {e.nextKey ? (
+              <FlowBranch
+                startKey={e.nextKey}
+                visited={visited}
+                nodesByKey={nodesByKey}
+                props={props}
+              />
+            ) : (
+              <EndPlus onAdd={props.onAdd} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * EndPlus — botón circular "+" al final de una rama que aún no tiene
+ * siguiente paso. Visualmente más prominente que un pill dasheado
+ * porque el usuario espera ver un "+" claro al final de cada camino.
+ * Sigue siendo el mismo dropdown debajo (mismo NodeType picker).
+ */
+function EndPlus({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  return (
+    <div
+      className="flex h-6 items-center"
+      style={{ marginTop: CARD_AXIS_PX - 12 }}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-all",
+            "hover:border-foreground hover:text-foreground",
+            "data-[popup-open]:border-foreground data-[popup-open]:text-foreground",
+          )}
+          aria-label="Agregar el siguiente paso"
+        >
+          <Plus className="h-3 w-3" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
+        >
+          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            ¿Qué pasa a continuación?
+          </div>
+          {ADDABLE_NODE_TYPES.map((t) => {
+            const meta = NODE_META[t]
+            return (
+              <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+                <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+                {meta.label}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
