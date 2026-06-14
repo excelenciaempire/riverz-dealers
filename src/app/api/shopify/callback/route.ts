@@ -18,7 +18,7 @@ import { syncShopifyProducts } from '@/lib/shopify/product-sync'
  */
 function bounce(request: Request, params: Record<string, string>): NextResponse {
   const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-  const url = new URL('/settings?tab=channels', base)
+  const url = new URL('/integraciones', base)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   return NextResponse.redirect(url)
 }

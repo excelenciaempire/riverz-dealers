@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 /**
  * GET /api/products
@@ -77,5 +78,22 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ products });
+  // El UI necesita saber si Shopify está conectado para mostrar el
+  // empty state correcto / deshabilitar Sincronizar. Lookup barato
+  // contra channel_connections con admin client (la tabla está
+  // workspace-scoped en RLS pero acá filtramos por user_id directo).
+  const admin = supabaseAdmin();
+  const { data: shop } = await admin
+    .from('channel_connections')
+    .select('id, status')
+    .eq('user_id', user.id)
+    .eq('channel', 'shopify')
+    .eq('status', 'connected')
+    .limit(1)
+    .maybeSingle();
+
+  return NextResponse.json({
+    products,
+    shopify_connected: !!shop,
+  });
 }

@@ -98,9 +98,29 @@ export async function PATCH(
   if (body.custom_notes !== undefined) patch.custom_notes = body.custom_notes;
   if (body.custom_faqs !== undefined) patch.custom_faqs = body.custom_faqs;
 
+  // Para evitar la race "patch + recompute training_material" en dos
+  // updates separados (review adversarial), leemos el row actual y
+  // armamos training_material desde {currentRow, ...patch} en una sola
+  // operación. Sin ventana de read-modify-write.
+  const { data: current, error: readErr } = await supabase
+    .from('shopify_products')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (readErr) {
+    return NextResponse.json({ error: readErr.message }, { status: 500 });
+  }
+  if (!current) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const merged = { ...current, ...patch };
+  const training = buildTrainingMaterial(merged);
+
   const { data: updated, error } = await supabase
     .from('shopify_products')
-    .update(patch)
+    .update({ ...patch, training_material: training })
     .eq('id', id)
     .eq('user_id', user.id)
     .select('*')
@@ -112,15 +132,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  // Recomputamos training_material a partir del estado nuevo.
-  const training = buildTrainingMaterial(updated);
-  await supabase
-    .from('shopify_products')
-    .update({ training_material: training })
-    .eq('id', id)
-    .eq('user_id', user.id);
-
-  return NextResponse.json({ ok: true, product: { ...updated, training_material: training } });
+  return NextResponse.json({ ok: true, product: updated });
 }
 
 /**

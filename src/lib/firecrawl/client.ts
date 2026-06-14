@@ -111,6 +111,18 @@ export async function firecrawlScrape(
   }
 
   const markdown = (json.data?.markdown ?? '').slice(0, opts?.maxChars ?? 16_000);
+  // Firecrawl puede devolver 200 + success:true con markdown vacío
+  // cuando la URL está bloqueada por Cloudflare, requiere JS sin SSR,
+  // o está gated. Lo tratamos como fallo explícito para que la UI no
+  // marque al producto como "Entrenado" cuando en realidad no hay
+  // contenido para el AI.
+  if (!markdown.trim()) {
+    throw new FirecrawlError(
+      'Firecrawl devolvió contenido vacío (página probablemente bloqueada por Cloudflare o sin contenido visible)',
+      204,
+      json,
+    );
+  }
   return {
     markdown,
     title: json.data?.metadata?.title ?? null,

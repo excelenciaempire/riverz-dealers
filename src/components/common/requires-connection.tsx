@@ -42,7 +42,7 @@ export function RequiresConnection({ title, description, children }: RequiresCon
             <h2 className="text-lg font-bold text-foreground">{title}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{description}</p>
             <Link
-              href="/settings?tab=channels"
+              href="/integraciones"
               className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Plug2 className="size-4" />

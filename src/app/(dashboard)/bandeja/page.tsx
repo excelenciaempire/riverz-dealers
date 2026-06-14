@@ -605,7 +605,7 @@ export default function InboxPage() {
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6 lg:-m-8 lg:h-screen">
       {hasAnyConnection === false && (
         <Link
-          href="/settings?tab=channels"
+          href="/integraciones"
           className="group flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 transition-colors hover:bg-amber-500/15"
         >
           <Plug2 className="h-4 w-4 text-amber-400" />

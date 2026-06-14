@@ -15,7 +15,7 @@ const VALID: ProviderName[] = ["meta", "google", "microsoft"];
  *
  * Exchanges the OAuth code for tokens and writes a row into
  * `channel_connections` for the workspace + channel encoded in `state`.
- * Then redirects back to /settings?tab=channels with a status param.
+ * Then redirects back to /integraciones with a status param.
  */
 export async function GET(
   req: Request,
@@ -291,7 +291,7 @@ function isProvider(p: string): p is ProviderName {
 }
 
 function redirectWithStatus(req: Request, status: "ok" | "error", detail?: string): Response {
-  const url = new URL("/settings?tab=channels", baseUrl(req));
+  const url = new URL("/integraciones", baseUrl(req));
   url.searchParams.set("oauth", status);
   if (detail) url.searchParams.set("detail", detail);
   return NextResponse.redirect(url.toString());

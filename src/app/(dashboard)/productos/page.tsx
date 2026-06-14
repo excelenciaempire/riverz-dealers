@@ -14,10 +14,12 @@ import {
   ExternalLink,
   Loader2,
   Info,
+  Wand2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { formatBundleApp, formatPrice } from '@/lib/products/format';
 
 interface ProductRow {
   id: string;
@@ -54,8 +56,15 @@ const FILTER_LABEL: Record<Filter, string> = {
 
 export default function ProductosPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [training, setTraining] = useState<{
+    running: boolean;
+    done: number;
+    total: number;
+    failed: number;
+  } | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -66,6 +75,7 @@ export default function ProductosPage() {
       if (!res.ok) throw new Error('No se pudieron cargar los productos');
       const json = await res.json();
       setProducts(json.products ?? []);
+      setShopifyConnected(!!json.shopify_connected);
     } catch (err) {
       console.error(err);
       toast.error('No se pudieron cargar los productos.');
@@ -100,6 +110,66 @@ export default function ProductosPage() {
     } finally {
       setSyncing(false);
     }
+  }
+
+  /**
+   * Entrenar TODOS los productos que estén en estado "idle" o "failed".
+   * Para cada uno corre scrape + ai-research en secuencia. Lanzamos las
+   * llamadas con concurrencia limitada (default 4) para no quemarle el
+   * rate limit a Firecrawl/Anthropic. El status se persiste en la DB
+   * en cada paso, así que si el usuario cierra la pestaña, los
+   * productos completados quedan en "done" y al volver puede retomar
+   * los pendientes.
+   */
+  async function handleTrainAll() {
+    const pendientes = products.filter(
+      (p) =>
+        p.scrape_status === 'idle' ||
+        p.scrape_status === 'failed' ||
+        p.ai_research_status === 'idle' ||
+        p.ai_research_status === 'failed',
+    );
+    if (pendientes.length === 0) {
+      toast.success('Todos los productos ya están entrenados.');
+      return;
+    }
+    const ok = window.confirm(
+      `Entrenar ${pendientes.length} producto${pendientes.length === 1 ? '' : 's'}? Esto puede tardar 1-3 segundos por producto. Podés cerrar la pestaña: el progreso se guarda.`,
+    );
+    if (!ok) return;
+
+    setTraining({ running: true, done: 0, total: pendientes.length, failed: 0 });
+    const CONCURRENCY = 4;
+    let cursor = 0;
+    let done = 0;
+    let failed = 0;
+    async function worker() {
+      while (cursor < pendientes.length) {
+        const idx = cursor++;
+        const p = pendientes[idx];
+        try {
+          // scrape primero (so ai-research has more context), después
+          // ai-research. Cada fetch espera al endpoint completo.
+          if (p.scrape_status !== 'done') {
+            await fetch(`/api/products/${p.id}/scrape`, { method: 'POST' });
+          }
+          await fetch(`/api/products/${p.id}/ai-research`, { method: 'POST' });
+          done++;
+        } catch {
+          failed++;
+        } finally {
+          setTraining((cur) =>
+            cur ? { ...cur, done, failed } : cur,
+          );
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    setTraining({ running: false, done, failed, total: pendientes.length });
+    toast.success(
+      `Entrenamiento listo · ${done} ok${failed > 0 ? ` · ${failed} fallaron` : ''}`,
+    );
+    await fetchProducts();
   }
 
   const filtered = useMemo(() => {
@@ -157,19 +227,71 @@ export default function ProductosPage() {
             WhatsApp.
           </p>
         </div>
-        <Button
-          onClick={handleSync}
-          disabled={syncing}
-          className="h-9 bg-foreground text-background hover:bg-foreground/90"
-        >
-          {syncing ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="size-4" />
+        <div className="flex flex-wrap items-center gap-2">
+          {counts.pending + counts.failed > 0 && (
+            <Button
+              onClick={handleTrainAll}
+              disabled={training?.running}
+              variant="outline"
+              className="h-9 border-border bg-card text-foreground hover:bg-muted"
+            >
+              {training?.running ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {training.done}/{training.total} entrenando…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="size-4" />
+                  Entrenar pendientes ({counts.pending + counts.failed})
+                </>
+              )}
+            </Button>
           )}
-          {syncing ? 'Sincronizando…' : 'Sincronizar desde Shopify'}
-        </Button>
+          <Button
+            onClick={handleSync}
+            disabled={syncing || shopifyConnected === false}
+            title={
+              shopifyConnected === false
+                ? 'Conectá Shopify primero desde Integraciones'
+                : undefined
+            }
+            className="h-9 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
+          >
+            {syncing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            {syncing ? 'Sincronizando…' : 'Sincronizar desde Shopify'}
+          </Button>
+        </div>
       </div>
+
+      {/* Banner cuando Shopify no está conectado y ya hay productos (de
+          una conexión vieja desconectada o de un seed) — guía hacia
+          /integraciones. */}
+      {shopifyConnected === false && products.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-500/5 px-3.5 py-2.5">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+              Shopify no está conectado
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300/80">
+              Estos productos quedaron de una conexión vieja. Para
+              sincronizar el catálogo actual, reconectá Shopify.
+            </p>
+          </div>
+          <Link
+            href="/integraciones"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-600/30 bg-card px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-500/10 dark:text-amber-200"
+          >
+            Conectar Shopify
+            <ExternalLink className="size-3" />
+          </Link>
+        </div>
+      )}
 
       {/* Métricas */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
@@ -291,17 +413,7 @@ function ProductCard({ product }: { product: ProductRow }) {
         {product.is_bundle && (
           <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-border bg-card/95 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
             <Boxes className="size-3" />
-            {product.bundle_app === 'kaching_bundles'
-              ? 'Kaching Bundles'
-              : product.bundle_app === 'reconvert'
-                ? 'ReConvert'
-                : product.bundle_app === 'bold_bundles'
-                  ? 'Bold Bundles'
-                  : product.bundle_app === 'frequently_bought_together'
-                    ? 'FBT'
-                    : product.bundle_app === 'rebuy'
-                      ? 'Rebuy'
-                      : 'Bundle'}
+            {formatBundleApp(product.bundle_app)}
           </span>
         )}
       </div>
@@ -434,14 +546,3 @@ function EmptyState({
   );
 }
 
-function formatPrice(amount: number, currency: string | null): string {
-  try {
-    return new Intl.NumberFormat('es-ES', {
-      style: currency ? 'currency' : 'decimal',
-      currency: currency ?? 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return amount.toString();
-  }
-}

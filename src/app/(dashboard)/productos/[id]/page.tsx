@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { formatBundleApp, formatPrice } from '@/lib/products/format';
 
 interface Product {
   id: string;
@@ -252,7 +253,7 @@ export default function ProductDetailPage() {
               {product.is_bundle && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5">
                   <Boxes className="size-3" />
-                  {product.bundle_app ?? 'Bundle'}
+                  {formatBundleApp(product.bundle_app)}
                 </span>
               )}
             </div>
@@ -466,24 +467,38 @@ export default function ProductDetailPage() {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Generadas por IA
             </p>
-            {product.ai_generated_faqs.map((f, idx) => (
-              <div
-                key={idx}
-                className="rounded-md border border-border bg-muted/20 p-2.5"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-foreground">{f.q}</p>
-                  <button
-                    type="button"
-                    onClick={() => setFaqs((cur) => [...cur, { q: f.q, a: f.a }])}
-                    className="text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    Adoptar
-                  </button>
+            {product.ai_generated_faqs.map((f, idx) => {
+              const alreadyAdopted = faqs.some(
+                (x) => x.q.trim() === f.q.trim() && x.a.trim() === f.a.trim(),
+              );
+              return (
+                <div
+                  key={idx}
+                  className="rounded-md border border-border bg-muted/20 p-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-foreground">{f.q}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (alreadyAdopted) return;
+                        setFaqs((cur) => [...cur, { q: f.q, a: f.a }]);
+                      }}
+                      disabled={alreadyAdopted}
+                      className={cn(
+                        'text-[10px] transition-colors',
+                        alreadyAdopted
+                          ? 'cursor-default text-emerald-600 dark:text-emerald-400'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {alreadyAdopted ? 'Adoptada ✓' : 'Adoptar'}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -492,12 +507,13 @@ export default function ProductDetailPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Bot className="size-4" />
-          Asistentes que pueden hablar de este producto
+          Asistentes que conocen este producto
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Cuando un cliente pregunte por este producto en WhatsApp, sólo
-          responden los asistentes asignados. Si no asignás ninguno, responde
-          el asistente general del workspace.
+          Estos asistentes ven este producto en su catálogo y pueden
+          responder dudas sobre él. Cuál de ellos termina respondiendo a
+          cada cliente se decide por canal y prioridad — todavía no
+          rutemos al asistente &quot;dueño&quot; por producto mencionado.
         </p>
 
         {allAgents.length === 0 ? (
@@ -660,14 +676,3 @@ function Step({
   );
 }
 
-function formatPrice(amount: number, currency: string | null): string {
-  try {
-    return new Intl.NumberFormat('es-ES', {
-      style: currency ? 'currency' : 'decimal',
-      currency: currency ?? 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return amount.toString();
-  }
-}

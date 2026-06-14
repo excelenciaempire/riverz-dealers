@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShopifyAdminClient } from './admin-client'
+import { detectBundleApp } from '@/lib/products/bundle-detection'
 
 /**
  * Pull the store's product catalog into shopify_products. Upserts by
@@ -18,7 +19,7 @@ export async function syncShopifyProducts(
     shopDomain: string
     accessToken: string
   },
-): Promise<{ synced: number; deleted: number }> {
+): Promise<{ synced: number; deleted: number; bundlesDetected: number }> {
   const client = new ShopifyAdminClient(args.shopDomain, args.accessToken)
   const PAGE = 250
   const MAX_PAGES = 10
@@ -34,9 +35,10 @@ export async function syncShopifyProducts(
     if (batch.length < PAGE) break
   }
 
-  if (allProducts.length === 0) return { synced: 0, deleted: 0 }
+  if (allProducts.length === 0) return { synced: 0, deleted: 0, bundlesDetected: 0 }
 
   const rows = allProducts.map((p) => productToRow(p, args))
+  const bundlesDetected = rows.filter((r) => Boolean(r.is_bundle)).length
 
   // Upsert in chunks — PostgREST caps the request payload.
   const CHUNK = 200
@@ -65,7 +67,7 @@ export async function syncShopifyProducts(
     await db.from('shopify_products').delete().in('id', stale)
   }
 
-  return { synced: rows.length, deleted: stale.length }
+  return { synced: rows.length, deleted: stale.length, bundlesDetected }
 }
 
 interface ShopifyProductVariant {
@@ -103,6 +105,14 @@ function productToRow(
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean)
+  // Detectamos bundles/add-ons aquí (raw + tags ya en memoria) y los
+  // incluimos en el row del upsert. Antes esto corría como UPDATE
+  // separado por cada producto post-sync — N+1 que timeout-eaba en
+  // stores con 500+ SKUs.
+  const bundle = detectBundleApp(
+    p as Parameters<typeof detectBundleApp>[0],
+    tags,
+  )
   return {
     user_id: args.userId,
     shop_domain: args.shopDomain,
@@ -115,9 +125,12 @@ function productToRow(
     tags,
     price_min: min,
     price_max: max,
-    currency: null, // Shopify returns prices in shop currency; we look up shop.currency separately if needed
+    currency: null,
     image_url: p.image?.src ?? p.images?.[0]?.src ?? null,
     url: `https://${args.shopDomain}/products/${p.handle}`,
+    is_bundle: bundle.isBundle,
+    bundle_app: bundle.app,
+    bundle_metadata: bundle.metadata,
     raw: p,
     synced_at: new Date().toISOString(),
   }

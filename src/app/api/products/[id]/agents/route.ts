@@ -90,7 +90,21 @@ export async function DELETE(
     );
   }
 
-  // RLS valida workspace membership.
+  // Verificamos que el producto pertenezca al usuario ANTES de borrar
+  // la asignación. La RLS de ai_agent_products sólo valida workspace
+  // membership a través del agente — no del producto. Sin este check,
+  // otro miembro del workspace podría desconectar nuestras
+  // asignaciones de producto silenciosamente (integridad, no exfil).
+  const { data: product } = await supabase
+    .from('shopify_products')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!product) {
+    return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+  }
+
   const { error } = await supabase
     .from('ai_agent_products')
     .delete()
