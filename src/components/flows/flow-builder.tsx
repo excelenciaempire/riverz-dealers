@@ -92,11 +92,13 @@ import {
   validateFlowForActivation,
   type ValidationIssue,
 } from "@/lib/flows/validate";
+import type { AiPatch } from "@/lib/flows/ai-patches";
 import {
   CanvasViewport,
   useCanvasTransform,
 } from "@/components/canvas/canvas-viewport";
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
+import { AiBuilderPanel } from "@/components/flows/ai-builder-panel";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -1084,6 +1086,223 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   }, []);
 
   /**
+   * Aplica una lista de patches que devolvió el endpoint /assist.
+   * Un solo commit() = un solo push del undo stack: Ctrl+Z reverte
+   * todo el turn de chat, no patch por patch.
+   *
+   * Se hace en orden, así un wire puede referirse a un node_key
+   * recién agregado en el mismo batch. add_node sin posición lo
+   * coloca a la derecha del más a la derecha (como addNode manual).
+   */
+  const applyAiPatches = useCallback((patches: AiPatch[]) => {
+    if (patches.length === 0) return;
+    commit(
+      (state) => {
+        let next: BuilderState = state;
+        const allNodesNow = () => next.nodes;
+        for (const p of patches) {
+          switch (p.kind) {
+            case "add_node": {
+              // Si ya existe ese node_key, saltamos — la IA pidió algo
+              // duplicado y mejor no romper un nodo existente.
+              if (allNodesNow().some((n) => n.node_key === p.node_key)) break;
+              const pos =
+                p.position ?? {
+                  x: allNodesNow().reduce(
+                    (m, n) => Math.max(m, n.position_x),
+                    next.trigger_position_x + TRIGGER_WIDTH + 80,
+                  ) + 280,
+                  y: next.trigger_position_y,
+                };
+              const newNode: BuilderNode = {
+                node_key: p.node_key,
+                node_type: p.node_type as NodeType,
+                config: p.config,
+                position_x: pos.x,
+                position_y: pos.y,
+              };
+              next = {
+                ...next,
+                nodes: [...next.nodes, newNode],
+                // Si el flujo no tenía entry todavía (flujo vacío o
+                // estado degradado), el primer add_node del turn se
+                // convierte en el entry. Después de eso, entry_node_id
+                // ya no es null y los siguientes add_node no lo cambian.
+                entry_node_id: next.entry_node_id ?? p.node_key,
+              };
+              break;
+            }
+            case "remove_node": {
+              next = {
+                ...next,
+                nodes: next.nodes.filter((n) => n.node_key !== p.node_key),
+                entry_node_id:
+                  next.entry_node_id === p.node_key
+                    ? null
+                    : next.entry_node_id,
+              };
+              break;
+            }
+            case "update_node_config": {
+              next = {
+                ...next,
+                nodes: next.nodes.map((n) =>
+                  n.node_key === p.node_key
+                    ? {
+                        ...n,
+                        config: {
+                          ...(n.config as Record<string, unknown>),
+                          ...p.config_patch,
+                        },
+                      }
+                    : n,
+                ),
+              };
+              break;
+            }
+            case "move_node": {
+              next = {
+                ...next,
+                nodes: next.nodes.map((n) =>
+                  n.node_key === p.node_key
+                    ? { ...n, position_x: p.position.x, position_y: p.position.y }
+                    : n,
+                ),
+              };
+              break;
+            }
+            case "wire": {
+              next = {
+                ...next,
+                nodes: next.nodes.map((n) => {
+                  if (n.node_key !== p.from_node_key) return n;
+                  const cfg = n.config as Record<string, unknown>;
+                  const idx = p.port_index ?? 0;
+                  switch (p.kind_of_port) {
+                    case "text":
+                      return {
+                        ...n,
+                        config: { ...cfg, next_node_key: p.to_node_key },
+                      };
+                    case "button": {
+                      const btns = Array.isArray(cfg.buttons)
+                        ? (cfg.buttons as Array<{
+                            reply_id?: string;
+                            title?: string;
+                            next_node_key?: string;
+                          }>)
+                        : [];
+                      if (idx < 0 || idx >= btns.length) return n;
+                      const nextBtns = btns.map((b, i) =>
+                        i === idx ? { ...b, next_node_key: p.to_node_key } : b,
+                      );
+                      return { ...n, config: { ...cfg, buttons: nextBtns } };
+                    }
+                    case "list_row": {
+                      const sections = Array.isArray(cfg.sections)
+                        ? (cfg.sections as Array<{
+                            title?: string;
+                            rows?: Array<{
+                              reply_id?: string;
+                              title?: string;
+                              description?: string;
+                              next_node_key?: string;
+                            }>;
+                          }>)
+                        : [];
+                      // idx plano → (si, ri)
+                      let remaining = idx;
+                      const nextSections = sections.map((sec) => {
+                        const rows = sec.rows ?? [];
+                        if (remaining < 0) return sec;
+                        if (remaining < rows.length) {
+                          const ri = remaining;
+                          remaining = -1;
+                          return {
+                            ...sec,
+                            rows: rows.map((r, i) =>
+                              i === ri ? { ...r, next_node_key: p.to_node_key } : r,
+                            ),
+                          };
+                        }
+                        remaining -= rows.length;
+                        return sec;
+                      });
+                      return { ...n, config: { ...cfg, sections: nextSections } };
+                    }
+                    case "true_branch":
+                      return { ...n, config: { ...cfg, true_next: p.to_node_key } };
+                    case "false_branch":
+                      return { ...n, config: { ...cfg, false_next: p.to_node_key } };
+                    case "found_branch":
+                      return {
+                        ...n,
+                        config: { ...cfg, found_next_key: p.to_node_key },
+                      };
+                    case "not_found_branch":
+                      return {
+                        ...n,
+                        config: { ...cfg, not_found_next_key: p.to_node_key },
+                      };
+                    case "intent": {
+                      const intents = Array.isArray(cfg.intents)
+                        ? (cfg.intents as Array<{
+                            intent_key?: string;
+                            description?: string;
+                            next_node_key?: string;
+                          }>)
+                        : [];
+                      if (idx < 0 || idx >= intents.length) return n;
+                      const nextI = intents.map((it, i) =>
+                        i === idx ? { ...it, next_node_key: p.to_node_key } : it,
+                      );
+                      return { ...n, config: { ...cfg, intents: nextI } };
+                    }
+                    case "intent_fallback":
+                      return {
+                        ...n,
+                        config: { ...cfg, fallback_next_key: p.to_node_key },
+                      };
+                  }
+                  return n;
+                }),
+              };
+              break;
+            }
+            case "set_entry": {
+              if (allNodesNow().some((n) => n.node_key === p.node_key)) {
+                next = { ...next, entry_node_id: p.node_key };
+              }
+              break;
+            }
+            case "set_trigger": {
+              next = {
+                ...next,
+                trigger_type: p.trigger_type,
+                trigger_config: p.trigger_config,
+              };
+              break;
+            }
+          }
+        }
+        return next;
+      },
+      { record: true, coalesceKey: null },
+    );
+    // El panel pasa la lista de nuevos node_keys para expandirlos por
+    // defecto (así el usuario ve el contenido recién creado). Lo
+    // hacemos acá: derivamos add_node patches y los expandimos.
+    const newKeys = patches
+      .filter(
+        (p): p is Extract<AiPatch, { kind: "add_node" }> => p.kind === "add_node",
+      )
+      .map((p) => p.node_key);
+    if (newKeys.length > 0) {
+      setExpanded((prev) => new Set([...prev, ...newKeys]));
+    }
+  }, [commit]);
+
+  /**
    * Bounding box real del flujo en el lienzo — alimenta al
    * fit-to-view del CanvasViewport. El lienzo es un div virtual de
    * 6000x4000 (ver CANVAS_W/H), así que scrollWidth devuelve 6000
@@ -1712,6 +1931,30 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             </div>
           </div>
         )}
+        {/* Constructor IA — chat embebido en la esquina superior derecha
+            del lienzo. Recibe getSnapshot (no el state directo) para
+            mandar siempre la versión más reciente al endpoint. */}
+        <AiBuilderPanel
+          flowId={initialFlow.id}
+          getSnapshot={() => ({
+            name: stateRef.current.name,
+            trigger_type: stateRef.current.trigger_type,
+            trigger_config: stateRef.current.trigger_config,
+            trigger_position: {
+              x: stateRef.current.trigger_position_x,
+              y: stateRef.current.trigger_position_y,
+            },
+            entry_node_id: stateRef.current.entry_node_id,
+            nodes: stateRef.current.nodes.map((n) => ({
+              node_key: n.node_key,
+              node_type: n.node_type,
+              config: n.config,
+              position_x: n.position_x,
+              position_y: n.position_y,
+            })),
+          })}
+          onApplyPatches={applyAiPatches}
+        />
       </div>
 
       {/* Validation panel — solo aparece después de que el usuario
@@ -4335,26 +4578,32 @@ function FlowCanvas(props: FlowTreeProps) {
       style={{ width: CANVAS_W, height: CANVAS_H }}
     >
       <svg
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 text-muted-foreground"
         width={CANVAS_W}
         height={CANVAS_H}
       >
         {/* Marker definitions — la flecha al final de cada conexión.
-            refX=8 + viewBox 0 0 10 10 ubica la punta justo en el
-            extremo del path. `currentColor` toma el stroke del path
-            para que la flecha herede el color exacto del conector. */}
+            refX=9 dentro del viewBox 0-10 deja la punta exactamente
+            en el endpoint. El `fill="currentColor"` hereda el
+            text-muted-foreground del <svg>, que matchea el stroke
+            (también muted-foreground) — así flecha y línea son
+            visualmente el mismo color y se ven más blancas que el
+            border viejo. */}
         <defs>
           <marker
             id="flow-arrow"
             viewBox="0 0 10 10"
-            refX="8"
+            refX="9"
             refY="5"
             markerUnits="strokeWidth"
             markerWidth="4.5"
             markerHeight="4.5"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border)" />
+            {/* Fill heredado del stroke del path (var(--muted-foreground)
+                con opacidad 0.7). Usamos `fill="currentColor"` y dejamos
+                que el SVG <g> de arriba lo defina via `color`. */}
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
           </marker>
         </defs>
         {edges.map((e, i) => (
@@ -4434,20 +4683,22 @@ function ConnectorPath({
   color?: string
 }) {
   // Curva con horizontal tangent en cada extremo — el `dx` es la
-  // pendiente del bezier. Al final se acorta 10px porque el arrow
-  // marker tiene su propio "alto" y si no, la punta queda metida
-  // dentro del card destino. Las líneas punteadas (drag-to-connect)
-  // NO llevan flecha — su punta es el cursor.
+  // pendiente del bezier. La línea llega hasta el borde mismo del
+  // card destino (sin recorte) y el arrow marker se encarga del
+  // espaciado: refX=8 dentro de un viewBox 0-10 deja la mayor parte
+  // de la flecha PASADA hacia adentro del endpoint, así no queda
+  // gap entre la línea y el card.
   const dx = Math.max(40, (edge.to.x - edge.from.x) * 0.35)
-  // Acortar 10px sólo en X — la curva entra horizontal así que el
-  // recorte horizontal es suficiente para que el arrow no se incruste.
-  const endX = dashed ? edge.to.x : edge.to.x - 10
-  const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${endX - dx} ${edge.to.y}, ${endX} ${edge.to.y}`
+  const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${edge.to.x - dx} ${edge.to.y}, ${edge.to.x} ${edge.to.y}`
   return (
     <path
       d={d}
       fill="none"
-      stroke={color ?? "var(--border)"}
+      // Color más claro que `--border` para que se distinga sobre el
+      // fondo del lienzo. `--muted-foreground` se adapta a tema oscuro
+      // / claro (gris claro en oscuro, gris medio en claro).
+      stroke={color ?? "var(--muted-foreground)"}
+      strokeOpacity={color ? 1 : 0.7}
       strokeWidth={dashed ? 2 : 2.5}
       strokeLinecap="round"
       strokeDasharray={dashed ? "5 4" : undefined}
