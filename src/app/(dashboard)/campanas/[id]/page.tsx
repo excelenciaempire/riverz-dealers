@@ -38,6 +38,7 @@ import {
 } from '@/lib/broadcast-status';
 import { ActiveHoursChart } from '@/components/broadcasts/active-hours-chart';
 import { cn } from '@/lib/utils';
+import { findPlaceholderBroadcast } from '@/lib/broadcasts/placeholder-data';
 
 /** Human label for a broadcast's audience filter (the "Segmentación"). */
 function segmentationLabel(filter: unknown): string {
@@ -198,6 +199,21 @@ export default function BroadcastDetailPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Si es una fila demo (sin row real en DB), mostramos los datos
+      // del placeholder en lugar de tirar "no encontrada". Mismo
+      // patrón que /campanas list — el cliente puede explorar la UI
+      // sin haber creado ninguna campaña real todavía.
+      if (broadcastId.startsWith('demo-')) {
+        const placeholder = findPlaceholderBroadcast(broadcastId);
+        if (placeholder) {
+          setBroadcast(placeholder);
+          setRecipients([]);
+        } else {
+          setError('Campaña de ejemplo no encontrada');
+        }
+        setLoading(false);
+        return;
+      }
       try {
         const supabase = createClient();
 
@@ -272,6 +288,11 @@ export default function BroadcastDetailPage() {
   }
 
   async function handleDelete() {
+    if (broadcastId.startsWith('demo-')) {
+      // Filas demo no existen en DB — devolvemos al listado nomás.
+      router.push('/campanas');
+      return;
+    }
     setDeleting(true);
     const supabase = createClient();
     const { error: delErr } = await supabase

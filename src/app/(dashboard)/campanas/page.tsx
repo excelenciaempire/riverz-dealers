@@ -17,6 +17,7 @@ import {
 import { Plus, Loader2, Search, Info, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { PLACEHOLDER_BROADCASTS } from '@/lib/broadcasts/placeholder-data';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -272,19 +273,14 @@ export default function BroadcastsPage() {
             ) : (
               filteredRows.map((broadcast) => {
                 const status = getBroadcastStatus(broadcast.status);
-                const isPlaceholder = broadcast.id.startsWith('demo-');
                 return (
                   <TableRow
                     key={broadcast.id}
                     className={cn(
                       'border-border',
-                      isPlaceholder
-                        ? 'cursor-default'
-                        : 'cursor-pointer hover:bg-muted/40',
+                      'cursor-pointer hover:bg-muted/40',
                     )}
-                    onClick={() =>
-                      !isPlaceholder && router.push(`/campanas/${broadcast.id}`)
-                    }
+                    onClick={() => router.push(`/campanas/${broadcast.id}`)}
                   >
                     <TableCell className="font-medium text-foreground">
                       {broadcast.name}
@@ -340,84 +336,3 @@ export default function BroadcastsPage() {
   );
 }
 
-// ============================================================
-// Placeholder data — shown when the user hasn't created any real
-// campaign yet, so the list page reads as populated and the merchant
-// can evaluate the layout. Rows have id "demo-*" so the row click
-// short-circuits (no real detail page exists).
-// ============================================================
-const PLACEHOLDER_BROADCASTS: Broadcast[] = [
-  {
-    id: 'demo-1',
-    user_id: 'demo',
-    name: 'Lanzamiento serum vitamina C',
-    template_name: 'lanzamiento_serum_vit_c',
-    template_language: 'es',
-    template_variables: {},
-    audience_filter: { type: 'all' },
-    status: 'sent',
-    total_recipients: 487,
-    sent_count: 487,
-    delivered_count: 458,
-    read_count: 330,
-    replied_count: 59,
-    failed_count: 29,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-  } as unknown as Broadcast,
-  {
-    id: 'demo-2',
-    user_id: 'demo',
-    name: 'Black Friday — 25% off',
-    template_name: 'black_friday_2026',
-    template_language: 'es',
-    template_variables: {},
-    audience_filter: { type: 'all' },
-    status: 'sending',
-    total_recipients: 1240,
-    sent_count: 744,
-    delivered_count: 699,
-    read_count: 503,
-    replied_count: 90,
-    failed_count: 45,
-    created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-    updated_at: new Date().toISOString(),
-  } as unknown as Broadcast,
-  {
-    id: 'demo-3',
-    user_id: 'demo',
-    name: 'Reactivación clientes inactivos',
-    template_name: 'recompra_30dias',
-    template_language: 'es',
-    template_variables: {},
-    audience_filter: { type: 'all' },
-    status: 'scheduled',
-    total_recipients: 312,
-    sent_count: 0,
-    delivered_count: 0,
-    read_count: 0,
-    replied_count: 0,
-    failed_count: 0,
-    scheduled_at: new Date(Date.now() + 1000 * 60 * 60 * 26).toISOString(),
-    created_at: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    updated_at: new Date().toISOString(),
-  } as unknown as Broadcast,
-  {
-    id: 'demo-4',
-    user_id: 'demo',
-    name: 'Newsletter junio',
-    template_name: 'newsletter_mensual',
-    template_language: 'es',
-    template_variables: {},
-    audience_filter: { type: 'all' },
-    status: 'draft',
-    total_recipients: 0,
-    sent_count: 0,
-    delivered_count: 0,
-    read_count: 0,
-    replied_count: 0,
-    failed_count: 0,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-    updated_at: new Date().toISOString(),
-  } as unknown as Broadcast,
-];

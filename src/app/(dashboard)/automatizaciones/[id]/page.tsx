@@ -1,0 +1,449 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import {
+  ArrowLeft,
+  Loader2,
+  Edit,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Activity,
+  Power,
+} from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import type { Automation, AutomationLog } from '@/types';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+/**
+ * Detail / visualizador de data de una automatización.
+ *
+ * Análogo a /campanas/[id] y /menus/[id]/usos: métricas grandes arriba,
+ * sparkline de ejecuciones por día, breakdown por estado, tabla
+ * compacta de los últimos runs con expand → step results. El editar / ver
+ * todos los registros van a sus rutas dedicadas (/editar y /registros).
+ */
+
+type LogStatus = 'success' | 'partial' | 'failed';
+
+const STATUS_LABEL: Record<LogStatus, string> = {
+  success: 'Completada',
+  partial: 'Parcial',
+  failed: 'Fallida',
+};
+const STATUS_TONE: Record<LogStatus, string> = {
+  success:
+    'border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  partial:
+    'border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  failed: 'border-red-600/30 bg-red-500/10 text-red-700 dark:text-red-300',
+};
+const STATUS_ICON: Record<LogStatus, typeof Activity> = {
+  success: CheckCircle2,
+  partial: AlertCircle,
+  failed: XCircle,
+};
+
+function MetricCard({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string | number;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex-1 rounded-lg border bg-card p-4',
+        emphasis ? 'border-border' : 'border-border/60',
+      )}
+    >
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+        {typeof value === 'number' ? value.toLocaleString('es-ES') : value}
+      </p>
+    </div>
+  );
+}
+
+function Sparkline({
+  series,
+  labels,
+}: {
+  series: number[];
+  labels: string[];
+}) {
+  const max = Math.max(...series, 1);
+  const W = 600;
+  const H = 120;
+  const stepX = W / Math.max(series.length - 1, 1);
+  const points = series
+    .map((v, i) => `${i * stepX},${H - (v / max) * (H - 20) - 10}`)
+    .join(' ');
+  const areaPath = `M 0,${H} L ${points.replace(/ /g, ' L ')} L ${W},${H} Z`;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="mb-1 text-sm font-medium text-foreground">
+        Ejecuciones por día
+      </h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Últimos {series.length} días.
+      </p>
+      <svg
+        viewBox={`0 0 ${W} ${H + 20}`}
+        className="h-32 w-full"
+        preserveAspectRatio="none"
+      >
+        <path d={areaPath} fill="currentColor" className="text-foreground/10" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          className="text-foreground/60"
+        />
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+        {labels.map((l, i) => (
+          <span key={i} className={i % 2 === 1 ? 'hidden sm:block' : undefined}>
+            {l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatusBreakdown({
+  counts,
+  total,
+}: {
+  counts: Record<LogStatus, number>;
+  total: number;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <h3 className="mb-1 text-sm font-medium text-foreground">
+        Cómo terminaron
+      </h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Reparto de los últimos ejecutados.
+      </p>
+      <div className="space-y-1.5">
+        {(['success', 'partial', 'failed'] as LogStatus[]).map((s) => {
+          const n = counts[s] ?? 0;
+          const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+          return (
+            <div key={s} className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                {STATUS_LABEL[s]}
+              </span>
+              <div className="relative h-5 flex-1 rounded-md bg-muted/60">
+                <div
+                  className="h-5 rounded-md bg-foreground/70 transition-[width] duration-500"
+                  style={{ width: `${Math.max(2, pct)}%` }}
+                />
+                <span className="absolute inset-0 flex items-center px-2 text-[11px] font-medium tabular-nums text-background mix-blend-screen">
+                  {n}
+                </span>
+              </div>
+              <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+                {pct}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function AutomationDetailPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const automationId = params.id;
+
+  const [automation, setAutomation] = useState<Automation | null>(null);
+  const [logs, setLogs] = useState<AutomationLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!automationId) return;
+      try {
+        const supabase = createClient();
+        const [autRes, logRes] = await Promise.all([
+          supabase
+            .from('automations')
+            .select('*')
+            .eq('id', automationId)
+            .maybeSingle(),
+          supabase
+            .from('automation_logs')
+            .select('*, contact:contacts(id, name, phone)')
+            .eq('automation_id', automationId)
+            .order('created_at', { ascending: false })
+            .limit(100),
+        ]);
+        if (autRes.error) throw autRes.error;
+        if (logRes.error) throw logRes.error;
+        if (!autRes.data) {
+          setError('Automatización no encontrada');
+          return;
+        }
+        setAutomation(autRes.data as Automation);
+        setLogs((logRes.data ?? []) as AutomationLog[]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error');
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
+  }, [automationId]);
+
+  const counts = useMemo(() => {
+    const c: Record<LogStatus, number> = { success: 0, partial: 0, failed: 0 };
+    for (const l of logs) c[l.status as LogStatus]++;
+    return c;
+  }, [logs]);
+
+  const total = logs.length;
+  const successPct =
+    total > 0 ? Math.round((counts.success / total) * 100) : 0;
+
+  // Serie temporal últimos 14 días.
+  const { series, sparkLabels } = useMemo(() => {
+    const buckets = new Array<number>(14).fill(0);
+    const labels: string[] = [];
+    const now = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      labels.push(format(d, 'd/M'));
+    }
+    for (const l of logs) {
+      const d = new Date(l.created_at);
+      const diffDays = Math.floor(
+        (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const idx = 13 - diffDays;
+      if (idx >= 0 && idx < 14) buckets[idx]++;
+    }
+    return { series: buckets, sparkLabels: labels };
+  }, [logs]);
+
+  async function handleToggle() {
+    if (!automation) return;
+    setToggling(true);
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from('automations')
+        .update({ is_active: !automation.is_active })
+        .eq('id', automation.id);
+      if (err) throw err;
+      setAutomation({ ...automation, is_active: !automation.is_active });
+      toast.success(
+        automation.is_active ? 'Automatización pausada' : 'Automatización activada',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo actualizar');
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (error || !automation) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-2">
+        <p className="text-sm text-red-500">{error ?? 'No encontrada'}</p>
+        <Button
+          variant="outline"
+          onClick={() => router.push('/automatizaciones')}
+        >
+          Volver
+        </Button>
+      </div>
+    );
+  }
+
+  const lastRun = logs[0]?.created_at;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => router.push('/automatizaciones')}
+            className="h-8 w-8 border-border"
+            aria-label="Volver"
+          >
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Automatización</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
+                {automation.name}
+              </h1>
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                  automation.is_active
+                    ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : 'border-border bg-muted text-muted-foreground',
+                )}
+              >
+                {automation.is_active ? 'Activa' : 'Pausada'}
+              </span>
+            </div>
+            {automation.description && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {automation.description}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggle}
+            disabled={toggling}
+            className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+          >
+            {toggling ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Power className="size-3.5" />
+            )}
+            {automation.is_active ? 'Pausar' : 'Activar'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/automatizaciones/${automation.id}/editar`)}
+            className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+          >
+            <Edit className="size-3.5" />
+            Editar
+          </Button>
+        </div>
+      </div>
+
+      {/* Métricas top */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+        <MetricCard
+          label="Ejecuciones"
+          value={automation.execution_count ?? logs.length}
+          emphasis
+        />
+        <MetricCard label="Éxito" value={`${successPct}%`} />
+        <MetricCard label="Parciales" value={counts.partial} />
+        <MetricCard label="Fallidas" value={counts.failed} />
+        <MetricCard
+          label="Última"
+          value={lastRun ? format(new Date(lastRun), 'd MMM, HH:mm') : '—'}
+        />
+      </div>
+
+      {/* Charts */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Sparkline series={series} labels={sparkLabels} />
+        <StatusBreakdown counts={counts} total={total} />
+      </div>
+
+      {/* Recent runs */}
+      <div className="rounded-lg border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <h2 className="text-sm font-medium text-foreground">
+            Últimos {logs.length} runs
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              router.push(`/automatizaciones/${automation.id}/registros`)
+            }
+            className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+          >
+            Ver todos
+          </Button>
+        </div>
+        {logs.length === 0 ? (
+          <div className="flex h-32 items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Esta automatización todavía no ha corrido.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {logs.slice(0, 20).map((log) => {
+              const Icon = STATUS_ICON[log.status as LogStatus];
+              const contactName =
+                log.contact?.name?.trim() || log.contact?.phone || 'Sistema';
+              return (
+                <li key={log.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <Icon
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      log.status === 'success'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : log.status === 'failed'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-amber-600 dark:text-amber-400',
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm text-foreground">
+                        {contactName}
+                      </span>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                          STATUS_TONE[log.status as LogStatus],
+                        )}
+                      >
+                        {STATUS_LABEL[log.status as LogStatus]}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {format(new Date(log.created_at), 'd MMM, HH:mm')}
+                      {log.steps_executed?.length
+                        ? ` · ${log.steps_executed.length} pasos`
+                        : ''}
+                      {log.error_message ? ` · ${log.error_message}` : ''}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import type { MessageTemplate } from '@/types';
+import { PLACEHOLDER_TEMPLATES } from '@/lib/templates/placeholder-data';
 
 const CATEGORY_LABELS: Record<string, string> = {
   Marketing: 'Marketing',
@@ -73,6 +75,7 @@ function formatRelative(iso: string): string {
 
 export default function TemplatesPage() {
   const supabase = createClient();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -263,7 +266,8 @@ export default function TemplatesPage() {
                   return (
                     <TableRow
                       key={template.id}
-                      className="border-border hover:bg-muted/40"
+                      className="cursor-pointer border-border hover:bg-muted/40"
+                      onClick={() => router.push(`/plantillas/${template.id}`)}
                     >
                       <TableCell className="font-medium text-foreground">
                         {template.name}
@@ -280,7 +284,10 @@ export default function TemplatesPage() {
                       <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
                         {formatRelative(template.created_at)}
                       </TableCell>
-                      <TableCell className="w-10 text-right">
+                      <TableCell
+                        className="w-10 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <Button
                           variant="ghost"
                           size="icon"
@@ -306,96 +313,3 @@ export default function TemplatesPage() {
   );
 }
 
-// ============================================================
-// Placeholder data — shown while the merchant doesn't have any real
-// templates yet so the list reads as populated. Rows have id "demo-*"
-// so the delete handler short-circuits.
-// ============================================================
-const PLACEHOLDER_TEMPLATES: MessageTemplate[] = [
-  {
-    id: 'demo-1',
-    user_id: 'demo',
-    name: 'bienvenida_nuevo_cliente',
-    category: 'Utility',
-    language: 'es',
-    header_type: 'text',
-    header_content: '¡Bienvenido a Vitalú!',
-    body_text:
-      'Hola {{1}}, gracias por unirte a Vitalú. Soy María, tu asesora. ¿En qué te puedo ayudar hoy?',
-    footer_text: 'Equipo Vitalú',
-    buttons: undefined,
-    status: 'Approved',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-2',
-    user_id: 'demo',
-    name: 'confirmacion_pedido',
-    category: 'Utility',
-    language: 'es',
-    body_text:
-      '¡Listo {{1}}! Tu pedido {{2}} fue confirmado por {{3}}. Te avisamos cuando salga del centro de despacho.',
-    status: 'Approved',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-3',
-    user_id: 'demo',
-    name: 'despacho_con_tracking',
-    category: 'Utility',
-    language: 'es',
-    body_text:
-      '¡Tu pedido {{1}} ya está en camino! Lo lleva {{2}} con la guía {{3}}. Seguilo con el botón de abajo.',
-    footer_text: 'Llega entre 2 y 5 días hábiles.',
-    status: 'Approved',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-4',
-    user_id: 'demo',
-    name: 'carrito_abandonado_24h',
-    category: 'Marketing',
-    language: 'es',
-    header_type: 'text',
-    header_content: '¿Lo dejaste pendiente?',
-    body_text:
-      'Hola {{1}}, ayer dejaste {{2}} en el carrito. Te dejamos un 10% con el código VUELVE10 — vale por 24 horas.',
-    footer_text: 'Sin presión, tú sabes cuándo es el momento.',
-    status: 'Approved',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-5',
-    user_id: 'demo',
-    name: 'recompra_30dias',
-    category: 'Marketing',
-    language: 'es',
-    body_text:
-      'Hola {{1}}, hace un mes pediste {{2}}. ¿Cómo te fue? Si necesitas reponer, te dejamos envío gratis con FIDELIDAD.',
-    status: 'Pending',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-6',
-    user_id: 'demo',
-    name: 'codigo_verificacion_otp',
-    category: 'Authentication',
-    language: 'es',
-    body_text:
-      'Tu código de verificación de Vitalú es {{1}}. Vence en 10 minutos. No lo compartas con nadie.',
-    footer_text: 'Si no fuiste tú, ignorá este mensaje.',
-    status: 'Draft',
-    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  } as unknown as MessageTemplate,
-  {
-    id: 'demo-7',
-    user_id: 'demo',
-    name: 'aviso_stock_agotado',
-    category: 'Utility',
-    language: 'es',
-    body_text:
-      'Hola {{1}}, lamentablemente {{2}} se agotó antes de despacharlo. Te devolvemos el dinero a {{3}} en 24-48 hs. Disculpá la molestia.',
-    status: 'Rejected',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-  } as unknown as MessageTemplate,
-];

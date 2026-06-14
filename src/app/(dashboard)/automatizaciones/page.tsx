@@ -136,7 +136,7 @@ export default function AutomationsPage() {
   }
 
   async function startFromTemplate(slug: TemplateSlug) {
-    router.push(`/automatizaciones/new?template=${slug}`)
+    router.push(`/automatizaciones/nueva?template=${slug}`)
   }
 
   if (error) {
@@ -214,9 +214,10 @@ export default function AutomationsPage() {
               key={a.id}
               automation={a}
               onToggle={(next) => toggleActive(a, next)}
-              onEdit={() => router.push(`/automatizaciones/${a.id}/edit`)}
+              onView={() => router.push(`/automatizaciones/${a.id}`)}
+              onEdit={() => router.push(`/automatizaciones/${a.id}/editar`)}
               onDuplicate={() => duplicate(a)}
-              onLogs={() => router.push(`/automatizaciones/${a.id}/logs`)}
+              onLogs={() => router.push(`/automatizaciones/${a.id}/registros`)}
               onDelete={() => setPendingDelete(a)}
             />
           ))}
@@ -259,6 +260,7 @@ export default function AutomationsPage() {
 function AutomationCard({
   automation,
   onToggle,
+  onView,
   onEdit,
   onDuplicate,
   onLogs,
@@ -266,6 +268,8 @@ function AutomationCard({
 }: {
   automation: Automation
   onToggle: (next: boolean) => void
+  /** Click en el título o body del card — abre el visualizador de data. */
+  onView: () => void
   onEdit: () => void
   onDuplicate: () => void
   onLogs: () => void
@@ -284,7 +288,7 @@ function AutomationCard({
 
         <button
           type="button"
-          onClick={onEdit}
+          onClick={onView}
           className="min-w-0 flex-1 text-left"
         >
           <div className="flex items-center gap-2">

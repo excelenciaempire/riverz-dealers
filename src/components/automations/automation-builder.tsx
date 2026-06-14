@@ -492,7 +492,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       }
       toast.success(isEditing ? "Guardada" : "Creada")
       if (!isEditing && body?.automation?.id) {
-        router.replace(`/automatizaciones/${body.automation.id}/edit`)
+        router.replace(`/automatizaciones/${body.automation.id}/editar`)
       }
     } finally {
       setSaving(false)
