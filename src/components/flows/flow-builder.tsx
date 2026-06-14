@@ -15,7 +15,14 @@
  * the same file as small components rather than separate modules.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -30,6 +37,8 @@ import {
   ChevronUp,
   Copy,
   MessageCircle,
+  Undo2,
+  Redo2,
   ListChecks,
   ListPlus,
   UserPlus,
@@ -540,10 +549,158 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   // status-only changes after the activate API succeeds use raw setState
   // so they don't falsely re-flag the form as dirty.
   const [dirty, setDirty] = useState(false);
-  const setStateDirty = useCallback<typeof setState>((updaterOrValue) => {
-    setDirty(true);
-    setState(updaterOrValue);
-  }, []);
+
+  // ── Undo / redo ──
+  // Stacks viven en refs (no re-render). canUndo/canRedo en state para
+  // habilitar/deshabilitar los botones del header. 50 entries de cap.
+  //
+  // El flujo de undo/redo NO usa flags + setTimeout (eso tiene una race
+  // con useEffects que reescriban en respuesta al state restore). En su
+  // lugar usamos un único `commit(updater, {record})` que decide si
+  // pushear o no. Undo/redo llaman commit con record:false; las demás
+  // mutaciones (setStateDirty) lo llaman con record:true.
+  const undoStackRef = useRef<BuilderState[]>([]);
+  const redoStackRef = useRef<BuilderState[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  // Última "categoría" de edición pusheada al stack: usamos un nombre
+  // tipo "config:<nodeKey>:<field>" para coalescer keystrokes
+  // consecutivos al mismo field/nodo en un único entry. Cambiar a
+  // null/otra categoría rompe la coalescing.
+  const lastCoalesceKeyRef = useRef<string | null>(null);
+
+  /**
+   * commit: única vía para mutar state. record:true (default) pushea
+   * el estado PREVIO al undo stack; record:false NO pushea — usado
+   * por undo/redo. coalesceKey permite que mutaciones consecutivas con
+   * la misma key (típicamente keystrokes en la misma textarea) se
+   * fundan en un solo entry de historia.
+   */
+  const commit = useCallback(
+    (
+      updater: (s: BuilderState) => BuilderState,
+      options?: { record?: boolean; coalesceKey?: string | null },
+    ) => {
+      const record = options?.record !== false;
+      const coalesceKey = options?.coalesceKey ?? null;
+      setDirty(true);
+      setState((current) => {
+        const next = updater(current);
+        if (record) {
+          const shouldCoalesce =
+            coalesceKey !== null &&
+            coalesceKey === lastCoalesceKeyRef.current &&
+            undoStackRef.current.length > 0;
+          if (!shouldCoalesce) {
+            undoStackRef.current = [
+              ...undoStackRef.current.slice(-49),
+              current,
+            ];
+          }
+          lastCoalesceKeyRef.current = coalesceKey;
+          redoStackRef.current = [];
+          setCanUndo(true);
+          setCanRedo(false);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * setStateDirty: wrapper que reescribe la firma React.SetStateAction
+   * sobre commit(). Cualquier mutación de UI (addNode, updateConfig,
+   * eliminar, etc.) la usa. Cada llamada rompe la coalescing (porque
+   * coalesceKey queda null, distinto del último).
+   */
+  const setStateDirty = useCallback<typeof setState>(
+    (updaterOrValue) => {
+      const updater =
+        typeof updaterOrValue === "function"
+          ? (updaterOrValue as (s: BuilderState) => BuilderState)
+          : (() => updaterOrValue);
+      commit(updater);
+    },
+    [commit],
+  );
+
+  /** Snapshot manual del estado actual — usado al inicio de un drag
+   *  para que undo restaure la posición previa. Rompe la coalescing. */
+  const snapshotHistory = useCallback(() => {
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-49),
+      state,
+    ];
+    redoStackRef.current = [];
+    lastCoalesceKeyRef.current = null;
+    setCanUndo(true);
+    setCanRedo(false);
+  }, [state]);
+
+  // ConnectingRef es declarado más abajo (en FlowCanvas), pero el
+  // handleUndo lo necesita para bloquear undo durante drag-to-connect.
+  // Usamos un ref a nivel FlowBuilder que FlowCanvas escribe.
+  const connectingActiveRef = useRef(false);
+
+  const handleUndo = useCallback(() => {
+    if (connectingActiveRef.current) return; // no undo a mitad de un drag
+    if (undoStackRef.current.length === 0) return;
+    const prev = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    // commit con record:false NO pushea prev a undoStack; en su lugar
+    // pusheamos el `current` al redoStack adentro del updater para
+    // poder hacerlo después de calcular `next`.
+    commit(
+      (current) => {
+        redoStackRef.current = [...redoStackRef.current, current];
+        return prev;
+      },
+      { record: false },
+    );
+    lastCoalesceKeyRef.current = null;
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }, [commit]);
+
+  const handleRedo = useCallback(() => {
+    if (connectingActiveRef.current) return;
+    if (redoStackRef.current.length === 0) return;
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    commit(
+      (current) => {
+        undoStackRef.current = [...undoStackRef.current, current];
+        return next;
+      },
+      { record: false },
+    );
+    lastCoalesceKeyRef.current = null;
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, [commit]);
+
+  // Atajo Ctrl/Cmd+Z (undo) y Ctrl/Cmd+Shift+Z (redo). Ignoramos si el
+  // foco está en un input/textarea/contenteditable — el usuario quiere
+  // deshacer el typing, no el flow state. También bloqueamos si hay
+  // una conexión drag activa para evitar corrupción del redo stack.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") return;
+        if (target.isContentEditable) return;
+      }
+      e.preventDefault();
+      if (e.shiftKey) handleRedo();
+      else handleUndo();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleUndo, handleRedo]);
 
   // Used by jumpToNode() to scroll the target into view + flash its border.
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -716,17 +873,49 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     });
   }, []);
 
+  /**
+   * updateNodeConfig: aplica un patch al config de un nodo.
+   *
+   * Coalescing: cuando el patch toca un único campo de texto (text,
+   * caption, prompt_text, button_label, value, note, output_prefix,
+   * filename, url), todos los keystrokes consecutivos al MISMO nodo +
+   * MISMO campo se funden en una sola entrada del undo stack. Sin
+   * esto, tipear "Mi pedido" llena 9/50 slots del stack y rompe
+   * cualquier undo estructural previo.
+   */
   const updateNodeConfig = useCallback(
     (key: string, configPatch: Record<string, unknown>) => {
-      setStateDirty((s) => ({
-        ...s,
-        nodes: s.nodes.map((n) =>
-          n.node_key === key ? { ...n, config: { ...n.config, ...configPatch } } : n,
-        ),
-      }));
+      const patchKeys = Object.keys(configPatch);
+      const COALESCE_FIELDS = new Set([
+        "text",
+        "caption",
+        "prompt_text",
+        "button_label",
+        "value",
+        "note",
+        "output_prefix",
+        "filename",
+        "url",
+        "button_title",
+      ]);
+      const coalesceKey =
+        patchKeys.length === 1 && COALESCE_FIELDS.has(patchKeys[0])
+          ? `field:${key}:${patchKeys[0]}`
+          : null;
+      commit(
+        (s) => ({
+          ...s,
+          nodes: s.nodes.map((n) =>
+            n.node_key === key
+              ? { ...n, config: { ...n.config, ...configPatch } }
+              : n,
+          ),
+        }),
+        { coalesceKey },
+      );
       unsilence(key);
     },
-    [setStateDirty, unsilence],
+    [commit, unsilence],
   );
 
   const addNode = useCallback(
@@ -797,14 +986,151 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
   /**
    * Move a node to a new position. Called from the canvas drag handler.
+   *
+   * NO va por setStateDirty: el drag dispara ~60 onMove por segundo y
+   * pushearíamos 60 entries al undo stack por cada segundo arrastrado,
+   * inutilizando el undo. El snapshot del estado pre-drag lo toma
+   * `snapshotHistory()` (llamado desde onDragStart en DraggableNode).
    */
   const moveNode = useCallback(
     (key: string, x: number, y: number) => {
-      setStateDirty((s) => ({
+      setDirty(true);
+      setState((s) => ({
         ...s,
         nodes: s.nodes.map((n) =>
           n.node_key === key ? { ...n, position_x: x, position_y: y } : n,
         ),
+      }));
+    },
+    [],
+  );
+
+  /**
+   * Wire una conexión: el usuario soltó el drag del port (kind, idx) en
+   * un nodo destino. Mapeamos kind+idx → la propiedad correcta del
+   * config y actualizamos.
+   */
+  const wireConnection = useCallback(
+    (
+      fromKey: string,
+      kind: "button" | "list_row" | "cta" | "text",
+      idx: number,
+      toKey: string,
+    ) => {
+      setStateDirty((s) => ({
+        ...s,
+        nodes: s.nodes.map((n) => {
+          if (n.node_key !== fromKey) return n;
+          const cfg = n.config as Record<string, unknown>;
+          switch (n.node_type) {
+            case "send_buttons": {
+              const buttons = Array.isArray(cfg.buttons)
+                ? (cfg.buttons as Array<{
+                    reply_id?: string;
+                    title?: string;
+                    next_node_key?: string;
+                  }>)
+                : [];
+              if (idx < 0 || idx >= buttons.length) return n;
+              const nextBtns = buttons.map((b, i) =>
+                i === idx ? { ...b, next_node_key: toKey } : b,
+              );
+              return { ...n, config: { ...cfg, buttons: nextBtns } };
+            }
+            case "send_list": {
+              const sections = Array.isArray(cfg.sections)
+                ? (cfg.sections as Array<{
+                    title?: string;
+                    rows?: Array<{
+                      reply_id?: string;
+                      title?: string;
+                      description?: string;
+                      next_node_key?: string;
+                    }>;
+                  }>)
+                : [];
+              // Localizar la sección+row para `idx` sin aplanar. Esto
+              // preserva títulos de secciones múltiples (Meta soporta
+              // hasta 10 secciones); aplanar y reescribir como una sola
+              // sección descartaría sections[1..].title silenciosamente.
+              let remaining = idx;
+              let targetSection = -1;
+              let targetRow = -1;
+              for (let i = 0; i < sections.length; i++) {
+                const len = sections[i].rows?.length ?? 0;
+                if (remaining < len) {
+                  targetSection = i;
+                  targetRow = remaining;
+                  break;
+                }
+                remaining -= len;
+              }
+              if (targetSection < 0) return n; // idx fuera de rango
+              const nextSections = sections.map((sec, sIdx) =>
+                sIdx !== targetSection
+                  ? sec
+                  : {
+                      ...sec,
+                      rows: (sec.rows ?? []).map((r, rIdx) =>
+                        rIdx !== targetRow
+                          ? r
+                          : { ...r, next_node_key: toKey },
+                      ),
+                    },
+              );
+              return { ...n, config: { ...cfg, sections: nextSections } };
+            }
+            // Tipos con UNA sola salida: next_node_key directo.
+            case "send_message":
+            case "send_image":
+            case "send_video":
+            case "send_document":
+            case "send_cta_url":
+            case "collect_input":
+            case "set_tag":
+            case "wait":
+            case "start":
+              return { ...n, config: { ...cfg, next_node_key: toKey } };
+            // Condition: 2 salidas (true / false) — kind="text" idx 0/1.
+            case "condition":
+              if (kind === "text" && idx === 0)
+                return { ...n, config: { ...cfg, true_next: toKey } };
+              if (kind === "text" && idx === 1)
+                return { ...n, config: { ...cfg, false_next: toKey } };
+              return n;
+            // Shopify lookup: found / not_found.
+            case "shopify_lookup":
+              if (kind === "text" && idx === 0)
+                return { ...n, config: { ...cfg, found_next_key: toKey } };
+              if (kind === "text" && idx === 1)
+                return {
+                  ...n,
+                  config: { ...cfg, not_found_next_key: toKey },
+                };
+              return n;
+            // ai_intent: N intents + fallback (idx N).
+            case "ai_intent": {
+              const intents = Array.isArray(cfg.intents)
+                ? (cfg.intents as Array<{
+                    intent_key?: string;
+                    next_node_key?: string;
+                  }>)
+                : [];
+              if (idx < intents.length) {
+                const nextIntents = intents.map((it, i) =>
+                  i === idx ? { ...it, next_node_key: toKey } : it,
+                );
+                return { ...n, config: { ...cfg, intents: nextIntents } };
+              }
+              if (idx === intents.length) {
+                return { ...n, config: { ...cfg, fallback_next_key: toKey } };
+              }
+              return n;
+            }
+            default:
+              return n;
+          }
+        }),
       }));
     },
     [setStateDirty],
@@ -884,6 +1210,10 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           canActivate={canActivate}
           onBack={() => router.push("/menus")}
           onViewRuns={() => router.push(`/menus/${initialFlow.id}/runs`)}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
         />
       </div>
 
@@ -922,6 +1252,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
             onUpdate={updateNode}
             onUpdateConfig={updateNodeConfig}
             onMove={moveNode}
+            onSnapshotHistory={snapshotHistory}
+            onWireConnection={wireConnection}
+            connectingActiveRef={connectingActiveRef}
             onDuplicate={duplicateNode}
             onRemove={removeNode}
             onSetEntry={(key) =>
@@ -984,6 +1317,10 @@ function Header({
   canActivate,
   onBack,
   onViewRuns,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: {
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
@@ -996,6 +1333,10 @@ function Header({
   canActivate: boolean;
   onBack: () => void;
   onViewRuns: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -1020,6 +1361,30 @@ function Header({
         <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title="Cambios sin guardar" />
       )}
       <div className="ml-auto flex items-center gap-1.5">
+        {/* Undo / Redo — atajo Ctrl/Cmd+Z + Shift. Botones se
+            deshabilitan cuando no hay nada que deshacer/rehacer. */}
+        <div className="mr-1 flex items-center gap-0.5 rounded-md border border-border bg-card/40 p-0.5">
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Deshacer (Ctrl+Z)"
+            aria-label="Deshacer"
+            className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Rehacer (Ctrl+Shift+Z)"
+            aria-label="Rehacer"
+            className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
         {state.status === "active" ? (
           <Button
             variant="outline"
@@ -1112,10 +1477,12 @@ function NodeCard({
   allNodes,
   isEntry,
   isFlashed,
+  isDropTarget,
   cardRef,
   issues,
   onUpdate,
   onUpdateConfig,
+  onConnectStart,
   onDuplicate,
   onRemove,
   onSetEntry,
@@ -1124,10 +1491,17 @@ function NodeCard({
   allNodes: BuilderNode[];
   isEntry: boolean;
   isFlashed: boolean;
+  /** True mientras un drag-to-connect está sobre este nodo (mouse encima). */
+  isDropTarget: boolean;
   cardRef: (el: HTMLDivElement | null) => void;
   issues: ValidationIssue[];
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
+  onConnectStart: (
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    e: React.MouseEvent,
+  ) => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onSetEntry: () => void;
@@ -1136,8 +1510,9 @@ function NodeCard({
   return (
     <div
       ref={cardRef}
+      data-node-key={node.node_key}
       className={cn(
-        "group/card relative rounded-lg border bg-card transition-shadow duration-500",
+        "group/card relative rounded-lg border bg-card transition-shadow duration-200",
         hasError
           ? "border-red-500/40"
           : isEntry
@@ -1145,20 +1520,17 @@ function NodeCard({
             : "border-border",
         isFlashed &&
           "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        isDropTarget &&
+          "ring-2 ring-[#00a5f4] ring-offset-2 ring-offset-background shadow-[0_0_24px_rgba(0,165,244,0.45)]",
       )}
     >
-      {/* Una sola superficie de edición — el bubble (para tipos
-          "mensaje") o el card compacto (para tipos lógicos). El usuario
-          edita inline lo que vea, no abre formularios separados. */}
       <EditableNodeBubble
         node={node}
         allNodes={allNodes}
         onUpdate={onUpdate}
         onUpdateConfig={onUpdateConfig}
+        onConnectStart={onConnectStart}
       />
-
-      {/* Toolbar flotante (top-right) — sale en hover. Duplicar /
-          marcar como entrada / eliminar. */}
       <NodeHoverToolbar
         isEntry={isEntry}
         onSetEntry={onSetEntry}
@@ -1235,14 +1607,26 @@ function EditableNodeBubble({
   allNodes,
   onUpdate,
   onUpdateConfig,
+  onConnectStart,
 }: {
   node: BuilderNode;
   allNodes: BuilderNode[];
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
+  /**
+   * Disparado cuando el usuario apreta el mousedown sobre un port
+   * (hueco a la derecha de un botón / fila / chip). El FlowCanvas
+   * arranca el flujo de drag-to-connect y al soltar el mouse sobre
+   * otro card, wirea la conexión.
+   */
+  onConnectStart: (
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    e: React.MouseEvent,
+  ) => void;
 }) {
   const cfg = node.config as Record<string, unknown>;
-  void onUpdate; // reservado para casos futuros (renombrar node_key)
+  void onUpdate;
   switch (node.node_type) {
     case "send_message": {
       return (
@@ -1251,6 +1635,9 @@ function EditableNodeBubble({
             kind="text"
             text={(cfg.text as string) ?? ""}
             editable
+            connectablePorts
+            textConnected={!!(cfg.next_node_key as string)}
+            onPortMouseDown={onConnectStart}
             onTextChange={(v) => onUpdateConfig({ text: v })}
           />
         </div>
@@ -1267,6 +1654,9 @@ function EditableNodeBubble({
             text={(cfg.text as string) ?? ""}
             buttons={buttons.map((b) => ({ title: b.title ?? "" }))}
             editable
+            connectablePorts
+            buttonConnected={buttons.map((b) => !!b.next_node_key)}
+            onPortMouseDown={onConnectStart}
             onTextChange={(v) => onUpdateConfig({ text: v })}
             onButtonChange={(idx, title) => {
               const next = buttons.map((b, i) =>
@@ -1307,6 +1697,16 @@ function EditableNodeBubble({
           }>)
         : [];
       const rows = sections.flatMap((s) => s.rows ?? []);
+      /**
+       * Reescribe TODAS las filas (flatten). El bubble edita en plano
+       * (sin UI de secciones), pero al persistir conservamos la
+       * estructura original: si había varias secciones, intentamos
+       * mapear el flat de vuelta. Si el usuario agregó/quitó filas
+       * (nextFlat.length !== rows.length), las nuevas/borradas se
+       * imputan a la PRIMERA sección — esa es la única ambigüedad que
+       * podemos resolver sin UI de secciones. Las demás secciones
+       * conservan sus títulos y rows individuales mapeados por idx.
+       */
       const writeRows = (
         nextFlat: Array<{
           reply_id?: string;
@@ -1315,13 +1715,37 @@ function EditableNodeBubble({
           next_node_key?: string;
         }>,
       ) => {
-        // Mantenemos una sola sección (la primera) — el config soporta
-        // varias pero la UI las renderiza planas. Si no hay ninguna,
-        // creamos una con título genérico.
-        const firstTitle = sections[0]?.title ?? "Opciones";
-        onUpdateConfig({
-          sections: [{ title: firstTitle, rows: nextFlat }],
+        if (sections.length === 0) {
+          onUpdateConfig({
+            sections: [{ title: "Opciones", rows: nextFlat }],
+          });
+          return;
+        }
+        if (sections.length === 1) {
+          onUpdateConfig({
+            sections: [
+              { title: sections[0].title ?? "Opciones", rows: nextFlat },
+            ],
+          });
+          return;
+        }
+        // 2+ secciones: redistribuimos manteniendo conteos por sección
+        // donde es posible. Si nextFlat es del mismo largo que rows,
+        // edición pura → cada sección keep su rangos. Si difiere, la
+        // diferencia va a la primera sección.
+        const lensByIdx = sections.map((s) => s.rows?.length ?? 0);
+        const delta = nextFlat.length - rows.length;
+        if (delta !== 0) {
+          lensByIdx[0] = Math.max(0, lensByIdx[0] + delta);
+        }
+        let offset = 0;
+        const newSections = sections.map((sec, sIdx) => {
+          const len = lensByIdx[sIdx];
+          const slice = nextFlat.slice(offset, offset + len);
+          offset += len;
+          return { ...sec, rows: slice };
         });
+        onUpdateConfig({ sections: newSections });
       };
       return (
         <div className="px-3 py-2">
@@ -1334,6 +1758,9 @@ function EditableNodeBubble({
               description: r.description,
             }))}
             editable
+            connectablePorts
+            listRowConnected={rows.map((r) => !!r.next_node_key)}
+            onPortMouseDown={onConnectStart}
             onTextChange={(v) => onUpdateConfig({ text: v })}
             onListLabelChange={(v) => onUpdateConfig({ button_label: v })}
             onListRowChange={(idx, patch) => {
@@ -1369,6 +1796,9 @@ function EditableNodeBubble({
             ctaTitle={(cfg.button_title as string) ?? ""}
             ctaUrl={(cfg.url as string) ?? ""}
             editable
+            connectablePorts
+            ctaConnected={!!(cfg.next_node_key as string)}
+            onPortMouseDown={onConnectStart}
             onTextChange={(v) => onUpdateConfig({ text: v })}
             onCtaTitleChange={(v) => onUpdateConfig({ button_title: v })}
             onCtaUrlChange={(v) => onUpdateConfig({ url: v })}
@@ -1386,6 +1816,9 @@ function EditableNodeBubble({
             caption={(cfg.caption as string) ?? ""}
             text=""
             editable
+            connectablePorts
+            textConnected={!!(cfg.next_node_key as string)}
+            onPortMouseDown={onConnectStart}
             onMediaUrlChange={(v) => onUpdateConfig({ url: v })}
             onCaptionChange={(v) => onUpdateConfig({ caption: v })}
           />
@@ -1401,6 +1834,9 @@ function EditableNodeBubble({
             caption={(cfg.caption as string) ?? ""}
             text=""
             editable
+            connectablePorts
+            textConnected={!!(cfg.next_node_key as string)}
+            onPortMouseDown={onConnectStart}
             onFilenameChange={(v) => onUpdateConfig({ filename: v })}
             onCaptionChange={(v) => onUpdateConfig({ caption: v })}
           />
@@ -1415,18 +1851,20 @@ function EditableNodeBubble({
             kind="text"
             text={(cfg.prompt_text as string) ?? ""}
             editable
+            connectablePorts
+            textConnected={!!(cfg.next_node_key as string)}
+            onPortMouseDown={onConnectStart}
             onTextChange={(v) => onUpdateConfig({ prompt_text: v })}
           />
         </div>
       );
     }
-    // Tipos lógicos: card mini con campos editables inline. Sin bubble
-    // porque no producen un mensaje al cliente.
     default:
       return (
         <LogicNodeBody
           node={node}
           onUpdateConfig={onUpdateConfig}
+          onConnectStart={onConnectStart}
         />
       );
   }
@@ -1439,12 +1877,21 @@ function EditableNodeBubble({
 function LogicNodeBody({
   node,
   onUpdateConfig,
+  onConnectStart,
 }: {
   node: BuilderNode;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
+  onConnectStart: (
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    e: React.MouseEvent,
+  ) => void;
 }) {
   const meta = NODE_META[node.node_type];
   const cfg = node.config as Record<string, unknown>;
+  // Cuántas salidas tiene el nodo + si están conectadas o no. Determina
+  // cuántos ports renderizamos en el body lógico y con qué etiquetas.
+  const outputs = logicOutputs(node);
   return (
     <div className="space-y-2 p-3">
       <div className="flex items-center gap-2">
@@ -1462,26 +1909,20 @@ function LogicNodeBody({
       </div>
 
       {node.node_type === "condition" && (
-        <div className="space-y-1.5">
-          <CompactInput
-            label="Valor"
-            value={(cfg.value as string) ?? ""}
-            placeholder="Texto a comparar…"
-            onChange={(v) => onUpdateConfig({ value: v })}
-          />
-        </div>
+        <CompactInput
+          label="Valor"
+          value={(cfg.value as string) ?? ""}
+          placeholder="Texto a comparar…"
+          onChange={(v) => onUpdateConfig({ value: v })}
+        />
       )}
       {node.node_type === "wait" && (
-        <div className="flex gap-1.5">
-          <CompactInput
-            label="Tiempo"
-            value={String((cfg.amount as number) ?? "")}
-            placeholder="5"
-            onChange={(v) =>
-              onUpdateConfig({ amount: Number(v) || 0 })
-            }
-          />
-        </div>
+        <CompactInput
+          label="Tiempo"
+          value={String((cfg.amount as number) ?? "")}
+          placeholder="5"
+          onChange={(v) => onUpdateConfig({ amount: Number(v) || 0 })}
+        />
       )}
       {node.node_type === "handoff" && (
         <CompactInput
@@ -1501,7 +1942,9 @@ function LogicNodeBody({
       )}
       {node.node_type === "set_tag" && (
         <p className="text-[11px] italic text-muted-foreground">
-          {(cfg.mode as string) === "remove" ? "Quita la etiqueta." : "Agrega la etiqueta."}
+          {(cfg.mode as string) === "remove"
+            ? "Quita la etiqueta."
+            : "Agrega la etiqueta."}
         </p>
       )}
       {node.node_type === "end" && (
@@ -1514,8 +1957,79 @@ function LogicNodeBody({
           Punto de inicio.
         </p>
       )}
+
+      {/* Ports de salida — uno por output. Sólo si el nodo tiene
+          ≥1 salida (los terminales como handoff/end no muestran). */}
+      {outputs.length > 0 && (
+        <div className="mt-2 space-y-1 border-t border-border pt-2">
+          {outputs.map((o, i) => (
+            <div
+              key={i}
+              className="relative flex items-center justify-between rounded-md border border-border bg-muted/30 px-2 py-1"
+              data-port-kind="text"
+            >
+              <span className="text-[11px] text-muted-foreground">
+                {o.label}
+              </span>
+              <span
+                data-connection-port="true"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onConnectStart("text", i, e);
+                }}
+                className={cn(
+                  "absolute right-[-7px] top-1/2 z-10 h-3 w-3 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-all",
+                  o.connected
+                    ? "border-[#00a5f4] bg-[#00a5f4] shadow-[0_0_0_2px_rgba(0,165,244,0.18)]"
+                    : "border-[#9aa6ad] bg-white hover:scale-125 hover:border-[#00a5f4] hover:shadow-[0_0_0_3px_rgba(0,165,244,0.22)]",
+                )}
+                role="button"
+                aria-label={o.connected ? "Conexión existente" : "Conectar a otro paso"}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * Devuelve las salidas con etiqueta + estado de conexión para nodos
+ * lógicos. Mapea 1:1 con el orden de getOutgoingEdges para que el
+ * idx use el mismo wireConnection.
+ */
+function logicOutputs(
+  node: BuilderNode,
+): Array<{ label: string; connected: boolean }> {
+  const cfg = node.config as Record<string, unknown>;
+  switch (node.node_type) {
+    case "condition":
+      return [
+        { label: "Sí", connected: !!(cfg.true_next as string) },
+        { label: "No", connected: !!(cfg.false_next as string) },
+      ];
+    case "shopify_lookup":
+      return [
+        { label: "Encontrado", connected: !!(cfg.found_next_key as string) },
+        {
+          label: "No encontrado",
+          connected: !!(cfg.not_found_next_key as string),
+        },
+      ];
+    case "wait":
+    case "set_tag":
+    case "start":
+      return [
+        { label: "Avanza a", connected: !!(cfg.next_node_key as string) },
+      ];
+    case "handoff":
+    case "end":
+      return []; // terminales
+    default:
+      return [];
+  }
 }
 
 function CompactInput({
@@ -2982,21 +3496,129 @@ interface CanvasEdge {
   label: string | null
 }
 
+/**
+ * Estado del drag-to-connect: el usuario apretó el mousedown sobre un
+ * port, todavía no soltó. El "from" se ancla al port; "cursor" se
+ * actualiza con el mouse mientras se mueve.
+ */
+interface ConnectingState {
+  fromNodeKey: string
+  fromKind: "button" | "list_row" | "cta" | "text"
+  fromIdx: number
+  fromX: number
+  fromY: number
+  cursorX: number
+  cursorY: number
+}
+
 function FlowCanvas(props: FlowTreeProps) {
+  const { scale, tx, ty } = useCanvasTransform()
+  const canvasRef = useRef<HTMLDivElement>(null)
   const nodesByKey = useMemo(() => {
     const m = new Map<string, BuilderNode>()
     for (const n of props.allNodes) m.set(n.node_key, n)
     return m
   }, [props.allNodes])
 
+  // ── Medición de ports: para que las líneas SVG salgan del centro
+  //    exacto de cada hueco (no de un punto aproximado), medimos sus
+  //    posiciones reales en el DOM y las guardamos en un Map indexed
+  //    por "{nodeKey}:{kind}:{idx}". El useLayoutEffect corre después
+  //    de cada commit y reconcilia el Map; sólo gatilla setState si
+  //    realmente cambió algo para no entrar en loop.
+  const [portPositions, setPortPositions] = useState<
+    Map<string, { x: number; y: number }>
+  >(new Map())
+
   /**
-   * Calcula todas las aristas con sus coordenadas absolutas, leyendo
-   * la posición actual de cada nodo. Se re-ejecuta cuando cualquier
-   * nodo se mueve (las líneas se "estiran" automáticamente).
+   * Mide la posición de cada port DOM y la guarda en `portPositions`.
+   * Gatillado sólo cuando: cambia la lista de nodos (alguien
+   * movió/agregó/borró/editó), zoom o pan cambian. La guard de diff
+   * adentro evita loops si la medición no cambió.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const root = canvasRef.current
+    if (!root) return
+    const rootRect = root.getBoundingClientRect()
+    const next = new Map<string, { x: number; y: number }>()
+    // Cada NodeCard tiene data-node-key. Adentro, cada port chip
+    // (botón / fila / chip CTA / wrapper text) tiene data-port-kind.
+    // El port en sí (el círculo) tiene data-connection-port="true".
+    const nodes = root.querySelectorAll<HTMLElement>("[data-node-key]")
+    nodes.forEach((nodeEl) => {
+      const key = nodeEl.dataset.nodeKey
+      if (!key) return
+      const ports = nodeEl.querySelectorAll<HTMLElement>(
+        '[data-port-kind]',
+      )
+      // Cada port-kind chip puede tener un solo <ConnectionPort/>
+      // hijo. Contamos por kind para asignar el idx — el orden de
+      // aparición en el DOM coincide con el orden de getOutgoingEdges.
+      const idxByKind: Record<string, number> = {}
+      ports.forEach((chipEl) => {
+        const kind = chipEl.dataset.portKind!
+        const portEl = chipEl.querySelector<HTMLElement>(
+          '[data-connection-port="true"]',
+        )
+        if (!portEl) return
+        const idx = idxByKind[kind] ?? 0
+        idxByKind[kind] = idx + 1
+        const r = portEl.getBoundingClientRect()
+        // Convertimos de coord cliente a coord lienzo dividiendo
+        // por scale (el wrapper aplica transform: scale()).
+        const x = (r.left + r.width / 2 - rootRect.left) / scale
+        const y = (r.top + r.height / 2 - rootRect.top) / scale
+        next.set(`${key}:${kind}:${idx}`, { x, y })
+      })
+    })
+
+    // Diff vs previo: sólo actualizamos state si cambió algo. Sin esto,
+    // useLayoutEffect → setState → re-render → useLayoutEffect = loop.
+    // El check de cambio convergente garantiza terminar en 1-2 frames.
+    let changed = portPositions.size !== next.size
+    if (!changed) {
+      for (const [k, v] of next) {
+        const prev = portPositions.get(k)
+        if (!prev || Math.abs(prev.x - v.x) > 0.5 || Math.abs(prev.y - v.y) > 0.5) {
+          changed = true
+          break
+        }
+      }
+    }
+    if (changed) setPortPositions(next)
+  }, [props.allNodes, scale, tx, ty])
+
+  /**
+   * Mapea un edge index global (devuelto por getOutgoingEdges) al
+   * (kind, idx) que el port usa. Para cada node_type el formato es
+   * distinto.
+   */
+  function portKeyFor(
+    node: BuilderNode,
+    edgeIdx: number,
+  ): string {
+    switch (node.node_type) {
+      case "send_buttons":
+        return `${node.node_key}:button:${edgeIdx}`
+      case "send_list":
+        return `${node.node_key}:list_row:${edgeIdx}`
+      case "send_cta_url":
+        return `${node.node_key}:cta:0`
+      default:
+        // single-output kinds + logic nodes — usan el port "text" del wrapper
+        return `${node.node_key}:text:0`
+    }
+  }
+
+  /**
+   * Calcula todas las aristas con sus coordenadas absolutas. Usa la
+   * posición medida del port (si existe) o cae a un offset
+   * deterministico. Re-corre cuando los nodos se mueven o los ports
+   * son re-medidos.
    */
   const edges = useMemo<CanvasEdge[]>(() => {
     const out: CanvasEdge[] = []
-    // Disparador → nodo de entrada
     if (props.entryKey && nodesByKey.has(props.entryKey)) {
       const target = nodesByKey.get(props.entryKey)!
       out.push({
@@ -3013,33 +3635,35 @@ function FlowCanvas(props: FlowTreeProps) {
         label: null,
       })
     }
-    // Aristas entre nodos — cuando un nodo tiene VARIAS salidas (botones,
-    // filas de lista, condición Sí/No, intents IA, found/not_found), las
-    // distribuimos verticalmente sobre el lado derecho del card en vez
-    // de salir todas del mismo punto. Resultado tipo ManyChat: cada
-    // opción origina su propia línea desde su slot del card.
     for (const node of props.allNodes) {
       const edgeList = getOutgoingEdges(node)
-      const n = edgeList.length
       edgeList.forEach((e, idx) => {
         if (!e.nextKey) return
         const target = nodesByKey.get(e.nextKey)
         if (!target) return
-        // Punto de salida vertical: si hay 1 sola arista, sale del eje
-        // del header (CARD_AXIS_PX). Si hay N > 1, las distribuimos en
-        // CARD_BODY_PX dejando un padding superior para no chocar con
-        // el header.
-        const yOffset =
-          n === 1
-            ? CARD_AXIS_PX
-            : CARD_AXIS_PX + 28 + (idx + 0.5) * (CARD_BODY_PX / n)
+        // Source: posición real del port si está medido; si no, offset
+        // estimado (igual que antes — funciona como fallback durante el
+        // primer paint antes de que el useLayoutEffect mida).
+        const portKey = portKeyFor(node, idx)
+        const portPos = portPositions.get(portKey)
+        let from: { x: number; y: number }
+        if (portPos) {
+          from = portPos
+        } else {
+          const n = edgeList.length
+          const yOffset =
+            n === 1
+              ? CARD_AXIS_PX
+              : CARD_AXIS_PX + 28 + (idx + 0.5) * (CARD_BODY_PX / n)
+          from = {
+            x: node.position_x + CARD_WIDTH,
+            y: node.position_y + yOffset,
+          }
+        }
         out.push({
           fromKey: node.node_key,
           toKey: target.node_key,
-          from: {
-            x: node.position_x + CARD_WIDTH,
-            y: node.position_y + yOffset,
-          },
+          from,
           to: {
             x: target.position_x,
             y: target.position_y + CARD_AXIS_PX,
@@ -3049,21 +3673,161 @@ function FlowCanvas(props: FlowTreeProps) {
       })
     }
     return out
-  }, [props.allNodes, props.entryKey, nodesByKey])
+  }, [props.allNodes, props.entryKey, nodesByKey, portPositions])
 
-  // Caja virtual del lienzo — grande para que el usuario pueda mover
-  // nodos lejos sin que la página se "termine". El viewport hace pan
-  // y zoom encima.
+  // ── Estado y handlers de drag-to-connect ──
+  //
+  // Arquitectura del drag-to-connect (refactorizada tras review):
+  //   - `connecting` (state) — tiene el "from" inmutable durante el drag.
+  //     Sólo cambia cuando empieza (mousedown) y cuando termina
+  //     (mouseup). Esto evita que el useEffect que ata window listeners
+  //     se re-monte 60 veces por segundo.
+  //   - `cursorRef` (ref) — coords actuales del cursor en coord lienzo.
+  //     Se actualiza en cada mousemove sin re-render.
+  //   - `tickConnecting` (state) — contador. Lo incrementamos en cada
+  //     mousemove (vía rAF throttle) para gatillar el redraw de la
+  //     ghost-line SVG. Como es un número simple, React no re-monta
+  //     listeners.
+  //   - Los handlers (`move`, `up`) leen las cosas vivas vía refs
+  //     (`connectingRef`, `props` actual vía `wireRef`), nunca por
+  //     closure.
+  const [connecting, setConnecting] = useState<ConnectingState | null>(null)
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
+  const cursorRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  /** Última coord cliente vista (no canvas) — para recomputar cursorRef
+   *  cuando el usuario hace wheel-pan / zoom sin mover el mouse. */
+  const lastClientRef = useRef<{ x: number; y: number } | null>(null)
+  const connectingRef = useRef<ConnectingState | null>(null)
+  const wireRef = useRef(props.onWireConnection)
+  useEffect(() => {
+    wireRef.current = props.onWireConnection
+  }, [props.onWireConnection])
+  const [, forceTick] = useState(0)
+
+  const onConnectStart = useCallback(
+    (
+      nodeKey: string,
+      kind: "button" | "list_row" | "cta" | "text",
+      idx: number,
+      e: React.MouseEvent,
+    ) => {
+      // Leemos la posición del port directamente del DOM (e.currentTarget),
+      // no del cache portPositions — el cache puede no haber medido al
+      // primer click (sobre todo en nodos recién agregados).
+      const portEl = e.currentTarget as HTMLElement
+      const root = canvasRef.current
+      if (!root) return
+      const rootRect = root.getBoundingClientRect()
+      const portRect = portEl.getBoundingClientRect()
+      const fromX = (portRect.left + portRect.width / 2 - rootRect.left) / scale
+      const fromY = (portRect.top + portRect.height / 2 - rootRect.top) / scale
+      const cursorX = (e.clientX - rootRect.left) / scale
+      const cursorY = (e.clientY - rootRect.top) / scale
+      cursorRef.current = { x: cursorX, y: cursorY }
+      const next: ConnectingState = {
+        fromNodeKey: nodeKey,
+        fromKind: kind,
+        fromIdx: idx,
+        fromX,
+        fromY,
+        cursorX,
+        cursorY,
+      }
+      connectingRef.current = next
+      props.connectingActiveRef.current = true
+      setConnecting(next)
+    },
+    [scale, props.connectingActiveRef],
+  )
+
+  // El useEffect SE MONTA UNA VEZ cuando `connecting` pasa a no-null,
+  // y se desmonta cuando vuelve a null. Adentro, los handlers leen
+  // todo lo vivo vía refs (cursorRef, connectingRef, wireRef) así no
+  // necesitamos reattachar listeners.
+  useEffect(() => {
+    if (!connecting) return
+    let rafQueued = false
+    function flush() {
+      rafQueued = false
+      forceTick((c) => (c + 1) | 0)
+    }
+    function move(e: MouseEvent) {
+      const root = canvasRef.current
+      if (!root) return
+      const rootRect = root.getBoundingClientRect()
+      const cx = (e.clientX - rootRect.left) / scale
+      const cy = (e.clientY - rootRect.top) / scale
+      lastClientRef.current = { x: e.clientX, y: e.clientY }
+      cursorRef.current = { x: cx, y: cy }
+      // Throttle re-render a rAF — el ghost line se redibuja a
+      // ~60fps sin saturar React.
+      if (!rafQueued) {
+        rafQueued = true
+        requestAnimationFrame(flush)
+      }
+      // Detección de drop target (DOM-only, no necesita re-render).
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const nodeEl = el?.closest<HTMLElement>("[data-node-key]")
+      const key = nodeEl?.dataset.nodeKey ?? null
+      const fromKey = connectingRef.current?.fromNodeKey
+      const nextTarget = key && key !== fromKey ? key : null
+      // setState SOLO si cambió — evitamos re-renders gratis.
+      setDropTargetKey((prev) => (prev === nextTarget ? prev : nextTarget))
+    }
+    function up(e: MouseEvent) {
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const nodeEl = el?.closest<HTMLElement>("[data-node-key]")
+      const toKey = nodeEl?.dataset.nodeKey ?? null
+      const c = connectingRef.current
+      if (toKey && c && toKey !== c.fromNodeKey) {
+        wireRef.current(c.fromNodeKey, c.fromKind, c.fromIdx, toKey)
+      }
+      connectingRef.current = null
+      props.connectingActiveRef.current = false
+      setConnecting(null)
+      setDropTargetKey(null)
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+    return () => {
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+    // Sólo nos importa "empezó/terminó" (boolean) + scale (lectura del
+    // coord). NO depemos del objeto `connecting` entero ni de `props`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!connecting, scale])
+
+  /**
+   * Wheel-pan / zoom mientras un drag-to-connect está activo:
+   * el cursor del mouse no se mueve pero tx/ty/scale cambian, así
+   * que la línea fantasma se "despegaba" del cursor. Re-derivamos
+   * cursorRef desde lastClientRef cada vez que cambian las
+   * transformaciones, y forzamos un re-render.
+   */
+  useEffect(() => {
+    if (!connecting) return
+    const lc = lastClientRef.current
+    const root = canvasRef.current
+    if (!lc || !root) return
+    const rootRect = root.getBoundingClientRect()
+    cursorRef.current = {
+      x: (lc.x - rootRect.left) / scale,
+      y: (lc.y - rootRect.top) / scale,
+    }
+    forceTick((c) => (c + 1) | 0)
+  }, [tx, ty, scale, connecting])
+
+  // Caja virtual del lienzo
   const CANVAS_W = 6000
   const CANVAS_H = 4000
 
   return (
     <div
+      ref={canvasRef}
       className="relative"
       style={{ width: CANVAS_W, height: CANVAS_H }}
     >
-      {/* SVG con todas las líneas — capa de fondo. pointer-events:none
-          para que el drag de los nodos funcione. */}
       <svg
         className="pointer-events-none absolute inset-0"
         width={CANVAS_W}
@@ -3072,16 +3836,23 @@ function FlowCanvas(props: FlowTreeProps) {
         {edges.map((e, i) => (
           <ConnectorPath key={i} edge={e} />
         ))}
+        {connecting && (
+          <ConnectorPath
+            edge={{
+              fromKey: "__connecting__",
+              toKey: "__cursor__",
+              from: { x: connecting.fromX, y: connecting.fromY },
+              // cursor vivo via ref — el rAF tick fuerza el re-render
+              // de esta línea sin tocar `connecting`.
+              to: { x: cursorRef.current.x, y: cursorRef.current.y },
+              label: null,
+            }}
+            dashed
+            color="#00a5f4"
+          />
+        )}
       </svg>
 
-      {/* Etiquetas de rama eliminadas: chocaban con otros nodos y
-          duplicaban texto que el bubble preview del card origen ya
-          muestra ("Mi pedido" aparece como botón dentro del card de
-          send_buttons; ponerlo otra vez en la línea era ruido). El
-          texto de la opción adentro del card alcanza para saber qué
-          camino va a dónde. */}
-
-      {/* Disparador — fijo en TRIGGER_POS, NO draggeable */}
       <div
         className="absolute"
         style={{
@@ -3098,7 +3869,6 @@ function FlowCanvas(props: FlowTreeProps) {
         />
       </div>
 
-      {/* Nodos — cada uno absoluto, con drag handle integrado */}
       {props.allNodes.map((node) => (
         <DraggableNode
           key={node.node_key}
@@ -3106,6 +3876,7 @@ function FlowCanvas(props: FlowTreeProps) {
           allNodes={props.allNodes}
           isEntry={props.entryNodeId === node.node_key}
           isFlashed={props.flashedKey === node.node_key}
+          isDropTarget={dropTargetKey === node.node_key}
           cardRef={props.setNodeRef(node.node_key)}
           issues={
             props.silenced.has(node.node_key)
@@ -3115,9 +3886,13 @@ function FlowCanvas(props: FlowTreeProps) {
                 )
           }
           onMove={(x, y) => props.onMove(node.node_key, x, y)}
+          onDragStart={() => props.onSnapshotHistory()}
           onUpdate={(patch) => props.onUpdate(node.node_key, patch)}
           onUpdateConfig={(patch) =>
             props.onUpdateConfig(node.node_key, patch)
+          }
+          onConnectStart={(kind, idx, e) =>
+            onConnectStart(node.node_key, kind, idx, e)
           }
           onDuplicate={() => props.onDuplicate(node.node_key)}
           onRemove={() => props.onRemove(node.node_key)}
@@ -3128,19 +3903,25 @@ function FlowCanvas(props: FlowTreeProps) {
   )
 }
 
-function ConnectorPath({ edge }: { edge: CanvasEdge }) {
-  // Curva Bezier suave en horizontal: el control point está a 1/3 del
-  // delta-X de cada lado. Se ve como "tubo" que respeta el sentido
-  // izquierda→derecha del flujo.
+function ConnectorPath({
+  edge,
+  dashed = false,
+  color,
+}: {
+  edge: CanvasEdge
+  dashed?: boolean
+  color?: string
+}) {
   const dx = Math.max(40, (edge.to.x - edge.from.x) * 0.35)
   const d = `M ${edge.from.x} ${edge.from.y} C ${edge.from.x + dx} ${edge.from.y}, ${edge.to.x - dx} ${edge.to.y}, ${edge.to.x} ${edge.to.y}`
   return (
     <path
       d={d}
       fill="none"
-      stroke="var(--border)"
-      strokeWidth={1.5}
+      stroke={color ?? "var(--border)"}
+      strokeWidth={dashed ? 2 : 1.5}
       strokeLinecap="round"
+      strokeDasharray={dashed ? "5 4" : undefined}
     />
   )
 }
@@ -3150,11 +3931,18 @@ interface DraggableNodeProps {
   allNodes: BuilderNode[]
   isEntry: boolean
   isFlashed: boolean
+  isDropTarget: boolean
   cardRef: (el: HTMLDivElement | null) => void
   issues: ValidationIssue[]
   onMove: (x: number, y: number) => void
+  onDragStart: () => void
   onUpdate: (patch: Partial<BuilderNode>) => void
   onUpdateConfig: (patch: Record<string, unknown>) => void
+  onConnectStart: (
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    e: React.MouseEvent,
+  ) => void
   onDuplicate: () => void
   onRemove: () => void
   onSetEntry: () => void
@@ -3173,12 +3961,10 @@ function DraggableNode(props: DraggableNodeProps) {
   const onDragMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
-      // No iniciar drag si el click es sobre un control interactivo
-      // (botón, input, select). El usuario está editando, no moviendo.
       const t = e.target as HTMLElement
       if (
         t.closest(
-          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"]',
+          'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-connection-port="true"]',
         )
       ) {
         return
@@ -3191,8 +3977,11 @@ function DraggableNode(props: DraggableNodeProps) {
         nodeX: props.node.position_x,
         nodeY: props.node.position_y,
       }
+      // Notificamos para snapshot a undo stack ANTES del primer move.
+      props.onDragStart()
       setDragging(true)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.node.position_x, props.node.position_y],
   )
 
@@ -3220,8 +4009,11 @@ function DraggableNode(props: DraggableNodeProps) {
   return (
     <div
       className={cn(
-        "absolute",
-        dragging && "z-30 cursor-grabbing",
+        "absolute select-none transition-transform",
+        dragging
+          ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
+          : "cursor-grab",
+        dragging && "scale-[1.02]",
       )}
       style={{
         left: props.node.position_x,
@@ -3235,10 +4027,12 @@ function DraggableNode(props: DraggableNodeProps) {
         allNodes={props.allNodes}
         isEntry={props.isEntry}
         isFlashed={props.isFlashed}
+        isDropTarget={props.isDropTarget}
         cardRef={props.cardRef}
         issues={props.issues}
         onUpdate={props.onUpdate}
         onUpdateConfig={props.onUpdateConfig}
+        onConnectStart={props.onConnectStart}
         onDuplicate={props.onDuplicate}
         onRemove={props.onRemove}
         onSetEntry={props.onSetEntry}
@@ -3313,10 +4107,6 @@ function getOutgoingEdges(node: BuilderNode): OutgoingEdge[] {
 interface FlowTreeProps {
   entryKey: string | null
   allNodes: BuilderNode[]
-  /**
-   * Set de node_keys cuyos errores no deben mostrarse en su tarjeta
-   * (recién creados / aún no editados por el usuario).
-   */
   silenced: Set<string>
   expanded: Set<string>
   entryNodeId: string | null
@@ -3327,6 +4117,21 @@ interface FlowTreeProps {
   onUpdate: (key: string, patch: Partial<BuilderNode>) => void
   onUpdateConfig: (key: string, patch: Record<string, unknown>) => void
   onMove: (key: string, x: number, y: number) => void
+  /** Snapshot pre-drag para el undo stack. */
+  onSnapshotHistory: () => void
+  /** Wire una conexión disparada por drag-to-connect. */
+  onWireConnection: (
+    fromKey: string,
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    toKey: string,
+  ) => void
+  /**
+   * Ref que FlowBuilder lee desde el keydown handler (Ctrl+Z) para
+   * bloquear undo/redo durante un drag-to-connect activo. FlowCanvas
+   * lo marca true en onConnectStart y false en mouseup.
+   */
+  connectingActiveRef: React.MutableRefObject<boolean>
   onDuplicate: (key: string) => void
   onRemove: (key: string) => void
   onSetEntry: (key: string) => void

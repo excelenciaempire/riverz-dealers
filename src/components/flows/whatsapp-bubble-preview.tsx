@@ -70,6 +70,27 @@ export interface WhatsappBubblePreviewProps {
   onRemoveListRow?: (rowIdx: number) => void;
   onCtaTitleChange?: (title: string) => void;
   onCtaUrlChange?: (url: string) => void;
+  // ── Conexiones (drag-to-connect) ──
+  /**
+   * Cuando true, renderiza un "hueco" (port) en el borde derecho de
+   * cada opción conectable (botones / filas de lista / botón CTA).
+   * El user puede agarrar ese port y arrastrar a otro card para
+   * crear la conexión.
+   */
+  connectablePorts?: boolean;
+  /** Estado actual de cada conexión saliente; usado para marcar el
+   *  port como "conectado" (lleno) o "vacío". */
+  buttonConnected?: boolean[];
+  listRowConnected?: boolean[];
+  ctaConnected?: boolean;
+  textConnected?: boolean;
+  /** Disparado al apretar el mousedown sobre un port. El consumidor
+   *  inicia un drag y maneja la conexión cuando se suelta el mouse. */
+  onPortMouseDown?: (
+    kind: "button" | "list_row" | "cta" | "text",
+    idx: number,
+    e: React.MouseEvent,
+  ) => void;
 }
 
 const BG = '#e5ddd5';
@@ -82,6 +103,16 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
   const text = props.text ?? '';
   const editable = !!props.editable;
 
+  // Tipos con UNA sola salida — el port va sobre el bubble principal.
+  // Para "buttons" / "list" / "cta_url", el port vive en cada opción
+  // (botón / fila / chip CTA) y este wrapper no muestra port suelto.
+  const showSingleOutPort =
+    props.connectablePorts &&
+    (props.kind === 'text' ||
+      props.kind === 'image' ||
+      props.kind === 'video' ||
+      props.kind === 'document');
+
   return (
     <div
       className="space-y-1.5 rounded-md p-2"
@@ -92,6 +123,13 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
         backgroundSize: '10px 10px',
       }}
     >
+      <div className="relative" data-port-kind="text">
+        {showSingleOutPort && (
+          <ConnectionPort
+            connected={!!props.textConnected}
+            onMouseDown={(e) => props.onPortMouseDown?.('text', 0, e)}
+          />
+        )}
       <Bubble>
         {props.kind === 'image' && (
           <MediaPlaceholder
@@ -185,6 +223,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
 
         <Meta />
       </Bubble>
+      </div>
 
       {/* Reply buttons render as their own bubbles below */}
       {props.kind === 'buttons' && (
@@ -197,6 +236,15 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               onChange={(v) => props.onButtonChange?.(i, v)}
               onRemove={
                 editable ? () => props.onRemoveButton?.(i) : undefined
+              }
+              port={
+                props.connectablePorts
+                  ? {
+                      connected: !!props.buttonConnected?.[i],
+                      onMouseDown: (e) =>
+                        props.onPortMouseDown?.('button', i, e),
+                    }
+                  : undefined
               }
             />
           ))}
@@ -224,8 +272,9 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
 
       {props.kind === 'cta_url' && (
         <div
-          className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
+          className="relative flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
           style={{ color: LINK }}
+          data-port-kind="cta"
         >
           <ExternalLink className="h-3 w-3" />
           {editable ? (
@@ -238,6 +287,12 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
             />
           ) : (
             (props.ctaTitle ?? 'Botón').slice(0, 20)
+          )}
+          {props.connectablePorts && (
+            <ConnectionPort
+              connected={!!props.ctaConnected}
+              onMouseDown={(e) => props.onPortMouseDown?.('cta', 0, e)}
+            />
           )}
         </div>
       )}
@@ -259,7 +314,8 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
           {(props.listRows ?? []).slice(0, 10).map((r, i) => (
             <div
               key={i}
-              className="group/row flex items-start gap-1 border-b border-black/5 py-0.5 last:border-b-0"
+              className="group/row relative flex items-start gap-1 border-b border-black/5 py-0.5 last:border-b-0"
+              data-port-kind="list_row"
             >
               <div className="min-w-0 flex-1">
                 {editable ? (
@@ -303,12 +359,20 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
                 <button
                   type="button"
                   onClick={() => props.onRemoveListRow?.(i)}
-                  className="rounded p-0.5 opacity-0 transition-opacity group-hover/row:opacity-100"
+                  className="mr-3 rounded p-0.5 opacity-0 transition-opacity group-hover/row:opacity-100"
                   style={{ color: META }}
                   aria-label="Quitar fila"
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
+              )}
+              {props.connectablePorts && (
+                <ConnectionPort
+                  connected={!!props.listRowConnected?.[i]}
+                  onMouseDown={(e) =>
+                    props.onPortMouseDown?.('list_row', i, e)
+                  }
+                />
               )}
             </div>
           ))}
@@ -519,16 +583,19 @@ function ButtonChip({
   editable,
   onChange,
   onRemove,
+  port,
 }: {
   title: string;
   editable: boolean;
   onChange: (v: string) => void;
   onRemove?: () => void;
+  port?: { connected: boolean; onMouseDown: (e: React.MouseEvent) => void };
 }) {
   return (
     <div
       className="group/btn relative flex items-center justify-center rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
       style={{ color: LINK }}
+      data-port-kind="button"
     >
       {editable ? (
         <InlineInput
@@ -546,13 +613,50 @@ function ButtonChip({
         <button
           type="button"
           onClick={onRemove}
-          className="absolute right-1 rounded p-0.5 opacity-0 transition-opacity group-hover/btn:opacity-100"
+          className="absolute right-5 rounded p-0.5 opacity-0 transition-opacity group-hover/btn:opacity-100"
           style={{ color: META }}
           aria-label="Quitar botón"
         >
           <X className="h-2.5 w-2.5" />
         </button>
       )}
+      {port && <ConnectionPort {...port} />}
     </div>
+  );
+}
+
+/**
+ * Hueco circular en el borde derecho. Si está conectado (`connected`),
+ * se ve relleno; si no, hueco. Agarrarlo con el mouse arranca el flujo
+ * de drag-to-connect que el canvas resuelve.
+ */
+function ConnectionPort({
+  connected,
+  onMouseDown,
+}: {
+  connected: boolean;
+  onMouseDown: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <span
+      data-connection-port="true"
+      onMouseDown={(e) => {
+        // No queremos que el mousedown propague al card (que dispara
+        // drag del nodo entero). Tampoco a otros listeners. El consumidor
+        // decide qué hacer.
+        e.stopPropagation();
+        e.preventDefault();
+        onMouseDown(e);
+      }}
+      className={cn(
+        'absolute right-[-7px] top-1/2 z-10 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-all',
+        'h-3 w-3',
+        connected
+          ? 'border-[#00a5f4] bg-[#00a5f4] shadow-[0_0_0_2px_rgba(0,165,244,0.18)]'
+          : 'border-[#9aa6ad] bg-white hover:border-[#00a5f4] hover:scale-125 hover:shadow-[0_0_0_3px_rgba(0,165,244,0.22)]',
+      )}
+      aria-label={connected ? 'Conexión existente' : 'Conectar a otro paso'}
+      role="button"
+    />
   );
 }
