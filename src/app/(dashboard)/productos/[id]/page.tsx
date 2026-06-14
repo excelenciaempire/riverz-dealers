@@ -382,7 +382,7 @@ export default function ProductDetailPage() {
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ej: Este producto se envía sólo dentro de Bogotá. Si el cliente está en otra ciudad, ofrecé el envío express por DHL con un cargo adicional."
+          placeholder="Ej: Solo enviamos dentro de Bogotá. Fuera de la ciudad, envío por DHL con cargo adicional."
           className="mt-3 min-h-[120px] bg-muted/30"
         />
       </div>
@@ -412,7 +412,7 @@ export default function ProductDetailPage() {
 
         {faqs.length === 0 && product.ai_generated_faqs.length === 0 && (
           <p className="mt-3 text-xs italic text-muted-foreground">
-            Todavía no hay FAQs. Generá investigación o agregá una a mano.
+            Todavía no hay FAQs. Genera investigación o agrega una a mano.
           </p>
         )}
 
@@ -511,19 +511,17 @@ export default function ProductDetailPage() {
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Estos asistentes ven este producto en su catálogo y pueden
-          responder dudas sobre él. Cuál de ellos termina respondiendo a
-          cada cliente se decide por canal y prioridad — todavía no
-          rutemos al asistente &quot;dueño&quot; por producto mencionado.
+          responder dudas sobre él.
         </p>
 
         {allAgents.length === 0 ? (
           <p className="mt-3 text-xs italic text-muted-foreground">
-            Todavía no tenés asistentes.{' '}
+            Todavía no tienes asistentes.{' '}
             <Link
               href="/asistente"
               className="text-foreground underline hover:text-accent-ink"
             >
-              Creá uno en Servicio al cliente.
+              Crea uno en Servicio al cliente.
             </Link>
           </p>
         ) : (

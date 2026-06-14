@@ -608,8 +608,8 @@ export default function InboxPage() {
           href="/integraciones"
           className="group flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 transition-colors hover:bg-amber-500/15"
         >
-          <Plug2 className="h-4 w-4 text-amber-400" />
-          <p className="text-xs text-amber-200">
+          <Plug2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs text-amber-800 dark:text-amber-200">
             <span className="font-semibold underline-offset-2 group-hover:underline">
               Conectar un canal →
             </span>

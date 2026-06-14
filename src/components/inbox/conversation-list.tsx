@@ -466,7 +466,7 @@ function ConversationItem({
           >
             <DropdownMenuItem
               onClick={(e) => handleDelete(e as unknown as Event)}
-              className="text-sm text-red-400 focus:bg-red-500/10 focus:text-red-300"
+              className="text-sm text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Eliminar conversación
@@ -507,7 +507,7 @@ function ConversationItem({
             {conversation.is_ad && (
               <span
                 title="Comentario en un anuncio pagado"
-                className="inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+                className="inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
               >
                 Anuncio
               </span>

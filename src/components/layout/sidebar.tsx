@@ -407,7 +407,7 @@ function NavLink({
       {item.beta && !collapsed && (
         <span
           aria-label="Función Beta"
-          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
         >
           Beta
         </span>

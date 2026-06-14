@@ -8,8 +8,8 @@ import { ChannelsPanel } from '@/components/settings/channels-panel';
  * /integraciones — todas las apps externas y canales que se conectan a
  * la cuenta (WhatsApp, Meta, Google, Microsoft, Shopify). Antes vivía
  * como un tab dentro de /ajustes; ahora es su propia página para que
- * el onboarding ("conectá WhatsApp", "conectá Shopify") tenga un home
- * propio y no se mezcle con perfil / equipo / etiquetas.
+ * el onboarding ("conecta WhatsApp", "conecta Shopify") tenga un home
+ * propio y no se mezcle con perfil / equipo.
  *
  * El componente `<ChannelsPanel/>` ya estaba escrito y maneja todos
  * los providers — sólo lo movemos de lugar.
@@ -24,7 +24,7 @@ export default function IntegracionesPage() {
         </div>
         <h1 className="mt-1 text-2xl font-bold text-foreground">Integraciones</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Conectá WhatsApp, Shopify, Gmail, Outlook, Facebook e Instagram para
+          Conecta WhatsApp, Shopify, Gmail, Outlook, Facebook e Instagram para
           que tu equipo trabaje desde una sola bandeja y los bots tengan
           contexto de tu tienda.
         </p>

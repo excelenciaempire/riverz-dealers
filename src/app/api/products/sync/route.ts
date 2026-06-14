@@ -43,7 +43,7 @@ export async function POST() {
     return NextResponse.json(
       {
         error:
-          'No hay una conexión Shopify activa. Conectá Shopify desde Integraciones primero.',
+          'No hay una conexión Shopify activa. Conecta Shopify desde Integraciones primero.',
       },
       { status: 412 },
     );

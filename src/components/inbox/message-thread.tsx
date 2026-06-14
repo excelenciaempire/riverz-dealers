@@ -125,7 +125,7 @@ function groupMessagesByDate(messages: Message[], tz: string) {
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
   { label: "Abierta", value: "open", color: "text-accent-ink" },
-  { label: "Pendiente", value: "pending", color: "text-amber-400" },
+  { label: "Pendiente", value: "pending", color: "text-amber-600 dark:text-amber-400" },
   { label: "Cerrada", value: "closed", color: "text-muted-foreground" },
 ];
 
@@ -785,7 +785,7 @@ export function MessageThread({
             variant="outline"
             className={cn(
               "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-accent-ink"
+              sessionInfo.expired ? "text-red-600 dark:text-red-400" : "text-accent-ink"
             )}
           >
             <Clock className="h-3 w-3" />
@@ -953,7 +953,7 @@ export function MessageThread({
                   "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                   conversation.channel === "fb_comment"
                     ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
-                    : "bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30",
+                    : "bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-1 ring-pink-500/30",
                 )}
               >
                 {conversation.channel === "fb_comment" ? "Post FB" : "Post IG"}
@@ -963,7 +963,7 @@ export function MessageThread({
               {isAd && (
                 <span
                   title="Anuncio pagado"
-                  className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+                  className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
                 >
                   Anuncio
                 </span>

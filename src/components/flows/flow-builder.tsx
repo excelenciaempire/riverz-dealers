@@ -1655,7 +1655,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
       {/* Canvas libre: cada nodo posicionado en (position_x, position_y),
           conectados por líneas SVG curvas que se re-calculan en cada
-          re-render → arrastrá cualquier card y las líneas se estiran
+          re-render → arrastra cualquier card y las líneas se estiran
           solas. Disparador y nodos son draggeables. */}
       <div className="relative flex min-h-0 flex-1">
         <CanvasViewport onComputeContentBounds={computeContentBounds}>

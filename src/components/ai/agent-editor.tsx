@@ -692,7 +692,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
             <div className="border-b border-border px-4 py-3">
               <p className="text-xs font-semibold text-foreground">Probar el asistente</p>
               <p className="text-[11px] text-muted-foreground">
-                Mandá un mensaje y mirá cómo respondería.
+                Envía un mensaje y mira cómo respondería.
               </p>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -709,7 +709,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
               )}
               {!editing && (
                 <p className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-                  Guardá el asistente antes de probarlo.
+                  Guarda el asistente antes de probarlo.
                 </p>
               )}
             </div>

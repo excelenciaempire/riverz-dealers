@@ -127,28 +127,28 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     icon: Tag,
     border: "border-l-pink-500",
     iconBg: "bg-pink-500/15",
-    iconText: "text-pink-400",
+    iconText: "text-pink-600 dark:text-pink-400",
   },
   remove_tag: {
     label: "Quitar etiqueta",
     icon: TagIcon,
     border: "border-l-rose-500",
     iconBg: "bg-rose-500/15",
-    iconText: "text-rose-400",
+    iconText: "text-rose-600 dark:text-rose-400",
   },
   assign_conversation: {
     label: "Asignar conversación",
     icon: UserCheck,
     border: "border-l-cyan-500",
     iconBg: "bg-cyan-500/15",
-    iconText: "text-cyan-400",
+    iconText: "text-cyan-600 dark:text-cyan-400",
   },
   update_contact_field: {
     label: "Actualizar campo del contacto",
     icon: PencilLine,
     border: "border-l-violet-500",
     iconBg: "bg-violet-500/15",
-    iconText: "text-violet-400",
+    iconText: "text-violet-600 dark:text-violet-400",
   },
   wait: {
     label: "Esperar",
@@ -162,7 +162,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     icon: GitBranch,
     border: "border-l-amber-500",
     iconBg: "bg-amber-500/15",
-    iconText: "text-amber-400",
+    iconText: "text-amber-600 dark:text-amber-400",
   },
   send_webhook: {
     label: "Enviar webhook",
@@ -176,7 +176,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     icon: CircleSlash,
     border: "border-l-red-500",
     iconBg: "bg-red-500/15",
-    iconText: "text-red-400",
+    iconText: "text-red-600 dark:text-red-400",
   },
 }
 
@@ -744,7 +744,7 @@ function TriggerCard({
           <div
             className={cn(
               "flex h-9 w-9 items-center justify-center rounded-lg",
-              type.startsWith("shopify_") ? "bg-white" : "bg-blue-500/10 text-blue-400",
+              type.startsWith("shopify_") ? "bg-white" : "bg-blue-500/10 text-blue-600 dark:text-blue-400",
             )}
           >
             {type.startsWith("shopify_") ? (
@@ -757,7 +757,7 @@ function TriggerCard({
             <div
               className={cn(
                 "text-[11px] uppercase tracking-wide",
-                type.startsWith("shopify_") ? "text-emerald-300" : "text-blue-300",
+                type.startsWith("shopify_") ? "text-emerald-700 dark:text-emerald-300" : "text-blue-700 dark:text-blue-300",
               )}
             >
               {type.startsWith("shopify_") ? "Activador · Shopify" : "Activador"}
@@ -1079,7 +1079,7 @@ function ConditionBranches({
       <BranchColumn label="Sí" color="text-accent-ink">
         <StepList {...props} steps={yes} parentPath={yesPath} />
       </BranchColumn>
-      <BranchColumn label="No" color="text-rose-400">
+      <BranchColumn label="No" color="text-rose-600 dark:text-rose-400">
         <StepList {...props} steps={no} parentPath={noPath} />
       </BranchColumn>
     </div>
@@ -1139,7 +1139,7 @@ function AddButton({
           className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
         >
           <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Elegí qué hacer
+            Elige qué hacer
           </div>
           {ADDABLE_STEPS.map((t) => {
             const m = STEP_META[t]
@@ -1215,7 +1215,7 @@ function StepEditor({
               }}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
             >
-              <option value="">Elegí una plantilla…</option>
+              <option value="">Elige una plantilla…</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.name}>
                   {t.name} · {t.language ?? "es"}

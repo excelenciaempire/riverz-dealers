@@ -52,7 +52,7 @@ export default function EditAutomationPage({
   if (error) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         <button
           onClick={() => router.push("/automatizaciones")}
           className="text-sm text-accent-ink hover:text-accent-ink/80"

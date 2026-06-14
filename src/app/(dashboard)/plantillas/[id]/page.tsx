@@ -273,7 +273,7 @@ export default function TemplateDetailPage() {
             <p className="mt-2 text-sm text-foreground">
               {template.status === 'Approved' && (
                 <>
-                  Aprobada. Podés usarla en campañas masivas y mensajes
+                  Aprobada. Puedes usarla en campañas masivas y mensajes
                   fuera de la ventana de 24h.
                 </>
               )}
@@ -282,14 +282,14 @@ export default function TemplateDetailPage() {
               )}
               {template.status === 'Rejected' && (
                 <>
-                  Rechazada por Meta. Revisá las reglas de plantillas
-                  (no promesas exageradas, no contenido restringido) y volvé
+                  Rechazada por Meta. Revisa las reglas de plantillas
+                  (no promesas exageradas, no contenido restringido) y vuelve
                   a enviarla.
                 </>
               )}
               {(!template.status || template.status === 'Draft') && (
                 <>
-                  Es un borrador. Mandala a aprobar desde Meta para poder
+                  Es un borrador. Envíala a aprobar desde Meta para poder
                   usarla en envíos masivos.
                 </>
               )}

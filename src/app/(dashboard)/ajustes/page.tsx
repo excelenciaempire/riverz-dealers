@@ -2,20 +2,19 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Tag, User, Palette, Building2, Blocks, ArrowRight } from 'lucide-react';
+import { User, Palette, Building2, Blocks, ArrowRight } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
-import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
 
 /**
  * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
- * viven en /integraciones (es su propia página, no un tab acá).
+ * viven en /integraciones (es su propia página, no un tab acá). Las
+ * etiquetas se gestionan donde se usan: en Contactos y en el chat.
  */
-const TAB_VALUES = ['profile', 'workspace', 'tags', 'appearance'] as const;
+const TAB_VALUES = ['profile', 'workspace', 'appearance'] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 function isTabValue(v: string | null): v is TabValue {
@@ -68,13 +67,6 @@ export default function SettingsPage() {
             Equipo
           </TabsTrigger>
           <TabsTrigger
-            value="tags"
-            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-          >
-            <Tag className="size-4" />
-            Etiquetas
-          </TabsTrigger>
-          <TabsTrigger
             value="appearance"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
@@ -85,16 +77,11 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="space-y-6">
           <ProfileForm />
-          <PasswordForm />
           <SessionsCard />
         </TabsContent>
 
         <TabsContent value="workspace">
           <WorkspacePanel />
-        </TabsContent>
-
-        <TabsContent value="tags">
-          <TagManager />
         </TabsContent>
 
         <TabsContent value="appearance">

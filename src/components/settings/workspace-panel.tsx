@@ -136,7 +136,7 @@ export function WorkspacePanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Sin espacio de trabajo. Volvé a iniciar sesión.
+        Sin espacio de trabajo. Vuelve a iniciar sesión.
       </div>
     );
   }

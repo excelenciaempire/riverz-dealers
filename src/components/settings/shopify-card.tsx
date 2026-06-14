@@ -102,13 +102,13 @@ export function ShopifyCard() {
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
       ) : !configured ? (
-        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-300">
+        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
           Faltan credenciales SHOPIFY_API_KEY / SHOPIFY_API_SECRET en el servidor.
         </p>
       ) : isConnected ? (
         <ul className="space-y-1">
           <li className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
-            <CheckCircle2 className="size-3.5 text-emerald-400" />
+            <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="flex-1 truncate text-xs text-foreground">
               {connection?.shop_name || connection?.shop_domain}
             </span>
@@ -170,7 +170,7 @@ export function ShopifyCard() {
         </div>
       )}
       {!configured && (
-        <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+        <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           <AlertCircle className="size-3.5" />
           Faltan credenciales
         </div>

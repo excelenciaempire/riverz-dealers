@@ -48,7 +48,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
       }
       if (new Date(invite.expires_at).getTime() < Date.now()) {
         setState("error");
-        setErrorMsg("La invitación caducó. Pedile al administrador que te envíe una nueva.");
+        setErrorMsg("La invitación caducó. Pídele al administrador que te envíe una nueva.");
         return;
       }
       const ws = Array.isArray(invite.workspace) ? invite.workspace[0] : invite.workspace;
@@ -87,12 +87,12 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "needs_login" && (
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
-            <h1 className="text-lg font-semibold text-foreground">Tenés una invitación</h1>
+            <h1 className="text-lg font-semibold text-foreground">Tienes una invitación</h1>
             <p className="text-sm text-muted-foreground">
-              Iniciá sesión para continuar.
+              Inicia sesión para continuar.
             </p>
             <Link
-              href={`/login?redirect=/invite/${token}`}
+              href={`/ingresar?redirect=/invitacion/${token}`}
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Iniciar sesión
@@ -116,7 +116,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
 
         {state === "accepted" && (
           <div className="space-y-3 text-center">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-700 dark:text-emerald-400" />
             <h1 className="text-lg font-semibold text-foreground">¡Listo!</h1>
             <p className="text-sm text-muted-foreground">Llevándote a la bandeja…</p>
           </div>
@@ -124,7 +124,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
 
         {state === "error" && (
           <div className="space-y-3 text-center">
-            <XCircle className="mx-auto h-8 w-8 text-red-400" />
+            <XCircle className="mx-auto h-8 w-8 text-red-600 dark:text-red-400" />
             <h1 className="text-lg font-semibold text-foreground">Invitación no válida</h1>
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
             <Link

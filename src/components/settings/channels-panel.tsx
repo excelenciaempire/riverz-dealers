@@ -218,21 +218,21 @@ export function ChannelsPanel() {
       {anyProviderMissing && isAdmin && providers && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
           <div className="flex items-start gap-3">
-            <AlertCircle className="size-5 shrink-0 text-amber-400" />
+            <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0 flex-1 space-y-2">
-              <h3 className="text-sm font-semibold text-amber-200">
+              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 Faltan apps OAuth por registrar
               </h3>
               <ul className="space-y-1 text-xs text-amber-100/70">
                 <li>
-                  <span className={providers.meta ? "text-emerald-400" : "text-amber-300"}>
+                  <span className={providers.meta ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
                     {providers.meta ? "✓" : "✗"}
                   </span>{" "}
                   <strong>Meta App</strong> — developers.facebook.com → My Apps → Create App
                   → Business. Variables: <code>META_APP_ID</code>, <code>META_APP_SECRET</code>
                 </li>
                 <li>
-                  <span className={providers.google ? "text-emerald-400" : "text-amber-300"}>
+                  <span className={providers.google ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
                     {providers.google ? "✓" : "✗"}
                   </span>{" "}
                   <strong>Google OAuth Client</strong> — console.cloud.google.com →
@@ -240,7 +240,7 @@ export function ChannelsPanel() {
                   <code>GOOGLE_CLIENT_SECRET</code>
                 </li>
                 <li>
-                  <span className={providers.microsoft ? "text-emerald-400" : "text-amber-300"}>
+                  <span className={providers.microsoft ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
                     {providers.microsoft ? "✓" : "✗"}
                   </span>{" "}
                   <strong>Microsoft Azure App</strong> — portal.azure.com → App registrations
@@ -250,7 +250,7 @@ export function ChannelsPanel() {
               </ul>
               {providers.siteUrl && (
                 <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
-                  <p className="mb-1 text-amber-200">
+                  <p className="mb-1 text-amber-800 dark:text-amber-200">
                     Redirect URIs a pegar en cada consola:
                   </p>
                   <div className="space-y-1 font-mono">
@@ -392,7 +392,7 @@ export function ChannelsPanel() {
                           )}
                         </div>
                         {errText && (
-                          <p className="mt-1 pl-6 text-[10px] leading-snug text-red-400">
+                          <p className="mt-1 pl-6 text-[10px] leading-snug text-red-600 dark:text-red-400">
                             {errText}
                           </p>
                         )}
@@ -452,7 +452,7 @@ export function ChannelsPanel() {
                         className={cn(
                           "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                           !ready
-                            ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+                            ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
                             : anyConnected
                               ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
                               : "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -485,9 +485,9 @@ export function ChannelsPanel() {
 
 function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
   const classes = "size-3.5";
-  if (status === "connected") return <CheckCircle2 className={cn(classes, "text-emerald-400")} />;
-  if (status === "error") return <AlertCircle className={cn(classes, "text-red-400")} />;
-  if (status === "pending") return <Loader2 className={cn(classes, "animate-spin text-amber-400")} />;
+  if (status === "connected") return <CheckCircle2 className={cn(classes, "text-emerald-700 dark:text-emerald-400")} />;
+  if (status === "error") return <AlertCircle className={cn(classes, "text-red-600 dark:text-red-400")} />;
+  if (status === "pending") return <Loader2 className={cn(classes, "animate-spin text-amber-600 dark:text-amber-400")} />;
   return <XCircle className={cn(classes, "text-muted-foreground")} />;
 }
 

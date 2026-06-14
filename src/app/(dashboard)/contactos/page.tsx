@@ -60,6 +60,7 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -96,11 +97,32 @@ export default function ContactsPage() {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    // Filtro por etiquetas: trae los contactos que tienen cualquiera de
+    // las etiquetas seleccionadas (semántica "alguna"), luego restringe.
+    let taggedIds: string[] | null = null;
+    if (selectedTagIds.length > 0) {
+      const { data: links } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', selectedTagIds);
+      taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
+      if (taggedIds.length === 0) {
+        setContacts([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
+    }
+
     let query = supabase
       .from('contacts')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
+
+    if (taggedIds) {
+      query = query.in('id', taggedIds);
+    }
 
     if (search.trim()) {
       const term = `%${search.trim()}%`;
@@ -145,7 +167,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap]);
+  }, [supabase, page, search, tagsMap, selectedTagIds]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -288,6 +310,54 @@ export default function ContactsPage() {
         />
       </div>
 
+      {/* Tag filter */}
+      {Object.keys(tagsMap).length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {Object.values(tagsMap).map((tag) => {
+            const active = selectedTagIds.includes(tag.id);
+            return (
+              <button
+                key={tag.id}
+                onClick={() => {
+                  setSelectedTagIds((prev) =>
+                    prev.includes(tag.id)
+                      ? prev.filter((id) => id !== tag.id)
+                      : [...prev, tag.id],
+                  );
+                  setPage(0);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all',
+                  active ? '' : 'opacity-60 hover:opacity-100',
+                )}
+                style={{
+                  backgroundColor: active ? `${tag.color}20` : 'transparent',
+                  color: tag.color,
+                  borderColor: `${tag.color}66`,
+                }}
+              >
+                <span
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: tag.color }}
+                />
+                {tag.name}
+              </button>
+            );
+          })}
+          {selectedTagIds.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedTagIds([]);
+                setPage(0);
+              }}
+              className="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
@@ -317,7 +387,7 @@ export default function ContactsPage() {
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-muted-foreground" />
                     <p className="max-w-sm text-sm text-muted-foreground">
-                      {search
+                      {search || selectedTagIds.length > 0
                         ? 'Sin resultados.'
                         : 'No hay contactos.'}
                     </p>
@@ -476,7 +546,10 @@ export default function ContactsPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         contactId={detailContactId}
-        onUpdated={fetchContacts}
+        onUpdated={() => {
+          fetchContacts();
+          fetchTags();
+        }}
       />
 
       {/* Import Modal */}

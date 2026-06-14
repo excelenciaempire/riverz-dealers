@@ -415,7 +415,7 @@ export default function NewBroadcastPage() {
                 onChange={(e) => setCreateConversations(e.target.checked)}
                 className="mt-0.5 accent-primary"
               />
-              <span>Abrir conversación en la bandeja por destinatario.</span>
+              <span>Abrir una conversación en la bandeja por cada destinatario</span>
             </label>
           </div>
 

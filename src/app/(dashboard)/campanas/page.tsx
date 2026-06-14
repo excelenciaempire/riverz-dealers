@@ -184,7 +184,7 @@ export default function BroadcastsPage() {
           Campañas masivas
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enviá una plantilla aprobada a una lista de contactos.{' '}
+          Envía una plantilla aprobada a una lista de contactos.{' '}
           <a
             href="https://www.facebook.com/business/help/2055875911147364"
             target="_blank"
@@ -226,7 +226,7 @@ export default function BroadcastsPage() {
               Vista previa con datos de ejemplo
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Estas filas son ilustrativas — desaparecen cuando creás tu primera campaña.
+              Estas filas son de ejemplo. Desaparecen cuando creas tu primera campaña.
             </p>
           </div>
         </div>

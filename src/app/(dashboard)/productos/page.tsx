@@ -134,7 +134,7 @@ export default function ProductosPage() {
       return;
     }
     const ok = window.confirm(
-      `Entrenar ${pendientes.length} producto${pendientes.length === 1 ? '' : 's'}? Esto puede tardar 1-3 segundos por producto. Podés cerrar la pestaña: el progreso se guarda.`,
+      `Entrenar ${pendientes.length} producto${pendientes.length === 1 ? '' : 's'}? Esto puede tardar 1-3 segundos por producto. Puedes cerrar la pestaña: el progreso se guarda.`,
     );
     if (!ok) return;
 
@@ -221,10 +221,8 @@ export default function ProductosPage() {
           </div>
           <h1 className="mt-1 text-2xl font-bold text-foreground">Productos</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Sincronizá tu catálogo de Shopify y asigná un asistente por
-            producto. Cada producto se enriquece con la página pública
-            (Firecrawl) y una investigación automática para responder mejor en
-            WhatsApp.
+            Sincroniza tu catálogo de Shopify y asigna un asistente a cada
+            producto.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -253,7 +251,7 @@ export default function ProductosPage() {
             disabled={syncing || shopifyConnected === false}
             title={
               shopifyConnected === false
-                ? 'Conectá Shopify primero desde Integraciones'
+                ? 'Conecta Shopify primero desde Integraciones'
                 : undefined
             }
             className="h-9 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
@@ -280,7 +278,7 @@ export default function ProductosPage() {
             </p>
             <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300/80">
               Estos productos quedaron de una conexión vieja. Para
-              sincronizar el catálogo actual, reconectá Shopify.
+              sincronizar el catálogo actual, reconecta Shopify.
             </p>
           </div>
           <Link
@@ -501,16 +499,10 @@ function EmptyState({
     <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
       <ShoppingBag className="mx-auto size-8 text-muted-foreground" />
       <h2 className="mt-3 text-base font-medium text-foreground">
-        Conectá tu catálogo
+        Conecta tu catálogo
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Si ya conectaste Shopify, tocá &quot;Sincronizar&quot;. Si no, primero{' '}
-        <Link
-          href="/integraciones"
-          className="text-foreground underline underline-offset-2 hover:text-accent-ink"
-        >
-          conectá Shopify
-        </Link>{' '}
+        Si ya conectaste Shopify, toca «Sincronizar». Si no, primero conéctalo
         en Integraciones.
       </p>
       <div className="mt-4 flex items-center justify-center gap-2">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, CustomField } from '@/types';
+import type { Contact, ContactNote, CustomField } from '@/types';
 import {
   Sheet,
   SheetContent,
@@ -17,8 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ContactTags } from '@/components/contacts/contact-tags';
 import {
   Phone,
   Mail,
@@ -29,7 +28,6 @@ import {
   Plus,
   Trash2,
   Save,
-  X,
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -57,11 +55,6 @@ export function ContactDetailView({
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
-
-  // Tags tab
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [contactTagIds, setContactTagIds] = useState<string[]>([]);
-  const [savingTags, setSavingTags] = useState(false);
 
   // Notes tab
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -93,20 +86,6 @@ export function ContactDetailView({
       setEditCompany(data.company ?? '');
     }
     setLoading(false);
-  }, [contactId, supabase]);
-
-  const fetchTags = useCallback(async () => {
-    if (!contactId) return;
-
-    const [tagsRes, contactTagsRes] = await Promise.all([
-      supabase.from('tags').select('*').order('name'),
-      supabase.from('contact_tags').select('tag_id').eq('contact_id', contactId),
-    ]);
-
-    if (tagsRes.data) setAllTags(tagsRes.data);
-    if (contactTagsRes.data) {
-      setContactTagIds(contactTagsRes.data.map((ct) => ct.tag_id));
-    }
   }, [contactId, supabase]);
 
   const fetchNotes = useCallback(async () => {
@@ -149,11 +128,10 @@ export function ContactDetailView({
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
-      fetchTags();
       fetchNotes();
       fetchCustomFields();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields]);
+  }, [open, contactId, fetchContact, fetchNotes, fetchCustomFields]);
 
   async function copyPhone() {
     if (!contact?.phone) return;
@@ -188,34 +166,6 @@ export function ContactDetailView({
       onUpdated();
     }
     setSavingDetails(false);
-  }
-
-  async function toggleTag(tagId: string) {
-    if (!contactId) return;
-    setSavingTags(true);
-
-    const isSelected = contactTagIds.includes(tagId);
-
-    if (isSelected) {
-      const { error } = await supabase
-        .from('contact_tags')
-        .delete()
-        .eq('contact_id', contactId)
-        .eq('tag_id', tagId);
-      if (!error) {
-        setContactTagIds((prev) => prev.filter((id) => id !== tagId));
-        onUpdated();
-      }
-    } else {
-      const { error } = await supabase
-        .from('contact_tags')
-        .insert({ contact_id: contactId, tag_id: tagId });
-      if (!error) {
-        setContactTagIds((prev) => [...prev, tagId]);
-        onUpdated();
-      }
-    }
-    setSavingTags(false);
   }
 
   async function addNote() {
@@ -446,38 +396,9 @@ export function ContactDetailView({
 
               {/* Tags Tab */}
               <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
-                <div className="space-y-3">
-                  {allTags.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No hay etiquetas.
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {allTags.map((tag) => {
-                        const selected = contactTagIds.includes(tag.id);
-                        return (
-                          <button
-                            key={tag.id}
-                            onClick={() => toggleTag(tag.id)}
-                            disabled={savingTags}
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
-                              selected
-                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
-                                : 'opacity-50 hover:opacity-80'
-                            }`}
-                            style={{
-                              backgroundColor: tag.color + '20',
-                              color: tag.color,
-                            }}
-                          >
-                            {selected && <Check className="size-3 mr-1" />}
-                            {tag.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                {contactId && (
+                  <ContactTags contactId={contactId} onChanged={onUpdated} />
+                )}
               </TabsContent>
 
               {/* Notes Tab */}

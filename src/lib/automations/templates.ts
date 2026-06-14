@@ -50,7 +50,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'cart_recovery',
     name: 'Carrito abandonado',
     description:
-      'Si alguien deja el checkout, esperá 15 min y mandale el link de pago por WhatsApp.',
+      'Si alguien deja el checkout, espera 15 min y envíale el enlace de pago por WhatsApp.',
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     steps: [
@@ -76,7 +76,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'new_order',
     name: 'Nuevo pedido',
     description:
-      'Confirmá la compra por WhatsApp apenas Shopify registra el pedido.',
+      'Confirma la compra por WhatsApp apenas Shopify registra el pedido.',
     trigger_type: 'shopify_order_created',
     trigger_config: {},
     steps: [
@@ -97,7 +97,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'order_fulfilled',
     name: 'Pedido despachado',
     description:
-      'Cuando Shopify marca el pedido como despachado, enviá el número y link de tracking.',
+      'Cuando Shopify marca el pedido como despachado, envía el número y el enlace de seguimiento.',
     trigger_type: 'shopify_order_fulfilled',
     trigger_config: {},
     steps: [
@@ -114,7 +114,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'follow_up_reminder',
     name: 'Recordatorio de seguimiento',
     description:
-      'Si un contacto escribió y nadie le respondió en 24 h, mandale un recordatorio.',
+      'Si un contacto escribió y nadie le respondió en 24 h, envíale un recordatorio.',
     trigger_type: 'new_message_received',
     trigger_config: {},
     steps: [
@@ -135,7 +135,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'repurchase_nudge',
     name: 'Recompras',
     description:
-      'Cuando un cliente vuelve a comprar, agradecele y proponé el próximo paso.',
+      'Cuando un cliente vuelve a comprar, agradécele y propón el próximo paso.',
     trigger_type: 'shopify_order_created',
     trigger_config: {},
     steps: [

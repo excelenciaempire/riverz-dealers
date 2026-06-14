@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import type { Contact, ContactNote, Tag } from "@/types";
+import type { Contact, ContactNote } from "@/types";
 import {
   Phone,
   Mail,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ContactTags } from "@/components/contacts/contact-tags";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -24,45 +24,28 @@ interface ContactSidebarProps {
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
-  const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
-  const fetchContactData = useCallback(async () => {
+  const fetchNotes = useCallback(async () => {
     if (!contact) return;
 
     const supabase = createClient();
+    const { data } = await supabase
+      .from("contact_notes")
+      .select("*")
+      .eq("contact_id", contact.id)
+      .order("created_at", { ascending: false });
 
-    const [notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("contact_tags")
-        .select("id, tag_id, tags(*)")
-        .eq("contact_id", contact.id),
-    ]);
-
-    if (notesRes.data) setNotes(notesRes.data);
-    if (tagsRes.data) {
-      const mapped = tagsRes.data
-        .filter((ct: Record<string, unknown>) => ct.tags)
-        .map((ct: Record<string, unknown>) => ({
-          ...(ct.tags as Tag),
-          contact_tag_id: ct.id as string,
-        }));
-      setTags(mapped);
-    }
+    if (data) setNotes(data);
   }, [contact]);
 
-  // Load on contact change. setContactData/setTags run inside async
-  // Supabase callbacks, not synchronously in the effect body.
+  // Load on contact change. setNotes runs inside an async Supabase
+  // callback, not synchronously in the effect body.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchContactData();
-  }, [fetchContactData]);
+    fetchNotes();
+  }, [fetchNotes]);
 
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
@@ -169,24 +152,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               <TagIcon className="h-3 w-3" />
               Etiquetas
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">Sin etiquetas</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              )}
-            </div>
+            <ContactTags contactId={contact.id} className="mt-2" />
           </div>
 
           {/* Divider */}

@@ -188,7 +188,7 @@ function AgentCard({
           className={cn(
             'flex size-9 shrink-0 items-center justify-center rounded-lg',
             active
-              ? 'bg-emerald-500/15 text-emerald-300'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
               : 'bg-muted text-muted-foreground',
           )}
         >
@@ -208,7 +208,7 @@ function AgentCard({
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
             active
-              ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+              ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
               : 'border-border bg-muted text-muted-foreground',
           )}
         >
@@ -244,7 +244,7 @@ function AgentCard({
             className={cn(
               'rounded p-1 transition-colors',
               active
-                ? 'text-emerald-400 hover:bg-emerald-500/10'
+                ? 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
                 : 'text-muted-foreground hover:bg-accent hover:text-foreground',
             )}
           >
@@ -280,7 +280,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Tu asistente 24/7
       </p>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Configurá un agente que responde en WhatsApp, Instagram, Messenger,
+        Configura un agente que responde en WhatsApp, Instagram, Messenger,
         Gmail u Outlook con el contexto completo de cada conversación.
       </p>
       <Button

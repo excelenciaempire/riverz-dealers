@@ -83,7 +83,7 @@ Devuélveme un JSON con esta forma exacta (sin markdown, sin texto adicional):
   "research": "un párrafo de máximo 4 oraciones que un asistente de WhatsApp debería tener en mente al hablar de este producto: para quién es, cuándo se compra típicamente, qué diferencia tiene vs alternativas, qué objeciones suelen aparecer."
 }
 
-Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. NO repitas la descripción literal. NO inventes datos: si no sabés un detalle, no lo incluyas.`;
+Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. NO repitas la descripción literal. NO inventes datos: si no sabes un detalle, no lo incluyas.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {

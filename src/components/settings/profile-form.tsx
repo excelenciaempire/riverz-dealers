@@ -104,7 +104,7 @@ export function ProfileForm() {
     if (!file) return;
 
     if (!ALLOWED_MIME.has(file.type)) {
-      toast.error('Usá PNG, JPG, WebP o GIF.');
+      toast.error('Usa PNG, JPG, WebP o GIF.');
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
@@ -209,7 +209,7 @@ export function ProfileForm() {
 
       toast.success(
         emailSent
-          ? 'Guardado — confirmá el cambio de correo desde tu bandeja'
+          ? 'Guardado — confirma el cambio de correo desde tu bandeja'
           : 'Guardado',
       );
     } catch (err) {
@@ -316,7 +316,7 @@ export function ProfileForm() {
               required
             />
             {emailChangePending && (
-              <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+              <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <Mail className="mt-0.5 size-3.5 shrink-0" />
                 <span>
                   Revisa la bandeja de <strong>{profile?.email}</strong> y{' '}

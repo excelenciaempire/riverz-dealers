@@ -216,7 +216,7 @@ export default function TemplatesPage() {
               Vista previa con datos de ejemplo
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Estas filas son ilustrativas — desaparecen cuando creás tu primera plantilla o sincronizás las que ya tenés en Meta.
+              Estas filas son de ejemplo. Desaparecen cuando creas o sincronizas tus plantillas de Meta.
             </p>
           </div>
         </div>

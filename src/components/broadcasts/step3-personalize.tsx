@@ -331,7 +331,7 @@ export function Step3Personalize({
       </div>
 
       {unmappedKeys.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           Mapea cada variable antes de continuar — aún faltan{' '}
           <span className="font-mono font-semibold">
             {unmappedKeys.join(', ')}

@@ -63,7 +63,7 @@ const STATUS_LABELS: Record<FlowRow["status"], string> = {
 
 const STATUS_COLORS: Record<FlowRow["status"], string> = {
   draft: "border-border bg-muted text-foreground",
-  active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
+  active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   archived: "border-border bg-muted/50 text-muted-foreground",
 };
 
@@ -236,14 +236,14 @@ export default function FlowsPage() {
               <ChoiceCard
                 icon={<Sparkles className="h-5 w-5 text-accent-ink" />}
                 title="Usar una plantilla"
-                description="Empezás con un menú ya armado de ejemplo y lo editas."
+                description="Empiezas con un menú de ejemplo y lo editas."
                 badge="Recomendado"
                 onClick={() => setStep("template")}
               />
               <ChoiceCard
                 icon={<FilePlus2 className="h-5 w-5 text-muted-foreground" />}
                 title="Empezar en blanco"
-                description="Lona vacía. Tú armas cada paso desde cero."
+                description="Lienzo en blanco. Tú armas cada paso desde cero."
                 onClick={() => setStep("name")}
               />
             </div>
@@ -389,7 +389,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
         Un menú es la conversación que ve tu cliente cuando escribe.
-        Empezá con una plantilla lista o armala desde cero.
+        Empieza con una plantilla lista o créalo desde cero.
       </p>
       <Button onClick={onCreate} className="mt-5">
         <Plus className="h-4 w-4" />
@@ -457,7 +457,7 @@ function FlowCard({
           variant="ghost"
           size="sm"
           onClick={onDelete}
-          className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
         >
           <Trash2 className="h-3.5 w-3.5" />
           Eliminar

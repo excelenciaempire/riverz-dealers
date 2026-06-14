@@ -652,11 +652,11 @@ function buildSystemPrompt(
   if (contact.phone) knownContact.push(`Teléfono: ${contact.phone}`);
   if (contact.company) knownContact.push(`Empresa: ${contact.company}`);
   if (knownContact.length) {
-    lines.push('Datos del cliente que ya conocés:');
+    lines.push('Datos del cliente que ya conoces:');
     lines.push(knownContact.join(' · '));
   }
   lines.push(
-    'Si la consulta requiere intervención humana (precios complejos, reembolsos, queja seria), pedile amablemente al cliente que espere a que un agente humano se conecte.',
+    'Si la consulta requiere intervención humana (precios complejos, reembolsos, queja seria), pídele amablemente al cliente que espere a que un agente humano se conecte.',
   );
   return lines.join('\n\n');
 }
