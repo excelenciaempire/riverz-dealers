@@ -28,6 +28,7 @@ import {
   Moon,
   Sun,
   UserRound,
+  BarChart3,
 } from "lucide-react";
 import {
   Avatar,
@@ -90,6 +91,12 @@ const navGroups: NavGroup[] = [
     title: "Tienda",
     items: [
       { href: "/productos", label: "Productos", icon: ShoppingBag },
+    ],
+  },
+  {
+    title: "Análisis",
+    items: [
+      { href: "/metricas", label: "Métricas", icon: BarChart3 },
     ],
   },
 ];

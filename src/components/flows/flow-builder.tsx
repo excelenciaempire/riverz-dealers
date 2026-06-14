@@ -113,6 +113,7 @@ import {
   type CommandItem,
 } from "@/components/flows/command-palette";
 import { FlowVersionsDialog } from "@/components/flows/versions-dialog";
+import { SimulatorPanel } from "@/components/flows/simulator-panel";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 
 interface FlowBuilderProps {
@@ -909,6 +910,8 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Simulador del flujo dentro del canvas. Sidepanel.
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
   // Historial de versiones (dialog) y overlay de analítica por nodo.
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [analyticsOn, setAnalyticsOn] = useState(false);
@@ -2251,6 +2254,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           onOpenVersions={() => setVersionsOpen(true)}
           showAnalytics={analyticsOn}
           onToggleAnalytics={() => setAnalyticsOn((v) => !v)}
+          onOpenSimulator={() => setSimulatorOpen(true)}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={handleUndo}
@@ -2413,6 +2417,16 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         onClose={() => setVersionsOpen(false)}
         onRestored={() => router.refresh()}
       />
+
+      {simulatorOpen && (
+        <SimulatorPanel
+          nodes={state.nodes}
+          entryKey={state.entry_node_id}
+          triggerType={state.trigger_type}
+          triggerConfig={state.trigger_config}
+          onClose={() => setSimulatorOpen(false)}
+        />
+      )}
     </div>
     </FlowBubbleActionsContext.Provider>
   );
@@ -2516,6 +2530,7 @@ function Header({
   onOpenVersions,
   showAnalytics,
   onToggleAnalytics,
+  onOpenSimulator,
   canUndo,
   canRedo,
   onUndo,
@@ -2535,6 +2550,7 @@ function Header({
   onOpenVersions: () => void;
   showAnalytics: boolean;
   onToggleAnalytics: () => void;
+  onOpenSimulator: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -2617,6 +2633,15 @@ function Header({
             Activar
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenSimulator}
+          title="Probar el flujo como cliente"
+        >
+          <PlayCircle className="h-3.5 w-3.5" />
+          Probar
+        </Button>
         <Button onClick={onSave} disabled={saving} size="sm">
           {saving ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

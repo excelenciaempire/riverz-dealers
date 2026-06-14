@@ -870,12 +870,43 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     return existing
   }
 
-  // Create new conversation
-  const { data: newConv, error: createError } = await supabaseAdmin()
+  // Create new conversation. Las reglas de asignación corren al
+  // crearse — si alguna matchea (round_robin, by_channel, by_tag,
+  // by_keyword) seteamos assigned_agent_id al toque. La conv arranca
+  // ya en la columna de quien le toca atender.
+  const admin = supabaseAdmin();
+  // Resolver workspace_id del user_id (por las dudas; en muchos
+  // casos podemos saltarlo si no hay reglas).
+  const { data: member } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  let assignedAgentId: string | null = null;
+  if (member?.workspace_id) {
+    try {
+      const { resolveAssignmentForConversation } = await import(
+        '@/lib/inbox/assignment-rules'
+      );
+      assignedAgentId = await resolveAssignmentForConversation(admin, {
+        workspaceId: member.workspace_id,
+        conversationId: '',
+        channel: 'whatsapp',
+        contactId,
+        firstMessageText: '',
+      });
+    } catch (err) {
+      console.error('[whatsapp] assignment rules failed:', err);
+    }
+  }
+
+  const { data: newConv, error: createError } = await admin
     .from('conversations')
     .insert({
       user_id: userId,
       contact_id: contactId,
+      assigned_agent_id: assignedAgentId,
     })
     .select()
     .single()
