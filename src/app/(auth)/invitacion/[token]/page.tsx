@@ -70,6 +70,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
       toast.error(payload.error ?? "No se pudo aceptar la invitación");
       return;
     }
+    toast.success("Invitación aceptada");
     setState("accepted");
     setTimeout(() => router.replace("/bandeja"), 1200);
   };

@@ -4218,6 +4218,7 @@ function SendButtonsForm({
                 size="sm"
                 onClick={() => removeButton(i)}
                 className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                aria-label="Eliminar botón"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -4458,6 +4459,7 @@ function SendListForm({
                   size="sm"
                   onClick={() => removeRow(sIdx, rIdx)}
                   className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  aria-label="Eliminar fila"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

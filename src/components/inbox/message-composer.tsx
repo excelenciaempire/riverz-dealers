@@ -294,6 +294,7 @@ export function MessageComposer({
           className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
           onClick={onOpenTemplates}
           title="Enviar plantilla"
+          aria-label="Enviar plantilla"
         >
           <LayoutTemplate className="h-4 w-4" />
         </Button>
@@ -321,6 +322,7 @@ export function MessageComposer({
           className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
           disabled={!text.trim() || sessionExpired || sending}
           onClick={handleSend}
+          aria-label="Enviar mensaje"
         >
           <Send className="h-4 w-4" />
         </Button>

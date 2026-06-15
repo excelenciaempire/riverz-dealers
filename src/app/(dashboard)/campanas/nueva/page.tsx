@@ -291,6 +291,9 @@ export default function NewBroadcastPage() {
           .eq('id', broadcastId);
       }
 
+      toast.success(
+        sendMode === 'schedule' ? 'Campaña programada' : 'Campaña enviada',
+      );
       router.push(`/campanas/${broadcastId}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se envió');

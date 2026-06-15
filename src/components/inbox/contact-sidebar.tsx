@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
 import { format } from "date-fns";
@@ -25,12 +26,13 @@ interface ContactSidebarProps {
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
   const fetchNotes = useCallback(async () => {
     if (!contact) return;
-
+    setNotesLoading(true);
     const supabase = createClient();
     const { data } = await supabase
       .from("contact_notes")
@@ -38,7 +40,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       .eq("contact_id", contact.id)
       .order("created_at", { ascending: false });
 
-    if (data) setNotes(data);
+    setNotes(data ?? []);
+    setNotesLoading(false);
   }, [contact]);
 
   // Load on contact change. setNotes runs inside an async Supabase
@@ -188,25 +191,33 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                   className="h-auto bg-primary px-2 hover:bg-primary/90"
                   onClick={handleAddNote}
                   disabled={!newNote.trim() || addingNote}
+                  aria-label="Agregar nota"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
 
               <div className="mt-2 space-y-2">
-                {notes.map((note) => (
-                  <div
-                    key={note.id}
-                    className="rounded-lg bg-muted px-3 py-2"
-                  >
-                    <p className="whitespace-pre-wrap text-xs text-foreground">
-                      {note.note_text}
-                    </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {format(new Date(note.created_at), "d MMM yyyy HH:mm")}
-                    </p>
-                  </div>
-                ))}
+                {notesLoading ? (
+                  <>
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-4/5" />
+                  </>
+                ) : (
+                  notes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="rounded-lg bg-muted px-3 py-2"
+                    >
+                      <p className="whitespace-pre-wrap text-xs text-foreground">
+                        {note.note_text}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {format(new Date(note.created_at), "d MMM yyyy HH:mm")}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
