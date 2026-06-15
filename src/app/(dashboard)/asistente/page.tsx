@@ -147,6 +147,11 @@ export default function AiAgentsPage() {
             applySavedAgent(saved);
             setEditing(null);
           }}
+          onAgentUpserted={(saved) => {
+            // Refresca la lista sin cerrar el editor — lo usa la
+            // generación con IA y la resincronización de conocimiento.
+            applySavedAgent(saved);
+          }}
         />
       )}
     </div>

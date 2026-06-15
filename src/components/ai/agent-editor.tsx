@@ -12,15 +12,14 @@ import {
   EyeOff,
   Search,
   Package,
-  User,
-  BookOpen,
+  Briefcase,
   Radio,
   Settings as SettingsIcon,
-  MessageSquare,
   Globe,
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  Wand2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -213,11 +212,29 @@ interface AgentEditorProps {
   agent: AgentSummary | null;
   onClose: () => void;
   onSaved: (saved: AgentSummary) => void | Promise<void>;
+  /** Insert/refresh sin cerrar el editor — lo usa la generación con IA
+   *  porque el usuario sigue editando después de la creación. */
+  onAgentUpserted?: (saved: AgentSummary) => void | Promise<void>;
 }
 
-export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEditorProps) {
-  const editing = Boolean(agent?.id);
+export function AgentEditor({
+  workspaceId,
+  agent,
+  onClose,
+  onSaved,
+  onAgentUpserted,
+}: AgentEditorProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  // Persistimos el id del agente "en edición" en estado local porque
+  // la generación con IA crea el row a medio camino. Inicialmente es
+  // el agente que entró por props (null cuando es "Nuevo"), pero al
+  // generar lo levantamos al id devuelto para que el botón Guardar
+  // haga PATCH en lugar de POST otro registro.
+  const [currentAgentId, setCurrentAgentId] = useState<string | null>(
+    agent?.id ?? null,
+  );
+  const editing = Boolean(currentAgentId);
+  const hasApiKey = agent?.has_api_key ?? false;
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
@@ -285,15 +302,96 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [testChunks, setTestChunks] = useState<string[] | null>(null);
   const [testing, setTesting] = useState(false);
 
-  type TabKey = 'identity' | 'knowledge' | 'reach' | 'behavior' | 'advanced';
-  const [tab, setTab] = useState<TabKey>('identity');
-  const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
-    { key: 'identity', label: 'Identidad', icon: User },
-    { key: 'knowledge', label: 'Conocimiento', icon: BookOpen },
+  // Auto-generación con IA desde la URL del sitio. Lo concentramos en
+  // la pestaña "Mi negocio" para que el primer paso de un usuario nuevo
+  // sea "pegá tu URL → te armo el agente". El timer va rotando las
+  // pistas de progreso así no se ve congelado durante el crawl + LLM.
+  const [genUrl, setGenUrl] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [genHint, setGenHint] = useState<string>('');
+  const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
+
+  type TabKey = 'business' | 'reach' | 'advanced';
+  const [tab, setTab] = useState<TabKey>('business');
+  const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
+    { key: 'business', label: 'Mi negocio', icon: Briefcase },
     { key: 'reach', label: 'Alcance', icon: Radio },
-    { key: 'behavior', label: 'Comportamiento', icon: MessageSquare },
     { key: 'advanced', label: 'Avanzado', icon: SettingsIcon },
   ];
+
+  // Rotación cosmetica de las pistas de "estamos haciendo X" mientras
+  // dura la llamada al endpoint generate-from-url. No bloquea nada,
+  // solo le da vida al loader que de otra forma se ve eterno.
+  useEffect(() => {
+    if (!generating) return;
+    const hints = [
+      'Indizando tu home…',
+      'Leyendo políticas y FAQ…',
+      'Escribiendo el tono del asistente…',
+      'Ajustando reglas de escalamiento…',
+      'Casi listo…',
+    ];
+    let i = 0;
+    setGenHint(hints[0]);
+    const t = setInterval(() => {
+      i = (i + 1) % hints.length;
+      setGenHint(hints[i]);
+    }, 3500);
+    return () => clearInterval(t);
+  }, [generating]);
+
+  async function generateFromUrl() {
+    const url = genUrl.trim();
+    if (!url) {
+      toast.error('Pegá la URL de tu tienda.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      toast.error('La URL debe empezar con https://');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetchWithCsrf('/api/ai/agents/generate-from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, workspace_id: workspaceId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error ?? 'No se pudo generar el asistente.');
+        return;
+      }
+      const a = json.agent as AgentSummary;
+      // Volcamos todo lo generado en el formulario; el usuario igual
+      // puede tocar antes de guardar (o salir del editor y verlo en la
+      // lista, ya quedó persistido).
+      setName(a.name ?? '');
+      setPersona(a.persona ?? '');
+      setKnowledge(a.knowledge ?? '');
+      setKnowledgeUrl(a.knowledge_url ?? url);
+      setKnowledgeSyncedAt(a.knowledge_synced_at ?? new Date().toISOString());
+      setTone((a.tone as AiTone) ?? 'friendly');
+      setResponseMode((a.response_mode as AiResponseMode) ?? 'multi');
+      setInboundDebounce(a.inbound_debounce_seconds ?? 6);
+      setLanguage(a.language ?? 'es');
+      setIsActive(Boolean(a.is_active));
+      setCurrentAgentId(a.id);
+      toast.success('Asistente generado. Revisalo y guardá si querés ajustes.');
+      // Notificamos al padre para que aparezca en la lista ya como
+      // creado — el editor sigue abierto en modo "edición" del nuevo.
+      // Usamos onAgentUpserted (no onSaved) porque onSaved cierra el
+      // editor y queremos que el usuario revise lo generado.
+      if (onAgentUpserted) {
+        await onAgentUpserted(a);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar.');
+    } finally {
+      setGenerating(false);
+      setGenHint('');
+    }
+  }
 
   function toggleEscalate(kw: string) {
     setEscalateKeywords((prev) => prev.filter((k) => k !== kw));
@@ -413,8 +511,10 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     };
     if (apiKey.trim()) payload.api_key = apiKey.trim();
 
-    const url = editing ? `/api/ai/agents/${agent!.id}` : '/api/ai/agents';
-    const method = editing ? 'PATCH' : 'POST';
+    const url = currentAgentId
+      ? `/api/ai/agents/${currentAgentId}`
+      : '/api/ai/agents';
+    const method = currentAgentId ? 'PATCH' : 'POST';
     const res = await fetchWithCsrf(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -428,14 +528,16 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     }
     toast.success(editing ? 'Guardado' : 'Asistente creado');
     if (json.agent) {
-      await onSaved(json.agent as AgentSummary);
-    } else {
-      await onSaved(agent as AgentSummary);
+      const saved = json.agent as AgentSummary;
+      setCurrentAgentId(saved.id);
+      await onSaved(saved);
+    } else if (agent) {
+      await onSaved(agent);
     }
   }
 
   async function syncKnowledge() {
-    if (!editing) {
+    if (!currentAgentId) {
       toast.error('Guardá el asistente antes de sincronizar.');
       return;
     }
@@ -450,7 +552,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     }
     setSyncingKnowledge(true);
     try {
-      const res = await fetchWithCsrf(`/api/ai/agents/${agent!.id}/sync-knowledge`, {
+      const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/sync-knowledge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
@@ -473,7 +575,12 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
         toast.message('Sincronización iniciada. Aún no llegan páginas, probá de nuevo en un minuto.');
       }
       if (json.agent) {
-        await onSaved(json.agent as AgentSummary);
+        // En sync-knowledge no cerramos el editor (el usuario sigue
+        // afinando). Usamos el callback de upsert para refrescar la
+        // lista sin perder el contexto de edición.
+        if (onAgentUpserted) {
+          await onAgentUpserted(json.agent as AgentSummary);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al sincronizar');
@@ -499,7 +606,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
 
   async function runTest() {
     if (!testMessage.trim()) return;
-    if (!editing) {
+    if (!currentAgentId) {
       toast.error('Guarda primero para probar.');
       return;
     }
@@ -507,7 +614,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     setTestReply(null);
     setTestChunks(null);
     try {
-      const res = await fetchWithCsrf(`/api/ai/agents/${agent!.id}/test`, {
+      const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: testMessage }),
@@ -542,7 +649,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-foreground">
-                {editing ? agent!.name || 'Asistente' : 'Nuevo asistente'}
+                {editing ? name || 'Asistente' : 'Nuevo asistente'}
               </DialogTitle>
               <p className="text-xs text-muted-foreground">
                 Responde automáticamente con el contexto completo de cada chat.
@@ -592,80 +699,174 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
 
           {/* Form column */}
           <div className="space-y-6 overflow-y-auto p-6">
-            {tab === 'identity' && (
+            {tab === 'business' && (
               <>
-                <Field label="Nombre del asistente">
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Asistente principal"
-                    className="bg-background"
-                  />
-                </Field>
-                <Field label="Cómo se presenta y actúa">
-                  <Textarea
-                    value={persona}
-                    rows={5}
-                    onChange={(e) => setPersona(e.target.value)}
-                    placeholder="Eres María, asesora de Vitalú. Ayudas a clientes a elegir productos de skincare. Mantienes un tono cálido."
-                    className="resize-y bg-background"
-                  />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Idioma">
-                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue labels={LANGUAGE_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LANGUAGES.map((l) => (
-                          <SelectItem key={l.code} value={l.code}>
-                            {l.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Modelo">
-                    <Select value={model} onValueChange={(v) => setModel(v ?? '')}>
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue labels={MODEL_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MODELS.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-                <Field label="Tono">
-                  <div className="grid gap-2 sm:grid-cols-4">
-                    {TONES.map((t) => (
-                      <button
-                        key={t.value}
-                        type="button"
-                        onClick={() => setTone(t.value)}
-                        title={t.hint}
-                        className={cn(
-                          'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                          tone === t.value
-                            ? 'border-primary/60 bg-primary/10 text-foreground'
-                            : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                        )}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
+                {/* Card de generación automática con IA. Es el primer
+                    contacto del usuario nuevo con el editor: pegás tu URL
+                    y la IA arma identidad + conocimiento + tono en un paso. */}
+                <div className="relative overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                      <Wand2 className="size-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        Generar con IA desde mi web
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Pegá la URL de tu tienda. Leemos tu sitio y armamos
+                        identidad, tono y conocimiento en menos de un minuto.
+                      </p>
+                    </div>
                   </div>
-                </Field>
-              </>
-            )}
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <div className="relative flex-1">
+                      <Globe className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="url"
+                        autoFocus={!editing}
+                        value={genUrl}
+                        onChange={(e) => setGenUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !generating) {
+                            e.preventDefault();
+                            void generateFromUrl();
+                          }
+                        }}
+                        placeholder="https://tutienda.com"
+                        className="bg-background pl-8"
+                        disabled={generating}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={generateFromUrl}
+                      disabled={generating || !genUrl.trim()}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      {generating ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Wand2 className="size-4" />
+                      )}
+                      {generating ? 'Generando…' : 'Generar asistente'}
+                    </Button>
+                  </div>
+                  {generating && genHint && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">{genHint}</p>
+                  )}
+                  {!generating && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Vamos a leer tu home, políticas, FAQ y páginas de productos
+                      (hasta 30 páginas). El proceso tarda unos 30 a 60 segundos.
+                    </p>
+                  )}
+                </div>
 
-            {tab === 'knowledge' && (
-              <>
+                {/* Identidad: nombre + tono + modelo. Smart defaults — la
+                    mayoría no toca. */}
+                <SectionCard
+                  title="Identidad del asistente"
+                  hint="Cómo se llama y qué tono usa. Editá si querés algo distinto a lo generado."
+                >
+                  <Field label="Nombre del asistente">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Pili"
+                      className="bg-background"
+                    />
+                  </Field>
+                  <Field label="Tono">
+                    <div className="grid gap-2 sm:grid-cols-4">
+                      {TONES.map((t) => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => setTone(t.value)}
+                          title={t.hint}
+                          className={cn(
+                            'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                            tone === t.value
+                              ? 'border-primary/60 bg-primary/10 text-foreground'
+                              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Idioma">
+                      <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue labels={LANGUAGE_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANGUAGES.map((l) => (
+                            <SelectItem key={l.code} value={l.code}>
+                              {l.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Modelo">
+                      <Select value={model} onValueChange={(v) => setModel(v ?? '')}>
+                        <SelectTrigger className="w-full bg-background">
+                          <SelectValue labels={MODEL_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                </SectionCard>
+
+                {/* Persona como acordeón: la mayoría confía en la IA. El
+                    botón "Editar avanzado" expone el textarea para quien
+                    quiera reescribir el system prompt entero. */}
+                <SectionCard
+                  title="Cómo se presenta y actúa"
+                  hint="System prompt del asistente. La IA ya lo armó por vos. Editá solo si querés afinar reglas o tono."
+                  right={
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedPersona((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {showAdvancedPersona ? (
+                        <ChevronDown className="size-3.5" />
+                      ) : (
+                        <ChevronRight className="size-3.5" />
+                      )}
+                      Editar avanzado
+                    </button>
+                  }
+                >
+                  {showAdvancedPersona ? (
+                    <Textarea
+                      value={persona}
+                      rows={10}
+                      onChange={(e) => setPersona(e.target.value)}
+                      placeholder="Sos Pili, asesora de Vitalú. Atendés con calidez, una pregunta por turno, nunca admitís ser IA."
+                      className="resize-y bg-background font-mono text-xs leading-relaxed"
+                    />
+                  ) : (
+                    <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+                      {persona.trim() || 'Sin definir todavía. Generá con IA o tocá "Editar avanzado".'}
+                    </p>
+                  )}
+                </SectionCard>
+
+                {/* Base de conocimiento. Sigue igual: URL + sincronizar
+                    + preview, ahora dentro de "Mi negocio". */}
                 <SectionCard
                   title="Base de conocimiento"
                   hint="Tu agente responde mejor cuando tiene contexto de tu tienda. Pegá la URL de tu sitio web y sincronizá. Vamos a indexar tu home, políticas, FAQ y páginas de productos."
@@ -945,7 +1146,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
               </>
             )}
 
-            {tab === 'behavior' && (
+            {tab === 'advanced' && (
               <>
                 <SectionCard
                   title="Comportamiento de respuesta"
@@ -1101,11 +1302,8 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                     </p>
                   )}
                 </SectionCard>
-              </>
-            )}
 
-            {tab === 'advanced' && (
-              <>
+                {/* Sliders y API key — ajustes finos para usuarios power. */}
                 <SliderField
                   label="Largo máximo de respuesta"
                   value={maxChars}
@@ -1143,7 +1341,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder={
-                        agent?.has_api_key
+                        hasApiKey
                           ? '••••••••  (ya hay una key guardada)'
                           : 'sk-ant-...'
                       }

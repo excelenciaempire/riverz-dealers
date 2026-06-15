@@ -74,6 +74,24 @@ export async function POST(request: Request) {
             { onConflict: 'shop_domain,order_id' },
           )
       }
+      // Si la orden vino de un checkout que ya teníamos persistido,
+      // marcamos ese checkout como completado. Shopify reutiliza el
+      // mismo token entre el checkout y la orden, así que un upsert
+      // con shop_domain+checkout_id alcanza para cerrarlo. Si nunca
+      // vimos el checkout (compra rápida), no pasa nada — el update
+      // no hace nada con filas inexistentes.
+      const checkoutToken = String(order.checkout_token ?? order.cart_token ?? '').trim()
+      if (checkoutToken) {
+        await admin
+          .from('shopify_checkouts')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('shop_domain', shopDomain)
+          .eq('checkout_id', checkoutToken)
+      }
     } else {
       // orders/updated: only dispatch when fulfillment_status flips to
       // 'fulfilled' (from null/partial). Anything else (status edits,
