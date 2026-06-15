@@ -8,11 +8,17 @@ import {
   Sparkles,
   Pencil,
   Trash2,
-  Power,
   Send,
 } from 'lucide-react';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
@@ -242,22 +248,22 @@ function AgentCard({
       )}
 
       <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
-        <span>
-          {agent.tone} · {agent.model.replace(/^claude-/, '')}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onToggle}
-            title={active ? 'Pausar' : 'Activar'}
-            className={cn(
-              'rounded p-1 transition-colors',
-              active
-                ? 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-            )}
-          >
-            <Power className="size-4" />
-          </button>
+        <span className="capitalize">{agent.tone}</span>
+        <div className="flex items-center gap-2">
+          <TooltipProvider delay={150}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Switch
+                    checked={active}
+                    onCheckedChange={onToggle}
+                    aria-label={active ? 'Desactivar' : 'Activar'}
+                  />
+                }
+              />
+              <TooltipContent>{active ? 'Activado' : 'Desactivado'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <button
             onClick={onEdit}
             title="Editar"

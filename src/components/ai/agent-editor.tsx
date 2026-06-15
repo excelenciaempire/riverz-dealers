@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -20,6 +20,8 @@ import {
   ChevronDown,
   ChevronRight,
   Wand2,
+  CheckCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,24 +61,10 @@ const TONES: { value: AiTone; label: string; hint: string }[] = [
   { value: 'concise', label: 'Breve', hint: 'Una o dos frases, sin rodeos.' },
 ];
 
-const TONE_LABELS = Object.fromEntries(TONES.map((t) => [t.value, t.label]));
-
-const MODELS = [
-  {
-    value: 'claude-haiku-4-5-20251001',
-    label: 'Claude Haiku 4.5 · rápido y barato',
-  },
-  {
-    value: 'claude-sonnet-4-6',
-    label: 'Claude Sonnet 4.6 · equilibrio calidad / costo',
-  },
-  {
-    value: 'claude-opus-4-8',
-    label: 'Claude Opus 4.8 · máxima calidad',
-  },
-];
-
-const MODEL_LABELS = Object.fromEntries(MODELS.map((m) => [m.value, m.label]));
+// Modelo fijo: Haiku es la mejor relación calidad/costo y la decisión
+// no aporta valor al merchant; lo elegimos por ellos. Si en el futuro
+// queremos exponerlo, vuelve a ser una constante con varios valores.
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
 const CHANNELS: { value: Channel; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
@@ -251,8 +239,13 @@ export function AgentEditor({
   const [showKnowledgePreview, setShowKnowledgePreview] = useState(false);
   const [language, setLanguage] = useState(agent?.language ?? 'es');
   const [tone, setTone] = useState<AiTone>(agent?.tone ?? 'friendly');
-  const [maxChars, setMaxChars] = useState(agent?.max_response_chars ?? 500);
-  const [delaySec, setDelaySec] = useState(agent?.reply_delay_seconds ?? 0);
+  // max_response_chars y reply_delay_seconds dejan de ser editables
+  // desde la UI: el primero se controla con la instrucción del persona
+  // (Claude respeta el largo); el segundo se duplicaba con
+  // inbound_debounce_seconds. Conservamos los valores del agente para
+  // no perderlos al guardar, pero ya no exponemos sliders.
+  const maxChars = agent?.max_response_chars ?? 500;
+  const delaySec = agent?.reply_delay_seconds ?? 0;
   const [contextMessages, setContextMessages] = useState(agent?.context_messages ?? 10);
   const [replyWhenAssigned, setReplyWhenAssigned] = useState(
     agent?.reply_when_assigned ?? false,
@@ -279,7 +272,8 @@ export function AgentEditor({
   const [hoursEnd, setHoursEnd] = useState<string>(initialBh.end);
   const [hoursTimezone, setHoursTimezone] = useState<string>(initialBh.timezone);
   const [hoursDays, setHoursDays] = useState<number[]>(initialBh.days);
-  const [model, setModel] = useState(agent?.model ?? 'claude-haiku-4-5-20251001');
+  // Modelo fijo, sin selector. El runner lee agent.model del registro;
+  // mandamos siempre DEFAULT_MODEL en el payload de guardado.
   const [scope, setScope] = useState<AiScope>(agent?.scope ?? 'workspace');
   const [channels, setChannels] = useState<Channel[]>(
     (agent?.ai_agent_channels ?? []).map((c) => c.channel as Channel),
@@ -298,9 +292,13 @@ export function AgentEditor({
 
   const [saving, setSaving] = useState(false);
   const [testMessage, setTestMessage] = useState('');
-  const [testReply, setTestReply] = useState<string | null>(null);
-  const [testChunks, setTestChunks] = useState<string[] | null>(null);
+  // El preview es una conversación multi-turno tipo WhatsApp. Cada
+  // turno guarda los chunks individuales para que el modo "multi"
+  // (varios bubbles) se vea como en producción.
+  type TestTurn = { role: 'user' | 'assistant'; chunks: string[]; stamp: string };
+  const [testHistory, setTestHistory] = useState<TestTurn[]>([]);
   const [testing, setTesting] = useState(false);
+  const testScrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-generación con IA desde la URL del sitio. Lo concentramos en
   // la pestaña "Mi negocio" para que el primer paso de un usuario nuevo
@@ -503,7 +501,7 @@ export function AgentEditor({
       ),
       escalate_keywords: escalateKeywords,
       escalate_after_messages: escalateAfterMessages,
-      model,
+      model: DEFAULT_MODEL,
       scope,
       channels: scope === 'channels' ? channels : [],
       product_scope: productScope,
@@ -604,37 +602,63 @@ export function AgentEditor({
     }
   }
 
+  function nowStamp(): string {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
   async function runTest() {
-    if (!testMessage.trim()) return;
+    const text = testMessage.trim();
+    if (!text) return;
     if (!currentAgentId) {
       toast.error('Guarda primero para probar.');
       return;
     }
+    // Bubble del usuario inmediato — UX de chat real.
+    setTestHistory((prev) => [
+      ...prev,
+      { role: 'user', chunks: [text], stamp: nowStamp() },
+    ]);
+    setTestMessage('');
     setTesting(true);
-    setTestReply(null);
-    setTestChunks(null);
     try {
       const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: testMessage }),
+        body: JSON.stringify({ message: text }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Falló');
       const reply: string = json.reply ?? '';
-      setTestReply(reply);
       const chunks: string[] = Array.isArray(json.chunks) && json.chunks.length > 0
         ? json.chunks
         : reply
           ? [reply]
           : [];
-      setTestChunks(chunks);
+      setTestHistory((prev) => [
+        ...prev,
+        { role: 'assistant', chunks, stamp: nowStamp() },
+      ]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error');
     } finally {
       setTesting(false);
     }
   }
+
+  function resetTestConversation() {
+    setTestHistory([]);
+    setTestMessage('');
+  }
+
+  // Auto-scroll del preview al llegar mensajes nuevos.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (testScrollRef.current) {
+        testScrollRef.current.scrollTop = testScrollRef.current.scrollHeight;
+      }
+    });
+  }, [testHistory, testing]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -763,8 +787,9 @@ export function AgentEditor({
                   )}
                 </div>
 
-                {/* Identidad: nombre + tono + modelo. Smart defaults — la
-                    mayoría no toca. */}
+                {/* Identidad: nombre + tono + idioma. El modelo lo
+                    elegimos nosotros (Haiku) para no abrumar al usuario
+                    con decisiones técnicas. */}
                 <SectionCard
                   title="Identidad del asistente"
                   hint="Cómo se llama y qué tono usa. Editá si querés algo distinto a lo generado."
@@ -796,37 +821,25 @@ export function AgentEditor({
                         </button>
                       ))}
                     </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ajusta sutilmente el estilo. La personalidad real la define
+                      lo que escribís más abajo en &quot;Cómo se presenta y actúa&quot;.
+                    </p>
                   </Field>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Idioma">
-                      <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
-                        <SelectTrigger className="w-full bg-background">
-                          <SelectValue labels={LANGUAGE_LABELS} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LANGUAGES.map((l) => (
-                            <SelectItem key={l.code} value={l.code}>
-                              {l.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Modelo">
-                      <Select value={model} onValueChange={(v) => setModel(v ?? '')}>
-                        <SelectTrigger className="w-full bg-background">
-                          <SelectValue labels={MODEL_LABELS} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MODELS.map((m) => (
-                            <SelectItem key={m.value} value={m.value}>
-                              {m.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
+                  <Field label="Idioma">
+                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={LANGUAGE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((l) => (
+                          <SelectItem key={l.code} value={l.code}>
+                            {l.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
                 </SectionCard>
 
                 {/* Persona como acordeón: la mayoría confía en la IA. El
@@ -1303,26 +1316,10 @@ export function AgentEditor({
                   )}
                 </SectionCard>
 
-                {/* Sliders y API key — ajustes finos para usuarios power. */}
-                <SliderField
-                  label="Largo máximo de respuesta"
-                  value={maxChars}
-                  min={120}
-                  max={2000}
-                  step={20}
-                  suffix="caracteres"
-                  onChange={setMaxChars}
-                />
-                <SliderField
-                  label="Esperar antes de responder"
-                  value={delaySec}
-                  min={0}
-                  max={120}
-                  step={5}
-                  suffix="segundos"
-                  hint="Da sensación de que un humano está escribiendo."
-                  onChange={setDelaySec}
-                />
+                {/* Contexto: cuántos mensajes previos pasa al modelo. El
+                    largo de la respuesta lo controla la persona y la
+                    espera antes de responder ya se ajusta arriba con
+                    "Esperar antes de responder". */}
                 <SliderField
                   label="Mensajes de contexto"
                   value={contextMessages}
@@ -1364,64 +1361,147 @@ export function AgentEditor({
             )}
           </div>
 
-          {/* Test column */}
+          {/* Test column — conversación multi-turno tipo WhatsApp.
+              El usuario tipea como cliente; el bot del editor responde
+              y se ve igual que en producción (left bubbles blancas para
+              asistente, right verdes para usuario, fondo beige con dots). */}
           <aside className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-muted/30 sm:border-l sm:border-t-0">
-            <div className="border-b border-border px-4 py-3">
-              <p className="text-xs font-semibold text-foreground">Probar el asistente</p>
-              <p className="text-[11px] text-muted-foreground">
-                Envía un mensaje y mira cómo respondería.
-              </p>
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground">
+                  Probar el asistente
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Conversá con el bot como si fueras un cliente.
+                </p>
+              </div>
+              {testHistory.length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetTestConversation}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  title="Reiniciar conversación"
+                >
+                  <RotateCcw className="size-3" />
+                  Reiniciar
+                </button>
+              )}
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-4">
-              {testReply !== null && testChunks !== null && testChunks.length === 0 && (
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] rounded-lg rounded-br-none bg-[#dcf8c6] px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
-                    <span className="italic text-[#6b7280]">Sin respuesta.</span>
+            <div
+              ref={testScrollRef}
+              className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
+              style={{
+                backgroundColor: '#ece5dd',
+                backgroundImage:
+                  'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
+                backgroundSize: '12px 12px',
+              }}
+            >
+              {testHistory.length === 0 && !testing && (
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
+                  <Sparkles className="size-6" />
+                  <p className="text-xs leading-snug">
+                    Escribí un mensaje abajo para empezar la conversación.
+                  </p>
+                </div>
+              )}
+              {testHistory.map((turn, ti) => (
+                <div
+                  key={ti}
+                  className={cn(
+                    'flex flex-col gap-1',
+                    turn.role === 'user' ? 'items-end' : 'items-start',
+                  )}
+                >
+                  {turn.chunks.length === 0 ? (
+                    <div
+                      className={cn(
+                        'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
+                        turn.role === 'user'
+                          ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21]'
+                          : 'rounded-bl-none border border-border bg-white text-[#111b21]',
+                      )}
+                    >
+                      <span className="italic text-[#6b7280]">Sin respuesta.</span>
+                    </div>
+                  ) : (
+                    turn.chunks.map((chunk, ci) => {
+                      const isLast = ci === turn.chunks.length - 1;
+                      return (
+                        <div
+                          key={ci}
+                          className={cn(
+                            'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
+                            turn.role === 'user'
+                              ? cn(
+                                  'bg-[#dcf8c6] text-[#111b21]',
+                                  isLast ? 'rounded-br-none' : '',
+                                )
+                              : cn(
+                                  'border border-border bg-white text-[#111b21]',
+                                  isLast ? 'rounded-bl-none' : '',
+                                ),
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap pr-10">{chunk}</p>
+                          {isLast && (
+                            <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781]">
+                              <span>{turn.stamp}</span>
+                              {turn.role === 'user' && (
+                                <CheckCheck className="size-3 text-[#53bdeb]" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ))}
+              {testing && (
+                <div className="flex items-start">
+                  <div className="rounded-lg rounded-bl-none border border-border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
+                    <span className="inline-flex gap-0.5">
+                      <span className="size-1.5 animate-pulse rounded-full bg-[#54656f]" />
+                      <span
+                        className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                        style={{ animationDelay: '150ms' }}
+                      />
+                      <span
+                        className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                        style={{ animationDelay: '300ms' }}
+                      />
+                    </span>
                   </div>
                 </div>
               )}
-              {testChunks !== null && testChunks.length > 0 && (
-                <div className="flex flex-col items-end gap-1.5">
-                  {testChunks.map((chunk, i) => (
-                    <div
-                      key={i}
-                      className="max-w-[85%] rounded-lg rounded-br-none bg-[#dcf8c6] px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm"
-                    >
-                      <p className="whitespace-pre-wrap">{chunk}</p>
-                      {i === testChunks.length - 1 && (
-                        <p className="mt-1 text-right text-[10px] text-[#6b7280]">
-                          Vista previa
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {testing && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" />
-                  Generando…
-                </div>
-              )}
               {!editing && (
-                <p className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-                  Guarda el asistente antes de probarlo.
+                <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
+                  Guardá el asistente antes de probarlo.
                 </p>
               )}
             </div>
-            <div className="border-t border-border p-3">
+            <div className="border-t border-border bg-[#f0f0f0] p-2">
               <div className="flex items-end gap-2">
                 <Textarea
                   value={testMessage}
                   onChange={(e) => setTestMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void runTest();
+                    }
+                  }}
                   rows={2}
                   placeholder="Hola, ¿tienen envío a Bogotá?"
-                  className="min-h-[44px] resize-none bg-background text-sm"
+                  className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21]"
+                  disabled={testing || !editing}
                 />
                 <Button
                   onClick={runTest}
-                  disabled={testing || !editing}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={testing || !editing || !testMessage.trim()}
+                  className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a]"
+                  aria-label="Enviar"
                 >
                   <Send className="size-4" />
                 </Button>
@@ -1430,28 +1510,22 @@ export function AgentEditor({
           </aside>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-card/60 px-6 py-4">
-          <p className="text-[11px] text-muted-foreground">
-            Tono: <span className="text-foreground">{TONE_LABELS[tone]}</span> ·
-            Modelo: <span className="text-foreground">{MODEL_LABELS[model] ?? model}</span>
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="border-border text-foreground hover:bg-accent"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={save}
-              disabled={saving}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Guardar
-            </Button>
-          </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-border text-foreground hover:bg-accent"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={save}
+            disabled={saving}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {saving && <Loader2 className="size-4 animate-spin" />}
+            Guardar
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
