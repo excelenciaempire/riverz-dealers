@@ -80,20 +80,21 @@ export async function GET(request: Request) {
 
   // El UI necesita saber si Shopify está conectado para mostrar el
   // empty state correcto / deshabilitar Sincronizar. Lookup barato
-  // contra channel_connections con admin client (la tabla está
-  // workspace-scoped en RLS pero acá filtramos por user_id directo).
+  // contra shopify_connections (user-scoped); channel_connections es
+  // workspace-scoped y su CHECK no admite 'shopify'.
   const admin = supabaseAdmin();
   const { data: shop } = await admin
-    .from('channel_connections')
-    .select('id, status')
+    .from('shopify_connections')
+    .select('id, shop_domain, status')
     .eq('user_id', user.id)
-    .eq('channel', 'shopify')
-    .eq('status', 'connected')
+    .eq('status', 'active')
     .limit(1)
     .maybeSingle();
 
+  const shopify_connected = !!shop;
+
   return NextResponse.json({
     products,
-    shopify_connected: !!shop,
+    shopify_connected,
   });
 }
