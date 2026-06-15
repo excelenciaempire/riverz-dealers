@@ -160,7 +160,90 @@ export function validateFlowForActivation(
     }
   }
 
+  // Cycle detection — un ciclo formado solo por nodos que avanzan sin
+  // esperar input (start, send_message, condition, set_tag, etc.) se
+  // traduce en un loop infinito en el runner: el cap defensivo de 64
+  // iteraciones lo corta pero falla el run. Los ciclos que pasan por
+  // un nodo suspending (send_buttons que vuelve al menú) son válidos
+  // y NO los marcamos como error.
+  const cycle = findCycle(nodes);
+  if (cycle && cycle.length > 0) {
+    issues.push({
+      severity: "error",
+      scope: "flow",
+      message: `Hay un ciclo en el flujo que loopearía sin parar: ${cycle.join(" → ")}. Rompe la conexión que vuelve a un paso anterior o intercala un paso que espere respuesta.`,
+    });
+  }
+
   return issues;
+}
+
+// ============================================================
+// Cycle detection — DFS con tres-color marking. Devuelve la lista de
+// node_keys del ciclo (en orden de recorrido) si encuentra uno; null
+// si no. Solo considera ciclos compuestos exclusivamente por nodos
+// auto-avanzan: un loop que atraviesa un send_buttons / send_list /
+// collect_input / ai_intent / wait / customer_reply es válido porque
+// el runner suspende ahí.
+// ============================================================
+
+const AUTO_ADVANCING_TYPES = new Set<string>([
+  "start",
+  "send_message",
+  "send_image",
+  "send_video",
+  "send_document",
+  "send_cta_url",
+  "condition",
+  "set_tag",
+  "shopify_lookup",
+  "subflow",
+]);
+
+export function findCycle(nodes: NodeInput[]): string[] | null {
+  const byKey = new Map<string, NodeInput>();
+  for (const n of nodes) byKey.set(n.node_key, n);
+
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>();
+  for (const n of nodes) color.set(n.node_key, WHITE);
+
+  const stack: string[] = [];
+
+  function dfs(key: string): string[] | null {
+    color.set(key, GRAY);
+    stack.push(key);
+    const node = byKey.get(key);
+    if (node && AUTO_ADVANCING_TYPES.has(node.node_type)) {
+      for (const next of outgoingEdges(node)) {
+        if (!byKey.has(next)) continue;
+        const c = color.get(next) ?? WHITE;
+        if (c === GRAY) {
+          const i = stack.indexOf(next);
+          const cycle = stack.slice(i);
+          cycle.push(next);
+          return cycle;
+        }
+        if (c === WHITE) {
+          const found = dfs(next);
+          if (found) return found;
+        }
+      }
+    }
+    stack.pop();
+    color.set(key, BLACK);
+    return null;
+  }
+
+  for (const n of nodes) {
+    if ((color.get(n.node_key) ?? WHITE) === WHITE) {
+      const found = dfs(n.node_key);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 // ============================================================
@@ -656,7 +739,13 @@ function validateNode(
       const cfg = node.config as {
         subject?: "var" | "tag" | "contact_field";
         subject_key?: string;
-        operator?: "equals" | "contains" | "present" | "absent";
+        operator?:
+          | "equals"
+          | "contains"
+          | "not_contains"
+          | "regex_match"
+          | "present"
+          | "absent";
         value?: string;
         true_next?: string;
         false_next?: string;
@@ -680,19 +769,37 @@ function validateNode(
             "Falta el nombre exacto de la variable, etiqueta o campo que vas a comparar.",
         });
       }
-      if (
-        !cfg.operator ||
-        !["equals", "contains", "present", "absent"].includes(cfg.operator)
-      ) {
+      const VALID_OPS = [
+        "equals",
+        "contains",
+        "not_contains",
+        "regex_match",
+        "present",
+        "absent",
+      ];
+      const OP_NEEDS_VALUE = new Set([
+        "equals",
+        "contains",
+        "not_contains",
+        "regex_match",
+      ]);
+      const OP_LABEL: Record<string, string> = {
+        equals: "igual a",
+        contains: "contiene",
+        not_contains: "no contiene",
+        regex_match: "coincide con",
+      };
+      if (!cfg.operator || !VALID_OPS.includes(cfg.operator)) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
           field: "operator",
-          message: "Elige cómo comparar (igual a, contiene, existe, no existe).",
+          message:
+            "Elige cómo comparar (igual a, contiene, no contiene, coincide con, existe, no existe).",
         });
       } else if (
-        (cfg.operator === "equals" || cfg.operator === "contains") &&
+        OP_NEEDS_VALUE.has(cfg.operator) &&
         (cfg.value === undefined || cfg.value === "")
       ) {
         issues.push({
@@ -700,8 +807,21 @@ function validateNode(
           scope: "node",
           node_key: node.node_key,
           field: "value",
-          message: `Estás comparando con "${cfg.operator === "equals" ? "igual a" : "contiene"}" pero no escribiste con qué. Si lo dejas vacío, solo va a coincidir cuando el valor también esté vacío.`,
+          message: `Estás comparando con "${OP_LABEL[cfg.operator]}" pero no escribiste con qué. Si lo dejas vacío, solo va a coincidir cuando el valor también esté vacío.`,
         });
+      } else if (cfg.operator === "regex_match" && cfg.value) {
+        try {
+          new RegExp(cfg.value);
+        } catch {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "value",
+            message:
+              "La expresión regular no es válida. Revisa la sintaxis (paréntesis, corchetes, escapes).",
+          });
+        }
       }
       for (const branch of ["true_next", "false_next"] as const) {
         const key = cfg[branch];
@@ -1012,7 +1132,15 @@ function validateNode(
       ];
       for (const [field, label] of branches) {
         const k = cfg[field];
-        if (k && !knownKeys.has(k)) {
+        if (!k) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field,
+            message: "El nodo Shopify debe conectar Encontrado y No encontrado.",
+          });
+        } else if (!knownKeys.has(k)) {
           issues.push({
             severity: "error",
             scope: "node",

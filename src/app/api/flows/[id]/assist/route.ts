@@ -5,6 +5,7 @@ import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
   isPatch,
+  validatePatchedSnapshot,
   type AiPatch,
   type AssistResponse,
 } from "@/lib/flows/ai-patches";
@@ -152,6 +153,36 @@ export async function POST(
   const patches = Array.isArray(parsed.patches)
     ? (parsed.patches.filter(isPatch) as AiPatch[])
     : [];
+
+  // Revalidamos simulando los patches contra el snapshot. Si introducen
+  // errores nuevos (ej: un wire que apunta a un node_key inexistente,
+  // un ciclo, un shopify_lookup sin ramas), rechazamos el turn entero
+  // antes de que el cliente lo aplique al lienzo.
+  if (patches.length > 0) {
+    const newIssues = validatePatchedSnapshot(
+      {
+        name: body.flow_snapshot.name,
+        trigger_type: body.flow_snapshot.trigger_type,
+        trigger_config: body.flow_snapshot.trigger_config,
+        entry_node_id: body.flow_snapshot.entry_node_id,
+        nodes: body.flow_snapshot.nodes.map((n) => ({
+          node_key: n.node_key,
+          node_type: n.node_type,
+          config: n.config,
+        })),
+      },
+      patches,
+    );
+    if (newIssues.length > 0) {
+      const detail = newIssues.map((i) => i.message).join(" ");
+      return NextResponse.json(
+        {
+          error: `Los cambios propuestos romperían el flujo: ${detail}`,
+        },
+        { status: 422 },
+      );
+    }
+  }
 
   const result: AssistResponse = { reply, patches };
   return NextResponse.json(result);

@@ -18,6 +18,7 @@
  */
 
 import type { FlowNodeType } from "./types";
+import { validateFlowForActivation, type ValidationIssue } from "./validate";
 
 export type AiPatch =
   | {
@@ -341,4 +342,217 @@ export function isPatch(x: unknown): x is AiPatch {
     default:
       return false;
   }
+}
+
+// ============================================================
+// Simulación + revalidación
+// ============================================================
+
+export interface FlowSnapshot {
+  name?: string;
+  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_config: Record<string, unknown>;
+  entry_node_id: string | null;
+  nodes: Array<{
+    node_key: string;
+    node_type: string;
+    config: Record<string, unknown>;
+  }>;
+}
+
+/**
+ * Aplica los patches a una copia inmutable del snapshot para poder
+ * revalidar antes de devolvérselos al cliente. Es una versión
+ * "headless" de applyAiPatches del builder — no toca posiciones, no
+ * preserva entry default, solo el grafo lógico que valida el
+ * validator (nodes + edges + trigger + entry).
+ */
+export function simulateApplyPatches(
+  snapshot: FlowSnapshot,
+  patches: AiPatch[],
+): FlowSnapshot {
+  let next: FlowSnapshot = {
+    ...snapshot,
+    trigger_config: { ...snapshot.trigger_config },
+    nodes: snapshot.nodes.map((n) => ({
+      ...n,
+      config: { ...n.config },
+    })),
+  };
+  for (const p of patches) {
+    switch (p.kind) {
+      case "add_node": {
+        if (next.nodes.some((n) => n.node_key === p.node_key)) break;
+        next = {
+          ...next,
+          nodes: [
+            ...next.nodes,
+            {
+              node_key: p.node_key,
+              node_type: p.node_type,
+              config: { ...p.config },
+            },
+          ],
+          entry_node_id: next.entry_node_id ?? p.node_key,
+        };
+        break;
+      }
+      case "remove_node": {
+        next = {
+          ...next,
+          nodes: next.nodes.filter((n) => n.node_key !== p.node_key),
+          entry_node_id:
+            next.entry_node_id === p.node_key ? null : next.entry_node_id,
+        };
+        break;
+      }
+      case "update_node_config": {
+        next = {
+          ...next,
+          nodes: next.nodes.map((n) =>
+            n.node_key === p.node_key
+              ? { ...n, config: { ...n.config, ...p.config_patch } }
+              : n,
+          ),
+        };
+        break;
+      }
+      case "move_node":
+        break;
+      case "wire": {
+        next = {
+          ...next,
+          nodes: next.nodes.map((n) => {
+            if (n.node_key !== p.from_node_key) return n;
+            const cfg = { ...n.config };
+            const idx = p.port_index ?? 0;
+            switch (p.kind_of_port) {
+              case "text":
+                cfg.next_node_key = p.to_node_key;
+                break;
+              case "button": {
+                const btns = Array.isArray(cfg.buttons)
+                  ? (cfg.buttons as Array<Record<string, unknown>>).slice()
+                  : [];
+                if (idx >= 0 && idx < btns.length) {
+                  btns[idx] = { ...btns[idx], next_node_key: p.to_node_key };
+                  cfg.buttons = btns;
+                }
+                break;
+              }
+              case "list_row": {
+                const sections = Array.isArray(cfg.sections)
+                  ? (cfg.sections as Array<{
+                      title?: string;
+                      rows?: Array<Record<string, unknown>>;
+                    }>).map((s) => ({ ...s, rows: s.rows ? [...s.rows] : [] }))
+                  : [];
+                let remaining = idx;
+                for (const s of sections) {
+                  const rows = s.rows ?? [];
+                  if (remaining < rows.length) {
+                    rows[remaining] = {
+                      ...rows[remaining],
+                      next_node_key: p.to_node_key,
+                    };
+                    s.rows = rows;
+                    remaining = -1;
+                    break;
+                  }
+                  remaining -= rows.length;
+                }
+                cfg.sections = sections;
+                break;
+              }
+              case "true_branch":
+                cfg.true_next = p.to_node_key;
+                break;
+              case "false_branch":
+                cfg.false_next = p.to_node_key;
+                break;
+              case "found_branch":
+                cfg.found_next_key = p.to_node_key;
+                break;
+              case "not_found_branch":
+                cfg.not_found_next_key = p.to_node_key;
+                break;
+              case "intent": {
+                const intents = Array.isArray(cfg.intents)
+                  ? (cfg.intents as Array<Record<string, unknown>>).slice()
+                  : [];
+                if (idx >= 0 && idx < intents.length) {
+                  intents[idx] = {
+                    ...intents[idx],
+                    next_node_key: p.to_node_key,
+                  };
+                  cfg.intents = intents;
+                }
+                break;
+              }
+              case "intent_fallback":
+                cfg.fallback_next_key = p.to_node_key;
+                break;
+            }
+            return { ...n, config: cfg };
+          }),
+        };
+        break;
+      }
+      case "set_entry": {
+        if (next.nodes.some((n) => n.node_key === p.node_key)) {
+          next = { ...next, entry_node_id: p.node_key };
+        }
+        break;
+      }
+      case "set_trigger": {
+        next = {
+          ...next,
+          trigger_type: p.trigger_type,
+          trigger_config: p.trigger_config,
+        };
+        break;
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Revalida después de simular los patches y devuelve los issues
+ * 'error' NUEVOS que no existían en el snapshot original. Las warnings
+ * y los errores preexistentes no bloquean la sugerencia — el merchant
+ * los arregla en otros turnos.
+ */
+export function validatePatchedSnapshot(
+  snapshot: FlowSnapshot,
+  patches: AiPatch[],
+): ValidationIssue[] {
+  const before = validateFlowForActivation(
+    {
+      name: snapshot.name ?? "tmp",
+      trigger_type: snapshot.trigger_type,
+      trigger_config: snapshot.trigger_config,
+      entry_node_id: snapshot.entry_node_id,
+    },
+    snapshot.nodes,
+  ).filter((i) => i.severity === "error");
+  const after = simulateApplyPatches(snapshot, patches);
+  const afterIssues = validateFlowForActivation(
+    {
+      name: after.name ?? "tmp",
+      trigger_type: after.trigger_type,
+      trigger_config: after.trigger_config,
+      entry_node_id: after.entry_node_id,
+    },
+    after.nodes,
+  ).filter((i) => i.severity === "error");
+  const beforeKeys = new Set(
+    before.map((i) => `${i.scope}|${i.node_key ?? ""}|${i.field ?? ""}|${i.message}`),
+  );
+  return afterIssues.filter(
+    (i) =>
+      !beforeKeys.has(
+        `${i.scope}|${i.node_key ?? ""}|${i.field ?? ""}|${i.message}`,
+      ),
+  );
 }

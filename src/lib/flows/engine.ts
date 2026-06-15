@@ -182,6 +182,20 @@ export function evaluateConditionPredicate(args: {
     case "contains":
       if (args.subjectValue === undefined) return false;
       return args.subjectValue.includes(args.configValue ?? "");
+    case "not_contains":
+      if (args.subjectValue === undefined) return true;
+      return !args.subjectValue.includes(args.configValue ?? "");
+    case "regex_match": {
+      if (args.subjectValue === undefined) return false;
+      const pattern = args.configValue ?? "";
+      if (!pattern) return false;
+      try {
+        const re = new RegExp(`^(?:${pattern})$`);
+        return re.test(args.subjectValue);
+      } catch {
+        return false;
+      }
+    }
   }
 }
 
@@ -610,11 +624,78 @@ function resolveShopifyInput(
   return "";
 }
 
+function resolveDottedPath(
+  root: Record<string, unknown>,
+  path: string,
+): unknown {
+  const parts = path.split(".");
+  let cur: unknown = root;
+  for (const part of parts) {
+    if (cur == null) return undefined;
+    if (typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
+
 function interpolateVars(template: string, vars: Record<string, unknown>): string {
   if (!template) return "";
-  return template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
-    const v = vars[key];
-    return v === undefined || v === null ? "" : String(v);
+  return template.replace(
+    /\{\{vars\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\}\}/g,
+    (_, path) => {
+      const v = resolveDottedPath(vars, path);
+      return v === undefined || v === null ? "" : String(v);
+    },
+  );
+}
+
+/**
+ * Backoff de reintentos para sends interactivos (botones/lista) que
+ * fallan de forma transitoria. El cron de retries usa el mismo orden.
+ * Después del 5to intento (índice 4) el cron termina el run con
+ * 'failed'.
+ */
+const RETRY_DELAYS_MS = [
+  60_000,        // 1 min
+  5 * 60_000,    // 5 min
+  30 * 60_000,   // 30 min
+  2 * 3_600_000, // 2 h
+  6 * 3_600_000, // 6 h
+] as const;
+
+export function nextRetryDelayMs(attempt: number): number {
+  const i = Math.max(0, Math.min(attempt, RETRY_DELAYS_MS.length - 1));
+  return RETRY_DELAYS_MS[i];
+}
+
+export const MAX_SEND_RETRY_ATTEMPTS = RETRY_DELAYS_MS.length;
+
+async function scheduleSendRetry(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+  retryKind: "send_buttons" | "send_list",
+  error: unknown,
+): Promise<void> {
+  const runAt = new Date(Date.now() + RETRY_DELAYS_MS[0]).toISOString();
+  await db.from("flow_pending_retries").insert({
+    flow_run_id: run.id,
+    workspace_id: run.workspace_id,
+    node_key: node.node_key,
+    attempt: 0,
+    max_attempts: MAX_SEND_RETRY_ATTEMPTS,
+    run_at: runAt,
+    retry_kind: retryKind,
+    last_error: error instanceof Error ? error.message : String(error),
+  });
+  await db
+    .from("flow_runs")
+    .update({ status: "paused_for_retry" })
+    .eq("id", run.id);
+  await logEvent(db, run.id, "error", node.node_key, {
+    reason: `${retryKind}_send_failed_scheduled_retry`,
+    detail: error instanceof Error ? error.message : String(error),
+    run_at: runAt,
   });
 }
 
@@ -896,7 +977,12 @@ async function advanceFromNodeKey(
       continue;
     }
     if (node.node_type === "send_buttons") {
-      await sendButtonsAndSuspend(db, run, node);
+      try {
+        await sendButtonsAndSuspend(db, run, node);
+      } catch (err) {
+        await scheduleSendRetry(db, run, node, "send_buttons", err);
+        return { outcome: "advanced" };
+      }
       // Persist the new current_node_key via optimistic UPDATE.
       const advanced = await advanceCurrentNodeKey(
         db,
@@ -912,7 +998,12 @@ async function advanceFromNodeKey(
       return { outcome: "advanced" };
     }
     if (node.node_type === "send_list") {
-      await sendListAndSuspend(db, run, node);
+      try {
+        await sendListAndSuspend(db, run, node);
+      } catch (err) {
+        await scheduleSendRetry(db, run, node, "send_list", err);
+        return { outcome: "advanced" };
+      }
       const advanced = await advanceCurrentNodeKey(
         db,
         run.id,
@@ -1316,7 +1407,29 @@ async function handleReplyForActiveRun(
   ) {
     const cfg = currentNode.config as unknown as CollectInputNodeConfig;
     const captured = message.text.trim();
-    if (captured.length > 0 && cfg.var_key) {
+    if (captured.length === 0) {
+      // Cliente envió un mensaje vacío (solo espacios). No avanza —
+      // re-enviamos el prompt para que vuelva a intentar.
+      try {
+        await engineSendText({
+          userId: run.workspace_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id!,
+          text: interpolateVars(cfg.prompt_text, run.vars),
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", currentNode.node_key, {
+          reason: "collect_input_empty_reprompt_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+      await logEvent(db, run.id, "fallback_fired", currentNode.node_key, {
+        action: "reprompt",
+        reason: "empty_input",
+      });
+      return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
+    }
+    if (cfg.var_key) {
       // Persist captured value + reset reprompt count atomically.
       const newVars = { ...run.vars, [cfg.var_key]: captured };
       const { error: capErr } = await db
@@ -1438,9 +1551,19 @@ async function handleReplyForActiveRun(
   if (action.type === "reprompt") {
     // Re-send the same prompt. Same node, no current_node_key change.
     if (currentNode.node_type === "send_buttons") {
-      await sendButtonsAndSuspend(db, run, currentNode);
+      try {
+        await sendButtonsAndSuspend(db, run, currentNode);
+      } catch (err) {
+        await scheduleSendRetry(db, run, currentNode, "send_buttons", err);
+        return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
+      }
     } else if (currentNode.node_type === "send_list") {
-      await sendListAndSuspend(db, run, currentNode);
+      try {
+        await sendListAndSuspend(db, run, currentNode);
+      } catch (err) {
+        await scheduleSendRetry(db, run, currentNode, "send_list", err);
+        return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
+      }
     } else if (currentNode.node_type === "collect_input") {
       // Customer typed something we couldn't accept (empty after trim,
       // or var_key missing — rare). Re-send the prompt so they try again.
@@ -1547,4 +1670,47 @@ async function startNewRun(
 // from the parked node.
 // ------------------------------------------------------------
 export const __advanceFromNodeKeyForResume = advanceFromNodeKey
+
+// ------------------------------------------------------------
+// Retry bridge — usado por /api/flows/retries/cron para reintentar
+// sends interactivos fallidos. Devuelve true si el send funcionó (y
+// el run quedó activo de nuevo) o false si falló (el cron reagenda).
+// ------------------------------------------------------------
+export async function retrySendNode(args: {
+  run: FlowRunRow;
+  node: FlowNodeRow;
+  retryKind: "send_buttons" | "send_list";
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = supabaseAdmin();
+  try {
+    if (args.retryKind === "send_buttons") {
+      await sendButtonsAndSuspend(db, args.run, args.node);
+    } else {
+      await sendListAndSuspend(db, args.run, args.node);
+    }
+    // Restaurar el run a activo y avanzar current_node_key al nodo
+    // que mandó (idéntico al path normal).
+    await db
+      .from("flow_runs")
+      .update({
+        status: "active",
+        current_node_key: args.node.node_key,
+        last_advanced_at: new Date().toISOString(),
+      })
+      .eq("id", args.run.id);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function failRunFromRetry(
+  flowRunId: string,
+  reason: string,
+): Promise<void> {
+  await endRun(supabaseAdmin(), flowRunId, "failed", reason);
+}
 

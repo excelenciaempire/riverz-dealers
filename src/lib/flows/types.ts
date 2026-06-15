@@ -110,6 +110,8 @@ export interface CollectInputNodeConfig {
 export type ConditionOperator =
   | "equals"
   | "contains"
+  | "not_contains"
+  | "regex_match"
   | "present"
   | "absent";
 
@@ -406,6 +408,7 @@ export interface FlowRunRow {
     | "handed_off"
     | "timed_out"
     | "paused_by_agent"
+    | "paused_for_retry"
     | "failed";
   current_node_key: string | null;
   last_prompt_message_id: string | null;

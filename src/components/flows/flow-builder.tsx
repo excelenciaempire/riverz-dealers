@@ -432,14 +432,22 @@ function summarizeNode(node: BuilderNode): string | null {
           ? "=="
           : cfg.operator === "contains"
             ? "contiene"
-            : cfg.operator === "present"
-              ? "existe"
-              : cfg.operator === "absent"
-                ? "no existe"
-                : "";
+            : cfg.operator === "not_contains"
+              ? "no contiene"
+              : cfg.operator === "regex_match"
+                ? "regex"
+                : cfg.operator === "present"
+                  ? "existe"
+                  : cfg.operator === "absent"
+                    ? "no existe"
+                    : "";
       const value = typeof cfg.value === "string" ? cfg.value : "";
       const valStr =
-        (cfg.operator === "equals" || cfg.operator === "contains") && value
+        (cfg.operator === "equals" ||
+          cfg.operator === "contains" ||
+          cfg.operator === "not_contains" ||
+          cfg.operator === "regex_match") &&
+        value
           ? ` "${truncate(value, 20)}"`
           : "";
       return subject === "tag" ? subjectStr : `${subjectStr} ${op}${valStr}`;
@@ -4496,7 +4504,13 @@ function SendListForm({
 interface ConditionCfg {
   subject?: "var" | "tag" | "contact_field";
   subject_key?: string;
-  operator?: "equals" | "contains" | "present" | "absent";
+  operator?:
+    | "equals"
+    | "contains"
+    | "not_contains"
+    | "regex_match"
+    | "present"
+    | "absent";
   value?: string;
   true_next?: string;
   false_next?: string;
@@ -4540,7 +4554,11 @@ function ConditionForm({
 
   const subject = cfg.subject ?? "var";
   const operator = cfg.operator ?? "equals";
-  const showValue = operator === "equals" || operator === "contains";
+  const showValue =
+    operator === "equals" ||
+    operator === "contains" ||
+    operator === "not_contains" ||
+    operator === "regex_match";
 
   return (
     <>
@@ -4635,6 +4653,8 @@ function ConditionForm({
               <SelectItem value="absent">no existe</SelectItem>
               <SelectItem value="equals">es igual a</SelectItem>
               <SelectItem value="contains">contiene</SelectItem>
+              <SelectItem value="not_contains">no contiene</SelectItem>
+              <SelectItem value="regex_match">coincide con (regex)</SelectItem>
             </SelectContent>
           </Select>
         </div>
