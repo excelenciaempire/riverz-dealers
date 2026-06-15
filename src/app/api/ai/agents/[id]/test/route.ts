@@ -5,6 +5,14 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
+import { splitReplyForMode } from '@/lib/ai/runner';
+import {
+  LOOKUP_ORDER_TOOL,
+  runWithTools,
+  type ShopifyToolContext,
+} from '@/lib/ai/tools';
+import { getConnectionForUser } from '@/lib/shopify/connection';
+import { shopifyApiVersion } from '@/lib/shopify/oauth';
 
 /**
  * Smoke-test an AI agent without involving any channel. Generates a
@@ -12,7 +20,18 @@ import type { AiAgent, AiTone } from '@/lib/ai/types';
  * knowledge, tone, and provider config, and returns it as JSON.
  *
  * POST /api/ai/agents/[id]/test
- *   body: { message: string }
+ *   body: { message: string, simulated_phone?: string }
+ *   response: { reply: string, chunks: string[], usage: {...} }
+ *
+ * `chunks` respeta el `response_mode` del agente para que el panel de
+ * prueba muestre exactamente las burbujas que vería el cliente en
+ * WhatsApp. `reply` queda para back-compat.
+ *
+ * Si el workspace dueño del agente tiene Shopify conectado, se le pasa
+ * a Claude la tool `lookup_order` para que pueda probar el flujo de
+ * consulta de pedidos. El teléfono del cliente simulado se toma del
+ * body (`simulated_phone`); si no llega, la tool igual se expone pero
+ * va a devolver "no encontré pedidos".
  */
 const TONE_INSTRUCTIONS: Record<AiTone, string> = {
   friendly: 'Conversa con calidez. Usa frases cortas. Evita formalismos rígidos.',
@@ -34,7 +53,10 @@ export async function POST(
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as { message?: string } | null;
+  const body = (await request.json().catch(() => null)) as {
+    message?: string;
+    simulated_phone?: string;
+  } | null;
   const message = body?.message?.trim();
   if (!message) {
     return NextResponse.json({ error: 'message required' }, { status: 400 });
@@ -79,24 +101,40 @@ export async function POST(
     }
     const system = lines.filter(Boolean).join('\n\n');
 
+    // ── Shopify tool (opcional) ──
+    // Resolvemos la conexión por workspace.owner_id: lo mismo que hace
+    // el runner en prod cuando elige qué token usar para el lookup.
+    const shopify = await resolveShopifyContextForWorkspace(
+      admin,
+      a.workspace_id,
+      body?.simulated_phone,
+    );
+
     const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
+    const max_tokens = Math.max(
+      64,
+      Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
+    );
+    const tools = shopify ? [LOOKUP_ORDER_TOOL] : [];
+    const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
-      max_tokens: Math.max(64, Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))),
+      max_tokens,
       system,
       messages: [{ role: 'user', content: message }],
+      tools,
+      shopify,
     });
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
+
+    const text = result.text;
+    const chunks = splitReplyForMode(text, a.response_mode);
 
     return NextResponse.json({
       reply: text,
+      chunks,
       usage: {
-        input_tokens: response.usage?.input_tokens,
-        output_tokens: response.usage?.output_tokens,
+        input_tokens: result.promptTokens,
+        output_tokens: result.completionTokens,
+        iterations: result.iterations,
       },
     });
   } catch (err) {
@@ -113,4 +151,50 @@ function safeDecrypt(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Levanta el contexto Shopify del workspace dueño del agente.
+ * Devuelve null si no hay conexión activa — el caller usa eso para
+ * decidir si exponer la tool o no.
+ */
+async function resolveShopifyContextForWorkspace(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  simulatedPhone: string | undefined,
+): Promise<ShopifyToolContext | null> {
+  const { data: ws } = await admin
+    .from('workspaces')
+    .select('owner_id')
+    .eq('id', workspaceId)
+    .maybeSingle();
+  const ownerId = (ws as { owner_id?: string } | null)?.owner_id;
+  if (!ownerId) return null;
+
+  const conn = await getConnectionForUser(admin, ownerId);
+  if (!conn || conn.status !== 'active') return null;
+
+  // getConnectionForUser oculta el token; pedimos el row completo aparte
+  // y desciframos manualmente para evitar tener que cambiar la firma
+  // pública del helper.
+  const { data: fullRow } = await admin
+    .from('shopify_connections')
+    .select('access_token')
+    .eq('id', conn.id)
+    .maybeSingle();
+  const encrypted = (fullRow as { access_token?: string } | null)?.access_token;
+  if (!encrypted) return null;
+  let accessToken: string;
+  try {
+    accessToken = decrypt(encrypted);
+  } catch {
+    return null;
+  }
+
+  return {
+    shopDomain: conn.shop_domain,
+    accessToken,
+    apiVersion: shopifyApiVersion(),
+    customerPhone: simulatedPhone?.trim() || undefined,
+  };
 }

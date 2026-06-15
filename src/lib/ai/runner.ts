@@ -15,6 +15,12 @@ import {
   type CandidateProduct,
   type ProductMatch,
 } from './product-routing';
+import {
+  LOOKUP_ORDER_TOOL,
+  runWithTools,
+  type ShopifyToolContext,
+} from './tools';
+import { shopifyApiVersion } from '@/lib/shopify/oauth';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -105,7 +111,19 @@ export async function runAiAgent(
 
     const context = await loadContext(db, args.conversation.id, agent.context_messages);
     const products = await loadProductCatalog(db, agent, ownerUserId, productMatch);
-    const reply = await generateReply(agent, args.contact, context, products, productMatch);
+    const shopify = await resolveShopifyContext(
+      db,
+      ownerUserId,
+      args.contact,
+    );
+    const reply = await generateReply(
+      agent,
+      args.contact,
+      context,
+      products,
+      productMatch,
+      shopify,
+    );
     if (!reply.text) {
       await logReply(db, agent, args, { status: 'skipped', skip_reason: 'empty_reply' });
       return;
@@ -558,6 +576,7 @@ async function generateReply(
   context: ContextMessage[],
   products: ProductRow[],
   productMatch: ProductMatch | null,
+  shopify: ShopifyToolContext | null,
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -581,28 +600,70 @@ async function generateReply(
     messages = [{ role: 'user', content: contact.name ? `Hola, soy ${contact.name}.` : 'Hola.' }];
   }
 
-  const response = await client.messages.create({
+  // Sólo exponemos la tool si hay conexión Shopify activa para el
+  // workspace. Sin conexión, no podríamos resolver la llamada y
+  // gastaríamos tokens describiéndosela al modelo en vano.
+  const tools = shopify ? [LOOKUP_ORDER_TOOL] : [];
+  const result = await runWithTools(client, {
     model: agent.model || 'claude-haiku-4-5-20251001',
-    max_tokens: Math.max(64, Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2))),
+    max_tokens: Math.max(
+      64,
+      Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2)),
+    ),
     system,
     messages,
+    tools,
+    shopify,
   });
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
-
   const trimmed =
-    text.length > agent.max_response_chars
-      ? text.slice(0, agent.max_response_chars).trimEnd() + '…'
-      : text;
+    result.text.length > agent.max_response_chars
+      ? result.text.slice(0, agent.max_response_chars).trimEnd() + '…'
+      : result.text;
 
   return {
     text: trimmed,
-    promptTokens: response.usage?.input_tokens,
-    completionTokens: response.usage?.output_tokens,
+    promptTokens: result.promptTokens,
+    completionTokens: result.completionTokens,
+  };
+}
+
+/**
+ * Levanta el contexto Shopify del workspace dueño del agente, con el
+ * teléfono/email del contacto pre-cargado para que la tool
+ * `lookup_order` los use sin necesidad de pedírselos al cliente.
+ * Devuelve null si no hay conexión activa.
+ */
+async function resolveShopifyContext(
+  db: SupabaseClient,
+  ownerUserId: string | null,
+  contact: Contact,
+): Promise<ShopifyToolContext | null> {
+  if (!ownerUserId) return null;
+  const { data } = await db
+    .from('shopify_connections')
+    .select('shop_domain, access_token, status')
+    .eq('user_id', ownerUserId)
+    .eq('status', 'active')
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as
+    | { shop_domain: string; access_token: string; status: string }
+    | null;
+  if (!row) return null;
+  let accessToken: string;
+  try {
+    accessToken = decrypt(row.access_token);
+  } catch {
+    return null;
+  }
+  return {
+    shopDomain: row.shop_domain,
+    accessToken,
+    apiVersion: shopifyApiVersion(),
+    customerPhone: contact.phone || undefined,
+    customerEmail: contact.email || undefined,
   };
 }
 
@@ -783,7 +844,7 @@ async function logReply(
  * Si el modelo devuelve solo un chunk no vacío, los modos multi y
  * dynamic colapsan a un solo bubble (no enviamos un mensaje vacío).
  */
-function splitReplyForMode(
+export function splitReplyForMode(
   text: string,
   mode: AiResponseMode,
 ): string[] {

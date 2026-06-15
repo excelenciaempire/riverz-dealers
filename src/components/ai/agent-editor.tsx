@@ -282,6 +282,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [saving, setSaving] = useState(false);
   const [testMessage, setTestMessage] = useState('');
   const [testReply, setTestReply] = useState<string | null>(null);
+  const [testChunks, setTestChunks] = useState<string[] | null>(null);
   const [testing, setTesting] = useState(false);
 
   type TabKey = 'identity' | 'knowledge' | 'reach' | 'behavior' | 'advanced';
@@ -504,6 +505,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     }
     setTesting(true);
     setTestReply(null);
+    setTestChunks(null);
     try {
       const res = await fetchWithCsrf(`/api/ai/agents/${agent!.id}/test`, {
         method: 'POST',
@@ -512,7 +514,14 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Falló');
-      setTestReply(json.reply ?? '');
+      const reply: string = json.reply ?? '';
+      setTestReply(reply);
+      const chunks: string[] = Array.isArray(json.chunks) && json.chunks.length > 0
+        ? json.chunks
+        : reply
+          ? [reply]
+          : [];
+      setTestChunks(chunks);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -1165,10 +1174,29 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
                 Envía un mensaje y mira cómo respondería.
               </p>
             </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {testReply !== null && (
-                <div className="rounded-lg border border-border bg-card p-3 text-sm text-foreground">
-                  {testReply || <span className="text-muted-foreground italic">Sin respuesta.</span>}
+            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              {testReply !== null && testChunks !== null && testChunks.length === 0 && (
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] rounded-lg rounded-br-none bg-[#dcf8c6] px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
+                    <span className="italic text-[#6b7280]">Sin respuesta.</span>
+                  </div>
+                </div>
+              )}
+              {testChunks !== null && testChunks.length > 0 && (
+                <div className="flex flex-col items-end gap-1.5">
+                  {testChunks.map((chunk, i) => (
+                    <div
+                      key={i}
+                      className="max-w-[85%] rounded-lg rounded-br-none bg-[#dcf8c6] px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm"
+                    >
+                      <p className="whitespace-pre-wrap">{chunk}</p>
+                      {i === testChunks.length - 1 && (
+                        <p className="mt-1 text-right text-[10px] text-[#6b7280]">
+                          Vista previa
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
               {testing && (
