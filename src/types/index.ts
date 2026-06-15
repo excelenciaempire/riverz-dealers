@@ -89,8 +89,46 @@ export interface Contact {
   /** True si el contacto fue visto en una orden o customer de Shopify.
    *  Migration 030. La lista de Contactos lo usa para mostrar un badge. */
   is_shopify_customer?: boolean;
+  /** Resumen acumulativo (Claude Haiku) de lo que sabemos del cliente —
+   *  preferencias, alergias, tono, requests comunes. Migration 049. */
+  ai_summary?: string | null;
+  /** Cache JSONB del customer en Shopify. Migration 049. */
+  shopify_customer_data?: ShopifyCustomerSnapshot | null;
+  /** Timestamp del último refresh de shopify_customer_data. Migration 049. */
+  shopify_data_synced_at?: string | null;
+  /** # de conversaciones que la IA ha atendido para este contacto.
+   *  Migration 049. */
+  conversation_count?: number;
+  /** Última vez que la IA respondió a este contacto. Migration 049. */
+  last_ai_conversation_at?: string | null;
+  /** Si este contacto comparte teléfono/email con otro del mismo
+   *  workspace, apunta al "primario". Migration 050. */
+  unified_contact_id?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Snapshot Shopify cacheado en contacts.shopify_customer_data.
+ * Refrescado cada 24h por /lib/contacts/enrich.ts.
+ */
+export interface ShopifyCustomerSnapshot {
+  customer_id?: string;
+  total_spent?: number;
+  currency?: string;
+  orders_count?: number;
+  last_order_date?: string | null;
+  tags?: string[];
+  default_address?: {
+    country?: string | null;
+    city?: string | null;
+  };
+  accepts_marketing?: boolean;
+  lifetime_orders?: Array<{
+    name: string;
+    total_price: string | number;
+    line_items_titles: string[];
+  }>;
 }
 
 export interface Tag {
@@ -156,6 +194,13 @@ export interface Conversation {
    * dot in the inbox row. Maintained by inbox-writer + send-route. */
   last_sender_type?: SenderType;
   unread_count: number;
+  /** Resumen rodante del historial viejo de esta conversación.
+   *  Migration 048. */
+  ai_summary?: string | null;
+  /** Último message.id cubierto por ai_summary. Migration 048. */
+  ai_summary_up_to_message_id?: string | null;
+  /** Timestamp del último refresh de ai_summary. Migration 048. */
+  ai_summary_updated_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;

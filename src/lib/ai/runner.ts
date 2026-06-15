@@ -4,8 +4,10 @@ import type {
   Channel,
   ChannelConnection,
   Contact,
+  ContactNote,
   Conversation,
   Message,
+  ShopifyCustomerSnapshot,
 } from '@/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -21,6 +23,12 @@ import {
   type ShopifyToolContext,
 } from './tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
+import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { enrichContactFromShopify } from '@/lib/contacts/enrich';
+import {
+  summarizeConversationIfNeeded,
+  summarizeContactIfNeeded,
+} from './summarize';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -109,7 +117,22 @@ export async function runAiAgent(
       }
     }
 
-    const context = await loadContext(db, args.conversation.id, agent.context_messages);
+    // Cargamos el "primario" del contacto (migration 050) — si este
+    // canal es un alias de otro contacto del mismo cliente humano,
+    // queremos su ai_summary y su shopify_customer_data.
+    const primaryContact = await loadPrimaryContact(db, args.contact);
+
+    // Enriquecimiento Shopify (cache 24h). Si está fresco devuelve el
+    // cache; sino llama a Shopify, escribe el snapshot y lo devuelve.
+    // Falla en silencio — el snapshot sigue siendo opcional.
+    const shopifySnapshot = await enrichContactFromShopify(db, primaryContact).catch(
+      () => null,
+    );
+
+    // Notas del equipo en el contact (las 3 más recientes).
+    const recentNotes = await loadRecentContactNotes(db, primaryContact.id);
+
+    const context = await loadContext(db, args.conversation, agent.context_messages);
     const products = await loadProductCatalog(db, agent, ownerUserId, productMatch);
     const shopify = await resolveShopifyContext(
       db,
@@ -119,6 +142,9 @@ export async function runAiAgent(
     const reply = await generateReply(
       agent,
       args.contact,
+      primaryContact,
+      shopifySnapshot,
+      recentNotes,
       context,
       products,
       productMatch,
@@ -187,11 +213,33 @@ export async function runAiAgent(
       })
       .eq('id', args.conversation.id);
 
+    // Bump telemetry del contact "primario" — sirve para "Cliente
+    // frecuente" en el sidebar y para que el summarizer sepa cuándo
+    // refrescar `contacts.ai_summary`.
+    await db
+      .from('contacts')
+      .update({
+        conversation_count: (primaryContact.conversation_count ?? 0) + 1,
+        last_ai_conversation_at: new Date().toISOString(),
+      })
+      .eq('id', primaryContact.id);
+
     await logReply(db, agent, args, {
       status: 'sent',
       message_id: insertedIds[0] ?? null,
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
+    });
+
+    // ── Memoria rodante (background, fail-soft) ──
+    // No esperamos — el cliente ya recibió la respuesta. Si fallan,
+    // el log de error queda en consola y reintentamos en el próximo
+    // turno.
+    Promise.allSettled([
+      summarizeConversationIfNeeded(db, args.conversation, agent),
+      summarizeContactIfNeeded(db, primaryContact, args.conversation, agent),
+    ]).catch(() => {
+      /* swallow */
     });
   } catch (err) {
     console.error('[ai] runner failed:', err);
@@ -437,26 +485,71 @@ interface ContextMessage {
   content: string;
 }
 
+interface LoadedContext {
+  messages: ContextMessage[];
+  /** Resumen rodante de la conversación previo (migration 048).
+   *  Inyectado por el caller como pseudo-system message ANTES del
+   *  historial reciente. */
+  rollingSummary: string | null;
+  /** Pista a sumar al system prompt si el último mensaje del cliente
+   *  fue hace >48h — para que la IA no asuma continuidad. */
+  idleResetHint: string | null;
+}
+
+/**
+ * Levanta el contexto reciente de la conversación. Cambios respecto a
+ * la versión original:
+ *
+ *   - Cap subido de 40 → 100 mensajes recientes (default sigue siendo
+ *     30 — viene de `ai_agents.context_messages`).
+ *   - Devuelve el `rollingSummary` de `conversations.ai_summary` para
+ *     que el caller lo inyecte en el system prompt.
+ *   - Si pasaron >48h desde el último inbound del cliente, agregamos
+ *     un hint para que el modelo trate el turno como una nueva consulta
+ *     (sin asumir que sigue lo de la última vez).
+ */
 async function loadContext(
   db: SupabaseClient,
-  conversationId: string,
+  conversation: Conversation,
   limit: number,
-): Promise<ContextMessage[]> {
-  const safeLimit = Math.max(1, Math.min(40, limit || 10));
+): Promise<LoadedContext> {
+  const safeLimit = Math.max(1, Math.min(100, limit || 30));
   const { data } = await db
     .from('messages')
     .select('sender_type, content_text, created_at')
-    .eq('conversation_id', conversationId)
+    .eq('conversation_id', conversation.id)
     .order('created_at', { ascending: false })
     .limit(safeLimit);
 
-  const rows = ((data ?? []) as { sender_type: string; content_text: string | null }[])
+  const rowsRaw = ((data ?? []) as {
+    sender_type: string;
+    content_text: string | null;
+    created_at: string;
+  }[])
     .filter((m) => m.content_text && m.content_text.trim())
     .reverse();
-  return rows.map((m) => ({
+  const messages: ContextMessage[] = rowsRaw.map((m) => ({
     role: m.sender_type === 'customer' ? 'user' : 'assistant',
     content: m.content_text!.trim(),
   }));
+
+  const rollingSummary = conversation.ai_summary ?? null;
+
+  // ── Idle-reset hint ──
+  // Si la última actividad de la conversación fue hace >48h, el cliente
+  // probablemente vuelve por algo nuevo. El sistema prompt va a tener
+  // este aviso para que el bot no arranque con "como te dije ayer…".
+  let idleResetHint: string | null = null;
+  if (conversation.last_message_at) {
+    const ageMs = Date.now() - new Date(conversation.last_message_at).getTime();
+    const HOURS_48 = 48 * 60 * 60 * 1000;
+    if (Number.isFinite(ageMs) && ageMs > HOURS_48) {
+      const days = Math.max(2, Math.round(ageMs / (24 * 60 * 60 * 1000)));
+      idleResetHint = `Esta es una nueva consulta del cliente — la conversación anterior fue hace ${days} días. No asumas continuidad si la clienta no la menciona.`;
+    }
+  }
+
+  return { messages, rollingSummary, idleResetHint };
 }
 
 const TONE_INSTRUCTIONS: Record<AiTone, string> = {
@@ -573,7 +666,10 @@ interface ProductRow {
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
-  context: ContextMessage[],
+  primaryContact: Contact,
+  shopifySnapshot: ShopifyCustomerSnapshot | null,
+  recentNotes: string[],
+  context: LoadedContext,
   products: ProductRow[],
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null,
@@ -589,10 +685,19 @@ async function generateReply(
   }
 
   const client = new Anthropic({ apiKey });
-  const system = buildSystemPrompt(agent, contact, products, productMatch);
+  const system = buildSystemPrompt(
+    agent,
+    contact,
+    primaryContact,
+    shopifySnapshot,
+    recentNotes,
+    context,
+    products,
+    productMatch,
+  );
 
   // Ensure the conversation starts with a user turn — required by the API.
-  let messages: ContextMessage[] = context;
+  let messages: ContextMessage[] = context.messages;
   while (messages.length && messages[0].role !== 'user') {
     messages = messages.slice(1);
   }
@@ -685,6 +790,10 @@ async function resolveShopifyContext(
 function buildSystemPrompt(
   agent: AiAgent,
   contact: Contact,
+  primaryContact: Contact,
+  shopifySnapshot: ShopifyCustomerSnapshot | null,
+  recentNotes: string[],
+  context: LoadedContext,
   products: ProductRow[],
   productMatch: ProductMatch | null,
 ): string {
@@ -696,6 +805,31 @@ function buildSystemPrompt(
   if (agent.knowledge && agent.knowledge.trim()) {
     lines.push('Contexto adicional sobre el negocio:');
     lines.push(agent.knowledge.trim());
+  }
+
+  // ── Idle-reset hint (>48h) ──
+  if (context.idleResetHint) {
+    lines.push(context.idleResetHint);
+  }
+
+  // ── Resumen rodante de la conversación previa (migration 048) ──
+  if (context.rollingSummary && context.rollingSummary.trim()) {
+    lines.push(`Resumen de la conversación anterior: ${context.rollingSummary.trim()}`);
+  }
+
+  // ── Memoria de cliente (migration 049) ──
+  // El resumen y el snapshot Shopify viven en el contact "primario"
+  // (migration 050), no necesariamente en el del canal actual.
+  if (primaryContact.ai_summary && primaryContact.ai_summary.trim()) {
+    lines.push(`Lo que sabemos del cliente: ${primaryContact.ai_summary.trim()}`);
+  }
+  if (shopifySnapshot) {
+    const shopifyLine = formatShopifySnapshot(shopifySnapshot);
+    if (shopifyLine) lines.push(shopifyLine);
+  }
+  if (recentNotes.length > 0) {
+    lines.push('Notas previas del equipo:');
+    lines.push(recentNotes.map((n) => `- ${n}`).join('\n'));
   }
 
   // ── Guard (anti-prompt-injection), bilingüe ──
@@ -813,6 +947,52 @@ function safeDecrypt(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Devuelve las 3 notas más recientes del equipo sobre este contact,
+ *  como strings. Falla en silencio — la falta de notas no es un error. */
+async function loadRecentContactNotes(
+  db: SupabaseClient,
+  contactId: string,
+): Promise<string[]> {
+  const { data } = await db
+    .from('contact_notes')
+    .select('note_text, created_at')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+  return ((data as Pick<ContactNote, 'note_text'>[] | null) ?? [])
+    .map((n) => (n.note_text ?? '').trim())
+    .filter(Boolean);
+}
+
+/** Formatea el snapshot Shopify en una sola línea de system prompt.
+ *  Devuelve null si el snapshot está vacío. */
+function formatShopifySnapshot(snap: ShopifyCustomerSnapshot): string | null {
+  const parts: string[] = [];
+  const total = snap.total_spent ?? 0;
+  const orders = snap.orders_count ?? 0;
+  if (orders > 0) {
+    const currency = snap.currency ? ` ${snap.currency}` : '';
+    parts.push(`gastó $${total}${currency} en ${orders} pedido${orders === 1 ? '' : 's'}`);
+  }
+  if (snap.last_order_date) {
+    const d = new Date(snap.last_order_date);
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(`último pedido ${d.toISOString().slice(0, 10)}`);
+    }
+  }
+  if (snap.default_address?.country || snap.default_address?.city) {
+    const loc = [snap.default_address?.city, snap.default_address?.country]
+      .filter(Boolean)
+      .join(', ');
+    if (loc) parts.push(`ubicado en ${loc}`);
+  }
+  if (snap.tags && snap.tags.length > 0) {
+    parts.push(`tags: ${snap.tags.slice(0, 5).join(', ')}`);
+  }
+  if (parts.length === 0) return null;
+  return `Cliente en Shopify: ${parts.join('. ')}.`;
 }
 
 function sleep(ms: number): Promise<void> {

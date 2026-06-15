@@ -8,6 +8,7 @@ import type {
 } from "@/types";
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
+import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -37,6 +38,13 @@ export async function ingestInboundEvent(
     phone: channel === "whatsapp" ? event.externalContactId : undefined,
   });
   if (!contact) return null;
+
+  // 1b. Cross-channel dedupe (migration 050). Si este contact comparte
+  //     teléfono normalizado o email con otro del mismo workspace, lo
+  //     enlazamos al "primario" (el más viejo del grupo). El runner de
+  //     IA después lee ai_summary + shopify_customer_data desde el
+  //     primario. Fail-soft — no rompe el ingest si falla.
+  await linkUnifiedContact(db, contact).catch(() => contact.id);
 
   // 2. Find-or-create conversation. Emails group by threadId; everything
   //    else keeps one open conversation per (contact, channel).
