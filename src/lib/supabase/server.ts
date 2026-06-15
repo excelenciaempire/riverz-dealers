@@ -11,10 +11,18 @@ import { isDemoMode } from '@/lib/demo'
 // existing CSRF tokens. The default from @supabase/ssr is 'lax', which
 // still allows GET top-level navigations and leaks just enough for some
 // CSRF variants. Override it via the cookieOptions on every client.
+//
+// NOTE: httpOnly is intentionally NOT forced here. @supabase/ssr's
+// browser client reads the session cookie from JS to populate
+// `supabase.auth.getSession()` on the client side. Setting httpOnly=true
+// blinds the browser to its own session → dashboard-shell sees
+// `user === null` → returns null → blank page. Server-side reads via
+// `await cookies()` work either way. The XSS surface is mitigated by
+// (a) strict CSP with nonce + 'strict-dynamic' (no inline scripts), and
+// (b) the CSRF token double-submit on every mutation.
 export const SESSION_COOKIE_OPTIONS = {
   sameSite: 'strict',
   secure: process.env.NODE_ENV === 'production',
-  httpOnly: true,
   path: '/',
 } as const
 
