@@ -7,6 +7,7 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
 import {
+  CREATE_CHECKOUT_TOOL,
   LOOKUP_ORDER_TOOL,
   runWithTools,
   type ShopifyToolContext,
@@ -114,7 +115,7 @@ export async function POST(
       64,
       Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
     );
-    const tools = shopify ? [LOOKUP_ORDER_TOOL] : [];
+    const tools = shopify ? [LOOKUP_ORDER_TOOL, CREATE_CHECKOUT_TOOL] : [];
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
       max_tokens,

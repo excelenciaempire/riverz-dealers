@@ -19,6 +19,7 @@ import {
   type ProductMatch,
 } from './product-routing';
 import {
+  CREATE_CHECKOUT_TOOL,
   LOOKUP_ORDER_TOOL,
   runWithTools,
   type ShopifyToolContext,
@@ -139,6 +140,7 @@ export async function runAiAgent(
       db,
       args.workspaceId,
       args.contact,
+      productMatch,
     );
     const reply = await generateReply(
       agent,
@@ -899,10 +901,10 @@ async function generateReply(
     toClaudeMessage(m),
   );
 
-  // Sólo exponemos la tool si hay conexión Shopify activa para el
+  // Sólo exponemos las tools si hay conexión Shopify activa para el
   // workspace. Sin conexión, no podríamos resolver la llamada y
   // gastaríamos tokens describiéndosela al modelo en vano.
-  const tools = shopify ? [LOOKUP_ORDER_TOOL] : [];
+  const tools = shopify ? [LOOKUP_ORDER_TOOL, CREATE_CHECKOUT_TOOL] : [];
   const result = await runWithTools(client, {
     model: agent.model || 'claude-haiku-4-5-20251001',
     max_tokens: Math.max(
@@ -943,6 +945,7 @@ async function resolveShopifyContext(
   db: SupabaseClient,
   workspaceId: string | null,
   contact: Contact,
+  productMatch: ProductMatch | null,
 ): Promise<ShopifyToolContext | null> {
   if (!workspaceId) return null;
   const { data: members } = await db
@@ -972,13 +975,69 @@ async function resolveShopifyContext(
   } catch {
     return null;
   }
+
+  // Si hay producto detectado, resolvemos el external_id (Shopify
+  // product id) para que `create_checkout` lo pueda usar como pista
+  // del variant a poner en el cart-permalink. Si no, la tool cae al
+  // default conocido por tienda (Pilar → Sérum Pilar).
+  let pinnedVariantId: string | null = null;
+  if (productMatch?.product_id) {
+    const { data: prodRow } = await db
+      .from('shopify_products')
+      .select('external_id')
+      .eq('id', productMatch.product_id)
+      .maybeSingle();
+    const externalId = (prodRow as { external_id?: number | string } | null)
+      ?.external_id;
+    if (externalId != null) {
+      pinnedVariantId = await resolveDefaultVariantId(
+        row.shop_domain,
+        accessToken,
+        String(externalId),
+      );
+    }
+  }
+
   return {
     shopDomain: row.shop_domain,
     accessToken,
     apiVersion: shopifyApiVersion(),
     customerPhone: contact.phone || undefined,
     customerEmail: contact.email || undefined,
+    pinnedVariantId,
+    storefrontDomain: null,
   };
+}
+
+/**
+ * Llama a `/admin/api/{v}/products/{id}/variants.json?limit=1&fields=id`
+ * para sacar el variant_id default del producto detectado. Se usa para
+ * armar el cart-permalink en `create_checkout`. Falla en silencio — si
+ * no podemos resolverlo, devolvemos null y la tool cae al fallback por
+ * tienda.
+ *
+ * Latencia: ~150ms; se hace sólo cuando hay producto detectado.
+ */
+async function resolveDefaultVariantId(
+  shopDomain: string,
+  accessToken: string,
+  productExternalId: string,
+): Promise<string | null> {
+  try {
+    const url = `https://${shopDomain}/admin/api/${shopifyApiVersion()}/products/${productExternalId}/variants.json?limit=1&fields=id`;
+    const res = await fetch(url, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { variants?: { id: number }[] };
+    const v = data.variants?.[0]?.id;
+    return v != null ? String(v) : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildSystemPrompt(
@@ -1160,33 +1219,57 @@ async function loadRecentContactNotes(
     .filter(Boolean);
 }
 
-/** Formatea el snapshot Shopify en una sola línea de system prompt.
- *  Devuelve null si el snapshot está vacío. */
+/** Formatea el snapshot Shopify como un bloque prominente del system
+ *  prompt para que la IA reconozca clientas que ya compraron antes y
+ *  ajuste el tono ("qué bueno que volvés" vs "primera vez por acá").
+ *  Devuelve null si el snapshot está totalmente vacío. */
 function formatShopifySnapshot(snap: ShopifyCustomerSnapshot): string | null {
-  const parts: string[] = [];
-  const total = snap.total_spent ?? 0;
   const orders = snap.orders_count ?? 0;
+  const total = snap.total_spent ?? 0;
+  const currency = snap.currency ?? '';
+
+  const lines: string[] = ['PERFIL DEL CLIENTE en Shopify:'];
+
   if (orders > 0) {
-    const currency = snap.currency ? ` ${snap.currency}` : '';
-    parts.push(`gastó $${total}${currency} en ${orders} pedido${orders === 1 ? '' : 's'}`);
+    lines.push(`- Cliente que ya compró antes (${orders} pedido${orders === 1 ? '' : 's'} previos).`);
+    const currencyTag = currency ? ` ${currency}` : '';
+    lines.push(`- Total comprado histórico: $${total}${currencyTag}.`);
+  } else {
+    lines.push('- Cliente nueva (no tiene pedidos previos en Shopify).');
   }
+
   if (snap.last_order_date) {
     const d = new Date(snap.last_order_date);
     if (!Number.isNaN(d.getTime())) {
-      parts.push(`último pedido ${d.toISOString().slice(0, 10)}`);
+      const ageDays = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
+      const ageLabel =
+        ageDays <= 0 ? 'hoy' : ageDays === 1 ? 'hace 1 día' : `hace ${ageDays} días`;
+      // Último ítem comprado, si tenemos lifetime_orders.
+      const lastSummary = (snap.lifetime_orders ?? [])[0];
+      const items = (lastSummary?.line_items_titles ?? []).slice(0, 3).join(', ');
+      const summary = items ? ` — pidió: ${items}` : '';
+      lines.push(`- Último pedido: ${ageLabel} (${d.toISOString().slice(0, 10)})${summary}.`);
     }
   }
+
   if (snap.default_address?.country || snap.default_address?.city) {
     const loc = [snap.default_address?.city, snap.default_address?.country]
       .filter(Boolean)
       .join(', ');
-    if (loc) parts.push(`ubicado en ${loc}`);
+    if (loc) lines.push(`- Ubicación: ${loc}.`);
   }
+
   if (snap.tags && snap.tags.length > 0) {
-    parts.push(`tags: ${snap.tags.slice(0, 5).join(', ')}`);
+    lines.push(`- Tags Shopify: ${snap.tags.slice(0, 5).join(', ')}.`);
   }
-  if (parts.length === 0) return null;
-  return `Cliente en Shopify: ${parts.join('. ')}.`;
+
+  if (lines.length === 1) return null;
+  lines.push(
+    orders > 0
+      ? 'Reconocé la calidez de que vuelve — saludala como cliente recurrente, sin sobreactuar.'
+      : 'Es la primera vez que te contacta — dale la bienvenida sin asumir compras previas.',
+  );
+  return lines.join('\n');
 }
 
 function sleep(ms: number): Promise<void> {

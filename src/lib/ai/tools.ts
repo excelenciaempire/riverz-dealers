@@ -14,6 +14,11 @@
 
 import type Anthropic from '@anthropic-ai/sdk'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
+import {
+  createCheckoutLink,
+  type CheckoutOffer,
+  type PaymentHint,
+} from '@/lib/shopify/create-checkout'
 
 export const AGENTIC_LOOP_MAX_ITERS = 3
 
@@ -24,6 +29,15 @@ export interface ShopifyToolContext {
   apiVersion: string
   customerPhone?: string
   customerEmail?: string
+  /** Variant id del producto pinned (detección de producto en el
+   *  mensaje del cliente). Lo usa `create_checkout` para armar el
+   *  cart-permalink correcto. Opcional — si no hay, la tool cae a un
+   *  default por tienda conocida. */
+  pinnedVariantId?: string | null
+  /** Dominio público de la storefront (ej. "pilarargentina.store"),
+   *  cacheado por el caller cuando lo conoce. Si null, `create_checkout`
+   *  llama a /shop.json para resolverlo. */
+  storefrontDomain?: string | null
 }
 
 /** Definición JSON-Schema de la tool `lookup_order` (formato Anthropic). */
@@ -46,6 +60,39 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
       },
     },
     required: ['reason'],
+  },
+}
+
+/**
+ * Definición JSON-Schema de la tool `create_checkout` (formato Anthropic).
+ *
+ * El modelo la llama cuando la clienta ya eligió una oferta y queremos
+ * mandarla directo al checkout de Shopify (Shopify maneja dirección,
+ * tarjeta, Mercado Pago — no lo pedimos por chat). El cart-permalink
+ * que devuelve dispara automáticamente el descuento por bundle (Käching
+ * Bundles Cart Function) sin necesidad de código de descuento.
+ */
+export const CREATE_CHECKOUT_TOOL: Anthropic.Tool = {
+  name: 'create_checkout',
+  description:
+    'Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta y opcionalmente que va a pagar por transferencia para aplicarle el descuento de $4.900. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify (que ya maneja tarjeta + Mercado Pago).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      offer: {
+        type: 'string',
+        enum: ['1u', '2u_1_gratis', '3u_1_gratis'],
+        description:
+          'Oferta que eligió la clienta. 1u = 1 unidad ($39.990). 2u_1_gratis = 2 unidades + 1 gratis ($69.900). 3u_1_gratis = 3 unidades + 1 gratis ($99.900).',
+      },
+      payment_hint: {
+        type: 'string',
+        enum: ['card_or_mp', 'transfer'],
+        description:
+          'Si la clienta dijo que va a pagar por transferencia, pasá "transfer" para aplicarle el descuento de $4.900. Para todo lo demás (tarjeta, Mercado Pago) usá "card_or_mp".',
+      },
+    },
+    required: ['offer'],
   },
 }
 
@@ -77,6 +124,35 @@ export async function runTool(
       customerEmail: shopify.customerEmail,
       orderNumber: input.order_number,
     })
+    return JSON.stringify(result)
+  }
+  if (toolName === 'create_checkout') {
+    if (!shopify) {
+      return JSON.stringify({
+        error: 'no_shopify_connection',
+        message: 'El workspace no tiene Shopify conectado.',
+      })
+    }
+    const input = (toolInput ?? {}) as {
+      offer?: CheckoutOffer
+      payment_hint?: PaymentHint
+    }
+    if (!input.offer) {
+      return JSON.stringify({
+        error: 'missing_offer',
+        message: 'Pasá la oferta (1u | 2u_1_gratis | 3u_1_gratis).',
+      })
+    }
+    const result = await createCheckoutLink(
+      { offer: input.offer, payment_hint: input.payment_hint },
+      {
+        shopDomain: shopify.shopDomain,
+        accessToken: shopify.accessToken,
+        apiVersion: shopify.apiVersion,
+        pinnedVariantId: shopify.pinnedVariantId ?? null,
+        storefrontDomain: shopify.storefrontDomain ?? null,
+      },
+    )
     return JSON.stringify(result)
   }
   return JSON.stringify({
