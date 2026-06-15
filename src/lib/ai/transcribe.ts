@@ -1,34 +1,66 @@
 /**
- * Transcripción de audios y voice notes vía OpenAI Whisper.
+ * Transcripción de audios y voice notes vía Whisper.
+ *
+ * Soporta dos proveedores (ambos OpenAI-compatible):
+ *   - Groq (whisper-large-v3) — preferido: gratis + más rápido.
+ *   - OpenAI (whisper-1) — fallback.
  *
  * Usado por el runner cuando recibe un `messages.media_type` =
  * 'voice' | 'audio' y todavía no hay `media_transcription` cacheada.
  * El runner cachea el resultado en la columna para no re-transcribir
  * en cada turno del agente.
  *
- * Si `OPENAI_API_KEY` no está configurada, devolvemos null y el caller
+ * Si ninguna API key está configurada, devolvemos null y el caller
  * decide qué decirle a Claude (típicamente "el cliente mandó un audio
  * que no pude entender"). Esto evita un fail duro en workspaces que
- * todavía no quieren pagar la API de OpenAI.
- *
- * Endpoint: POST https://api.openai.com/v1/audio/transcriptions
- * Modelo: whisper-1 (default, multilenguaje).
+ * todavía no quieren pagar transcripción.
  */
 
-const TRANSCRIPTION_ENDPOINT =
+const GROQ_ENDPOINT =
+  "https://api.groq.com/openai/v1/audio/transcriptions";
+const OPENAI_ENDPOINT =
   "https://api.openai.com/v1/audio/transcriptions";
+
+type Provider = {
+  name: "groq" | "openai";
+  endpoint: string;
+  model: string;
+  apiKey: string;
+};
 
 export interface TranscriptionResult {
   text: string;
   language?: string;
 }
 
+function pickProvider(): Provider | null {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    return {
+      name: "groq",
+      endpoint: GROQ_ENDPOINT,
+      model: "whisper-large-v3",
+      apiKey: groqKey,
+    };
+  }
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    return {
+      name: "openai",
+      endpoint: OPENAI_ENDPOINT,
+      model: "whisper-1",
+      apiKey: openaiKey,
+    };
+  }
+  return null;
+}
+
 /**
- * Baja el audio desde la URL pública y lo manda a Whisper. Devuelve
- * el texto plano transcripto o null si:
- *   - falta OPENAI_API_KEY,
+ * Baja el audio desde la URL pública y lo manda al provider activo.
+ * Devuelve el texto plano transcripto o null si:
+ *   - no hay GROQ_API_KEY ni OPENAI_API_KEY,
  *   - la URL no es accesible,
- *   - el endpoint de OpenAI devuelve error.
+ *   - el endpoint del provider devuelve error.
  *
  * Nunca tira excepción — el runner no debería frenarse porque un
  * audio se rompió.
@@ -36,10 +68,10 @@ export interface TranscriptionResult {
 export async function transcribeAudio(
   audioUrl: string,
 ): Promise<TranscriptionResult | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const provider = pickProvider();
+  if (!provider) {
     console.warn(
-      "[transcribe] OPENAI_API_KEY no configurada — saltando transcripción.",
+      "[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.",
     );
     return null;
   }
@@ -66,19 +98,22 @@ export async function transcribeAudio(
       new Blob([new Uint8Array(buffer)], { type: mime }),
       filename,
     );
-    form.append("model", "whisper-1");
-    // No forzamos idioma — el voice note puede ser español, inglés o
-    // mezclado. Whisper detecta solo y eso nos da más cobertura.
+    form.append("model", provider.model);
+    // Forzamos español: el voice note típico en este producto es
+    // cliente colombiano / hispanohablante. Whisper igual tolera mezcla,
+    // y esto le da al modelo un prior más fuerte para no confundir
+    // codeswitch con inglés.
+    form.append("language", "es");
 
-    const res = await fetch(TRANSCRIPTION_ENDPOINT, {
+    const res = await fetch(provider.endpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${provider.apiKey}` },
       body: form,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.warn(
-        `[transcribe] OpenAI respondió ${res.status}: ${detail.slice(0, 200)}`,
+        `[transcribe] ${provider.name} respondió ${res.status}: ${detail.slice(0, 200)}`,
       );
       return null;
     }
