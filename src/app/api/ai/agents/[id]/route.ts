@@ -57,6 +57,8 @@ export async function PATCH(
     'max_response_chars',
     'reply_delay_seconds',
     'context_messages',
+    'response_mode',
+    'inbound_debounce_seconds',
     'reply_when_assigned',
     'reply_outside_hours',
     'business_hours',

@@ -16,6 +16,7 @@ import {
   BookOpen,
   Radio,
   Settings as SettingsIcon,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,8 +39,10 @@ import { cn } from '@/lib/utils';
 import type {
   AiAgent,
   AiProductScope,
+  AiResponseMode,
   AiScope,
   AiTone,
+  BusinessHours,
   ShopifyProductSummary,
 } from '@/lib/ai/types';
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
@@ -88,6 +91,118 @@ const LANGUAGES: { code: string; label: string }[] = [
 
 const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.label]));
 
+const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] = [
+  {
+    value: 'single',
+    label: 'Un solo mensaje',
+    hint: 'Una respuesta completa por turno.',
+  },
+  {
+    value: 'multi',
+    label: 'Varios mensajes cortos',
+    hint: 'Parte la respuesta en mensajes naturales.',
+  },
+  {
+    value: 'dynamic',
+    label: 'Dinámico',
+    hint: 'El asistente decide según el contenido.',
+  },
+];
+
+const RESPONSE_MODE_LABELS = Object.fromEntries(
+  RESPONSE_MODES.map((m) => [m.value, m.label]),
+);
+
+const TIMEZONES: { value: string; label: string }[] = [
+  { value: 'America/Bogota', label: 'Bogotá (UTC-5)' },
+  { value: 'America/Mexico_City', label: 'Ciudad de México (UTC-6)' },
+  { value: 'America/Lima', label: 'Lima (UTC-5)' },
+  { value: 'America/Santiago', label: 'Santiago (UTC-4)' },
+  { value: 'America/Buenos_Aires', label: 'Buenos Aires (UTC-3)' },
+  { value: 'America/Caracas', label: 'Caracas (UTC-4)' },
+  { value: 'America/Guayaquil', label: 'Quito (UTC-5)' },
+  { value: 'America/La_Paz', label: 'La Paz (UTC-4)' },
+  { value: 'America/Asuncion', label: 'Asunción (UTC-3)' },
+  { value: 'America/Montevideo', label: 'Montevideo (UTC-3)' },
+  { value: 'America/Sao_Paulo', label: 'São Paulo (UTC-3)' },
+  { value: 'America/Panama', label: 'Panamá (UTC-5)' },
+  { value: 'America/Costa_Rica', label: 'San José (UTC-6)' },
+  { value: 'America/Guatemala', label: 'Guatemala (UTC-6)' },
+  { value: 'America/El_Salvador', label: 'San Salvador (UTC-6)' },
+  { value: 'America/Tegucigalpa', label: 'Tegucigalpa (UTC-6)' },
+  { value: 'America/Managua', label: 'Managua (UTC-6)' },
+  { value: 'America/Santo_Domingo', label: 'Santo Domingo (UTC-4)' },
+  { value: 'America/Havana', label: 'La Habana (UTC-5)' },
+  { value: 'America/Puerto_Rico', label: 'San Juan (UTC-4)' },
+];
+
+const TIMEZONE_LABELS = Object.fromEntries(TIMEZONES.map((t) => [t.value, t.label]));
+
+const WEEK_DAYS: { value: 0 | 1 | 2 | 3 | 4 | 5 | 6; short: string; long: string }[] = [
+  { value: 1, short: 'Lun', long: 'Lunes' },
+  { value: 2, short: 'Mar', long: 'Martes' },
+  { value: 3, short: 'Mié', long: 'Miércoles' },
+  { value: 4, short: 'Jue', long: 'Jueves' },
+  { value: 5, short: 'Vie', long: 'Viernes' },
+  { value: 6, short: 'Sáb', long: 'Sábado' },
+  { value: 0, short: 'Dom', long: 'Domingo' },
+];
+
+function readBusinessHours(bh: BusinessHours | null | undefined): {
+  enabled: boolean;
+  start: string;
+  end: string;
+  timezone: string;
+  days: number[];
+} {
+  if (!bh || !bh.windows) {
+    return {
+      enabled: false,
+      start: '09:00',
+      end: '18:00',
+      timezone: 'America/Bogota',
+      days: [1, 2, 3, 4, 5],
+    };
+  }
+  const dayKeys = Object.keys(bh.windows ?? {})
+    .map((k) => Number(k))
+    .filter((k) => Number.isInteger(k));
+  let start = '09:00';
+  let end = '18:00';
+  for (const k of dayKeys) {
+    const win = bh.windows[k as 0 | 1 | 2 | 3 | 4 | 5 | 6]?.[0];
+    if (win && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(win)) {
+      const [a, b] = win.split('-');
+      start = a;
+      end = b;
+      break;
+    }
+  }
+  return {
+    enabled: dayKeys.length > 0,
+    start,
+    end,
+    timezone: bh.timezone || 'America/Bogota',
+    days: dayKeys.length > 0 ? dayKeys : [1, 2, 3, 4, 5],
+  };
+}
+
+function buildBusinessHours(
+  enabled: boolean,
+  start: string,
+  end: string,
+  timezone: string,
+  days: number[],
+): BusinessHours | null {
+  if (!enabled || days.length === 0) return null;
+  const window = `${start}-${end}`;
+  const windows: BusinessHours['windows'] = {};
+  for (const d of days) {
+    windows[d as 0 | 1 | 2 | 3 | 4 | 5 | 6] = [window];
+  }
+  return { timezone, windows };
+}
+
 interface AgentEditorProps {
   workspaceId: string;
   agent: AgentSummary | null;
@@ -120,6 +235,21 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     agent?.escalate_keywords ?? ['humano', 'agente', 'reembolso'],
   );
   const [escalateInput, setEscalateInput] = useState('');
+  const [responseMode, setResponseMode] = useState<AiResponseMode>(
+    agent?.response_mode ?? 'single',
+  );
+  const [inboundDebounce, setInboundDebounce] = useState<number>(
+    agent?.inbound_debounce_seconds ?? 0,
+  );
+  const [escalateAfterMessages, setEscalateAfterMessages] = useState<number>(
+    agent?.escalate_after_messages ?? 0,
+  );
+  const initialBh = readBusinessHours(agent?.business_hours);
+  const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
+  const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
+  const [hoursEnd, setHoursEnd] = useState<string>(initialBh.end);
+  const [hoursTimezone, setHoursTimezone] = useState<string>(initialBh.timezone);
+  const [hoursDays, setHoursDays] = useState<number[]>(initialBh.days);
   const [model, setModel] = useState(agent?.model ?? 'claude-haiku-4-5-20251001');
   const [scope, setScope] = useState<AiScope>(agent?.scope ?? 'workspace');
   const [channels, setChannels] = useState<Channel[]>(
@@ -142,12 +272,13 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
   const [testReply, setTestReply] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
 
-  type TabKey = 'identity' | 'knowledge' | 'reach' | 'advanced';
+  type TabKey = 'identity' | 'knowledge' | 'reach' | 'behavior' | 'advanced';
   const [tab, setTab] = useState<TabKey>('identity');
   const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
     { key: 'identity', label: 'Identidad', icon: User },
     { key: 'knowledge', label: 'Conocimiento', icon: BookOpen },
     { key: 'reach', label: 'Alcance', icon: Radio },
+    { key: 'behavior', label: 'Comportamiento', icon: MessageSquare },
     { key: 'advanced', label: 'Avanzado', icon: SettingsIcon },
   ];
 
@@ -165,6 +296,12 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
 
   function toggleChannel(c: Channel) {
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  }
+
+  function toggleHoursDay(d: number) {
+    setHoursDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
   }
 
   function toggleProduct(id: string) {
@@ -206,6 +343,24 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       toast.error('Falta el nombre');
       return;
     }
+    if (inboundDebounce < 0 || inboundDebounce > 60) {
+      toast.error('La espera debe estar entre 0 y 60 segundos');
+      return;
+    }
+    if (escalateAfterMessages < 0) {
+      toast.error('El escalamiento no puede ser negativo');
+      return;
+    }
+    if (hoursEnabled) {
+      if (hoursStart >= hoursEnd) {
+        toast.error('La hora de inicio debe ser menor que la de fin');
+        return;
+      }
+      if (hoursDays.length === 0) {
+        toast.error('Elige al menos un día del horario');
+        return;
+      }
+    }
     setSaving(true);
     const payload: Partial<AiAgent> & {
       workspace_id?: string;
@@ -223,9 +378,19 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       max_response_chars: maxChars,
       reply_delay_seconds: delaySec,
       context_messages: contextMessages,
+      response_mode: responseMode,
+      inbound_debounce_seconds: inboundDebounce,
       reply_when_assigned: replyWhenAssigned,
       reply_outside_hours: replyOutsideHours,
+      business_hours: buildBusinessHours(
+        hoursEnabled,
+        hoursStart,
+        hoursEnd,
+        hoursTimezone,
+        hoursDays,
+      ),
       escalate_keywords: escalateKeywords,
+      escalate_after_messages: escalateAfterMessages,
       model,
       scope,
       channels: scope === 'channels' ? channels : [],
@@ -625,6 +790,165 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
               </>
             )}
 
+            {tab === 'behavior' && (
+              <>
+                <SectionCard
+                  title="Comportamiento de respuesta"
+                  hint="Cómo entrega la respuesta el asistente y cuánto espera antes de hablar."
+                >
+                  <Field label="Modo de respuesta">
+                    <Select
+                      value={responseMode}
+                      onValueChange={(v) => setResponseMode((v as AiResponseMode) ?? 'single')}
+                    >
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={RESPONSE_MODE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RESPONSE_MODES.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-foreground">{m.label}</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {m.hint}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      {RESPONSE_MODES.find((m) => m.value === responseMode)?.hint}
+                    </p>
+                  </Field>
+
+                  <Field label="Esperar antes de responder (segundos)">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={inboundDebounce}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setInboundDebounce(Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 0);
+                      }}
+                      className="bg-background"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Si el cliente sigue escribiendo, el asistente esperará para juntar
+                      todos los mensajes antes de responder.
+                    </p>
+                  </Field>
+                </SectionCard>
+
+                <SectionCard
+                  title="Escalamiento"
+                  hint="Cuándo pasar la conversación a un agente humano."
+                >
+                  <Field label="Escalar a humano después de N mensajes">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={escalateAfterMessages}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setEscalateAfterMessages(Number.isFinite(n) ? Math.max(0, n) : 0);
+                      }}
+                      className="bg-background"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Cuando el asistente lleve N intercambios sin resolver, asigna la
+                      conversación a un agente humano. 0 desactiva esta regla.
+                    </p>
+                  </Field>
+                </SectionCard>
+
+                <SectionCard
+                  title="Horario de atención"
+                  hint="Define cuándo está disponible para responder."
+                  right={
+                    <Switch checked={hoursEnabled} onCheckedChange={setHoursEnabled} />
+                  }
+                >
+                  {hoursEnabled && (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Inicio">
+                          <Input
+                            type="time"
+                            value={hoursStart}
+                            onChange={(e) => setHoursStart(e.target.value)}
+                            className="bg-background"
+                          />
+                        </Field>
+                        <Field label="Fin">
+                          <Input
+                            type="time"
+                            value={hoursEnd}
+                            onChange={(e) => setHoursEnd(e.target.value)}
+                            className="bg-background"
+                          />
+                        </Field>
+                      </div>
+
+                      <Field label="Zona horaria">
+                        <Select
+                          value={hoursTimezone}
+                          onValueChange={(v) => setHoursTimezone(v ?? 'America/Bogota')}
+                        >
+                          <SelectTrigger className="w-full bg-background">
+                            <SelectValue labels={TIMEZONE_LABELS} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONES.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+
+                      <Field label="Días">
+                        <div className="grid grid-cols-7 gap-1.5">
+                          {WEEK_DAYS.map((d) => {
+                            const on = hoursDays.includes(d.value);
+                            return (
+                              <button
+                                key={d.value}
+                                type="button"
+                                onClick={() => toggleHoursDay(d.value)}
+                                title={d.long}
+                                className={cn(
+                                  'rounded-lg border px-1 py-1.5 text-xs transition-colors',
+                                  on
+                                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                                    : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                                )}
+                              >
+                                {d.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </Field>
+
+                      <p className="text-[11px] text-muted-foreground">
+                        Fuera de horario, el asistente responde con un mensaje de fuera
+                        de servicio en lugar de generar respuesta.
+                      </p>
+                    </>
+                  )}
+                  {!hoursEnabled && (
+                    <p className="text-[11px] text-muted-foreground">
+                      El asistente responde a toda hora. Activa para limitar a un
+                      horario.
+                    </p>
+                  )}
+                </SectionCard>
+              </>
+            )}
+
             {tab === 'advanced' && (
               <>
                 <SliderField
@@ -766,6 +1090,31 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
   return (
     <div className="space-y-1.5">
       <Label className="text-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  hint,
+  right,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-border bg-card/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+        </div>
+        {right}
+      </div>
       {children}
     </div>
   );
