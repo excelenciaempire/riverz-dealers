@@ -18,11 +18,11 @@ import type { AutomationTriggerType } from '@/types'
  *      Also exposes `is_repeat_customer` in context.vars so the "Recompras"
  *      template can branch on it without a separate trigger.
  *
- *  - `orders/fulfilled`  → trigger `shopify_order_fulfilled`
- *      Powers the "Pedido despachado" automation. Pulls the first
- *      fulfillment's tracking_number / tracking_url / tracking_company into
- *      context.vars so the WhatsApp template can render the tracking link
- *      verbatim.
+ *  - `orders/updated`    → trigger `shopify_order_fulfilled` when
+ *      fulfillment_status transitions from null/partial to "fulfilled".
+ *      Shopify retired the orders/fulfilled topic so we subscribe to
+ *      orders/updated and diff against the last-seen status in
+ *      shopify_order_fulfillment_state.
  *
  * Other topics that land here (Shopify sometimes pings shared addresses)
  * are verified and acknowledged but not dispatched.
@@ -43,13 +43,9 @@ export async function POST(request: Request) {
   const topic = request.headers.get('x-shopify-topic') || ''
   if (!shopDomain) return NextResponse.json({ ok: true })
 
-  const triggerType: AutomationTriggerType | null =
-    topic === 'orders/create'
-      ? 'shopify_order_created'
-      : topic === 'orders/fulfilled'
-        ? 'shopify_order_fulfilled'
-        : null
-  if (!triggerType) return NextResponse.json({ ok: true, ignored: topic })
+  if (topic !== 'orders/create' && topic !== 'orders/updated') {
+    return NextResponse.json({ ok: true, ignored: topic })
+  }
 
   try {
     const admin = supabaseAdmin()
@@ -58,6 +54,65 @@ export async function POST(request: Request) {
 
     const workspaceId = conn.row.user_id
     const order = JSON.parse(rawBody) as Record<string, unknown>
+    const orderId = Number(order.id ?? 0)
+    const incomingFulfillment =
+      (order.fulfillment_status as string | null | undefined) ?? null
+
+    let triggerType: AutomationTriggerType | null = null
+    if (topic === 'orders/create') {
+      triggerType = 'shopify_order_created'
+      if (orderId > 0) {
+        await admin
+          .from('shopify_order_fulfillment_state')
+          .upsert(
+            {
+              shop_domain: shopDomain,
+              order_id: orderId,
+              fulfillment_status: incomingFulfillment,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'shop_domain,order_id' },
+          )
+      }
+    } else {
+      // orders/updated: only dispatch when fulfillment_status flips to
+      // 'fulfilled' (from null/partial). Anything else (status edits,
+      // tag changes) is a silent state refresh.
+      let previousFulfillment: string | null = null
+      if (orderId > 0) {
+        const { data: prior } = await admin
+          .from('shopify_order_fulfillment_state')
+          .select('fulfillment_status')
+          .eq('shop_domain', shopDomain)
+          .eq('order_id', orderId)
+          .maybeSingle()
+        previousFulfillment =
+          (prior as { fulfillment_status: string | null } | null)
+            ?.fulfillment_status ?? null
+
+        await admin
+          .from('shopify_order_fulfillment_state')
+          .upsert(
+            {
+              shop_domain: shopDomain,
+              order_id: orderId,
+              fulfillment_status: incomingFulfillment,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'shop_domain,order_id' },
+          )
+      }
+      if (
+        incomingFulfillment === 'fulfilled' &&
+        previousFulfillment !== 'fulfilled'
+      ) {
+        triggerType = 'shopify_order_fulfilled'
+      }
+    }
+
+    if (!triggerType) {
+      return NextResponse.json({ ok: true, ignored: 'no_transition' })
+    }
 
     const phone = extractShopifyPhone(order)
     if (!phone) return NextResponse.json({ ok: true, skipped: 'no_phone' })

@@ -19,6 +19,30 @@ import { decrypt } from '@/lib/whatsapp/encryption';
  * es innecesario — un cliente no compra dos veces en un minuto.
  */
 
+/**
+ * Shopify Admin API customer.state enum. The valid values are:
+ * `disabled`, `invited`, `enabled`, `declined` (Shopify Admin REST docs).
+ * Anything else coming back is treated as `null`.
+ */
+type ShopifyCustomerState = 'disabled' | 'invited' | 'enabled' | 'declined';
+
+const VALID_CUSTOMER_STATES: ReadonlySet<ShopifyCustomerState> = new Set([
+  'disabled',
+  'invited',
+  'enabled',
+  'declined',
+]);
+
+function normalizeCustomerState(
+  raw: string | null | undefined,
+): ShopifyCustomerState | null {
+  if (!raw) return null;
+  const v = raw.toLowerCase().trim();
+  return VALID_CUSTOMER_STATES.has(v as ShopifyCustomerState)
+    ? (v as ShopifyCustomerState)
+    : null;
+}
+
 interface ShopifyCustomer {
   id: number;
   first_name?: string;
@@ -30,6 +54,7 @@ interface ShopifyCustomer {
   currency?: string;
   tags?: string;
   note?: string;
+  state?: string;
 }
 
 interface ShopifyOrder {
@@ -65,7 +90,7 @@ export async function GET(request: Request) {
     .from('shopify_connections')
     .select('shop_domain, access_token, status')
     .eq('user_id', user.id)
-    .eq('status', 'connected')
+    .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -137,6 +162,7 @@ export async function GET(request: Request) {
         currency: customer.currency ?? '',
         tags: customer.tags ?? '',
         note: customer.note ?? '',
+        state: normalizeCustomerState(customer.state),
       },
       orders: orders.map((o) => ({
         id: o.id,

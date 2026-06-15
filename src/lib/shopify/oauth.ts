@@ -2,6 +2,13 @@
  * Shopify OAuth + webhook crypto helpers. Ported from the Riverz app's
  * lib/shopify/oauth.ts, adapted to this app (Supabase auth, env names).
  *
+ * Token type: tokens stored here are offline-access (non-expiring).
+ * The Shopify Admin API response carries no expires_in for this flow —
+ * the field is null/absent and the token is valid until the merchant
+ * uninstalls the app. If we ever request online tokens (per-user,
+ * embedded admin UI), we'll need a refresh strategy and to start
+ * persisting expires_in.
+ *
  * Two distinct HMAC schemes:
  *  - OAuth callback: hex HMAC-SHA256 over the sorted query string (minus
  *    the `hmac` param).
@@ -105,13 +112,18 @@ export function verifyWebhookHmac(
   return safeEqualBase64(digest, headerHmac)
 }
 
-/** Exchange the OAuth `code` for a permanent Admin API access token. */
+/**
+ * Exchange the OAuth `code` for a permanent Admin API access token.
+ * Returns the offline-access token + granted scope. `expires_in` is
+ * intentionally null for offline tokens — Shopify omits it from the
+ * response, so callers must NOT treat its absence as an error.
+ */
 export async function exchangeCodeForToken(args: {
   shop: string
   code: string
   apiKey: string
   apiSecret: string
-}): Promise<{ access_token: string; scope: string }> {
+}): Promise<{ access_token: string; scope: string; expires_in: number | null }> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -126,5 +138,13 @@ export async function exchangeCodeForToken(args: {
   }
   const data = await res.json()
   if (!data.access_token) throw new Error('No access_token in Shopify response')
-  return { access_token: data.access_token, scope: data.scope ?? '' }
+  const expiresIn =
+    typeof data.expires_in === 'number' && Number.isFinite(data.expires_in)
+      ? data.expires_in
+      : null
+  return {
+    access_token: data.access_token,
+    scope: data.scope ?? '',
+    expires_in: expiresIn,
+  }
 }
