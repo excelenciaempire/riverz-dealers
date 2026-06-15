@@ -40,8 +40,13 @@ function applyCsp(response: NextResponse, nonce: string): NextResponse {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const csp = buildCsp(nonce)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
+  // Next 16 reads the CSP from the *request* headers to stamp the nonce
+  // onto its framework + page chunks. Without this, all scripts ship with
+  // nonce="" and the browser blocks every chunk → blank page.
+  requestHeaders.set('Content-Security-Policy', csp)
 
   // Demo mode: act as if the user is already signed in. Bypasses the
   // entire auth check so the inbox is reachable without a Supabase
