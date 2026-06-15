@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ interface UsageData {
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -86,7 +88,7 @@ export function WorkspacePanel() {
   const handleDeleteWorkspace = useCallback(async () => {
     if (!workspace) return;
     setDeleting(true);
-    const res = await fetch("/api/workspaces/delete", {
+    const res = await fetchWithCsrf("/api/workspaces/delete", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -102,7 +104,7 @@ export function WorkspacePanel() {
     }
     toast.success("Espacio de trabajo eliminado");
     window.location.href = "/ingresar";
-  }, [workspace, deleteConfirm]);
+  }, [workspace, deleteConfirm, fetchWithCsrf]);
 
   const handleRename = useCallback(async () => {
     if (!workspace) return;
@@ -125,7 +127,7 @@ export function WorkspacePanel() {
   const handleInvite = useCallback(async () => {
     if (!workspace || !inviteEmail.trim()) return;
     setInviting(true);
-    const res = await fetch("/api/workspace/invite", {
+    const res = await fetchWithCsrf("/api/workspace/invite", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -143,7 +145,7 @@ export function WorkspacePanel() {
     toast.success(`Invitación enviada a ${inviteEmail}`);
     setInviteEmail("");
     await fetchMembersAndInvites();
-  }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites]);
+  }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites, fetchWithCsrf]);
 
   const handleRemoveMember = useCallback(
     async (id: string) => {

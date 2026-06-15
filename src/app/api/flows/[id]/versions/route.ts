@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * GET /api/flows/[id]/versions — lista las últimas 50 versiones del
@@ -46,6 +47,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await context.params;
   const supabase = await createClient();
   const {

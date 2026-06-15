@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 import { getConnectionForUser } from '@/lib/shopify/connection';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
@@ -10,7 +11,9 @@ import { syncShopifyProducts } from '@/lib/shopify/product-sync';
  * runs at OAuth-callback time; this endpoint lets users refresh when
  * they add or rename products without disconnecting/reconnecting.
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

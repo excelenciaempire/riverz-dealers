@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { Message } from "@/types";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -38,6 +39,7 @@ export function MessageActions({
   onDelete,
   children,
 }: MessageActionsProps) {
+  const fetchWithCsrf = useFetchWithCsrf();
   // Touch devices have no hover. Long-press fires `contextmenu`; we capture
   // it, suppress the native menu, and pin the toolbar open until the user
   // interacts elsewhere.
@@ -86,7 +88,7 @@ export function MessageActions({
     }
     setTouchOpen(false);
     try {
-      const res = await fetch(`/api/messages/${message.id}`, { method: "DELETE" });
+      const res = await fetchWithCsrf(`/api/messages/${message.id}`, { method: "DELETE" });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(j.error ?? "No se pudo borrar");

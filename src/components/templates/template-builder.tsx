@@ -43,6 +43,7 @@ import {
   type TemplateIssue,
 } from '@/lib/whatsapp/template-validate';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 const CATEGORIES: {
   value: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
@@ -114,6 +115,7 @@ const BUTTON_TYPE_LABELS = Object.fromEntries(BUTTON_TYPES.map((b) => [b.value, 
 
 export function TemplateBuilder() {
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('es');
@@ -209,7 +211,7 @@ export function TemplateBuilder() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/whatsapp/templates/create', {
+      const res = await fetchWithCsrf('/api/whatsapp/templates/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

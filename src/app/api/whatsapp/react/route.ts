@@ -8,6 +8,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * POST /api/whatsapp/react
@@ -19,6 +20,8 @@ import {
  * webhook — this route only writes `actor_type = 'agent'` rows.
  */
 export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   try {
     const supabase = await createClient();
 

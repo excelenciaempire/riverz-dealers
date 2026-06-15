@@ -1,8 +1,48 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isDemoMode } from '@/lib/demo'
+import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 
-export async function middleware(request: NextRequest) {
+// Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
+// the response's Content-Security-Policy header and stamps it onto the
+// framework + page chunks + any `<Script nonce>` in the tree. The same
+// nonce is forwarded to the page via the `x-nonce` request header so
+// server components (layout.tsx) can mirror it onto their own inline
+// scripts (the theme-boot tag).
+//
+// Dev keeps `'unsafe-eval'` because React's RSC stack reconstructs
+// server stacks in the browser via `eval`. Prod ships without it.
+function buildCsp(nonce: string): string {
+  const isDev = process.env.NODE_ENV === 'development'
+  const directives = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.shopify.com https://cdn.shopify.com https://*.supabase.co",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    'upgrade-insecure-requests',
+  ]
+  return directives.join('; ')
+}
+
+// Attaches the CSP header to any response leaving the proxy. Other
+// security headers (HSTS, X-Frame-Options, etc.) come from
+// next.config.ts so they apply uniformly even to responses that bypass
+// the proxy.
+function applyCsp(response: NextResponse, nonce: string): NextResponse {
+  response.headers.set('Content-Security-Policy', buildCsp(nonce))
+  return response
+}
+
+export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+
   // Demo mode: act as if the user is already signed in. Bypasses the
   // entire auth check so the inbox is reachable without a Supabase
   // project. The dashboard then loads its data from the mock client.
@@ -16,26 +56,27 @@ export async function middleware(request: NextRequest) {
     ) {
       const url = request.nextUrl.clone()
       url.pathname = '/panel'
-      return NextResponse.redirect(url)
+      return applyCsp(NextResponse.redirect(url), nonce)
     }
-    return NextResponse.next({ request })
+    return applyCsp(NextResponse.next({ request: { headers: requestHeaders } }), nonce)
   }
 
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, { ...options, ...SESSION_COOKIE_OPTIONS })
           )
         },
       },
@@ -55,7 +96,7 @@ export async function middleware(request: NextRequest) {
   )) {
     const url = request.nextUrl.clone()
     url.pathname = '/panel'
-    return NextResponse.redirect(url)
+    return applyCsp(NextResponse.redirect(url), nonce)
   }
 
   // Protected pages - redirect to login if not authenticated
@@ -63,7 +104,7 @@ export async function middleware(request: NextRequest) {
   if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/ingresar'
-    return NextResponse.redirect(url)
+    return applyCsp(NextResponse.redirect(url), nonce)
   }
 
   // Email verification gate. Signed-in users without a confirmed email
@@ -81,16 +122,16 @@ export async function middleware(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone()
     url.pathname = '/verificar-email'
-    return NextResponse.redirect(url)
+    return applyCsp(NextResponse.redirect(url), nonce)
   }
 
   // API routes that need auth (not webhooks)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), nonce)
   }
 
-  return supabaseResponse
+  return applyCsp(supabaseResponse, nonce)
 }
 
 export const config = {

@@ -6,6 +6,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { csrfGuard } from '@/lib/csrf'
 
 /**
  * Draft a WhatsApp template body with Claude from a short brief.
@@ -29,6 +30,8 @@ Reglas estrictas:
 - No incluyas razonamiento ni notas: solo el cuerpo final.`
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   try {
     const supabase = await createClient()
     const {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetRateLimitForTests,
   checkRateLimit,
+  limitByKey,
   rateLimitResponse,
 } from "./rate-limit";
 
@@ -101,6 +102,118 @@ describe("RATE_LIMITS presets", () => {
     expect(RATE_LIMITS.send.limit).toBeGreaterThan(RATE_LIMITS.broadcast.limit);
     expect(RATE_LIMITS.send.windowMs).toBe(60_000);
     expect(RATE_LIMITS.broadcast.windowMs).toBe(60_000);
+  });
+});
+
+describe("limitByKey (in-memory fallback when Upstash env missing)", () => {
+  const ORIGINAL_URL = process.env.UPSTASH_REDIS_REST_URL;
+  const ORIGINAL_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  beforeEach(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    __resetRateLimitForTests();
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_URL === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+    else process.env.UPSTASH_REDIS_REST_URL = ORIGINAL_URL;
+    if (ORIGINAL_TOKEN === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    else process.env.UPSTASH_REDIS_REST_TOKEN = ORIGINAL_TOKEN;
+  });
+
+  it("falls back to in-memory and enforces the limit", async () => {
+    const a = await limitByKey("fallback:1", OPTS);
+    const b = await limitByKey("fallback:1", OPTS);
+    const c = await limitByKey("fallback:1", OPTS);
+    const d = await limitByKey("fallback:1", OPTS);
+    expect(a.success).toBe(true);
+    expect(b.success).toBe(true);
+    expect(c.success).toBe(true);
+    expect(d.success).toBe(false);
+    expect(d.remaining).toBe(0);
+  });
+
+  it("does NOT call fetch when env is missing", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    try {
+      await limitByKey("fallback:nofetch", OPTS);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("limitByKey (distributed Upstash path)", () => {
+  const ORIGINAL_URL = process.env.UPSTASH_REDIS_REST_URL;
+  const ORIGINAL_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  beforeEach(() => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://fake-upstash.example.com";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "fake-token";
+    __resetRateLimitForTests();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (ORIGINAL_URL === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+    else process.env.UPSTASH_REDIS_REST_URL = ORIGINAL_URL;
+    if (ORIGINAL_TOKEN === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    else process.env.UPSTASH_REDIS_REST_TOKEN = ORIGINAL_TOKEN;
+  });
+
+  it("returns success while the mocked counter is at or below the limit, then false past it", async () => {
+    let count = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input.toString();
+        expect(url).toBe("https://fake-upstash.example.com/pipeline");
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        expect(headers.Authorization).toBe("Bearer fake-token");
+        count += 1;
+        const body: Array<{ result: unknown }> = [
+          { result: count },
+          { result: count === 1 ? 1 : 0 },
+          { result: 42_000 },
+        ];
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+
+    const r1 = await limitByKey("dist:1", OPTS);
+    const r2 = await limitByKey("dist:1", OPTS);
+    const r3 = await limitByKey("dist:1", OPTS);
+    const r4 = await limitByKey("dist:1", OPTS);
+
+    expect(r1.success).toBe(true);
+    expect(r1.remaining).toBe(2);
+    expect(r2.success).toBe(true);
+    expect(r2.remaining).toBe(1);
+    expect(r3.success).toBe(true);
+    expect(r3.remaining).toBe(0);
+    expect(r4.success).toBe(false);
+    expect(r4.remaining).toBe(0);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+  });
+
+  it("falls back to in-memory if the Upstash fetch throws", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    // Silence the warn we expect during fallback.
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const a = await limitByKey("dist:fallback", OPTS);
+    const b = await limitByKey("dist:fallback", OPTS);
+    const c = await limitByKey("dist:fallback", OPTS);
+    const d = await limitByKey("dist:fallback", OPTS);
+    expect(a.success).toBe(true);
+    expect(b.success).toBe(true);
+    expect(c.success).toBe(true);
+    expect(d.success).toBe(false);
   });
 });
 

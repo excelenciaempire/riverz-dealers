@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { csrfGuard } from "@/lib/csrf";
 import { encrypt } from "@/lib/channels/encryption";
 import { subscribePageToWebhooks } from "@/lib/channels/meta-graph";
 import type { Channel } from "@/types";
@@ -35,6 +36,8 @@ const META_CHANNELS: Channel[] = [
  * downstream adapters work without changes.
  */
 export async function POST(req: Request): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

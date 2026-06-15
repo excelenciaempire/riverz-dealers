@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { csrfGuard } from "@/lib/csrf";
 
 /**
  * DELETE /api/messages/:id
@@ -18,9 +19,11 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
  * authenticated to avoid anonymous trolls hitting the endpoint.
  */
 export async function DELETE(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: "missing id" }, { status: 400 });

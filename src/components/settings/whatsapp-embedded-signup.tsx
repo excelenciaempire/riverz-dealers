@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 
 /**
  * WhatsApp Embedded Signup launcher. Opens Meta's official onboarding
@@ -43,6 +44,7 @@ export function WhatsAppEmbeddedSignup({
 }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const fetchWithCsrf = useFetchWithCsrf();
   // Latched from the WA_EMBEDDED_SIGNUP message event — carries the
   // waba_id + phone_number_id Meta assigns during onboarding.
   const sessionInfo = useRef<{ waba_id?: string; phone_number_id?: string }>({});
@@ -98,7 +100,7 @@ export function WhatsAppEmbeddedSignup({
       }
       setBusy(true);
       try {
-        const r = await fetch("/api/connections/whatsapp/embedded-signup", {
+        const r = await fetchWithCsrf("/api/connections/whatsapp/embedded-signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code, waba_id, phone_number_id, workspace_id: workspaceId }),
@@ -120,7 +122,7 @@ export function WhatsAppEmbeddedSignup({
         setBusy(false);
       }
     },
-    [workspaceId, onConnected],
+    [workspaceId, onConnected, fetchWithCsrf],
   );
 
   const launch = useCallback(() => {

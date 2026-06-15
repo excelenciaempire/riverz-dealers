@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
@@ -83,7 +84,9 @@ function normalizeStatus(
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const block = await csrfGuard(req)
+  if (block) return block
   try {
     const supabase = await createClient()
 

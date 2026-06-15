@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { csrfGuard } from '@/lib/csrf'
 import { getFlowTemplate } from '@/lib/flows/templates'
 
 /**
@@ -45,6 +46,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   const guard = await requireUser()
   if (!guard.ok) {
     return NextResponse.json(guard.body, { status: guard.status })

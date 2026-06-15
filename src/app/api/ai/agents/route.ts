@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from '@/lib/ai/types';
 
@@ -45,6 +46,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

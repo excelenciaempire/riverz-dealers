@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { decrypt } from '@/lib/channels/encryption';
 
@@ -14,7 +15,9 @@ import { decrypt } from '@/lib/channels/encryption';
  *
  * Auth: usuario autenticado del workspace + conexión Shopify activa.
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

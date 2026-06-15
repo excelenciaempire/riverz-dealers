@@ -14,7 +14,19 @@ import {
  * the auth page can keep its UX (browser-driven) while we still cap
  * mass-registration probes. The verification email goes out through
  * Supabase as usual.
+ *
+ * Anti-enumeration: on email collision we do NOT say "already
+ * registered". Instead we silently fire a password-reset email to that
+ * address (so the real owner can recover the account) and return the
+ * same generic message used on a normal sign-up. Probes can't tell the
+ * two branches apart.
  */
+
+const GENERIC_OK = {
+  ok: true,
+  message: "Si el correo es válido, recibirás un mensaje.",
+} as const;
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
     | {
@@ -28,10 +40,7 @@ export async function POST(req: Request) {
   const password = body?.password;
   const fullName = body?.full_name?.trim() ?? "";
   if (!email || !password) {
-    return NextResponse.json(
-      { error: "Email y contraseña requeridos" },
-      { status: 400 },
-    );
+    return NextResponse.json(GENERIC_OK);
   }
 
   const ip = clientIp(req);
@@ -44,7 +53,7 @@ export async function POST(req: Request) {
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -52,8 +61,17 @@ export async function POST(req: Request) {
       emailRedirectTo: body?.redirect_to,
     },
   });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Supabase signals an existing-confirmed-user collision in one of two
+  // ways depending on project settings: a hard error, or a "fake" user
+  // object with no identities. Either way we treat it as collision and
+  // send the real owner a recovery link instead of leaking the fact.
+  const isCollision =
+    !!error || (data?.user?.identities?.length ?? 1) === 0;
+  if (isCollision) {
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: body?.redirect_to,
+    });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(GENERIC_OK);
 }

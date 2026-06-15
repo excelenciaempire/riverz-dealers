@@ -13,6 +13,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { csrfGuard } from '@/lib/csrf'
 
 /**
  * POST /api/broadcasts/test
@@ -32,6 +33,8 @@ interface TestBody {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   const supabase = await createClient()
   const {
     data: { user },

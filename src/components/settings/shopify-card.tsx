@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { AlertCircle, CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 interface ShopifyConnection {
   shop_domain: string;
@@ -20,6 +21,7 @@ interface ShopifyConnection {
  * cards reads as a single uniform grid no matter the provider.
  */
 export function ShopifyCard() {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
@@ -63,7 +65,7 @@ export function ShopifyCard() {
     if (!confirm('¿Desconectar Shopify?')) return;
     setDisconnecting(true);
     try {
-      const res = await fetch('/api/shopify/status', { method: 'DELETE' });
+      const res = await fetchWithCsrf('/api/shopify/status', { method: 'DELETE' });
       if (!res.ok) throw new Error('failed');
       toast.success('Shopify desconectado');
       setConnection(null);

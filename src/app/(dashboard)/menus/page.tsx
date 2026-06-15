@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
 
 /**
@@ -72,6 +73,7 @@ type CreateStep = "choose" | "name" | "template";
 
 export default function FlowsPage() {
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -119,7 +121,7 @@ export default function FlowsPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/flows", {
+      const res = await fetchWithCsrf("/api/flows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim() }),
@@ -140,7 +142,7 @@ export default function FlowsPage() {
   async function handleUseTemplate(template: FlowTemplate) {
     setCreating(true);
     try {
-      const res = await fetch("/api/flows", {
+      const res = await fetchWithCsrf("/api/flows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template_slug: template.slug }),
@@ -161,7 +163,7 @@ export default function FlowsPage() {
     const yes = window.confirm(`¿Eliminar "${flow.name}"?`);
     if (!yes) return;
     try {
-      const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
+      const res = await fetchWithCsrf(`/api/flows/${flow.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
       toast.success("Eliminado.");
@@ -212,7 +214,7 @@ export default function FlowsPage() {
                   ),
                 );
                 try {
-                  const res = await fetch(`/api/flows/${flow.id}/activate`, {
+                  const res = await fetchWithCsrf(`/api/flows/${flow.id}/activate`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

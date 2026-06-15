@@ -91,6 +91,24 @@ async function sendOneBroadcast(
   const templateLanguage = (broadcast.template_language as string) || 'en_US'
   const createConversations = Boolean(broadcast.create_conversations)
   const variableMapping = (broadcast.variable_mapping as Record<string, string> | null) ?? null
+  // Belt + suspenders: confine the recipient → contact join to the
+  // broadcast's own workspace. RLS is bypassed by the service-role
+  // client, so a stale recipient row pointing at a contact that was
+  // moved to another workspace would otherwise leak across tenants.
+  // Fall back to resolving the owner's primary workspace when the
+  // broadcast row itself doesn't carry a workspace_id (legacy data).
+  let workspaceScope = (broadcast.workspace_id as string | null) ?? null
+  if (!workspaceScope) {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', userId)
+      .order('joined_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    workspaceScope =
+      (member as { workspace_id?: string } | null)?.workspace_id ?? null
+  }
 
   // WhatsApp credentials for the campaign owner.
   const { data: config } = await admin
@@ -102,12 +120,17 @@ async function sendOneBroadcast(
   const accessToken = decrypt(config.access_token as string)
   const phoneNumberId = config.phone_number_id as string
 
-  const { data: recipients } = await admin
+  const { data: recipientsRaw } = await admin
     .from('broadcast_recipients')
     .select('*, contact:contacts(*)')
     .eq('broadcast_id', broadcastId)
     .eq('status', 'pending')
-  if (!recipients || recipients.length === 0) {
+  const recipients = (recipientsRaw ?? []).filter((r) => {
+    if (!workspaceScope) return true
+    const cw = (r.contact as { workspace_id?: string } | null)?.workspace_id
+    return cw === workspaceScope
+  })
+  if (recipients.length === 0) {
     await admin.from('broadcasts').update({ status: 'sent' }).eq('id', broadcastId)
     return
   }

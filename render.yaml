@@ -75,3 +75,10 @@ services:
       # Secreto compartido para el cron de reintentos de flows pendientes.
       - key: FLOWS_RETRY_CRON_SECRET
         sync: false
+      # Upstash Redis — rate limit distribuido. Sin estas variables el
+      # limitador cae a memoria por proceso y deja pasar burst en
+      # multi-réplica. Crear base en https://upstash.com.
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

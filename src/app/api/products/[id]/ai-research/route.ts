@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -12,9 +13,11 @@ import { createClient } from '@/lib/supabase/server';
  * Idempotente — corre múltiples veces; sobreescribe los campos ai_*.
  */
 export async function POST(
-  _: Request,
+  req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const { id } = await context.params;
   const supabase = await createClient();
   const {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { csrfGuard } from "@/lib/csrf";
 import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
@@ -57,6 +58,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await context.params;
 
   // ── Auth + propiedad del flujo ──

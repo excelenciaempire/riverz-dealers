@@ -42,6 +42,7 @@ import {
 import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
   "cart_recovery",
@@ -64,6 +65,7 @@ void Clock
 
 export default function AutomationsPage() {
   const router = useRouter()
+  const fetchWithCsrf = useFetchWithCsrf()
   const [automations, setAutomations] = useState<Automation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
@@ -92,7 +94,7 @@ export default function AutomationsPage() {
     setAutomations((prev) =>
       prev?.map((x) => (x.id === a.id ? { ...x, is_active: next } : x)) ?? prev,
     )
-    const res = await fetch(`/api/automations/${a.id}`, {
+    const res = await fetchWithCsrf(`/api/automations/${a.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ is_active: next }),
@@ -110,7 +112,7 @@ export default function AutomationsPage() {
   }
 
   async function duplicate(a: Automation) {
-    const res = await fetch(`/api/automations/${a.id}/duplicate`, { method: "POST" })
+    const res = await fetchWithCsrf(`/api/automations/${a.id}/duplicate`, { method: "POST" })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       toast.error(body?.error ?? "No se pudo duplicar")
@@ -123,7 +125,7 @@ export default function AutomationsPage() {
   async function confirmDelete() {
     if (!pendingDelete) return
     setDeleting(true)
-    const res = await fetch(`/api/automations/${pendingDelete.id}`, { method: "DELETE" })
+    const res = await fetchWithCsrf(`/api/automations/${pendingDelete.id}`, { method: "DELETE" })
     setDeleting(false)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))

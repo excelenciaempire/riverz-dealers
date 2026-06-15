@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
@@ -567,6 +568,7 @@ function ManualTokenModal({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const meta = MANUAL_HINT[channel];
   const [token, setToken] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
@@ -584,7 +586,7 @@ function ManualTokenModal({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/connections/meta/manual", {
+      const res = await fetchWithCsrf("/api/connections/meta/manual", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

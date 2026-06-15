@@ -13,6 +13,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { csrfGuard } from '@/lib/csrf'
 
 interface BroadcastResult {
   phone: string
@@ -49,6 +50,8 @@ interface NewRecipient {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   try {
     const supabase = await createClient()
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight } from "next/font/google";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -68,11 +69,17 @@ const THEME_BOOT_SCRIPT = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The nonce is minted per-request in proxy.ts and forwarded via the
+  // x-nonce request header. CSP blocks any inline <script> without it,
+  // so the theme-boot tag MUST carry the same value the proxy stamped
+  // into the Content-Security-Policy response header.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -84,6 +91,7 @@ export default function RootLayout({
         <Script
           id="theme-boot"
           strategy="beforeInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
         />
       </head>

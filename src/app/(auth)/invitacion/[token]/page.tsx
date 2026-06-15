@@ -71,9 +71,23 @@ export default function AcceptInvitePage({ params }: PageProps) {
 
   const accept = async () => {
     setAccepting(true);
+    // Seed the csrf cookie before the POST — this page lives outside the
+    // dashboard CsrfProvider, so we ask the server for a token inline,
+    // then read it back from document.cookie on the next request.
+    const tokenRes = await fetch("/api/csrf", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    const csrfToken = ((await tokenRes.json().catch(() => null)) as
+      | { token?: string }
+      | null)?.token;
     const res = await fetch(`/api/workspace/accept-invite`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+      },
       body: JSON.stringify({ token }),
     });
     setAccepting(false);

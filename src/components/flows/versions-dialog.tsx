@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 
 interface FlowVersion {
   id: string;
@@ -47,6 +48,7 @@ export function FlowVersionsDialog({
   /** Recargar el editor con el snapshot restaurado. */
   onRestored: () => void;
 }) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [loading, setLoading] = useState(false);
   const [versions, setVersions] = useState<FlowVersion[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export function FlowVersionsDialog({
   async function handleRestore(version: FlowVersion) {
     setRestoringId(version.id);
     try {
-      const res = await fetch(
+      const res = await fetchWithCsrf(
         `/api/flows/${flowId}/versions/${version.id}/restore`,
         { method: "POST" },
       );

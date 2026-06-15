@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiScope } from '@/lib/ai/types';
 
@@ -26,6 +27,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -126,9 +129,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await params;
   const supabase = await createClient();
   const {

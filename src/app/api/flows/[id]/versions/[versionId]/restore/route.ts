@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * POST /api/flows/[id]/versions/[versionId]/restore
@@ -33,9 +34,11 @@ interface RestoreSnapshot {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string; versionId: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id, versionId } = await context.params;
   const supabase = await createClient();
   const {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -485,6 +486,7 @@ export function Step2SelectAudience({
  * que la audiencia es la que esperaba antes de mandar.
  */
 function AudiencePreview({ audience }: { audience: AudienceConfig }) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [contacts, setContacts] = useState<Array<{
     id: string;
     name: string | null;
@@ -496,7 +498,7 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch('/api/broadcasts/audience-preview', {
+    fetchWithCsrf('/api/broadcasts/audience-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audience, limit: 12 }),
@@ -507,7 +509,7 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [audience]);
+  }, [audience, fetchWithCsrf]);
 
   if (loading) {
     return (

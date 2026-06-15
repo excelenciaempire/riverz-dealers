@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { csrfGuard } from '@/lib/csrf'
 import { getConnectionForUser } from '@/lib/shopify/connection'
 
 /** Current user's Shopify connection state, for the Settings card. */
@@ -16,7 +17,9 @@ export async function GET() {
 }
 
 /** Disconnect (delete) the user's Shopify connection. */
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const block = await csrfGuard(req)
+  if (block) return block
   const supabase = await createClient()
   const {
     data: { user },

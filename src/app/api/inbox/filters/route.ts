@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * GET /api/inbox/filters — lista los filtros guardados del usuario.
@@ -27,6 +28,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },
@@ -68,6 +71,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

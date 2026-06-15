@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { csrfGuard } from '@/lib/csrf'
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 
@@ -108,6 +109,8 @@ export async function GET() {
  * Verifies credentials with Meta first, then encrypts and stores.
  */
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   try {
     const supabase = await createClient()
 
@@ -228,7 +231,9 @@ export async function POST(request: Request) {
  * Used by the "Reset Configuration" button to recover from a corrupted
  * encrypted token (mismatched ENCRYPTION_KEY across environments).
  */
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const block = await csrfGuard(req)
+  if (block) return block
   try {
     const supabase = await createClient()
 

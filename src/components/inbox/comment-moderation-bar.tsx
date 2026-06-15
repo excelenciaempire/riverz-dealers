@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff, Heart, Trash2, ExternalLink } from "lucide-react";
 import type { Channel, Message } from "@/types";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 
 interface CommentModerationBarProps {
   message: Message;
@@ -17,6 +18,7 @@ interface CommentModerationBarProps {
  * available in business.facebook.com's comment inbox.
  */
 export function CommentModerationBar({ message, channel, permalink }: CommentModerationBarProps) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [busy, setBusy] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -24,7 +26,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
   const act = async (action: "hide" | "unhide" | "like" | "unlike" | "delete") => {
     setBusy(action);
     try {
-      const res = await fetch("/api/messages/moderate", {
+      const res = await fetchWithCsrf("/api/messages/moderate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message_id: message.id, action }),

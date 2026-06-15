@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { csrfGuard } from "@/lib/csrf";
 import type { ChannelConnection, Contact, Conversation, Message } from "@/types";
 
 /**
@@ -13,6 +14,8 @@ import type { ChannelConnection, Contact, Conversation, Message } from "@/types"
  *   { conversation_id: string; text: string; reply_to_external_id?: string }
  */
 export async function POST(req: Request): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

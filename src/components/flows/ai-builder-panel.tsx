@@ -22,6 +22,7 @@ import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { Sparkles, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { AiPatch, AssistResponse } from "@/lib/flows/ai-patches";
 
 interface ChatTurn {
@@ -66,6 +67,7 @@ export function AiBuilderPanel({
   getSnapshot,
   onApplyPatches,
 }: AiBuilderPanelProps) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState("");
@@ -111,7 +113,7 @@ export function AiBuilderPanel({
     const userTurn: ChatTurn = { role: "user", content: message };
     setTurns((prev) => [...prev, userTurn]);
     try {
-      const res = await fetch(`/api/flows/${flowId}/assist`, {
+      const res = await fetchWithCsrf(`/api/flows/${flowId}/assist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -153,7 +155,7 @@ export function AiBuilderPanel({
     } finally {
       setSending(false);
     }
-  }, [flowId, getSnapshot, input, onApplyPatches, sending, turns]);
+  }, [flowId, getSnapshot, input, onApplyPatches, sending, turns, products, fetchWithCsrf]);
 
   // Enter para enviar, Shift+Enter para newline.
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

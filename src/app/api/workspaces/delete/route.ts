@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { csrfGuard } from "@/lib/csrf";
 
 /**
  * POST /api/workspaces/delete
@@ -11,6 +12,8 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
  * contacts, files) is handled by a separate operator process.
  */
 export async function POST(req: Request) {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

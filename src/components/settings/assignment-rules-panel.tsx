@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { CHANNELS, type Channel } from "@/types";
 import { channelDisplay } from "@/lib/channels/display";
 import { cn } from "@/lib/utils";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 
 /**
  * Editor de reglas de asignación automática. La fila más importante de
@@ -77,6 +78,7 @@ const channelSelectLabels: Record<string, string> = {
 };
 
 export function AssignmentRulesPanel() {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [rules, setRules] = useState<RuleRow[] | null>(null);
   const [editing, setEditing] = useState<RuleRow | "new" | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export function AssignmentRulesPanel() {
       prev?.map((r) => (r.id === rule.id ? { ...r, is_active: next } : r)) ??
       prev,
     );
-    const res = await fetch("/api/inbox/assignment-rules", {
+    const res = await fetchWithCsrf("/api/inbox/assignment-rules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -128,7 +130,7 @@ export function AssignmentRulesPanel() {
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar regla?")) return;
     setDeletingId(id);
-    const res = await fetch(`/api/inbox/assignment-rules?id=${id}`, {
+    const res = await fetchWithCsrf(`/api/inbox/assignment-rules?id=${id}`, {
       method: "DELETE",
     });
     setDeletingId(null);
@@ -303,6 +305,7 @@ function RuleEditorModal({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [draft, setDraft] = useState<RuleDraft>(() => ({
     name: rule?.name ?? "",
     is_active: rule?.is_active ?? true,
@@ -350,7 +353,7 @@ function RuleEditorModal({
       };
     }
     setSaving(true);
-    const res = await fetch("/api/inbox/assignment-rules", {
+    const res = await fetchWithCsrf("/api/inbox/assignment-rules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

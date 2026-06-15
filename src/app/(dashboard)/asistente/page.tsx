@@ -14,6 +14,7 @@ import {
 import { useWorkspace } from '@/hooks/use-workspace';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
@@ -38,6 +39,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
 
 export default function AiAgentsPage() {
   const { workspace } = useWorkspace();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
@@ -68,7 +70,7 @@ export default function AiAgentsPage() {
     setAgents((prev) =>
       prev.map((a) => (a.id === agent.id ? { ...a, is_active: next } : a)),
     );
-    const res = await fetch(`/api/ai/agents/${agent.id}`, {
+    const res = await fetchWithCsrf(`/api/ai/agents/${agent.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: next }),
@@ -86,7 +88,7 @@ export default function AiAgentsPage() {
     if (!confirm(`¿Eliminar "${agent.name}"?`)) return;
     const prev = agents;
     setAgents((p) => p.filter((a) => a.id !== agent.id));
-    const res = await fetch(`/api/ai/agents/${agent.id}`, { method: 'DELETE' });
+    const res = await fetchWithCsrf(`/api/ai/agents/${agent.id}`, { method: 'DELETE' });
     if (!res.ok) {
       toast.error('No se pudo eliminar');
       setAgents(prev);

@@ -11,16 +11,25 @@ import {
  * POST /api/auth/reset-password
  *
  * Sends the password-recovery email. Rate-limited 5/5min per IP and
- * per email so an attacker can't enumerate accounts or hammer the
- * Supabase mail quota.
+ * per email so an attacker can't hammer the Supabase mail quota.
+ *
+ * Anti-enumeration: the response shape is identical whether the email
+ * exists or not, and Supabase errors are swallowed. Anyone polling the
+ * endpoint sees the same "if the account exists…" line every time.
  */
+
+const GENERIC_OK = {
+  ok: true,
+  message: "Si la cuenta existe, recibirás un correo con instrucciones.",
+} as const;
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
     | { email?: string; redirect_to?: string }
     | null;
   const email = body?.email?.trim().toLowerCase();
   if (!email) {
-    return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+    return NextResponse.json(GENERIC_OK);
   }
 
   const ip = clientIp(req);
@@ -33,11 +42,8 @@ export async function POST(req: Request) {
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: body?.redirect_to,
   });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(GENERIC_OK);
 }

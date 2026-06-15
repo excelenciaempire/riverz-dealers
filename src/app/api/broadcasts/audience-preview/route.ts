@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * POST /api/broadcasts/audience-preview
@@ -19,6 +21,12 @@ import { createClient } from '@/lib/supabase/server';
  *     },
  *     limit?: number (max 50)
  *   }
+ *
+ * Aunque RLS gatea contactos/tags/custom values por membresía de
+ * workspace, un usuario miembro de varios workspaces vería el cruce
+ * de todos en el preview sin un filtro explícito por workspace_id.
+ * Resolvemos el workspace primario del caller y lo agregamos a cada
+ * query.
  */
 
 interface AudienceBody {
@@ -37,6 +45,8 @@ interface AudienceBody {
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },
@@ -65,7 +75,23 @@ export async function POST(request: Request) {
     });
   }
 
-  // Resolver los contact_ids del segmento.
+  const admin = supabaseAdmin();
+  const { data: member } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const workspaceId =
+    (member as { workspace_id?: string } | null)?.workspace_id ?? null;
+  if (!workspaceId) {
+    return NextResponse.json({ contacts: [] });
+  }
+
+  // Resolver los contact_ids del segmento. contact_tags y
+  // contact_custom_values no tienen workspace_id propio; el filtro
+  // por workspace se aplica al join contra contacts (abajo).
   let candidateIds: string[] | null = null;
 
   if (a.type === 'tags' && a.tagIds && a.tagIds.length > 0) {
@@ -118,6 +144,7 @@ export async function POST(request: Request) {
       const { data: rows } = await supabase
         .from('contacts')
         .select('id, name, phone, is_shopify_customer')
+        .eq('workspace_id', workspaceId)
         .order('updated_at', { ascending: false })
         .limit(limit + exSet.size);
       const filtered = (rows ?? [])
@@ -133,6 +160,7 @@ export async function POST(request: Request) {
     const { data: rows } = await supabase
       .from('contacts')
       .select('id, name, phone, is_shopify_customer')
+      .eq('workspace_id', workspaceId)
       .order('updated_at', { ascending: false })
       .limit(limit);
     return NextResponse.json({
@@ -144,11 +172,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ contacts: [] });
   }
 
-  // Sacamos los primeros N de los candidatos resueltos.
+  // Sacamos los primeros N de los candidatos resueltos, scopeando
+  // por workspace_id para no filtrar contactos que el caller pueda
+  // ver en otro workspace si está en varios.
   const subset = candidateIds.slice(0, limit);
   const { data: rows } = await supabase
     .from('contacts')
     .select('id, name, phone, is_shopify_customer')
+    .eq('workspace_id', workspaceId)
     .in('id', subset);
 
   return NextResponse.json({

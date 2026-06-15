@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 interface ProductRow {
   id: string;
@@ -55,6 +56,7 @@ const FILTER_LABEL: Record<Filter, string> = {
 };
 
 export default function ProductosPage() {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export default function ProductosPage() {
   async function handleSync() {
     setSyncing(true);
     try {
-      const res = await fetch('/api/products/sync', { method: 'POST' });
+      const res = await fetchWithCsrf('/api/products/sync', { method: 'POST' });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error ?? 'No se pudo sincronizar');
@@ -151,9 +153,9 @@ export default function ProductosPage() {
           // scrape primero (so ai-research has more context), después
           // ai-research. Cada fetch espera al endpoint completo.
           if (p.scrape_status !== 'done') {
-            await fetch(`/api/products/${p.id}/scrape`, { method: 'POST' });
+            await fetchWithCsrf(`/api/products/${p.id}/scrape`, { method: 'POST' });
           }
-          await fetch(`/api/products/${p.id}/ai-research`, { method: 'POST' });
+          await fetchWithCsrf(`/api/products/${p.id}/ai-research`, { method: 'POST' });
           done++;
         } catch {
           failed++;

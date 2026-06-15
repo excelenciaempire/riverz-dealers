@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { csrfGuard } from '@/lib/csrf';
 import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client';
 
 /**
@@ -17,9 +18,11 @@ import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client';
  * más predecible al principio).
  */
 export async function POST(
-  _: Request,
+  req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const { id } = await context.params;
   const supabase = await createClient();
   const {

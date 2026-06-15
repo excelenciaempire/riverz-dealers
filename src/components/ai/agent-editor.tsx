@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type {
   AiAgent,
   AiProductScope,
@@ -212,6 +213,7 @@ interface AgentEditorProps {
 
 export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEditorProps) {
   const editing = Boolean(agent?.id);
+  const fetchWithCsrf = useFetchWithCsrf();
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
@@ -401,7 +403,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
 
     const url = editing ? `/api/ai/agents/${agent!.id}` : '/api/ai/agents';
     const method = editing ? 'PATCH' : 'POST';
-    const res = await fetch(url, {
+    const res = await fetchWithCsrf(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -429,7 +431,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
     setTesting(true);
     setTestReply(null);
     try {
-      const res = await fetch(`/api/ai/agents/${agent!.id}/test`, {
+      const res = await fetchWithCsrf(`/api/ai/agents/${agent!.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: testMessage }),

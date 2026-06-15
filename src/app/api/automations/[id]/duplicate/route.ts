@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { csrfGuard } from '@/lib/csrf'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request)
+  if (block) return block
   const { id } = await params
   const supabase = await createClient()
   const {

@@ -57,6 +57,23 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin();
 
+  // Resolver el workspace del caller. Sin esto, los joins contra
+  // contacts / broadcast_recipients / flow_runs vía service role
+  // verían el cruce de TODOS los workspaces (un email/teléfono que
+  // colisione entre tenants atribuiría revenue ajeno).
+  const { data: member } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const workspaceId =
+    (member as { workspace_id?: string } | null)?.workspace_id ?? null;
+  if (!workspaceId) {
+    return NextResponse.json({ days, by_broadcast: [], by_flow: [] });
+  }
+
   // 1) Shopify connection.
   const { data: connRow } = await admin
     .from('shopify_connections')
@@ -122,10 +139,12 @@ export async function GET(request: Request) {
   const { data: contactsByEmail } = await admin
     .from('contacts')
     .select('id, email, phone')
+    .eq('workspace_id', workspaceId)
     .in('email', emails.length > 0 ? emails : ['__none__']);
   const { data: contactsByPhone } = await admin
     .from('contacts')
     .select('id, email, phone')
+    .eq('workspace_id', workspaceId)
     .in('phone', phones.length > 0 ? phones : ['__none__']);
 
   const emailToContact = new Map<string, string>();
@@ -188,6 +207,7 @@ export async function GET(request: Request) {
       .from('flow_runs')
       .select('flow_id, flows(name)')
       .eq('contact_id', cId)
+      .eq('workspace_id', workspaceId)
       .gte('started_at', lookback)
       .lte('started_at', order.created_at)
       .order('started_at', { ascending: false })

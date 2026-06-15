@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,7 @@ function formatRelative(iso: string): string {
 export default function TemplatesPage() {
   const supabase = createClient();
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -115,7 +117,7 @@ export default function TemplatesPage() {
     if (!user) return;
     setSyncing(true);
     try {
-      const res = await fetch('/api/whatsapp/templates/sync', { method: 'POST' });
+      const res = await fetchWithCsrf('/api/whatsapp/templates/sync', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Sincronización fallida');
       toast.success(

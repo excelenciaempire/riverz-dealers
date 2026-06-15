@@ -49,6 +49,7 @@ import type {
 } from "@/types"
 import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
 import type {
@@ -384,6 +385,7 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
 
 export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const router = useRouter()
+  const fetchWithCsrf = useFetchWithCsrf()
   const isEditing = !!initial.id
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
@@ -463,12 +465,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       }
 
       const res = isEditing
-        ? await fetch(`/api/automations/${initial.id}`, {
+        ? await fetchWithCsrf(`/api/automations/${initial.id}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch(`/api/automations`, {
+        : await fetchWithCsrf(`/api/automations`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(payload),

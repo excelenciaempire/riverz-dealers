@@ -15,6 +15,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { csrfGuard } from '@/lib/csrf'
 
 /**
  * Submit a NEW WhatsApp message template to Meta for approval, then mirror
@@ -40,6 +41,8 @@ const DB_CATEGORY: Record<MetaTemplateCategory, 'Marketing' | 'Utility' | 'Authe
 }
 
 export async function POST(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
   try {
     const supabase = await createClient()
     const {

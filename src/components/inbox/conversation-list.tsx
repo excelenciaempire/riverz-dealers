@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
@@ -66,6 +67,7 @@ export function ConversationList({
   onConversationDeleted,
   resyncToken = 0,
 }: ConversationListProps) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationStatus | "all">("all");
   const [loading, setLoading] = useState(true);
@@ -221,7 +223,7 @@ export function ConversationList({
     let ok = 0;
     for (const id of ids) {
       try {
-        const r = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+        const r = await fetchWithCsrf(`/api/conversations/${id}`, { method: "DELETE" });
         if (r.ok) {
           ok++;
           onConversationDeleted?.(id);
@@ -235,7 +237,7 @@ export function ConversationList({
     setSelectMode(false);
     if (ok > 0) toast.success(`${ok} eliminada(s)`);
     if (ok < ids.length) toast.error(`${ids.length - ok} no eliminada(s)`);
-  }, [selectedIds, onConversationDeleted]);
+  }, [selectedIds, onConversationDeleted, fetchWithCsrf]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
@@ -379,6 +381,7 @@ function ConversationItem({
   onToggleSelected,
   tz,
 }: ConversationItemProps) {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = useCallback(
@@ -389,7 +392,7 @@ function ConversationItem({
       if (!window.confirm("¿Eliminar conversación?")) return;
       setDeleting(true);
       try {
-        const r = await fetch(`/api/conversations/${conversation.id}`, { method: "DELETE" });
+        const r = await fetchWithCsrf(`/api/conversations/${conversation.id}`, { method: "DELETE" });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
           toast.error(j.error || "No se pudo eliminar");
@@ -403,7 +406,7 @@ function ConversationItem({
         setDeleting(false);
       }
     },
-    [conversation, deleting, onDelete],
+    [conversation, deleting, onDelete, fetchWithCsrf],
   );
   const contact = conversation.contact;
   const displayName = resolveDisplayName(conversation.channel, contact);

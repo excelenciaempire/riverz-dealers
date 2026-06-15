@@ -95,6 +95,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import {
   reachableFromEntry,
   validateFlowForActivation,
@@ -596,6 +597,7 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
 
 export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
 
   const [state, setState] = useState<BuilderState>(() => ({
     name: initialFlow.name,
@@ -960,7 +962,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     // estado terminó sin errores, ocultamos el panel de nuevo al final.
     setShowValidation(true);
     try {
-      const res = await fetch(`/api/flows/${initialFlow.id}`, {
+      const res = await fetchWithCsrf(`/api/flows/${initialFlow.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -995,7 +997,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state, canActivate]);
+  }, [initialFlow.id, state, canActivate, fetchWithCsrf]);
 
   // ---- Activate / Pause / Archive ----
   const handleStatus = useCallback(
@@ -1012,7 +1014,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         if (next === "active") {
           await handleSave();
         }
-        const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
+        const res = await fetchWithCsrf(`/api/flows/${initialFlow.id}/activate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: next }),
@@ -1036,7 +1038,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         setActivating(false);
       }
     },
-    [canActivate, handleSave, initialFlow.id],
+    [canActivate, handleSave, initialFlow.id, fetchWithCsrf],
   );
 
   // ---- Delete ----
@@ -1044,7 +1046,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     const yes = window.confirm(`¿Eliminar "${state.name}"?`);
     if (!yes) return;
     try {
-      const res = await fetch(`/api/flows/${initialFlow.id}`, {
+      const res = await fetchWithCsrf(`/api/flows/${initialFlow.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
@@ -1053,7 +1055,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       const msg = err instanceof Error ? err.message : "No se pudo eliminar";
       toast.error(msg);
     }
-  }, [initialFlow.id, router, state.name]);
+  }, [initialFlow.id, router, state.name, fetchWithCsrf]);
 
   // ---- Node helpers ----
   // `silenced` set + `unsilence` están declarados más abajo; las

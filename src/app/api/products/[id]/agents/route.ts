@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { csrfGuard } from '@/lib/csrf';
 
 /**
  * POST /api/products/[id]/agents { agent_id }
@@ -14,6 +15,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await context.params;
   const supabase = await createClient();
   const {
@@ -72,6 +75,8 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const block = await csrfGuard(request);
+  if (block) return block;
   const { id } = await context.params;
   const supabase = await createClient();
   const {

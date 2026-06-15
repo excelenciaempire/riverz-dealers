@@ -1,23 +1,23 @@
 /**
- * In-memory per-key rate limiter.
+ * Per-key rate limiter — Upstash Redis (distributed) with in-memory
+ * fallback.
  *
- * Fixed-window counter (not token bucket): every identifier gets a
- * fresh N-request budget each window. Simple, allocation-light, and
- * fine for a single-instance VPS — which is how forkers of this
- * template will usually deploy.
+ * If UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set,
+ * `limitByKey` enforces the budget through Upstash's REST API
+ * (INCR + EXPIRE NX, pipelined). One Redis round-trip per check; the
+ * counter is shared across every replica that points at the same
+ * Upstash database.
  *
- * Trade-off: a single Node process holds the Map, so horizontal scale
- * (multiple regions, multiple Hostinger nodes, Vercel serverless fan-
- * out) silently defeats the limit. If you scale beyond one instance,
- * swap the `check` implementation for Redis / Upstash / Cloudflare
- * Durable Objects keeping the same return shape. The call sites won't
- * change.
+ * If those env vars are missing, both `limitByKey` and the legacy
+ * `checkRateLimit` fall back to a process-local Map. That mode is fine
+ * for a single Node process but silently allows burst-over-limit on a
+ * multi-replica deploy — we emit a one-time warning at module load so
+ * the misconfiguration shows up in the logs.
  *
- * Memory: entries are ~50 bytes each. With LIGHT_SWEEP below, expired
- * keys get cleared opportunistically on every ~1 000th call, so a
- * healthy instance stays in the low-MB range even with thousands of
- * distinct users. No background timer — works in serverless edge
- * runtimes that don't keep timers alive across requests.
+ * The in-memory Map self-drains via opportunistic sweeps (every
+ * ~1 000th call) so no background timer is required and the limiter
+ * works in serverless edge runtimes that don't keep timers alive
+ * across requests.
  */
 
 import { NextResponse } from 'next/server';
@@ -45,9 +45,6 @@ interface Entry {
 
 const buckets = new Map<string, Entry>();
 
-// Opportunistic cleanup. Running a sweep on every call would be
-// quadratic; running it 1-in-N lets the Map self-drain without a
-// background timer.
 const LIGHT_SWEEP_EVERY = 1000;
 let callsSinceSweep = 0;
 
@@ -57,7 +54,7 @@ function sweepExpired(now: number) {
   }
 }
 
-export function checkRateLimit(
+function checkRateLimitInMemory(
   key: string,
   { limit, windowMs }: RateLimitOptions,
 ): RateLimitResult {
@@ -89,6 +86,116 @@ export function checkRateLimit(
   };
 }
 
+function upstashConfig(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url: url.replace(/\/+$/, ''), token };
+}
+
+let warnedInMemory = false;
+function warnInMemoryOnce() {
+  if (warnedInMemory) return;
+  warnedInMemory = true;
+  if (process.env.NODE_ENV === 'test') return;
+  console.warn(
+    'Rate limit is in-memory; multi-replica deploys WILL allow burst over the limit. ' +
+      'Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN for distributed enforcement.',
+  );
+}
+
+if (!upstashConfig()) {
+  warnInMemoryOnce();
+}
+
+type PipelineReply = Array<{ result?: unknown; error?: string }>;
+
+async function checkRateLimitUpstash(
+  key: string,
+  { limit, windowMs }: RateLimitOptions,
+  cfg: { url: string; token: string },
+): Promise<RateLimitResult> {
+  const windowSec = Math.max(1, Math.ceil(windowMs / 1000));
+  const now = Date.now();
+
+  const body = JSON.stringify([
+    ['INCR', key],
+    ['EXPIRE', key, String(windowSec), 'NX'],
+    ['PTTL', key],
+  ]);
+
+  const res = await fetch(`${cfg.url}/pipeline`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cfg.token}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    throw new Error(`Upstash rate-limit pipeline failed: ${res.status}`);
+  }
+
+  const replies = (await res.json()) as PipelineReply;
+  const incrReply = replies[0];
+  if (!incrReply || incrReply.error || typeof incrReply.result !== 'number') {
+    throw new Error(
+      `Upstash INCR returned an unexpected reply: ${JSON.stringify(incrReply)}`,
+    );
+  }
+  const count = incrReply.result;
+
+  const pttlReply = replies[2];
+  const pttl =
+    pttlReply && typeof pttlReply.result === 'number' ? pttlReply.result : -1;
+  const reset = pttl > 0 ? now + pttl : now + windowSec * 1000;
+
+  if (count > limit) {
+    return { success: false, remaining: 0, reset, limit };
+  }
+  return {
+    success: true,
+    remaining: Math.max(0, limit - count),
+    reset,
+    limit,
+  };
+}
+
+/**
+ * Synchronous, in-memory only. Kept for backward compatibility with
+ * existing call sites. Use `limitByKey` (async) on new code paths so
+ * the limit is enforced across replicas when Upstash is configured.
+ */
+export function checkRateLimit(
+  key: string,
+  opts: RateLimitOptions,
+): RateLimitResult {
+  return checkRateLimitInMemory(key, opts);
+}
+
+/**
+ * Distributed-when-configured rate limit check. Falls back to the
+ * in-memory store when Upstash env is missing, or when the Upstash
+ * round-trip throws (fail-open: a Redis blip should not lock users out).
+ */
+export async function limitByKey(
+  key: string,
+  opts: RateLimitOptions,
+): Promise<RateLimitResult> {
+  const cfg = upstashConfig();
+  if (!cfg) {
+    return checkRateLimitInMemory(key, opts);
+  }
+  try {
+    return await checkRateLimitUpstash(key, opts, cfg);
+  } catch (err) {
+    console.warn('Upstash rate-limit unavailable, falling back to in-memory:', err);
+    return checkRateLimitInMemory(key, opts);
+  }
+}
+
 /**
  * Standard 429 response with the headers clients expect (RFC 6585 +
  * draft-ietf-httpapi-ratelimit-headers). Callers just `return` this.
@@ -114,21 +221,9 @@ export function rateLimitResponse(result: RateLimitResult): NextResponse {
 
 /** Preconfigured budgets, tweak here not at call sites. */
 export const RATE_LIMITS = {
-  /** Individual message send. 60/min per user = one per second
-   *  sustained, comfortable for a live human typing. */
   send: { limit: 60, windowMs: 60_000 },
-  /** Broadcast dispatch. 5/min per user — even a 1 000-recipient
-   *  broadcast is one call; this caps the rate at which a single user
-   *  can launch campaigns, not the messages inside one. */
   broadcast: { limit: 5, windowMs: 60_000 },
-  /** Reaction add/swap/remove. More permissive than send — users
-   *  fidget with reactions and a single "swap" is actually two calls
-   *  (remove + add) under the hood. */
   react: { limit: 120, windowMs: 60_000 },
-  /** Auth attempts (login / signup / password reset). 5 attempts per
-   *  5 min per IP + per email — enough for a forgetful user, painful
-   *  for a credential-stuffer. Per-email key is checked on top of the
-   *  per-IP key at each call site. */
   auth: { limit: 5, windowMs: 5 * 60_000 },
 } as const;
 
@@ -147,4 +242,5 @@ export function clientIp(req: Request): string {
 export function __resetRateLimitForTests() {
   buckets.clear();
   callsSinceSweep = 0;
+  warnedInMemory = false;
 }

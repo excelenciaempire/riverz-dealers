@@ -6,6 +6,7 @@ import { Contact, MessageTemplate } from '@/types';
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
 import { resolveSegment } from '@/lib/segments/resolve';
 import type { ContactSegment } from '@/lib/segments/types';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -149,6 +150,7 @@ async function fetchCustomValueIndex(
 }
 
 export function useBroadcastSending(): UseBroadcastSendingReturn {
+  const fetchWithCsrf = useFetchWithCsrf();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -513,7 +515,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         if (apiRecipients.length === 0) continue;
 
         try {
-          const res = await fetch('/api/whatsapp/broadcast', {
+          const res = await fetchWithCsrf('/api/whatsapp/broadcast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

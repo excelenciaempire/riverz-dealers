@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import type {
@@ -157,6 +158,7 @@ export function MessageThread({
   onRefresh,
 }: MessageThreadProps) {
   const { user } = useAuth();
+  const fetchWithCsrf = useFetchWithCsrf();
   const tz = useTimezone();
   const [loading, setLoading] = useState(false);
   // Pagination cursor — created_at of the oldest message currently loaded.
@@ -504,7 +506,7 @@ export function MessageThread({
       setReplyTo(null);
 
       try {
-        const res = await fetch("/api/messages/send", {
+        const res = await fetchWithCsrf("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -532,7 +534,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf]
   );
 
   const handleStatusChange = useCallback(
@@ -575,7 +577,7 @@ export function MessageThread({
       onNewMessage(optimisticMsg);
 
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const res = await fetchWithCsrf("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -605,7 +607,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf],
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
@@ -704,7 +706,7 @@ export function MessageThread({
       });
 
       try {
-        const res = await fetch("/api/whatsapp/react", {
+        const res = await fetchWithCsrf("/api/whatsapp/react", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message_id: messageId, emoji }),
@@ -719,7 +721,7 @@ export function MessageThread({
         setReactions(snapshot);
       }
     },
-    [conversation, user?.id],
+    [conversation, user?.id, fetchWithCsrf],
   );
 
   // "Cargar más antiguos" — fetches the next PAGE_SIZE rows whose

@@ -24,6 +24,7 @@ import type {
 } from '@/lib/whatsapp/template-components';
 import type { ContactSegment } from '@/lib/segments/types';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 type AudienceType = 'all' | 'tags' | 'segment';
 
@@ -99,6 +100,7 @@ function describeScheduledAt(iso: string | null): string {
 
 export default function NewBroadcastPage() {
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
   const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
 
   const [name, setName] = useState('');
@@ -174,7 +176,7 @@ export default function NewBroadcastPage() {
             if (!cancelled) setRecipientCount(0);
             return;
           }
-          const res = await fetch('/api/broadcasts/audience-preview', {
+          const res = await fetchWithCsrf('/api/broadcasts/audience-preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -196,7 +198,7 @@ export default function NewBroadcastPage() {
     return () => {
       cancelled = true;
     };
-  }, [audienceType, selectedTagIds, segmentId]);
+  }, [audienceType, selectedTagIds, segmentId, fetchWithCsrf]);
 
   const template = useMemo(
     () => templates.find((t) => t.id === templateId) ?? null,
@@ -305,7 +307,7 @@ export default function NewBroadcastPage() {
     if (!testPhone.trim()) return toast.error('Falta el número de prueba.');
     setSendingTest(true);
     try {
-      const res = await fetch('/api/broadcasts/test', {
+      const res = await fetchWithCsrf('/api/broadcasts/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

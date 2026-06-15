@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { csrfGuard } from "@/lib/csrf";
 import { getLogger } from "@/lib/log/logger";
 
 const log = getLogger("workspace.accept-invite");
@@ -23,6 +24,8 @@ const log = getLogger("workspace.accept-invite");
  *   e) the invite has not been consumed (accepted_at IS NULL).
  */
 export async function POST(req: Request): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
   const supabase = await createClient();
   const {
     data: { user },

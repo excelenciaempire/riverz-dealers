@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 interface Product {
   id: string;
@@ -68,6 +69,7 @@ interface AgentSummary {
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const fetchWithCsrf = useFetchWithCsrf();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
@@ -115,7 +117,7 @@ export default function ProductDetailPage() {
     if (!product) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/products/${product.id}`, {
+      const res = await fetchWithCsrf(`/api/products/${product.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,7 +140,7 @@ export default function ProductDetailPage() {
     if (!product) return;
     setScraping(true);
     try {
-      const res = await fetch(`/api/products/${product.id}/scrape`, {
+      const res = await fetchWithCsrf(`/api/products/${product.id}/scrape`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -156,7 +158,7 @@ export default function ProductDetailPage() {
     if (!product) return;
     setResearching(true);
     try {
-      const res = await fetch(`/api/products/${product.id}/ai-research`, {
+      const res = await fetchWithCsrf(`/api/products/${product.id}/ai-research`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -178,14 +180,14 @@ export default function ProductDetailPage() {
     const assigned = agents.some((a) => a.id === agentId);
     try {
       if (assigned) {
-        const res = await fetch(
+        const res = await fetchWithCsrf(
           `/api/products/${product.id}/agents?agent_id=${agentId}`,
           { method: 'DELETE' },
         );
         if (!res.ok) throw new Error('No se pudo quitar el agente');
         setAgents((cur) => cur.filter((a) => a.id !== agentId));
       } else {
-        const res = await fetch(`/api/products/${product.id}/agents`, {
+        const res = await fetchWithCsrf(`/api/products/${product.id}/agents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agent_id: agentId }),
