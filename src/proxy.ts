@@ -48,6 +48,30 @@ export async function proxy(request: NextRequest) {
   // nonce="" and the browser blocks every chunk → blank page.
   requestHeaders.set('Content-Security-Policy', csp)
 
+  // Shopify post-install bootstrap. Custom-app distribution sends the
+  // merchant to the App URL (not our redirect_uri) with `?shop=…&hmac=…`.
+  // The merchant has no Riverz session, so this must run before the
+  // demo/auth checks that would bounce them to /ingresar and drop the
+  // query string. Forward to /api/shopify/oauth/start preserving the
+  // params Shopify needs to keep the install flow signed.
+  const shopParam = request.nextUrl.searchParams.get('shop')
+  if (
+    shopParam &&
+    /^[\w-]+\.myshopify\.com$/i.test(shopParam) &&
+    !request.nextUrl.pathname.startsWith('/api/shopify/')
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/api/shopify/oauth/start'
+    const next = new URLSearchParams()
+    next.set('shop', shopParam)
+    for (const key of ['host', 'hmac', 'timestamp', 'embedded', 'session']) {
+      const value = request.nextUrl.searchParams.get(key)
+      if (value) next.set(key, value)
+    }
+    url.search = `?${next.toString()}`
+    return applyCsp(NextResponse.redirect(url), nonce)
+  }
+
   // Demo mode: act as if the user is already signed in. Bypasses the
   // entire auth check so the inbox is reachable without a Supabase
   // project. The dashboard then loads its data from the mock client.
