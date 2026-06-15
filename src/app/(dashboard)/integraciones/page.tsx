@@ -1,12 +1,5 @@
 'use client';
 
-// Force Node.js runtime + dynamic rendering per-request so the CSP nonce
-// minted by the proxy (forwarded via the x-nonce header) is available to
-// inject into streaming inline scripts. Edge / static prerender would
-// strip the nonce and any boot script would be blocked by CSP.
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
 import Link from 'next/link';
 import { ArrowLeft, Blocks } from 'lucide-react';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
