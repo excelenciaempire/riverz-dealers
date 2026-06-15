@@ -7,6 +7,11 @@ import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
 
+// Force dynamic rendering per-request so the CSP nonce minted by the
+// proxy (forwarded via the x-nonce header) is available to inject into
+// the streaming inline theme-boot script below.
+export const dynamic = "force-dynamic";
+
 // Inter Tight is Riverz's editorial typeface — used app-wide. The
 // negative tracking and lighter weights give the "expensive" feel of
 // the Riverz design system.

@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { DashboardShell } from "./dashboard-shell";
 
+// Force dynamic rendering per-request so the CSP nonce minted by the
+// proxy (forwarded via the x-nonce header) is available to inject into
+// streaming inline scripts. Static prerender would strip the nonce and
+// any boot script would be blocked by CSP.
+export const dynamic = "force-dynamic";
+
 // Server layout whose only job is to declare "do not index" metadata
 // for the authed app. robots.ts already disallows these paths at the
 // crawler-level and middleware redirects unauthenticated visitors, so
