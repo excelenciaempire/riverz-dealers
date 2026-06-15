@@ -201,11 +201,25 @@ export default function AutomationsPage() {
       )}
 
       {automations.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-accent-ink" />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40 px-6 py-14 text-center">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
+            <Zap className="size-7" />
           </div>
-          <p className="mt-3 text-sm font-medium text-foreground">Aún no hay automatizaciones</p>
+          <p className="mt-4 text-base font-semibold text-foreground">
+            Aún no hay automatizaciones
+          </p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            Configura un flujo que se dispare cuando alguien escriba, abandone
+            el carrito o haga una compra. Tu equipo deja de copiar mensajes a
+            mano.
+          </p>
+          <Button
+            onClick={() => router.push("/automatizaciones/nueva")}
+            className="mt-5 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Crear primera automatización
+          </Button>
         </div>
       ) : (
         <ul className="space-y-3">

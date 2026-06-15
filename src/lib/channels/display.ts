@@ -64,6 +64,13 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#C13584",
     replyOnly: true,
   },
+  sms: {
+    channel: "sms",
+    label: "SMS",
+    shortLabel: "SMS",
+    badge: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/30",
+    accent: "#64748B",
+  },
 };
 
 export function channelDisplay(channel: Channel): ChannelDisplay {

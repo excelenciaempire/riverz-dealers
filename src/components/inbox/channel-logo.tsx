@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { MessageSquare } from "lucide-react";
 import type { Channel } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +8,9 @@ import { cn } from "@/lib/utils";
  * /public/channels/ (sourced from Simple Icons, CC0). For comment
  * channels we reuse the parent platform logo (Facebook for fb_comment,
  * Instagram for ig_comment) with a small "·" overlay treatment.
+ *
+ * SMS has no public brand so we render a lucide MessageSquare instead
+ * of pointing at a missing /public/channels/sms.svg.
  */
 interface ChannelLogoProps {
   channel: Channel;
@@ -14,7 +18,7 @@ interface ChannelLogoProps {
   className?: string;
 }
 
-const LOGO_MAP: Record<Channel, { src: string; alt: string }> = {
+const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
   whatsapp: { src: "/channels/whatsapp.svg", alt: "WhatsApp" },
   instagram: { src: "/channels/instagram.svg", alt: "Instagram" },
   messenger: { src: "/channels/messenger.svg", alt: "Messenger" },
@@ -26,6 +30,15 @@ const LOGO_MAP: Record<Channel, { src: string; alt: string }> = {
 
 export function ChannelLogo({ channel, size = 20, className }: ChannelLogoProps) {
   const logo = LOGO_MAP[channel];
+  if (!logo) {
+    return (
+      <MessageSquare
+        width={size}
+        height={size}
+        className={cn("inline-block text-muted-foreground", className)}
+      />
+    );
+  }
   return (
     <Image
       src={logo.src}

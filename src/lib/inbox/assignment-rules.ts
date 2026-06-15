@@ -20,6 +20,12 @@ interface RuleRow {
   id: string;
   workspace_id: string;
   kind: 'round_robin' | 'by_tag' | 'by_channel' | 'by_keyword';
+  /**
+   * Canal al que la regla aplica. NULL ó vacío = cualquiera. Es
+   * independiente del `kind`: un round_robin puede limitarse a
+   * "solo WhatsApp" sin convertirse en by_channel.
+   */
+  channel: string | null;
   config: Record<string, unknown>;
   state: Record<string, unknown>;
   priority: number;
@@ -37,7 +43,7 @@ export async function resolveAssignmentForConversation(
 ): Promise<string | null> {
   const { data: rules } = await admin
     .from('conversation_assignment_rules')
-    .select('id, workspace_id, kind, config, state, priority')
+    .select('id, workspace_id, kind, channel, config, state, priority')
     .eq('workspace_id', args.workspaceId)
     .eq('is_active', true)
     .order('priority', { ascending: true });
@@ -57,6 +63,10 @@ export async function resolveAssignmentForConversation(
   }
 
   for (const rule of rules as RuleRow[]) {
+    // Filtro por canal: si la regla declara un canal específico, sólo
+    // aplica cuando la conv coincide. `null` o cadena vacía significan
+    // "cualquiera" (comportamiento previo a la migración 036).
+    if (rule.channel && rule.channel !== args.channel) continue;
     const decision = await evaluateRule(admin, rule, {
       channel: args.channel,
       tagsByContact,

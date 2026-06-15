@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import Link from "next/link";
 import {
   Search,
   ChevronDown,
@@ -13,6 +14,8 @@ import {
   CheckSquare,
   Square,
   X,
+  Inbox as InboxIcon,
+  Plug2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
@@ -313,9 +316,9 @@ export function ConversationList({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">No hay conversaciones</p>
-          </div>
+          <InboxEmptyState
+            hasFilters={!!search.trim() || filter !== "all"}
+          />
         ) : (
           <div className="flex flex-col">
             {filtered.map((conv) => (
@@ -537,6 +540,37 @@ function ConversationItem({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Editorial-style empty state. Two paths: the merchant is filtering /
+// searching (we tell them to widen the filter) vs. the bandeja is
+// genuinely empty (we point them at the integrations page so they can
+// connect a channel and start receiving messages).
+function InboxEmptyState({ hasFilters }: { hasFilters: boolean }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
+        <InboxIcon className="size-7" />
+      </div>
+      <p className="mt-4 text-sm font-semibold text-foreground">
+        {hasFilters ? "Sin resultados" : "Tu bandeja está vacía"}
+      </p>
+      <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
+        {hasFilters
+          ? "Probá quitando el filtro o ampliando la búsqueda."
+          : "Conecta WhatsApp, Instagram, Messenger o tu correo para empezar a recibir mensajes."}
+      </p>
+      {!hasFilters && (
+        <Link
+          href="/integraciones"
+          className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Plug2 className="size-3.5" />
+          Conectar un canal
+        </Link>
+      )}
     </div>
   );
 }

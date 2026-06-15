@@ -20,7 +20,7 @@ export async function GET() {
   }
   const { data, error } = await supabase
     .from('conversation_assignment_rules')
-    .select('id, name, is_active, priority, kind, config, created_at')
+    .select('id, name, is_active, priority, kind, channel, config, created_at')
     .order('priority', { ascending: true });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     is_active?: boolean;
     priority?: number;
     kind?: 'round_robin' | 'by_tag' | 'by_channel' | 'by_keyword';
+    channel?: string | null;
     config?: Record<string, unknown>;
   } | null;
   if (!body?.name || !body.kind) {
@@ -56,6 +57,13 @@ export async function POST(request: Request) {
   if (!member?.workspace_id) {
     return NextResponse.json({ error: 'No workspace' }, { status: 400 });
   }
+  // `channel` se trata como "cualquiera" cuando el cliente manda null o
+  // string vacío — no hay que persistir un literal "cualquiera" porque
+  // ya tenemos un valor canónico (NULL) en la columna.
+  const channelValue =
+    typeof body.channel === 'string' && body.channel.length > 0
+      ? body.channel
+      : null;
   if (body.id) {
     const { error } = await supabase
       .from('conversation_assignment_rules')
@@ -64,6 +72,7 @@ export async function POST(request: Request) {
         is_active: body.is_active ?? true,
         priority: body.priority ?? 100,
         kind: body.kind,
+        channel: channelValue,
         config: body.config ?? {},
         updated_at: new Date().toISOString(),
       })
@@ -79,6 +88,7 @@ export async function POST(request: Request) {
       is_active: body.is_active ?? true,
       priority: body.priority ?? 100,
       kind: body.kind,
+      channel: channelValue,
       config: body.config ?? {},
     })
     .select('id')

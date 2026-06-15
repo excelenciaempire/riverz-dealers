@@ -7,6 +7,7 @@ import { gmailAdapter } from "./gmail/adapter";
 import { outlookAdapter } from "./outlook/adapter";
 import { fbCommentAdapter } from "./fb_comment/adapter";
 import { igCommentAdapter } from "./ig_comment/adapter";
+import { smsAdapter } from "./sms";
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
   whatsapp: whatsappAdapter,
@@ -16,6 +17,7 @@ const ADAPTERS: Record<Channel, ChannelAdapter> = {
   outlook: outlookAdapter,
   fb_comment: fbCommentAdapter,
   ig_comment: igCommentAdapter,
+  sms: smsAdapter,
 };
 
 export function getAdapter(channel: Channel): ChannelAdapter {

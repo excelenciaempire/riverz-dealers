@@ -21,6 +21,7 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
+  ChevronUp,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -158,6 +159,15 @@ export function MessageThread({
   const { user } = useAuth();
   const tz = useTimezone();
   const [loading, setLoading] = useState(false);
+  // Pagination cursor — created_at of the oldest message currently loaded.
+  // The "Cargar más antiguos" button reads from this to fetch the next
+  // page (created_at < oldestLoadedAt). Reset whenever the conversation
+  // changes or a fresh fetch lands. `hasMore` flips to false once the
+  // server returns less than PAGE_SIZE rows.
+  const PAGE_SIZE = 100;
+  const [oldestLoadedAt, setOldestLoadedAt] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   // Resolved publication a comment thread belongs to (thumbnail +
@@ -292,19 +302,30 @@ export function MessageThread({
 
     (async () => {
       setLoading(true);
+      setHasMore(false);
+      setOldestLoadedAt(null);
 
+      // Fetch the most recent PAGE_SIZE rows by ordering DESC + limiting,
+      // then reverse client-side so the existing render loop (which
+      // expects oldest-first) keeps working. Loading only the last page
+      // keeps long-lived chats from dragging in thousands of rows on
+      // every open.
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const rows = (data ?? []).slice().reverse();
+        onMessagesLoadedRef.current(rows);
+        if (rows.length > 0) setOldestLoadedAt(rows[0].created_at);
+        setHasMore((data ?? []).length === PAGE_SIZE);
       }
 
       if (!cancelled) setLoading(false);
@@ -449,13 +470,17 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages. Suppressed while a
+  // "Cargar más antiguos" fetch is in flight so prepending older rows
+  // doesn't yank the scroll position to the bottom — handleLoadOlder
+  // restores the user's anchor itself once the new rows render.
   useEffect(() => {
+    if (loadingOlder) return;
     if (scrollRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loadingOlder]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
@@ -696,6 +721,50 @@ export function MessageThread({
     },
     [conversation, user?.id],
   );
+
+  // "Cargar más antiguos" — fetches the next PAGE_SIZE rows whose
+  // created_at < oldestLoadedAt, prepends them in chronological order,
+  // and updates the cursor. Scroll position is anchored to the previous
+  // top message so the user doesn't get yanked while older history loads.
+  const handleLoadOlder = useCallback(async () => {
+    if (!conversation || !oldestLoadedAt || loadingOlder) return;
+    setLoadingOlder(true);
+    const scroller = scrollRef.current;
+    const prevScrollHeight = scroller?.scrollHeight ?? 0;
+    const prevScrollTop = scroller?.scrollTop ?? 0;
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation.id)
+        .lt("created_at", oldestLoadedAt)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
+      if (error) {
+        console.error("Failed to load older messages:", error);
+        toast.error("No se cargaron mensajes anteriores");
+        return;
+      }
+      const older = (data ?? []).slice().reverse();
+      if (older.length > 0) {
+        onMessagesLoadedRef.current([...older, ...messages]);
+        setOldestLoadedAt(older[0].created_at);
+      }
+      setHasMore((data ?? []).length === PAGE_SIZE);
+      // Restore scroll so the message the user was looking at stays put
+      // after the new rows are prepended. requestAnimationFrame waits for
+      // React to paint the new layout before reading scrollHeight.
+      requestAnimationFrame(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const delta = el.scrollHeight - prevScrollHeight;
+        el.scrollTop = prevScrollTop + delta;
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [conversation, messages, oldestLoadedAt, loadingOlder]);
 
   const handleAssignChange = useCallback(
     async (agentId: string | null) => {
@@ -996,6 +1065,23 @@ export function MessageThread({
           </div>
         ) : (
           <div className="space-y-4">
+            {hasMore && (
+              <div className="flex justify-center pb-1">
+                <button
+                  type="button"
+                  onClick={handleLoadOlder}
+                  disabled={loadingOlder}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-card/80 px-3 py-1 text-[11px] font-medium text-muted-foreground ring-1 ring-border backdrop-blur transition-colors hover:bg-card hover:text-foreground disabled:opacity-60"
+                >
+                  {loadingOlder ? (
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  ) : (
+                    <ChevronUp className="h-3 w-3" />
+                  )}
+                  {loadingOlder ? "Cargando…" : "Cargar más antiguos"}
+                </button>
+              </div>
+            )}
             {messageGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}

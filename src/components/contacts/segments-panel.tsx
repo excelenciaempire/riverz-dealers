@@ -66,6 +66,7 @@ const CHANNEL_LABELS: Record<Channel, string> = {
   outlook: 'Outlook',
   fb_comment: 'Comentarios de Facebook',
   ig_comment: 'Comentarios de Instagram',
+  sms: 'SMS',
 };
 
 const FIELD_LABELS: Record<string, string> = {

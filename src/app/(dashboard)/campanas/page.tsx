@@ -14,10 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Loader2, Search, Info, ExternalLink } from 'lucide-react';
+import { Plus, Loader2, Search, Info, ExternalLink, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
-import { PLACEHOLDER_BROADCASTS } from '@/lib/broadcasts/placeholder-data';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -118,16 +117,15 @@ export default function BroadcastsPage() {
     };
   }, [anySending]);
 
-  const rows = broadcasts.length === 0 ? PLACEHOLDER_BROADCASTS : broadcasts;
   const filteredRows = useMemo(() => {
-    if (!query.trim()) return rows;
+    if (!query.trim()) return broadcasts;
     const q = query.trim().toLowerCase();
-    return rows.filter(
+    return broadcasts.filter(
       (b) =>
         b.name.toLowerCase().includes(q) ||
         (b.template_name ?? '').toLowerCase().includes(q),
     );
-  }, [rows, query]);
+  }, [broadcasts, query]);
 
   if (loading) {
     return (
@@ -217,22 +215,34 @@ export default function BroadcastsPage() {
         </Button>
       </div>
 
-      {/* ── Empty-state info banner ── */}
-      {broadcasts.length === 0 && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Vista previa con datos de ejemplo
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Estas filas son de ejemplo. Desaparecen cuando creas tu primera campaña.
-            </p>
+      {/* ── Empty state: ilustración + CTA centrada. Reemplaza los
+            datos de ejemplo cuando todavía no hay ninguna campaña. ── */}
+      {broadcasts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40 px-6 py-14 text-center">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
+            <Send className="size-7" />
           </div>
+          <p className="mt-4 text-base font-semibold text-foreground">
+            Tu primera campaña masiva
+          </p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            Envía una plantilla aprobada por WhatsApp a una lista de contactos
+            con un clic. Vas a ver acá los envíos, su entrega y su lectura.
+          </p>
+          <Button
+            onClick={() => router.push('/campanas/nueva')}
+            className="mt-5 bg-foreground text-background hover:bg-foreground/90"
+          >
+            <Plus className="size-4" />
+            Crear primera campaña
+          </Button>
+          <p className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Info className="size-3" />
+            Necesitas una plantilla aprobada en Meta para enviar.
+          </p>
         </div>
-      )}
-
-      {/* ── Table ── */}
+      ) : (
+      /* ── Table ── */
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <Table>
           <TableHeader>
@@ -332,6 +342,7 @@ export default function BroadcastsPage() {
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   );
 }
