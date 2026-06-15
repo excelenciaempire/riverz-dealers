@@ -11,7 +11,6 @@ import {
   runWithTools,
   type ShopifyToolContext,
 } from '@/lib/ai/tools';
-import { getConnectionForUser } from '@/lib/shopify/connection';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 
 /**
@@ -102,8 +101,8 @@ export async function POST(
     const system = lines.filter(Boolean).join('\n\n');
 
     // ── Shopify tool (opcional) ──
-    // Resolvemos la conexión por workspace.owner_id: lo mismo que hace
-    // el runner en prod cuando elige qué token usar para el lookup.
+    // Resolvemos la conexión cruzando workspace_members: lo mismo que
+    // hace el runner en prod cuando elige qué token usar para el lookup.
     const shopify = await resolveShopifyContextForWorkspace(
       admin,
       a.workspace_id,
@@ -154,7 +153,14 @@ function safeDecrypt(value: string): string | null {
 }
 
 /**
- * Levanta el contexto Shopify del workspace dueño del agente.
+ * Levanta el contexto Shopify del workspace del agente.
+ *
+ * Antes priorizábamos owner_id, pero en workspaces multi-miembro la
+ * conexión Shopify suele estar instalada por un miembro que no es el
+ * owner. Ahora buscamos CUALQUIER conexión activa cuyo user_id esté en
+ * workspace_members del workspace, tomando la más reciente. Esto refleja
+ * lo que hace el runner en prod.
+ *
  * Devuelve null si no hay conexión activa — el caller usa eso para
  * decidir si exponer la tool o no.
  */
@@ -163,30 +169,28 @@ async function resolveShopifyContextForWorkspace(
   workspaceId: string,
   simulatedPhone: string | undefined,
 ): Promise<ShopifyToolContext | null> {
-  const { data: ws } = await admin
-    .from('workspaces')
-    .select('owner_id')
-    .eq('id', workspaceId)
-    .maybeSingle();
-  const ownerId = (ws as { owner_id?: string } | null)?.owner_id;
-  if (!ownerId) return null;
+  const { data: members } = await admin
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', workspaceId);
+  const memberIds = ((members as { user_id: string }[] | null) ?? [])
+    .map((m) => m.user_id)
+    .filter(Boolean);
+  if (memberIds.length === 0) return null;
 
-  const conn = await getConnectionForUser(admin, ownerId);
-  if (!conn || conn.status !== 'active') return null;
-
-  // getConnectionForUser oculta el token; pedimos el row completo aparte
-  // y desciframos manualmente para evitar tener que cambiar la firma
-  // pública del helper.
-  const { data: fullRow } = await admin
+  const { data: row } = await admin
     .from('shopify_connections')
-    .select('access_token')
-    .eq('id', conn.id)
+    .select('shop_domain, access_token')
+    .in('user_id', memberIds)
+    .eq('status', 'active')
+    .order('installed_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
-  const encrypted = (fullRow as { access_token?: string } | null)?.access_token;
-  if (!encrypted) return null;
+  const conn = row as { shop_domain: string; access_token: string } | null;
+  if (!conn?.access_token) return null;
   let accessToken: string;
   try {
-    accessToken = decrypt(encrypted);
+    accessToken = decrypt(conn.access_token);
   } catch {
     return null;
   }

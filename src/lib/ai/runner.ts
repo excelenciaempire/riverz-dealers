@@ -113,7 +113,7 @@ export async function runAiAgent(
     const products = await loadProductCatalog(db, agent, ownerUserId, productMatch);
     const shopify = await resolveShopifyContext(
       db,
-      ownerUserId,
+      args.workspaceId,
       args.contact,
     );
     const reply = await generateReply(
@@ -629,21 +629,36 @@ async function generateReply(
 }
 
 /**
- * Levanta el contexto Shopify del workspace dueño del agente, con el
- * teléfono/email del contacto pre-cargado para que la tool
- * `lookup_order` los use sin necesidad de pedírselos al cliente.
- * Devuelve null si no hay conexión activa.
+ * Levanta el contexto Shopify del workspace, con el teléfono/email del
+ * contacto pre-cargado para que la tool `lookup_order` los use sin
+ * necesidad de pedírselos al cliente.
+ *
+ * Antes priorizábamos owner_id, pero en workspaces multi-miembro la
+ * conexión Shopify suele estar instalada por un miembro que no es el
+ * owner. Ahora buscamos CUALQUIER conexión activa cuyo user_id esté en
+ * workspace_members del workspace, tomando la más reciente.
+ *
+ * Devuelve null si no hay ninguna conexión activa para el workspace.
  */
 async function resolveShopifyContext(
   db: SupabaseClient,
-  ownerUserId: string | null,
+  workspaceId: string | null,
   contact: Contact,
 ): Promise<ShopifyToolContext | null> {
-  if (!ownerUserId) return null;
+  if (!workspaceId) return null;
+  const { data: members } = await db
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', workspaceId);
+  const memberIds = ((members as { user_id: string }[] | null) ?? [])
+    .map((m) => m.user_id)
+    .filter(Boolean);
+  if (memberIds.length === 0) return null;
+
   const { data } = await db
     .from('shopify_connections')
     .select('shop_domain, access_token, status')
-    .eq('user_id', ownerUserId)
+    .in('user_id', memberIds)
     .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
