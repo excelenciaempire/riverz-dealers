@@ -3,14 +3,15 @@ import { cookies } from 'next/headers'
 import { createMockClient } from '@/lib/demo/mock-client'
 import { isDemoMode } from '@/lib/demo'
 
-// SameSite=strict blocks the browser from attaching the auth cookie to
-// ANY cross-site request (including top-level navigations from external
-// links). On a dashboard app this trades a small UX loss — clicking a
-// link to /panel from an outside site won't carry the session, so the
-// user lands on /ingresar — for full CSRF immunity on top of the
-// existing CSRF tokens. The default from @supabase/ssr is 'lax', which
-// still allows GET top-level navigations and leaks just enough for some
-// CSRF variants. Override it via the cookieOptions on every client.
+// SameSite=lax: the cookie travels on top-level GET navigations (clicking
+// a link, OAuth provider redirects back to us) but is BLOCKED on cross-site
+// POST/PUT/DELETE — which is exactly the CSRF surface we care about. We
+// also have explicit CSRF tokens on every mutation (see lib/csrf.ts), so
+// lax is the right balance. SameSite=strict broke every OAuth callback
+// (Microsoft, Google, Meta Embedded Signup) because providers redirect us
+// from their domain back to ours via a top-level GET — the browser
+// strips the strict cookie on that hop, our callback can't find the
+// signed-in user, and we bounce out with "not signed in".
 //
 // NOTE: httpOnly is intentionally NOT forced here. @supabase/ssr's
 // browser client reads the session cookie from JS to populate
@@ -21,7 +22,7 @@ import { isDemoMode } from '@/lib/demo'
 // (a) strict CSP with nonce + 'strict-dynamic' (no inline scripts), and
 // (b) the CSRF token double-submit on every mutation.
 export const SESSION_COOKIE_OPTIONS = {
-  sameSite: 'strict',
+  sameSite: 'lax',
   secure: process.env.NODE_ENV === 'production',
   path: '/',
 } as const
