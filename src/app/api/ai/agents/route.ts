@@ -82,6 +82,7 @@ export async function POST(request: Request) {
     is_active: body.is_active ?? false,
     persona: body.persona ?? '',
     knowledge: body.knowledge ?? null,
+    knowledge_url: body.knowledge_url ?? null,
     language: body.language ?? 'es',
     tone: body.tone ?? 'friendly',
     max_response_chars: body.max_response_chars ?? 500,

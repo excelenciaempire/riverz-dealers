@@ -55,6 +55,7 @@ export async function PATCH(
     'is_active',
     'persona',
     'knowledge',
+    'knowledge_url',
     'language',
     'tone',
     'max_response_chars',

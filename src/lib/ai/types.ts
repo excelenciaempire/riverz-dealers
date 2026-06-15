@@ -31,6 +31,10 @@ export interface AiAgent {
 
   persona: string;
   knowledge: string | null;
+  /** URL del sitio web fuente del conocimiento (Firecrawl). Migration 046. */
+  knowledge_url: string | null;
+  /** Fecha del último scrape exitoso. Migration 046. */
+  knowledge_synced_at: string | null;
   language: string;
   tone: AiTone;
 

@@ -17,6 +17,10 @@ import {
   Radio,
   Settings as SettingsIcon,
   MessageSquare,
+  Globe,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -222,6 +226,12 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.',
   );
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
+  const [knowledgeUrl, setKnowledgeUrl] = useState(agent?.knowledge_url ?? '');
+  const [knowledgeSyncedAt, setKnowledgeSyncedAt] = useState<string | null>(
+    agent?.knowledge_synced_at ?? null,
+  );
+  const [syncingKnowledge, setSyncingKnowledge] = useState(false);
+  const [showKnowledgePreview, setShowKnowledgePreview] = useState(false);
   const [language, setLanguage] = useState(agent?.language ?? 'es');
   const [tone, setTone] = useState<AiTone>(agent?.tone ?? 'friendly');
   const [maxChars, setMaxChars] = useState(agent?.max_response_chars ?? 500);
@@ -375,6 +385,7 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       is_active: isActive,
       persona: persona.trim(),
       knowledge: knowledge.trim() || null,
+      knowledge_url: knowledgeUrl.trim() || null,
       language,
       tone,
       max_response_chars: maxChars,
@@ -419,6 +430,69 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
       await onSaved(json.agent as AgentSummary);
     } else {
       await onSaved(agent as AgentSummary);
+    }
+  }
+
+  async function syncKnowledge() {
+    if (!editing) {
+      toast.error('Guardá el asistente antes de sincronizar.');
+      return;
+    }
+    const url = knowledgeUrl.trim();
+    if (!url) {
+      toast.error('Pegá la URL de tu tienda.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      toast.error('La URL debe empezar con https://');
+      return;
+    }
+    setSyncingKnowledge(true);
+    try {
+      const res = await fetchWithCsrf(`/api/ai/agents/${agent!.id}/sync-knowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 202) {
+        toast.error(json.error ?? 'No se pudo sincronizar');
+        return;
+      }
+      const pages = Number(json.pages_scraped ?? 0);
+      const chars = Number(json.knowledge_chars ?? 0);
+      if (json.agent?.knowledge != null) setKnowledge(json.agent.knowledge);
+      if (json.agent?.knowledge_url) setKnowledgeUrl(json.agent.knowledge_url);
+      if (json.knowledge_synced_at) setKnowledgeSyncedAt(json.knowledge_synced_at);
+      if (pages > 0) {
+        toast.success(
+          `Sincronizado. ${pages} página${pages === 1 ? '' : 's'} indexada${pages === 1 ? '' : 's'} (${chars} caracteres).`,
+        );
+      } else {
+        toast.message('Sincronización iniciada. Aún no llegan páginas, probá de nuevo en un minuto.');
+      }
+      if (json.agent) {
+        await onSaved(json.agent as AgentSummary);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al sincronizar');
+    } finally {
+      setSyncingKnowledge(false);
+    }
+  }
+
+  function formatSyncedAt(iso: string | null): string {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('es', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return iso;
     }
   }
 
@@ -583,6 +657,76 @@ export function AgentEditor({ workspaceId, agent, onClose, onSaved }: AgentEdito
 
             {tab === 'knowledge' && (
               <>
+                <SectionCard
+                  title="Base de conocimiento"
+                  hint="Tu agente responde mejor cuando tiene contexto de tu tienda. Pegá la URL de tu sitio web y sincronizá. Vamos a indexar tu home, políticas, FAQ y páginas de productos."
+                >
+                  <Field label="URL de tu tienda">
+                    <div className="relative">
+                      <Globe className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="url"
+                        value={knowledgeUrl}
+                        onChange={(e) => setKnowledgeUrl(e.target.value)}
+                        placeholder="https://tutienda.com"
+                        className="bg-background pl-8"
+                      />
+                    </div>
+                  </Field>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      onClick={syncKnowledge}
+                      disabled={syncingKnowledge || !editing}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      {syncingKnowledge ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
+                      Sincronizar desde mi web
+                    </Button>
+                    {knowledgeSyncedAt && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Última sincronización: {formatSyncedAt(knowledgeSyncedAt)}
+                      </p>
+                    )}
+                  </div>
+                  {!editing && (
+                    <p className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
+                      Guardá el asistente para poder sincronizar.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowKnowledgePreview((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {showKnowledgePreview ? (
+                      <ChevronDown className="size-3.5" />
+                    ) : (
+                      <ChevronRight className="size-3.5" />
+                    )}
+                    Vista previa del conocimiento ({knowledge.length} caracteres)
+                  </button>
+                  {showKnowledgePreview && (
+                    <div className="max-h-[260px] overflow-y-auto rounded-lg border border-border bg-background p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                      {knowledge.trim() ? (
+                        <pre className="whitespace-pre-wrap break-words">
+                          {knowledge.slice(0, 2000)}
+                          {knowledge.length > 2000 && '\n\n…'}
+                        </pre>
+                      ) : (
+                        <p className="italic">Sin contenido todavía. Sincronizá tu web o pegá info abajo.</p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Volvé a sincronizar cuando subas un producto nuevo o cambies precios.
+                  </p>
+                </SectionCard>
+
                 <Field label="Información del negocio">
                   <Textarea
                 value={knowledge}
