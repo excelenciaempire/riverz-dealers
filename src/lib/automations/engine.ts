@@ -15,6 +15,7 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import type { ContactSegment } from '@/lib/segments/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -69,6 +70,22 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     for (const automation of automations as Automation[]) {
       if (!triggerMatches(automation, input.context)) continue
       if (!(await audienceMatches(automation, input.contactId ?? null))) continue
+      // Recent-AI guard: skip chat-style automations when the IA or a
+      // human agent just talked to this contact. See recent-ai-guard.ts
+      // for the trade-off rationale.
+      const gate = await shouldAllowAutomationSend({
+        automation,
+        contactId: input.contactId ?? null,
+        triggerType: input.triggerType,
+      })
+      if (!gate.allow) {
+        console.log(
+          '[automations] skipped by recent-ai-guard:',
+          automation.id,
+          gate.reason,
+        )
+        continue
+      }
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -77,6 +94,59 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     }
   } catch (err) {
     console.error('[automations] dispatch failed:', err)
+  }
+}
+
+/**
+ * Run a specific automation by id against a contact. Used by crons
+ * that already know which automation they want to fire (cart recovery,
+ * post-delivery feedback, re-engagement) — bypasses the trigger-type
+ * dispatcher so two automations with the same trigger_type don't both
+ * fire when only one applies to the current contact.
+ *
+ * Still honors audience_segment_id and is_active so a paused
+ * automation never sends from the cron.
+ */
+export async function runAutomationById(input: {
+  automationId: string
+  contactId: string
+  context?: AutomationContext
+}): Promise<{ executed: boolean; reason?: string }> {
+  try {
+    const db = supabaseAdmin()
+    const { data, error } = await db
+      .from('automations')
+      .select('*')
+      .eq('id', input.automationId)
+      .maybeSingle()
+    if (error || !data) return { executed: false, reason: 'not_found' }
+    const automation = data as Automation
+    if (!automation.is_active) return { executed: false, reason: 'inactive' }
+    if (!(await audienceMatches(automation, input.contactId))) {
+      return { executed: false, reason: 'segment_mismatch' }
+    }
+    // Recent-AI guard for cron-dispatched automations (feedback,
+    // re-engagement). A re-engagement nudge that lands minutes after
+    // the IA already re-engaged the customer is the exact scenario
+    // this guard exists for.
+    const gate = await shouldAllowAutomationSend({
+      automation,
+      contactId: input.contactId,
+      triggerType: automation.trigger_type,
+    })
+    if (!gate.allow) {
+      return { executed: false, reason: gate.reason }
+    }
+    await executeAutomation(automation, {
+      workspaceId: automation.workspace_id,
+      triggerType: automation.trigger_type,
+      contactId: input.contactId,
+      context: input.context ?? {},
+    })
+    return { executed: true }
+  } catch (err) {
+    console.error('[automations] runAutomationById failed:', err)
+    return { executed: false, reason: 'error' }
   }
 }
 

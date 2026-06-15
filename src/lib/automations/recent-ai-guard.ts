@@ -1,0 +1,173 @@
+import type { Automation, AutomationStep, AutomationTriggerType } from '@/types'
+import { supabaseAdmin } from './admin-client'
+
+// ------------------------------------------------------------
+// Recent-AI guard
+// ------------------------------------------------------------
+//
+// Problem we are solving:
+//
+//   Pilar (la IA) just took an order via chat — "perfecto, te paso el
+//   link de checkout, abre y paga 👇" — and 30 seconds later Shopify
+//   webhook fires `orders/create`, which dispatches the "thank-you for
+//   ordering" automation. The customer gets a stilted "¡Gracias por
+//   tu compra!" template right on top of the human-feeling exchange
+//   they just had, which makes the IA look like a robot copy of itself.
+//
+// What this module does:
+//
+//   For chat-style automations (those whose tree contains a
+//   `send_message` step — i.e. they will TALK in the conversation),
+//   we check whether the IA (or a human agent) sent a message to this
+//   contact within the last 5 minutes. If so, we skip the send.
+//
+//   We deliberately do NOT defer the run — deferring a "thanks for
+//   ordering" by 10 minutes still produces a robotic message that
+//   shows up after the customer already moved on. Skipping is the
+//   right call: the IA already covered the moment in human language.
+//
+//   Transactional triggers (order shipped, fulfilled, etc.) are
+//   exempted because those messages carry information the customer
+//   needs regardless of conversational context — a shipping
+//   notification that doesn't arrive is worse than one that lands a
+//   minute after the IA said "voy a procesar tu pedido".
+//
+// Trade-off (documented per Pilar's request):
+//
+//   A chatty automation that the customer would have liked to receive
+//   anyway (eg. "te dejo nuestro Instagram") will silently no-op if
+//   the IA was just talking. We considered tagging the automation
+//   sends so the IA could explicitly check "was I just talking?" at
+//   compose time — but that pushes the responsibility onto every IA
+//   prompt, instead of centralizing it here. Keep this guard until
+//   the IA gains explicit awareness of pending automations.
+// ------------------------------------------------------------
+
+/** Window during which a recent IA/agent send suppresses chatty automations. */
+export const AI_RECENT_WINDOW_MS = 5 * 60 * 1000
+
+/**
+ * Trigger types that are always allowed to fire, even if the IA just
+ * spoke. These carry information the customer relies on (shipping,
+ * delivery confirmation) and would be worse to skip than to feel
+ * slightly robotic.
+ */
+const TRANSACTIONAL_TRIGGERS: ReadonlySet<AutomationTriggerType> = new Set<AutomationTriggerType>([
+  // Order shipped / tracking update — customer wants this regardless.
+  'shopify_order_fulfilled',
+  // Cart recovery is scheduled deliberately and only fires once per
+  // checkout; if it lands near an IA message the IA was likely the one
+  // who sent the checkout link, so it would feel even more robotic —
+  // but the original spec calls these out as deliberate workflows.
+  // Treat as transactional: the cart-recovery cron already gates on
+  // recovery_dispatched_at and waits 2+ hours, so collisions are rare.
+  'shopify_abandoned_checkout',
+])
+
+/**
+ * @returns true when this trigger type should bypass the recent-AI
+ *   guard. Use for transactional notifications (shipping, fulfillment)
+ *   where missing the message is worse than sounding canned.
+ */
+export function isTransactionalTrigger(triggerType: AutomationTriggerType): boolean {
+  return TRANSACTIONAL_TRIGGERS.has(triggerType)
+}
+
+/**
+ * @returns true when the automation has at least one send step
+ *   (`send_message` or `send_template`). Tag-only, webhook-only or
+ *   assignment-only automations are silent from the customer's POV and
+ *   never need the guard.
+ */
+export async function automationHasChatSteps(automationId: string): Promise<boolean> {
+  const db = supabaseAdmin()
+  const { count, error } = await db
+    .from('automation_steps')
+    .select('id', { count: 'exact', head: true })
+    .eq('automation_id', automationId)
+    .in('step_type', ['send_message', 'send_template'])
+  if (error) {
+    // Fail open — better to send than to silently drop everything if
+    // the steps table is unreachable. The engine will still log the
+    // attempt and any send failure surfaces in automation_logs.
+    console.error('[automations] guard: cannot inspect steps:', error)
+    return true
+  }
+  return (count ?? 0) > 0
+}
+
+/**
+ * Same as `automationHasChatSteps` but accepts a pre-loaded steps
+ * array (used by resume paths that already have them in memory).
+ */
+export function stepsContainChatSend(steps: Pick<AutomationStep, 'step_type'>[]): boolean {
+  return steps.some((s) => s.step_type === 'send_message' || s.step_type === 'send_template')
+}
+
+/**
+ * @returns true when the most recent outbound message to this contact
+ *   (any conversation, any channel) was sent by the IA (`bot`) or a
+ *   human agent (`agent`) within `withinMs`. We include `agent` too:
+ *   if a human just replied, an automation message right after is even
+ *   more jarring than after the IA.
+ */
+export async function wasAiOrAgentRecentlyActive(
+  contactId: string,
+  withinMs: number = AI_RECENT_WINDOW_MS,
+): Promise<boolean> {
+  const db = supabaseAdmin()
+  const sinceIso = new Date(Date.now() - withinMs).toISOString()
+
+  // Join through conversations to find any message for this contact.
+  // We pick the latest non-customer message and check its timestamp;
+  // doing it in two steps (last outbound, then compare) is simpler and
+  // cheaper than a windowed SQL — Supabase doesn't let us do `max(...)
+  // filter` from the client.
+  const { data, error } = await db
+    .from('messages')
+    .select('created_at, sender_type, conversations!inner(contact_id)')
+    .eq('conversations.contact_id', contactId)
+    .in('sender_type', ['bot', 'agent'])
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    // Fail open: if we can't tell, don't block automations. Worst case
+    // is the robotic-sounding message we were trying to avoid; best
+    // case is we don't drop transactional-feeling messages on a DB
+    // hiccup.
+    console.error('[automations] guard: recent-message lookup failed:', error)
+    return false
+  }
+  return Array.isArray(data) && data.length > 0
+}
+
+/**
+ * Top-level guard used by the dispatcher.
+ *
+ * @returns `{ allow: true }` when the automation may run, or
+ *   `{ allow: false, reason }` when it should be silently skipped.
+ *
+ * Order of checks (cheapest first):
+ *   1. No contact id — can't check messages, allow (broadcast-style).
+ *   2. Trigger is transactional — allow regardless of IA activity.
+ *   3. Automation has no chat-style send steps — allow (silent side
+ *      effects only).
+ *   4. IA or agent talked to this contact within the window — skip.
+ */
+export async function shouldAllowAutomationSend(args: {
+  automation: Automation
+  contactId: string | null
+  triggerType: AutomationTriggerType
+}): Promise<{ allow: true } | { allow: false; reason: string }> {
+  if (!args.contactId) return { allow: true }
+  if (isTransactionalTrigger(args.triggerType)) return { allow: true }
+  const hasChatSteps = await automationHasChatSteps(args.automation.id)
+  if (!hasChatSteps) return { allow: true }
+  const recent = await wasAiOrAgentRecentlyActive(args.contactId)
+  if (recent) {
+    return { allow: false, reason: 'ai_or_agent_active_within_5min' }
+  }
+  return { allow: true }
+}
