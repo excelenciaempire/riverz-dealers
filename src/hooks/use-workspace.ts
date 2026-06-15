@@ -44,11 +44,16 @@ export function useWorkspace(): WorkspaceState {
         .from("workspace_members")
         .select("*, workspace:workspaces(*)")
         .eq("user_id", user.id)
-        .order("joined_at", { ascending: true })
-        .limit(1);
+        .order("joined_at", { ascending: true });
 
       if (cancelled) return;
-      const m = (memberships ?? [])[0] as
+      // Filter out soft-deleted workspaces so the UI doesn't keep
+      // showing one the owner just removed.
+      const live = (memberships ?? []).filter((m) => {
+        const w = (m as WorkspaceMember & { workspace?: Workspace & { deleted_at?: string | null } }).workspace;
+        return w && !w.deleted_at;
+      });
+      const m = live[0] as
         | (WorkspaceMember & { workspace?: Workspace })
         | undefined;
       setMembership(m ?? null);

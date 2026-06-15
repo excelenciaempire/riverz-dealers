@@ -2,13 +2,29 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Building2, Loader2, Mail, Trash2, UserPlus, ShieldCheck, Shield } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Mail,
+  Trash2,
+  UserPlus,
+  ShieldCheck,
+  Shield,
+  Activity,
+  AlertTriangle,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/hooks/use-workspace";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types";
+
+interface UsageData {
+  messages_sent: number;
+  ai_replies: number;
+  period_start: string;
+}
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -19,6 +35,9 @@ export function WorkspacePanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
   const [inviting, setInviting] = useState(false);
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (workspace) setName(workspace.name);
@@ -47,6 +66,43 @@ export function WorkspacePanel() {
   useEffect(() => {
     void fetchMembersAndInvites();
   }, [fetchMembersAndInvites]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch(
+        `/api/workspaces/usage?workspace_id=${encodeURIComponent(workspace.id)}`,
+      );
+      if (!res.ok || cancelled) return;
+      const data = (await res.json()) as UsageData;
+      if (!cancelled) setUsage(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace]);
+
+  const handleDeleteWorkspace = useCallback(async () => {
+    if (!workspace) return;
+    setDeleting(true);
+    const res = await fetch("/api/workspaces/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspace_id: workspace.id,
+        confirm_name: deleteConfirm,
+      }),
+    });
+    setDeleting(false);
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      toast.error(payload.error ?? "No se pudo eliminar el espacio de trabajo");
+      return;
+    }
+    toast.success("Espacio de trabajo eliminado");
+    window.location.href = "/ingresar";
+  }, [workspace, deleteConfirm]);
 
   const handleRename = useCallback(async () => {
     if (!workspace) return;
@@ -256,6 +312,35 @@ export function WorkspacePanel() {
         )}
       </section>
 
+      {/* Usage card */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center gap-3">
+          <Activity className="size-5 text-accent-ink" />
+          <h2 className="text-base font-semibold text-foreground">Uso del mes</h2>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Mensajes enviados
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">
+              {usage ? usage.messages_sent.toLocaleString("es-ES") : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Respuestas de IA
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">
+              {usage ? usage.ai_replies.toLocaleString("es-ES") : "—"}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Contadores del mes calendario actual (UTC).
+        </p>
+      </section>
+
       {/* Pending invites */}
       {invites.length > 0 && (
         <section className="rounded-xl border border-border bg-card">
@@ -284,6 +369,41 @@ export function WorkspacePanel() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Danger zone — workspace deletion. Only the owner sees it. */}
+      {isAdmin && (
+        <section className="rounded-xl border border-red-500/30 bg-red-500/5 p-5">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="size-5 text-red-500" />
+            <h2 className="text-base font-semibold text-foreground">
+              Eliminar workspace permanentemente
+            </h2>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            El espacio se ocultará de inmediato para todo el equipo. La
+            depuración real de datos personales corre como un proceso aparte.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={`Escribe "${workspace.name}" para confirmar`}
+              className="bg-card text-foreground"
+            />
+            <Button
+              onClick={handleDeleteWorkspace}
+              disabled={deleting || deleteConfirm.trim() !== workspace.name}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                "Eliminar workspace"
+              )}
+            </Button>
+          </div>
         </section>
       )}
     </div>

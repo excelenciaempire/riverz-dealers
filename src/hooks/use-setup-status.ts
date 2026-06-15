@@ -15,12 +15,13 @@ import { createClient } from '@/lib/supabase/client';
  * funcionan.
  */
 export interface SetupStatus {
+  workspace_created: boolean;
   whatsapp_connected: boolean;
   shopify_connected: boolean;
   has_agent: boolean;
-  /** Número de pasos completados de 3. */
+  /** Número de pasos completados (sobre el total de pasos). */
   completed: number;
-  /** True cuando los 3 pasos están completos. El sidebar usa esto
+  /** True cuando todos los pasos están completos. El sidebar usa esto
    *  para esconder el chip "Conecta". */
   ready: boolean;
   /** Se está consultando todavía. El UI puede mostrar skeleton. */
@@ -29,6 +30,7 @@ export interface SetupStatus {
 
 export function useSetupStatus(): SetupStatus {
   const [status, setStatus] = useState<SetupStatus>({
+    workspace_created: false,
     whatsapp_connected: false,
     shopify_connected: false,
     has_agent: false,
@@ -49,21 +51,27 @@ export function useSetupStatus(): SetupStatus {
           setStatus((s) => ({ ...s, loading: false }));
         return;
       }
-      // Single query a channel_connections + ai_agents. Las dos
-      // tablas son RLS-scoped por workspace, así que el .eq aquí
-      // es defensivo (ya está implícito).
-      const [{ data: channels }, { data: agents }] = await Promise.all([
-        supabase
-          .from('channel_connections')
-          .select('channel, status')
-          .eq('user_id', user.id),
-        supabase
-          .from('ai_agents')
-          .select('id, is_active')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .limit(1),
-      ]);
+      // Single query a channel_connections + ai_agents + membresía
+      // del workspace. Las tablas son RLS-scoped por workspace, así
+      // que el .eq aquí es defensivo (ya está implícito).
+      const [{ data: channels }, { data: agents }, { data: membership }] =
+        await Promise.all([
+          supabase
+            .from('channel_connections')
+            .select('channel, status')
+            .eq('user_id', user.id),
+          supabase
+            .from('ai_agents')
+            .select('id, is_active')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .limit(1),
+          supabase
+            .from('workspace_members')
+            .select('id')
+            .eq('user_id', user.id)
+            .limit(1),
+        ]);
       const channelList = (channels ?? []) as Array<{
         channel: string;
         status: string;
@@ -75,10 +83,17 @@ export function useSetupStatus(): SetupStatus {
         (c) => c.channel === 'shopify' && c.status === 'connected',
       );
       const has_agent = (agents ?? []).length > 0;
-      const flags = [whatsapp_connected, shopify_connected, has_agent];
+      const workspace_created = (membership ?? []).length > 0;
+      const flags = [
+        workspace_created,
+        whatsapp_connected,
+        shopify_connected,
+        has_agent,
+      ];
       const completed = flags.filter(Boolean).length;
       if (!cancelled) {
         setStatus({
+          workspace_created,
           whatsapp_connected,
           shopify_connected,
           has_agent,

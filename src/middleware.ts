@@ -9,7 +9,8 @@ export async function middleware(request: NextRequest) {
     if (
       request.nextUrl.pathname === '/ingresar' ||
       request.nextUrl.pathname === '/registro' ||
-      request.nextUrl.pathname === '/recuperar-clave'
+      request.nextUrl.pathname === '/recuperar-clave' ||
+      request.nextUrl.pathname === '/nueva-clave'
     ) {
       const url = request.nextUrl.clone()
       url.pathname = '/panel'
@@ -41,7 +42,10 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Auth pages - redirect to dashboard if already logged in
+  // Auth pages - redirect to dashboard if already logged in. /nueva-clave
+  // and /verificar-email are excluded: the user IS signed in when they
+  // land there (recovery session / unconfirmed session) and need to
+  // complete the flow before reaching the panel.
   if (user && (
     request.nextUrl.pathname === '/ingresar' ||
     request.nextUrl.pathname === '/registro' ||
@@ -57,6 +61,24 @@ export async function middleware(request: NextRequest) {
   if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/ingresar'
+    return NextResponse.redirect(url)
+  }
+
+  // Email verification gate. Signed-in users without a confirmed email
+  // get held on /verificar-email until they click the link. Sign-out,
+  // the verify page itself, and the auth callback stay reachable so the
+  // user can complete the flow or leave.
+  if (
+    user &&
+    !user.email_confirmed_at &&
+    !user.confirmed_at &&
+    request.nextUrl.pathname !== '/verificar-email' &&
+    request.nextUrl.pathname !== '/auth/callback' &&
+    !request.nextUrl.pathname.startsWith('/api/auth/') &&
+    protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/verificar-email'
     return NextResponse.redirect(url)
   }
 

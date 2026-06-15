@@ -27,6 +27,14 @@ export function SetupChecklist() {
     cta: string;
   }> = [
     {
+      label: 'Workspace creado',
+      description:
+        'Tu espacio de trabajo ya está activo y puedes invitar al equipo.',
+      done: status.workspace_created,
+      href: '/ajustes?tab=workspace',
+      cta: 'Ir al espacio',
+    },
+    {
       label: 'Conecta WhatsApp Cloud API',
       description:
         'Necesario para recibir mensajes en la Bandeja y mandar campañas.',
@@ -80,7 +88,7 @@ export function SetupChecklist() {
         </div>
       </header>
 
-      <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((step) => (
           <li
             key={step.href + step.cta}

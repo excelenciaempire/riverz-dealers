@@ -125,7 +125,22 @@ export const RATE_LIMITS = {
    *  fidget with reactions and a single "swap" is actually two calls
    *  (remove + add) under the hood. */
   react: { limit: 120, windowMs: 60_000 },
+  /** Auth attempts (login / signup / password reset). 5 attempts per
+   *  5 min per IP + per email — enough for a forgetful user, painful
+   *  for a credential-stuffer. Per-email key is checked on top of the
+   *  per-IP key at each call site. */
+  auth: { limit: 5, windowMs: 5 * 60_000 },
 } as const;
+
+/** Best-effort client IP from common proxy headers, falling back to
+ *  a literal so the limiter still works on a single tenant. */
+export function clientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0]!.trim();
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+  return "unknown";
+}
 
 /** Test-only helper. Clears the in-memory state so unit tests don't
  *  leak buckets across files. Not wired up in production code. */

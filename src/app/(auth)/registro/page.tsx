@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +22,6 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,18 +39,25 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email,
+        password,
+        full_name: fullName,
+        redirect_to: `${window.location.origin}/auth/callback?next=/panel`,
+      }),
     });
+    const payload = await res.json().catch(() => ({}));
 
-    if (error) {
-      setError(error.message);
+    if (!res.ok) {
+      if (res.status === 429) {
+        const retry = res.headers.get("Retry-After") ?? "60";
+        setError(`Demasiados intentos. Vuelve a probar en ${retry} segundos.`);
+      } else {
+        setError(payload.error ?? "No se pudo crear la cuenta");
+      }
       setLoading(false);
       return;
     }

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,26 +18,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
+    const payload = await res.json().catch(() => ({}));
 
-    if (error) {
-      setError(error.message);
+    if (!res.ok) {
+      if (res.status === 429) {
+        const retry = res.headers.get("Retry-After") ?? "60";
+        setError(`Demasiados intentos. Vuelve a probar en ${retry} segundos.`);
+      } else {
+        setError(payload.error ?? "No se pudo iniciar sesión");
+      }
       setLoading(false);
       return;
     }
 
-    router.push("/panel");
+    // Hard navigation so the browser picks up the freshly set session
+    // cookies and the dashboard hydrates with a logged-in user.
+    window.location.href = "/panel";
   };
 
   return (
