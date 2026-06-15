@@ -51,39 +51,52 @@ export function useSetupStatus(): SetupStatus {
           setStatus((s) => ({ ...s, loading: false }));
         return;
       }
-      // Single query a channel_connections + shopify_connections +
-      // ai_agents + membresía del workspace. Shopify vive en su propia
-      // tabla (no en channel_connections) porque la integración OAuth
-      // se montó antes del unified inbox; el checklist las consulta a
-      // las dos para que el paso "Conecta Shopify" se marque listo.
-      const [
-        { data: channels },
-        { data: shopify },
-        { data: agents },
-        { data: membership },
-      ] = await Promise.all([
-        supabase
-          .from('channel_connections')
-          .select('channel, status')
-          .eq('user_id', user.id),
-        supabase
-          .from('shopify_connections')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .limit(1),
-        supabase
-          .from('ai_agents')
-          .select('id, is_active')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .limit(1),
-        supabase
-          .from('workspace_members')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1),
-      ]);
+      // channel_connections y ai_agents son workspace-scoped (un user
+      // puede pertenecer a varios workspaces); shopify_connections es
+      // user-scoped por legado del primer release. Resolvemos los
+      // workspace_ids del user primero y filtramos por ahí.
+      const { data: memberships } = await supabase
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', user.id);
+      const workspaceIds = (memberships ?? []).map(
+        (m: { workspace_id: string }) => m.workspace_id,
+      );
+      const workspace_created = workspaceIds.length > 0;
+
+      if (!workspace_created) {
+        if (!cancelled)
+          setStatus({
+            workspace_created: false,
+            whatsapp_connected: false,
+            shopify_connected: false,
+            has_agent: false,
+            completed: 0,
+            ready: false,
+            loading: false,
+          });
+        return;
+      }
+
+      const [{ data: channels }, { data: shopify }, { data: agents }] =
+        await Promise.all([
+          supabase
+            .from('channel_connections')
+            .select('channel, status')
+            .in('workspace_id', workspaceIds),
+          supabase
+            .from('shopify_connections')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .limit(1),
+          supabase
+            .from('ai_agents')
+            .select('id')
+            .in('workspace_id', workspaceIds)
+            .eq('is_active', true)
+            .limit(1),
+        ]);
       const channelList = (channels ?? []) as Array<{
         channel: string;
         status: string;
@@ -97,7 +110,6 @@ export function useSetupStatus(): SetupStatus {
           (c) => c.channel === 'shopify' && c.status === 'connected',
         );
       const has_agent = (agents ?? []).length > 0;
-      const workspace_created = (membership ?? []).length > 0;
       const flags = [
         workspace_created,
         whatsapp_connected,
