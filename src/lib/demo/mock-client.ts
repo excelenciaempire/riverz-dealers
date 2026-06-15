@@ -415,6 +415,4 @@ export function createMockClient() {
   };
 }
 
-export function isDemoMode(): boolean {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-}
+export { isDemoMode } from "@/lib/demo";

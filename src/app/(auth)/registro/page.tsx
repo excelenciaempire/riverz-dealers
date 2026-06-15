@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,14 +15,23 @@ import {
 } from "@/components/ui/card";
 import { CheckCircle } from "lucide-react";
 
-export default function SignupPage() {
+function SignupForm() {
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
+  const prefillEmail = searchParams.get("email");
+
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefillEmail ?? "");
+  const [emailLocked] = useState(Boolean(inviteToken && prefillEmail));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    if (prefillEmail) setEmail(prefillEmail);
+  }, [prefillEmail]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +49,12 @@ export default function SignupPage() {
 
     setLoading(true);
 
+    // When the user came in from an invite link, route them back to
+    // the accept page after the email-confirmation callback so the
+    // email-match gate can finalise membership.
+    const nextPath = inviteToken
+      ? `/invitacion/${encodeURIComponent(inviteToken)}`
+      : "/panel";
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -46,7 +62,7 @@ export default function SignupPage() {
         email,
         password,
         full_name: fullName,
-        redirect_to: `${window.location.origin}/auth/callback?next=/panel`,
+        redirect_to: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       }),
     });
     const payload = await res.json().catch(() => ({}));
@@ -140,8 +156,15 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                readOnly={emailLocked}
+                aria-readonly={emailLocked}
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+              {emailLocked && (
+                <p className="text-xs text-muted-foreground">
+                  Esta invitación es para esta dirección. Tu cuenta debe usarla.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -195,5 +218,13 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

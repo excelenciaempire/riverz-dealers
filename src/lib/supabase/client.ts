@@ -1,6 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createMockClient, isDemoMode } from '@/lib/demo/mock-client'
+import { createMockClient } from '@/lib/demo/mock-client'
+import { isDemoMode } from '@/lib/demo'
 
 // Singleton instance — one client shared across the whole browser session.
 // Creating multiple clients causes auth-lock contention ("Lock was released

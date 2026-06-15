@@ -1,4 +1,10 @@
-import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
+import type {
+  ChannelAdapter,
+  InboundEvent,
+  OutboundText,
+  ParsedWebhookContext,
+  SendResult,
+} from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshAccessToken } from "./watch";
@@ -64,12 +70,15 @@ export const gmailAdapter: ChannelAdapter = {
     return { externalMessageId: json.id, status: "sent" };
   },
 
-  async parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]> {
+  async parseWebhook(
+    ctx: ParsedWebhookContext,
+    connection: ChannelConnection,
+  ): Promise<InboundEvent[]> {
     // Gmail push notifications (Pub/Sub) deliver only the history id —
     // the adapter then fetches changes via history.list. The full
     // implementation lives in Phase 6; we accept the ping here so the
     // endpoint shape is right.
-    void req;
+    void ctx;
     void connection;
     return [];
   },

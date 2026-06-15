@@ -28,6 +28,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!body?.workspace_id || !body.email?.trim()) {
     return NextResponse.json({ error: "workspace_id + email required" }, { status: 400 });
   }
+  // Surface a clear 400 when the email is malformed. The accept gate
+  // does case-insensitive equality, so an invite for "not-an-email"
+  // would just be unredeemable. Better to reject up-front.
+  const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailShape.test(body.email.trim())) {
+    return NextResponse.json({ error: "Correo inválido" }, { status: 400 });
+  }
 
   const admin = supabaseAdmin();
   const { data: membership } = await admin

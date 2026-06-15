@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { createMockClient, isDemoMode } from '@/lib/demo/mock-client'
+import { createMockClient } from '@/lib/demo/mock-client'
+import { isDemoMode } from '@/lib/demo'
 
 export async function createClient() {
   if (isDemoMode()) {

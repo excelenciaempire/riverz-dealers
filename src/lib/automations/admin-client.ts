@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { createMockClient, isDemoMode } from '@/lib/demo/mock-client'
+import { createMockClient } from '@/lib/demo/mock-client'
+import { isDemoMode } from '@/lib/demo'
 
 // Lazy, shared service-role client for automation engine work.
 let _adminClient: SupabaseClient | null = null

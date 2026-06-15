@@ -2,6 +2,7 @@ import type {
   ChannelAdapter,
   InboundEvent,
   OutboundText,
+  ParsedWebhookContext,
   SendResult,
 } from "../types";
 import type { ChannelConnection } from "@/types";
@@ -27,7 +28,7 @@ export const smsAdapter: ChannelAdapter = {
   },
 
   async parseWebhook(
-    _req: Request,
+    _ctx: ParsedWebhookContext,
     _connection: ChannelConnection,
   ): Promise<InboundEvent[]> {
     throw new Error("SMS no configurado");

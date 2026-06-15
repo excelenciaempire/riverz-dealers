@@ -1,4 +1,10 @@
-import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
+import type {
+  ChannelAdapter,
+  InboundEvent,
+  OutboundText,
+  ParsedWebhookContext,
+  SendResult,
+} from "../types";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
@@ -56,8 +62,11 @@ export const instagramAdapter: ChannelAdapter = {
     return { externalMessageId: json.message_id, status: "sent" };
   },
 
-  async parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]> {
-    const body = (await req.json()) as Record<string, unknown>;
+  async parseWebhook(
+    ctx: ParsedWebhookContext,
+    connection: ChannelConnection,
+  ): Promise<InboundEvent[]> {
+    const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
     let pageToken: string | null = null;

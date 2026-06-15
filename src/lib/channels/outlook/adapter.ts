@@ -1,4 +1,10 @@
-import type { ChannelAdapter, InboundEvent, OutboundText, SendResult } from "../types";
+import type {
+  ChannelAdapter,
+  InboundEvent,
+  OutboundText,
+  ParsedWebhookContext,
+  SendResult,
+} from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { fetchOutlookMessage, getFreshAccessToken } from "./watch";
@@ -68,10 +74,11 @@ export const outlookAdapter: ChannelAdapter = {
     return { externalMessageId: draft.internetMessageId, status: "sent" };
   },
 
-  async parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]> {
-    const body = (await req.json().catch(() => null)) as
-      | { value?: GraphNotification[] }
-      | null;
+  async parseWebhook(
+    ctx: ParsedWebhookContext,
+    connection: ChannelConnection,
+  ): Promise<InboundEvent[]> {
+    const body = ctx.payload as { value?: GraphNotification[] } | null;
     const notifications = body?.value ?? [];
     if (notifications.length === 0) return [];
 

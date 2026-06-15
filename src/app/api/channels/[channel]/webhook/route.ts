@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getAdapter } from "@/lib/channels/registry";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
+import { getLogger } from "@/lib/log/logger";
 import type { Channel, ChannelConnection } from "@/types";
+
+const log = getLogger("channels.webhook");
 
 const VALID: Channel[] = [
   "whatsapp",
@@ -87,6 +91,33 @@ export async function POST(
     });
   }
 
+  // Read the body ONCE as raw text. Meta signs the exact bytes — once
+  // we let `request.json()` re-encode them the HMAC no longer matches.
+  // The adapter receives the pre-parsed JSON so it doesn't have to
+  // re-buffer the stream.
+  const rawBody = await req.text();
+
+  const verdict = await verifyChannelWebhook(channel, req, rawBody);
+  if (!verdict.ok) {
+    // Ack 200 even on bad signatures — re-driving an attacker's retries
+    // (or amplifying a misconfigured-secret loop) gives the adversary
+    // nothing useful. The operator pages on the warn log, not on
+    // Meta's redelivery queue. Same pattern as the legacy WhatsApp
+    // webhook (src/app/api/whatsapp/webhook/route.ts).
+    log.warn("rejected webhook delivery", { channel, reason: verdict.reason });
+    return NextResponse.json({ status: "ignored" }, { status: 200 });
+  }
+
+  let payload: unknown = null;
+  if (rawBody.length > 0) {
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      log.warn("invalid JSON body after signature verify", { channel });
+      return NextResponse.json({ status: "ignored" }, { status: 200 });
+    }
+  }
+
   // Meta delivers ONE webhook per object: page → messaging + feed (DMs +
   // FB comments), instagram → messaging + comments (DMs + IG comments).
   // Run every related adapter so a single delivery hits both the DM
@@ -103,9 +134,15 @@ export async function POST(
     const adapter = getAdapter(c);
     let events;
     try {
-      events = await adapter.parseWebhook(req.clone(), connection);
+      events = await adapter.parseWebhook(
+        { request: req, rawBody, payload },
+        connection,
+      );
     } catch (err) {
-      console.error(`[channels/${c}] parseWebhook failed:`, err);
+      log.error("parseWebhook failed", {
+        channel: c,
+        error: err instanceof Error ? err.message : String(err),
+      });
       continue;
     }
     processed = true;
@@ -114,7 +151,10 @@ export async function POST(
         await ingestInboundEvent(db, event);
         ingested++;
       } catch (err) {
-        console.error(`[channels/${c}] ingest failed:`, err);
+        log.error("ingest failed", {
+          channel: c,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   }

@@ -15,22 +15,17 @@ interface PageProps {
 export default function AcceptInvitePage({ params }: PageProps) {
   const { token } = use(params);
   const router = useRouter();
-  const [state, setState] = useState<"loading" | "needs_login" | "ready" | "accepted" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "accepted" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
   const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setState("needs_login");
-        return;
-      }
-      // Look up the invite to show the workspace name on the accept page.
+      // Look up the invite first so we can prefill the signup email if
+      // the visitor is not yet signed in.
       const { data: invite, error } = await supabase
         .from("workspace_invites")
         .select("workspace_id, email, role, expires_at, accepted_at, workspace:workspaces(name)")
@@ -43,7 +38,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
       }
       if (invite.accepted_at) {
         setState("error");
-        setErrorMsg("Esta invitación ya fue aceptada.");
+        setErrorMsg("Esta invitación ya fue usada.");
         return;
       }
       if (new Date(invite.expires_at).getTime() < Date.now()) {
@@ -51,11 +46,28 @@ export default function AcceptInvitePage({ params }: PageProps) {
         setErrorMsg("La invitación caducó. Pídele al administrador que te envíe una nueva.");
         return;
       }
+
       const ws = Array.isArray(invite.workspace) ? invite.workspace[0] : invite.workspace;
       setWorkspaceName(ws?.name ?? "tu equipo");
+      setInviteEmail(invite.email ?? "");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        // Not signed in: push them to registro with the invited email
+        // prefilled. After signup + email verification the auth
+        // callback brings them back here to accept.
+        const params = new URLSearchParams({
+          invite: token,
+          email: invite.email ?? "",
+        });
+        router.replace(`/registro?${params.toString()}`);
+        return;
+      }
       setState("ready");
     })();
-  }, [token]);
+  }, [token, router]);
 
   const accept = async () => {
     setAccepting(true);
@@ -67,7 +79,10 @@ export default function AcceptInvitePage({ params }: PageProps) {
     setAccepting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? "No se pudo aceptar la invitación");
+      const msg = payload.error ?? "No se pudo aceptar la invitación";
+      toast.error(msg);
+      setState("error");
+      setErrorMsg(msg);
       return;
     }
     toast.success("Invitación aceptada");
@@ -85,26 +100,15 @@ export default function AcceptInvitePage({ params }: PageProps) {
           </div>
         )}
 
-        {state === "needs_login" && (
-          <div className="space-y-4 text-center">
-            <Mail className="mx-auto h-8 w-8 text-accent-ink" />
-            <h1 className="text-lg font-semibold text-foreground">Tienes una invitación</h1>
-            <p className="text-sm text-muted-foreground">
-              Inicia sesión para continuar.
-            </p>
-            <Link
-              href={`/ingresar?redirect=/invitacion/${token}`}
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Iniciar sesión
-            </Link>
-          </div>
-        )}
-
         {state === "ready" && (
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
             <h1 className="text-lg font-semibold text-foreground">Unirte a “{workspaceName}”</h1>
+            {inviteEmail && (
+              <p className="text-sm text-muted-foreground">
+                Invitación para <span className="text-foreground">{inviteEmail}</span>.
+              </p>
+            )}
             <Button
               onClick={accept}
               disabled={accepting}

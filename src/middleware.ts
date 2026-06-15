@@ -1,11 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isDemoMode } from '@/lib/demo'
 
 export async function middleware(request: NextRequest) {
   // Demo mode: act as if the user is already signed in. Bypasses the
   // entire auth check so the inbox is reachable without a Supabase
   // project. The dashboard then loads its data from the mock client.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+  // The helper hard-disables demo in production regardless of env value.
+  if (isDemoMode()) {
     if (
       request.nextUrl.pathname === '/ingresar' ||
       request.nextUrl.pathname === '/registro' ||

@@ -1,4 +1,11 @@
-import type { ChannelAdapter, InboundEvent, OutboundText, OutboundTemplate, SendResult } from "../types";
+import type {
+  ChannelAdapter,
+  InboundEvent,
+  OutboundText,
+  OutboundTemplate,
+  ParsedWebhookContext,
+  SendResult,
+} from "../types";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 
@@ -101,8 +108,11 @@ export const whatsappAdapter: ChannelAdapter = {
     return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
   },
 
-  async parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]> {
-    const body = (await req.json().catch(() => null)) as WhatsAppWebhookBody | null;
+  async parseWebhook(
+    ctx: ParsedWebhookContext,
+    connection: ChannelConnection,
+  ): Promise<InboundEvent[]> {
+    const body = ctx.payload as WhatsAppWebhookBody | null;
     if (!body || body.object !== "whatsapp_business_account") return [];
 
     const events: InboundEvent[] = [];

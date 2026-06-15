@@ -8,6 +8,18 @@ import type {
 } from "@/types";
 
 /**
+ * What the unified route forwards to `parseWebhook` once it has read +
+ * verified the request body. We pass the parsed JSON, the exact bytes
+ * the channel signed (so per-event HMAC re-checks can use the same
+ * input the signature was computed over), and the original Request (for
+ * URL params, headers — anything that isn't the body). */
+export interface ParsedWebhookContext {
+  request: Request;
+  rawBody: string;
+  payload: unknown;
+}
+
+/**
  * Inbound event surfaced by an adapter after it parses a webhook payload
  * (or a poller produces one). Channel-agnostic shape — the engine routes
  * these into the unified inbox without caring whether they came from
@@ -104,10 +116,19 @@ export interface ChannelAdapter {
   /** Optional — only WhatsApp supports HSM templates right now. */
   sendTemplate?(input: OutboundTemplate): Promise<SendResult>;
 
-  /** Parse a webhook delivery into normalized inbound events. The
-   * adapter is responsible for verifying the signature before returning;
-   * an unverified payload must throw. */
-  parseWebhook(req: Request, connection: ChannelConnection): Promise<InboundEvent[]>;
+  /** Parse a webhook delivery into normalized inbound events.
+   *
+   * The unified route runs `verifyChannelWebhook` before calling here, so
+   * the body is already authenticated at the channel-protocol level
+   * (Meta HMAC, Gmail push secret, Outlook clientState handshake). The
+   * adapter MAY still re-verify per-event signals (e.g. Outlook echoes
+   * clientState on each notification), but it is no longer the only line
+   * of defense. The `rawBody` is forwarded so adapters that want to
+   * re-HMAC can do so without re-buffering the request stream. */
+  parseWebhook(
+    ctx: ParsedWebhookContext,
+    connection: ChannelConnection,
+  ): Promise<InboundEvent[]>;
 
   /** Some platforms (Meta) issue a GET verification handshake — return
    * the value to echo back, or null if not applicable. */
