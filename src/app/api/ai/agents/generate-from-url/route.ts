@@ -162,7 +162,7 @@ Devolvé ÚNICAMENTE un objeto JSON con esta forma exacta, sin texto antes ni de
   "persona": "string entre 700 y 1200 caracteres — system prompt operativo, instruye al agente sobre tono, cuándo hacer preguntas, qué nunca hacer, cuándo escalar a humano. Argentine Spanish neutral rioplatense, sin em-dashes, sin hashtags, sin emojis decorativos, una pregunta por turno, directo, nunca admite ser IA.",
   "tone": "friendly | formal | casual | concise",
   "response_mode": "single | multi | dynamic — preferí multi para chat conversacional",
-  "inbound_debounce_seconds": 6,
+  "inbound_debounce_seconds": 15,
   "language": "es"
 }
 
@@ -196,7 +196,7 @@ function safeParseConfig(text: string): AgentConfigSuggestion | null {
       response_mode: mode,
       inbound_debounce_seconds: Number.isFinite(debounce)
         ? Math.max(0, Math.min(60, debounce))
-        : 6,
+        : 15,
       language: String(parsed.language || 'es'),
     };
   } catch {
@@ -222,7 +222,7 @@ function fallbackConfig(url: string): AgentConfigSuggestion {
     ].join('\n\n'),
     tone: 'friendly',
     response_mode: 'multi',
-    inbound_debounce_seconds: 6,
+    inbound_debounce_seconds: 15,
     language: 'es',
   };
 }

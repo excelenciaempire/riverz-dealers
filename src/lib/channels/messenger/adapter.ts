@@ -5,9 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
+import { ingestMetaAttachment } from "../media-ingest";
 
 /**
  * Facebook Messenger via Meta Graph API (Send API).
@@ -79,13 +80,28 @@ export const messengerAdapter: ChannelAdapter = {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
         const sender = m.sender as { id?: string } | undefined;
-        const message = m.message as { mid?: string; text?: string } | undefined;
+        const message = m.message as
+          | {
+              mid?: string;
+              text?: string;
+              attachments?: Array<Record<string, unknown>>;
+            }
+          | undefined;
         if (!sender?.id || !message) continue;
         // Messenger webhooks don't carry the sender's name — resolve it
         // from /{psid}?fields=name so the inbox shows "Juan Pérez"
         // instead of a 16-digit PSID. Best-effort: any error keeps the
         // event flowing (the PSID stays as the fallback display).
         const name = await fetchMessengerName(sender.id, getToken());
+        // Messenger ships attachments con `type` (image/video/audio/file)
+        // y `payload.url` ya público. Lo persistimos en Storage para
+        // que la URL no se nos expire después.
+        const attachments = await ingestMessengerAttachments(
+          message.attachments ?? [],
+          connection.workspace_id,
+          sender.id,
+          message.mid,
+        );
         events.push({
           channel: "messenger",
           connection,
@@ -93,6 +109,7 @@ export const messengerAdapter: ChannelAdapter = {
           contactName: name,
           externalMessageId: message.mid,
           text: String(message.text ?? ""),
+          attachments: attachments.length ? attachments : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           raw: m,
         });
@@ -105,6 +122,63 @@ export const messengerAdapter: ChannelAdapter = {
     return verifyMetaHandshake(req, connection);
   },
 };
+
+/**
+ * Procesa el array `message.attachments` que ship Messenger en sus
+ * webhooks. Cada item trae `type` (image/video/audio/file/location)
+ * y `payload.url` con la URL pública. Bajamos cada uno y lo subimos
+ * a Storage para tener un permalink propio.
+ *
+ * Ignora silenciosamente locations / templates / fallbacks — no son
+ * media bajable. Best-effort: si una descarga falla la salteamos y
+ * seguimos con el resto.
+ */
+async function ingestMessengerAttachments(
+  attachments: Array<Record<string, unknown>>,
+  workspaceId: string,
+  externalContactId: string,
+  externalMessageId?: string,
+): Promise<MessageAttachment[]> {
+  const out: MessageAttachment[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const a = attachments[i];
+    const type = String(a.type ?? "").toLowerCase();
+    const payload = (a.payload ?? {}) as { url?: string };
+    const url = payload.url ? String(payload.url) : "";
+    if (!url) continue;
+    if (type === "location" || type === "template" || type === "fallback") {
+      continue;
+    }
+    const hintedKind =
+      type === "image"
+        ? "image"
+        : type === "video"
+          ? "video"
+          : type === "audio"
+            ? "audio"
+            : type === "file"
+              ? "document"
+              : undefined;
+    const ingested = await ingestMetaAttachment({
+      attachmentUrl: url,
+      workspaceId,
+      // Path estable por sender — la conversation row se crea
+      // después en inbox-writer.
+      conversationId: externalContactId,
+      externalMessageId: externalMessageId
+        ? `${externalMessageId}-${i}`
+        : undefined,
+      hintedKind,
+    });
+    if (!ingested) continue;
+    out.push({
+      url: ingested.publicUrl,
+      mime_type: ingested.mediaMime,
+      size: ingested.mediaSize,
+    });
+  }
+  return out;
+}
 
 /**
  * Resolve a Messenger PSID to a display name via /{psid}?fields=name.

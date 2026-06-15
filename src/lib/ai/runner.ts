@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { transcribeAudio } from './transcribe';
 import type {
   Channel,
   ChannelConnection,
@@ -149,6 +150,7 @@ export async function runAiAgent(
       products,
       productMatch,
       shopify,
+      db,
     );
     if (!reply.text) {
       await logReply(db, agent, args, { status: 'skipped', skip_reason: 'empty_reply' });
@@ -483,6 +485,21 @@ function withinBusinessHours(hours: BusinessHours | null): boolean {
 interface ContextMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** Message-id de la fila en `messages` — necesario para cachear la
+   *  transcripción de voice notes (UPDATE … SET media_transcription). */
+  messageId?: string;
+  /** Adjuntos del mensaje. El builder de prompt los convierte en
+   *  Anthropic.ImageBlockParam / DocumentBlockParam cuando corresponde
+   *  (image/sticker → image block; pdf → document block; voice/audio →
+   *  texto con transcripción si hay; video → texto descriptivo).
+   *  Sólo se respeta en mensajes con role='user' (mensajes del cliente);
+   *  los outbound del bot van como texto plano. */
+  media?: {
+    url: string;
+    mediaType: 'image' | 'voice' | 'audio' | 'video' | 'document' | 'sticker';
+    mediaMime: string | null;
+    transcription: string | null;
+  } | null;
 }
 
 interface LoadedContext {
@@ -516,22 +533,55 @@ async function loadContext(
   const safeLimit = Math.max(1, Math.min(100, limit || 30));
   const { data } = await db
     .from('messages')
-    .select('sender_type, content_text, created_at')
+    .select(
+      'id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, created_at',
+    )
     .eq('conversation_id', conversation.id)
     .order('created_at', { ascending: false })
     .limit(safeLimit);
 
   const rowsRaw = ((data ?? []) as {
+    id: string;
     sender_type: string;
     content_text: string | null;
+    media_url: string | null;
+    media_type:
+      | 'image'
+      | 'voice'
+      | 'audio'
+      | 'video'
+      | 'document'
+      | 'sticker'
+      | null;
+    media_mime: string | null;
+    media_transcription: string | null;
     created_at: string;
   }[])
-    .filter((m) => m.content_text && m.content_text.trim())
+    // Sólo descartamos filas vacías SI tampoco tienen media —
+    // un voice note sin caption todavía tiene contenido procesable.
+    .filter(
+      (m) => (m.content_text && m.content_text.trim()) || m.media_url,
+    )
     .reverse();
-  const messages: ContextMessage[] = rowsRaw.map((m) => ({
-    role: m.sender_type === 'customer' ? 'user' : 'assistant',
-    content: m.content_text!.trim(),
-  }));
+  const messages: ContextMessage[] = rowsRaw.map((m) => {
+    const role: 'user' | 'assistant' =
+      m.sender_type === 'customer' ? 'user' : 'assistant';
+    const media =
+      m.media_url && m.media_type
+        ? {
+            url: m.media_url,
+            mediaType: m.media_type,
+            mediaMime: m.media_mime,
+            transcription: m.media_transcription,
+          }
+        : null;
+    return {
+      role,
+      content: (m.content_text ?? '').trim(),
+      messageId: m.id,
+      media,
+    };
+  });
 
   const rollingSummary = conversation.ai_summary ?? null;
 
@@ -663,6 +713,109 @@ interface ProductRow {
   training_material?: string | null;
 }
 
+/**
+ * Convierte un ContextMessage al shape `Anthropic.MessageParam` que
+ * espera el SDK. Las reglas:
+ *
+ *   * Mensajes del bot (role='assistant') → string content tal cual.
+ *   * Mensajes del cliente (role='user') sin media → string content.
+ *   * Cliente + image|sticker  → ImageBlockParam (URL source) + TextBlockParam.
+ *   * Cliente + document/pdf   → DocumentBlockParam (URL source) + TextBlockParam.
+ *   * Cliente + voice|audio    → TextBlockParam que prefijea la transcripción
+ *                                (o un placeholder si Whisper falló).
+ *   * Cliente + video          → TextBlockParam descriptivo (Claude no
+ *                                ingiere video todavía).
+ *
+ * URLs públicas: el adapter de cada canal subió el archivo a Supabase
+ * Storage (bucket `message-media`, público) antes de llegar acá, así
+ * que Claude las puede bajar él solo vía `source.type='url'`.
+ */
+function toClaudeMessage(msg: ContextMessage): Anthropic.MessageParam {
+  if (msg.role === 'assistant') {
+    return { role: 'assistant', content: msg.content || ' ' };
+  }
+  const media = msg.media;
+  if (!media) {
+    return { role: 'user', content: msg.content || 'Hola.' };
+  }
+  const text = msg.content || '';
+  const mime = media.mediaMime ?? '';
+  const isPdf = mime.toLowerCase() === 'application/pdf';
+
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  switch (media.mediaType) {
+    case 'image':
+    case 'sticker': {
+      blocks.push({
+        type: 'image',
+        source: { type: 'url', url: media.url },
+      });
+      blocks.push({
+        type: 'text',
+        text: text || '[el cliente envió una imagen sin texto]',
+      });
+      break;
+    }
+    case 'document': {
+      if (isPdf) {
+        blocks.push({
+          type: 'document',
+          source: { type: 'url', url: media.url },
+        });
+        blocks.push({
+          type: 'text',
+          text: text || '[el cliente envió un PDF sin texto]',
+        });
+      } else {
+        // Word/Excel/etc — Claude no los acepta directos. Le decimos
+        // que llegó un archivo y le pasamos la URL por si la quiere
+        // mencionar.
+        blocks.push({
+          type: 'text',
+          text:
+            (text ? text + '\n\n' : '') +
+            `[el cliente envió un archivo (${mime || 'tipo desconocido'}): ${media.url}]`,
+        });
+      }
+      break;
+    }
+    case 'voice':
+    case 'audio': {
+      const transcript = media.transcription?.trim();
+      if (transcript) {
+        const tag = media.mediaType === 'voice' ? 'audio transcripto' : 'audio adjunto';
+        blocks.push({
+          type: 'text',
+          text:
+            (text ? text + '\n\n' : '') +
+            `[${tag}]: ${transcript}`,
+        });
+      } else {
+        blocks.push({
+          type: 'text',
+          text:
+            (text ? text + '\n\n' : '') +
+            '[el cliente envió un audio que no pude transcribir — pedile amablemente que escriba lo que quería decir]',
+        });
+      }
+      break;
+    }
+    case 'video': {
+      blocks.push({
+        type: 'text',
+        text:
+          (text ? text + '\n\n' : '') +
+          '[el cliente envió un video — todavía no podés ver videos; pedile que escriba o mande una foto si necesita mostrarte algo]',
+      });
+      break;
+    }
+    default: {
+      blocks.push({ type: 'text', text: text || 'Hola.' });
+    }
+  }
+  return { role: 'user', content: blocks };
+}
+
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
@@ -673,6 +826,7 @@ async function generateReply(
   products: ProductRow[],
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null,
+  db: SupabaseClient,
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -702,8 +856,48 @@ async function generateReply(
     messages = messages.slice(1);
   }
   if (messages.length === 0) {
-    messages = [{ role: 'user', content: contact.name ? `Hola, soy ${contact.name}.` : 'Hola.' }];
+    messages = [
+      {
+        role: 'user',
+        content: contact.name ? `Hola, soy ${contact.name}.` : 'Hola.',
+      },
+    ];
   }
+
+  // ── Transcripción de audios / voice notes ──
+  // Para cualquier mensaje del cliente con media_type voice|audio sin
+  // transcripción cacheada, llamamos a Whisper y guardamos el texto
+  // en `messages.media_transcription` para que la próxima ronda no
+  // re-transcriba lo mismo.
+  await Promise.all(
+    messages.map(async (msg) => {
+      if (msg.role !== 'user' || !msg.media) return;
+      if (msg.media.mediaType !== 'voice' && msg.media.mediaType !== 'audio')
+        return;
+      if (msg.media.transcription) return;
+      const result = await transcribeAudio(msg.media.url);
+      if (!result) return;
+      msg.media.transcription = result.text;
+      if (msg.messageId) {
+        try {
+          await db
+            .from('messages')
+            .update({ media_transcription: result.text })
+            .eq('id', msg.messageId);
+        } catch {
+          /* swallow — el cache no es crítico */
+        }
+      }
+    }),
+  );
+
+  // ── Materialización al formato Anthropic ──
+  // Cada ContextMessage se traduce a un Anthropic.MessageParam con
+  // content blocks. El bot side va como texto plano; el cliente puede
+  // llevar image/document/text combinados.
+  const claudeMessages: Anthropic.MessageParam[] = messages.map((m) =>
+    toClaudeMessage(m),
+  );
 
   // Sólo exponemos la tool si hay conexión Shopify activa para el
   // workspace. Sin conexión, no podríamos resolver la llamada y
@@ -716,7 +910,7 @@ async function generateReply(
       Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2)),
     ),
     system,
-    messages,
+    messages: claudeMessages,
     tools,
     shopify,
   });

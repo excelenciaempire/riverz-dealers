@@ -240,6 +240,15 @@ export interface Message {
   /** Email subject when content_type === 'email'. */
   subject?: string;
   media_url?: string;
+  /** Categoría del adjunto principal (image/voice/audio/video/document/sticker).
+   *  Migration 051. */
+  media_type?: 'image' | 'voice' | 'audio' | 'video' | 'document' | 'sticker' | null;
+  /** MIME real del adjunto principal. Migration 051. */
+  media_mime?: string | null;
+  /** Bytes del adjunto principal. Migration 051. */
+  media_size?: number | null;
+  /** Transcripción cacheada (Whisper) para audios/voice notes. Migration 051. */
+  media_transcription?: string | null;
   attachments?: MessageAttachment[];
   template_name?: string;
   message_id?: string;

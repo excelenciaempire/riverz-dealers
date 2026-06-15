@@ -6,8 +6,9 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
+import { ingestWhatsappMedia, type MediaCategory } from "../media-ingest";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -115,6 +116,9 @@ export const whatsappAdapter: ChannelAdapter = {
     const body = ctx.payload as WhatsAppWebhookBody | null;
     if (!body || body.object !== "whatsapp_business_account") return [];
 
+    const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
+    const encryptedToken = String(secrets.access_token ?? "");
+
     const events: InboundEvent[] = [];
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
@@ -131,6 +135,16 @@ export const whatsappAdapter: ChannelAdapter = {
         for (const m of value.messages) {
           if (!m.from || !m.id) continue;
           const text = extractText(m);
+          // Si el mensaje trae media, bajamos los bytes ahora y los
+          // subimos a Supabase Storage para tener una URL pública
+          // estable. Si la descarga falla, dejamos el texto "[Imagen]"
+          // y seguimos — nunca bloqueamos el ingest por un media roto.
+          const attachments = await ingestInboundMedia({
+            message: m,
+            encryptedToken,
+            workspaceId: connection.workspace_id,
+            externalContactId: m.from,
+          });
           events.push({
             channel: "whatsapp",
             connection,
@@ -138,6 +152,7 @@ export const whatsappAdapter: ChannelAdapter = {
             contactName: nameByWaId.get(m.from) || undefined,
             externalMessageId: m.id,
             text,
+            attachments: attachments.length ? attachments : undefined,
             // WhatsApp timestamps are Unix SECONDS as a string.
             receivedAt: m.timestamp
               ? new Date(Number(m.timestamp) * 1000).toISOString()
@@ -214,14 +229,91 @@ interface WhatsAppMessage {
   timestamp?: string;
   type: string;
   text?: { body: string };
-  image?: { id: string; caption?: string };
-  video?: { id: string; caption?: string };
-  document?: { id: string; filename?: string; caption?: string };
-  audio?: { id: string };
+  image?: { id: string; caption?: string; mime_type?: string };
+  video?: { id: string; caption?: string; mime_type?: string };
+  document?: {
+    id: string;
+    filename?: string;
+    caption?: string;
+    mime_type?: string;
+  };
+  audio?: { id: string; voice?: boolean; mime_type?: string };
+  sticker?: { id: string; mime_type?: string; animated?: boolean };
   location?: { name?: string };
   interactive?: {
     type: string;
     button_reply?: { id: string; title: string };
     list_reply?: { id: string; title: string };
   };
+}
+
+/**
+ * Para mensajes con media, baja el archivo desde Meta y lo sube a
+ * Storage. Devuelve un array de MessageAttachment listos para
+ * persistir en `messages.attachments`. Si la descarga falla devuelve
+ * []. Soporta image/video/document/audio/voice/sticker — WhatsApp
+ * sólo manda UNA pieza por mensaje, pero usamos array para que sea
+ * consistente con IG/Messenger y futuras extensiones.
+ */
+async function ingestInboundMedia(args: {
+  message: WhatsAppMessage;
+  encryptedToken: string;
+  workspaceId: string;
+  externalContactId: string;
+}): Promise<MessageAttachment[]> {
+  const { message: m, encryptedToken, workspaceId, externalContactId } = args;
+  if (!encryptedToken) return [];
+
+  let mediaId: string | undefined;
+  let hintedKind: MediaCategory | undefined;
+  let fileName: string | undefined;
+  switch (m.type) {
+    case "image":
+      mediaId = m.image?.id;
+      hintedKind = "image";
+      break;
+    case "video":
+      mediaId = m.video?.id;
+      hintedKind = "video";
+      break;
+    case "document":
+      mediaId = m.document?.id;
+      hintedKind = "document";
+      fileName = m.document?.filename;
+      break;
+    case "audio":
+      mediaId = m.audio?.id;
+      // WhatsApp distingue voice notes con `voice: true`. El resto
+      // (audio adjunto) lo marcamos como "audio".
+      hintedKind = m.audio?.voice ? "voice" : "audio";
+      break;
+    case "sticker":
+      mediaId = m.sticker?.id;
+      hintedKind = "sticker";
+      break;
+    default:
+      return [];
+  }
+  if (!mediaId) return [];
+
+  const ingested = await ingestWhatsappMedia({
+    mediaId,
+    encryptedAccessToken: encryptedToken,
+    workspaceId,
+    // Usamos el wa_id del cliente como segmento de path porque acá
+    // todavía no creamos la conversation row. Es estable y único
+    // por sender — el inbox-writer no toca esto.
+    conversationId: externalContactId,
+    hintedKind,
+    fileName,
+  });
+  if (!ingested) return [];
+
+  const attachment: MessageAttachment = {
+    url: ingested.publicUrl,
+    mime_type: ingested.mediaMime,
+    name: fileName,
+    size: ingested.mediaSize,
+  };
+  return [attachment];
 }

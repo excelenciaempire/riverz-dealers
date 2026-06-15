@@ -9,6 +9,7 @@ import type {
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
+import { mimeToCategory } from "./media-ingest";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -59,18 +60,55 @@ export async function ingestInboundEvent(
   if (!conversation) return null;
 
   // 3. Insert message — idempotent on external id.
+  // Si el adapter trajo media, derivamos las columnas estructuradas
+  // (media_type/media_mime/media_size/media_url) desde el primer
+  // attachment. El JSONB `attachments` queda como historial completo
+  // (cuando un mensaje ship múltiples archivos, sólo el primero llena
+  // las columnas estructuradas — el resto sigue accesible vía JSONB).
+  const firstAttachment = event.attachments?.[0];
+  const baseContentType: string =
+    channel === "gmail" || channel === "outlook"
+      ? "email"
+      : channel === "fb_comment" || channel === "ig_comment"
+        ? "comment"
+        : "text";
+  let contentType = baseContentType;
+  let mediaUrl: string | null = null;
+  let mediaType: string | null = null;
+  let mediaMime: string | null = null;
+  let mediaSize: number | null = null;
+  if (firstAttachment && firstAttachment.url) {
+    mediaUrl = firstAttachment.url;
+    mediaMime = firstAttachment.mime_type ?? null;
+    mediaSize = firstAttachment.size ?? null;
+    mediaType = mediaMime ? mimeToCategory(mediaMime) : null;
+    // Si todavía estamos en texto pero hay media, bumpeamos el
+    // content_type para que el inbox y los filtros sepan que hay
+    // adjunto. Email/comment mantienen su tipo de alto nivel.
+    if (baseContentType === "text" && mediaType) {
+      contentType =
+        mediaType === "voice"
+          ? "audio"
+          : mediaType === "sticker"
+            ? "image"
+            : mediaType;
+    }
+  }
   const insertPayload: Record<string, unknown> = {
     conversation_id: conversation.id,
     channel,
     // Sent-folder emails come back as outbound (we authored them), so
     // they land as agent messages on the right side of the thread.
     sender_type: event.outbound ? "agent" : "customer",
-    content_type: channel === "gmail" || channel === "outlook" ? "email" :
-                  channel === "fb_comment" || channel === "ig_comment" ? "comment" : "text",
+    content_type: contentType,
     content_text: event.text,
     html_body: event.htmlBody,
     subject: event.subject,
     attachments: event.attachments ?? null,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    media_mime: mediaMime,
+    media_size: mediaSize,
     message_id: event.externalMessageId,
     status: event.outbound ? "sent" : "delivered",
     created_at: event.receivedAt,

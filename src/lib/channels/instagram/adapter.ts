@@ -5,9 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
+import { ingestMetaAttachment } from "../media-ingest";
 
 /**
  * Instagram DMs via Meta Graph API (Messenger Platform for IG).
@@ -89,6 +90,15 @@ export const instagramAdapter: ChannelAdapter = {
         // @username from /{igsid}?fields=username,name so the inbox row
         // reads as "@somehandle" instead of a 17-digit id.
         const name = await fetchInstagramName(sender.id, getToken());
+        // Bajamos cada attachment a Storage para tener un permalink —
+        // las CDN URLs de IG caducan en horas y el inbox necesita
+        // poder mostrar el adjunto días después.
+        const attachments = await ingestInstagramAttachments(
+          message.attachments ?? [],
+          connection.workspace_id,
+          sender.id,
+          message.mid,
+        );
         events.push({
           channel: "instagram",
           connection,
@@ -96,13 +106,7 @@ export const instagramAdapter: ChannelAdapter = {
           contactName: name,
           externalMessageId: message.mid,
           text: String(message.text ?? ""),
-          attachments: (message.attachments ?? [])
-            .filter((a) => typeof a === "object")
-            .map((a) => ({
-              url: String((a.payload as { url?: string } | undefined)?.url ?? ""),
-              mime_type: String(a.type ?? "image"),
-            }))
-            .filter((a) => a.url),
+          attachments: attachments.length ? attachments : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           raw: m,
         });
@@ -115,6 +119,62 @@ export const instagramAdapter: ChannelAdapter = {
     return verifyMetaHandshake(req, connection);
   },
 };
+
+/**
+ * Procesa los `message.attachments` de IG. Cada item trae `type`
+ * (image/video/audio/file/share/story_mention) y `payload.url` con
+ * la URL pública. Bajamos cada uno a Storage para mantener el
+ * permalink. Share/story_mention se ignoran — no son media bajable.
+ */
+async function ingestInstagramAttachments(
+  attachments: Array<Record<string, unknown>>,
+  workspaceId: string,
+  externalContactId: string,
+  externalMessageId?: string,
+): Promise<MessageAttachment[]> {
+  const out: MessageAttachment[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const a = attachments[i];
+    const type = String(a.type ?? "").toLowerCase();
+    const payload = (a.payload ?? {}) as { url?: string };
+    const url = payload.url ? String(payload.url) : "";
+    if (!url) continue;
+    if (
+      type === "share" ||
+      type === "story_mention" ||
+      type === "template" ||
+      type === "fallback"
+    ) {
+      continue;
+    }
+    const hintedKind =
+      type === "image"
+        ? "image"
+        : type === "video"
+          ? "video"
+          : type === "audio"
+            ? "audio"
+            : type === "file"
+              ? "document"
+              : undefined;
+    const ingested = await ingestMetaAttachment({
+      attachmentUrl: url,
+      workspaceId,
+      conversationId: externalContactId,
+      externalMessageId: externalMessageId
+        ? `${externalMessageId}-${i}`
+        : undefined,
+      hintedKind,
+    });
+    if (!ingested) continue;
+    out.push({
+      url: ingested.publicUrl,
+      mime_type: ingested.mediaMime,
+      size: ingested.mediaSize,
+    });
+  }
+  return out;
+}
 
 /**
  * Resolve an IGSID to a display label, preferring "@username" over the

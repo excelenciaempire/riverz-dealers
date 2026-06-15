@@ -268,7 +268,7 @@ export function AgentEditor({
     agent?.response_mode ?? 'single',
   );
   const [inboundDebounce, setInboundDebounce] = useState<number>(
-    agent?.inbound_debounce_seconds ?? 0,
+    agent?.inbound_debounce_seconds ?? 15,
   );
   const [escalateAfterMessages, setEscalateAfterMessages] = useState<number>(
     agent?.escalate_after_messages ?? 0,
@@ -373,7 +373,7 @@ export function AgentEditor({
       setKnowledgeSyncedAt(a.knowledge_synced_at ?? new Date().toISOString());
       setTone((a.tone as AiTone) ?? 'friendly');
       setResponseMode((a.response_mode as AiResponseMode) ?? 'multi');
-      setInboundDebounce(a.inbound_debounce_seconds ?? 6);
+      setInboundDebounce(a.inbound_debounce_seconds ?? 15);
       setLanguage(a.language ?? 'es');
       setIsActive(Boolean(a.is_active));
       setCurrentAgentId(a.id);
@@ -1191,8 +1191,8 @@ export function AgentEditor({
                       className="bg-background"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Si el cliente sigue escribiendo, el asistente esperará para juntar
-                      todos los mensajes antes de responder.
+                      Espera X segundos antes de responder por si la clienta sigue
+                      escribiendo otro mensaje. Recomendado: 15s para WhatsApp.
                     </p>
                   </Field>
                 </SectionCard>
