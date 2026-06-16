@@ -19,6 +19,8 @@
  * Shopify.
  */
 
+import { resolveCarrierTrackingUrl } from './carrier-tracking'
+
 interface ShopifyLineItem {
   title: string
   quantity: number
@@ -29,6 +31,7 @@ interface ShopifyFulfillment {
   tracking_url: string | null
   tracking_numbers?: string[] | null
   tracking_urls?: string[] | null
+  tracking_company?: string | null
 }
 
 interface ShopifyOrder {
@@ -158,9 +161,15 @@ function toSummary(o: ShopifyOrder): OrderSummary {
     fulfillment?.tracking_number ??
     fulfillment?.tracking_numbers?.[0] ??
     null
+  const trackingCompany = fulfillment?.tracking_company ?? null
+  // Shopify only auto-fills tracking_url for built-in carriers (UPS,
+  // FedEx, DHL, etc). For AR carriers (Andreani, Correo Argentino,
+  // OCA) it's empty — fall back to our resolver so the AI gets a
+  // working URL to paraphrase to the customer.
   const tracking_url =
     fulfillment?.tracking_url ??
     fulfillment?.tracking_urls?.[0] ??
+    resolveCarrierTrackingUrl(trackingCompany, tracking_number) ??
     null
   return {
     name: o.name,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Channel, Conversation, Message, Contact, ConversationStatus } from "@/types";
@@ -569,7 +569,11 @@ export default function InboxPage() {
   for (const ch of tabChannels) {
     if (availableChannels.has(ch)) visibleAvailableChannels.add(ch);
   }
-  const filteredConversations = (() => {
+  // Memoize the filtered list so a single realtime UPDATE doesn't
+  // rebuild the array (and force every ConversationItem to re-render)
+  // on every render tick. Stable identity also lets React.memo on
+  // ConversationItem actually do its job.
+  const filteredConversations = useMemo(() => {
     let list = conversations;
     // Tab-level filter
     if (inboxTab === "comments") {
@@ -584,7 +588,7 @@ export default function InboxPage() {
       list = list.filter((c) => c.channel === channelFilter);
     }
     return list;
-  })();
+  }, [conversations, inboxTab, adsFilter, channelFilter]);
 
   // Switching tab clears any channel filter that no longer applies, so
   // the user doesn't get an empty list because a stale chip is still

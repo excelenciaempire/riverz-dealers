@@ -125,13 +125,10 @@ export default function DashboardPage() {
         ) : (
           <>
             <MetricCard
-              title="Conversaciones activas"
+              title="Conversaciones abiertas"
               value={metrics.activeConversations.current.toLocaleString()}
               icon={MessageSquare}
-              delta={{
-                sign: metrics.activeConversations.previous,
-                label: deltaLabel(metrics.activeConversations.previous, 'nuevas hoy vs ayer'),
-              }}
+              subtitle="En curso ahora"
             />
             <MetricCard
               title="Contactos nuevos hoy"

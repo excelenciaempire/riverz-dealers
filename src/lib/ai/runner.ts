@@ -101,22 +101,35 @@ export async function runAiAgent(
     // que el que disparó este runner. Si sí, abortamos — el runner del
     // mensaje más nuevo va a cubrir todo. Esto evita que la IA conteste
     // 3 veces seguidas a un cliente que mandó 3 mensajes en ráfaga.
-    if (agent.inbound_debounce_seconds > 0) {
-      await sleep(agent.inbound_debounce_seconds * 1000);
-      const { data: laterRows } = await db
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', args.conversation.id)
-        .eq('sender_type', 'customer')
-        .gt('created_at', args.inboundMessage.created_at)
-        .limit(1);
-      if ((laterRows ?? []).length > 0) {
-        await logReply(db, agent, args, {
-          status: 'skipped',
-          skip_reason: 'debounced_by_newer_inbound',
-        });
-        return;
-      }
+    // Always run the debounce gate — closes the "feature disabled"
+    // hole on pre-034 agents that still have inbound_debounce_seconds=0
+    // (those let 20 concurrent runners race on a 20-message burst).
+    // Floor at 8s if the agent has it set lower than that.
+    const debounceMs = Math.max(agent.inbound_debounce_seconds, 8) * 1000;
+    await sleep(debounceMs);
+    const inboundId = args.inboundMessage.id;
+    const inboundTs = args.inboundMessage.created_at;
+    // (created_at, id) tiebreaker — when WhatsApp delivers N messages
+    // in the same second, exactly one runner (the one whose message
+    // has the lexicographically-greatest id at the latest created_at)
+    // proceeds. Avoids the all-skip silence we'd get from a naive
+    // gt(created_at) check on ties.
+    const { data: laterRows } = await db
+      .from('messages')
+      .select('id, created_at')
+      .eq('conversation_id', args.conversation.id)
+      .eq('sender_type', 'customer')
+      .or(
+        `created_at.gt.${inboundTs},` +
+          `and(created_at.eq.${inboundTs},id.gt.${inboundId})`,
+      )
+      .limit(1);
+    if ((laterRows ?? []).length > 0) {
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'debounced_by_newer_inbound',
+      });
+      return;
     }
 
     // Cargamos el "primario" del contacto (migration 050) — si este
@@ -154,8 +167,45 @@ export async function runAiAgent(
       shopify,
       db,
     );
-    if (!reply.text) {
-      await logReply(db, agent, args, { status: 'skipped', skip_reason: 'empty_reply' });
+    // Fallback for the tool-loop tail case: if we burned through all
+    // AGENTIC_LOOP_MAX_ITERS and ended with empty text, the customer
+    // would otherwise see nothing. Send a Spanish nudge to humans so
+    // the conversation doesn't dead-end silently.
+    let replyText = reply.text;
+    let truncatedFallback = false;
+    if (!replyText) {
+      if (reply.truncated) {
+        replyText =
+          'Disculpá, no pude completar la consulta automática. ' +
+          'Para ayudarte mejor, ¿me pasás tu número de pedido o tu teléfono ' +
+          'para que un humano lo revise?';
+        truncatedFallback = true;
+      } else {
+        await logReply(db, agent, args, {
+          status: 'skipped',
+          skip_reason: 'empty_reply',
+        });
+        return;
+      }
+    }
+
+    // Second guard window: between debounce-end and the actual send we
+    // ran a slow LLM call. A message that arrived during that window
+    // would otherwise get a stale reply *plus* its own runner's reply.
+    // Always runs (no agent-config gate) so debounce-off workspaces are
+    // also protected.
+    const { data: laterRows2 } = await db
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', args.conversation.id)
+      .eq('sender_type', 'customer')
+      .gt('created_at', args.inboundMessage.created_at)
+      .limit(1);
+    if ((laterRows2 ?? []).length > 0) {
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'stale_by_newer_inbound',
+      });
       return;
     }
 
@@ -167,7 +217,7 @@ export async function runAiAgent(
     // multi = partir por \n\n y enviar c/u como un mensaje aparte con
     // un pequeño delay entre chunks. dynamic = decide según el largo
     // (corto va en 1, largo se parte).
-    const chunks = splitReplyForMode(reply.text, agent.response_mode);
+    const chunks = splitReplyForMode(replyText, agent.response_mode);
 
     const adapter = getAdapter(args.channel);
     const insertedIds: string[] = [];
@@ -210,7 +260,7 @@ export async function runAiAgent(
     await db
       .from('conversations')
       .update({
-        last_message_text: reply.text.slice(0, 200),
+        last_message_text: replyText.slice(0, 200),
         last_message_at: new Date().toISOString(),
         last_sender_type: 'bot',
         updated_at: new Date().toISOString(),
@@ -233,6 +283,9 @@ export async function runAiAgent(
       message_id: insertedIds[0] ?? null,
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
+      ...(truncatedFallback
+        ? { skip_reason: 'tool_loop_truncated_fallback' }
+        : {}),
     });
 
     // ── Memoria rodante (background, fail-soft) ──
@@ -615,6 +668,10 @@ interface ReplyResult {
   text: string;
   promptTokens?: number;
   completionTokens?: number;
+  /** True iff the agentic tool loop hit its iteration cap without
+   *  resolving — caller may swap in a fallback message when the model
+   *  returned empty text. */
+  truncated?: boolean;
 }
 
 async function loadProductCatalog(
@@ -732,7 +789,26 @@ interface ProductRow {
  * Storage (bucket `message-media`, público) antes de llegar acá, así
  * que Claude las puede bajar él solo vía `source.type='url'`.
  */
-function toClaudeMessage(msg: ContextMessage): Anthropic.MessageParam {
+/** Anthropic's document block rejects PDFs larger than ~32 MB (cap is
+ *  per-document on the API). We sniff Content-Length up front so we can
+ *  fall back to a graceful text block instead of letting the API call
+ *  blow up with 400 invalid_request_error (which empties the reply). */
+const PDF_MAX_BYTES = 30 * 1024 * 1024; // safe under Anthropic's 32 MB ceiling
+
+async function probePdfSize(url: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return null;
+    const len = res.headers.get('content-length');
+    if (!len) return null;
+    const n = Number(len);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessageParam> {
   if (msg.role === 'assistant') {
     return { role: 'assistant', content: msg.content || ' ' };
   }
@@ -760,14 +836,29 @@ function toClaudeMessage(msg: ContextMessage): Anthropic.MessageParam {
     }
     case 'document': {
       if (isPdf) {
-        blocks.push({
-          type: 'document',
-          source: { type: 'url', url: media.url },
-        });
-        blocks.push({
-          type: 'text',
-          text: text || '[el cliente envió un PDF sin texto]',
-        });
+        // Probe size before attaching the document block. If the PDF is
+        // bigger than Anthropic's 32 MB ceiling we'd get a 400 that the
+        // outer runner converts to status=failed, and the customer
+        // would see *nothing*. Fail-soft to a text block instead.
+        const size = await probePdfSize(media.url);
+        if (size !== null && size > PDF_MAX_BYTES) {
+          const mb = Math.round(size / (1024 * 1024));
+          blocks.push({
+            type: 'text',
+            text:
+              (text ? text + '\n\n' : '') +
+              `[el cliente envió un PDF muy grande (${mb} MB) que no puedo procesar entero — pedile que mande solo las páginas relevantes o un resumen]`,
+          });
+        } else {
+          blocks.push({
+            type: 'document',
+            source: { type: 'url', url: media.url },
+          });
+          blocks.push({
+            type: 'text',
+            text: text || '[el cliente envió un PDF sin texto]',
+          });
+        }
       } else {
         // Word/Excel/etc — Claude no los acepta directos. Le decimos
         // que llegó un archivo y le pasamos la URL por si la quiere
@@ -897,8 +988,8 @@ async function generateReply(
   // Cada ContextMessage se traduce a un Anthropic.MessageParam con
   // content blocks. El bot side va como texto plano; el cliente puede
   // llevar image/document/text combinados.
-  const claudeMessages: Anthropic.MessageParam[] = messages.map((m) =>
-    toClaudeMessage(m),
+  const claudeMessages: Anthropic.MessageParam[] = await Promise.all(
+    messages.map((m) => toClaudeMessage(m)),
   );
 
   // Sólo exponemos las tools si hay conexión Shopify activa para el
@@ -926,6 +1017,7 @@ async function generateReply(
     text: trimmed,
     promptTokens: result.promptTokens,
     completionTokens: result.completionTokens,
+    truncated: result.truncated,
   };
 }
 
@@ -1086,6 +1178,16 @@ function buildSystemPrompt(
     lines.push('Contexto adicional sobre el negocio:');
     lines.push(agent.knowledge.trim());
   }
+
+  // ── Off-topic refusal recipe ──
+  // Haiku is helpful by default — without an explicit "if asked X, say
+  // Y" line the model happily answers weather/sports/etc with a soft
+  // pivot. This single instruction caps the bot's scope to the
+  // business described above (persona + knowledge already preceded
+  // this line).
+  lines.push(
+    'Tu único dominio es el negocio descrito arriba. Si la consulta no se relaciona con eso (clima, política, deportes, otras marcas, consejos generales, recetas, traducciones, código, etc.), no respondas la pregunta: contesta brevemente "Soy un asistente del negocio y sólo puedo ayudarte con consultas sobre nuestros productos y pedidos. ¿En qué te puedo ayudar con eso?" y nada más.',
+  );
 
   // ── Idle-reset hint (>48h) ──
   if (context.idleResetHint) {

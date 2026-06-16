@@ -13,6 +13,7 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import { acquire } from '@/lib/whatsapp/throttle'
 import { csrfGuard } from '@/lib/csrf'
 
 interface BroadcastResult {
@@ -150,6 +151,10 @@ export async function POST(request: Request) {
       const variants = phoneVariants(sanitized)
       let sentMessageId: string | null = null
       let lastError: string | null = null
+
+      // Pace against the per-WABA token bucket so a pasted 5,000-row
+      // CSV doesn't hammer Meta's API as fast as it can answer.
+      await acquire(user.id)
 
       for (const variant of variants) {
         try {

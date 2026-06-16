@@ -4,15 +4,26 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * GET /api/inbox/search?q=...
  *
- * Búsqueda full-text en conversaciones y mensajes históricos. Usa
- * los índices trigram (gin_trgm_ops) creados en migration 029. Devuelve
- * hasta 30 resultados ordenados por relevancia bruta (matches en el
- * preview pesan más que matches en mensajes profundos).
+ * Búsqueda full-text en conversaciones y mensajes históricos. Usa el
+ * RPC `inbox_search` (migration 056) que aplica `unaccent` en ambos
+ * lados de la comparación — necesario para que "cancion" matchee con
+ * "canción" y "anibal" con "Aníbal". El RPC corre como SECURITY
+ * INVOKER así que RLS sigue escopeando los resultados al workspace.
  *
  * Forma del resultado:
  *   { conversations: [{ id, contact_name, snippet, last_message_at,
  *                       match_in: 'preview' | 'message', message_id? }] }
  */
+
+interface RpcRow {
+  kind: string;
+  conversation_id: string;
+  message_id: string | null;
+  last_message_text: string | null;
+  content_text: string | null;
+  last_message_at: string | null;
+  contact_id: string | null;
+}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -29,61 +40,40 @@ export async function GET(request: Request) {
   }
   const limit = Math.min(30, Number(url.searchParams.get('limit') ?? '30'));
 
-  // RLS scopea ambos selects al workspace del usuario. Primero
-  // matches en last_message_text de conversations (más reciente,
-  // visible en la lista). Después, matches en messages.content_text.
-  const pattern = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+  const { data: rows, error } = await supabase.rpc('inbox_search', {
+    q,
+    max_rows: limit,
+  });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  const [{ data: convs }, { data: msgs }] = await Promise.all([
-    supabase
+  // Resolve contact display names in a single round-trip — the RPC
+  // returns a contact_id (for 'conv' rows) and conversation_id (for
+  // 'msg' rows). Pull contacts via conversations->contacts join.
+  const conversationIds = [
+    ...new Set(
+      (rows as RpcRow[] | null ?? []).map((r) => r.conversation_id).filter(Boolean),
+    ),
+  ];
+  const contactByConv = new Map<string, { name: string }>();
+  if (conversationIds.length > 0) {
+    const { data: convs } = await supabase
       .from('conversations')
-      .select('id, last_message_text, last_message_at, contact_id, contacts(name, phone, email)')
-      .ilike('last_message_text', pattern)
-      .order('last_message_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('messages')
-      .select('id, conversation_id, content_text, created_at, conversations(id, contact_id, last_message_at, contacts(name, phone, email))')
-      .ilike('content_text', pattern)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-  ]);
-
-  type ContactJoin = { name?: string; phone?: string; email?: string };
-
-  interface ConvRow {
-    id: string;
-    last_message_text: string | null;
-    last_message_at: string | null;
-    contact_id: string | null;
-    contacts: ContactJoin | ContactJoin[] | null;
-  }
-
-  interface MsgRow {
-    id: string;
-    conversation_id: string | null;
-    content_text: string | null;
-    created_at: string | null;
-    conversations:
-      | {
-          id: string;
-          contact_id: string | null;
-          last_message_at: string | null;
-          contacts: ContactJoin | ContactJoin[] | null;
-        }
-      | Array<{
-          id: string;
-          contact_id: string | null;
-          last_message_at: string | null;
-          contacts: ContactJoin | ContactJoin[] | null;
-        }>
-      | null;
-  }
-
-  function pickContact(c: ContactJoin | ContactJoin[] | null | undefined): string {
-    if (!c) return 'Contacto';
-    const ct = Array.isArray(c) ? c[0] : c;
-    return (ct?.name || ct?.phone || ct?.email || 'Contacto') as string;
+      .select('id, contact:contacts(name, phone, email)')
+      .in('id', conversationIds);
+    type Row = {
+      id: string;
+      contact:
+        | { name?: string; phone?: string; email?: string }
+        | Array<{ name?: string; phone?: string; email?: string }>
+        | null;
+    };
+    for (const c of (convs ?? []) as Row[]) {
+      const ct = Array.isArray(c.contact) ? c.contact[0] : c.contact;
+      const name = ct?.name || ct?.phone || ct?.email || 'Contacto';
+      contactByConv.set(c.id, { name });
+    }
   }
 
   const seen = new Set<string>();
@@ -96,32 +86,28 @@ export async function GET(request: Request) {
     message_id?: string;
   }> = [];
 
-  for (const c of (convs ?? []) as ConvRow[]) {
-    if (seen.has(c.id)) continue;
-    seen.add(c.id);
-    out.push({
-      id: c.id,
-      contact_name: pickContact(c.contacts),
-      snippet: truncate(c.last_message_text ?? '', 120, q),
-      last_message_at: c.last_message_at,
-      match_in: 'preview',
-    });
-  }
-
-  for (const m of (msgs ?? []) as MsgRow[]) {
-    const convRaw = m.conversations;
-    const conv = Array.isArray(convRaw) ? convRaw[0] : convRaw;
-    if (!conv) continue;
-    if (seen.has(conv.id)) continue;
-    seen.add(conv.id);
-    out.push({
-      id: conv.id,
-      contact_name: pickContact(conv.contacts),
-      snippet: truncate(m.content_text ?? '', 120, q),
-      last_message_at: conv.last_message_at,
-      match_in: 'message',
-      message_id: m.id,
-    });
+  for (const r of (rows as RpcRow[] | null ?? [])) {
+    if (seen.has(r.conversation_id)) continue;
+    seen.add(r.conversation_id);
+    const name = contactByConv.get(r.conversation_id)?.name ?? 'Contacto';
+    if (r.kind === 'conv') {
+      out.push({
+        id: r.conversation_id,
+        contact_name: name,
+        snippet: truncate(r.last_message_text ?? '', 120, q),
+        last_message_at: r.last_message_at,
+        match_in: 'preview',
+      });
+    } else {
+      out.push({
+        id: r.conversation_id,
+        contact_name: name,
+        snippet: truncate(r.content_text ?? '', 120, q),
+        last_message_at: r.last_message_at,
+        match_in: 'message',
+        message_id: r.message_id ?? undefined,
+      });
+    }
   }
 
   return NextResponse.json({ conversations: out.slice(0, limit) });

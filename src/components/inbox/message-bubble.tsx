@@ -19,6 +19,7 @@ import { useTimezone } from "@/hooks/use-timezone";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface MessageBubbleProps {
   message: Message;
@@ -59,6 +60,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const loadImage = useCallback(async () => {
     if (!url) return;
@@ -108,13 +110,63 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
     );
   }
 
+  // Wrap the thumbnail in a button that opens a Dialog-based lightbox.
+  // The blob URL is reused so we don't refetch the image for the
+  // expanded view; ESC + click-outside come for free from shadcn Dialog.
   return (
-    <img
-      src={src ?? ""}
-      alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
-      onError={() => setError(true)}
-    />
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="cursor-zoom-in"
+        aria-label="Ampliar imagen"
+      >
+        <img
+          src={src ?? ""}
+          alt={alt}
+          className="max-h-64 max-w-60 rounded-lg object-cover"
+          onError={() => setError(true)}
+        />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none">
+          <img
+            src={src ?? ""}
+            alt={alt}
+            className="mx-auto max-h-[90vh] max-w-[95vw] object-contain"
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function MediaVideo({ url }: { url: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="cursor-zoom-in"
+        aria-label="Ampliar video"
+      >
+        <video
+          src={url}
+          className="pointer-events-none max-h-64 max-w-60 rounded-lg"
+        />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none">
+          <video
+            src={url}
+            controls
+            autoPlay
+            className="mx-auto max-h-[90vh] max-w-[95vw]"
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -147,11 +199,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div>
           {message.media_url ? (
-            <video
-              src={message.media_url}
-              controls
-              className="max-h-64 max-w-60 rounded-lg"
-            />
+            <MediaVideo url={message.media_url} />
           ) : (
             <MediaUnavailable label="Video" />
           )}

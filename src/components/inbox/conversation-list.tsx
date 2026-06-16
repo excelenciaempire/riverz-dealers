@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,8 @@ import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { es } from "date-fns/locale";
 import { useTimezone } from "@/hooks/use-timezone";
+import { useWorkspace } from "@/hooks/use-workspace";
+import { normalize } from "@/lib/text/normalize";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -75,6 +77,8 @@ export function ConversationList({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const tz = useTimezone();
+  const { workspace } = useWorkspace();
+  const workspaceId = workspace?.id ?? null;
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -96,6 +100,10 @@ export function ConversationList({
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
+    // Active workspace is required for the cross-workspace leak fix
+    // — without it RLS would still return conversations from every
+    // workspace the user belongs to. Wait for useWorkspace to settle.
+    if (!workspaceId) return;
 
     (async () => {
       // Scoping rule: EMAIL channels (gmail/outlook) are personal — each
@@ -121,6 +129,7 @@ export function ConversationList({
       let query = supabase
         .from("conversations")
         .select("*, contact:contacts(*)")
+        .eq("workspace_id", workspaceId)
         .order("last_message_at", { ascending: false });
       // Show all non-email conversations (RLS already limits to the
       // workspace) plus email conversations from this user's mailboxes.
@@ -156,7 +165,9 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+    // `workspaceId` is included so a workspace switch reissues the
+    // fetch with the new scope.
+  }, [resyncToken, workspaceId]);
 
   const filtered = useMemo(() => {
     let result = conversations;
@@ -166,19 +177,23 @@ export function ConversationList({
     }
 
     if (search.trim()) {
-      const q = search.toLowerCase();
+      // Diacritic-insensitive — "cancion" should match "canción" and
+      // "anibal" should match "Aníbal". Both sides go through the same
+      // normalize() so the comparison is symmetric.
+      const q = normalize(search);
       result = result.filter((c) => {
-        const haystack = [
-          c.contact?.name,
-          c.contact?.email,
-          c.contact?.phone,
-          c.contact?.external_id,
-          c.subject,
-          c.last_message_text,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+        const haystack = normalize(
+          [
+            c.contact?.name,
+            c.contact?.email,
+            c.contact?.phone,
+            c.contact?.external_id,
+            c.subject,
+            c.last_message_text,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        );
         return haystack.includes(q);
       });
     }
@@ -371,7 +386,11 @@ interface ConversationItemProps {
   tz: string;
 }
 
-function ConversationItem({
+// Memoized so a single-row UPDATE doesn't repaint all N rows. Custom
+// equality compares the conversation fields the row actually renders
+// — anything else (extra contact fields, unread bump on a *different*
+// row) is irrelevant and shouldn't re-render this row.
+const ConversationItem = memo(function ConversationItem({
   conversation,
   isActive,
   onSelect,
@@ -545,7 +564,28 @@ function ConversationItem({
       </div>
     </div>
   );
-}
+}, (a, b) =>
+  a.isActive === b.isActive &&
+  a.selected === b.selected &&
+  a.selectMode === b.selectMode &&
+  a.tz === b.tz &&
+  a.onDelete === b.onDelete &&
+  a.onSelect === b.onSelect &&
+  a.onToggleSelected === b.onToggleSelected &&
+  a.conversation.id === b.conversation.id &&
+  a.conversation.last_message_at === b.conversation.last_message_at &&
+  a.conversation.last_message_text === b.conversation.last_message_text &&
+  a.conversation.unread_count === b.conversation.unread_count &&
+  a.conversation.status === b.conversation.status &&
+  a.conversation.last_sender_type === b.conversation.last_sender_type &&
+  a.conversation.subject === b.conversation.subject &&
+  a.conversation.is_ad === b.conversation.is_ad &&
+  a.conversation.contact?.name === b.conversation.contact?.name &&
+  a.conversation.contact?.avatar_url === b.conversation.contact?.avatar_url &&
+  a.conversation.contact?.email === b.conversation.contact?.email &&
+  a.conversation.contact?.phone === b.conversation.contact?.phone &&
+  a.conversation.contact?.external_id === b.conversation.contact?.external_id,
+);
 
 // Editorial-style empty state. Two paths: the merchant is filtering /
 // searching (we tell them to widen the filter) vs. the bandeja is

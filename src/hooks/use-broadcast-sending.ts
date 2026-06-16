@@ -159,8 +159,15 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     let contacts: Contact[] = [];
 
+    // Every branch filters opted_out=false at fetch time so the
+    // immediate-send path matches the cron path (which already
+    // gates opt-out before send). Previously this hook silently
+    // messaged opted-out contacts on "Enviar ahora".
     if (audience.type === 'all') {
-      const { data, error } = await supabase.from('contacts').select('*');
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('opted_out', false);
       if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
       contacts = data ?? [];
     } else if (
@@ -183,14 +190,17 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         const { data, error } = await supabase
           .from('contacts')
           .select('*')
-          .in('id', uniqueContactIds);
+          .in('id', uniqueContactIds)
+          .eq('opted_out', false);
         if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
         contacts = data ?? [];
       }
     } else if (audience.type === 'custom_field' && audience.customField) {
       contacts = await resolveCustomFieldAudience(supabase, audience.customField);
     } else if (audience.type === 'csv' && audience.csvContacts) {
-      contacts = await upsertCsvContacts(supabase, audience.csvContacts);
+      const resolved = await upsertCsvContacts(supabase, audience.csvContacts);
+      // CSV upserts return everything; drop opted-out before send.
+      contacts = resolved.filter((c) => !(c as Contact & { opted_out?: boolean }).opted_out);
     } else if (audience.type === 'segment' && audience.segmentId) {
       const { data: seg, error: segErr } = await supabase
         .from('contact_segments')
@@ -207,7 +217,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         s.rules ?? [],
         s.match_mode,
       );
-      contacts = resolved.contacts;
+      contacts = resolved.contacts.filter(
+        (c) => !(c as Contact & { opted_out?: boolean }).opted_out,
+      );
     }
 
     // Apply exclude tags (works across all contact-derived audience
@@ -330,7 +342,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     const { data, error } = await supabase
       .from('contacts')
       .select('*')
-      .in('id', contactIds);
+      .in('id', contactIds)
+      .eq('opted_out', false);
     if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
     return data ?? [];
   }

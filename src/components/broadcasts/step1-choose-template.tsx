@@ -5,12 +5,46 @@ import { createClient } from '@/lib/supabase/client';
 import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   Utility: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
   Authentication: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  Draft: 'Borrador',
+  Pending: 'Pendiente',
+  Approved: 'Aprobada',
+  Rejected: 'Rechazada',
+};
+
+/**
+ * Mirrors the StatusPill component in src/app/(dashboard)/plantillas/page.tsx
+ * — kept inline (instead of importing) so this wizard step stays
+ * self-contained for the v2 redesign.
+ */
+function StatusPill({ status }: { status: string }) {
+  const tone =
+    status === 'Approved'
+      ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+      : status === 'Rejected'
+        ? 'border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-300'
+        : status === 'Pending'
+          ? 'border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : 'border-border bg-muted text-muted-foreground';
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
+        tone,
+      )}
+    >
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
 
 interface Step1Props {
   selectedTemplate: MessageTemplate | null;
@@ -80,19 +114,33 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => {
             const isSelected = selectedTemplate?.id === template.id;
+            const isSendable = template.status === 'Approved';
             const catColor = categoryColors[template.category] ?? categoryColors.Utility;
+            const rejectedReason = (
+              template as MessageTemplate & { rejected_reason?: string | null }
+            ).rejected_reason;
 
             return (
               <button
                 key={template.id}
-                onClick={() => onSelect(template)}
-                className={`flex flex-col gap-3 rounded-xl border p-4 text-left transition-all ${
+                onClick={() => {
+                  // Block selection of non-Approved templates so the
+                  // merchant can't submit a campaign Meta will reject
+                  // with error #132001 at send time.
+                  if (!isSendable) return;
+                  onSelect(template);
+                }}
+                disabled={!isSendable}
+                aria-disabled={!isSendable}
+                className={cn(
+                  'flex flex-col gap-3 rounded-xl border p-4 text-left transition-all',
                   isSelected
                     ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                    : 'border-border bg-card/50 hover:border-foreground/30 hover:bg-card'
-                }`}
+                    : 'border-border bg-card/50 hover:border-foreground/30 hover:bg-card',
+                  !isSendable && 'cursor-not-allowed opacity-60 hover:border-border',
+                )}
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-medium text-foreground">{template.name}</h3>
                   <span
                     className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${catColor}`}
@@ -103,13 +151,14 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
                 <p className="line-clamp-3 text-xs text-muted-foreground">{template.body_text}</p>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <span>{template.language ?? 'en_US'}</span>
-                  {template.status && (
-                    <>
-                      <span>-</span>
-                      <span>{template.status}</span>
-                    </>
-                  )}
+                  <span>-</span>
+                  <StatusPill status={template.status ?? 'Draft'} />
                 </div>
+                {template.status === 'Rejected' && rejectedReason && (
+                  <p className="text-[10px] text-red-600 dark:text-red-400">
+                    {rejectedReason}
+                  </p>
+                )}
               </button>
             );
           })}
@@ -122,7 +171,7 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
         </Button>
         <Button
           onClick={onNext}
-          disabled={!selectedTemplate}
+          disabled={!selectedTemplate || selectedTemplate.status !== 'Approved'}
           className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           Siguiente

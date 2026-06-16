@@ -20,6 +20,65 @@ async function requireUser() {
   return user
 }
 
+/**
+ * Resolve the automation's workspace and confirm the caller belongs
+ * to it. Mirrors the pattern in src/app/api/messages/[id]/route.ts.
+ * We cannot rely on PostgREST + RLS alone here because we use the
+ * service-role admin client (RLS is bypassed), and we cannot scope by
+ * user_id because workspace teammates are valid editors.
+ *
+ * Returns the loaded automation row on success, or a Response to
+ * return directly on auth/404 failure.
+ */
+async function loadAuthorizedAutomation(
+  admin: ReturnType<typeof supabaseAdmin>,
+  automationId: string,
+  userId: string,
+  // Caller-supplied projection — keeps PATCH's "need is_active +
+  // trigger_* for re-validation" path from doing a second round trip.
+  columns: string = 'id, user_id, workspace_id',
+): Promise<
+  | { ok: true; automation: Record<string, unknown> }
+  | { ok: false; response: Response }
+> {
+  const { data: existing } = await admin
+    .from('automations')
+    .select(columns)
+    .eq('id', automationId)
+    .maybeSingle()
+  if (!existing) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
+    }
+  }
+  const workspaceId = (existing as { workspace_id?: string }).workspace_id
+  if (!workspaceId) {
+    // Pre-013 rows that never got backfilled. Treat as not-found to
+    // avoid leaking the row's existence to non-owners.
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
+    }
+  }
+  const { data: membership } = await admin
+    .from('workspace_members')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!membership) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
+    }
+  }
+  return {
+    ok: true,
+    automation: existing as unknown as Record<string, unknown>,
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -29,18 +88,11 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = supabaseAdmin()
-  const { data: automation, error } = await admin
-    .from('automations')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!automation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const loaded = await loadAuthorizedAutomation(admin, id, user.id, '*')
+  if (!loaded.ok) return loaded.response
 
   const steps = await loadStepsTree(id)
-  return NextResponse.json({ automation, steps })
+  return NextResponse.json({ automation: loaded.automation, steps })
 }
 
 export async function PATCH(
@@ -58,15 +110,20 @@ export async function PATCH(
 
   const admin = supabaseAdmin()
 
-  // Ownership check before we touch anything. Load the fields we need
-  // to compute the post-patch "effective" state for validation.
-  const { data: existing } = await admin
-    .from('automations')
-    .select('id, user_id, is_active, trigger_type, trigger_config')
-    .eq('id', id)
-    .maybeSingle()
-  if (!existing || existing.user_id !== user.id) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Workspace-membership gate (replaces the old user_id ownership
+  // check). Loads the fields needed for post-patch validation in the
+  // same round trip.
+  const loaded = await loadAuthorizedAutomation(
+    admin,
+    id,
+    user.id,
+    'id, user_id, workspace_id, is_active, trigger_type, trigger_config',
+  )
+  if (!loaded.ok) return loaded.response
+  const existing = loaded.automation as {
+    is_active: boolean
+    trigger_type: string
+    trigger_config: unknown
   }
 
   const update: Record<string, unknown> = {}
@@ -134,11 +191,14 @@ export async function DELETE(
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { error } = await supabaseAdmin()
+  const admin = supabaseAdmin()
+  const loaded = await loadAuthorizedAutomation(admin, id, user.id, 'id')
+  if (!loaded.ok) return loaded.response
+
+  const { error } = await admin
     .from('automations')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

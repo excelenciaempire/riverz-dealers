@@ -1,6 +1,7 @@
 import { supabaseAdmin } from './admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
+import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import type { ShopifyLookupKind } from './types'
 
 /**
@@ -185,6 +186,9 @@ async function lookupProductByHandle(
 
 function orderToVars(o: ShopifyOrder): Record<string, string> {
   const tracking = (o.fulfillments ?? []).slice(-1)[0]
+  const trackingNumber = String(tracking?.tracking_number ?? '')
+  const trackingCompany = String(tracking?.tracking_company ?? '')
+  const trackingUrl = String(tracking?.tracking_url ?? '')
   return {
     name: String(o.name ?? ''),
     number: String(o.order_number ?? ''),
@@ -193,9 +197,15 @@ function orderToVars(o: ShopifyOrder): Record<string, string> {
     fulfillment_status: String(o.fulfillment_status ?? 'unfulfilled'),
     total: o.total_price ? `${o.total_price} ${o.currency ?? ''}`.trim() : '',
     status_url: String(o.order_status_url ?? ''),
-    tracking_number: String(tracking?.tracking_number ?? ''),
-    tracking_url: String(tracking?.tracking_url ?? ''),
-    tracking_company: String(tracking?.tracking_company ?? ''),
+    tracking_number: trackingNumber,
+    // Fall back to our carrier resolver for AR carriers Shopify doesn't
+    // auto-fill (Andreani / Correo Argentino / OCA). Keeps existing
+    // {{tracking_url}} templates working unchanged.
+    tracking_url:
+      trackingUrl ||
+      resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
+      '',
+    tracking_company: trackingCompany,
     item_count: String((o.line_items ?? []).length),
     first_item: String(o.line_items?.[0]?.title ?? ''),
   }

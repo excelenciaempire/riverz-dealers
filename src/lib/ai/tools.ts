@@ -12,7 +12,7 @@
  * bugs de modelo / herramienta.
  */
 
-import type Anthropic from '@anthropic-ai/sdk'
+import Anthropic from '@anthropic-ai/sdk'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import {
   createCheckoutLink,
@@ -185,6 +185,10 @@ export async function runWithTools(
   promptTokens: number
   completionTokens: number
   iterations: number
+  /** True if we exhausted AGENTIC_LOOP_MAX_ITERS still asking for tools
+   *  and had to force a final no-tools call. The caller may want to
+   *  swap in a fallback message if the model returned empty text. */
+  truncated: boolean
 }> {
   let messages: Anthropic.MessageParam[] = [...args.messages]
   let promptTokens = 0
@@ -193,13 +197,39 @@ export async function runWithTools(
 
   while (iter < AGENTIC_LOOP_MAX_ITERS) {
     iter += 1
-    const response = await client.messages.create({
-      model: args.model,
-      max_tokens: args.max_tokens,
-      system: args.system,
-      messages,
-      ...(args.tools.length > 0 ? { tools: args.tools } : {}),
-    })
+    let response: Anthropic.Message
+    try {
+      response = await client.messages.create({
+        model: args.model,
+        max_tokens: args.max_tokens,
+        system: args.system,
+        messages,
+        ...(args.tools.length > 0 ? { tools: args.tools } : {}),
+      })
+    } catch (err) {
+      // On the FIRST iteration only, retry once after rewriting any
+      // document blocks in the last user message to text. Anthropic
+      // rejects PDFs exceeding the document block's page/size caps
+      // with a 400; without this rescue, the customer sees nothing.
+      const isFirstIter = iter === 1
+      const isApiError =
+        err instanceof Anthropic.APIError && err.status === 400
+      const msg = err instanceof Error ? err.message : String(err)
+      const looksLikePdfReject =
+        /document|page|too large|exceeds|invalid.*pdf/i.test(msg)
+      if (isFirstIter && isApiError && looksLikePdfReject) {
+        messages = rewriteLastUserDocumentToText(messages)
+        response = await client.messages.create({
+          model: args.model,
+          max_tokens: args.max_tokens,
+          system: args.system,
+          messages,
+          ...(args.tools.length > 0 ? { tools: args.tools } : {}),
+        })
+      } else {
+        throw err
+      }
+    }
 
     promptTokens += response.usage?.input_tokens ?? 0
     completionTokens += response.usage?.output_tokens ?? 0
@@ -212,7 +242,13 @@ export async function runWithTools(
         .map((b) => b.text)
         .join('')
         .trim()
-      return { text, promptTokens, completionTokens, iterations: iter }
+      return {
+        text,
+        promptTokens,
+        completionTokens,
+        iterations: iter,
+        truncated: false,
+      }
     }
 
     // El modelo pidió ejecutar una o más tools. Le devolvemos el
@@ -251,5 +287,45 @@ export async function runWithTools(
     .map((b) => b.text)
     .join('')
     .trim()
-  return { text, promptTokens, completionTokens, iterations: iter + 1 }
+  return {
+    text,
+    promptTokens,
+    completionTokens,
+    iterations: iter + 1,
+    truncated: true,
+  }
+}
+
+/**
+ * Walk the message history backwards to the last user turn and rewrite
+ * any `type: 'document'` blocks into a text block apologizing for the
+ * unprocessable PDF. Used to rescue a single Anthropic 400 caused by a
+ * PDF that exceeds the document-block limits — without this, the
+ * customer sees an empty reply because the outer catch logs failed.
+ */
+function rewriteLastUserDocumentToText(
+  messages: Anthropic.MessageParam[],
+): Anthropic.MessageParam[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== 'user') continue
+    if (typeof m.content === 'string') return messages
+    const content = m.content as Anthropic.ContentBlockParam[]
+    let touched = false
+    const rewritten: Anthropic.ContentBlockParam[] = content.map((b) => {
+      if (b.type === 'document') {
+        touched = true
+        return {
+          type: 'text',
+          text: '[el cliente envió un PDF que no pude procesar — pedile amablemente que mande solo las páginas relevantes o un resumen]',
+        }
+      }
+      return b
+    })
+    if (!touched) return messages
+    const next = [...messages]
+    next[i] = { role: 'user', content: rewritten }
+    return next
+  }
+  return messages
 }

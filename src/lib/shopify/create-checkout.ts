@@ -164,6 +164,44 @@ export async function createCheckoutLink(
     }
   }
   const qty = OFFER_QUANTITY[offer]
+
+  // Best-effort stock check before we hand out the link. Only blocks
+  // when the shop both tracks inventory AND denies oversell — for
+  // untracked variants (inventory_management=null) or "continue
+  // selling" variants we fall through to the link as before. Fail-open
+  // on network/Admin errors so we never silently break the happy path.
+  try {
+    const vUrl = `https://${ctx.shopDomain}/admin/api/${ctx.apiVersion}/variants/${variantId}.json?fields=inventory_quantity,inventory_policy,inventory_management`
+    const vRes = await fetch(vUrl, {
+      headers: {
+        'X-Shopify-Access-Token': ctx.accessToken,
+        'Content-Type': 'application/json',
+      },
+    })
+    if (vRes.ok) {
+      const { variant } = (await vRes.json()) as {
+        variant?: {
+          inventory_quantity?: number
+          inventory_policy?: string
+          inventory_management?: string | null
+        }
+      }
+      if (
+        variant?.inventory_management &&
+        variant.inventory_policy === 'deny' &&
+        typeof variant.inventory_quantity === 'number' &&
+        variant.inventory_quantity < qty
+      ) {
+        return {
+          error: 'out_of_stock',
+          message: `No hay stock suficiente para ${OFFER_LABEL[offer]} ahora mismo (quedan ${variant.inventory_quantity}). Ofrecele anotarse en lista de espera o sugerí otra cantidad.`,
+        }
+      }
+    }
+  } catch {
+    /* fail-open */
+  }
+
   const storefront = await resolveStorefrontDomain(ctx)
   const paymentHint: PaymentHint = input.payment_hint ?? 'card_or_mp'
 
@@ -181,20 +219,25 @@ export async function createCheckoutLink(
 
   const total = OFFER_TOTAL_ARS[offer]
   const compare = OFFER_COMPARE_ARS[offer]
-  const transferTotal = total - 4900
+  // We don't pre-subtract the $4,900 transfer discount from the
+  // customer-facing total any more: Shopify's checkout will show the
+  // full total, and if we quote a number that's $4,900 lower the
+  // customer thinks the AI lied (or the bundle promo broke). Instead we
+  // show the same total Shopify will show and frame the $4,900 as a
+  // post-confirmation credit.
   const totalLabel =
     paymentHint === 'transfer'
-      ? `${fmtArs(transferTotal)} por transferencia (antes ${fmtArs(compare)})`
+      ? `${fmtArs(total)} (antes ${fmtArs(compare)}) — te devolvemos $4.900 al confirmar la transferencia`
       : `${fmtArs(total)} (antes ${fmtArs(compare)})`
 
   const paymentLabel =
     paymentHint === 'transfer'
-      ? 'Por transferencia te aplicamos $4.900 menos sobre el total.'
+      ? 'En el checkout vas a ver el total completo; cuando confirmes la transferencia te devolvemos $4.900.'
       : 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
 
   const nextStepForPili =
     paymentHint === 'transfer'
-      ? 'Mandale el link y explicale que el descuento de $4.900 por transferencia se lo aplica el equipo al confirmar el comprobante; el checkout de Shopify le va a mostrar el total sin ese descuento todavía.'
+      ? 'Mandale el link. El total en Shopify es el total completo; cuando confirme la transferencia el equipo le devuelve $4.900.'
       : 'Mandale el link y decile que en el checkout completa dirección y elige tarjeta o Mercado Pago. El descuento del bundle ya se aplica automático.'
 
   return {

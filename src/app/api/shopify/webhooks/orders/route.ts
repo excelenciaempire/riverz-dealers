@@ -9,6 +9,7 @@ import {
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -111,62 +112,39 @@ export async function POST(request: Request) {
       // 'fulfilled' (from null/partial). Anything else (status edits,
       // tag changes) is a silent state refresh.
       //
-      // Además snapshot del shipment_status del último fulfillment:
-      // cuando flipea a 'delivered' marcamos delivered_at. El cron de
-      // feedback post-entrega (3 días después) lee esa marca para
-      // disparar la automation "¿Cómo te fue con tu Sérum?".
-      let previousFulfillment: string | null = null
-      let previousShipment: string | null = null
-      let previousDeliveredAt: string | null = null
+      // Two near-simultaneous deliveries would otherwise both read
+      // previous=null and both dispatch. The RPC introduced in 056
+      // performs the read + upsert + diff inside a FOR UPDATE row lock,
+      // so exactly one delivery observes the null→fulfilled transition.
       if (orderId > 0) {
-        const { data: prior } = await admin
-          .from('shopify_order_fulfillment_state')
-          .select('fulfillment_status, shipment_status, delivered_at')
-          .eq('shop_domain', shopDomain)
-          .eq('order_id', orderId)
-          .maybeSingle()
-        const priorRow = prior as {
-          fulfillment_status: string | null
-          shipment_status: string | null
-          delivered_at: string | null
-        } | null
-        previousFulfillment = priorRow?.fulfillment_status ?? null
-        previousShipment = priorRow?.shipment_status ?? null
-        previousDeliveredAt = priorRow?.delivered_at ?? null
-
         const fulfillments = Array.isArray(order.fulfillments)
           ? (order.fulfillments as Record<string, unknown>[])
           : []
         const latest = fulfillments[fulfillments.length - 1]
         const shipmentStatus = (latest?.shipment_status as string | null) ?? null
-        const justDelivered =
-          shipmentStatus === 'delivered' && previousShipment !== 'delivered'
+        const justDelivered = shipmentStatus === 'delivered'
 
-        await admin
-          .from('shopify_order_fulfillment_state')
-          .upsert(
-            {
-              shop_domain: shopDomain,
-              order_id: orderId,
-              fulfillment_status: incomingFulfillment,
-              shipment_status: shipmentStatus,
-              // Solo seteamos delivered_at en el primer cruce a delivered.
-              // Si la columna ya tenía un timestamp viejo lo respetamos —
-              // no queremos reiniciar la cuenta de 3 días si llega otra
-              // update tardía.
-              delivered_at: justDelivered
-                ? new Date().toISOString()
-                : previousDeliveredAt,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'shop_domain,order_id' },
-          )
-      }
-      if (
-        incomingFulfillment === 'fulfilled' &&
-        previousFulfillment !== 'fulfilled'
-      ) {
-        triggerType = 'shopify_order_fulfilled'
+        const { data: transition } = await admin.rpc(
+          'shopify_record_fulfillment_transition',
+          {
+            p_shop_domain: shopDomain,
+            p_order_id: orderId,
+            p_fulfillment_status: incomingFulfillment,
+            p_shipment_status: shipmentStatus,
+            p_just_delivered: justDelivered,
+          },
+        )
+        const row = Array.isArray(transition)
+          ? (transition[0] as
+              | {
+                  transitioned_to_fulfilled?: boolean
+                  transitioned_to_delivered?: boolean
+                }
+              | undefined)
+          : null
+        if (row?.transitioned_to_fulfilled) {
+          triggerType = 'shopify_order_fulfilled'
+        }
       }
     }
 
@@ -229,9 +207,19 @@ function buildVarsForOrder(
       ? (order.fulfillments as Record<string, unknown>[])
       : []
     const latest = fulfillments[fulfillments.length - 1]
-    base.tracking_number = String(latest?.tracking_number ?? '')
-    base.tracking_url = String(latest?.tracking_url ?? '')
-    base.tracking_company = String(latest?.tracking_company ?? '')
+    const trackingUrl = String(latest?.tracking_url ?? '')
+    const trackingCompany = String(latest?.tracking_company ?? '')
+    const trackingNumber = String(latest?.tracking_number ?? '')
+    base.tracking_number = trackingNumber
+    base.tracking_company = trackingCompany
+    // Shopify only auto-fills tracking_url for carriers in its built-in
+    // list. For Andreani / Correo Argentino / OCA the URL is empty and
+    // the customer gets a naked number. Fall back to our resolver so
+    // existing {{tracking_url}} templates keep working unchanged.
+    base.tracking_url =
+      trackingUrl ||
+      resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
+      ''
   }
 
   return base

@@ -31,7 +31,10 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
 
-  const sevenDayStart = daysAgoStart(7).toISOString()
+  // daysAgoStart(N) returns midnight N days ago, so "last 7 days" is
+  // N-1 (6 prior days + today = 7 calendar days). Matches the
+  // loadConversationsSeries / lastNDayKeys convention used elsewhere.
+  const sevenDayStart = daysAgoStart(6).toISOString()
   const [
     openConvCur,
     newContactsToday,
@@ -51,26 +54,35 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
+    // "Resueltas hoy" — gate on closed_at (set by code only when status
+    // actually flips to closed) rather than updated_at, which the
+    // BEFORE UPDATE trigger bumps on every unrelated edit (last_message
+    // refresh, ai_summary, etc). Otherwise a conversation that closed
+    // last week and got an inbound today would be miscounted as
+    // resolved-today.
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'closed')
-      .gte('updated_at', todayStart),
+      .gte('closed_at', todayStart),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'closed')
-      .gte('updated_at', yesterdayStart)
-      .lt('updated_at', todayStart),
+      .gte('closed_at', yesterdayStart)
+      .lt('closed_at', todayStart),
+    // "Mensajes enviados hoy" — anything we sent counts: agent (human)
+    // + bot (AI / automations / flows / broadcasts). Matches the
+    // conversations-series chart's outgoing branch below (line 161).
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
+      .neq('sender_type', 'customer')
       .gte('created_at', todayStart),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
+      .neq('sender_type', 'customer')
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
     db

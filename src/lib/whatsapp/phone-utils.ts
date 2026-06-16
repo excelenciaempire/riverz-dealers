@@ -102,3 +102,33 @@ export function phoneVariants(sanitized: string): string[] {
 export function isRecipientNotAllowedError(message: string): boolean {
   return /131030|not in allowed list|not in the allowed list/i.test(message)
 }
+
+/**
+ * Classify a Meta WhatsApp send error so the broadcast cron can stop
+ * retrying dead numbers and stop burning quality rating.
+ *
+ *   transient            — try again next time (rate-limited / timeout).
+ *   invalid_recipient    — number isn't on WhatsApp (131026 / 131047).
+ *   spam_blocked         — quality block (131048 / 131056); treat as
+ *                          permanent for this contact to protect the
+ *                          WABA's quality rating.
+ *   sandbox_not_allowed  — sandbox allow-list (131030) — already handled
+ *                          by isRecipientNotAllowedError; kept here for
+ *                          completeness.
+ *   other                — unclassified; left as failed without flag.
+ */
+export type MetaErrorClass =
+  | 'transient'
+  | 'invalid_recipient'
+  | 'spam_blocked'
+  | 'sandbox_not_allowed'
+  | 'other'
+
+export function classifyMetaError(message: string): MetaErrorClass {
+  if (!message) return 'other'
+  if (/131030|not in (the )?allowed list/i.test(message)) return 'sandbox_not_allowed'
+  if (/131026|131047|incapable of receiving/i.test(message)) return 'invalid_recipient'
+  if (/131048|131056|spam rate|paired/i.test(message)) return 'spam_blocked'
+  if (/131000|131005|rate limit|timeout|temporar/i.test(message)) return 'transient'
+  return 'other'
+}

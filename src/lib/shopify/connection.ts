@@ -59,7 +59,15 @@ export async function persistShopifyConnection(
   return { id: data.id as string }
 }
 
-/** Look up the active connection for a shop domain (webhook path). */
+/** Look up the active connection for a shop domain (webhook path).
+ *
+ * When a merchant re-installs while signed in as a different user
+ * (co-worker, ownership transfer, support seat) the upsert key
+ * (user_id, shop_domain) diverges and we INSERT a second active row.
+ * `.maybeSingle()` would then throw, silently breaking every order /
+ * checkout / customer webhook. Order by `installed_at DESC` + limit 1
+ * so the newest install always wins — matches `getConnectionForWorkspace`.
+ */
 export async function getConnectionByShop(
   db: SupabaseClient,
   shopDomain: string,
@@ -69,6 +77,8 @@ export async function getConnectionByShop(
     .select('*')
     .eq('shop_domain', shopDomain)
     .eq('status', 'active')
+    .order('installed_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
   if (!data) return null
   return {

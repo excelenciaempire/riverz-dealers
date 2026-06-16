@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
 import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +38,13 @@ interface Step4Props {
   onScheduledAtChange: (value: string) => void;
   createConversations: boolean;
   onCreateConversationsChange: (value: boolean) => void;
+  /**
+   * Audience size as computed by Step2 (single source of truth — Step2
+   * already filters opted_out, invalid phones, workspace, excludes,
+   * custom_field, and segment audiences). Step4's old local
+   * `calculateReach` diverged on every one of those.
+   */
+  estimatedCount: number | null;
 }
 
 export function Step4ScheduleSend({
@@ -55,43 +61,12 @@ export function Step4ScheduleSend({
   onScheduledAtChange,
   createConversations,
   onCreateConversationsChange,
+  estimatedCount,
 }: Step4Props) {
   const isScheduled = scheduledAt.trim().length > 0;
   const [showConfirm, setShowConfirm] = useState(false);
-  const [estimatedReach, setEstimatedReach] = useState<number>(0);
-  const [loadingReach, setLoadingReach] = useState(true);
-
-  useEffect(() => {
-    async function calculateReach() {
-      setLoadingReach(true);
-      try {
-        const supabase = createClient();
-
-        if (audience.type === 'all') {
-          const { count } = await supabase
-            .from('contacts')
-            .select('*', { count: 'exact', head: true });
-          setEstimatedReach(count ?? 0);
-        } else if (audience.type === 'tags' && audience.tagIds && audience.tagIds.length > 0) {
-          const { data: contactTags } = await supabase
-            .from('contact_tags')
-            .select('contact_id')
-            .in('tag_id', audience.tagIds);
-
-          const uniqueIds = new Set((contactTags ?? []).map((ct) => ct.contact_id));
-          setEstimatedReach(uniqueIds.size);
-        } else if (audience.type === 'csv' && audience.csvContacts) {
-          setEstimatedReach(audience.csvContacts.length);
-        } else {
-          setEstimatedReach(0);
-        }
-      } finally {
-        setLoadingReach(false);
-      }
-    }
-
-    calculateReach();
-  }, [audience]);
+  const loadingReach = estimatedCount === null;
+  const estimatedReach = estimatedCount ?? 0;
 
   const audienceLabel =
     audience.type === 'all'

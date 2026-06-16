@@ -520,9 +520,14 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
     case 'close_conversation': {
       if (!args.contactId) throw new Error('close_conversation needs a contact')
+      // closed_at is the canonical "resolved at" timestamp the
+      // dashboard reads — bumping it inline so "Resueltas hoy" stays
+      // accurate without depending on the updated_at trigger (which
+      // also fires on unrelated edits).
+      const now = new Date().toISOString()
       await db
         .from('conversations')
-        .update({ status: 'closed', updated_at: new Date().toISOString() })
+        .update({ status: 'closed', closed_at: now, updated_at: now })
         .eq('workspace_id', args.automation.workspace_id)
         .eq('contact_id', args.contactId)
       return 'conversation closed'

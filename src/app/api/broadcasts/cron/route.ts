@@ -7,10 +7,11 @@ import {
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
+  classifyMetaError,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { assertCronAuth } from '@/lib/auth/cron'
-import { isOptedOut } from '@/lib/whatsapp/opt-out'
+import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
 
 /**
@@ -272,10 +273,31 @@ async function sendOneBroadcast(
         }
       } else {
         failed++
+        const klass = classifyMetaError(lastError ?? '')
         await admin
           .from('broadcast_recipients')
           .update({ status: 'failed', error_message: lastError ?? 'Unknown error' })
           .eq('id', recipient.id)
+
+        // Self-heal: flag contacts that Meta says are permanently
+        // unreachable so we don't burn quality rating retrying them on
+        // the next campaign. Uses the existing opted_out column +
+        // reason so the inbox UI can distinguish user-initiated STOP
+        // from Meta-driven flags.
+        if (
+          (klass === 'invalid_recipient' || klass === 'spam_blocked') &&
+          contactId &&
+          workspaceId
+        ) {
+          await markOptedOut(
+            admin,
+            workspaceId,
+            contactId,
+            klass === 'invalid_recipient'
+              ? 'meta_invalid_recipient'
+              : 'meta_spam_blocked',
+          )
+        }
       }
     }
     if (i + SEND_BATCH_SIZE < recipients.length) await sleep(SEND_BATCH_DELAY_MS)

@@ -79,11 +79,17 @@ export async function GET(request: Request) {
     // Reclamamos el row primero: el siguiente tick no vuelve a tocarlo
     // aunque el dispatch falle. Si dejáramos el flag para después del
     // dispatch, un crash entre dispatch y update mandaría dos recovery.
+    // Also require completed_at to still be null at claim time. The
+    // orders/create webhook (or checkouts/update) may have completed
+    // the cart in the window between the SELECT and this UPDATE — if
+    // we don't re-check we'd send "vi que dejaste tu carrito" to a
+    // customer who already paid minutes ago.
     const { data: claim } = await admin
       .from('shopify_checkouts')
       .update({ recovery_dispatched_at: new Date().toISOString() })
       .eq('id', r.id)
       .is('recovery_dispatched_at', null)
+      .is('completed_at', null)
       .select('id')
       .maybeSingle()
     if (!claim) continue

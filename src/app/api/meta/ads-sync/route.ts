@@ -16,7 +16,13 @@ import type { ChannelConnection } from "@/types";
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const expected = process.env.ADS_SYNC_SECRET;
-  if (expected && url.searchParams.get("secret") !== expected) {
+  // Fail-closed when the secret is unset (e.g. forgotten in a Render
+  // env reload). Without this, anonymous callers could DOS the route
+  // and burn Meta Graph quota.
+  if (!expected) {
+    return NextResponse.json({ error: "Cron not configured" }, { status: 503 });
+  }
+  if (url.searchParams.get("secret") !== expected) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

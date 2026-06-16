@@ -145,6 +145,7 @@ export async function POST(request: Request) {
         .from('contacts')
         .select('id, name, phone, is_shopify_customer')
         .eq('workspace_id', workspaceId)
+        .eq('opted_out', false)
         .order('updated_at', { ascending: false })
         .limit(limit + exSet.size);
       const filtered = (rows ?? [])
@@ -161,6 +162,7 @@ export async function POST(request: Request) {
       .from('contacts')
       .select('id, name, phone, is_shopify_customer')
       .eq('workspace_id', workspaceId)
+      .eq('opted_out', false)
       .order('updated_at', { ascending: false })
       .limit(limit);
     return NextResponse.json({
@@ -174,12 +176,14 @@ export async function POST(request: Request) {
 
   // Sacamos los primeros N de los candidatos resueltos, scopeando
   // por workspace_id para no filtrar contactos que el caller pueda
-  // ver en otro workspace si está en varios.
+  // ver en otro workspace si está en varios. opted_out=false matches
+  // the cron's pre-send filter so the preview reflects reality.
   const subset = candidateIds.slice(0, limit);
   const { data: rows } = await supabase
     .from('contacts')
     .select('id, name, phone, is_shopify_customer')
     .eq('workspace_id', workspaceId)
+    .eq('opted_out', false)
     .in('id', subset);
 
   return NextResponse.json({

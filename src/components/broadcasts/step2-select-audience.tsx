@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useWorkspace } from '@/hooks/use-workspace';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +39,10 @@ interface Step2Props {
   onUpdate: (audience: AudienceConfig) => void;
   onNext: () => void;
   onBack: () => void;
+  /** Lifted estimated count — parent passes the same value to Step4
+   *  so the confirmation dialog matches what cron will actually send.
+   *  Optional for back-compat with older callers. */
+  onEstimatedCountChange?: (n: number | null) => void;
 }
 
 const audienceOptions: {
@@ -83,13 +88,22 @@ export function Step2SelectAudience({
   onUpdate,
   onNext,
   onBack,
+  onEstimatedCountChange,
 }: Step2Props) {
+  const { workspace } = useWorkspace();
+  const workspaceId = workspace?.id ?? null;
   const [tags, setTags] = useState<Tag[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingFields, setLoadingFields] = useState(false);
   const [estimatedCount, setEstimatedCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(false);
+
+  // Forward the count to the parent so Step4 doesn't recompute it
+  // (and accidentally diverge on excludes / custom_field / segment).
+  useEffect(() => {
+    onEstimatedCountChange?.(estimatedCount);
+  }, [estimatedCount, onEstimatedCountChange]);
 
   // Tags are used both by the primary "Filter by Tags" audience type
   // AND by the exclude-list below — so always load once on mount.
@@ -127,11 +141,20 @@ export function Step2SelectAudience({
   }, [audience.type]);
 
   const fetchEstimatedCount = useCallback(async () => {
+    if (!workspaceId) {
+      setEstimatedCount(null);
+      return;
+    }
     setLoadingCount(true);
     try {
       const supabase = createClient();
 
       // Base query — produces the superset before exclude is applied.
+      // Every contacts-backed branch inner-joins contacts and filters
+      // workspace_id + opted_out=false + phone NOT NULL so the count
+      // matches the filters cron route.ts applies before sending. The
+      // previous version overcounted by including opted-out contacts,
+      // invalid phones, and rows from other workspaces.
       let baseIds: Set<string> | null = null; // null means "all contacts"
 
       if (audience.type === 'all') {
@@ -143,9 +166,14 @@ export function Step2SelectAudience({
       ) {
         const { data } = await supabase
           .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', audience.tagIds);
-        baseIds = new Set((data ?? []).map((r) => r.contact_id));
+          .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
+          .in('tag_id', audience.tagIds)
+          .eq('contacts.workspace_id', workspaceId)
+          .eq('contacts.opted_out', false)
+          .not('contacts.phone', 'is', null);
+        baseIds = new Set(
+          (data ?? []).map((r) => (r as { contact_id: string }).contact_id),
+        );
       } else if (
         audience.type === 'custom_field' &&
         audience.customField?.fieldId &&
@@ -154,13 +182,18 @@ export function Step2SelectAudience({
         const { fieldId, operator, value } = audience.customField;
         let q = supabase
           .from('contact_custom_values')
-          .select('contact_id')
-          .eq('custom_field_id', fieldId);
+          .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
+          .eq('custom_field_id', fieldId)
+          .eq('contacts.workspace_id', workspaceId)
+          .eq('contacts.opted_out', false)
+          .not('contacts.phone', 'is', null);
         if (operator === 'is') q = q.eq('value', value);
         else if (operator === 'is_not') q = q.neq('value', value);
         else q = q.ilike('value', `%${value}%`);
         const { data } = await q;
-        baseIds = new Set((data ?? []).map((r) => r.contact_id));
+        baseIds = new Set(
+          (data ?? []).map((r) => (r as { contact_id: string }).contact_id),
+        );
       } else if (
         audience.type === 'csv' &&
         audience.csvContacts &&
@@ -193,7 +226,10 @@ export function Step2SelectAudience({
         // "All" — fetch the total, then subtract exclude set if any.
         const { count } = await supabase
           .from('contacts')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'exact', head: true })
+          .eq('workspace_id', workspaceId)
+          .eq('opted_out', false)
+          .not('phone', 'is', null);
         const total = count ?? 0;
         setEstimatedCount(excludeSet ? Math.max(0, total - excludeSet.size) : total);
       }
@@ -206,6 +242,7 @@ export function Step2SelectAudience({
     audience.customField,
     audience.csvContacts,
     audience.excludeTagIds,
+    workspaceId,
   ]);
 
   useEffect(() => {

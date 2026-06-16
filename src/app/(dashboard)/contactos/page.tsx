@@ -45,6 +45,7 @@ import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { SegmentsPanel } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
+import { useWorkspace } from '@/hooks/use-workspace';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
@@ -55,6 +56,8 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const supabase = createClient();
+  const { workspace } = useWorkspace();
+  const workspaceId = workspace?.id ?? null;
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +97,10 @@ export default function ContactsPage() {
   }, [supabase]);
 
   const fetchContacts = useCallback(async () => {
+    // Wait for the workspace to resolve — otherwise without an
+    // explicit workspace_id filter, RLS would still surface contacts
+    // from every workspace the user belongs to.
+    if (!workspaceId) return;
     setLoading(true);
 
     const from = page * PAGE_SIZE;
@@ -119,6 +126,7 @@ export default function ContactsPage() {
     let query = supabase
       .from('contacts')
       .select('*', { count: 'exact' })
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -169,7 +177,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap, selectedTagIds]);
+  }, [supabase, page, search, tagsMap, selectedTagIds, workspaceId]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
