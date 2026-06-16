@@ -7,6 +7,7 @@ import {
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * customers/update receiver. Keeps the WhatsApp contact's name/email/phone
@@ -33,13 +34,27 @@ export async function POST(request: Request) {
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
+    // Pre-055 this route passed conn.row.user_id as workspaceId, which
+    // misrouted upserts to a row keyed on the user UUID instead of the
+    // workspace UUID. With workspace_id NOT NULL we use it directly.
+    const workspaceId =
+      conn.row.workspace_id ||
+      (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
+    if (!workspaceId) {
+      console.warn(
+        '[shopify] customers webhook: no workspace for connection',
+        conn.row.id,
+      )
+      return NextResponse.json({ ok: true, skipped: 'no_workspace' })
+    }
+
     const customer = JSON.parse(rawBody) as Record<string, unknown>
     const phone = extractShopifyPhone({ customer })
     if (!phone) return NextResponse.json({ ok: true, skipped: 'no_phone' })
     const name = extractShopifyName({ customer })
 
     await upsertWhatsappContact(admin, {
-      workspaceId: conn.row.user_id,
+      workspaceId,
       phone,
       name,
       email: (customer.email as string) || undefined,

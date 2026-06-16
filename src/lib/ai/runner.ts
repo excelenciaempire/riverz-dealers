@@ -934,10 +934,11 @@ async function generateReply(
  * contacto pre-cargado para que la tool `lookup_order` los use sin
  * necesidad de pedírselos al cliente.
  *
- * Antes priorizábamos owner_id, pero en workspaces multi-miembro la
- * conexión Shopify suele estar instalada por un miembro que no es el
- * owner. Ahora buscamos CUALQUIER conexión activa cuyo user_id esté en
- * workspace_members del workspace, tomando la más reciente.
+ * Post-055 buscamos la conexión activa por workspace_id directo — una
+ * sola query, sin owner_id / workspace_members. Mantenemos un fallback
+ * por workspace_members por si quedó alguna fila pre-migración con
+ * workspace_id NULL en una réplica que todavía no haya recibido el
+ * deploy.
  *
  * Devuelve null si no hay ninguna conexión activa para el workspace.
  */
@@ -948,25 +949,17 @@ async function resolveShopifyContext(
   productMatch: ProductMatch | null,
 ): Promise<ShopifyToolContext | null> {
   if (!workspaceId) return null;
-  // Owner-first resolution: a multi-workspace user might have a
-  // Shopify connection in workspace A; without this we could pick it
-  // up while serving workspace B's AI agent.
-  const { data: workspace } = await db
-    .from('workspaces')
-    .select('owner_id')
-    .eq('id', workspaceId)
-    .maybeSingle();
-  const ownerId = (workspace as { owner_id?: string } | null)?.owner_id ?? null;
 
   let row:
     | { shop_domain: string; access_token: string; status: string }
     | null = null;
 
-  if (ownerId) {
+  // Primary path: shopify_connections.workspace_id (migration 055).
+  {
     const { data } = await db
       .from('shopify_connections')
       .select('shop_domain, access_token, status')
-      .eq('user_id', ownerId)
+      .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .order('installed_at', { ascending: false })
       .limit(1)
@@ -977,7 +970,9 @@ async function resolveShopifyContext(
   }
 
   if (!row) {
-    // Legacy fallback when the owner never connected directly.
+    // Belt-and-suspenders fallback: workspace_members → user_id. Only
+    // ever matches pre-055 connections that lost their backfill (none
+    // expected after migration ran cleanly, but cheap to keep).
     const { data: members } = await db
       .from('workspace_members')
       .select('user_id')

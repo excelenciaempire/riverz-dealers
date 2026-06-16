@@ -96,9 +96,11 @@ export async function GET(request: Request) {
     const conn = await getConnectionByShop(admin, r.shop_domain)
     if (!conn) continue
 
-    // shopify_connections.user_id is the OWNER, not the workspace id —
-    // resolve via workspaces.owner_id so automations match.
-    const workspaceId = await resolveWorkspaceIdForUser(admin, conn.row.user_id)
+    // Migration 055: workspace_id lives on the connection row. owner_id
+    // fallback retained for pre-055 rows that might still exist mid-deploy.
+    const workspaceId =
+      conn.row.workspace_id ||
+      (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
     if (!workspaceId) continue
 
     // Vinculamos el feedback al contact que recibió shopify_order_fulfilled

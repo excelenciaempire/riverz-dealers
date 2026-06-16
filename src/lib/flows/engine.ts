@@ -1198,6 +1198,7 @@ async function advanceFromNodeKey(
           (cfg.kind === "product_by_handle" ? "product" : "order");
         const result = await runShopifyLookup({
           userId: ownerUserId,
+          workspaceId: run.workspace_id,
           contactId: run.contact_id!,
           kind: cfg.kind,
           input,

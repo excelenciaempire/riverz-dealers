@@ -51,10 +51,9 @@ export function useSetupStatus(): SetupStatus {
           setStatus((s) => ({ ...s, loading: false }));
         return;
       }
-      // channel_connections y ai_agents son workspace-scoped (un user
-      // puede pertenecer a varios workspaces); shopify_connections es
-      // user-scoped por legado del primer release. Resolvemos los
-      // workspace_ids del user primero y filtramos por ahí.
+      // channel_connections, ai_agents y (post-055) shopify_connections
+      // son todos workspace-scoped. Resolvemos los workspace_ids del user
+      // primero y filtramos por ahí.
       const { data: memberships } = await supabase
         .from('workspace_members')
         .select('workspace_id')
@@ -87,7 +86,7 @@ export function useSetupStatus(): SetupStatus {
           supabase
             .from('shopify_connections')
             .select('id')
-            .eq('user_id', user.id)
+            .in('workspace_id', workspaceIds)
             .eq('status', 'active')
             .limit(1),
           supabase

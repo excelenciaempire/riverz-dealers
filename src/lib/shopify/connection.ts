@@ -4,6 +4,7 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 export interface ShopifyConnectionRow {
   id: string
   user_id: string
+  workspace_id: string
   shop_domain: string
   shop_name: string | null
   access_token: string
@@ -13,11 +14,19 @@ export interface ShopifyConnectionRow {
   uninstalled_at: string | null
 }
 
-/** Upsert a connection by (user_id, shop_domain), encrypting the token. */
+/**
+ * Upsert a connection by (workspace_id, shop_domain), encrypting the token.
+ *
+ * `workspace_id` is the authoritative scope after migration 055 — the
+ * OAuth callback resolves it from the installer's session/cookie and
+ * passes it in. `user_id` is still persisted as "who installed it" for
+ * audit purposes, but is no longer the lookup key.
+ */
 export async function persistShopifyConnection(
   db: SupabaseClient,
   args: {
     userId: string
+    workspaceId: string
     shopDomain: string
     shopName?: string | null
     accessToken: string
@@ -29,6 +38,7 @@ export async function persistShopifyConnection(
     .upsert(
       {
         user_id: args.userId,
+        workspace_id: args.workspaceId,
         shop_domain: args.shopDomain,
         shop_name: args.shopName ?? null,
         access_token: encrypt(args.accessToken),
@@ -67,7 +77,35 @@ export async function getConnectionByShop(
   }
 }
 
-/** The current user's connection, for the Settings card (no token returned). */
+/**
+ * The active connection for a workspace (Settings card path).
+ *
+ * Prefers a deterministic workspace_id match (migration 055). Falls back
+ * to the legacy user_id-scoped read for callers that haven't been
+ * migrated yet — but new code should pass workspaceId.
+ */
+export async function getConnectionForWorkspace(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<Omit<ShopifyConnectionRow, 'access_token'> | null> {
+  const { data } = await db
+    .from('shopify_connections')
+    .select(
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at',
+    )
+    .eq('workspace_id', workspaceId)
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return (data as Omit<ShopifyConnectionRow, 'access_token'> | null) ?? null
+}
+
+/**
+ * @deprecated since migration 055 — prefer `getConnectionForWorkspace`.
+ * Kept for back-compat with UI hooks that still read by the
+ * authenticated user_id. Internally tries the workspace path first when
+ * the caller has a workspace handy.
+ */
 export async function getConnectionForUser(
   db: SupabaseClient,
   userId: string,
@@ -75,7 +113,7 @@ export async function getConnectionForUser(
   const { data } = await db
     .from('shopify_connections')
     .select(
-      'id, user_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at',
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at',
     )
     .eq('user_id', userId)
     .order('installed_at', { ascending: false })

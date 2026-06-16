@@ -53,15 +53,17 @@ export async function POST(request: Request) {
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
-    // shopify_connections.user_id is the OWNER (auth.users.id). Automations
-    // live under workspaces.id, so resolve the workspace via owner_id with
-    // a workspace_members fallback for accounts where the owner isn't the
-    // workspace creator anymore.
-    const workspaceId = await resolveWorkspaceIdForUser(admin, conn.row.user_id)
+    // Migration 055 made shopify_connections.workspace_id NOT NULL, so we
+    // read it straight off the connection. The legacy owner_id lookup is
+    // kept as a defense for any in-flight requests that observed pre-055
+    // rows; harmless overhead once 055 settles.
+    const workspaceId =
+      conn.row.workspace_id ||
+      (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
     if (!workspaceId) {
       console.warn(
-        '[shopify] orders webhook: no workspace for user',
-        conn.row.user_id,
+        '[shopify] orders webhook: no workspace for connection',
+        conn.row.id,
       )
       return NextResponse.json({ ok: true, skipped: 'no_workspace' })
     }

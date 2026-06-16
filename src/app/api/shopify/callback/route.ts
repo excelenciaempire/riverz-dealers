@@ -9,6 +9,7 @@ import {
 import { persistShopifyConnection } from '@/lib/shopify/connection'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
 import { syncShopifyProducts } from '@/lib/shopify/product-sync'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.callback')
@@ -147,6 +148,7 @@ export async function GET(request: Request) {
   const expectedState = jar.get('shopify_oauth_state')?.value
   const expectedShop = jar.get('shopify_oauth_shop')?.value
   const cookieUserId = jar.get('shopify_oauth_user')?.value
+  const cookieWorkspaceId = jar.get('shopify_oauth_workspace')?.value
 
   const state = params.get('state') ?? ''
   const shop = normalizeShopDomain(params.get('shop') || '')
@@ -213,6 +215,24 @@ export async function GET(request: Request) {
     })
   }
 
+  // 4b. Resolve the workspace this connection lives in. Prefer the
+  //     cookie value set by /install (deterministic, captured before
+  //     consent so it can't drift). Fall back to the legacy owner_id
+  //     resolution for Shopify-initiated installs where no cookie was
+  //     issued. Migration 055 requires this to be non-null.
+  const admin = supabaseAdmin()
+  const workspaceId =
+    cookieWorkspaceId ||
+    (await resolveWorkspaceIdForUser(admin, userId))
+  if (!workspaceId) {
+    log.error('no_workspace_resolved', { shop, userId })
+    return bounce(request, {
+      shopify: 'error',
+      reason: 'no_workspace',
+      shop,
+    })
+  }
+
   try {
     // 5. Exchange code → token.
     const { access_token, scope } = await exchangeCodeForToken({
@@ -234,9 +254,9 @@ export async function GET(request: Request) {
       })
     }
 
-    const admin = supabaseAdmin()
     await persistShopifyConnection(admin, {
       userId,
+      workspaceId,
       shopDomain: shop,
       shopName,
       accessToken: access_token,
@@ -281,6 +301,7 @@ export async function GET(request: Request) {
     const res = bounce(request, { shopify: 'connected', shop })
     res.cookies.delete('shopify_oauth_state')
     res.cookies.delete('shopify_oauth_user')
+    res.cookies.delete('shopify_oauth_workspace')
     res.cookies.delete('shopify_oauth_shop')
     return res
   } catch (err) {

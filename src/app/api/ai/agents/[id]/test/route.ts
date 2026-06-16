@@ -156,11 +156,9 @@ function safeDecrypt(value: string): string | null {
 /**
  * Levanta el contexto Shopify del workspace del agente.
  *
- * Antes priorizábamos owner_id, pero en workspaces multi-miembro la
- * conexión Shopify suele estar instalada por un miembro que no es el
- * owner. Ahora buscamos CUALQUIER conexión activa cuyo user_id esté en
- * workspace_members del workspace, tomando la más reciente. Esto refleja
- * lo que hace el runner en prod.
+ * Post-055 leemos shopify_connections por workspace_id directo. Si no
+ * hay match, caemos al lookup vía workspace_members como red de
+ * seguridad para filas pre-migración.
  *
  * Devuelve null si no hay conexión activa — el caller usa eso para
  * decidir si exponer la tool o no.
@@ -170,24 +168,41 @@ async function resolveShopifyContextForWorkspace(
   workspaceId: string,
   simulatedPhone: string | undefined,
 ): Promise<ShopifyToolContext | null> {
-  const { data: members } = await admin
-    .from('workspace_members')
-    .select('user_id')
-    .eq('workspace_id', workspaceId);
-  const memberIds = ((members as { user_id: string }[] | null) ?? [])
-    .map((m) => m.user_id)
-    .filter(Boolean);
-  if (memberIds.length === 0) return null;
+  // Primary: shopify_connections.workspace_id.
+  let conn: { shop_domain: string; access_token: string } | null = null;
+  {
+    const { data: row } = await admin
+      .from('shopify_connections')
+      .select('shop_domain, access_token')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    conn = row as { shop_domain: string; access_token: string } | null;
+  }
 
-  const { data: row } = await admin
-    .from('shopify_connections')
-    .select('shop_domain, access_token')
-    .in('user_id', memberIds)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const conn = row as { shop_domain: string; access_token: string } | null;
+  if (!conn) {
+    const { data: members } = await admin
+      .from('workspace_members')
+      .select('user_id')
+      .eq('workspace_id', workspaceId);
+    const memberIds = ((members as { user_id: string }[] | null) ?? [])
+      .map((m) => m.user_id)
+      .filter(Boolean);
+    if (memberIds.length === 0) return null;
+
+    const { data: row } = await admin
+      .from('shopify_connections')
+      .select('shop_domain, access_token')
+      .in('user_id', memberIds)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    conn = row as { shop_domain: string; access_token: string } | null;
+  }
+
   if (!conn?.access_token) return null;
   let accessToken: string;
   try {

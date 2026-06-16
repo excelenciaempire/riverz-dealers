@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { getConnectionForUser } from '@/lib/shopify/connection';
+import {
+  getConnectionForUser,
+  getConnectionForWorkspace,
+} from '@/lib/shopify/connection';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 
@@ -10,6 +14,12 @@ import { syncShopifyProducts } from '@/lib/shopify/product-sync';
  * Manually re-pull the product catalog from Shopify. The first sync
  * runs at OAuth-callback time; this endpoint lets users refresh when
  * they add or rename products without disconnecting/reconnecting.
+ *
+ * Connection lookup is workspace-scoped (migration 055) so a workspace
+ * member who didn't personally install can still refresh. The downstream
+ * `syncShopifyProducts` is still keyed by the *installer's* user_id
+ * because shopify_products.user_id has not been migrated yet — we read
+ * it off the connection.
  */
 export async function POST(req: Request) {
   const block = await csrfGuard(req);
@@ -21,7 +31,10 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = supabaseAdmin();
-  const conn = await getConnectionForUser(admin, user.id);
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  const conn = workspaceId
+    ? await getConnectionForWorkspace(admin, workspaceId)
+    : await getConnectionForUser(admin, user.id);
   if (!conn) {
     return NextResponse.json(
       { error: 'No hay tienda Shopify conectada.' },
@@ -29,7 +42,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Look up the encrypted token directly — getConnectionForUser strips it.
+  // Look up the encrypted token directly — getConnectionFor* strips it.
   const { data: row } = await admin
     .from('shopify_connections')
     .select('access_token')
@@ -39,7 +52,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await syncShopifyProducts(admin, {
-      userId: user.id,
+      userId: conn.user_id,
       shopDomain: conn.shop_domain,
       accessToken: decrypt((row as { access_token: string }).access_token),
     });

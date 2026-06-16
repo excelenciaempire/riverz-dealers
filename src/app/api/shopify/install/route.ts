@@ -6,11 +6,16 @@ import {
   buildAuthorizeUrl,
   shopifyScopes,
 } from '@/lib/shopify/oauth'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Kick off Shopify OAuth. Requires a logged-in user; stores the user id +
- * shop + CSRF state in short-lived httpOnly cookies, then redirects the
- * browser to Shopify's consent screen.
+ * resolved workspace id + shop + CSRF state in short-lived httpOnly
+ * cookies, then redirects the browser to Shopify's consent screen.
+ *
+ * The workspace_id cookie is what binds the resulting connection to a
+ * tenant after migration 055 — the callback no longer infers workspace
+ * from owner_id, it reads this cookie.
  */
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -38,6 +43,17 @@ export async function GET(request: Request) {
     )
   }
 
+  // Resolve workspace at install time so the callback can persist it
+  // verbatim — no second round-trip, no race if the user gains/loses a
+  // workspace mid-flow.
+  const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+  if (!workspaceId) {
+    return NextResponse.json(
+      { error: 'No se encontró un workspace para tu usuario.' },
+      { status: 400 },
+    )
+  }
+
   const redirectUri =
     process.env.SHOPIFY_OAUTH_REDIRECT_URI ||
     `${process.env.NEXT_PUBLIC_SITE_URL}/api/shopify/callback`
@@ -61,6 +77,7 @@ export async function GET(request: Request) {
   }
   res.cookies.set('shopify_oauth_state', state, cookieOpts)
   res.cookies.set('shopify_oauth_user', user.id, cookieOpts)
+  res.cookies.set('shopify_oauth_workspace', workspaceId, cookieOpts)
   res.cookies.set('shopify_oauth_shop', shop, cookieOpts)
   return res
 }

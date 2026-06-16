@@ -79,17 +79,27 @@ export async function GET(request: Request) {
   });
 
   // El UI necesita saber si Shopify está conectado para mostrar el
-  // empty state correcto / deshabilitar Sincronizar. Lookup barato
-  // contra shopify_connections (user-scoped); channel_connections es
-  // workspace-scoped y su CHECK no admite 'shopify'.
+  // empty state correcto / deshabilitar Sincronizar. Post-055 leemos
+  // por workspace_id (a través del workspace member); el legacy
+  // .eq('user_id', user.id) fallaba para miembros que no son quien
+  // instaló.
   const admin = supabaseAdmin();
-  const { data: shop } = await admin
-    .from('shopify_connections')
-    .select('id, shop_domain, status')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .limit(1)
-    .maybeSingle();
+  const { data: memberships } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id);
+  const workspaceIds = ((memberships ?? []) as { workspace_id: string }[]).map(
+    (m) => m.workspace_id,
+  );
+  const { data: shop } = workspaceIds.length
+    ? await admin
+        .from('shopify_connections')
+        .select('id, shop_domain, status')
+        .in('workspace_id', workspaceIds)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   const shopify_connected = !!shop;
 

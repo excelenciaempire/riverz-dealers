@@ -74,12 +74,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ days, by_broadcast: [], by_flow: [] });
   }
 
-  // 1) Shopify connection.
+  // 1) Shopify connection — scoped to the resolved workspace (migration
+  //    055). We previously read by user_id which conflated tenants when
+  //    a user owned multiple workspaces.
   const { data: connRow } = await admin
     .from('shopify_connections')
     .select('shop_domain, access_token, status')
-    .eq('user_id', user.id)
-    .eq('status', 'connected')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
     .maybeSingle();

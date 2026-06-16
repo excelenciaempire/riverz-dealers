@@ -50,15 +50,16 @@ export async function POST(request: Request) {
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
-    // shopify_connections.user_id is the OWNER auth.users.id, not the
-    // workspace id. We persist the resolved workspaces.id into
-    // shopify_checkouts so the cart-recovery cron reads a value that
-    // actually matches automations.workspace_id.
-    const workspaceId = await resolveWorkspaceIdForUser(admin, conn.row.user_id)
+    // Migration 055 made shopify_connections.workspace_id NOT NULL — read
+    // it straight off the connection. The owner_id fallback stays as a
+    // safety net for any pre-055 rows still in flight.
+    const workspaceId =
+      conn.row.workspace_id ||
+      (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
     if (!workspaceId) {
       console.warn(
-        '[shopify] checkouts webhook: no workspace for user',
-        conn.row.user_id,
+        '[shopify] checkouts webhook: no workspace for connection',
+        conn.row.id,
       )
       return NextResponse.json({ ok: true, skipped: 'no_workspace' })
     }

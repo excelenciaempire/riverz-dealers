@@ -18,24 +18,41 @@ import type { ShopifyLookupKind } from './types'
  */
 export async function runShopifyLookup(args: {
   userId: string
+  workspaceId?: string | null
   contactId: string
   kind: ShopifyLookupKind
   input: string
 }): Promise<{ found: boolean; vars?: Record<string, string> }> {
   const db = supabaseAdmin()
 
-  // Resolve the connected store + decrypted token.
-  const { data: conn } = await db
-    .from('shopify_connections')
-    .select('shop_domain, access_token')
-    .eq('user_id', args.userId)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Resolve the connected store + decrypted token. Prefer workspace_id
+  // (migration 055); fall back to the legacy user_id lookup for callers
+  // that haven't been updated yet.
+  let conn: { shop_domain: string; access_token: string } | null = null
+  if (args.workspaceId) {
+    const { data } = await db
+      .from('shopify_connections')
+      .select('shop_domain, access_token')
+      .eq('workspace_id', args.workspaceId)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    conn = data as { shop_domain: string; access_token: string } | null
+  }
+  if (!conn) {
+    const { data } = await db
+      .from('shopify_connections')
+      .select('shop_domain, access_token')
+      .eq('user_id', args.userId)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    conn = data as { shop_domain: string; access_token: string } | null
+  }
   if (!conn) return { found: false }
-  const row = conn as { shop_domain: string; access_token: string }
-  const client = new ShopifyAdminClient(row.shop_domain, decrypt(row.access_token))
+  const client = new ShopifyAdminClient(conn.shop_domain, decrypt(conn.access_token))
 
   // Pull the contact's email/phone for kinds that resolve by contact.
   const { data: contact } = await db

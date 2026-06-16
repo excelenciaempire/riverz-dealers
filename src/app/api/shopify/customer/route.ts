@@ -85,15 +85,30 @@ export async function GET(request: Request) {
   }
 
   // Cargar la conexión Shopify del workspace (la primera activa).
+  // Resolvemos workspace por owner_id/membership y leemos por
+  // workspace_id post-055; el legacy `.eq('user_id', user.id)` rompía en
+  // workspaces compartidos donde el panel lo abre un miembro que no es
+  // dueño de la conexión.
   const admin = supabaseAdmin();
-  const { data: row } = await admin
-    .from('shopify_connections')
-    .select('shop_domain, access_token, status')
+  const { data: member } = await admin
+    .from('workspace_members')
+    .select('workspace_id')
     .eq('user_id', user.id)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
+    .order('joined_at', { ascending: true })
     .limit(1)
     .maybeSingle();
+  const workspaceId =
+    (member as { workspace_id?: string } | null)?.workspace_id ?? null;
+  const { data: row } = workspaceId
+    ? await admin
+        .from('shopify_connections')
+        .select('shop_domain, access_token, status')
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'active')
+        .order('installed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null as { shop_domain: string; access_token: string; status: string } | null };
   if (!row) {
     return NextResponse.json({ connected: false });
   }
