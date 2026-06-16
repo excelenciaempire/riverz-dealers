@@ -248,11 +248,17 @@ async function routesByPayload(
   channel: Channel,
   payload: unknown,
 ): Promise<DeliveryRoute[]> {
+  // Accept connections that are flagged error/expired too — Meta keeps
+  // delivering webhooks even when a token is dead (the subscription is
+  // app-level, not token-level), and the token isn't needed to ingest
+  // the inbound text. Dropping these would silently lose customer
+  // messages until a manual reconnect. Only 'disconnected'/'pending'
+  // (admin-off or mid-setup) are excluded.
   const { data } = await supabaseAdmin()
     .from("channel_connections")
     .select("*")
     .eq("channel", channel)
-    .eq("status", "connected");
+    .in("status", ["connected", "error", "expired"]);
   const conns = (data ?? []) as ChannelConnection[];
   if (conns.length === 0) return [];
 
@@ -351,12 +357,16 @@ async function loadConnection(
   const id = url.searchParams.get("connection_id");
   if (!id) {
     // Single-connection fallback for legacy webhooks that don't include
-    // the id in the URL: pick the first connected one for this channel.
+    // the id in the URL: pick one for this channel, preferring a
+    // connected row but accepting error/expired so a dead-token channel
+    // still passes Meta's periodic webhook re-verification (status sorts
+    // 'connected' < 'error' < 'expired' ascending).
     const { data } = await supabaseAdmin()
       .from("channel_connections")
       .select("*")
       .eq("channel", channel)
-      .eq("status", "connected")
+      .in("status", ["connected", "error", "expired"])
+      .order("status", { ascending: true })
       .limit(1)
       .maybeSingle();
     return (data as ChannelConnection | null) ?? null;

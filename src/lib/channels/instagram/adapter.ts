@@ -9,7 +9,11 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
-import { handleMetaGraphError, parseMetaErrorBody } from "../meta-auth";
+import {
+  handleMetaGraphError,
+  parseMetaErrorBody,
+  clearMetaConnectionError,
+} from "../meta-auth";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -66,6 +70,11 @@ export const instagramAdapter: ChannelAdapter = {
         parseMetaErrorBody(detail),
       );
       throw new Error(`[instagram] send failed (${res.status}): ${detail}`);
+    }
+    // Send succeeded — auto-restore a connection previously flagged dead
+    // so a recovered token re-greens without a manual reconnect.
+    if (input.connection.status !== "connected") {
+      await clearMetaConnectionError(supabaseAdmin(), input.connection);
     }
     const json = (await res.json()) as { message_id?: string };
     return { externalMessageId: json.message_id, status: "sent" };

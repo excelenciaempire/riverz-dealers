@@ -24,6 +24,7 @@ export async function classifyIntent(args: {
     .select('model, api_key_encrypted')
     .eq('workspace_id', args.workspaceId)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .order('priority', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(1)

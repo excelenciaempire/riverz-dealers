@@ -45,7 +45,11 @@ try {
   const ms = Date.now() - t0;
   console.log(`[${res.status}] ${url} ${ms}ms`);
   console.log(body.slice(0, 800));
-  if (!res.ok) process.exit(1);
+  // 207 Multi-Status is in the 2xx range (so `res.ok` is true) but the
+  // gmail/outlook poll routes return it on a PARTIAL failure precisely so
+  // the cron flips red. Treat it as a failure here, otherwise the signal
+  // is swallowed and a half-broken mailbox poll looks healthy.
+  if (!res.ok || res.status === 207) process.exit(1);
 } catch (err) {
   console.error('cron-ping: network error', err);
   process.exit(1);

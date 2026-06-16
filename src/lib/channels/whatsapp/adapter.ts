@@ -9,8 +9,22 @@ import type {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { ingestWhatsappMedia, type MediaCategory } from "../media-ingest";
-import { handleMetaGraphError, parseMetaErrorBody } from "../meta-auth";
+import {
+  handleMetaGraphError,
+  parseMetaErrorBody,
+  clearMetaConnectionError,
+} from "../meta-auth";
 import { supabaseAdmin } from "../admin-client";
+
+/** After a successful Meta call, restore a connection that was
+ *  previously flagged dead (status='error'/'expired') so a recovered
+ *  token re-greens without a manual reconnect. Guarded on the loaded
+ *  status so healthy sends don't issue a needless UPDATE. */
+async function healIfRecovered(connection: ChannelConnection): Promise<void> {
+  if (connection.status !== "connected") {
+    await clearMetaConnectionError(supabaseAdmin(), connection);
+  }
+}
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -72,6 +86,7 @@ export const whatsappAdapter: ChannelAdapter = {
       );
       throw new Error(`[whatsapp] send failed (${res.status}): ${detail}`);
     }
+    await healIfRecovered(input.connection);
     const json = (await res.json()) as { messages?: { id?: string }[] };
     return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
   },
@@ -123,6 +138,7 @@ export const whatsappAdapter: ChannelAdapter = {
       );
       throw new Error(`[whatsapp] template send failed (${res.status}): ${detail}`);
     }
+    await healIfRecovered(input.connection);
     const json = (await res.json()) as { messages?: { id?: string }[] };
     return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
   },
