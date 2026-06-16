@@ -15,11 +15,10 @@ import { syncShopifyProducts } from '@/lib/shopify/product-sync';
  * runs at OAuth-callback time; this endpoint lets users refresh when
  * they add or rename products without disconnecting/reconnecting.
  *
- * Connection lookup is workspace-scoped (migration 055) so a workspace
- * member who didn't personally install can still refresh. The downstream
- * `syncShopifyProducts` is still keyed by the *installer's* user_id
- * because shopify_products.user_id has not been migrated yet — we read
- * it off the connection.
+ * Connection lookup is workspace-scoped (migration 055), and the
+ * downstream `syncShopifyProducts` writes workspace_id directly on
+ * each shopify_products row (migration 057). user_id is preserved
+ * for legacy compatibility but no longer drives scoping.
  */
 export async function POST(req: Request) {
   const block = await csrfGuard(req);
@@ -42,10 +41,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Look up the encrypted token directly — getConnectionFor* strips it.
+  // Look up the encrypted token + workspace_id directly — getConnectionFor*
+  // strips both. workspace_id is needed for the product upsert (mig 057).
   const { data: row } = await admin
     .from('shopify_connections')
-    .select('access_token')
+    .select('access_token, workspace_id')
     .eq('id', conn.id)
     .maybeSingle();
   if (!row) return NextResponse.json({ error: 'connection not found' }, { status: 404 });
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
   try {
     const result = await syncShopifyProducts(admin, {
       userId: conn.user_id,
+      workspaceId: (row as { workspace_id: string }).workspace_id,
       shopDomain: conn.shop_domain,
       accessToken: decrypt((row as { access_token: string }).access_token),
     });

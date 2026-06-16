@@ -282,6 +282,7 @@ export async function GET(request: Request) {
     //    block the OAuth redirect on a 5 s catalog scan.
     syncShopifyProducts(admin, {
       userId,
+      workspaceId,
       shopDomain: shop,
       accessToken: access_token,
     }).catch((err) =>

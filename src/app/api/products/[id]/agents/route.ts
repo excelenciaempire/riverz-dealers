@@ -36,12 +36,12 @@ export async function POST(
     );
   }
 
-  // Verificamos que el producto pertenezca al usuario.
+  // Verificamos que el producto sea visible para el usuario (RLS
+  // workspace-member, mig 057). Si no, devolvemos 404.
   const { data: product } = await supabase
     .from('shopify_products')
     .select('id')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (!product) {
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
@@ -95,16 +95,14 @@ export async function DELETE(
     );
   }
 
-  // Verificamos que el producto pertenezca al usuario ANTES de borrar
-  // la asignación. La RLS de ai_agent_products sólo valida workspace
-  // membership a través del agente — no del producto. Sin este check,
-  // otro miembro del workspace podría desconectar nuestras
-  // asignaciones de producto silenciosamente (integridad, no exfil).
+  // Verificamos que el producto sea visible para el usuario antes de
+  // borrar la asignación. La RLS de shopify_products (mig 057) es
+  // workspace-member, así que esto ya gatea por workspace; ai_agent_products
+  // valida lo mismo a través del agente. Doble check defensivo.
   const { data: product } = await supabase
     .from('shopify_products')
     .select('id')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (!product) {
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });

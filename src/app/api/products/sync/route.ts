@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { decrypt } from '@/lib/channels/encryption';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 
 /**
  * POST /api/products/sync
@@ -65,11 +66,22 @@ export async function POST(req: Request) {
 
   const accessToken = decrypt(encryptedToken);
 
+  // Resolvemos el workspace del usuario para poder escribir
+  // shopify_products.workspace_id (migration 057).
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  if (!workspaceId) {
+    return NextResponse.json(
+      { error: 'El usuario no tiene un workspace asignado' },
+      { status: 412 },
+    );
+  }
+
   // Corre el sync. lib/shopify/product-sync.ts ahora detecta bundles
   // inline en productToRow() y los persiste en el mismo upsert chunked
   // — sin N+1. Devuelve {synced, deleted, bundlesDetected}.
   const result = await syncShopifyProducts(admin, {
     userId: user.id,
+    workspaceId,
     shopDomain,
     accessToken,
   });

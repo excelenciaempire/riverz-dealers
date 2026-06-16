@@ -6,7 +6,9 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
  * GET /api/products
  * Lista los productos sincronizados del workspace, con conteo de
  * agentes asignados por producto (para mostrar "Asignado a 2 agentes"
- * en la card de listado).
+ * en la card de listado). Post-mig 057 la RLS de shopify_products
+ * scope por workspace_member, así que no hace falta filtrar por
+ * user_id en el query — todos los miembros del workspace ven todo.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -47,7 +49,6 @@ export async function GET(request: Request) {
       ai_agent_products(agent_id)
     `,
     )
-    .eq('user_id', user.id)
     .order('title', { ascending: true })
     .limit(500);
 

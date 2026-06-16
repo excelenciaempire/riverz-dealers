@@ -56,22 +56,20 @@ export async function runAiAgent(
 ): Promise<void> {
   try {
     // ── Product routing ──
-    // 1. Resolve the workspace's user_id (owner) — needed to scope the
-    //    catalog lookups (shopify_products is user_id-scoped per
-    //    migration 025).
-    // 2. Detect which product the customer is talking about. The
-    //    detector is deterministic, ~10ms, no LLM call.
-    // 3. If a HIGH-confidence match is found, prefer agents that own
+    // 1. Detect which product the customer is talking about. The
+    //    detector is deterministic, ~10ms, no LLM call. Catalog is
+    //    workspace-scoped directly (migration 057 — shopify_products
+    //    now carries workspace_id; no more owner_id detour).
+    // 2. If a HIGH-confidence match is found, prefer agents that own
     //    that product. MEDIUM-confidence matches don't change agent
     //    selection but still pin the product in the system prompt
     //    so the bot has its training_material on top.
-    // 4. Stickiness: if this conversation already has a prior AI agent,
+    // 3. Stickiness: if this conversation already has a prior AI agent,
     //    keep it unless the detection swings to a different specific
     //    owner with HIGH confidence (prevents mid-thread persona flips).
-    const ownerUserId = await resolveWorkspaceOwner(db, args.workspaceId);
     const productMatch = await detectInboundProduct(
       db,
-      ownerUserId,
+      args.workspaceId,
       args.inboundMessage.content_text ?? '',
     );
     const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
@@ -148,7 +146,7 @@ export async function runAiAgent(
     const recentNotes = await loadRecentContactNotes(db, primaryContact.id);
 
     const context = await loadContext(db, args.conversation, agent.context_messages);
-    const products = await loadProductCatalog(db, agent, ownerUserId, productMatch);
+    const products = await loadProductCatalog(db, agent, args.workspaceId, productMatch);
     const shopify = await resolveShopifyContext(
       db,
       args.workspaceId,
@@ -419,37 +417,23 @@ async function pickAgent(
   return null;
 }
 
-/** Resuelve el user_id dueño del workspace — necesario porque las
- *  filas de shopify_products están scopeadas por user_id, no por
- *  workspace_id (migration 025). */
-async function resolveWorkspaceOwner(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<string | null> {
-  const { data } = await db
-    .from('workspaces')
-    .select('owner_id')
-    .eq('id', workspaceId)
-    .maybeSingle();
-  return (data as { owner_id?: string } | null)?.owner_id ?? null;
-}
-
 /**
  * Detección de producto mencionado. Lee el catálogo del workspace
  * (cap 500), corre el matcher deterministic, devuelve el mejor match
  * o null. El caller decide qué hacer con el resultado según
- * `confidence`.
+ * `confidence`. Post-migration 057: shopify_products vive por
+ * workspace_id directamente — sin detour por workspaces.owner_id.
  */
 async function detectInboundProduct(
   db: SupabaseClient,
-  userId: string | null,
+  workspaceId: string | null,
   messageText: string,
 ): Promise<ProductMatch | null> {
-  if (!userId || !messageText) return null;
+  if (!workspaceId || !messageText) return null;
   const { data } = await db
     .from('shopify_products')
     .select('id, title, handle, tags, vendor, product_type')
-    .eq('user_id', userId)
+    .eq('workspace_id', workspaceId)
     .limit(500);
   if (!data || data.length === 0) return null;
   return detectProductMention(messageText, data as CandidateProduct[]);
@@ -677,10 +661,10 @@ interface ReplyResult {
 async function loadProductCatalog(
   db: SupabaseClient,
   agent: AiAgent,
-  ownerUserId: string | null,
+  workspaceId: string | null,
   productMatch: ProductMatch | null,
 ): Promise<ProductRow[]> {
-  if (!ownerUserId) return [];
+  if (!workspaceId) return [];
 
   // Cargamos primero los IDs que ESTE agente tiene autorizados a ver
   // (todos si product_scope='all', sólo asignados si 'specific').
@@ -711,7 +695,7 @@ async function loadProductCatalog(
         'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material',
       )
       .eq('id', productMatch.product_id)
-      .eq('user_id', ownerUserId)
+      .eq('workspace_id', workspaceId)
       .maybeSingle();
     if (pinned) {
       pinnedRows.push(pinned as ProductRow);
@@ -743,7 +727,7 @@ async function loadProductCatalog(
     .select(
       'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material',
     )
-    .eq('user_id', ownerUserId)
+    .eq('workspace_id', workspaceId)
     .order('synced_at', { ascending: false })
     .limit(80);
   const rest = ((products ?? []) as ProductRow[]).filter(

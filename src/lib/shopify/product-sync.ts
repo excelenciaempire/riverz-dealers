@@ -16,6 +16,7 @@ export async function syncShopifyProducts(
   db: SupabaseClient,
   args: {
     userId: string
+    workspaceId: string
     shopDomain: string
     accessToken: string
   },
@@ -94,7 +95,7 @@ interface ShopifyProduct {
 
 function productToRow(
   p: ShopifyProduct,
-  args: { userId: string; shopDomain: string },
+  args: { userId: string; workspaceId: string; shopDomain: string },
 ): Record<string, unknown> {
   const prices = (p.variants ?? [])
     .map((v) => Number(v.price))
@@ -115,6 +116,7 @@ function productToRow(
   )
   return {
     user_id: args.userId,
+    workspace_id: args.workspaceId,
     shop_domain: args.shopDomain,
     external_id: p.id,
     handle: p.handle,

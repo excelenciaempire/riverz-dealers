@@ -31,7 +31,6 @@ export async function GET(
     .from('shopify_products')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -109,7 +108,6 @@ export async function PATCH(
     .from('shopify_products')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (readErr) {
     return NextResponse.json({ error: readErr.message }, { status: 500 });
@@ -125,7 +123,6 @@ export async function PATCH(
     .from('shopify_products')
     .update({ ...patch, training_material: training })
     .eq('id', id)
-    .eq('user_id', user.id)
     .select('*')
     .maybeSingle();
   if (error) {

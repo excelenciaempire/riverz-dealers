@@ -36,7 +36,6 @@ export async function POST(
     .from('shopify_products')
     .select('id, url')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -59,8 +58,7 @@ export async function POST(
       scrape_status: 'scraping',
       scrape_error: null,
     })
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
 
   try {
     const scraped = await firecrawlScrape(product.url, {
@@ -74,8 +72,7 @@ export async function POST(
         scraped_at: new Date().toISOString(),
         scrape_error: null,
       })
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     return NextResponse.json({ ok: true, chars: scraped.markdown.length });
   } catch (err) {
     const msg =
@@ -90,8 +87,7 @@ export async function POST(
         scrape_status: 'failed',
         scrape_error: msg,
       })
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

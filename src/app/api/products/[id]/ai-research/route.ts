@@ -39,7 +39,6 @@ export async function POST(
     .from('shopify_products')
     .select('id, title, description, scraped_content, product_type, vendor, tags, custom_notes')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,8 +50,7 @@ export async function POST(
   await supabase
     .from('shopify_products')
     .update({ ai_research_status: 'running', ai_research_error: null })
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
 
   // Construimos el prompt con todo el material que tenemos sobre el
   // producto. Pedimos JSON estructurado así parseamos directo.
@@ -139,8 +137,7 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         ai_research_status: 'done',
         ai_research_error: null,
       })
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
 
     return NextResponse.json({ ok: true, faqs_count: faqs.length });
   } catch (err) {
@@ -151,8 +148,7 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         ai_research_status: 'failed',
         ai_research_error: msg,
       })
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
