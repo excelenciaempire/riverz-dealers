@@ -8,6 +8,7 @@ import {
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
+import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -52,7 +53,18 @@ export async function POST(request: Request) {
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
-    const workspaceId = conn.row.user_id
+    // shopify_connections.user_id is the OWNER (auth.users.id). Automations
+    // live under workspaces.id, so resolve the workspace via owner_id with
+    // a workspace_members fallback for accounts where the owner isn't the
+    // workspace creator anymore.
+    const workspaceId = await resolveWorkspaceIdForUser(admin, conn.row.user_id)
+    if (!workspaceId) {
+      console.warn(
+        '[shopify] orders webhook: no workspace for user',
+        conn.row.user_id,
+      )
+      return NextResponse.json({ ok: true, skipped: 'no_workspace' })
+    }
     const order = JSON.parse(rawBody) as Record<string, unknown>
     const orderId = Number(order.id ?? 0)
     const incomingFulfillment =
@@ -96,17 +108,37 @@ export async function POST(request: Request) {
       // orders/updated: only dispatch when fulfillment_status flips to
       // 'fulfilled' (from null/partial). Anything else (status edits,
       // tag changes) is a silent state refresh.
+      //
+      // Además snapshot del shipment_status del último fulfillment:
+      // cuando flipea a 'delivered' marcamos delivered_at. El cron de
+      // feedback post-entrega (3 días después) lee esa marca para
+      // disparar la automation "¿Cómo te fue con tu Sérum?".
       let previousFulfillment: string | null = null
+      let previousShipment: string | null = null
+      let previousDeliveredAt: string | null = null
       if (orderId > 0) {
         const { data: prior } = await admin
           .from('shopify_order_fulfillment_state')
-          .select('fulfillment_status')
+          .select('fulfillment_status, shipment_status, delivered_at')
           .eq('shop_domain', shopDomain)
           .eq('order_id', orderId)
           .maybeSingle()
-        previousFulfillment =
-          (prior as { fulfillment_status: string | null } | null)
-            ?.fulfillment_status ?? null
+        const priorRow = prior as {
+          fulfillment_status: string | null
+          shipment_status: string | null
+          delivered_at: string | null
+        } | null
+        previousFulfillment = priorRow?.fulfillment_status ?? null
+        previousShipment = priorRow?.shipment_status ?? null
+        previousDeliveredAt = priorRow?.delivered_at ?? null
+
+        const fulfillments = Array.isArray(order.fulfillments)
+          ? (order.fulfillments as Record<string, unknown>[])
+          : []
+        const latest = fulfillments[fulfillments.length - 1]
+        const shipmentStatus = (latest?.shipment_status as string | null) ?? null
+        const justDelivered =
+          shipmentStatus === 'delivered' && previousShipment !== 'delivered'
 
         await admin
           .from('shopify_order_fulfillment_state')
@@ -115,6 +147,14 @@ export async function POST(request: Request) {
               shop_domain: shopDomain,
               order_id: orderId,
               fulfillment_status: incomingFulfillment,
+              shipment_status: shipmentStatus,
+              // Solo seteamos delivered_at en el primer cruce a delivered.
+              // Si la columna ya tenía un timestamp viejo lo respetamos —
+              // no queremos reiniciar la cuenta de 3 días si llega otra
+              // update tardía.
+              delivered_at: justDelivered
+                ? new Date().toISOString()
+                : previousDeliveredAt,
               updated_at: new Date().toISOString(),
             },
             { onConflict: 'shop_domain,order_id' },

@@ -588,6 +588,17 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
+  // Marca contacts.last_inbound_at — distinto de
+  // conversations.last_message_at (que incluye salientes). Lo usa el
+  // cron de re-engagement para detectar contactos en silencio.
+  const { error: contactUpdateErr } = await supabaseAdmin()
+    .from('contacts')
+    .update({ last_inbound_at: new Date().toISOString() })
+    .eq('id', contactRecord.id)
+  if (contactUpdateErr) {
+    console.error('Error updating contact last_inbound_at:', contactUpdateErr)
+  }
+
   // If this contact was a recent broadcast recipient, flag the reply
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
@@ -707,9 +718,35 @@ async function processMessage(
   // listens to only one trigger runs only when that trigger matches.
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+
+  // Resolve the workspace UUID — automations live under workspaces.id,
+  // never under auth.users.id. Prefer the conversation's workspace_id
+  // (already on the row from migration 013); fall back to
+  // workspace_members so legacy conversations without the column don't
+  // silently no-op the dispatch.
+  let workspaceId: string | null =
+    (conversation as { workspace_id?: string | null }).workspace_id ?? null
+  if (!workspaceId) {
+    const { data: member } = await supabaseAdmin()
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle()
+    workspaceId = (member as { workspace_id?: string | null } | null)
+      ?.workspace_id ?? null
+  }
+  if (!workspaceId) {
+    console.warn(
+      '[automations] skipping dispatch: no workspace for user',
+      userId,
+    )
+    return
+  }
+
   for (const triggerType of automationTriggers) {
     runAutomationsForTrigger({
-      workspaceId: userId, // TODO Phase 3: pass actual workspace_id from connection lookup
+      workspaceId,
       triggerType,
       contactId: contactRecord.id,
       context: {

@@ -203,11 +203,22 @@ export async function resumePendingExecution(pending: {
 async function executeAutomation(automation: Automation, input: DispatchInput) {
   const db = supabaseAdmin()
 
+  // Belt-and-suspenders: migration 053 makes automation_logs.user_id
+  // nullable so cron-dispatched runs don't blow up at INSERT, but
+  // when we *can* resolve a user (from the workspace owner) we still
+  // backfill it so RLS-by-user policies and the per-user dashboard
+  // queries continue to work. The lookup is one indexed read.
+  const ownerUserId = await resolveWorkspaceOwnerUserId(
+    db,
+    automation.workspace_id,
+  )
+
   const { data: log, error: logErr } = await db
     .from('automation_logs')
     .insert({
       automation_id: automation.id,
       workspace_id: automation.workspace_id,
+      user_id: ownerUserId,
       contact_id: input.contactId ?? null,
       trigger_event: input.triggerType,
       steps_executed: [],
@@ -698,4 +709,28 @@ async function markPending(id: string, status: 'done' | 'failed') {
     .from('automation_pending_executions')
     .update({ status })
     .eq('id', id)
+}
+
+/**
+ * Resolve the workspace owner's auth.users.id. Used to backfill
+ * `automation_logs.user_id` for cron-dispatched runs that only know
+ * `workspace_id`. Returns null when the workspace doesn't have an
+ * owner row (shouldn't happen — owner_id is NOT NULL on workspaces —
+ * but we tolerate it so a stale lookup doesn't kill the log insert).
+ */
+async function resolveWorkspaceOwnerUserId(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  if (!workspaceId) return null
+  const { data, error } = await db
+    .from('workspaces')
+    .select('owner_id')
+    .eq('id', workspaceId)
+    .maybeSingle()
+  if (error) {
+    console.error('[automations] owner lookup failed:', error)
+    return null
+  }
+  return (data as { owner_id?: string } | null)?.owner_id ?? null
 }

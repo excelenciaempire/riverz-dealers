@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await request.json().catch(() => null)) as
-    | { template_id?: string }
+    | { template_id?: string; workspace_id?: string }
     | null
   const templateId = body?.template_id
   if (!templateId) {
@@ -44,10 +44,49 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
+
+  // Resolve the workspace this automation belongs to. The body can pin
+  // a specific workspace (workspace switcher use-case); otherwise we
+  // pick the user's primary workspace via workspace_members. Without
+  // this, the row landed with workspace_id=NULL and silently never
+  // matched any runAutomationsForTrigger(workspace_id=…) dispatch.
+  let workspaceId = body?.workspace_id ?? null
+  if (workspaceId) {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('workspace_id', workspaceId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!member) {
+      return NextResponse.json(
+        { error: 'Not a member of that workspace' },
+        { status: 403 },
+      )
+    }
+  } else {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    workspaceId =
+      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+  }
+  if (!workspaceId) {
+    return NextResponse.json(
+      { error: 'No workspace found for user' },
+      { status: 400 },
+    )
+  }
+
   const { data: automation, error: insertErr } = await admin
     .from('automations')
     .insert({
       user_id: user.id,
+      workspace_id: workspaceId,
       name: template.name,
       description: template.description,
       trigger_type: template.trigger_type,

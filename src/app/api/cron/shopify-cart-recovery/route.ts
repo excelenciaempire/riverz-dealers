@@ -1,0 +1,125 @@
+import { NextResponse } from 'next/server'
+import { assertCronAuth } from '@/lib/auth/cron'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
+
+/**
+ * Cron de carritos abandonados (Pilar).
+ *
+ * Corre cada hora. Busca filas en `shopify_checkouts` que cumplen:
+ *
+ *   - `completed_at IS NULL`               (carrito sigue abierto)
+ *   - `recovery_dispatched_at IS NULL`     (no le mandamos recovery todavía)
+ *   - `created_at < now() - interval '2h'` (pasaron al menos 2 horas)
+ *   - `customer_phone IS NOT NULL`         (necesitamos un WhatsApp)
+ *
+ * Para cada uno:
+ *
+ *   1. Upsertea el contacto vía `upsertWhatsappContact` (mismo helper
+ *      que usa el webhook de checkouts) para asegurar que existe.
+ *   2. Dispara el trigger `shopify_abandoned_checkout` con las vars
+ *      del checkout (customer_name, checkout_url, total_price...). Eso
+ *      ejecuta el automation "Carrito abandonado Pilar (2h)" que
+ *      manda el WhatsApp.
+ *   3. Marca `recovery_dispatched_at = now()` para que el próximo
+ *      tick no vuelva a disparar el mismo carrito.
+ *
+ * Anti-spam: el flag `recovery_dispatched_at` es la única barrera. Si
+ * el automation falla al enviar (templates rechazados, sin token),
+ * el mensaje no se manda pero el flag igual se setea — preferimos no
+ * spamear a costa de perder algunos recovery sobre intentarlo en loop.
+ */
+export async function GET(request: Request) {
+  try {
+    assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
+  } catch (r) {
+    if (r instanceof Response) return r
+    throw r
+  }
+
+  const admin = supabaseAdmin()
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+
+  const { data: due, error } = await admin
+    .from('shopify_checkouts')
+    .select(
+      'id, workspace_id, shop_domain, checkout_id, customer_email, customer_phone, customer_name, total_price, currency, abandoned_checkout_url, created_at',
+    )
+    .is('completed_at', null)
+    .is('recovery_dispatched_at', null)
+    .not('customer_phone', 'is', null)
+    .lt('created_at', twoHoursAgo)
+    .order('created_at', { ascending: true })
+    .limit(50)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  if (!due || due.length === 0) {
+    return NextResponse.json({ processed: 0 })
+  }
+
+  let processed = 0
+  let dispatched = 0
+  for (const row of due) {
+    const r = row as {
+      id: string
+      workspace_id: string
+      shop_domain: string
+      checkout_id: string
+      customer_email: string | null
+      customer_phone: string
+      customer_name: string | null
+      total_price: number | null
+      currency: string | null
+      abandoned_checkout_url: string | null
+    }
+
+    // Reclamamos el row primero: el siguiente tick no vuelve a tocarlo
+    // aunque el dispatch falle. Si dejáramos el flag para después del
+    // dispatch, un crash entre dispatch y update mandaría dos recovery.
+    const { data: claim } = await admin
+      .from('shopify_checkouts')
+      .update({ recovery_dispatched_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .is('recovery_dispatched_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      const contactId = await upsertWhatsappContact(admin, {
+        workspaceId: r.workspace_id,
+        phone: r.customer_phone,
+        name: r.customer_name ?? undefined,
+        email: r.customer_email ?? undefined,
+      })
+      if (!contactId) {
+        processed++
+        continue
+      }
+
+      await runAutomationsForTrigger({
+        workspaceId: r.workspace_id,
+        triggerType: 'shopify_abandoned_checkout',
+        contactId,
+        context: {
+          vars: {
+            checkout_url: r.abandoned_checkout_url ?? '',
+            total_price: String(r.total_price ?? ''),
+            currency: r.currency ?? '',
+            customer_name: r.customer_name ?? '',
+            checkout_token: r.checkout_id,
+          },
+        },
+      })
+      dispatched++
+    } catch (err) {
+      console.error('[cron/cart-recovery] dispatch failed:', r.id, err)
+    }
+    processed++
+  }
+
+  return NextResponse.json({ processed, dispatched })
+}

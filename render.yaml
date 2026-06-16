@@ -82,3 +82,39 @@ services:
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+      # Pilar automations — IDs configurables sin redeploy. Hay defaults
+      # hardcoded en /api/cron/shopify-feedback y /api/cron/reengagement
+      # apuntando a los UUIDs del workspace de Pilar; estas vars permiten
+      # cambiarlos sin recompilar.
+      - key: PILAR_WORKSPACE_ID
+        sync: false
+      - key: PILAR_FEEDBACK_AUTOMATION_ID
+        sync: false
+      - key: PILAR_REENGAGEMENT_AUTOMATION_ID
+        sync: false
+
+# ============================================================
+# Cron jobs Pilar — recovery 2h, feedback delivered, re-engagement
+# ============================================================
+# Render Cron Services. Cada cron se autentica con AUTOMATION_CRON_SECRET
+# vía scripts/cron-ping.mjs (que setea el header x-cron-secret).
+#
+# Crearlos desde el dashboard Render: New + Cron Job, runtime node, build
+# `npm install`, command `node scripts/cron-ping.mjs <ruta>`. Setear
+# BASE_URL (URL del servicio web) y CRON_SECRET (igual a
+# AUTOMATION_CRON_SECRET en el servicio web).
+#
+# Documentado acá como referencia — Render Blueprints todavía no permite
+# definir cron services en el mismo yaml que el web service.
+#
+#   - Cart recovery (cada hora):
+#       node scripts/cron-ping.mjs api/cron/shopify-cart-recovery
+#       schedule: "0 * * * *"
+#
+#   - Feedback post-entrega (cada hora, +30m offset para escalonar):
+#       node scripts/cron-ping.mjs api/cron/shopify-feedback
+#       schedule: "30 * * * *"
+#
+#   - Re-engagement 14d (una vez por día, 14:00 UTC ≈ 11 AR):
+#       node scripts/cron-ping.mjs api/cron/reengagement
+#       schedule: "0 14 * * *"

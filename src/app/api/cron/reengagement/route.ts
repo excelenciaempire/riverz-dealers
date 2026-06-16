@@ -1,0 +1,146 @@
+import { NextResponse } from 'next/server'
+import { assertCronAuth } from '@/lib/auth/cron'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { runAutomationById } from '@/lib/automations/engine'
+
+/**
+ * Cron de re-engagement (Pilar).
+ *
+ * Corre una vez por día. Busca contactos del workspace que cumplen:
+ *
+ *   - `opted_out = false`
+ *   - `last_inbound_at < now() - interval '14 days'`   (silencio prolongado)
+ *   - `last_inbound_at IS NOT NULL`                    (alguna vez escribieron)
+ *   - tienen al menos 1 pedido completado en Shopify
+ *      (proxy: aparecen como customer_phone en shopify_checkouts con
+ *       status='completed', o tienen una fila en automation_logs con
+ *       trigger_event='shopify_order_created'). Usamos los logs porque
+ *       no guardamos las órdenes completadas en una tabla propia: la
+ *       trigger ya pasó por acá.
+ *   - cooldown: la última fila de `contact_reengagement_state` para
+ *     este contact es > 30 días atrás (o no existe)
+ *
+ * Para cada contacto dispara la automation "Re-engagement Pilar (14d
+ * inactivo)" por ID y upsertea `contact_reengagement_state` con
+ * `last_reengagement_at = now()`.
+ *
+ * Configurable via env `PILAR_REENGAGEMENT_AUTOMATION_ID` para que se
+ * pueda swapear sin redeploy.
+ */
+const DEFAULT_AUTOMATION_ID = '9a4c971b-7a36-48b3-be1e-cf2989b13918'
+const PILAR_WORKSPACE_ID = '522a68ae-568d-4dd9-92e5-2c8f633f1761'
+
+export async function GET(request: Request) {
+  try {
+    assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
+  } catch (r) {
+    if (r instanceof Response) return r
+    throw r
+  }
+
+  const automationId =
+    process.env.PILAR_REENGAGEMENT_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
+  const workspaceId =
+    process.env.PILAR_WORKSPACE_ID || PILAR_WORKSPACE_ID
+
+  const admin = supabaseAdmin()
+  const fourteenDaysAgo = new Date(
+    Date.now() - 14 * 24 * 60 * 60 * 1000,
+  ).toISOString()
+  const thirtyDaysAgo = new Date(
+    Date.now() - 30 * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  // Paso 1: Set de contact_ids que alguna vez tuvieron una orden.
+  // Buscamos en automation_logs por trigger_event = shopify_order_created.
+  // Es una aproximación — un contacto que nunca disparó la automation
+  // no aparece. Para Pilar esto sirve porque la automation existe desde
+  // antes. Si necesitamos algo más preciso, una tabla
+  // shopify_customer_orders sería el siguiente paso.
+  const { data: orderLogs, error: ordersErr } = await admin
+    .from('automation_logs')
+    .select('contact_id')
+    .eq('workspace_id', workspaceId)
+    .eq('trigger_event', 'shopify_order_created')
+    .not('contact_id', 'is', null)
+  if (ordersErr) {
+    return NextResponse.json({ error: ordersErr.message }, { status: 500 })
+  }
+  const customerContactIds = new Set<string>()
+  for (const row of (orderLogs ?? []) as Array<{ contact_id: string | null }>) {
+    if (row.contact_id) customerContactIds.add(row.contact_id)
+  }
+  if (customerContactIds.size === 0) {
+    return NextResponse.json({ processed: 0, reason: 'no_customers' })
+  }
+
+  // Paso 2: contactos del workspace que estuvieron 14 días en silencio.
+  const { data: candidates, error } = await admin
+    .from('contacts')
+    .select('id, name, phone, last_inbound_at')
+    .eq('workspace_id', workspaceId)
+    .eq('opted_out', false)
+    .not('last_inbound_at', 'is', null)
+    .lt('last_inbound_at', fourteenDaysAgo)
+    .in('id', Array.from(customerContactIds))
+    .order('last_inbound_at', { ascending: true })
+    .limit(100)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!candidates || candidates.length === 0) {
+    return NextResponse.json({ processed: 0 })
+  }
+
+  // Paso 3: cooldown. Filtramos los que recibieron un re-engagement en
+  // los últimos 30 días.
+  const candidateIds = candidates.map((c) => (c as { id: string }).id)
+  const { data: recentReengagements } = await admin
+    .from('contact_reengagement_state')
+    .select('contact_id, last_reengagement_at')
+    .in('contact_id', candidateIds)
+    .gt('last_reengagement_at', thirtyDaysAgo)
+  const cooldownSet = new Set<string>(
+    ((recentReengagements ?? []) as Array<{ contact_id: string }>).map(
+      (r) => r.contact_id,
+    ),
+  )
+
+  let dispatched = 0
+  for (const c of candidates) {
+    const contact = c as { id: string; name: string | null; phone: string }
+    if (cooldownSet.has(contact.id)) continue
+
+    // Reclamamos via upsert. Si dos crons concurrentes intentan tocar el
+    // mismo contact, el segundo upsert sobrescribe — pero igual decidió
+    // disparar en base al mismo snapshot pre-cooldown así que no hay
+    // doble envío real.
+    const { error: claimErr } = await admin
+      .from('contact_reengagement_state')
+      .upsert(
+        {
+          contact_id: contact.id,
+          workspace_id: workspaceId,
+          last_reengagement_at: new Date().toISOString(),
+          reengagement_count: 1,
+        },
+        { onConflict: 'contact_id' },
+      )
+    if (claimErr) {
+      console.error('[cron/reengagement] claim failed:', contact.id, claimErr)
+      continue
+    }
+
+    const result = await runAutomationById({
+      automationId,
+      contactId: contact.id,
+      context: {
+        vars: {
+          customer_name: contact.name ?? '',
+        },
+      },
+    })
+    if (result.executed) dispatched++
+  }
+
+  return NextResponse.json({ processed: candidates.length, dispatched })
+}

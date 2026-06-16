@@ -91,10 +91,49 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
+
+  // Resolve the workspace this automation belongs to. The engine
+  // dispatcher selects automations by workspace_id — leaving the column
+  // NULL would make the row invisible to every runAutomationsForTrigger
+  // call. Body wins (workspace switcher), then primary workspace_members.
+  let resolvedWorkspaceId: string | null =
+    (body.workspace_id as string | undefined) ?? null
+  if (resolvedWorkspaceId) {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('workspace_id', resolvedWorkspaceId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!member) {
+      return NextResponse.json(
+        { error: 'Not a member of that workspace' },
+        { status: 403 },
+      )
+    }
+  } else {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    resolvedWorkspaceId =
+      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+  }
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json(
+      { error: 'No workspace found for user' },
+      { status: 400 },
+    )
+  }
+
   const { data: automation, error: insertErr } = await admin
     .from('automations')
     .insert({
       user_id: user.id,
+      workspace_id: resolvedWorkspaceId,
       name: effectiveName,
       description: effectiveDescription ?? null,
       trigger_type: effectiveTriggerType,

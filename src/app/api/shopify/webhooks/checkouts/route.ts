@@ -2,26 +2,28 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifyWebhookHmac } from '@/lib/shopify/oauth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import {
   extractShopifyName,
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
+import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
 
 /**
- * Shopify checkout webhook receiver. Fires the
- * `shopify_abandoned_checkout` automation trigger when a checkout is
- * created, and persists the full checkout into `shopify_checkouts` for
- * any topic (create + update) so we keep an authoritative snapshot of
- * the cart, the recovery URL, and the line items even if the automation
- * never runs.
+ * Shopify checkout webhook receiver. Persiste cada checkout/abandoned
+ * cart en `shopify_checkouts` para tener snapshot autoritativo del
+ * carrito, la URL de recovery y los line items.
  *
- * Solo `checkouts/create` dispara la automation (un checkouts/update
- * llega cada vez que el cliente toca un campo y volvería a disparar el
- * trigger). Las updates igual se persisten — necesitamos el último
- * estado del carrito para recover y para marcar el checkout como
- * completado cuando llega un `orders/create` con el mismo token.
+ * El trigger `shopify_abandoned_checkout` ya NO se dispara desde acá:
+ * un checkout recién creado no es un carrito abandonado. El cron
+ * `/api/cron/shopify-cart-recovery` corre cada hora y escanea
+ * checkouts con created_at < now() - 2h, completed_at IS NULL y
+ * recovery_dispatched_at IS NULL, disparando el automation ahí. Eso
+ * implementa el anti-spam (una sola recovery por checkout) y permite
+ * cambiar la ventana sin tocar el webhook.
+ *
+ * Las updates igual se persisten para que el order/create pueda marcar
+ * el checkout como `completed` matcheando por checkout_id.
  */
 export async function POST(request: Request) {
   const apiSecret = process.env.SHOPIFY_API_SECRET
@@ -48,7 +50,18 @@ export async function POST(request: Request) {
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
-    const workspaceId = conn.row.user_id
+    // shopify_connections.user_id is the OWNER auth.users.id, not the
+    // workspace id. We persist the resolved workspaces.id into
+    // shopify_checkouts so the cart-recovery cron reads a value that
+    // actually matches automations.workspace_id.
+    const workspaceId = await resolveWorkspaceIdForUser(admin, conn.row.user_id)
+    if (!workspaceId) {
+      console.warn(
+        '[shopify] checkouts webhook: no workspace for user',
+        conn.row.user_id,
+      )
+      return NextResponse.json({ ok: true, skipped: 'no_workspace' })
+    }
     const checkout = JSON.parse(rawBody) as Record<string, unknown>
 
     const phone = extractShopifyPhone(checkout)
@@ -106,10 +119,18 @@ export async function POST(request: Request) {
       )
     }
 
-    // El resto del flujo (contact upsert + automation dispatch) solo
-    // tiene sentido si hay teléfono y si es un checkouts/create. Las
-    // updates siguen alimentando la tabla pero no re-disparan la
-    // automation.
+    // El resto del flujo (contact upsert) solo tiene sentido si hay
+    // teléfono y si es un checkouts/create. Las updates siguen
+    // alimentando la tabla.
+    //
+    // NOTA: ya no disparamos shopify_abandoned_checkout en el momento
+    // de creación. La definición de "carrito abandonado" requiere que
+    // hayan pasado al menos 2 horas sin completar — si firáramos al
+    // segundo 0, la automation de Pilar mandaría el recovery a alguien
+    // que sigue en el checkout. El cron de cart-recovery
+    // (/api/cron/shopify-cart-recovery) escanea cada hora los
+    // checkouts con created_at < now() - 2h, completed_at IS NULL y
+    // recovery_dispatched_at IS NULL, y dispara ahí el automation.
     if (topic !== 'checkouts/create') {
       return NextResponse.json({ ok: true, persisted: true })
     }
@@ -123,27 +144,7 @@ export async function POST(request: Request) {
     })
     if (!contactId) return NextResponse.json({ ok: true })
 
-    runAutomationsForTrigger({
-      workspaceId,
-      triggerType: 'shopify_abandoned_checkout',
-      contactId,
-      context: {
-        vars: {
-          checkout_url:
-            (checkout.abandoned_checkout_url as string | undefined) ??
-            (checkout.checkout_url as string | undefined) ??
-            '',
-          total_price: String(checkout.total_price ?? ''),
-          currency: String(
-            checkout.currency ?? checkout.presentment_currency ?? '',
-          ),
-          customer_name: name ?? '',
-          checkout_token: String(checkout.token ?? ''),
-        },
-      },
-    }).catch((err) => console.error('[shopify] dispatch failed:', err))
-
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, queued_for_recovery_cron: true })
   } catch (err) {
     console.error('[shopify] checkouts webhook error:', err)
     return NextResponse.json({ ok: true })
