@@ -87,9 +87,16 @@ export const fbCommentAdapter: ChannelAdapter = {
             adId: value.ad_id ? String(value.ad_id) : undefined,
             permalink: value.permalink_url ? String(value.permalink_url) : undefined,
           },
-          // Meta's entry.time is Unix SECONDS; Date() wants ms.
+          // Prefer the comment's own created_time (the precise moment the
+          // customer posted it) over entry.time (when Meta delivered the
+          // webhook — usually close, but can lag on retries). Both are
+          // Unix SECONDS; Date() wants ms.
           receivedAt: new Date(
-            entry.time ? Number(entry.time) * 1000 : Date.now(),
+            value.created_time
+              ? Number(value.created_time) * 1000
+              : entry.time
+                ? Number(entry.time) * 1000
+                : Date.now(),
           ).toISOString(),
           raw: c,
         });

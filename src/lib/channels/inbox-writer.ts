@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Channel,
-  ChannelConnection,
   Contact,
   Conversation,
   Message,
@@ -225,7 +224,31 @@ async function upsertContact(
     .eq("channel", input.channel)
     .eq("external_id", input.external_id)
     .maybeSingle();
-  if (existing) return existing as Contact;
+  if (existing) {
+    // Backfill the display name / avatar once the channel resolves them.
+    // Meta DMs (Messenger/Instagram) and comment channels ship only an
+    // opaque id on the first event and the friendly name arrives on a
+    // later one (or a best-effort Graph lookup that 429'd the first
+    // time). Without this, a contact created id-only stays id-only
+    // forever and the inbox keeps showing "Cliente Instagram · …1234".
+    // Mirrors the legacy WhatsApp webhook, which already updates the
+    // name when it changes. The name isn't user-editable in the UI, so
+    // there's no agent-entered value to clobber.
+    const e = existing as Contact;
+    const patch: Record<string, string> = {};
+    if (input.name && input.name !== e.name) patch.name = input.name;
+    if (input.avatar_url && input.avatar_url !== e.avatar_url) {
+      patch.avatar_url = input.avatar_url;
+    }
+    if (Object.keys(patch).length === 0) return e;
+    const { data: updated } = await db
+      .from("contacts")
+      .update(patch)
+      .eq("id", e.id)
+      .select()
+      .single();
+    return (updated as Contact) ?? e;
+  }
 
   const { data: created, error } = await db
     .from("contacts")
@@ -291,6 +314,33 @@ async function findOrCreateConversation(
     .select()
     .single();
   if (error) {
+    // Race-safe: two concurrent webhook deliveries can both pass the
+    // initial SELECT (no rows) and both attempt to INSERT. Migration
+    // 035 installed `uniq_conv_per_thread`
+    //   (workspace_id, contact_id, channel, COALESCE(thread_external_id,''))
+    // so the second INSERT raises 23505 and used to drop the message
+    // silently. Re-SELECT the winner. We don't filter by status here
+    // because the unique index ignores status — without dropping that
+    // filter we'd re-create a NEW conversation if the only existing
+    // one is closed (then double-insert next time).
+    if ((error as { code?: string }).code === "23505") {
+      let recover = db
+        .from("conversations")
+        .select("*")
+        .eq("workspace_id", input.workspace_id)
+        .eq("contact_id", input.contact_id)
+        .eq("channel", input.channel);
+      if (
+        input.thread_external_id &&
+        (input.channel === "gmail" || input.channel === "outlook")
+      ) {
+        recover = recover.eq("thread_external_id", input.thread_external_id);
+      } else {
+        recover = recover.is("thread_external_id", null);
+      }
+      const { data: winner } = await recover.limit(1).maybeSingle();
+      if (winner) return winner as Conversation;
+    }
     console.error("[inbox-writer] create conversation failed:", error);
     return null;
   }

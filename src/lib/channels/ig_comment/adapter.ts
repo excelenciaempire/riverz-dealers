@@ -70,11 +70,17 @@ export const igCommentAdapter: ChannelAdapter = {
         if (!value) continue;
         const fromObj = value.from as { id?: string; username?: string } | undefined;
         if (!fromObj?.id) continue;
+        // Render IG handles as "@usuario" — matches how IG DMs and the
+        // meta-contact-names backfill cron store them, so the same person
+        // reads consistently whether they DM'd or commented (and the
+        // inbox-writer name backfill doesn't flip "@usuario" back to
+        // the bare handle on the next comment).
+        const username = fromObj.username?.trim();
         events.push({
           channel: "ig_comment",
           connection,
           externalContactId: fromObj.id,
-          contactName: fromObj.username,
+          contactName: username ? `@${username}` : undefined,
           externalMessageId: String(value.id ?? ""),
           text: String(value.text ?? ""),
           comment: {

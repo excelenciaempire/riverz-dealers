@@ -91,98 +91,235 @@ export async function POST(
     });
   }
 
-  // Read the body ONCE as raw text. Meta signs the exact bytes — once
-  // we let `request.json()` re-encode them the HMAC no longer matches.
-  // The adapter receives the pre-parsed JSON so it doesn't have to
-  // re-buffer the stream.
-  const rawBody = await req.text();
+  // Wrap the rest in a top-level try/catch. Any uncaught exception
+  // (Supabase outage during loadConnection, adapter throwing on an
+  // unexpected payload shape) used to bubble to Next.js → 500. Meta then
+  // puts the delivery into exponential-backoff retries, and after ~7d
+  // of sustained 5xx it auto-unsubscribes the field. We page on the log
+  // line, never on Meta's redelivery queue.
+  try {
+    // Read the body ONCE as raw text. Meta signs the exact bytes — once
+    // we let `request.json()` re-encode them the HMAC no longer matches.
+    // The adapter receives the pre-parsed JSON so it doesn't have to
+    // re-buffer the stream.
+    const rawBody = await req.text();
 
-  const verdict = await verifyChannelWebhook(channel, req, rawBody);
-  if (!verdict.ok) {
-    // Ack 200 even on bad signatures — re-driving an attacker's retries
-    // (or amplifying a misconfigured-secret loop) gives the adversary
-    // nothing useful. The operator pages on the warn log, not on
-    // Meta's redelivery queue. Same pattern as the legacy WhatsApp
-    // webhook (src/app/api/whatsapp/webhook/route.ts).
-    //
-    // Log enough diagnostic context to discriminate every failure mode
-    // (SHA1-only header, missing header, wrong prefix, hmac mismatch)
-    // without ever quoting the body — Meta payloads contain message
-    // text and customer IDs (PII). Header diagnostics are sufficient.
-    //
-    // `connection_id` is read from the query string (NOT from the DB)
-    // so an unauthenticated attacker spamming this endpoint can't force
-    // us to do a DB roundtrip per rejection. That would be a DoS
-    // amplifier.
-    log.warn("rejected webhook delivery", {
+    const verdict = await verifyChannelWebhook(channel, req, rawBody);
+    if (!verdict.ok) {
+      // Ack 200 even on bad signatures — re-driving an attacker's retries
+      // (or amplifying a misconfigured-secret loop) gives the adversary
+      // nothing useful. The operator pages on the warn log, not on
+      // Meta's redelivery queue. Same pattern as the legacy WhatsApp
+      // webhook (src/app/api/whatsapp/webhook/route.ts).
+      log.warn("rejected webhook delivery", {
+        channel,
+        reason: verdict.reason,
+        detail: verdict.detail,
+        connectionId: new URL(req.url).searchParams.get("connection_id"),
+        rawBodyLength: rawBody.length,
+        contentType: req.headers.get("content-type"),
+        contentEncoding: req.headers.get("content-encoding"),
+        hasSha1Header: !!req.headers.get("x-hub-signature"),
+        hasSha256Header: !!req.headers.get("x-hub-signature-256"),
+        userAgent: req.headers.get("user-agent"),
+      });
+      return NextResponse.json({ status: "ignored" }, { status: 200 });
+    }
+
+    let payload: unknown = null;
+    if (rawBody.length > 0) {
+      try {
+        payload = JSON.parse(rawBody);
+      } catch {
+        log.warn("invalid JSON body after signature verify", { channel });
+        return NextResponse.json({ status: "ignored" }, { status: 200 });
+      }
+    }
+
+    // Fire-and-forget the heavy ingestion work so we ack Meta inside
+    // the 5s budget. parseWebhook can do Graph lookups for sender names
+    // and download media for every attachment, which under a burst can
+    // exceed Meta's 5s timeout → retry queue → duplicate processing →
+    // re-fired automations. The legacy WhatsApp webhook has the same
+    // posture (src/app/api/whatsapp/webhook/route.ts:190).
+    const explicitId = new URL(req.url).searchParams.get("connection_id");
+    void processChannelsWebhookAsync(channel, req, rawBody, payload, explicitId).catch(
+      (err) => {
+        log.error("channels webhook async processing failed", {
+          channel,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      },
+    );
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    // Never 5xx back to Meta — it triggers exponential-backoff retries
+    // and, after ~7d of sustained failures, auto-unsubscribes the field.
+    log.error("webhook handler threw", {
       channel,
-      reason: verdict.reason,
-      detail: verdict.detail,
-      connectionId: new URL(req.url).searchParams.get("connection_id"),
-      rawBodyLength: rawBody.length,
-      contentType: req.headers.get("content-type"),
-      contentEncoding: req.headers.get("content-encoding"),
-      hasSha1Header: !!req.headers.get("x-hub-signature"),
-      hasSha256Header: !!req.headers.get("x-hub-signature-256"),
-      userAgent: req.headers.get("user-agent"),
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
     });
     return NextResponse.json({ status: "ignored" }, { status: 200 });
   }
+}
 
-  let payload: unknown = null;
-  if (rawBody.length > 0) {
-    try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      log.warn("invalid JSON body after signature verify", { channel });
-      return NextResponse.json({ status: "ignored" }, { status: 200 });
-    }
-  }
-
+async function processChannelsWebhookAsync(
+  channel: Channel,
+  req: Request,
+  rawBody: string,
+  payload: unknown,
+  explicitId: string | null,
+): Promise<void> {
   // Meta delivers ONE webhook per object: page → messaging + feed (DMs +
   // FB comments), instagram → messaging + comments (DMs + IG comments).
   // Run every related adapter so a single delivery hits both the DM
   // pipeline and the comments pipeline even though they live under
   // different connection rows.
   const adapterChannels = relatedChannels(channel);
-
   const db = supabaseAdmin();
-  let ingested = 0;
-  let processed = false;
   for (const c of adapterChannels) {
-    const connection = await loadConnection(req, c);
-    if (!connection) continue;
+    const routes = explicitId
+      ? await routesForExplicitId(explicitId, payload)
+      : await routesByPayload(c, payload);
+    if (routes.length === 0) continue;
+
     const adapter = getAdapter(c);
-    let events;
-    try {
-      events = await adapter.parseWebhook(
-        { request: req, rawBody, payload },
-        connection,
-      );
-    } catch (err) {
-      log.error("parseWebhook failed", {
-        channel: c,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      continue;
-    }
-    processed = true;
-    for (const event of events) {
+    for (const route of routes) {
+      let events;
       try {
-        await ingestInboundEvent(db, event);
-        ingested++;
+        events = await adapter.parseWebhook(
+          { request: req, rawBody, payload: route.payload },
+          route.connection,
+        );
       } catch (err) {
-        log.error("ingest failed", {
+        log.error("parseWebhook failed", {
           channel: c,
           error: err instanceof Error ? err.message : String(err),
         });
+        continue;
+      }
+      for (const event of events) {
+        try {
+          await ingestInboundEvent(db, event);
+        } catch (err) {
+          log.error("ingest failed", {
+            channel: c,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }
-  if (!processed) {
-    return NextResponse.json({ error: "connection not found" }, { status: 404 });
+}
+
+/** One slice of a webhook delivery: the connection that owns it plus the
+ *  (possibly entry-filtered) payload the adapter should parse for it. */
+interface DeliveryRoute {
+  connection: ChannelConnection;
+  payload: unknown;
+}
+
+/** Explicit ?connection_id=… path: load that one row and hand it the
+ *  whole payload (the caller asserted which connection this is for). */
+async function routesForExplicitId(
+  id: string,
+  payload: unknown,
+): Promise<DeliveryRoute[]> {
+  const { data } = await supabaseAdmin()
+    .from("channel_connections")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  const connection = data as ChannelConnection | null;
+  return connection ? [{ connection, payload }] : [];
+}
+
+/**
+ * No connection_id in the URL — route by payload. Loads every connected
+ * connection for the channel and attributes each top-level `entry[]` to
+ * the connection whose page_id / ig_user_id (or WhatsApp
+ * phone_number_id) it carries. One connection → whole payload (the
+ * common case, zero overhead). Entries we can't attribute fall back to
+ * the first connected row so nothing is silently dropped.
+ */
+async function routesByPayload(
+  channel: Channel,
+  payload: unknown,
+): Promise<DeliveryRoute[]> {
+  const { data } = await supabaseAdmin()
+    .from("channel_connections")
+    .select("*")
+    .eq("channel", channel)
+    .eq("status", "connected");
+  const conns = (data ?? []) as ChannelConnection[];
+  if (conns.length === 0) return [];
+
+  const body = (payload ?? {}) as { entry?: unknown };
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  // Single connection or no entries to discriminate on → give it
+  // everything, exactly like the legacy single-connection path.
+  if (conns.length === 1 || entries.length === 0) {
+    return [{ connection: conns[0], payload }];
   }
-  return NextResponse.json({ ok: true, ingested });
+
+  const buckets = new Map<string, DeliveryRoute & { entries: unknown[] }>();
+  const unmatched: unknown[] = [];
+  for (const entry of entries) {
+    const conn = conns.find((c) => connectionMatchesEntry(channel, c, entry));
+    if (!conn) {
+      unmatched.push(entry);
+      continue;
+    }
+    const existing = buckets.get(conn.id);
+    if (existing) existing.entries.push(entry);
+    else buckets.set(conn.id, { connection: conn, payload: null, entries: [entry] });
+  }
+
+  const routes: DeliveryRoute[] = [...buckets.values()].map((b) => ({
+    connection: b.connection,
+    payload: { ...(body as object), entry: b.entries },
+  }));
+  if (unmatched.length > 0) {
+    routes.push({
+      connection: conns[0],
+      payload: { ...(body as object), entry: unmatched },
+    });
+  }
+  return routes;
+}
+
+/**
+ * True when a webhook `entry` belongs to this connection. Meta puts the
+ * page id / IG user id on `entry.id`; WhatsApp puts the WABA id there and
+ * the phone number under `entry.changes[].value.metadata.phone_number_id`.
+ * We match against every identifier we store (external_account_id plus the
+ * config keys) so it works regardless of which id Meta stamped.
+ */
+function connectionMatchesEntry(
+  channel: Channel,
+  connection: ChannelConnection,
+  entry: unknown,
+): boolean {
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  const ids = new Set<string>();
+  if (connection.external_account_id) ids.add(String(connection.external_account_id));
+  for (const key of ["page_id", "ig_user_id", "phone_number_id", "waba_id"]) {
+    if (cfg[key]) ids.add(String(cfg[key]));
+  }
+
+  const e = entry as {
+    id?: unknown;
+    changes?: Array<{ value?: { metadata?: { phone_number_id?: unknown } } }>;
+  };
+  if (channel === "whatsapp") {
+    for (const ch of e.changes ?? []) {
+      const pid = ch?.value?.metadata?.phone_number_id;
+      if (pid != null && ids.has(String(pid))) return true;
+    }
+  }
+  return e.id != null && ids.has(String(e.id));
 }
 
 /**
