@@ -38,12 +38,68 @@ export const outlookAdapter: ChannelAdapter = {
     if (!to) throw new Error("[outlook] contact missing email address");
 
     const subject = input.conversation.subject ?? "(no subject)";
+    const convId = input.conversation.thread_external_id ?? null;
 
-    // Create a draft first so we capture the internetMessageId, then
-    // send it. /sendMail returns 202 with no body, which left our
-    // outbound rows id-less and unable to dedupe against the same mail
-    // when the Sent-folder poller later ingests it. The draft id IS the
-    // internetMessageId the Sent copy carries, so dedup works.
+    // THREADING: a fresh draft can't carry a conversationId (Graph assigns
+    // it server-side), so a plain create+send always started a NEW thread.
+    // Instead, find any message already in this Outlook conversation and
+    // `createReply` from it — Graph then keeps the reply in the same
+    // thread. We overwrite the draft body + recipient and still capture
+    // internetMessageId so the Sent-folder poller dedupes our own reply.
+    const originalId = convId
+      ? await findMessageIdInConversation(accessToken, convId)
+      : null;
+
+    if (originalId) {
+      const replyRes = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${originalId}/createReply`,
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!replyRes.ok) {
+        const detail = await replyRes.text().catch(() => "");
+        throw new Error(`[outlook] createReply failed (${replyRes.status}): ${detail}`);
+      }
+      const draft = (await replyRes.json()) as { id?: string };
+      if (!draft.id) throw new Error("[outlook] reply draft missing id");
+
+      // Overwrite the auto-quoted body with our text and force the
+      // recipient — createReply defaults `toRecipients` to the replied-to
+      // message's sender, which is us when the only thread message so far
+      // is one we sent. The PATCH response carries internetMessageId.
+      const patchRes = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${draft.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            body: { contentType: "Text", content: input.text },
+            toRecipients: [{ emailAddress: { address: to } }],
+          }),
+        },
+      );
+      if (!patchRes.ok) {
+        const detail = await patchRes.text().catch(() => "");
+        throw new Error(`[outlook] reply patch failed (${patchRes.status}): ${detail}`);
+      }
+      const patched = (await patchRes.json()) as { internetMessageId?: string };
+
+      const sendRes = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/send`,
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!sendRes.ok && sendRes.status !== 202) {
+        const detail = await sendRes.text().catch(() => "");
+        throw new Error(`[outlook] reply send failed (${sendRes.status}): ${detail}`);
+      }
+      return { externalMessageId: patched.internetMessageId, status: "sent" };
+    }
+
+    // No prior message in the thread (agent-initiated first email) — fall
+    // back to a standalone draft. Create-then-send (not /sendMail) so we
+    // capture internetMessageId for Sent-folder dedup.
     const draftRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
       method: "POST",
       headers: {
@@ -138,6 +194,32 @@ interface GraphNotification {
   changeType?: string;
   resource?: string;
   resourceData?: { id?: string };
+}
+
+/**
+ * Find any message Graph id in a given Outlook conversation so we can
+ * `createReply` from it and keep our reply in the same thread. Returns
+ * null when the conversation has no readable message (e.g. the agent is
+ * emailing first) — the caller then falls back to a standalone draft.
+ */
+async function findMessageIdInConversation(
+  accessToken: string,
+  conversationId: string,
+): Promise<string | null> {
+  const u = new URL("https://graph.microsoft.com/v1.0/me/messages");
+  // OData string literals escape a single quote by doubling it.
+  u.searchParams.set(
+    "$filter",
+    `conversationId eq '${conversationId.replace(/'/g, "''")}'`,
+  );
+  u.searchParams.set("$select", "id");
+  u.searchParams.set("$top", "1");
+  const r = await fetch(u.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!r.ok) return null;
+  const j = (await r.json()) as { value?: Array<{ id?: string }> };
+  return j.value?.[0]?.id ?? null;
 }
 
 /** "Users/{uid}/Messages/{mid}" or "/me/messages/{mid}" → {mid}. */

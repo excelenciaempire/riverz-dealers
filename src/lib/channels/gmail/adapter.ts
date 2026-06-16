@@ -41,14 +41,26 @@ export const gmailAdapter: ChannelAdapter = {
     // Refresh the access token if the cached one has expired (Google
     // tokens live ~1h). Without this, replies started failing with 401
     // an hour after connecting and the agent's text was lost.
-    const accessToken = await getFreshAccessToken(supabaseAdmin(), input.connection);
+    const admin = supabaseAdmin();
+    const accessToken = await getFreshAccessToken(admin, input.connection);
     if (!accessToken) throw new Error("[gmail] connection missing access_token");
 
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[gmail] contact missing email address");
 
-    const subject = input.conversation.subject ?? "(no subject)";
-    const raw = buildRfc2822({ from, to, subject, body: input.text, inReplyTo: input.replyToExternalId });
+    // Thread the reply. Gmail keeps a message in an existing thread only
+    // when (a) threadId is set, (b) the Subject matches (it ignores the
+    // "Re:" prefix), AND (c) In-Reply-To / References point at a message
+    // already in the thread. We had threadId but only set In-Reply-To
+    // when the composer passed an explicit target — so normal replies
+    // could split into a new thread. Fall back to the most recent inbound
+    // message's RFC Message-ID so every reply stays threaded.
+    const replyId =
+      input.replyToExternalId ??
+      (await latestInboundMessageId(admin, input.conversation.id));
+
+    const subject = withRePrefix(input.conversation.subject ?? "(no subject)");
+    const raw = buildRfc2822({ from, to, subject, body: input.text, inReplyTo: replyId });
     const b64 = base64UrlEncode(raw);
 
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
@@ -83,6 +95,32 @@ export const gmailAdapter: ChannelAdapter = {
     return [];
   },
 };
+
+/** Most recent inbound (customer) message's external id in the
+ *  conversation — for Gmail that's the RFC Message-ID header, exactly
+ *  what In-Reply-To / References need. undefined when the agent emails
+ *  first (no inbound to thread off). */
+async function latestInboundMessageId(
+  db: ReturnType<typeof supabaseAdmin>,
+  conversationId: string,
+): Promise<string | undefined> {
+  const { data } = await db
+    .from("messages")
+    .select("message_id")
+    .eq("conversation_id", conversationId)
+    .eq("sender_type", "customer")
+    .not("message_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { message_id?: string } | null)?.message_id ?? undefined;
+}
+
+/** Prefix "Re: " unless it's already there — keeps the threaded subject
+ *  conventional without doubling on a reply-to-a-reply. */
+function withRePrefix(subject: string): string {
+  return /^\s*re:/i.test(subject) ? subject : `Re: ${subject}`;
+}
 
 function buildRfc2822(args: {
   from: string;
