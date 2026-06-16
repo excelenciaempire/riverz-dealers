@@ -45,6 +45,7 @@ import {
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { runShopifyLookup } from "./shopify-lookup";
 import { classifyIntent } from "./ai-intent";
+import { resolveWorkspaceOwnerUserId } from "@/lib/workspaces/owner";
 import {
   type AiIntentNodeConfig,
   type CollectInputNodeConfig,
@@ -402,10 +403,11 @@ async function sendButtonsAndSuspend(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
+  ownerUserId: string,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveButtons({
-    userId: run.workspace_id,
+    userId: ownerUserId,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
     bodyText: cfg.text,
@@ -437,10 +439,11 @@ async function sendListAndSuspend(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
+  ownerUserId: string,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendListNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveList({
-    userId: run.workspace_id,
+    userId: ownerUserId,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
     bodyText: cfg.text,
@@ -728,6 +731,20 @@ async function advanceFromNodeKey(
   startNodeKey: string,
   nodes: Map<string, FlowNodeRow>,
 ): Promise<{ outcome: "advanced" | "completed" | "handed_off" }> {
+  // The meta-send helpers look up `contacts.user_id` /
+  // `whatsapp_config.user_id` — the legacy auth.users.id columns, not
+  // the workspace id. Passing `run.workspace_id` into those queries
+  // silently returned `null` and every send failed with "contact not
+  // found for this user". Resolve once and reuse for every node.
+  const ownerUserId = await resolveWorkspaceOwnerUserId(db, run.workspace_id);
+  if (!ownerUserId) {
+    await logEvent(db, run.id, "error", null, {
+      reason: "workspace_owner_not_found",
+      workspace_id: run.workspace_id,
+    });
+    await endRun(db, run.id, "failed", "workspace_owner_not_found");
+    return { outcome: "completed" };
+  }
   let currentKey: string | null = startNodeKey;
   // Mutable: cuando entramos a un subflujo, swappeamos esto por los
   // nodos del flujo referenciado. Cuando salimos (end/handoff con
@@ -774,7 +791,7 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as SendMessageNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendText({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.text, run.vars),
@@ -800,7 +817,7 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as CollectInputNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendText({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
@@ -978,7 +995,7 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_buttons") {
       try {
-        await sendButtonsAndSuspend(db, run, node);
+        await sendButtonsAndSuspend(db, run, node, ownerUserId);
       } catch (err) {
         await scheduleSendRetry(db, run, node, "send_buttons", err);
         return { outcome: "advanced" };
@@ -999,7 +1016,7 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_list") {
       try {
-        await sendListAndSuspend(db, run, node);
+        await sendListAndSuspend(db, run, node, ownerUserId);
       } catch (err) {
         await scheduleSendRetry(db, run, node, "send_list", err);
         return { outcome: "advanced" };
@@ -1043,7 +1060,7 @@ async function advanceFromNodeKey(
               ? engineSendVideo
               : engineSendDocument;
         const { whatsapp_message_id } = await sender({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           url: interpolateVars(cfg.url, run.vars),
@@ -1072,7 +1089,7 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as SendCtaUrlNodeConfig;
       try {
         const { whatsapp_message_id } = await engineSendCtaUrl({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           bodyText: interpolateVars(cfg.text, run.vars),
@@ -1136,7 +1153,7 @@ async function advanceFromNodeKey(
       try {
         if (cfg.prompt_text && cfg.prompt_text.trim()) {
           const { whatsapp_message_id } = await engineSendText({
-            userId: run.workspace_id,
+            userId: ownerUserId,
             conversationId: run.conversation_id!,
             contactId: run.contact_id!,
             text: interpolateVars(cfg.prompt_text, run.vars),
@@ -1180,7 +1197,7 @@ async function advanceFromNodeKey(
           (cfg.output_prefix && cfg.output_prefix.trim()) ||
           (cfg.kind === "product_by_handle" ? "product" : "order");
         const result = await runShopifyLookup({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           contactId: run.contact_id!,
           kind: cfg.kind,
           input,
@@ -1372,6 +1389,18 @@ async function handleReplyForActiveRun(
     text_length: message.kind === "text" ? message.text.length : null,
   });
 
+  // Same reason as in advanceFromNodeKey: meta-send helpers scope by
+  // `contacts.user_id` (auth.users.id), not workspace_id.
+  const ownerUserId = await resolveWorkspaceOwnerUserId(db, run.workspace_id);
+  if (!ownerUserId) {
+    await logEvent(db, run.id, "error", run.current_node_key, {
+      reason: "workspace_owner_not_found",
+      workspace_id: run.workspace_id,
+    });
+    await endRun(db, run.id, "failed", "workspace_owner_not_found");
+    return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
+  }
+
   if (!run.current_node_key) {
     // Defensive — a run with status='active' but no current node is
     // malformed. Fail the run rather than spin.
@@ -1412,7 +1441,7 @@ async function handleReplyForActiveRun(
       // re-enviamos el prompt para que vuelva a intentar.
       try {
         await engineSendText({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
@@ -1552,14 +1581,14 @@ async function handleReplyForActiveRun(
     // Re-send the same prompt. Same node, no current_node_key change.
     if (currentNode.node_type === "send_buttons") {
       try {
-        await sendButtonsAndSuspend(db, run, currentNode);
+        await sendButtonsAndSuspend(db, run, currentNode, ownerUserId);
       } catch (err) {
         await scheduleSendRetry(db, run, currentNode, "send_buttons", err);
         return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
       }
     } else if (currentNode.node_type === "send_list") {
       try {
-        await sendListAndSuspend(db, run, currentNode);
+        await sendListAndSuspend(db, run, currentNode, ownerUserId);
       } catch (err) {
         await scheduleSendRetry(db, run, currentNode, "send_list", err);
         return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
@@ -1570,7 +1599,7 @@ async function handleReplyForActiveRun(
       const cfg = currentNode.config as unknown as CollectInputNodeConfig;
       try {
         await engineSendText({
-          userId: run.workspace_id,
+          userId: ownerUserId,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           text: interpolateVars(cfg.prompt_text, run.vars),
@@ -1683,10 +1712,17 @@ export async function retrySendNode(args: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = supabaseAdmin();
   try {
+    const ownerUserId = await resolveWorkspaceOwnerUserId(
+      db,
+      args.run.workspace_id,
+    );
+    if (!ownerUserId) {
+      return { ok: false, error: "workspace_owner_not_found" };
+    }
     if (args.retryKind === "send_buttons") {
-      await sendButtonsAndSuspend(db, args.run, args.node);
+      await sendButtonsAndSuspend(db, args.run, args.node, ownerUserId);
     } else {
-      await sendListAndSuspend(db, args.run, args.node);
+      await sendListAndSuspend(db, args.run, args.node, ownerUserId);
     }
     // Restaurar el run a activo y avanzar current_node_key al nodo
     // que mandó (idéntico al path normal).

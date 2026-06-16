@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import type { AutomationTriggerType } from '@/types'
 
 /**
  * Manual trigger for testing or for external integrations that want
- * to fire automations. Auth is required — the caller's user_id is
- * used so RLS-safe data remains per-user.
+ * to fire automations. Auth is required, and the dispatch is scoped by
+ * workspace_id (NOT auth.users.id). The caller may pass an explicit
+ * `workspace_id` in the body — we verify membership; otherwise we fall
+ * back to the user's primary (oldest) workspace_members row. Passing
+ * `user.id` as the workspace would query
+ * `automations.workspace_id = <auth.users.id>` and silently match
+ * nothing, so we never do that.
  */
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
@@ -23,8 +29,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'trigger_type required' }, { status: 400 })
   }
 
+  const admin = supabaseAdmin()
+  let resolvedWorkspaceId: string | null =
+    (body.workspace_id as string | undefined) ?? null
+  if (resolvedWorkspaceId) {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('workspace_id', resolvedWorkspaceId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!member) {
+      return NextResponse.json(
+        { error: 'Not a member of that workspace' },
+        { status: 403 },
+      )
+    }
+  } else {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    resolvedWorkspaceId =
+      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+  }
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json(
+      { error: 'No workspace found for user' },
+      { status: 400 },
+    )
+  }
+
   await runAutomationsForTrigger({
-    workspaceId: user.id, // TODO Phase 3: resolve from workspace_members
+    workspaceId: resolvedWorkspaceId,
     triggerType: body.trigger_type as AutomationTriggerType,
     contactId: body.contact_id ?? null,
     context: body.context ?? {},

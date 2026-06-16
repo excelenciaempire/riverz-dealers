@@ -41,6 +41,7 @@ export async function POST(request: Request) {
   }
   const body = (await request.json().catch(() => null)) as {
     id?: string;
+    workspace_id?: string;
     name?: string;
     is_active?: boolean;
     priority?: number;
@@ -48,17 +49,34 @@ export async function POST(request: Request) {
     channel?: string | null;
     config?: Record<string, unknown>;
   } | null;
-  if (!body?.name || !body.kind) {
-    return NextResponse.json({ error: 'Faltan name o kind' }, { status: 400 });
+  if (!body?.name || !body.kind || !body.workspace_id) {
+    return NextResponse.json(
+      { error: 'Faltan name, kind o workspace_id' },
+      { status: 400 },
+    );
   }
+  // Verificamos que el caller sea admin/owner del workspace REQUERIDO,
+  // no del primer workspace_members row que Postgres haya devuelto. Un
+  // admin de dos workspaces no debería poder crear reglas para el
+  // workspace equivocado desde la UI del otro.
   const { data: member } = await supabase
     .from('workspace_members')
-    .select('workspace_id, role')
+    .select('role')
     .eq('user_id', user.id)
-    .limit(1)
+    .eq('workspace_id', body.workspace_id)
     .maybeSingle();
-  if (!member?.workspace_id) {
-    return NextResponse.json({ error: 'No workspace' }, { status: 400 });
+
+  if (!member) {
+    return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+  }
+  // 013_unified_inbox.sql solo define 'admin' | 'agent', pero la
+  // política RLS de 032_assignment_rules.sql usa 'owner', así que
+  // permitimos ambos para forward-compat.
+  if (!['admin', 'owner'].includes(member.role)) {
+    return NextResponse.json(
+      { error: 'Solo admins/owners pueden modificar reglas' },
+      { status: 403 },
+    );
   }
   // `channel` se trata como "cualquiera" cuando el cliente manda null o
   // string vacío — no hay que persistir un literal "cualquiera" porque
@@ -79,14 +97,15 @@ export async function POST(request: Request) {
         config: body.config ?? {},
         updated_at: new Date().toISOString(),
       })
-      .eq('id', body.id);
+      .eq('id', body.id)
+      .eq('workspace_id', body.workspace_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
   const { data, error } = await supabase
     .from('conversation_assignment_rules')
     .insert({
-      workspace_id: member.workspace_id,
+      workspace_id: body.workspace_id,
       name: body.name,
       is_active: body.is_active ?? true,
       priority: body.priority ?? 100,
@@ -112,13 +131,36 @@ export async function DELETE(request: Request) {
   }
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
-  if (!id) {
-    return NextResponse.json({ error: 'Falta id' }, { status: 400 });
+  const workspaceId = url.searchParams.get('workspace_id');
+  if (!id || !workspaceId) {
+    return NextResponse.json(
+      { error: 'Faltan id o workspace_id' },
+      { status: 400 },
+    );
+  }
+  // Mismo guardia que en POST: verificamos membresía/role para el
+  // workspace específico que se quiere afectar, no para una membresía
+  // arbitraria del user.
+  const { data: member } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (!member) {
+    return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+  }
+  if (!['admin', 'owner'].includes(member.role)) {
+    return NextResponse.json(
+      { error: 'Solo admins/owners pueden modificar reglas' },
+      { status: 403 },
+    );
   }
   const { error } = await supabase
     .from('conversation_assignment_rules')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('workspace_id', workspaceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

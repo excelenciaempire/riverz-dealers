@@ -13,6 +13,7 @@ import {
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -727,14 +728,11 @@ async function processMessage(
   let workspaceId: string | null =
     (conversation as { workspace_id?: string | null }).workspace_id ?? null
   if (!workspaceId) {
-    const { data: member } = await supabaseAdmin()
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle()
-    workspaceId = (member as { workspace_id?: string | null } | null)
-      ?.workspace_id ?? null
+    // Deterministic resolution: owner-first, then joined_at ASC across
+    // workspace_members. A multi-workspace owner used to get a random
+    // row here, which made the same inbound message route to a
+    // different workspace's automations on different invocations.
+    workspaceId = await resolveWorkspaceIdForUser(supabaseAdmin(), userId)
   }
   if (!workspaceId) {
     console.warn(
@@ -979,22 +977,19 @@ async function findOrCreateConversation(userId: string, contactId: string) {
   // by_keyword) seteamos assigned_agent_id al toque. La conv arranca
   // ya en la columna de quien le toca atender.
   const admin = supabaseAdmin();
-  // Resolver workspace_id del user_id (por las dudas; en muchos
-  // casos podemos saltarlo si no hay reglas).
-  const { data: member } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle();
+  // Resolver workspace_id del user_id determinísticamente (owner-first,
+  // luego joined_at ASC). Antes se hacía un .limit(1) sin .order(...),
+  // así que un user multi-workspace podía recibir las reglas de
+  // asignación del workspace equivocado.
+  const resolvedWorkspaceId = await resolveWorkspaceIdForUser(admin, userId);
   let assignedAgentId: string | null = null;
-  if (member?.workspace_id) {
+  if (resolvedWorkspaceId) {
     try {
       const { resolveAssignmentForConversation } = await import(
         '@/lib/inbox/assignment-rules'
       );
       assignedAgentId = await resolveAssignmentForConversation(admin, {
-        workspaceId: member.workspace_id,
+        workspaceId: resolvedWorkspaceId,
         conversationId: '',
         channel: 'whatsapp',
         contactId,
@@ -1005,12 +1000,17 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     }
   }
 
+  // Persistir workspace_id en la fila para que el fallback en la
+  // dispatch de automations no tenga que volver a resolver en
+  // invocaciones futuras (y para que no se rompa si el user pierde la
+  // membresía a uno de los workspaces).
   const { data: newConv, error: createError } = await admin
     .from('conversations')
     .insert({
       user_id: userId,
       contact_id: contactId,
       assigned_agent_id: assignedAgentId,
+      workspace_id: resolvedWorkspaceId,
     })
     .select()
     .single()

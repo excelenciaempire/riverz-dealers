@@ -104,7 +104,28 @@ export async function POST(
     // nothing useful. The operator pages on the warn log, not on
     // Meta's redelivery queue. Same pattern as the legacy WhatsApp
     // webhook (src/app/api/whatsapp/webhook/route.ts).
-    log.warn("rejected webhook delivery", { channel, reason: verdict.reason });
+    //
+    // Log enough diagnostic context to discriminate every failure mode
+    // (SHA1-only header, missing header, wrong prefix, hmac mismatch)
+    // without ever quoting the body — Meta payloads contain message
+    // text and customer IDs (PII). Header diagnostics are sufficient.
+    //
+    // `connection_id` is read from the query string (NOT from the DB)
+    // so an unauthenticated attacker spamming this endpoint can't force
+    // us to do a DB roundtrip per rejection. That would be a DoS
+    // amplifier.
+    log.warn("rejected webhook delivery", {
+      channel,
+      reason: verdict.reason,
+      detail: verdict.detail,
+      connectionId: new URL(req.url).searchParams.get("connection_id"),
+      rawBodyLength: rawBody.length,
+      contentType: req.headers.get("content-type"),
+      contentEncoding: req.headers.get("content-encoding"),
+      hasSha1Header: !!req.headers.get("x-hub-signature"),
+      hasSha256Header: !!req.headers.get("x-hub-signature-256"),
+      userAgent: req.headers.get("user-agent"),
+    });
     return NextResponse.json({ status: "ignored" }, { status: 200 });
   }
 

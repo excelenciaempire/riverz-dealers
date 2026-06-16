@@ -9,16 +9,52 @@ import {
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Scope by workspace_id so a multi-workspace user doesn't see a
+  // cross-tenant mix. RLS protects against access, but it cannot
+  // disambiguate which workspace the UI is currently scoped to.
+  const admin = supabaseAdmin()
+  const url = new URL(request.url)
+  let resolvedWorkspaceId: string | null =
+    url.searchParams.get('workspace_id') ?? null
+  if (resolvedWorkspaceId) {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('workspace_id', resolvedWorkspaceId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!member) {
+      return NextResponse.json(
+        { error: 'Not a member of that workspace' },
+        { status: 403 },
+      )
+    }
+  } else {
+    const { data: member } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    resolvedWorkspaceId =
+      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+  }
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json({ automations: [] })
+  }
+
   const { data, error } = await supabase
     .from('automations')
     .select('*')
+    .eq('workspace_id', resolvedWorkspaceId)
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ automations: data ?? [] })

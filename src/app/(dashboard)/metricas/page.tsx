@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   TrendingUp,
   Megaphone,
@@ -100,6 +101,12 @@ export default function MetricasPage() {
           <p className="mt-1 text-xs text-muted-foreground">
             Sin Shopify no podemos cruzar las órdenes con tus campañas y flujos.
           </p>
+          <Link
+            href="/integraciones"
+            className="mt-4 inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-colors hover:bg-accent/90"
+          >
+            Conectar Shopify
+          </Link>
         </div>
       ) : data?.error ? (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">

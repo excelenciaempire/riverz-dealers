@@ -26,9 +26,15 @@ import { runAutomationById } from '@/lib/automations/engine'
  *
  * Configurable via env `PILAR_REENGAGEMENT_AUTOMATION_ID` para que se
  * pueda swapear sin redeploy.
+ *
+ * Discovery v2: si existe alguna automation activa con
+ * trigger_type='customer_inactive' en el workspace, usamos ESAS (puede
+ * haber varias con distintos days_threshold). Si no, caemos al UUID
+ * legacy hard-codeado para no romper a Pilar mientras migran.
  */
 const DEFAULT_AUTOMATION_ID = '9a4c971b-7a36-48b3-be1e-cf2989b13918'
 const PILAR_WORKSPACE_ID = '522a68ae-568d-4dd9-92e5-2c8f633f1761'
+const DEFAULT_DAYS_THRESHOLD = 14
 
 export async function GET(request: Request) {
   try {
@@ -38,18 +44,31 @@ export async function GET(request: Request) {
     throw r
   }
 
-  const automationId =
+  const legacyAutomationId =
     process.env.PILAR_REENGAGEMENT_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
   const workspaceId =
     process.env.PILAR_WORKSPACE_ID || PILAR_WORKSPACE_ID
 
   const admin = supabaseAdmin()
   const fourteenDaysAgo = new Date(
-    Date.now() - 14 * 24 * 60 * 60 * 1000,
+    Date.now() - DEFAULT_DAYS_THRESHOLD * 24 * 60 * 60 * 1000,
   ).toISOString()
   const thirtyDaysAgo = new Date(
     Date.now() - 30 * 24 * 60 * 60 * 1000,
   ).toISOString()
+
+  // Buscamos cualquier automation con trigger_type='customer_inactive'.
+  // Si hay alguna, la usamos en lugar del UUID legacy.
+  const { data: candidateAutomations } = await admin
+    .from('automations')
+    .select('id, trigger_config')
+    .eq('workspace_id', workspaceId)
+    .eq('trigger_type', 'customer_inactive')
+    .eq('is_active', true)
+  const automationsToFire = (candidateAutomations ?? []) as Array<{
+    id: string
+    trigger_config: { days_threshold?: number } | null
+  }>
 
   // Paso 1: Set de contact_ids que alguna vez tuvieron una orden.
   // Buscamos en automation_logs por trigger_event = shopify_order_created.
@@ -130,16 +149,39 @@ export async function GET(request: Request) {
       continue
     }
 
-    const result = await runAutomationById({
-      automationId,
-      contactId: contact.id,
-      context: {
-        vars: {
-          customer_name: contact.name ?? '',
+    // Decide qué automations disparar. Si hay configuradas, usamos
+    // todas las que cumplan su days_threshold (silencio del contacto
+    // >= days_threshold). Si no, caemos al legacy single-ID.
+    const lastInboundAt = (c as { last_inbound_at: string | null })
+      .last_inbound_at
+    const elapsedDays = lastInboundAt
+      ? (Date.now() - new Date(lastInboundAt).getTime()) / 86_400_000
+      : Number.POSITIVE_INFINITY
+
+    const idsToFire: string[] = []
+    if (automationsToFire.length > 0) {
+      for (const a of automationsToFire) {
+        const need = Number(
+          a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD,
+        )
+        if (Number.isFinite(need) && elapsedDays >= need) idsToFire.push(a.id)
+      }
+    } else {
+      idsToFire.push(legacyAutomationId)
+    }
+
+    for (const automationId of idsToFire) {
+      const result = await runAutomationById({
+        automationId,
+        contactId: contact.id,
+        context: {
+          vars: {
+            customer_name: contact.name ?? '',
+          },
         },
-      },
-    })
-    if (result.executed) dispatched++
+      })
+      if (result.executed) dispatched++
+    }
   }
 
   return NextResponse.json({ processed: candidates.length, dispatched })

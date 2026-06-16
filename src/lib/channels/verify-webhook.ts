@@ -1,6 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Channel } from "@/types";
-import { verifyMetaWebhookSignature } from "@/lib/whatsapp/webhook-signature";
+import {
+  verifyMetaWebhookSignatureDetailed,
+  type MetaSignatureRejection,
+} from "@/lib/whatsapp/webhook-signature";
 
 /**
  * Channel webhook verification — the floor. Every public POST against
@@ -12,10 +15,23 @@ import { verifyMetaWebhookSignature } from "@/lib/whatsapp/webhook-signature";
  * Returns `{ ok: true }` on a verified delivery. On rejection we return
  * `{ ok: false, reason }` so the caller can log it and ack 200 — re-driving
  * signed retries against a misconfigured secret only amplifies the problem.
+ *
+ * For Meta channels, `detail` is also populated so the route can log
+ * exactly which failure mode happened (SHA1-only header, missing
+ * header, wrong prefix, hmac mismatch) without leaking PII from the
+ * body.
  */
 export type ChannelVerifyResult =
   | { ok: true }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      detail?: {
+        signaturePrefix: string | null;
+        algorithm: string | null;
+        sha1HeaderPresent: boolean;
+      };
+    };
 
 const META_CHANNELS: ReadonlySet<Channel> = new Set([
   "whatsapp",
@@ -32,8 +48,18 @@ export async function verifyChannelWebhook(
 ): Promise<ChannelVerifyResult> {
   if (META_CHANNELS.has(channel)) {
     const signature = request.headers.get("x-hub-signature-256");
-    if (!verifyMetaWebhookSignature(rawBody, signature)) {
-      return { ok: false, reason: "meta signature mismatch" };
+    const legacySignature = request.headers.get("x-hub-signature");
+    const verdict = verifyMetaWebhookSignatureDetailed(
+      rawBody,
+      signature,
+      legacySignature,
+    );
+    if (!verdict.ok) {
+      return {
+        ok: false,
+        reason: metaRejectionLabel(verdict.reason),
+        detail: verdict.detail,
+      };
     }
     return { ok: true };
   }
@@ -70,6 +96,27 @@ export async function verifyChannelWebhook(
   }
 
   return { ok: false, reason: `no verifier for channel ${channel}` };
+}
+
+/**
+ * Map the verbose rejection enum to a stable log label. Keep these
+ * snake_case so they're easy to grep + alert on in log aggregators.
+ */
+function metaRejectionLabel(reason: MetaSignatureRejection): string {
+  switch (reason) {
+    case "secret_unset":
+      return "meta_secret_unset";
+    case "missing_signature_header":
+      return "meta_missing_signature_header";
+    case "legacy_sha1_only":
+      return "meta_legacy_sha1_only";
+    case "wrong_signature_prefix":
+      return "meta_wrong_signature_prefix";
+    case "signature_length_mismatch":
+      return "meta_signature_length_mismatch";
+    case "hmac_mismatch":
+      return "meta_hmac_mismatch";
+  }
 }
 
 /**

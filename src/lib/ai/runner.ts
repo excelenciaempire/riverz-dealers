@@ -948,26 +948,58 @@ async function resolveShopifyContext(
   productMatch: ProductMatch | null,
 ): Promise<ShopifyToolContext | null> {
   if (!workspaceId) return null;
-  const { data: members } = await db
-    .from('workspace_members')
-    .select('user_id')
-    .eq('workspace_id', workspaceId);
-  const memberIds = ((members as { user_id: string }[] | null) ?? [])
-    .map((m) => m.user_id)
-    .filter(Boolean);
-  if (memberIds.length === 0) return null;
-
-  const { data } = await db
-    .from('shopify_connections')
-    .select('shop_domain, access_token, status')
-    .in('user_id', memberIds)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
+  // Owner-first resolution: a multi-workspace user might have a
+  // Shopify connection in workspace A; without this we could pick it
+  // up while serving workspace B's AI agent.
+  const { data: workspace } = await db
+    .from('workspaces')
+    .select('owner_id')
+    .eq('id', workspaceId)
     .maybeSingle();
-  const row = data as
+  const ownerId = (workspace as { owner_id?: string } | null)?.owner_id ?? null;
+
+  let row:
     | { shop_domain: string; access_token: string; status: string }
-    | null;
+    | null = null;
+
+  if (ownerId) {
+    const { data } = await db
+      .from('shopify_connections')
+      .select('shop_domain, access_token, status')
+      .eq('user_id', ownerId)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    row = data as
+      | { shop_domain: string; access_token: string; status: string }
+      | null;
+  }
+
+  if (!row) {
+    // Legacy fallback when the owner never connected directly.
+    const { data: members } = await db
+      .from('workspace_members')
+      .select('user_id')
+      .eq('workspace_id', workspaceId);
+    const memberIds = ((members as { user_id: string }[] | null) ?? [])
+      .map((m) => m.user_id)
+      .filter(Boolean);
+    if (memberIds.length === 0) return null;
+
+    const { data } = await db
+      .from('shopify_connections')
+      .select('shop_domain, access_token, status')
+      .in('user_id', memberIds)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    row = data as
+      | { shop_domain: string; access_token: string; status: string }
+      | null;
+  }
+
   if (!row) return null;
   let accessToken: string;
   try {

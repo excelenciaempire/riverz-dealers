@@ -452,7 +452,7 @@ export default function NewBroadcastPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => router.push('/contacts?tab=segments&new=1')}
+                      onClick={() => router.push('/contactos?tab=segments&new=1')}
                       className="border-border text-foreground hover:bg-accent"
                     >
                       <Plus className="size-4" />

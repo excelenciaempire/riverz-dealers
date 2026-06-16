@@ -26,6 +26,7 @@ import { CHANNELS, type Channel } from "@/types";
 import { channelDisplay } from "@/lib/channels/display";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 /**
  * Editor de reglas de asignación automática. La fila más importante de
@@ -79,6 +80,7 @@ const channelSelectLabels: Record<string, string> = {
 
 export function AssignmentRulesPanel() {
   const fetchWithCsrf = useFetchWithCsrf();
+  const { workspace } = useWorkspace();
   const [rules, setRules] = useState<RuleRow[] | null>(null);
   const [editing, setEditing] = useState<RuleRow | "new" | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -99,6 +101,10 @@ export function AssignmentRulesPanel() {
   }, [load]);
 
   async function toggleActive(rule: RuleRow, next: boolean) {
+    if (!workspace?.id) {
+      toast.error("Workspace no disponible");
+      return;
+    }
     setRules((prev) =>
       prev?.map((r) => (r.id === rule.id ? { ...r, is_active: next } : r)) ??
       prev,
@@ -108,6 +114,7 @@ export function AssignmentRulesPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: rule.id,
+        workspace_id: workspace.id,
         name: rule.name,
         is_active: next,
         priority: rule.priority,
@@ -128,11 +135,18 @@ export function AssignmentRulesPanel() {
   }
 
   async function handleDelete(id: string) {
+    if (!workspace?.id) {
+      toast.error("Workspace no disponible");
+      return;
+    }
     if (!confirm("¿Eliminar regla?")) return;
     setDeletingId(id);
-    const res = await fetchWithCsrf(`/api/inbox/assignment-rules?id=${id}`, {
-      method: "DELETE",
-    });
+    const res = await fetchWithCsrf(
+      `/api/inbox/assignment-rules?id=${id}&workspace_id=${workspace.id}`,
+      {
+        method: "DELETE",
+      },
+    );
     setDeletingId(null);
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -210,6 +224,7 @@ export function AssignmentRulesPanel() {
       {editing && (
         <RuleEditorModal
           rule={editing === "new" ? null : editing}
+          workspaceId={workspace?.id ?? null}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
@@ -298,10 +313,12 @@ interface RuleDraft {
 
 function RuleEditorModal({
   rule,
+  workspaceId,
   onClose,
   onSaved,
 }: {
   rule: RuleRow | null;
+  workspaceId: string | null;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
@@ -326,6 +343,10 @@ function RuleEditorModal({
   async function submit() {
     if (!draft.name.trim()) {
       toast.error("Ponle un nombre");
+      return;
+    }
+    if (!workspaceId) {
+      toast.error("Workspace no disponible");
       return;
     }
     // Recompone config según kind.
@@ -358,6 +379,7 @@ function RuleEditorModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: rule?.id,
+        workspace_id: workspaceId,
         name: draft.name.trim(),
         is_active: draft.is_active,
         priority: draft.priority,

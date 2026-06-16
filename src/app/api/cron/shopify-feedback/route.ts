@@ -3,7 +3,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
 import { getConnectionByShop } from '@/lib/shopify/connection'
-import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Cron de feedback post-entrega (Pilar).
@@ -33,10 +33,17 @@ import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
  * Anti-spam: marcamos `feedback_dispatched_at = now()` antes de
  * disparar, como hace el cron de cart-recovery.
  *
- * Configuración: el `automation_id` se lee de la env var
- * `PILAR_FEEDBACK_AUTOMATION_ID`. Cae al UUID conocido si no está.
+ * Discovery de automation:
+ *   - Modo nuevo: por trigger_type='post_delivery_feedback' (con
+ *     trigger_config.days_after = cadencia). Cualquier workspace
+ *     puede tener su propia automation activa con este trigger sin
+ *     tocar env vars; los nuevos templates usan este path.
+ *   - Modo legacy: la env var `PILAR_FEEDBACK_AUTOMATION_ID` o el UUID
+ *     hard-codeado se siguen usando como fallback para el workspace
+ *     de Pilar mientras migramos.
  */
 const DEFAULT_AUTOMATION_ID = 'b29697f9-378a-48c7-9ad1-6d45205ffa2b'
+const DEFAULT_DAYS_AFTER = 3
 
 export async function GET(request: Request) {
   try {
@@ -46,12 +53,12 @@ export async function GET(request: Request) {
     throw r
   }
 
-  const automationId =
+  const legacyAutomationId =
     process.env.PILAR_FEEDBACK_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
 
   const admin = supabaseAdmin()
   const threeDaysAgo = new Date(
-    Date.now() - 3 * 24 * 60 * 60 * 1000,
+    Date.now() - DEFAULT_DAYS_AFTER * 24 * 60 * 60 * 1000,
   ).toISOString()
 
   const { data: due, error } = await admin
@@ -117,17 +124,48 @@ export async function GET(request: Request) {
     const contactId = logs[0]?.contact_id
     if (!contactId) continue
 
-    const result = await runAutomationById({
-      automationId,
-      contactId,
-      context: {
-        vars: {
-          order_id: String(r.order_id),
-          delivered_at: r.delivered_at,
+    // Buscamos toda automation activa con trigger_type='post_delivery_feedback'
+    // en este workspace. Si ninguna existe, caemos al UUID legacy
+    // (Pilar) para no romper el flujo actual mientras migramos.
+    const { data: candidates } = await admin
+      .from('automations')
+      .select('id, trigger_config')
+      .eq('workspace_id', workspaceId)
+      .eq('trigger_type', 'post_delivery_feedback')
+      .eq('is_active', true)
+    const matches = (candidates ?? []) as Array<{
+      id: string
+      trigger_config: { days_after?: number } | null
+    }>
+
+    const ids: string[] = []
+    if (matches.length > 0) {
+      // Solo disparamos las que tienen days_after <= antigüedad del
+      // delivered_at (el predicado SQL ya limita a 3 días, así que
+      // automations configuradas con days_after > 3 ya no entran).
+      const deliveredMs = new Date(r.delivered_at).getTime()
+      const elapsedDays = (Date.now() - deliveredMs) / 86_400_000
+      for (const m of matches) {
+        const need = Number(m.trigger_config?.days_after ?? DEFAULT_DAYS_AFTER)
+        if (Number.isFinite(need) && elapsedDays >= need) ids.push(m.id)
+      }
+    } else {
+      ids.push(legacyAutomationId)
+    }
+
+    for (const automationId of ids) {
+      const result = await runAutomationById({
+        automationId,
+        contactId,
+        context: {
+          vars: {
+            order_id: String(r.order_id),
+            delivered_at: r.delivered_at,
+          },
         },
-      },
-    })
-    if (result.executed) dispatched++
+      })
+      if (result.executed) dispatched++
+    }
   }
 
   return NextResponse.json({ processed: due.length, dispatched })

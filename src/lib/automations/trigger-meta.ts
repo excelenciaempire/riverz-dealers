@@ -47,6 +47,14 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Pedido despachado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
   },
+  post_delivery_feedback: {
+    label: 'Feedback post-entrega',
+    pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+  },
+  customer_inactive: {
+    label: 'Cliente inactivo',
+    pillClass: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {

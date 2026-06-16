@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
@@ -217,7 +218,14 @@ export function ContactForm({
               <Loader2 className="size-3 animate-spin text-muted-foreground" />
             ) : tags.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No hay etiquetas. Créalas en Ajustes.
+                No hay etiquetas. Créalas en{' '}
+                <Link
+                  href="/contactos?tab=tags"
+                  className="underline hover:text-foreground"
+                >
+                  Contactos → Etiquetas
+                </Link>
+                .
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">

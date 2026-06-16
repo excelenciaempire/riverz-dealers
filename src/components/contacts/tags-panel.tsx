@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useWorkspace } from '@/hooks/use-workspace';
 import type { Tag } from '@/types';
 
 /**
@@ -260,6 +261,7 @@ function TagFormDialog({
   onSaved: () => void;
 }) {
   const supabase = createClient();
+  const { workspace } = useWorkspace();
   const [name, setName] = useState(tag?.name ?? '');
   const [color, setColor] = useState(tag?.color ?? PRESET_COLORS[0]);
   const [saving, setSaving] = useState(false);
@@ -269,21 +271,11 @@ function TagFormDialog({
       toast.error('Ponle un nombre a la etiqueta');
       return;
     }
-    setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setSaving(false);
-      toast.error('Sesión expirada');
+    if (!tag && !workspace) {
+      toast.error('Workspace no disponible');
       return;
     }
-    const { data: member } = await supabase
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle();
+    setSaving(true);
     if (tag) {
       const { error } = await supabase
         .from('tags')
@@ -297,7 +289,7 @@ function TagFormDialog({
       const { error } = await supabase.from('tags').insert({
         name: name.trim(),
         color,
-        workspace_id: member?.workspace_id,
+        workspace_id: workspace!.id,
       });
       setSaving(false);
       if (error) return toast.error('No se pudo crear');
@@ -352,7 +344,7 @@ function TagFormDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || (!tag && !workspace)}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}

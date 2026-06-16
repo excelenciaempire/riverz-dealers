@@ -52,20 +52,32 @@ export interface AutomationTemplateDefinition {
   trigger_type: AutomationTriggerType
   trigger_config: AutomationTriggerConfig
   steps: TemplateStepSeed[]
+  /**
+   * Suggested copy for the Meta-approved template the user must
+   * register before activation. Kept here so the editor can show it as
+   * pre-filled guidance. NOT stored anywhere — purely descriptive.
+   */
+  suggested_template_body?: string
 }
 
 /**
- * Galería curada de plantillas de automatizaciones. La sentamos en sólo
- * cinco recetas por pedido del equipo: cada una resuelve un problema
- * concreto del ciclo Shopify + WhatsApp y deja al usuario completar el
- * `template_name` / `tag_id` antes de activar, para que validate.ts no
- * permita disparar campañas a medio configurar.
+ * Galería curada de plantillas de automatizaciones. La sentamos en
+ * sólo cinco recetas por pedido del equipo: cada una resuelve un
+ * problema concreto del ciclo Shopify + WhatsApp.
  *
- * Las variables usadas en `send_message` (p.ej. `{{customer_name}}`,
- * `{{checkout_url}}`, `{{order_name}}`, `{{tracking_url}}`) son las que
- * exponen los dispatchers en `context.vars` — ver
- * `src/app/api/shopify/webhooks/orders/route.ts` y los crons de Shopify
- * para la lista completa.
+ * Reglas de seeding:
+ *
+ *  - `send_template` con `template_name: ''` para forzar al usuario a
+ *    elegir una plantilla Meta aprobada (validate.ts no deja activar
+ *    con string vacío). El motor solo soporta `send_template` fuera
+ *    de la ventana de 24h, y todas estas plantillas pueden disparar
+ *    fuera de la ventana (después de wait o tiempo absoluto).
+ *  - `tag_id: ''` para evitar que un slug como 'pedido-confirmado' caiga
+ *    en la insert de contact_tags (FK a tags.id por UUID). El usuario
+ *    debe elegir una etiqueta real antes de activar.
+ *
+ * El editor surfacea el `suggested_template_body` como pista para que
+ * el merchant registre el template en Meta con el cuerpo correcto.
  */
 export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefinition> = {
   'carrito-abandonado': {
@@ -78,21 +90,26 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     tags: ['Shopify', 'Recovery'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
+    suggested_template_body:
+      'Hola {{customer_name}}, te dejaste el carrito sin terminar. Te lo guardamos por si querés retomarlo: {{checkout_url}}. Recordá que con nosotros el envío es gratis.',
     steps: [
       {
         step_type: 'wait',
         step_config: { amount: 2, unit: 'hours' },
       },
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            'Hola {{customer_name}}, te dejaste el carrito sin terminar. Te lo guardamos por si querés retomarlo: {{checkout_url}}. Recordá que con nosotros el envío es gratis.',
-        },
+        // After a 2h wait we're outside Meta's 24h customer-service
+        // window — only approved templates can be sent. Free-text
+        // `send_message` would fail at runtime.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
       },
       {
+        // tag_id is left blank so validate.ts blocks activation until
+        // the user picks a real tag. The slug 'carrito-recuperacion' is
+        // a hint for what to call it.
         step_type: 'add_tag',
-        step_config: { tag_id: 'carrito-recuperacion' },
+        step_config: { tag_id: '' },
       },
     ],
   },
@@ -107,17 +124,17 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     tags: ['Shopify', 'Confirmación'],
     trigger_type: 'shopify_order_created',
     trigger_config: {},
+    suggested_template_body:
+      'Gracias por tu compra, {{customer_name}}. Confirmamos el pedido {{order_name}} por {{total_price}} {{currency}}. Te avisamos apenas salga.',
     steps: [
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            'Gracias por tu compra, {{customer_name}}. Confirmamos el pedido {{order_name}} por {{total_price}} {{currency}}. Te avisamos apenas salga.',
-        },
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
       },
       {
+        // slug 'pedido-confirmado' as guidance.
         step_type: 'add_tag',
-        step_config: { tag_id: 'pedido-confirmado' },
+        step_config: { tag_id: '' },
       },
     ],
   },
@@ -132,17 +149,17 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     tags: ['Shopify', 'Envíos'],
     trigger_type: 'shopify_order_fulfilled',
     trigger_config: {},
+    suggested_template_body:
+      'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo seguís acá: {{tracking_url}}. ETA estimado 3 a 5 días hábiles.',
     steps: [
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo seguís acá: {{tracking_url}}. ETA estimado 3 a 5 días hábiles.',
-        },
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
       },
       {
+        // slug 'pedido-despachado' as guidance.
         step_type: 'add_tag',
-        step_config: { tag_id: 'pedido-despachado' },
+        step_config: { tag_id: '' },
       },
     ],
   },
@@ -155,19 +172,24 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     category: 'retencion',
     icon: 'star',
     tags: ['Encuestas', 'Retención'],
-    trigger_type: 'time_based',
-    trigger_config: { event: 'post_delivered', days_after: 3 },
+    // Dedicated cron in /api/cron/shopify-feedback discovers
+    // automations by this trigger_type + reads `days_after` from
+    // trigger_config to know when to fire.
+    trigger_type: 'post_delivery_feedback',
+    trigger_config: { days_after: 3 },
+    suggested_template_body:
+      '{{customer_name}}, ¿cómo te fue con tu pedido? Cualquier feedback nos sirve un montón.',
     steps: [
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            '{{customer_name}}, ¿cómo te fue con tu pedido? Cualquier feedback nos sirve un montón.',
-        },
+        // The cron dispatch always fires outside the 24h window —
+        // send_template is the only safe choice.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
       },
       {
+        // slug 'feedback-pedido' as guidance.
         step_type: 'add_tag',
-        step_config: { tag_id: 'feedback-pedido' },
+        step_config: { tag_id: '' },
       },
     ],
   },
@@ -180,19 +202,22 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     category: 'retencion',
     icon: 'repeat-2',
     tags: ['Retención', 'Recompras'],
-    trigger_type: 'time_based',
-    trigger_config: { event: 'last_order_days_ago', days_threshold: 45 },
+    // Dedicated cron in /api/cron/reengagement reads
+    // `days_threshold` from trigger_config to know the inactivity
+    // cutoff.
+    trigger_type: 'customer_inactive',
+    trigger_config: { days_threshold: 45 },
+    suggested_template_body:
+      'Hola {{customer_name}}, hace un tiempo del último pedido. ¿Te queda poco del Sérum? Si querés reponer te dejo el link para volver a llevar.',
     steps: [
       {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            'Hola {{customer_name}}, hace un tiempo del último pedido. ¿Te queda poco del Sérum? Si querés reponer te dejo el link para volver a llevar.',
-        },
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
       },
       {
+        // slug 'recompra-recordatorio' as guidance.
         step_type: 'add_tag',
-        step_config: { tag_id: 'recompra-recordatorio' },
+        step_config: { tag_id: '' },
       },
     ],
   },

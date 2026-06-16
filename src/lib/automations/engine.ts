@@ -18,6 +18,7 @@ import { engineSendText, engineSendTemplate } from './meta-send'
 import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import type { ContactSegment } from '@/lib/segments/types'
+import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ------------------------------------------------------------
@@ -179,6 +180,10 @@ export async function resumePendingExecution(pending: {
   }
 
   try {
+    const ownerUserId = await resolveWorkspaceOwnerUserId(
+      db,
+      (automation as Automation).workspace_id,
+    )
     await executeStepsFrom({
       automation: automation as Automation,
       contactId: pending.contact_id,
@@ -188,6 +193,7 @@ export async function resumePendingExecution(pending: {
       startPosition: pending.next_step_position,
       logId: pending.log_id,
       triggerEvent: 'resumed_wait',
+      ownerUserId,
     })
     await markPending(pending.id, 'done')
   } catch (err) {
@@ -241,6 +247,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     startPosition: 0,
     logId: log.id,
     triggerEvent: input.triggerType,
+    ownerUserId,
   })
 
   // Atomic counter update via the SQL function from migration 007.
@@ -264,6 +271,13 @@ interface ExecuteArgs {
   startPosition: number
   logId: string | null
   triggerEvent: string
+  /**
+   * The workspace owner's auth.users.id. Passed to meta-send helpers
+   * (which scope `contacts.user_id` / `whatsapp_config.user_id`).
+   * Resolved once per executeAutomation call so we don't fan out one
+   * `workspaces` lookup per step.
+   */
+  ownerUserId: string | null
 }
 
 async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
@@ -385,11 +399,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
+      if (!args.ownerUserId) throw new Error('send_message needs a workspace owner')
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
       const { whatsapp_message_id } = await engineSendText({
-        userId: args.automation.workspace_id,
+        userId: args.ownerUserId,
         conversationId,
         contactId: args.contactId,
         text,
@@ -400,6 +415,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_template': {
       const cfg = step.step_config as SendTemplateStepConfig
       if (!args.contactId) throw new Error('send_template needs a contact')
+      if (!args.ownerUserId) throw new Error('send_template needs a workspace owner')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
@@ -421,7 +437,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             .map((k) => String(cfg.variables![k]))
         : []
       const { whatsapp_message_id } = await engineSendTemplate({
-        userId: args.automation.workspace_id,
+        userId: args.ownerUserId,
         conversationId,
         contactId: args.contactId,
         templateName: cfg.template_name,
@@ -711,26 +727,6 @@ async function markPending(id: string, status: 'done' | 'failed') {
     .eq('id', id)
 }
 
-/**
- * Resolve the workspace owner's auth.users.id. Used to backfill
- * `automation_logs.user_id` for cron-dispatched runs that only know
- * `workspace_id`. Returns null when the workspace doesn't have an
- * owner row (shouldn't happen — owner_id is NOT NULL on workspaces —
- * but we tolerate it so a stale lookup doesn't kill the log insert).
- */
-async function resolveWorkspaceOwnerUserId(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<string | null> {
-  if (!workspaceId) return null
-  const { data, error } = await db
-    .from('workspaces')
-    .select('owner_id')
-    .eq('id', workspaceId)
-    .maybeSingle()
-  if (error) {
-    console.error('[automations] owner lookup failed:', error)
-    return null
-  }
-  return (data as { owner_id?: string } | null)?.owner_id ?? null
-}
+// `resolveWorkspaceOwnerUserId` lives in `@/lib/workspaces/owner` so
+// the flows engine and any future provider helper can share the same
+// lookup. See that module for the rationale.

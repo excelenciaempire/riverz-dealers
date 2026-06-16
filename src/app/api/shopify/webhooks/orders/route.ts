@@ -8,7 +8,7 @@ import {
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
-import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import type { AutomationTriggerType } from '@/types'
 
 /**

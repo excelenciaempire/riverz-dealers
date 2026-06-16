@@ -309,7 +309,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
       kind: 'message',
       text: `Nuevo mensaje de ${who}`,
       at: m.created_at,
-      href: `/inbox?c=${m.conversation_id}`,
+      href: `/bandeja?c=${m.conversation_id}`,
     })
   }
 

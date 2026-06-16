@@ -67,11 +67,50 @@ interface ShopifyOrderLite {
  * Resuelve la conexión Shopify activa de un workspace. Devuelve null si
  * no hay ninguna conectada — el caller no debería intentar enriquecer
  * en ese caso (sería un round-trip vacío).
+ *
+ * Resolución determinística: priorizamos la conexión instalada por el
+ * OWNER del workspace; si no hay ninguna del owner, recién ahí caemos a
+ * cualquier otro miembro. Antes hacíamos un `.in('user_id', memberIds)`
+ * que para un user que pertenece a dos workspaces (cada uno con su
+ * propia tienda Shopify) podía devolver la tienda del workspace
+ * equivocado.
  */
 export async function resolveShopifyConnection(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<ShopifyConnectionForEnrich | null> {
+  const { data: workspace } = await db
+    .from('workspaces')
+    .select('owner_id')
+    .eq('id', workspaceId)
+    .maybeSingle();
+  const ownerId = (workspace as { owner_id?: string } | null)?.owner_id ?? null;
+
+  if (ownerId) {
+    const { data: ownerConn } = await db
+      .from('shopify_connections')
+      .select('shop_domain, access_token')
+      .eq('user_id', ownerId)
+      .eq('status', 'active')
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const row = ownerConn as { shop_domain: string; access_token: string } | null;
+    if (row) {
+      try {
+        return {
+          shopDomain: row.shop_domain,
+          accessToken: decrypt(row.access_token),
+          apiVersion: shopifyApiVersion(),
+        };
+      } catch {
+        // fall through to member fallback
+      }
+    }
+  }
+
+  // Fallback: any active member. Kept for legacy workspaces whose
+  // current owner never installed Shopify directly.
   const { data: members } = await db
     .from('workspace_members')
     .select('user_id')

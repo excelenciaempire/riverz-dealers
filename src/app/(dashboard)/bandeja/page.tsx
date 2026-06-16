@@ -443,7 +443,7 @@ export default function InboxPage() {
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
       // replace() to avoid polluting browser history with every click.
-      router.replace(`/inbox?c=${conv.id}`, { scroll: false });
+      router.replace(`/bandeja?c=${conv.id}`, { scroll: false });
     },
     [activeConversation?.id, router]
   );
@@ -473,7 +473,7 @@ export default function InboxPage() {
     setActiveContact(null);
     setMessages([]);
     // Clearing the ref lets the deep-link auto-selector fire again if
-    // the user later visits /inbox?c=<same-id> — desirable UX.
+    // the user later visits /bandeja?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
     router.replace("/bandeja", { scroll: false });
   }, [router]);

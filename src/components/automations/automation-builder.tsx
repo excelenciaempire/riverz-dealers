@@ -231,7 +231,7 @@ function AudienceStrip({
       <Layers className="h-3.5 w-3.5 text-muted-foreground" />
       <span className="text-muted-foreground">Audiencia:</span>
       {segments.length === 0 ? (
-        <a href="/contacts?tab=segments" className="text-muted-foreground underline hover:text-foreground">
+        <a href="/contactos?tab=segments" className="text-muted-foreground underline hover:text-foreground">
           Crear segmento
         </a>
       ) : (

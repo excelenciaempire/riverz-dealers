@@ -67,6 +67,15 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
     case 'remove_tag':
       if (!nonEmpty(c.tag_id)) {
         issues.push({ path: `${path}.tag_id`, message: 'tag is required' })
+      } else if (!isUuid(c.tag_id)) {
+        // Templates seed slug placeholders (e.g. "carrito-recuperacion")
+        // so the user has to swap them for a real tag before activating.
+        // Without this guard, the engine accepts the slug and the
+        // contact_tags FK to tags.id rejects it at runtime.
+        issues.push({
+          path: `${path}.tag_id`,
+          message: 'tag id must be an existing tag',
+        })
       }
       break
     case 'assign_conversation':
@@ -157,6 +166,22 @@ export function validateTriggerForActivation(
     if (!nonEmpty(cfg.tag_id)) {
       issues.push({ path: 'trigger.tag_id', message: 'tag is required' })
     }
+  } else if (triggerType === 'post_delivery_feedback') {
+    const n = cfg.days_after
+    if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) {
+      issues.push({
+        path: 'trigger.days_after',
+        message: 'days after delivery must be greater than 0',
+      })
+    }
+  } else if (triggerType === 'customer_inactive') {
+    const n = cfg.days_threshold
+    if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) {
+      issues.push({
+        path: 'trigger.days_threshold',
+        message: 'days since last order must be greater than 0',
+      })
+    }
   }
 
   return issues
@@ -164,4 +189,10 @@ export function validateTriggerForActivation(
 
 function nonEmpty(v: unknown): boolean {
   return typeof v === 'string' && v.trim().length > 0
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isUuid(v: unknown): boolean {
+  return typeof v === 'string' && UUID_RE.test(v)
 }

@@ -60,6 +60,8 @@ const URL_REDIRECTS: { from: string; to: string }[] = [
   { from: "/flows", to: "/menus" },
   { from: "/flows/:id", to: "/menus/:id" },
   { from: "/flows/:id/runs", to: "/menus/:id/usos" },
+  // safety net for old bookmarks that point at the (legacy) english path
+  { from: "/menus/:id/runs", to: "/menus/:id/usos" },
   { from: "/automations", to: "/automatizaciones" },
   { from: "/automations/new", to: "/automatizaciones/nueva" },
   { from: "/automations/:id", to: "/automatizaciones/:id" },

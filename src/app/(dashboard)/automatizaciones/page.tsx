@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
+import { useWorkspace } from "@/hooks/use-workspace"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -62,6 +63,7 @@ const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
 export default function AutomationsPage() {
   const router = useRouter()
   const fetchWithCsrf = useFetchWithCsrf()
+  const { workspace, loading: wsLoading } = useWorkspace()
   const [automations, setAutomations] = useState<Automation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
@@ -70,12 +72,13 @@ export default function AutomationsPage() {
 
   const templates = useMemo(() => listTemplates(), [])
 
-  async function load() {
+  async function load(workspaceId: string) {
     try {
       const supabase = createClient()
       const { data, error: fetchErr } = await supabase
         .from("automations")
         .select("*")
+        .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
@@ -85,16 +88,21 @@ export default function AutomationsPage() {
   }
 
   useEffect(() => {
-    load()
-  }, [])
+    if (!workspace?.id) return
+    load(workspace.id)
+  }, [workspace?.id])
 
   async function installTemplate(slug: string) {
     if (installing) return
+    if (!workspace?.id) {
+      toast.error("Workspace no disponible")
+      return
+    }
     setInstalling(slug)
     const res = await fetchWithCsrf("/api/automations/install-from-template", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ template_id: slug }),
+      body: JSON.stringify({ template_id: slug, workspace_id: workspace.id }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -142,7 +150,7 @@ export default function AutomationsPage() {
       return
     }
     toast.success("Duplicada")
-    load()
+    if (workspace?.id) load(workspace.id)
   }
 
   async function confirmDelete() {
@@ -157,7 +165,7 @@ export default function AutomationsPage() {
     }
     toast.success("Eliminada")
     setPendingDelete(null)
-    load()
+    if (workspace?.id) load(workspace.id)
   }
 
   if (error) {
@@ -171,7 +179,7 @@ export default function AutomationsPage() {
     )
   }
 
-  if (automations === null) {
+  if (automations === null || wsLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-accent-ink" />

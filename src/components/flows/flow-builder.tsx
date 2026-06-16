@@ -2274,7 +2274,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           onDelete={handleDelete}
           canActivate={canActivate}
           onBack={() => router.push("/menus")}
-          onViewRuns={() => router.push(`/menus/${initialFlow.id}/runs`)}
+          onViewRuns={() => router.push(`/menus/${initialFlow.id}/usos`)}
           onOpenVersions={() => setVersionsOpen(true)}
           showAnalytics={analyticsOn}
           onToggleAnalytics={() => setAnalyticsOn((v) => !v)}

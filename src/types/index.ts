@@ -398,7 +398,14 @@ export type AutomationTriggerType =
   | 'time_based'
   | 'shopify_abandoned_checkout'
   | 'shopify_order_created'
-  | 'shopify_order_fulfilled';
+  | 'shopify_order_fulfilled'
+  // Time-based variants discovered by the dedicated cron jobs, NOT by
+  // a generic time_based scheduler. Both use trigger_config.days_after
+  // (post_delivery_feedback) or days_threshold (customer_inactive) as
+  // the cadence — see /api/cron/shopify-feedback and
+  // /api/cron/reengagement.
+  | 'post_delivery_feedback'
+  | 'customer_inactive';
 
 export type AutomationStepType =
   | 'send_message'
@@ -430,11 +437,31 @@ export interface TimeBasedTriggerConfig {
   timezone?: string;
 }
 
+/**
+ * Trigger config for `post_delivery_feedback` automations: send the
+ * customer a survey N days after the order was delivered/fulfilled.
+ */
+export interface PostDeliveryFeedbackTriggerConfig {
+  /** How many whole days after delivery to fire. Required, > 0. */
+  days_after: number;
+}
+
+/**
+ * Trigger config for `customer_inactive` automations: ping a customer
+ * whose last order was more than N days ago.
+ */
+export interface CustomerInactiveTriggerConfig {
+  /** Min days since last_order_at to count as "inactive". Required, > 0. */
+  days_threshold: number;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
+  | PostDeliveryFeedbackTriggerConfig
+  | CustomerInactiveTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

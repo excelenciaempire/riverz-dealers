@@ -401,14 +401,34 @@ export default function ContactsPage() {
             ) : contacts.length === 0 ? (
               <TableRow className="border-border">
                 <TableCell colSpan={7} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-2">
-                    <Users className="size-8 text-muted-foreground" />
-                    <p className="max-w-sm text-sm text-muted-foreground">
-                      {search || selectedTagIds.length > 0
-                        ? 'Sin resultados.'
-                        : 'No hay contactos.'}
-                    </p>
-                  </div>
+                  {search || selectedTagIds.length > 0 ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="size-8 text-muted-foreground" />
+                      <p className="max-w-sm text-sm text-muted-foreground">
+                        Sin resultados.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <Users className="size-8 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Aún no tienes contactos
+                        </p>
+                        <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                          Agrega tu primer contacto para empezar a chatear y
+                          armar campañas.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={openAddForm}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        <Plus className="size-4" />
+                        Añadir tu primer contacto
+                      </Button>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ) : (

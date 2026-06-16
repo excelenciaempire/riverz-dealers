@@ -7,7 +7,7 @@ import {
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
-import { resolveWorkspaceIdForUser } from '@/lib/shopify/workspace-resolver'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Shopify checkout webhook receiver. Persiste cada checkout/abandoned
