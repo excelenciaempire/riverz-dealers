@@ -1,4 +1,4 @@
-import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendTextMessage, sendTemplateMessage, MetaApiError } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -86,7 +86,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
 
   const accessToken = decrypt(config.access_token)
 
-  const attempt = async (phone: string): Promise<string> => {
+  const sendOnce = async (phone: string): Promise<string> => {
     if (input.kind === 'template') {
       const r = await sendTemplateMessage({
         phoneNumberId: config.phone_number_id,
@@ -105,6 +105,28 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       text: input.text,
     })
     return r.messageId
+  }
+
+  // Retry ONLY on transient Meta failures (HTTP 429 / 5xx), where Meta
+  // rejected the request before acting on it — so re-sending can't
+  // duplicate the message. This is what makes order-confirmation /
+  // fulfillment automations survive a Meta rate-limit blip instead of
+  // recording status='failed' and silently never reaching the customer.
+  // Permanent errors (bad template, invalid recipient) and network
+  // timeouts (where the send may have landed) throw on the first try.
+  const attempt = async (phone: string): Promise<string> => {
+    const MAX = 3
+    for (let i = 1; i <= MAX; i++) {
+      try {
+        return await sendOnce(phone)
+      } catch (err) {
+        const transient = err instanceof MetaApiError && err.isTransient
+        if (!transient || i === MAX) throw err
+        await new Promise((r) => setTimeout(r, 500 * 2 ** (i - 1)))
+      }
+    }
+    // Unreachable — the loop either returns or throws.
+    throw new Error('unreachable')
   }
 
   // Same phone-variant retry as /api/whatsapp/send — Meta sandbox and

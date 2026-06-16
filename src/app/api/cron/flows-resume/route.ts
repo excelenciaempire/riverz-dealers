@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resumeFlowRun } from '@/lib/flows/resume'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { nextRetryDelayMs } from '@/lib/flows/engine'
+import { pingCron } from '@/lib/cron/heartbeat'
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('flows-resume')
 
   const admin = supabaseAdmin()
   const { data: due, error } = await admin

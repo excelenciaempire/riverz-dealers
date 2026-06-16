@@ -25,14 +25,16 @@ describe("getBroadcastStatus", () => {
     expect(getBroadcastStatus("")).toBe(broadcastStatusConfig.draft);
   });
 
-  it("each variant has the dark-theme class triple", () => {
-    // Accept both fixed-shade Tailwind names (bg-red-500/10) and
-    // token-backed names without a shade number (bg-primary/10) since
-    // the brand-accent statuses now ride the active color theme.
+  it("each variant defines a full bg / text / border class set", () => {
+    // Every badge must specify background, text, and border classes so it
+    // renders coherently. We accept BOTH accent shades (bg-red-500/10,
+    // border-emerald-600/30) and neutral theme tokens (bg-muted,
+    // border-border) — by design the non-actionable statuses (draft,
+    // scheduled) stay neutral instead of riding a colored pill.
     for (const v of Object.values(broadcastStatusConfig)) {
-      expect(v.classes).toMatch(/bg-[a-z]+(-\d+)?\/10/);
-      expect(v.classes).toMatch(/text-[a-z]+(-\d+)?/);
-      expect(v.classes).toMatch(/border-[a-z]+(-\d+)?\/20/);
+      expect(v.classes).toMatch(/\bbg-[\w/-]+/);
+      expect(v.classes).toMatch(/\btext-[\w/-]+/);
+      expect(v.classes).toMatch(/\bborder-[\w/-]+/);
     }
   });
 });

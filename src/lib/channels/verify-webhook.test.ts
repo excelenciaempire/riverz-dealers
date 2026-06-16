@@ -38,7 +38,9 @@ describe("verifyChannelWebhook — meta channels", () => {
     const req = makeRequest({ signature: sig, body: tampered });
     const result = await verifyChannelWebhook("whatsapp", req, tampered);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/signature/i);
+    // The rejection reason is the machine code 'meta_hmac_mismatch'
+    // (HMAC = the signature check), not the English word "signature".
+    if (!result.ok) expect(result.reason).toMatch(/hmac|signature/i);
   });
 
   it("rejects when the signature header is missing", async () => {

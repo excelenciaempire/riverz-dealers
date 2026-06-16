@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllOutlookConnections } from "@/lib/channels/outlook/poll";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { pingCron } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/outlook-poll
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r;
     throw r;
   }
+  void pingCron("outlook-poll");
 
   try {
     const results = await pollAllOutlookConnections();

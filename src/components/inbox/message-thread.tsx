@@ -638,15 +638,28 @@ export function MessageThread({
 
   const contactDisplayName = contact?.name || contact?.phone || "Cliente";
 
-  // Author label for a quoted message: "You" when we sent the parent,
-  // contact name when the customer sent it.
+  // Map agent user_id → full name so a teammate's message shows their
+  // name instead of a flat "Tú". Populated from `profiles`, which RLS
+  // now scopes to workspace teammates (migration 062).
+  const nameByUserId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of profiles) if (p.user_id) m.set(p.user_id, p.full_name);
+    return m;
+  }, [profiles]);
+
+  // Display name for a message's author. Customer → contact name; bot →
+  // "Asistente IA"; your own agent message → "Tú"; a teammate's agent
+  // message → their full name (falls back to "Agente" if the profile
+  // isn't visible). Used for both bubbles and quoted-reply labels.
   const authorLabelFor = useCallback(
     (m: Message): string => {
-      const isAgentMsg =
-        m.sender_type === "agent" || m.sender_type === "bot";
-      return isAgentMsg ? "Tú" : contactDisplayName;
+      if (m.sender_type === "customer") return contactDisplayName;
+      if (m.sender_type === "bot") return "Asistente IA";
+      if (m.sender_id && m.sender_id === user?.id) return "Tú";
+      if (m.sender_id) return nameByUserId.get(m.sender_id) ?? "Agente";
+      return "Tú";
     },
-    [contactDisplayName],
+    [contactDisplayName, nameByUserId, user?.id],
   );
 
   const handleStartReply = useCallback(
@@ -1117,6 +1130,17 @@ export function MessageThread({
                         }
                       : null;
                     const msgReactions = reactionsByMessageId.get(msg.id);
+                    // Name heading for the bubble: shown only for the
+                    // bot and for teammates' messages — your own messages
+                    // don't need a "Tú" label cluttering every bubble.
+                    const senderName =
+                      msg.sender_type === "bot"
+                        ? "Asistente IA"
+                        : msg.sender_type === "agent" &&
+                            msg.sender_id &&
+                            msg.sender_id !== user?.id
+                          ? (nameByUserId.get(msg.sender_id) ?? "Agente")
+                          : undefined;
                     // Toggle is computed at the call site — `msgReactions`
                     // and `user?.id` are already in scope, no extra hook.
                     const handlePillToggle = (emoji: string) => {
@@ -1143,6 +1167,7 @@ export function MessageThread({
                           reply={reply}
                           reactions={msgReactions}
                           currentUserId={user?.id}
+                          senderName={senderName}
                           onToggleReaction={handlePillToggle}
                         />
                       </MessageActions>

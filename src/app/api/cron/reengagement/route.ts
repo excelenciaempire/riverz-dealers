@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
+import { pingCron } from '@/lib/cron/heartbeat'
 
 /**
  * Cron de re-engagement (Pilar).
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('reengagement')
 
   const legacyAutomationId =
     process.env.PILAR_REENGAGEMENT_AUTOMATION_ID || DEFAULT_AUTOMATION_ID

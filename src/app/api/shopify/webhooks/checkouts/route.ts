@@ -9,6 +9,7 @@ import {
 } from '@/lib/shopify/contact-upsert'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
+import { captureWebhookFailure } from '@/lib/webhooks/capture'
 
 /**
  * Shopify checkout webhook receiver. Persiste cada checkout/abandoned
@@ -153,6 +154,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, queued_for_recovery_cron: true })
   } catch (err) {
     console.error('[shopify] checkouts webhook error:', err)
+    await captureWebhookFailure({
+      provider: `shopify:${topic}`,
+      rawBody,
+      signature: hmac,
+      error: err,
+    })
     return NextResponse.json({ ok: true })
   }
 }

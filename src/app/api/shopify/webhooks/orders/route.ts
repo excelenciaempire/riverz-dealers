@@ -11,6 +11,7 @@ import {
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
+import { captureWebhookFailure } from '@/lib/webhooks/capture'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -177,6 +178,18 @@ export async function POST(request: Request) {
     })
     if (!contactId) return NextResponse.json({ ok: true })
 
+    // Stamp the contact onto the fulfillment-state row (migration 061)
+    // so the post-delivery feedback cron messages the customer who
+    // actually placed THIS order, instead of guessing from the most
+    // recent fulfillment log in the workspace.
+    if (orderId > 0) {
+      await admin
+        .from('shopify_order_fulfillment_state')
+        .update({ contact_id: contactId })
+        .eq('shop_domain', shopDomain)
+        .eq('order_id', orderId)
+    }
+
     const vars = buildVarsForOrder(triggerType, order, name)
 
     runAutomationsForTrigger({
@@ -189,6 +202,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[shopify] orders webhook error:', err)
+    // Signature already verified above — capture the raw delivery so an
+    // exception mid-processing doesn't silently lose the order event
+    // (webhook_events_raw, migration 059). We still ack 200 to avoid
+    // Shopify's 19-retry storm; recovery is manual/idempotent.
+    await captureWebhookFailure({
+      provider: `shopify:${topic}`,
+      rawBody,
+      signature: hmac,
+      error: err,
+    })
     return NextResponse.json({ ok: true })
   }
 }

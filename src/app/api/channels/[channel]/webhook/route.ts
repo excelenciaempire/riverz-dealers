@@ -4,6 +4,7 @@ import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
+import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import type { Channel, ChannelConnection } from "@/types";
 
 const log = getLogger("channels.webhook");
@@ -148,6 +149,15 @@ export async function POST(
         log.error("channels webhook async processing failed", {
           channel,
           error: err instanceof Error ? err.message : String(err),
+        });
+        // The signature already verified, so this is OUR failure (DB
+        // outage, adapter throw). Capture the raw delivery so it isn't
+        // silently lost — see webhook_events_raw (migration 059).
+        void captureWebhookFailure({
+          provider: `channels:${channel}`,
+          rawBody,
+          signature: req.headers.get("x-hub-signature-256"),
+          error: err,
         });
       },
     );

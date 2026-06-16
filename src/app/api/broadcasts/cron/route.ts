@@ -14,6 +14,7 @@ import {
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { pingCron } from '@/lib/cron/heartbeat'
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
 import {
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('broadcasts')
 
   const admin = supabaseAdmin()
 

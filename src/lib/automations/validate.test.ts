@@ -23,7 +23,13 @@ describe("validateStepsForActivation", () => {
         step_type: "wait",
         step_config: { amount: 5, unit: "minutes" },
       },
-      { step_type: "add_tag", step_config: { tag_id: "tag-uuid" } },
+      {
+        step_type: "add_tag",
+        // Must be a real UUID — the validator now rejects slug
+        // placeholders so templates can't be activated with an
+        // unresolved tag that the contact_tags FK would later reject.
+        step_config: { tag_id: "11111111-1111-4111-8111-111111111111" },
+      },
       { step_type: "close_conversation", step_config: {} },
     ]);
     expect(issues).toEqual([]);

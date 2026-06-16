@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { pingCron } from '@/lib/cron/heartbeat'
 
 /**
  * Cron de feedback post-entrega (Pilar).
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('shopify-feedback')
 
   const legacyAutomationId =
     process.env.PILAR_FEEDBACK_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
@@ -63,7 +65,7 @@ export async function GET(request: Request) {
 
   const { data: due, error } = await admin
     .from('shopify_order_fulfillment_state')
-    .select('shop_domain, order_id, delivered_at')
+    .select('shop_domain, order_id, delivered_at, contact_id')
     .not('delivered_at', 'is', null)
     .is('feedback_dispatched_at', null)
     .lt('delivered_at', threeDaysAgo)
@@ -93,6 +95,7 @@ export async function GET(request: Request) {
       shop_domain: string
       order_id: number
       delivered_at: string
+      contact_id: string | null
     }
 
     // Reclamamos antes para que un crash entre fetch del cliente y
@@ -125,27 +128,22 @@ export async function GET(request: Request) {
       continue
     }
 
-    // Vinculamos el feedback al contact que recibió shopify_order_fulfilled
-    // para esta orden. Buscamos el log más reciente de la automation
-    // "Pedido despachado Pilar" disparada por esa orden.
-    const { data: lastLog } = await admin
-      .from('automation_logs')
-      .select('contact_id, steps_executed')
-      .eq('workspace_id', workspaceId)
-      .eq('trigger_event', 'shopify_order_fulfilled')
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    const logs = (lastLog ?? []) as Array<{
-      contact_id: string | null
-      steps_executed: unknown
-    }>
-    // Fallback: si no encontramos referencia, buscamos un contact
-    // reciente del workspace — el feedback igual sirve pero no es
-    // perfecto. Mejor sería persistir order_id ↔ contact_id en la fila
-    // de fulfillment_state. Lo dejamos como TODO para no expandir esta
-    // PR.
-    const contactId = logs[0]?.contact_id
+    // Preferimos el contact_id que la webhook de orders estampó en la
+    // fila para ESTA orden (migración 061) — es el cliente correcto.
+    // Para filas viejas sin contact_id, caemos al heurístico legacy:
+    // el log más reciente de shopify_order_fulfilled del workspace
+    // (impreciso con varios pedidos en vuelo, pero no rompe).
+    let contactId: string | null = r.contact_id
+    if (!contactId) {
+      const { data: lastLog } = await admin
+        .from('automation_logs')
+        .select('contact_id')
+        .eq('workspace_id', workspaceId)
+        .eq('trigger_event', 'shopify_order_fulfilled')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      contactId = (lastLog ?? [])[0]?.contact_id ?? null
+    }
     if (!contactId) {
       await releaseClaim(r.shop_domain, r.order_id)
       skipped++

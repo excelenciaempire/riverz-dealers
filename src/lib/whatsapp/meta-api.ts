@@ -27,15 +27,40 @@ interface MetaErrorResponse {
   error?: { message?: string; code?: number; type?: string }
 }
 
+/**
+ * Error thrown by every Meta call. Carries the HTTP `status` and Meta
+ * `code` so callers can tell a transient failure (HTTP 429 / 5xx — Meta
+ * did NOT accept the request) apart from a permanent one (bad template,
+ * invalid recipient). Retrying is only safe on the transient kind; a
+ * naive retry on a network timeout could double-send.
+ */
+export class MetaApiError extends Error {
+  status: number
+  code?: number
+  constructor(message: string, status: number, code?: number) {
+    super(message)
+    this.name = 'MetaApiError'
+    this.status = status
+    this.code = code
+  }
+  /** HTTP 429 (rate limit) or 5xx — Meta rejected the request before
+   *  acting on it, so re-sending won't duplicate. */
+  get isTransient(): boolean {
+    return this.status === 429 || this.status >= 500
+  }
+}
+
 async function throwMetaError(response: Response, fallback: string): Promise<never> {
   let message = fallback
+  let code: number | undefined
   try {
     const data = (await response.json()) as MetaErrorResponse
     if (data.error?.message) message = data.error.message
+    code = data.error?.code
   } catch {
     // response body wasn't JSON — keep the fallback
   }
-  throw new Error(message)
+  throw new MetaApiError(message, response.status, code)
 }
 
 // ============================================================

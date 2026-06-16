@@ -3,6 +3,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
+import { pingCron } from '@/lib/cron/heartbeat'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.shopify-cart-recovery')
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('shopify-cart-recovery')
 
   const admin = supabaseAdmin()
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()

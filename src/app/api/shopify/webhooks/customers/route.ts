@@ -9,6 +9,7 @@ import {
 } from '@/lib/shopify/contact-upsert'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
+import { captureWebhookFailure } from '@/lib/webhooks/capture'
 
 /**
  * customers/update receiver. Keeps the WhatsApp contact's name/email/phone
@@ -68,6 +69,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[shopify] customers webhook error:', err)
+    await captureWebhookFailure({
+      provider: `shopify:${request.headers.get('x-shopify-topic') || 'customers/update'}`,
+      rawBody,
+      signature: hmac,
+      error: err,
+    })
     return NextResponse.json({ ok: true })
   }
 }

@@ -27,6 +27,9 @@ interface MessageBubbleProps {
   reply?: { authorLabel: string; preview: string } | null;
   reactions?: MessageReaction[];
   currentUserId?: string;
+  /** Author name to show above the bubble — set for the bot and for
+   *  teammates' messages, undefined for the current user's own messages. */
+  senderName?: string;
   onToggleReaction?: (emoji: string) => void;
 }
 
@@ -418,6 +421,7 @@ export function MessageBubble({
   reply,
   reactions,
   currentUserId,
+  senderName,
   onToggleReaction,
 }: MessageBubbleProps) {
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
@@ -458,7 +462,7 @@ export function MessageBubble({
                   isAgent ? "bg-primary" : "bg-muted-foreground",
                 )}
               />
-              {isAgent ? "Tú" : "Cliente"}
+              {isAgent ? (senderName ?? "Tú") : "Cliente"}
             </span>
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}
@@ -493,6 +497,16 @@ export function MessageBubble({
             : "rounded-bl-md bg-muted text-foreground",
         )}
       >
+        {senderName && (
+          <p
+            className={cn(
+              "mb-0.5 text-[11px] font-semibold",
+              isAgent ? "text-primary-foreground/80" : "text-accent-ink",
+            )}
+          >
+            {senderName}
+          </p>
+        )}
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllGmailConnections } from "@/lib/channels/gmail/poll";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { pingCron } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/gmail-poll
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r;
     throw r;
   }
+  void pingCron("gmail-poll");
 
   try {
     const results = await pollAllGmailConnections();
