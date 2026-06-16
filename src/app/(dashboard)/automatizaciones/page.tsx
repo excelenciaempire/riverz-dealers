@@ -11,18 +11,12 @@ import {
   Pencil,
   Trash2,
   FileText,
-  Clock,
-  Gift,
-  Heart,
-  MessageCircle,
-  Package,
-  Repeat,
-  ShoppingBag,
+  PackageCheck,
+  Repeat2,
   ShoppingCart,
   Sparkles,
   Star,
   Truck,
-  PhoneCall,
   ArrowRight,
   Loader2,
 } from "lucide-react"
@@ -58,18 +52,11 @@ import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
 // String → Lucide icon component. Keeping the catalog import-free of
 // react means this map lives in the page that renders the gallery.
 const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
-  "shopping-bag": ShoppingBag,
   "shopping-cart": ShoppingCart,
-  gift: Gift,
-  package: Package,
+  "package-check": PackageCheck,
   truck: Truck,
-  "message-circle": MessageCircle,
-  heart: Heart,
-  clock: Clock,
   star: Star,
-  sparkles: Sparkles,
-  repeat: Repeat,
-  "phone-call": PhoneCall,
+  "repeat-2": Repeat2,
 }
 
 export default function AutomationsPage() {

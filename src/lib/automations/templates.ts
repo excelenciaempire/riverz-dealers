@@ -6,16 +6,11 @@ import type {
 } from '@/types'
 
 export type TemplateSlug =
-  | 'cart_recovery'
-  | 'new_order'
-  | 'order_fulfilled'
-  | 'follow_up_reminder'
-  | 'repurchase_nudge'
-  | 'welcome_new_contact'
-  | 'feedback_post_delivery'
-  | 'reengagement_14d'
-  | 'keyword_catalog'
-  | 'birthday_greeting'
+  | 'carrito-abandonado'
+  | 'nuevo-pedido'
+  | 'enviar-tracking'
+  | 'post-survey'
+  | 'recompras'
 
 export type TemplateCategory =
   | 'shopify'
@@ -31,18 +26,11 @@ export type TemplateCategory =
  * bundle.
  */
 export type TemplateIconName =
-  | 'shopping-bag'
-  | 'gift'
-  | 'package'
-  | 'truck'
-  | 'message-circle'
-  | 'heart'
-  | 'clock'
-  | 'star'
-  | 'sparkles'
-  | 'repeat'
-  | 'phone-call'
   | 'shopping-cart'
+  | 'package-check'
+  | 'truck'
+  | 'star'
+  | 'repeat-2'
 
 export interface TemplateStepSeed {
   step_type: AutomationStepType
@@ -67,28 +55,27 @@ export interface AutomationTemplateDefinition {
 }
 
 /**
- * Pre-built automation templates the user can clone from /automatizaciones.
- * Every template is tuned around the data the trigger dispatchers expose
- * in `context.vars` — see src/app/api/shopify/webhooks/orders/route.ts
- * for Shopify keys and src/app/api/whatsapp/webhook/route.ts for inbound
- * message vars.
+ * Galería curada de plantillas de automatizaciones. La sentamos en sólo
+ * cinco recetas por pedido del equipo: cada una resuelve un problema
+ * concreto del ciclo Shopify + WhatsApp y deja al usuario completar el
+ * `template_name` / `tag_id` antes de activar, para que validate.ts no
+ * permita disparar campañas a medio configurar.
  *
- * Strategy:
- *  - First touches outside the 24-hour WhatsApp window use send_template.
- *  - In-window flows (welcomes, keyword replies) use send_message so the
- *    user doesn't need an approved template just to install the recipe.
- *  - All template_name / tag_id fields are left empty on purpose so the
- *    builder forces the user to pick concrete values before activation.
+ * Las variables usadas en `send_message` (p.ej. `{{customer_name}}`,
+ * `{{checkout_url}}`, `{{order_name}}`, `{{tracking_url}}`) son las que
+ * exponen los dispatchers en `context.vars` — ver
+ * `src/app/api/shopify/webhooks/orders/route.ts` y los crons de Shopify
+ * para la lista completa.
  */
 export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefinition> = {
-  cart_recovery: {
-    slug: 'cart_recovery',
-    name: 'Recuperar carrito abandonado',
+  'carrito-abandonado': {
+    slug: 'carrito-abandonado',
+    name: 'Carrito abandonado',
     description:
-      'Cuando alguien deja el checkout, espera 2 h y envíale el enlace de pago por WhatsApp.',
+      'Recuperá ventas perdidas. Cuando un cliente abandona su carrito en Shopify, le mandamos un mensaje 2 horas después con el link para retomar y un recordatorio del envío gratis.',
     category: 'shopify',
     icon: 'shopping-cart',
-    tags: ['Shopify', 'WhatsApp'],
+    tags: ['Shopify', 'Recovery'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     steps: [
@@ -97,230 +84,115 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { amount: 2, unit: 'hours' },
       },
       {
-        // First touch outside the 24h window needs an approved Meta template.
-        // Pick one whose body uses {{customer_name}} / {{total_price}} /
-        // {{checkout_url}} variables exposed by the webhook.
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
+        step_type: 'send_message',
+        step_config: {
+          text:
+            'Hola {{customer_name}}, te dejaste el carrito sin terminar. Te lo guardamos por si querés retomarlo: {{checkout_url}}. Recordá que con nosotros el envío es gratis.',
+        },
       },
       {
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
+        step_config: { tag_id: 'carrito-recuperacion' },
       },
     ],
   },
 
-  new_order: {
-    slug: 'new_order',
-    name: 'Confirmar pedido',
+  'nuevo-pedido': {
+    slug: 'nuevo-pedido',
+    name: 'Nuevo pedido',
     description:
-      'Apenas Shopify registra el pedido, manda el resumen y agradece la compra por WhatsApp.',
+      'Confirmamos al cliente apenas hace un pedido en Shopify. Le mandamos un resumen con el número de orden, el total y un agradecimiento.',
     category: 'shopify',
-    icon: 'package',
-    tags: ['Shopify', 'WhatsApp'],
+    icon: 'package-check',
+    tags: ['Shopify', 'Confirmación'],
     trigger_type: 'shopify_order_created',
     trigger_config: {},
     steps: [
       {
-        // Order confirmation template — variables: customer_name, order_name,
-        // total_price, currency, item_count, first_item.
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
+        step_type: 'send_message',
+        step_config: {
+          text:
+            'Gracias por tu compra, {{customer_name}}. Confirmamos el pedido {{order_name}} por {{total_price}} {{currency}}. Te avisamos apenas salga.',
+        },
       },
       {
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
+        step_config: { tag_id: 'pedido-confirmado' },
       },
     ],
   },
 
-  order_fulfilled: {
-    slug: 'order_fulfilled',
-    name: 'Avisar despacho',
+  'enviar-tracking': {
+    slug: 'enviar-tracking',
+    name: 'Enviar tracking',
     description:
-      'Cuando Shopify marca el pedido como despachado, envía el número y el enlace de seguimiento.',
+      'Cuando despachamos un pedido, le mandamos al cliente el número de seguimiento y el link del courier.',
     category: 'shopify',
     icon: 'truck',
-    tags: ['Shopify', 'WhatsApp'],
+    tags: ['Shopify', 'Envíos'],
     trigger_type: 'shopify_order_fulfilled',
     trigger_config: {},
     steps: [
       {
-        // Tracking template — variables: customer_name, order_name,
-        // tracking_company, tracking_number, tracking_url.
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
+        step_type: 'send_message',
+        step_config: {
+          text:
+            'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo seguís acá: {{tracking_url}}. ETA estimado 3 a 5 días hábiles.',
+        },
       },
       {
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
+        step_config: { tag_id: 'pedido-despachado' },
       },
     ],
   },
 
-  welcome_new_contact: {
-    slug: 'welcome_new_contact',
-    name: 'Bienvenida nuevo cliente',
+  'post-survey': {
+    slug: 'post-survey',
+    name: 'Post survey',
     description:
-      'Cuando alguien escribe por primera vez, preséntate y abrí la conversación con una pregunta.',
-    category: 'ventas',
-    icon: 'sparkles',
-    tags: ['WhatsApp', 'Ventas'],
-    trigger_type: 'first_inbound_message',
-    trigger_config: {},
-    steps: [
-      {
-        step_type: 'send_message',
-        step_config: {
-          text:
-            '¡Hola! Gracias por escribirnos. Soy del equipo y te respondo en minutos. ¿Qué estás buscando hoy?',
-        },
-      },
-    ],
-  },
-
-  reengagement_14d: {
-    slug: 'reengagement_14d',
-    name: 'Reactivar cliente inactivo',
-    description:
-      'Para clientes con al menos 1 pedido que llevan 14 días sin actividad, un mensaje suave para reabrir.',
+      'Tres días después de que llega el pedido, le preguntamos al cliente cómo le fue. La respuesta queda registrada en la conversación para revisar.',
     category: 'retencion',
-    icon: 'heart',
-    tags: ['Retención', 'WhatsApp'],
-    trigger_type: 'time_based',
-    trigger_config: { schedule: '0 14 * * *' },
-    steps: [
-      {
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
-      },
-    ],
-  },
-
-  feedback_post_delivery: {
-    slug: 'feedback_post_delivery',
-    name: 'Pedir feedback post-entrega',
-    description:
-      '3 días después de marcar el pedido como entregado, preguntá cómo le fue al cliente.',
-    category: 'soporte',
     icon: 'star',
-    tags: ['Shopify', 'WhatsApp', 'Soporte'],
+    tags: ['Encuestas', 'Retención'],
     trigger_type: 'time_based',
-    trigger_config: { schedule: '30 * * * *' },
-    steps: [
-      {
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
-      },
-    ],
-  },
-
-  keyword_catalog: {
-    slug: 'keyword_catalog',
-    name: 'Bienvenida por palabra clave',
-    description:
-      'Si el cliente escribe "catálogo", "productos" o "comprar", respondé al instante con las opciones.',
-    category: 'ventas',
-    icon: 'message-circle',
-    tags: ['WhatsApp', 'Ventas'],
-    trigger_type: 'keyword_match',
-    trigger_config: {
-      keywords: ['catalogo', 'catálogo', 'productos', 'comprar'],
-      match_type: 'contains',
-      case_sensitive: false,
-    },
+    trigger_config: { event: 'post_delivered', days_after: 3 },
     steps: [
       {
         step_type: 'send_message',
         step_config: {
           text:
-            'Te paso el catálogo en un segundo. Mientras tanto, ¿buscás algo en particular o querés ver lo más vendido?',
+            '{{customer_name}}, ¿cómo te fue con tu pedido? Cualquier feedback nos sirve un montón.',
         },
       },
-    ],
-  },
-
-  birthday_greeting: {
-    slug: 'birthday_greeting',
-    name: 'Cumpleaños del cliente',
-    description:
-      'El día del cumpleaños del contacto, saludalo con un mensaje personalizado y un descuento opcional.',
-    category: 'recordatorios',
-    icon: 'gift',
-    tags: ['Retención', 'WhatsApp'],
-    trigger_type: 'time_based',
-    trigger_config: { schedule: '0 13 * * *' },
-    steps: [
       {
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
+        step_type: 'add_tag',
+        step_config: { tag_id: 'feedback-pedido' },
       },
     ],
   },
 
-  follow_up_reminder: {
-    slug: 'follow_up_reminder',
-    name: 'Recordatorio de seguimiento',
-    description:
-      'Si un contacto escribió y nadie le respondió en 24 h, mandale un recordatorio amable.',
-    category: 'soporte',
-    icon: 'clock',
-    tags: ['WhatsApp', 'Soporte'],
-    trigger_type: 'new_message_received',
-    trigger_config: {},
-    steps: [
-      {
-        step_type: 'wait',
-        step_config: { amount: 1, unit: 'days' },
-      },
-      {
-        // After 24h the WhatsApp customer-service window closes, so we
-        // must reopen the conversation with an approved template.
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
-      },
-    ],
-  },
-
-  repurchase_nudge: {
-    slug: 'repurchase_nudge',
+  recompras: {
+    slug: 'recompras',
     name: 'Recompras',
     description:
-      'Cuando un cliente vuelve a comprar, agradecé el regreso y proponé el próximo paso.',
+      'Cuando un cliente lleva 45 días desde su último pedido, le mandamos un recordatorio suave por si quiere reponer stock. Solo dispara una vez por ciclo de recompra.',
     category: 'retencion',
-    icon: 'repeat',
-    tags: ['Shopify', 'WhatsApp', 'Retención'],
-    trigger_type: 'shopify_order_created',
-    trigger_config: {},
+    icon: 'repeat-2',
+    tags: ['Retención', 'Recompras'],
+    trigger_type: 'time_based',
+    trigger_config: { event: 'last_order_days_ago', days_threshold: 45 },
     steps: [
       {
-        // Only fires when the Shopify customer.orders_count was > 1 at the
-        // time of the webhook — see context.vars.is_repeat_customer in
-        // src/app/api/shopify/webhooks/orders/route.ts.
-        step_type: 'condition',
+        step_type: 'send_message',
         step_config: {
-          subject: 'context_var',
-          operand: 'is_repeat_customer',
-          value: 'true',
+          text:
+            'Hola {{customer_name}}, hace un tiempo del último pedido. ¿Te queda poco del Sérum? Si querés reponer te dejo el link para volver a llevar.',
         },
       },
       {
-        step_type: 'wait',
-        step_config: { amount: 1, unit: 'hours' },
-        parent_index: 0,
-        branch: 'yes',
-      },
-      {
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es' },
-        parent_index: 0,
-        branch: 'yes',
-      },
-      {
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
-        parent_index: 0,
-        branch: 'yes',
+        step_config: { tag_id: 'recompra-recordatorio' },
       },
     ],
   },
@@ -331,16 +203,11 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
  * here is appended in object-iteration order.
  */
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
-  'cart_recovery',
-  'new_order',
-  'order_fulfilled',
-  'welcome_new_contact',
-  'reengagement_14d',
-  'feedback_post_delivery',
-  'keyword_catalog',
-  'birthday_greeting',
-  'follow_up_reminder',
-  'repurchase_nudge',
+  'carrito-abandonado',
+  'nuevo-pedido',
+  'enviar-tracking',
+  'post-survey',
+  'recompras',
 ]
 
 export function getTemplate(slug: string): AutomationTemplateDefinition | null {
