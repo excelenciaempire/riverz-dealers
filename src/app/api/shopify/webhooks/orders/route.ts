@@ -10,6 +10,7 @@ import {
 } from '@/lib/shopify/contact-upsert'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
+import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -51,6 +52,15 @@ export async function POST(request: Request) {
 
   try {
     const admin = supabaseAdmin()
+
+    // Per-delivery dedupe (migration 059). Shopify retries up to 19x
+    // over ~48h, so any post-side-effect crash without dedupe would
+    // re-send the order confirmation on every retry.
+    const webhookId = request.headers.get('x-shopify-webhook-id')
+    if (await isDuplicateDelivery(admin, shopDomain, webhookId, topic)) {
+      return NextResponse.json({ ok: true, duplicate: true })
+    }
+
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 
@@ -77,17 +87,20 @@ export async function POST(request: Request) {
     if (topic === 'orders/create') {
       triggerType = 'shopify_order_created'
       if (orderId > 0) {
-        await admin
-          .from('shopify_order_fulfillment_state')
-          .upsert(
-            {
-              shop_domain: shopDomain,
-              order_id: orderId,
-              fulfillment_status: incomingFulfillment,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'shop_domain,order_id' },
-          )
+        // Atomic claim — migration 059's RPC. Returns true the FIRST
+        // time we see this (shop_domain, order_id) and false on every
+        // replay. Without this, the per-webhook-id dedupe above only
+        // catches retries of the SAME delivery; a brand-new delivery
+        // for the SAME order (Shopify's deduper occasionally fails)
+        // would still re-fire the "Nuevo pedido" template.
+        const { data: claimed } = await admin.rpc('shopify_claim_order_created', {
+          p_shop_domain: shopDomain,
+          p_order_id: orderId,
+          p_fulfillment_status: incomingFulfillment,
+        })
+        if (claimed !== true) {
+          return NextResponse.json({ ok: true, skipped: 'duplicate_order' })
+        }
       }
       // Si la orden vino de un checkout que ya teníamos persistido,
       // marcamos ese checkout como completado. Shopify reutiliza el

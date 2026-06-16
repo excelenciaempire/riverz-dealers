@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
 import {
@@ -61,42 +61,68 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-
-  const loadImage = useCallback(async () => {
-    if (!url) return;
-
-    // Proxy URLs need auth fetch to create blob URL
-    if (url.startsWith("/api/whatsapp/media/")) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to load media");
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        setSrc(blobUrl);
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setSrc(url);
-      setLoading(false);
-    }
-  }, [url]);
+  // Gate the blob fetch behind an IntersectionObserver — without this,
+  // every bubble in the thread eagerly hits /api/whatsapp/media/ on
+  // mount, firing N parallel proxy requests on thread open. We only
+  // fetch when the bubble is within 500px of the viewport.
+  const [inView, setInView] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  // Store the blob URL in a ref so the cleanup revokes the URL created
+  // BY THIS EFFECT RUN — using the `src` state in cleanup was buggy
+  // because it captured whatever `src` happened to be in the closure.
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    loadImage();
+    const el = wrapRef.current;
+    if (!el || inView) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "500px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [inView]);
+
+  useEffect(() => {
+    if (!inView || !url) return;
+    let cancelled = false;
+    (async () => {
+      if (url.startsWith("/api/whatsapp/media/")) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Failed to load media");
+          const blob = await res.blob();
+          if (cancelled) return;
+          const blobUrl = URL.createObjectURL(blob);
+          blobUrlRef.current = blobUrl;
+          setSrc(blobUrl);
+        } catch {
+          if (!cancelled) setError(true);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      } else {
+        setSrc(url);
+        setLoading(false);
+      }
+    })();
     return () => {
-      if (src?.startsWith("blob:")) {
-        URL.revokeObjectURL(src);
+      cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadImage]);
+  }, [inView, url]);
 
   if (error) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+      <div ref={wrapRef} className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
         <ImageOff className="h-8 w-8 text-muted-foreground" />
       </div>
     );
@@ -104,7 +130,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 
   if (loading) {
     return (
-      <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+      <div ref={wrapRef} className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
@@ -114,7 +140,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   // The blob URL is reused so we don't refetch the image for the
   // expanded view; ESC + click-outside come for free from shadcn Dialog.
   return (
-    <>
+    <div ref={wrapRef}>
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -124,6 +150,8 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         <img
           src={src ?? ""}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="max-h-64 max-w-60 rounded-lg object-cover"
           onError={() => setError(true)}
         />
@@ -137,7 +165,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
           />
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
@@ -151,8 +179,13 @@ function MediaVideo({ url }: { url: string }) {
         className="cursor-zoom-in"
         aria-label="Ampliar video"
       >
+        {/* preload="none" prevents the browser from fetching metadata
+            for every video in the thread on mount. Without it, opening
+            a thread with N videos kicks off N HEAD-style requests against
+            our /api/whatsapp/media/ proxy. */}
         <video
           src={url}
+          preload="none"
           className="pointer-events-none max-h-64 max-w-60 rounded-lg"
         />
       </button>

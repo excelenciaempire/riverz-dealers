@@ -9,6 +9,8 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
+import { handleMetaGraphError, parseMetaErrorBody } from "../meta-auth";
+import { supabaseAdmin } from "../admin-client";
 
 /**
  * Facebook Messenger via Meta Graph API (Send API).
@@ -53,6 +55,12 @@ export const messengerAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
+      await handleMetaGraphError(
+        supabaseAdmin(),
+        input.connection,
+        res.status,
+        parseMetaErrorBody(detail),
+      );
       throw new Error(`[messenger] send failed (${res.status}): ${detail}`);
     }
     const json = (await res.json()) as { message_id?: string };

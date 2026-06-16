@@ -5,6 +5,46 @@
  */
 
 import { shopifyApiVersion } from './oauth'
+import { createClient } from '@supabase/supabase-js'
+
+/** Typed error so callers can distinguish a credential failure from
+ *  generic network errors. */
+export class ShopifyUnauthorizedError extends Error {
+  status = 401
+  constructor(message: string) {
+    super(message)
+    this.name = 'ShopifyUnauthorizedError'
+  }
+}
+
+/**
+ * Fire-and-forget update flipping `shopify_connections.status` to
+ * 'expired' so the Settings card shows a "Reconectar" CTA instead of a
+ * green dot over a broken token. Shopify offline tokens don't expire
+ * but can be revoked (merchant rotates API access, custom-app secret
+ * rotation, store transfer) — without this, every order lookup
+ * silently returns empty and the AI tells customers we have no record.
+ */
+export async function markShopifyConnectionExpired(
+  shopDomain: string,
+): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return
+  try {
+    const admin = createClient(url, key)
+    await admin
+      .from('shopify_connections')
+      .update({
+        status: 'expired',
+        last_error: 'Token revocado en Shopify — reconectar desde Ajustes',
+      })
+      .eq('shop_domain', shopDomain)
+      .neq('status', 'expired')
+  } catch {
+    /* swallow — best-effort */
+  }
+}
 
 export class ShopifyAdminClient {
   constructor(
@@ -31,6 +71,13 @@ export class ShopifyAdminClient {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
+      if (res.status === 401) {
+        // Fire-and-forget — don't block the throw on the DB write.
+        void markShopifyConnectionExpired(this.shop)
+        throw new ShopifyUnauthorizedError(
+          `Shopify Admin API 401: ${text.slice(0, 300)}`,
+        )
+      }
       throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 300)}`)
     }
     return res.json() as Promise<T>

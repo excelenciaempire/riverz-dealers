@@ -92,6 +92,25 @@ export async function GET(
       const r = await fetch(tokenUrl.toString());
       if (!r.ok) throw new Error(await r.text());
       tokenJson = (await r.json()) as Record<string, unknown>;
+
+      // Swap the short-lived user token (1-2h) for the long-lived one
+      // (~60d). Without this, every Meta connection (Messenger / IG /
+      // FB comments / WA non-ES) would silently die well before day 60.
+      // Page tokens we then mint from /me/accounts are themselves
+      // long-lived/non-expiring as long as the user token is long-lived.
+      // Non-fatal: if the exchange fails we fall through with the
+      // short-lived token rather than breaking the connect flow.
+      try {
+        const llUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+        llUrl.searchParams.set("grant_type", "fb_exchange_token");
+        llUrl.searchParams.set("client_id", cfg.clientId);
+        llUrl.searchParams.set("client_secret", cfg.clientSecret);
+        llUrl.searchParams.set("fb_exchange_token", String(tokenJson.access_token ?? ""));
+        const ll = await fetch(llUrl.toString());
+        if (ll.ok) tokenJson = (await ll.json()) as Record<string, unknown>;
+      } catch (err) {
+        console.warn("[oauth/meta] fb_exchange_token failed (non-fatal):", err);
+      }
     }
   } catch (err) {
     console.error(`[oauth/${provider}] token exchange failed:`, err);

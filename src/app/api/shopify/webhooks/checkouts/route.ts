@@ -8,6 +8,7 @@ import {
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
 
 /**
  * Shopify checkout webhook receiver. Persiste cada checkout/abandoned
@@ -47,6 +48,10 @@ export async function POST(request: Request) {
 
   try {
     const admin = supabaseAdmin()
+    const webhookId = request.headers.get('x-shopify-webhook-id')
+    if (await isDuplicateDelivery(admin, shopDomain, webhookId, topic)) {
+      return NextResponse.json({ ok: true, duplicate: true })
+    }
     const conn = await getConnectionByShop(admin, shopDomain)
     if (!conn) return NextResponse.json({ ok: true })
 

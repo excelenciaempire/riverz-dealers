@@ -6,6 +6,7 @@ import {
   clientIp,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
+import { safeRedirectTo } from "@/lib/auth/redirect";
 
 /**
  * POST /api/auth/signup
@@ -52,13 +53,19 @@ export async function POST(req: Request) {
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
+  // Defence-in-depth: only honor a `redirect_to` whose origin matches
+  // this app's own NEXT_PUBLIC_SITE_URL. Anything else (open-redirect
+  // attempt) is silently coerced to undefined so Supabase falls back
+  // to its project-default Site URL.
+  const redirectTo = safeRedirectTo(body?.redirect_to);
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: body?.redirect_to,
+      emailRedirectTo: redirectTo,
     },
   });
 
@@ -70,7 +77,7 @@ export async function POST(req: Request) {
     !!error || (data?.user?.identities?.length ?? 1) === 0;
   if (isCollision) {
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: body?.redirect_to,
+      redirectTo,
     });
   }
   return NextResponse.json(GENERIC_OK);

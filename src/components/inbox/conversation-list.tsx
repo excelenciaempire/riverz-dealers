@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
@@ -169,6 +170,32 @@ export function ConversationList({
     // fetch with the new scope.
   }, [resyncToken, workspaceId]);
 
+  // Memoize per-row normalized haystacks. Recomputes only when
+  // `conversations` changes (not on every keystroke). Without this,
+  // typing into the search box was O(N * normalize-cost) per character;
+  // with 500 rows that produced visible typing lag.
+  const normalizedIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of conversations) {
+      map.set(
+        c.id,
+        normalize(
+          [
+            c.contact?.name,
+            c.contact?.email,
+            c.contact?.phone,
+            c.contact?.external_id,
+            c.subject,
+            c.last_message_text,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ),
+      );
+    }
+    return map;
+  }, [conversations]);
+
   const filtered = useMemo(() => {
     let result = conversations;
 
@@ -181,25 +208,13 @@ export function ConversationList({
       // "anibal" should match "Aníbal". Both sides go through the same
       // normalize() so the comparison is symmetric.
       const q = normalize(search);
-      result = result.filter((c) => {
-        const haystack = normalize(
-          [
-            c.contact?.name,
-            c.contact?.email,
-            c.contact?.phone,
-            c.contact?.external_id,
-            c.subject,
-            c.last_message_text,
-          ]
-            .filter(Boolean)
-            .join(" "),
-        );
-        return haystack.includes(q);
-      });
+      result = result.filter((c) =>
+        normalizedIndex.get(c.id)?.includes(q) ?? false,
+      );
     }
 
     return result;
-  }, [conversations, filter, search]);
+  }, [conversations, filter, search, normalizedIndex]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,18 +250,21 @@ export function ConversationList({
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
+    // Parallelize so 50 deletes don't block for 50*RTT. `allSettled`
+    // (not `all`) lets one network error fall through without aborting
+    // the rest, and still leaves an accurate `ok` count for the toasts.
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetchWithCsrf(`/api/conversations/${id}`, { method: "DELETE" }),
+      ),
+    );
     let ok = 0;
-    for (const id of ids) {
-      try {
-        const r = await fetchWithCsrf(`/api/conversations/${id}`, { method: "DELETE" });
-        if (r.ok) {
-          ok++;
-          onConversationDeleted?.(id);
-        }
-      } catch {
-        // best-effort; report the tally at the end
+    results.forEach((res, i) => {
+      if (res.status === "fulfilled" && res.value.ok) {
+        ok++;
+        onConversationDeleted?.(ids[i]);
       }
-    }
+    });
     setBulkDeleting(false);
     setSelectedIds(new Set());
     setSelectMode(false);
@@ -255,6 +273,34 @@ export function ConversationList({
   }, [selectedIds, onConversationDeleted, fetchWithCsrf]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
+
+  // ── Virtualization ──
+  // Plain `.map()` over `filtered` mounts every row on first paint and
+  // pays a memo-compare on every state change. For 500+ rows that was
+  // visible work even with the row-level `ConversationItem` memo.
+  // The scroller div (`min-h-0 flex-1 overflow-y-auto`) is the scroll
+  // element; we DON'T use `useWindowVirtualizer` because the list lives
+  // inside a `ResizablePane` and the scroll element is this inner div,
+  // not the window.
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    // Matches `px-3 py-3` + `h-10` avatar row in `ConversationItem`. The
+    // virtualizer measures real rows after first paint, so a slight
+    // miss here just costs a re-flow on mount.
+    estimateSize: () => 64,
+    overscan: 5,
+  });
+
+  // Scroll the active conversation into view when it's set programmatically
+  // (deep link, realtime update, etc.). Without this, a deep link to a row
+  // 300 entries down wouldn't auto-scroll because that row isn't mounted.
+  useEffect(() => {
+    if (!activeConversationId || filtered.length === 0) return;
+    const i = filtered.findIndex((c) => c.id === activeConversationId);
+    if (i >= 0) rowVirtualizer.scrollToIndex(i, { align: "auto" });
+  }, [activeConversationId, filtered, rowVirtualizer]);
 
   return (
     // Always fills its parent. Width is controlled by ResizablePane on
@@ -327,7 +373,7 @@ export function ConversationList({
           bounded height inside the resizable flex column, which killed
           wheel scrolling on long lists. A plain overflow-y-auto always
           scrolls. */}
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+      <div ref={parentRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -337,20 +383,41 @@ export function ConversationList({
             hasFilters={!!search.trim() || filter !== "all"}
           />
         ) : (
-          <div className="flex flex-col">
-            {filtered.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isActive={conv.id === activeConversationId}
-                onSelect={handleSelect}
-                onDelete={onConversationDeleted}
-                selectMode={selectMode}
-                selected={selectedIds.has(conv.id)}
-                onToggleSelected={toggleSelected}
-                tz={tz}
-              />
-            ))}
+          <div
+            style={{
+              height: rowVirtualizer.getTotalSize(),
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((vRow) => {
+              const conv = filtered[vRow.index];
+              return (
+                <div
+                  key={conv.id}
+                  data-index={vRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${vRow.start}px)`,
+                  }}
+                >
+                  <ConversationItem
+                    conversation={conv}
+                    isActive={conv.id === activeConversationId}
+                    onSelect={handleSelect}
+                    onDelete={onConversationDeleted}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(conv.id)}
+                    onToggleSelected={toggleSelected}
+                    tz={tz}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -508,6 +575,8 @@ const ConversationItem = memo(function ConversationItem({
             <img
               src={contact.avatar_url}
               alt={displayName}
+              loading="lazy"
+              decoding="async"
               className="h-10 w-10 rounded-full object-cover"
             />
           ) : (

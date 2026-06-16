@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { getLogger } from '@/lib/log/logger'
+
+const log = getLogger('cron.broadcasts')
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -46,6 +49,19 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin()
 
+  // Revival pass: broadcasts whose dispatcher died mid-batch get stuck
+  // in 'sending' forever, and the existing claim filter (status=scheduled)
+  // would skip them. Per-recipient idempotency holds (the recipients
+  // fetch only sees `status='pending'`), so revival cannot double-send
+  // the already-sent slice. 15 minutes comfortably exceeds the longest
+  // legitimate single-broadcast run.
+  const stuckCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  await admin
+    .from('broadcasts')
+    .update({ status: 'scheduled' })
+    .eq('status', 'sending')
+    .lt('updated_at', stuckCutoff)
+
   const { data: due, error } = await admin
     .from('broadcasts')
     .select('*')
@@ -73,7 +89,11 @@ export async function GET(request: Request) {
       await sendOneBroadcast(admin, broadcast)
       processed++
     } catch (err) {
-      console.error(`[broadcast-cron] ${broadcast.id} failed:`, err)
+      // Route through the logger so SENTRY_DSN gets it. Without this,
+      // partial failures swallowed into `console.error` never reach
+      // any alerting surface — the operator's only signal was the
+      // red dot on Render's dashboard.
+      log.captureException(err, { broadcastId: broadcast.id })
       await admin
         .from('broadcasts')
         .update({ status: 'failed' })

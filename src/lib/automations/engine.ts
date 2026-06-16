@@ -61,6 +61,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       .eq('workspace_id', input.workspaceId)
       .eq('trigger_type', input.triggerType)
       .eq('is_active', true)
+      .is('deleted_at', null)
 
     if (error) {
       console.error('[automations] fetch failed:', error)
@@ -119,6 +120,7 @@ export async function runAutomationById(input: {
       .from('automations')
       .select('*')
       .eq('id', input.automationId)
+      .is('deleted_at', null)
       .maybeSingle()
     if (error || !data) return { executed: false, reason: 'not_found' }
     const automation = data as Automation

@@ -129,6 +129,16 @@ export async function GET(request: Request) {
     const contact = c as { id: string; name: string | null; phone: string }
     if (cooldownSet.has(contact.id)) continue
 
+    // Snapshot prior state so a transient automation failure can
+    // roll back the 30-day cooldown claim. Without this, a single
+    // Meta/Supabase blip during dispatch would burn the cooldown
+    // permanently and the contact would be silently locked out for 30d.
+    const { data: priorState } = await admin
+      .from('contact_reengagement_state')
+      .select('last_reengagement_at, reengagement_count')
+      .eq('contact_id', contact.id)
+      .maybeSingle()
+
     // Reclamamos via upsert. Si dos crons concurrentes intentan tocar el
     // mismo contact, el segundo upsert sobrescribe — pero igual decidió
     // disparar en base al mismo snapshot pre-cooldown así que no hay
@@ -140,7 +150,9 @@ export async function GET(request: Request) {
           contact_id: contact.id,
           workspace_id: workspaceId,
           last_reengagement_at: new Date().toISOString(),
-          reengagement_count: 1,
+          reengagement_count:
+            ((priorState as { reengagement_count?: number } | null)
+              ?.reengagement_count ?? 0) + 1,
         },
         { onConflict: 'contact_id' },
       )
@@ -170,6 +182,8 @@ export async function GET(request: Request) {
       idsToFire.push(legacyAutomationId)
     }
 
+    let dispatchedHere = 0
+    let anyTransientError = false
     for (const automationId of idsToFire) {
       const result = await runAutomationById({
         automationId,
@@ -180,7 +194,41 @@ export async function GET(request: Request) {
           },
         },
       })
-      if (result.executed) dispatched++
+      if (result.executed) {
+        dispatched++
+        dispatchedHere++
+      } else if (
+        (result as { reason?: string }).reason === 'error'
+      ) {
+        anyTransientError = true
+      }
+    }
+
+    // Rollback only when nothing actually sent AND the failure was
+    // transient (not segment_mismatch / inactive — those are deliberate
+    // and shouldn't lift the cooldown). Restore the prior row if it
+    // existed; otherwise delete the just-created claim.
+    if (anyTransientError && dispatchedHere === 0) {
+      if (priorState) {
+        await admin
+          .from('contact_reengagement_state')
+          .upsert(
+            {
+              contact_id: contact.id,
+              workspace_id: workspaceId,
+              last_reengagement_at: (priorState as { last_reengagement_at: string })
+                .last_reengagement_at,
+              reengagement_count: (priorState as { reengagement_count: number })
+                .reengagement_count,
+            },
+            { onConflict: 'contact_id' },
+          )
+      } else {
+        await admin
+          .from('contact_reengagement_state')
+          .delete()
+          .eq('contact_id', contact.id)
+      }
     }
   }
 

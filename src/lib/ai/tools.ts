@@ -124,6 +124,18 @@ export async function runTool(
       customerEmail: shopify.customerEmail,
       orderNumber: input.order_number,
     })
+    if (!result.found) {
+      // Travel the explicit "don't invent" instruction with the empty
+      // result so the model never paraphrases "found:false" into
+      // "tu pedido está en proceso". Local to the failure case so it
+      // doesn't grow the system prompt on every turn.
+      return JSON.stringify({
+        found: false,
+        orders: [],
+        instruction:
+          'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Decile al cliente que no lo encontraste y pedile el número de pedido (ej. #1042) o que confirme el teléfono/correo con el que compró.',
+      })
+    }
     return JSON.stringify(result)
   }
   if (toolName === 'create_checkout') {

@@ -286,7 +286,8 @@ export type ConnectionStatus =
   | 'connected'
   | 'disconnected'
   | 'error'
-  | 'pending';
+  | 'pending'
+  | 'expired';
 
 export interface ChannelConnection {
   id: string;

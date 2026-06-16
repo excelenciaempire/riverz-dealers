@@ -242,6 +242,7 @@ async function loadFlow(
     .from("flows")
     .select("*")
     .eq("id", flowId)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) {
     console.error("[flows] loadFlow error:", error.message);
@@ -373,6 +374,7 @@ async function findEntryFlow(
     .select("*")
     .eq("user_id", userId)
     .eq("status", "active")
+    .is("deleted_at", null)
     .order("created_at", { ascending: true });
   if (error || !flows) return null;
 

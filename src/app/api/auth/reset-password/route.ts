@@ -6,6 +6,7 @@ import {
   clientIp,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
+import { safeRedirectTo } from "@/lib/auth/redirect";
 
 /**
  * POST /api/auth/reset-password
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
 
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: body?.redirect_to,
+    redirectTo: safeRedirectTo(body?.redirect_to),
   });
   return NextResponse.json(GENERIC_OK);
 }

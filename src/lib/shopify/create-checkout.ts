@@ -23,7 +23,13 @@
  * la respuesta para Pili explica el flujo.
  */
 
-const PILAR_SHOP_DOMAINS = new Set(['j9kgap-kn.myshopify.com'])
+export const PILAR_SHOP_DOMAINS = new Set(['j9kgap-kn.myshopify.com'])
+
+/** Único descuento adicional permitido fuera del bundle. Pagar por
+ *  transferencia (no por tarjeta / Mercado Pago) descuenta este monto
+ *  manualmente en el back-office. Exportado para que el system prompt
+ *  pueda enunciar la política completa sin números mágicos. */
+export const TRANSFER_DISCOUNT_ARS = 4900
 
 export type CheckoutOffer = '1u' | '2u_1_gratis' | '3u_1_gratis'
 export type PaymentHint = 'card_or_mp' | 'transfer'
@@ -36,7 +42,7 @@ const OFFER_QUANTITY: Record<CheckoutOffer, number> = {
 }
 
 /** Etiqueta amigable para devolverle al modelo. */
-const OFFER_LABEL: Record<CheckoutOffer, string> = {
+export const OFFER_LABEL: Record<CheckoutOffer, string> = {
   '1u': '1 unidad',
   '2u_1_gratis': '2 unidades + 1 gratis',
   '3u_1_gratis': '3 unidades + 1 gratis',
@@ -45,7 +51,7 @@ const OFFER_LABEL: Record<CheckoutOffer, string> = {
 /** Precio final ARS por oferta — sólo para el `total_label` que devuelve
  *  la tool (no se usa en la URL: lo aplica la Cart Function). Estos
  *  valores son los verificados en la recon contra pilarargentina.store. */
-const OFFER_TOTAL_ARS: Record<CheckoutOffer, number> = {
+export const OFFER_TOTAL_ARS: Record<CheckoutOffer, number> = {
   '1u': 39990,
   '2u_1_gratis': 69900,
   '3u_1_gratis': 99900,
@@ -135,7 +141,7 @@ function resolveVariantId(ctx: CreateCheckoutContext): string | null {
   return null
 }
 
-function fmtArs(n: number): string {
+export function fmtArs(n: number): string {
   // 69900 → "$69.900" (separador de miles con punto, como en AR).
   return '$' + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
@@ -212,7 +218,10 @@ export async function createCheckoutLink(
   const params = new URLSearchParams()
   if (paymentHint === 'transfer') {
     params.set('attributes[pago]', 'transferencia')
-    params.set('attributes[descuento_pendiente_ars]', '4900')
+    params.set(
+      'attributes[descuento_pendiente_ars]',
+      String(TRANSFER_DISCOUNT_ARS),
+    )
   }
   const qs = params.toString()
   const checkoutUrl = `https://${storefront}/cart/${variantId}:${qty}${qs ? '?' + qs : ''}`

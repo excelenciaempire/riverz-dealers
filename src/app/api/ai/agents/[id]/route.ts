@@ -145,7 +145,15 @@ export async function DELETE(
   const target = await requireMember(id, user.id);
   if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const { error } = await supabaseAdmin().from('ai_agents').delete().eq('id', id);
+  // Soft-delete via migration 059's `deleted_at` column. Partial index
+  // `idx_ai_agents_workspace_active` ignores tombstones so the runner
+  // stops picking this agent immediately, while ai_replies history is
+  // preserved for analytics.
+  const { error } = await supabaseAdmin()
+    .from('ai_agents')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

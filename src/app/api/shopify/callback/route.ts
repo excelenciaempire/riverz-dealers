@@ -74,40 +74,39 @@ async function resolveOwnerUserId(
     return envOwner
   }
 
+  // Reinstall path: Shopify admin → Apps → reinstall has no cookies,
+  // but we already have a previous connection for this shop. Reuse
+  // that user_id deterministically — this is the only case that
+  // legitimately has no cookies, and the answer is unambiguous.
   try {
     const admin = supabaseAdmin()
-    // auth.users is not in the public schema; go through the auth admin API.
-    const { data, error } = await admin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1,
-    })
-    if (error) {
-      log.error('owner_lookup_failed', { shop, error: error.message })
-      return null
+    const { data: existing } = await admin
+      .from('shopify_connections')
+      .select('user_id')
+      .eq('shop_domain', shop)
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existing?.user_id) {
+      log.info('owner_resolved_from_existing_connection', {
+        shop,
+        userId: existing.user_id,
+      })
+      return existing.user_id
     }
-    const users = data?.users ?? []
-    // listUsers returns newest-first; pick the oldest to get the founding owner.
-    const oldest = [...users].sort((a, b) => {
-      const ta = a.created_at ? Date.parse(a.created_at) : 0
-      const tb = b.created_at ? Date.parse(b.created_at) : 0
-      return ta - tb
-    })[0]
-    if (!oldest) {
-      log.error('owner_lookup_empty', { shop })
-      return null
-    }
-    log.warn(
-      "Shopify install assigned to default owner — Pilar's installation needs reassignment if multi-tenant.",
-      { shop, userId: oldest.id },
-    )
-    return oldest.id
   } catch (err) {
-    log.error('owner_lookup_threw', {
+    log.warn('owner_existing_lookup_threw', {
       shop,
       error: err instanceof Error ? err.message : String(err),
     })
-    return null
   }
+
+  // First-time install with no cookies AND no env override AND no
+  // prior connection → fail closed. Picking the "oldest auth.user" is
+  // never a correct multi-tenant default. The merchant should start
+  // from /api/shopify/install (which sets the cookies).
+  log.error('owner_resolution_unavailable', { shop })
+  return null
 }
 
 export async function GET(request: Request) {

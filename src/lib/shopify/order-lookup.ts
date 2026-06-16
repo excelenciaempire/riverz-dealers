@@ -20,6 +20,7 @@
  */
 
 import { resolveCarrierTrackingUrl } from './carrier-tracking'
+import { markShopifyConnectionExpired } from './admin-client'
 
 interface ShopifyLineItem {
   title: string
@@ -104,6 +105,8 @@ export async function lookupCustomerOrders(opts: {
         if (orders.length > 0) {
           return { found: true, orders }
         }
+      } else if (res.status === 401) {
+        void markShopifyConnectionExpired(opts.shopDomain)
       }
       // Si no encontró por nombre, seguimos al fallback por cliente
       // (la clienta puede haber dado un número parcial o equivocado).
@@ -117,7 +120,12 @@ export async function lookupCustomerOrders(opts: {
       query,
     )}&limit=5`
     const customerRes = await fetch(searchUrl, { headers })
-    if (!customerRes.ok) return { found: false, orders: [] }
+    if (!customerRes.ok) {
+      if (customerRes.status === 401) {
+        void markShopifyConnectionExpired(opts.shopDomain)
+      }
+      return { found: false, orders: [] }
+    }
     const customerData = (await customerRes.json()) as {
       customers?: ShopifyCustomer[]
     }
@@ -128,7 +136,12 @@ export async function lookupCustomerOrders(opts: {
       customer.id
     }&limit=5&fields=${encodeURIComponent(ORDER_FIELDS)}`
     const ordersRes = await fetch(ordersUrl, { headers })
-    if (!ordersRes.ok) return { found: false, orders: [] }
+    if (!ordersRes.ok) {
+      if (ordersRes.status === 401) {
+        void markShopifyConnectionExpired(opts.shopDomain)
+      }
+      return { found: false, orders: [] }
+    }
     const ordersData = (await ordersRes.json()) as { orders?: ShopifyOrder[] }
     const orders = (ordersData.orders ?? []).map(toSummary)
     return { found: orders.length > 0, orders }

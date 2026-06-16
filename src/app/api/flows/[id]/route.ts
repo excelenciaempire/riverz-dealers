@@ -206,12 +206,18 @@ export async function DELETE(
   const guard = await requireOwnership(id)
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
 
-  // CASCADE on flow_nodes / flow_runs / flow_run_events handles the
-  // children. Active runs end abruptly — there's no graceful "drain"
-  // mechanism in v1, but that's intentional: deleting a flow is a
-  // deliberate destructive action and the partial unique index will
-  // free up the contact for new triggers immediately.
-  const { error } = await supabaseAdmin().from('flows').delete().eq('id', id)
+  // Soft-delete via migration 059's `deleted_at` column. The CASCADE
+  // on flow_runs / flow_run_events does NOT fire because the row stays
+  // in the table, which preserves historical analytics. List/get
+  // endpoints filter `deleted_at IS NULL`; the runner's hot-path
+  // partial index `idx_flows_active_trigger` was tightened to ignore
+  // tombstones so a soft-deleted flow stops consuming inbound messages
+  // immediately. Hard purge is an operator script, not a UI action.
+  const { error } = await supabaseAdmin()
+    .from('flows')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

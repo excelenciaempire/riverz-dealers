@@ -3,6 +3,9 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
+import { getLogger } from '@/lib/log/logger'
+
+const log = getLogger('cron.shopify-cart-recovery')
 
 /**
  * Cron de carritos abandonados (Pilar).
@@ -122,7 +125,28 @@ export async function GET(request: Request) {
       })
       dispatched++
     } catch (err) {
-      console.error('[cron/cart-recovery] dispatch failed:', r.id, err)
+      // Track attempts so a transient failure (Meta blip, template
+      // rejection) can be retried up to 3 times instead of silently
+      // burning the recovery permanently. Migration 059 added the
+      // `recovery_attempts` + `recovery_last_error` columns.
+      const errMsg = err instanceof Error ? err.message : String(err)
+      log.captureException(err, { checkoutId: r.id })
+      const { data: cur } = await admin
+        .from('shopify_checkouts')
+        .select('recovery_attempts')
+        .eq('id', r.id)
+        .maybeSingle()
+      const attempt =
+        ((cur as { recovery_attempts?: number } | null)?.recovery_attempts ?? 0) + 1
+      const patch: Record<string, unknown> = {
+        recovery_attempts: attempt,
+        recovery_last_error: errMsg.slice(0, 500),
+      }
+      // Transient — reset the claim so the next tick retries.
+      if (attempt < 3) {
+        patch.recovery_dispatched_at = null
+      }
+      await admin.from('shopify_checkouts').update(patch).eq('id', r.id)
     }
     processed++
   }

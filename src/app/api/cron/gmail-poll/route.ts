@@ -23,7 +23,15 @@ export async function GET(request: Request) {
   try {
     const results = await pollAllGmailConnections();
     const total = results.reduce((n, r) => n + r.ingested, 0);
-    return NextResponse.json({ total, results });
+    // Surface partial failures (token revoked, Graph 5xx) via HTTP 207
+    // so Render's cron monitor flips red on per-connection breakage.
+    // Without this, a workspace whose Gmail token has been revoked goes
+    // silent and the cron looks green forever.
+    const failed = results.filter(
+      (r) => (r as { error?: unknown }).error,
+    ).length;
+    const status = failed > 0 ? 207 : 200;
+    return NextResponse.json({ total, failed, results }, { status });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

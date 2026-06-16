@@ -293,10 +293,13 @@ async function handleStatusUpdate(status: {
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
+  //    `.neq(...)` skips no-op writes so replayed status events don't
+  //    bump updated_at or emit a phantom realtime change for the inbox.
   const { error: msgErr } = await supabaseAdmin()
     .from('messages')
     .update({ status: status.status })
     .eq('message_id', status.id)
+    .neq('status', status.status)
 
   if (msgErr) {
     console.error('Error updating message status:', msgErr)

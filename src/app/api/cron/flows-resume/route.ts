@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resumeFlowRun } from '@/lib/flows/resume'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { nextRetryDelayMs } from '@/lib/flows/engine'
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
@@ -54,11 +55,35 @@ export async function GET(request: Request) {
         .eq('id', row.id)
       processed++
     } catch (err) {
-      await admin
-        .from('flow_pending_executions')
-        .update({ status: 'failed' })
-        .eq('id', row.id)
-      console.error('[flows] resume failed:', err)
+      // Migration 059 added `attempt` + `max_attempts` + `last_error`.
+      // Use the same exponential backoff as the sibling retries cron
+      // instead of marking permanently failed on the first throw.
+      const errMsg = err instanceof Error ? err.message : String(err)
+      const attempt =
+        ((row as { attempt?: number }).attempt ?? 0) + 1
+      const maxAttempts = (row as { max_attempts?: number }).max_attempts ?? 3
+      if (attempt >= maxAttempts) {
+        await admin
+          .from('flow_pending_executions')
+          .update({
+            status: 'failed',
+            attempt,
+            last_error: errMsg.slice(0, 500),
+          })
+          .eq('id', row.id)
+      } else {
+        const runAt = new Date(Date.now() + nextRetryDelayMs(attempt)).toISOString()
+        await admin
+          .from('flow_pending_executions')
+          .update({
+            status: 'pending',
+            attempt,
+            run_at: runAt,
+            last_error: errMsg.slice(0, 500),
+          })
+          .eq('id', row.id)
+      }
+      console.error('[flows] resume failed:', errMsg)
     }
   }
 

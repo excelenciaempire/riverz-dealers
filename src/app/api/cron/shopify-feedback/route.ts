@@ -74,6 +74,20 @@ export async function GET(request: Request) {
   if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
   let dispatched = 0
+  let skipped = 0
+
+  // Helper to release a just-claimed row when we end up not actually
+  // dispatching (no workspace / no contact / no automation matched).
+  // Without this, every transient miss permanently burns the feedback
+  // claim and the cron's "processed: N" metric hides the silent loss.
+  async function releaseClaim(shopDomain: string, orderId: number) {
+    await admin
+      .from('shopify_order_fulfillment_state')
+      .update({ feedback_dispatched_at: null })
+      .eq('shop_domain', shopDomain)
+      .eq('order_id', orderId)
+  }
+
   for (const row of due) {
     const r = row as {
       shop_domain: string
@@ -94,14 +108,22 @@ export async function GET(request: Request) {
     if (!claim) continue
 
     const conn = await getConnectionByShop(admin, r.shop_domain)
-    if (!conn) continue
+    if (!conn) {
+      await releaseClaim(r.shop_domain, r.order_id)
+      skipped++
+      continue
+    }
 
     // Migration 055: workspace_id lives on the connection row. owner_id
     // fallback retained for pre-055 rows that might still exist mid-deploy.
     const workspaceId =
       conn.row.workspace_id ||
       (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
-    if (!workspaceId) continue
+    if (!workspaceId) {
+      await releaseClaim(r.shop_domain, r.order_id)
+      skipped++
+      continue
+    }
 
     // Vinculamos el feedback al contact que recibió shopify_order_fulfilled
     // para esta orden. Buscamos el log más reciente de la automation
@@ -124,7 +146,11 @@ export async function GET(request: Request) {
     // de fulfillment_state. Lo dejamos como TODO para no expandir esta
     // PR.
     const contactId = logs[0]?.contact_id
-    if (!contactId) continue
+    if (!contactId) {
+      await releaseClaim(r.shop_domain, r.order_id)
+      skipped++
+      continue
+    }
 
     // Buscamos toda automation activa con trigger_type='post_delivery_feedback'
     // en este workspace. Si ninguna existe, caemos al UUID legacy
@@ -155,6 +181,7 @@ export async function GET(request: Request) {
       ids.push(legacyAutomationId)
     }
 
+    let anyExecuted = false
     for (const automationId of ids) {
       const result = await runAutomationById({
         automationId,
@@ -166,9 +193,19 @@ export async function GET(request: Request) {
           },
         },
       })
-      if (result.executed) dispatched++
+      if (result.executed) {
+        dispatched++
+        anyExecuted = true
+      }
+    }
+    // Nothing actually fired (audience mismatch, automation inactive)
+    // — release the claim so the next tick re-evaluates after the
+    // merchant fixes the audience config.
+    if (!anyExecuted) {
+      await releaseClaim(r.shop_domain, r.order_id)
+      skipped++
     }
   }
 
-  return NextResponse.json({ processed: due.length, dispatched })
+  return NextResponse.json({ processed: due.length, dispatched, skipped })
 }

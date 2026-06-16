@@ -195,10 +195,15 @@ export async function DELETE(
   const loaded = await loadAuthorizedAutomation(admin, id, user.id, 'id')
   if (!loaded.ok) return loaded.response
 
+  // Soft-delete via migration 059's `deleted_at` column — preserves
+  // historical automation_logs analytics. Partial index
+  // `idx_automations_trigger_active` ignores tombstones, so a deleted
+  // automation stops consuming inbound triggers immediately.
   const { error } = await admin
     .from('automations')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
+    .is('deleted_at', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

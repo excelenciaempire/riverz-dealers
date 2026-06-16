@@ -9,6 +9,8 @@ import type {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { ingestWhatsappMedia, type MediaCategory } from "../media-ingest";
+import { handleMetaGraphError, parseMetaErrorBody } from "../meta-auth";
+import { supabaseAdmin } from "../admin-client";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -58,6 +60,16 @@ export const whatsappAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
+      // On 401 / OAuthException / code 190 / 102 / 463, flip the
+      // connection to status='error' with last_error so the Settings
+      // → Canales card shows a "Reconectar" CTA instead of a green
+      // dot over a broken token.
+      await handleMetaGraphError(
+        supabaseAdmin(),
+        input.connection,
+        res.status,
+        parseMetaErrorBody(detail),
+      );
       throw new Error(`[whatsapp] send failed (${res.status}): ${detail}`);
     }
     const json = (await res.json()) as { messages?: { id?: string }[] };
@@ -103,6 +115,12 @@ export const whatsappAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
+      await handleMetaGraphError(
+        supabaseAdmin(),
+        input.connection,
+        res.status,
+        parseMetaErrorBody(detail),
+      );
       throw new Error(`[whatsapp] template send failed (${res.status}): ${detail}`);
     }
     const json = (await res.json()) as { messages?: { id?: string }[] };

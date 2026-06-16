@@ -94,27 +94,182 @@ services:
         sync: false
 
 # ============================================================
-# Cron jobs Pilar — recovery 2h, feedback delivered, re-engagement
+# Cron jobs — Render Cron Services declared in the blueprint so the
+# inventory is enforceable in-repo (instead of living only in the
+# Render dashboard). Each cron pings the web service via
+# scripts/cron-ping.mjs with the right shared secret.
+#
+# All crons share `BASE_URL` pointing at the web service. Each sets
+# `CRON_SECRET` from the appropriate env var (most use
+# AUTOMATION_CRON_SECRET; broadcasts uses BROADCAST_CRON_SECRET).
 # ============================================================
-# Render Cron Services. Cada cron se autentica con AUTOMATION_CRON_SECRET
-# vía scripts/cron-ping.mjs (que setea el header x-cron-secret).
-#
-# Crearlos desde el dashboard Render: New + Cron Job, runtime node, build
-# `npm install`, command `node scripts/cron-ping.mjs <ruta>`. Setear
-# BASE_URL (URL del servicio web) y CRON_SECRET (igual a
-# AUTOMATION_CRON_SECRET en el servicio web).
-#
-# Documentado acá como referencia — Render Blueprints todavía no permite
-# definir cron services en el mismo yaml que el web service.
-#
-#   - Cart recovery (cada hora):
-#       node scripts/cron-ping.mjs api/cron/shopify-cart-recovery
-#       schedule: "0 * * * *"
-#
-#   - Feedback post-entrega (cada hora, +30m offset para escalonar):
-#       node scripts/cron-ping.mjs api/cron/shopify-feedback
-#       schedule: "30 * * * *"
-#
-#   - Re-engagement 14d (una vez por día, 14:00 UTC ≈ 11 AR):
-#       node scripts/cron-ping.mjs api/cron/reengagement
-#       schedule: "0 14 * * *"
+  - type: cron
+    name: cron-shopify-cart-recovery
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/shopify-cart-recovery
+    schedule: "0 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-shopify-feedback
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/shopify-feedback
+    schedule: "30 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-reengagement
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/reengagement
+    schedule: "0 14 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-flows-resume
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/flows-resume
+    schedule: "* * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-gmail-poll
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/gmail-poll
+    schedule: "*/5 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-gmail-watch
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/gmail-watch
+    schedule: "0 0 */5 * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-outlook-poll
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/outlook-poll
+    schedule: "*/5 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-outlook-watch
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/outlook-watch
+    schedule: "0 */12 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-meta-contact-names
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/meta-contact-names
+    schedule: "0 */6 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-meta-dm-backfill
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/meta-dm-backfill
+    schedule: "0 */6 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  - type: cron
+    name: cron-broadcasts
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/broadcasts/cron
+    schedule: "* * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+# Note: if the team prefers the dashboard for cron config, the legacy
+# documentation is preserved here for reference:
+#   - Cart recovery: schedule "0 * * * *"
+#   - Feedback:      schedule "30 * * * *"
+#   - Re-engagement: schedule "0 14 * * *"
