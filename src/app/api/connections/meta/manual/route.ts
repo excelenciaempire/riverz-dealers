@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { encrypt } from "@/lib/channels/encryption";
 import { subscribePageToWebhooks } from "@/lib/channels/meta-graph";
+import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import type { Channel } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -293,6 +294,17 @@ async function connectWhatsApp(
       );
     }
     throw new Error(`insert failed: ${insErr.message}`);
+  }
+
+  // Cache the WABA messaging-tier so bulk paths can gate sends without
+  // a Meta roundtrip per message. Best-effort: errors leave the cached
+  // tier as NULL (treated as TIER_50 — safest default).
+  if (inserted?.id) {
+    await refreshMessagingLimitTier(admin, {
+      connectionId: inserted.id as string,
+      wabaId: args.waba_id,
+      accessToken: args.token,
+    });
   }
 
   return NextResponse.json({ ok: true, connection_id: inserted?.id, label });

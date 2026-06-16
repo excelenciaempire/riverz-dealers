@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { encrypt } from "@/lib/channels/encryption";
+import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -129,10 +130,15 @@ export async function POST(req: Request): Promise<Response> {
       secrets: { access_token: encrypt(token) },
       created_by: user.id,
     };
-    const { error: insErr } = await admin.from("channel_connections").insert(payload);
+    const { error: insErr, data: inserted } = await admin
+      .from("channel_connections")
+      .insert(payload)
+      .select("id")
+      .single();
+    let connectionId = (inserted?.id as string | undefined) ?? null;
     if (insErr) {
       if (insErr.code === "23505") {
-        await admin
+        const { data: existing } = await admin
           .from("channel_connections")
           .update({
             secrets: payload.secrets,
@@ -143,10 +149,24 @@ export async function POST(req: Request): Promise<Response> {
           })
           .eq("workspace_id", body.workspace_id)
           .eq("channel", "whatsapp")
-          .eq("external_account_id", body.phone_number_id);
+          .eq("external_account_id", body.phone_number_id)
+          .select("id")
+          .maybeSingle();
+        connectionId = (existing?.id as string | undefined) ?? null;
       } else {
         throw new Error(`insert failed: ${insErr.message}`);
       }
+    }
+
+    // Cache the WABA messaging-tier so bulk paths can gate sends without
+    // a Meta roundtrip per message. Best-effort: errors leave the
+    // cached tier alone (NULL is treated as TIER_50 downstream).
+    if (connectionId) {
+      await refreshMessagingLimitTier(admin, {
+        connectionId,
+        wabaId: body.waba_id,
+        accessToken: token,
+      });
     }
 
     return NextResponse.json({ ok: true, label, coexistence: Boolean(phone.is_on_biz_app) });

@@ -14,6 +14,11 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { acquire } from '@/lib/whatsapp/throttle'
+import {
+  assertWithinTierCap,
+  resolveWhatsAppConnectionId,
+} from '@/lib/whatsapp/tier-cap'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 
 interface BroadcastResult {
@@ -129,9 +134,22 @@ export async function POST(request: Request) {
 
     const accessToken = decrypt(config.access_token)
 
+    // Resolve the channel_connection for tier-cap enforcement. We use
+    // the service-role client here because RLS on channel_connections
+    // requires admin-role membership; the broadcast endpoint already
+    // authenticates the user — we just want the connection id mapped
+    // to *this* user's workspace. Connection-less (legacy-only)
+    // workspaces fall through to `null` and skip the cap check.
+    const admin = supabaseAdmin()
+    const workspaceId = (config as { workspace_id?: string | null }).workspace_id ?? null
+    const connectionId = workspaceId
+      ? await resolveWhatsAppConnectionId(admin, workspaceId)
+      : null
+
     const results: BroadcastResult[] = []
     let sentCount = 0
     let failedCount = 0
+    let deferredCount = 0
 
     for (const recipient of recipients) {
       const sanitized = sanitizePhoneForMeta(recipient.phone)
@@ -144,6 +162,25 @@ export async function POST(request: Request) {
         })
         failedCount++
         continue
+      }
+
+      // WABA messaging-tier cap. Counted per individual recipient so
+      // we surface a precise reason on the first denied row and stop —
+      // the remaining recipients stay un-attempted in the response so
+      // the caller (UI / bulk script) can re-queue them later.
+      if (connectionId) {
+        const decision = await assertWithinTierCap(admin, connectionId, 1)
+        if (!decision.allowed) {
+          deferredCount++
+          results.push({
+            phone: recipient.phone,
+            status: 'failed',
+            error: decision.reason ?? 'WABA tier cap reached',
+          })
+          // Every remaining recipient would hit the same cap; abort
+          // the batch instead of burning N more failed rows.
+          break
+        }
       }
 
       // Retry with phone variants on "not in allowed list" so numbers
@@ -207,6 +244,10 @@ export async function POST(request: Request) {
       total: recipients.length,
       sent: sentCount,
       failed: failedCount,
+      // Recipients we never attempted because the WABA tier cap would
+      // have been tripped. Caller should re-submit them later (cron
+      // path or after the 24h rolling window slides).
+      deferred: deferredCount,
       results,
     })
   } catch (error) {

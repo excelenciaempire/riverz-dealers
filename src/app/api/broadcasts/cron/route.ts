@@ -13,6 +13,10 @@ import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
+import {
+  assertWithinTierCap,
+  resolveWhatsAppConnectionId,
+} from '@/lib/whatsapp/tier-cap'
 
 /**
  * Send scheduled broadcast campaigns whose time has come.
@@ -170,24 +174,18 @@ async function sendOneBroadcast(
     return
   }
 
-  let connectionId: string | null = null
-  if (createConversations) {
-    const wsId = recipients.find((r) => r.contact?.workspace_id)?.contact
-      ?.workspace_id as string | undefined
-    if (wsId) {
-      const { data: conn } = await admin
-        .from('channel_connections')
-        .select('id')
-        .eq('workspace_id', wsId)
-        .eq('channel', 'whatsapp')
-        .limit(1)
-        .maybeSingle()
-      connectionId = (conn?.id as string | undefined) ?? null
-    }
-  }
+  // Resolve the WhatsApp channel_connection for this broadcast's
+  // workspace once up front. Used for two unrelated things:
+  //   1. recording the conversation when `createConversations` is on
+  //   2. enforcing the WABA messaging-tier cap before every send
+  // Connection-less workspaces (legacy whatsapp_config only) still send
+  // — they just bypass the tier cap, which is a known tradeoff until
+  // the legacy table is dropped.
+  const connectionId = await resolveWhatsAppConnectionId(admin, workspaceScope)
 
   let failed = 0
-  for (let i = 0; i < recipients.length; i += SEND_BATCH_SIZE) {
+  let deferred = false
+  outer: for (let i = 0; i < recipients.length; i += SEND_BATCH_SIZE) {
     const batch = recipients.slice(i, i + SEND_BATCH_SIZE)
     for (const recipient of batch) {
       const contactId = recipient.contact?.id as string | undefined
@@ -215,6 +213,30 @@ async function sendOneBroadcast(
           .update({ status: 'failed', error_message: 'Invalid phone number' })
           .eq('id', recipient.id)
         continue
+      }
+
+      // WABA tier cap. Done per-recipient (rather than upfront for the
+      // whole batch) because OTHER campaigns from the same connection
+      // may eat into the 24h quota while THIS one is mid-dispatch.
+      // Tier-less workspaces (legacy whatsapp_config with no
+      // channel_connection row) skip the check — see resolve helper.
+      if (connectionId) {
+        const decision = await assertWithinTierCap(admin, connectionId, 1)
+        if (!decision.allowed) {
+          deferred = true
+          // Leave the recipient in `pending` so the next cron tick
+          // re-evaluates after the 24h window slides. Recording the
+          // reason on the broadcast (not the recipient) keeps the row
+          // re-tryable without losing the audit trail.
+          await admin
+            .from('broadcasts')
+            .update({ error_message: decision.reason ?? null })
+            .eq('id', broadcastId)
+          // Once the cap is hit, every subsequent recipient would too
+          // — bail out of both loops and flip the broadcast back to
+          // `scheduled` below so the next tick re-evaluates.
+          break outer
+        }
       }
 
       const params = await resolveParams(
@@ -303,10 +325,28 @@ async function sendOneBroadcast(
     if (i + SEND_BATCH_SIZE < recipients.length) await sleep(SEND_BATCH_DELAY_MS)
   }
 
-  await admin
-    .from('broadcasts')
-    .update({ status: failed === recipients.length ? 'failed' : 'sent' })
-    .eq('id', broadcastId)
+  // Three terminal states:
+  //   - deferred: hit the WABA tier cap mid-batch → bounce the
+  //     broadcast back to `scheduled` so the next cron tick picks it
+  //     up. scheduled_at is advanced just past the cap-reset horizon
+  //     (24h after the earliest sent_at in the current window) so we
+  //     don't pointlessly retry every minute.
+  //   - all failed: `failed`
+  //   - otherwise: `sent` (mix of sent + failed + skipped_opt_out)
+  if (deferred) {
+    await admin
+      .from('broadcasts')
+      .update({
+        status: 'scheduled',
+        scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      })
+      .eq('id', broadcastId)
+  } else {
+    await admin
+      .from('broadcasts')
+      .update({ status: failed === recipients.length ? 'failed' : 'sent' })
+      .eq('id', broadcastId)
+  }
 }
 
 const BUILTIN_FIELDS: ReadonlySet<string> = new Set([
