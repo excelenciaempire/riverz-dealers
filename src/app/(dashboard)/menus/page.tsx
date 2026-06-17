@@ -13,7 +13,18 @@ import {
   FilePlus2,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   Check,
+  MousePointerClick,
+  List,
+  Link2,
+  PenLine,
+  Search,
+  Flag,
+  UserPlus,
+  HelpCircle,
+  Package,
+  ShoppingBag,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -66,7 +77,7 @@ const STATUS_COLORS: Record<FlowRow["status"], string> = {
   archived: "border-border bg-muted/50 text-muted-foreground",
 };
 
-type CreateStep = "choose" | "name" | "template";
+type CreateStep = "choose" | "name" | "template" | "preview";
 
 export default function FlowsPage() {
   const router = useRouter();
@@ -78,6 +89,7 @@ export default function FlowsPage() {
   const [step, setStep] = useState<CreateStep>("choose");
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<FlowTemplate | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +118,7 @@ export default function FlowsPage() {
   function openCreate() {
     setStep("choose");
     setNewName("");
+    setSelectedTemplate(null);
     setCreateOpen(true);
   }
 
@@ -245,14 +258,18 @@ export default function FlowsPage() {
         <DialogContent
           className={cn(
             "bg-card text-foreground",
-            step === "choose" ? "sm:max-w-md" : "sm:max-w-lg",
+            step === "choose"
+              ? "sm:max-w-md"
+              : step === "preview"
+                ? "sm:max-w-2xl"
+                : "sm:max-w-lg",
           )}
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {step !== "choose" && (
                 <button
-                  onClick={() => setStep("choose")}
+                  onClick={() => setStep(step === "preview" ? "template" : "choose")}
                   disabled={creating}
                   className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
                   aria-label="Volver"
@@ -263,6 +280,7 @@ export default function FlowsPage() {
               {step === "choose" && "¿Cómo quieres empezar?"}
               {step === "name" && "Nombre del flujo"}
               {step === "template" && "Elige una plantilla"}
+              {step === "preview" && (selectedTemplate?.name ?? "Vista previa")}
             </DialogTitle>
           </DialogHeader>
 
@@ -326,12 +344,22 @@ export default function FlowsPage() {
                   <TemplateCard
                     key={tpl.slug}
                     template={tpl}
-                    onUse={() => handleUseTemplate(tpl)}
-                    disabled={creating}
+                    onSelect={() => {
+                      setSelectedTemplate(tpl);
+                      setStep("preview");
+                    }}
                   />
                 ))
               )}
             </div>
+          )}
+
+          {step === "preview" && selectedTemplate && (
+            <TemplatePreview
+              template={selectedTemplate}
+              creating={creating}
+              onUse={() => handleUseTemplate(selectedTemplate)}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -375,40 +403,167 @@ function ChoiceCard({
   );
 }
 
+// Per-template icon (from FlowTemplate.icon) and per-node-type icon/label
+// for the preview outline. Kept module-level so they're built once.
+const TEMPLATE_ICONS: Record<FlowTemplate["icon"], typeof MessageSquare> = {
+  MessageSquare,
+  HelpCircle,
+  UserPlus,
+  Package,
+  ShoppingBag,
+};
+
+const NODE_ICONS: Record<string, typeof MessageSquare> = {
+  send_message: MessageSquare,
+  send_buttons: MousePointerClick,
+  send_list: List,
+  send_cta_url: Link2,
+  collect_input: PenLine,
+  shopify_lookup: Search,
+  ai_intent: Sparkles,
+  handoff: UserPlus,
+  end: Flag,
+};
+
+const NODE_LABELS: Record<string, string> = {
+  send_message: "Mensaje",
+  send_buttons: "Botones",
+  send_list: "Lista",
+  send_cta_url: "Botón con enlace",
+  collect_input: "Pregunta",
+  shopify_lookup: "Shopify",
+  ai_intent: "IA",
+  handoff: "A un humano",
+  end: "Fin",
+};
+
+/** One readable line per node for the preview outline. */
+function summarizeNode(node: { node_type: string; config: object }): string {
+  const c = node.config as Record<string, unknown>;
+  switch (node.node_type) {
+    case "send_message":
+      return String(c.text ?? "");
+    case "send_buttons": {
+      const buttons = (c.buttons as Array<{ title?: string }>) ?? [];
+      const opts = buttons.map((b) => b.title).filter(Boolean).join(" · ");
+      return [String(c.text ?? ""), opts && `›  ${opts}`].filter(Boolean).join("  ");
+    }
+    case "send_list": {
+      const sections = (c.sections as Array<{ rows?: Array<{ title?: string }> }>) ?? [];
+      const rows = sections.flatMap((s) => s.rows ?? []).map((r) => r.title).filter(Boolean).join(" · ");
+      return [String(c.text ?? ""), rows && `›  ${rows}`].filter(Boolean).join("  ");
+    }
+    case "send_cta_url":
+      return `${String(c.text ?? "")}  ›  [${String(c.button_title ?? "Abrir")}]`;
+    case "collect_input":
+      return String(c.prompt_text ?? "");
+    case "shopify_lookup":
+      return "Busca el pedido en Shopify.";
+    case "ai_intent":
+      return `${String(c.prompt_text ?? "")} (la IA enruta la respuesta)`;
+    case "handoff":
+      return "Pasa la conversación a una persona.";
+    case "end":
+      return "Fin del flujo.";
+    default:
+      return "";
+  }
+}
+
 function TemplateCard({
   template,
-  onUse,
-  disabled,
+  onSelect,
 }: {
   template: FlowTemplate;
-  onUse: () => void;
-  disabled: boolean;
+  onSelect: () => void;
 }) {
-  const stepCount = template.nodes.length;
+  const Icon = TEMPLATE_ICONS[template.icon] ?? MessageSquare;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3">
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:border-foreground/40 hover:bg-muted/60"
+    >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 shrink-0 text-accent-ink" />
+          <Icon className="h-4 w-4 shrink-0 text-accent-ink" />
           <h4 className="truncate text-sm font-medium text-foreground">
             {template.name}
           </h4>
           <Badge variant="outline" className="border-border text-[10px]">
-            {stepCount} pasos
+            {template.nodes.length} pasos
           </Badge>
         </div>
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
           {template.description}
         </p>
       </div>
-      <Button onClick={onUse} disabled={disabled} size="sm" className="shrink-0">
-        {disabled ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Check className="h-3.5 w-3.5" />
-        )}
-        Usar
-      </Button>
+      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity group-hover:opacity-100">
+        Ver
+        <ArrowRight className="h-3.5 w-3.5" />
+      </span>
+    </button>
+  );
+}
+
+function TemplatePreview({
+  template,
+  creating,
+  onUse,
+}: {
+  template: FlowTemplate;
+  creating: boolean;
+  onUse: () => void;
+}) {
+  const Icon = TEMPLATE_ICONS[template.icon] ?? MessageSquare;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">{template.name}</h3>
+            <Badge variant="outline" className="border-border text-[10px]">
+              {template.nodes.length} pasos
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {template.description}
+          </p>
+        </div>
+      </div>
+
+      <div className="max-h-[46vh] space-y-2 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3">
+        {template.nodes.map((node) => {
+          const NodeIcon = NODE_ICONS[node.node_type] ?? MessageSquare;
+          return (
+            <div key={node.node_key} className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+                <NodeIcon className="h-3 w-3" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {NODE_LABELS[node.node_type] ?? node.node_type}
+                </span>
+                <p className="text-xs text-foreground">{summarizeNode(node)}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <DialogFooter>
+        <Button onClick={onUse} disabled={creating} className="w-full sm:w-auto">
+          {creating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
+          Usar plantilla
+        </Button>
+      </DialogFooter>
     </div>
   );
 }
