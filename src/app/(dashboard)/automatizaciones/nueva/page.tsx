@@ -46,7 +46,12 @@ export default function NewAutomationPage() {
     }
   }, [template])
 
-  return <AutomationBuilder initial={initial} />
+  // When arriving from a gallery card we're *previewing* a template: the
+  // builder shows a "Usar plantilla" CTA that persists it (and lands the
+  // user in the editor) instead of the plain "Guardar borrador".
+  const isTemplatePreview = !!(template && AUTOMATION_TEMPLATES[template])
+
+  return <AutomationBuilder initial={initial} templatePreview={isTemplatePreview} />
 }
 
 interface SeedRow {

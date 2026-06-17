@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     .from('ai_agents')
     .select('*, ai_agent_channels(channel)')
     .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

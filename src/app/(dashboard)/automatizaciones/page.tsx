@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Image from "next/image"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -10,7 +12,8 @@ import {
   Copy,
   Pencil,
   Trash2,
-  FileText,
+  BarChart3,
+  AlertTriangle,
   PackageCheck,
   Repeat2,
   ShoppingCart,
@@ -23,6 +26,7 @@ import {
 
 import { createClient } from "@/lib/supabase/client"
 import { useWorkspace } from "@/hooks/use-workspace"
+import { useActiveConnections } from "@/hooks/use-active-connections"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -46,7 +50,7 @@ import {
   type AutomationTemplateDefinition,
   type TemplateIconName,
 } from "@/lib/automations/templates"
-import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
+import { formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
 
@@ -64,13 +68,17 @@ export default function AutomationsPage() {
   const router = useRouter()
   const fetchWithCsrf = useFetchWithCsrf()
   const { workspace, loading: wsLoading } = useWorkspace()
+  const connections = useActiveConnections()
   const [automations, setAutomations] = useState<Automation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [installing, setInstalling] = useState<string | null>(null)
 
   const templates = useMemo(() => listTemplates(), [])
+  // The automation engine sends exclusively via WhatsApp (meta-send.ts →
+  // whatsapp_config). The module layout only requires *some* channel, so a
+  // workspace with e.g. only email connected still needs this WA-specific gate.
+  const whatsappConnected = connections.channels.has("whatsapp")
 
   async function load(workspaceId: string) {
     try {
@@ -79,6 +87,9 @@ export default function AutomationsPage() {
         .from("automations")
         .select("*")
         .eq("workspace_id", workspaceId)
+        // Hide soft-deleted rows (migration 059's deleted_at) so a deleted
+        // automation disappears from the list instead of lingering.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
@@ -91,35 +102,6 @@ export default function AutomationsPage() {
     if (!workspace?.id) return
     load(workspace.id)
   }, [workspace?.id])
-
-  async function installTemplate(slug: string) {
-    if (installing) return
-    if (!workspace?.id) {
-      toast.error("Workspace no disponible")
-      return
-    }
-    setInstalling(slug)
-    const res = await fetchWithCsrf("/api/automations/install-from-template", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ template_id: slug, workspace_id: workspace.id }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? "No se pudo instalar la plantilla")
-      setInstalling(null)
-      return
-    }
-    const body = (await res.json()) as { automation?: { id?: string } }
-    const id = body.automation?.id
-    if (!id) {
-      toast.error("Plantilla instalada pero no se obtuvo el id")
-      setInstalling(null)
-      return
-    }
-    toast.success("Plantilla lista. Completá los campos y activala.")
-    router.push(`/automatizaciones/${id}/editar`)
-  }
 
   async function toggleActive(a: Automation, next: boolean) {
     // Optimistic flip so the switch feels instant.
@@ -208,6 +190,32 @@ export default function AutomationsPage() {
         </Button>
       </header>
 
+      {/* Channel notice. Automations send only through WhatsApp; make that
+          explicit and warn when there's no connected WhatsApp to send from. */}
+      {!connections.loading &&
+        (whatsappConnected ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
+            <span>Tus automatizaciones se ejecutan por tu WhatsApp conectado.</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">
+                No tenés un WhatsApp conectado y funcional
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Las automatizaciones envían por WhatsApp. No podrán entregar mensajes hasta que
+                conectes uno.{" "}
+                <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
+                  Conectar WhatsApp
+                </Link>
+              </p>
+            </div>
+          </div>
+        ))}
+
       <section aria-labelledby="templates-heading">
         <div className="mb-4 flex items-baseline justify-between">
           <h2
@@ -225,9 +233,7 @@ export default function AutomationsPage() {
             <TemplateCard
               key={t.slug}
               template={t}
-              installing={installing === t.slug}
-              disabled={installing !== null && installing !== t.slug}
-              onInstall={() => installTemplate(t.slug)}
+              onView={() => router.push(`/automatizaciones/nueva?template=${t.slug}`)}
             />
           ))}
         </div>
@@ -254,10 +260,10 @@ export default function AutomationsPage() {
               <Zap className="size-6" />
             </div>
             <p className="mt-3 text-sm font-semibold text-foreground">
-              Todavía no instalaste ninguna
+              Todavía no tenés ninguna
             </p>
             <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              Tocá una plantilla de arriba y la dejamos lista en 2 clicks.
+              Mirá una plantilla de arriba y tocá «Usar plantilla» para dejarla lista.
             </p>
           </div>
         ) : (
@@ -313,30 +319,25 @@ export default function AutomationsPage() {
 
 // ------------------------------------------------------------
 // Template gallery card. Minimal: icon top-left, title + 2-line
-// description, tag pills bottom-left, "Usar plantilla" CTA bottom-right.
-// The whole card is clickable for one-tap install.
+// description, tag pills bottom-left, "Ver plantilla" CTA bottom-right.
+// The whole card is clickable: it opens the template in the canvas to
+// preview it (nothing is saved until the user hits "Usar plantilla" there).
 // ------------------------------------------------------------
 function TemplateCard({
   template,
-  installing,
-  disabled,
-  onInstall,
+  onView,
 }: {
   template: AutomationTemplateDefinition
-  installing: boolean
-  disabled: boolean
-  onInstall: () => void
+  onView: () => void
 }) {
   const Icon = ICON_BY_NAME[template.icon] ?? Sparkles
   return (
     <button
       type="button"
-      onClick={onInstall}
-      disabled={disabled || installing}
+      onClick={onView}
       className={cn(
         "group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 text-left transition-all",
         "hover:border-foreground/30 hover:bg-card/90",
-        "disabled:cursor-not-allowed disabled:opacity-60",
       )}
     >
       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
@@ -367,17 +368,8 @@ function TemplateCard({
             "opacity-80 transition-opacity group-hover:opacity-100",
           )}
         >
-          {installing ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Instalando
-            </>
-          ) : (
-            <>
-              Usar plantilla
-              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </>
-          )}
+          Ver plantilla
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
     </button>
@@ -405,34 +397,26 @@ function AutomationCard({
   onLogs: () => void
   onDelete: () => void
 }) {
-  const meta = triggerMeta(automation.trigger_type)
   return (
     <li className="group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30">
       <div className="flex items-start justify-between gap-3">
         <button
           type="button"
           onClick={onView}
-          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
             <Zap className="h-[18px] w-[18px]" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-semibold text-foreground">
-                {automation.name}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-semibold text-foreground">
+              {automation.name}
+            </span>
+            {automation.is_active && (
+              <span className="relative flex h-2 w-2" aria-label="activa">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
-              {automation.is_active && (
-                <span className="relative flex h-2 w-2" aria-label="activa">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                </span>
-              )}
-            </div>
-            {automation.description && (
-              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                {automation.description}
-              </p>
             )}
           </div>
         </button>
@@ -459,10 +443,6 @@ function AutomationCard({
                 <Copy className="h-4 w-4" />
                 Duplicar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onLogs}>
-                <FileText className="h-4 w-4" />
-                Ver registros
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onDelete}>
                 <Trash2 className="h-4 w-4" />
@@ -473,21 +453,25 @@ function AutomationCard({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full border px-2 py-0.5 font-medium",
-            meta.pillClass,
-          )}
+      {/* Footer: compact run summary (data, not redundant text) + a visible
+          shortcut to the run history. */}
+      <div className="mt-4 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="truncate">
+          <span className="tabular-nums">
+            {automation.execution_count} ejecución
+            {automation.execution_count === 1 ? "" : "es"}
+          </span>
+          {" · "}
+          <span>última {formatRelative(automation.last_executed_at)}</span>
+        </span>
+        <button
+          type="button"
+          onClick={onLogs}
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity hover:opacity-100"
         >
-          {meta.label}
-        </span>
-        <span className="tabular-nums">
-          {automation.execution_count} ejecución
-          {automation.execution_count === 1 ? "" : "es"}
-        </span>
-        <span aria-hidden>·</span>
-        <span>última {formatRelative(automation.last_executed_at)}</span>
+          <BarChart3 className="h-3.5 w-3.5" />
+          Ver estadísticas
+        </button>
       </div>
     </li>
   )

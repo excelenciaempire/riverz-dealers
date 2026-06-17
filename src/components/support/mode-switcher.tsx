@@ -24,7 +24,7 @@ export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
         href="/menus"
         icon={<Waypoints className="size-4" />}
         title="Flujos"
-        hint="Tú defines las opciones; el cliente toca y avanza."
+        hint="Botones que tú defines; el cliente toca y avanza, sin IA."
         active={current === 'flows'}
       />
     </div>
@@ -65,11 +65,6 @@ function ModeCard({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           {title}
-          {active && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-px text-[9px] uppercase tracking-wide text-primary">
-              Acá
-            </span>
-          )}
         </span>
         <span className="block text-xs text-muted-foreground">{hint}</span>
       </span>

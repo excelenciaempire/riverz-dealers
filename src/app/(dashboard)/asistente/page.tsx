@@ -53,7 +53,9 @@ export default function AiAgentsPage() {
     if (!workspace) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/ai/agents?workspace_id=${workspace.id}`);
+      const res = await fetch(`/api/ai/agents?workspace_id=${workspace.id}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (res.ok) setAgents((json.agents ?? []) as AgentSummary[]);
       else toast.error(json.error ?? 'No se cargaron los agentes');

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -383,7 +384,15 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
 // Main builder component
 // ------------------------------------------------------------
 
-export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
+export function AutomationBuilder({
+  initial,
+  templatePreview = false,
+}: {
+  initial: BuilderInitial
+  /** True when opened from a gallery card to preview a template (unsaved).
+   *  Swaps the primary CTA to "Usar plantilla" and shows a hint banner. */
+  templatePreview?: boolean
+}) {
   const router = useRouter()
   const fetchWithCsrf = useFetchWithCsrf()
   const isEditing = !!initial.id
@@ -492,7 +501,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         }
         return
       }
-      toast.success(isEditing ? "Guardada" : "Creada")
+      toast.success(
+        isEditing ? "Guardada" : templatePreview ? "Plantilla agregada" : "Creada",
+      )
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automatizaciones/${body.automation.id}/editar`)
       }
@@ -523,23 +534,38 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           placeholder="Automatización sin título"
           className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:bg-accent focus:outline-none sm:text-base"
         />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">Activa</span>
-          <Switch
-            checked={state.is_active}
-            onCheckedChange={(v) => patchTop("is_active", !!v)}
-            aria-label="Activa"
-          />
-        </div>
+        {/* Activation lives in the real editor — a template preview is
+            unsaved and would fail the validate.ts gate, so hide it here. */}
+        {!templatePreview && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="hidden sm:inline">Activa</span>
+            <Switch
+              checked={state.is_active}
+              onCheckedChange={(v) => patchTop("is_active", !!v)}
+              aria-label="Activa"
+            />
+          </div>
+        )}
         <Button
           onClick={save}
           disabled={saving}
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isEditing ? "Guardar" : "Guardar borrador"}
+          {isEditing ? "Guardar" : templatePreview ? "Usar plantilla" : "Guardar borrador"}
         </Button>
       </header>
+
+      {templatePreview && (
+        <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
+          <Zap className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
+          <span>
+            Estás viendo una plantilla. Tocá{" "}
+            <span className="font-medium text-foreground">Usar plantilla</span> para agregarla a tus
+            automatizaciones y empezar a editarla.
+          </span>
+        </div>
+      )}
 
       <AudienceStrip
         segments={segments}
@@ -1227,9 +1253,9 @@ function StepEditor({
           ) : (
             <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               No hay plantillas aprobadas todavía.{" "}
-              <a href="/plantillas" className="text-accent-ink underline hover:opacity-80">
+              <Link href="/plantillas" className="text-accent-ink underline hover:opacity-80">
                 Crear una
-              </a>
+              </Link>
               .
             </p>
           )}

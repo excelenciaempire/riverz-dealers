@@ -83,7 +83,7 @@ export default function FlowsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const flowsRes = await fetch("/api/flows");
+        const flowsRes = await fetch("/api/flows", { cache: "no-store" });
         if (!flowsRes.ok) {
           throw new Error(`Failed to load flows: ${flowsRes.status}`);
         }
