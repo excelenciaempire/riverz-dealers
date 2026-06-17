@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import type { Message, MessageReaction } from "@/types";
+import type { Message, MessageReaction, MessageAttachment } from "@/types";
 import {
   Clock,
   Check,
@@ -206,7 +206,81 @@ function MediaVideo({ url }: { url: string }) {
   );
 }
 
+/** Normalize an attachment's mime to a coarse kind. Handles both the
+ *  new real mimes ("image/jpeg") and the legacy channel-type tags
+ *  ("image", "video", "audio", "file") older rows stored. */
+function attachmentKind(mime?: string): "image" | "video" | "audio" | "file" {
+  const m = (mime ?? "").toLowerCase();
+  if (m.startsWith("image")) return "image";
+  if (m.startsWith("video")) return "video";
+  if (m.startsWith("audio")) return "audio";
+  return "file";
+}
+
+/**
+ * Render every file the customer attached (IG/Messenger/WhatsApp media
+ * is downloaded to Storage at ingest and lands in `attachments`). Driven
+ * by the attachments array — not content_type — so media shows even if
+ * the high-level type wasn't bumped, and ALL pieces show, not just the
+ * first. The trailing caption is the message's own text, if any.
+ */
+function AttachmentList({
+  attachments,
+  caption,
+}: {
+  attachments: MessageAttachment[];
+  caption?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      {attachments.map((a, i) => {
+        const kind = attachmentKind(a.mime_type);
+        if (kind === "image") {
+          return <MediaImage key={i} url={a.url} alt={a.name || "Imagen compartida"} />;
+        }
+        if (kind === "video") {
+          return <MediaVideo key={i} url={a.url} />;
+        }
+        if (kind === "audio") {
+          return <audio key={i} src={a.url} controls className="max-w-60" />;
+        }
+        return (
+          <a
+            key={i}
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
+          >
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{a.name || "Archivo"}</span>
+          </a>
+        );
+      })}
+      {caption && (
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{caption}</p>
+      )}
+    </div>
+  );
+}
+
 function MessageContent({ message }: { message: Message }) {
+  // Attachments first: IG / Messenger / WhatsApp media is re-hosted to
+  // Storage at ingest and stored in `attachments`. Rendering from the
+  // array (rather than only the derived media_url + content_type) means
+  // every photo/video/audio/file the customer sent shows — robustly, and
+  // including extra attachments beyond the first. Falls through to the
+  // content_type switch below for WhatsApp-legacy rows (media_url proxy,
+  // no attachments) and for text/location/template/interactive.
+  if (message.attachments && message.attachments.length > 0) {
+    return (
+      <AttachmentList
+        attachments={message.attachments}
+        caption={message.content_text ?? undefined}
+      />
+    );
+  }
+
   switch (message.content_type) {
     case "text":
       return (
