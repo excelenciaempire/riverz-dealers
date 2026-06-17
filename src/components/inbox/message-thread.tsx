@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   RefreshCw,
   ChevronUp,
+  PanelRight,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -96,6 +97,11 @@ interface MessageThreadProps {
    * working; the button is only rendered when this is provided.
    */
   onRefresh?: () => void;
+  /** Whether the right-hand contact panel is currently open. */
+  contactPanelOpen?: boolean;
+  /** Toggles the contact panel. When provided, the header shows a button
+   *  (desktop only) to open/close it — the panel is collapsed by default. */
+  onToggleContactPanel?: () => void;
 }
 
 function formatDateSeparator(dateStr: string, tz: string): string {
@@ -156,6 +162,8 @@ export function MessageThread({
   onBack,
   resyncToken = 0,
   onRefresh,
+  contactPanelOpen = false,
+  onToggleContactPanel,
 }: MessageThreadProps) {
   const { user } = useAuth();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -885,6 +893,29 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Contact-panel toggle — desktop only. The right-hand panel is
+              collapsed by default; this reveals/hides it on demand. */}
+          {onToggleContactPanel && (
+            <button
+              type="button"
+              onClick={onToggleContactPanel}
+              aria-label={
+                contactPanelOpen
+                  ? "Ocultar información del contacto"
+                  : "Mostrar información del contacto"
+              }
+              aria-pressed={contactPanelOpen}
+              className={cn(
+                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent lg:inline-flex",
+                contactPanelOpen
+                  ? "bg-accent text-accent-ink"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <PanelRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be

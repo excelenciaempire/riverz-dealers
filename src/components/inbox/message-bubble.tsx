@@ -422,20 +422,65 @@ function MessageContent({ message }: { message: Message }) {
 }
 
 /**
- * Email body renderer. Shows the message exactly as it looks in a mail
- * client: when the row carries an HTML body we render that real HTML
- * (logos, tables, formatting) instead of a stripped-text blob; otherwise
- * we fall back to the decoded plain text.
+ * Email body renderer. How an email reads depends on its type:
+ *
+ *   - A REPLY in a back-and-forth (we can detect a quoted history) is
+ *     really just the few lines the person wrote. Rendering its raw HTML
+ *     is an awkward white box wrapping that text plus the whole quoted
+ *     chain — so we show only the new text, cleanly, with links live.
+ *   - A STANDALONE designed email (newsletter, receipt, notification)
+ *     has no quote and is built to be seen — render its real HTML so it
+ *     looks exactly like it does in a mail client (logos, hero images,
+ *     buttons, layout).
+ *   - Anything without a usable HTML body falls back to plain text.
  */
 function EmailBody({ message }: { message: Message }) {
+  const rawText = message.content_text ?? "";
   const html = message.html_body?.trim();
-  if (html) return <EmailHtmlBody html={html} />;
-  const text = decodeHtmlEntities(message.content_text ?? "")
-    .replace(/\r\n/g, "\n")
-    .trim();
+
+  const { primary, quoted } = splitEmailQuote(rawText);
+  const isReply = quoted.length > 0;
+
+  // Designed emails are image/table-based; a plain reply is neither.
+  // Only hand a standalone email to the HTML renderer when it's actually
+  // rich, so a bare one-liner doesn't become an empty white card.
+  if (html && !isReply && isRichHtml(html)) {
+    return <EmailHtmlBody html={html} />;
+  }
+
+  const text = isReply
+    ? primary
+    : decodeHtmlEntities(rawText).replace(/\r\n/g, "\n").trim();
+  return <LinkifiedText text={text || "[sin contenido]"} />;
+}
+
+/** True for emails built as designed HTML (marketing/transactional):
+ *  they lay out with images and/or tables. Plain prose replies have
+ *  neither, so this cleanly separates "show the HTML" from "show text". */
+function isRichHtml(html: string): boolean {
+  return /<img\b/i.test(html) || /<table\b/i.test(html);
+}
+
+/** Plain text with bare http(s) URLs turned into clickable links. */
+function LinkifiedText({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>"']+)/g);
   return (
-    <p className="whitespace-pre-wrap break-words text-sm">
-      {text || "[sin contenido]"}
+    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all text-accent-ink underline underline-offset-2 hover:text-accent-ink/80"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
     </p>
   );
 }
@@ -530,6 +575,50 @@ function decodeHtmlEntities(s: string): string {
     }
     return full;
   });
+}
+
+/**
+ * Split an email's plain-text body into the new content and the quoted
+ * reply chain below it. Used to (a) decide whether a message is a reply
+ * at all and (b) show only the new lines for replies. Detects the quote
+ * intro inline — not just at line start — so it also folds legacy rows
+ * whose HTML was flattened to a single line at ingest time.
+ */
+function splitEmailQuote(raw: string): { primary: string; quoted: string } {
+  const decoded = decodeHtmlEntities(raw).replace(/\r\n/g, "\n");
+
+  const inlineMarkers: RegExp[] = [
+    // Gmail / Apple Mail: "El <día>, <fecha> … escribió:". Anchored on a
+    // weekday + day-number so a stray "El lunes" in prose can't trip it.
+    /El\s+(?:lun|mar|mi[eé]|jue|vie|s[aá]b|dom)[a-zé.]*,?\s+\d{1,2}\b[\s\S]*?escribi[oó]:/i,
+    // English: "On <weekday>, <date> … wrote:".
+    /On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[\s\S]*?\bwrote:/i,
+    // Outlook reply header block: "De: … Enviado: …" / "From: … Sent: …".
+    /\bDe:\s[\s\S]{0,400}?\bEnviado(?:\s+el)?:/i,
+    /\bFrom:\s[\s\S]{0,400}?\bSent:/i,
+    // Outlook mobile signature that precedes the quoted header block.
+    /Obtener\s+Outlook\s+para\s+\w+/i,
+    /Get\s+Outlook\s+for\s+\w+/i,
+    // Other mobile signatures.
+    /Enviado\s+desde\s+mi\s+\w+/i,
+    /Sent\s+from\s+my\s+\w+/i,
+    // Classic separators inserted by Outlook / forwarders.
+    /-{2,}\s*(?:Original\s*Message|Mensaje\s*original)\s*-{2,}/i,
+  ];
+  // ">"-quoted plain-text replies (only meaningful at a line start).
+  const lineMarkers: RegExp[] = [/^>+ /m];
+
+  let cutAt = decoded.length;
+  for (const m of [...inlineMarkers, ...lineMarkers]) {
+    const match = decoded.match(m);
+    if (match && match.index !== undefined && match.index < cutAt) {
+      cutAt = match.index;
+    }
+  }
+  return {
+    primary: decoded.slice(0, cutAt).trim(),
+    quoted: decoded.slice(cutAt).trim(),
+  };
 }
 
 export function MessageBubble({

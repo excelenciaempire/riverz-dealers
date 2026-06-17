@@ -56,6 +56,16 @@ export default function InboxPage() {
    */
   const [resyncToken, setResyncToken] = useState(0);
 
+  // Right-hand contact panel is collapsed by default; the thread header
+  // has a button to reveal it. Keeps the conversation the focus and gives
+  // the thread the full width until the agent explicitly wants the
+  // contact's details / notes / Shopify context.
+  const [contactPanelOpen, setContactPanelOpen] = useState(false);
+  const toggleContactPanel = useCallback(
+    () => setContactPanelOpen((v) => !v),
+    [],
+  );
+
   // Fire the deep-link auto-select exactly once per URL — subsequent
   // list refreshes (realtime, manual refetch) must not snap the user
   // back to the deep-linked conversation if they've already clicked
@@ -701,13 +711,18 @@ export default function InboxPage() {
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
+            contactPanelOpen={contactPanelOpen}
+            onToggleContactPanel={toggleContactPanel}
           />
         </div>
 
-        {/* Right panel: Contact sidebar — desktop only. */}
-        <div className="hidden shrink-0 lg:block">
-          <ContactSidebar contact={activeContact} />
-        </div>
+        {/* Right panel: Contact sidebar — desktop only, collapsed by
+            default and revealed via the thread header's toggle. */}
+        {contactPanelOpen && (
+          <div className="hidden shrink-0 lg:block">
+            <ContactSidebar contact={activeContact} />
+          </div>
+        )}
       </div>
     </div>
   );
