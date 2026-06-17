@@ -134,8 +134,13 @@ export default function ContactsPage() {
       query = query.in('id', taggedIds);
     }
 
-    if (search.trim()) {
-      const term = `%${search.trim()}%`;
+    // Saneamos el término antes de interpolarlo en el filtro `.or()`: quitamos
+    // los caracteres con significado en la gramática PostgREST (`,()` `:` `*`)
+    // y los comodines ilike (`%` `_` `\`) para que no se pueda romper/inyectar
+    // el filtro. La query ya está acotada por workspace_id + RLS.
+    const safeSearch = search.trim().replace(/[,()\\:*%_]/g, ' ').trim();
+    if (safeSearch) {
+      const term = `%${safeSearch}%`;
       query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
     }
 

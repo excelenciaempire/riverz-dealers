@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * POST /api/flows/[id]/versions/[versionId]/restore
@@ -101,14 +102,14 @@ export async function POST(
     .update(flowPatch)
     .eq('id', id);
   if (updErr) {
-    return NextResponse.json({ error: updErr.message }, { status: 500 });
+    return serverError(updErr);
   }
   const { error: delErr } = await admin
     .from('flow_nodes')
     .delete()
     .eq('flow_id', id);
   if (delErr) {
-    return NextResponse.json({ error: delErr.message }, { status: 500 });
+    return serverError(delErr);
   }
   if (snap.nodes.length > 0) {
     const { error: insErr } = await admin.from('flow_nodes').insert(
@@ -122,7 +123,7 @@ export async function POST(
       })),
     );
     if (insErr) {
-      return NextResponse.json({ error: insErr.message }, { status: 500 });
+      return serverError(insErr);
     }
   }
 

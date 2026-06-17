@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/inbox/assignment-rules — lista reglas del workspace.
@@ -24,7 +25,7 @@ export async function GET() {
     .select('id, name, is_active, priority, kind, channel, config, created_at')
     .order('priority', { ascending: true });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ rules: data ?? [] });
 }
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
       })
       .eq('id', body.id)
       .eq('workspace_id', body.workspace_id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
     return NextResponse.json({ ok: true });
   }
   const { data, error } = await supabase
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
     })
     .select('id')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ rule: data }, { status: 201 });
 }
 
@@ -161,6 +162,6 @@ export async function DELETE(request: Request) {
     .delete()
     .eq('id', id)
     .eq('workspace_id', workspaceId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ ok: true });
 }

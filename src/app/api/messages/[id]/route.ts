@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { serverError } from "@/lib/api/errors";
 
 /**
  * DELETE /api/messages/:id
@@ -67,7 +68,7 @@ export async function DELETE(
 
   const { error } = await admin.from("messages").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ ok: true });
 }

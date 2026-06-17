@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { serverError } from "@/lib/api/errors";
 import type { ChannelConnection } from "@/types";
 
 /**
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     .eq("channel", "gmail")
     .eq("status", "connected");
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!connections || connections.length === 0) {
     return NextResponse.json({ ok: true, watched: 0 });

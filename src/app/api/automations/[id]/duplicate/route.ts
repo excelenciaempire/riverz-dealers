@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { serverError } from '@/lib/api/errors'
 
 export async function POST(
   request: Request,
@@ -21,15 +22,35 @@ export async function POST(
     .from('automations')
     .select('*')
     .eq('id', id)
+    .maybeSingle()
+  if (origErr) return serverError(origErr)
+  if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Autorización por workspace (el admin client bypassa RLS): la copia solo
+  // se permite si el usuario es miembro del workspace de la automatización.
+  // No alcanza con user_id porque los compañeros de equipo son editores
+  // válidos; y filtrar solo por user_id dejaba la copia sin workspace_id.
+  const workspaceId = original.workspace_id as string | null
+  if (!workspaceId) {
+    // Filas legacy pre-013 sin backfill: tratar como no encontrada para no
+    // filtrar su existencia.
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const { data: membership } = await admin
+    .from('workspace_members')
+    .select('id')
+    .eq('workspace_id', workspaceId)
     .eq('user_id', user.id)
     .maybeSingle()
-  if (origErr) return NextResponse.json({ error: origErr.message }, { status: 500 })
-  if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!membership) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const { data: copy, error: copyErr } = await admin
     .from('automations')
     .insert({
       user_id: user.id,
+      workspace_id: workspaceId,
       name: `${original.name} (Copy)`,
       description: original.description,
       trigger_type: original.trigger_type,
@@ -39,7 +60,7 @@ export async function POST(
     .select()
     .single()
   if (copyErr || !copy) {
-    return NextResponse.json({ error: copyErr?.message ?? 'copy failed' }, { status: 500 })
+    return serverError(copyErr ?? new Error('copy failed'))
   }
 
   const { data: steps } = await admin
@@ -68,7 +89,7 @@ export async function POST(
       position: row.position,
     }))
     const { error: insErr } = await admin.from('automation_steps').insert(rows)
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
+    if (insErr) return serverError(insErr)
   }
 
   return NextResponse.json({ automation: copy }, { status: 201 })

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/flows/admin-client";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron } from "@/lib/cron/heartbeat";
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     .order("run_at", { ascending: true })
     .limit(50);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!due || due.length === 0) {
     return NextResponse.json({ processed: 0 });

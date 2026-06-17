@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import {
@@ -170,12 +171,12 @@ export async function PATCH(
       .from('automations')
       .update(update)
       .eq('id', id)
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
+    if (updErr) return serverError(updErr)
   }
 
   if (Array.isArray(body.steps)) {
     const err = await replaceSteps(id, body.steps as BuilderStepInput[])
-    if (err) return NextResponse.json({ error: err }, { status: 500 })
+    if (err) return serverError(err)
   }
 
   return NextResponse.json({ ok: true })
@@ -207,6 +208,6 @@ export async function DELETE(
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .is('deleted_at', null)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error)
   return NextResponse.json({ ok: true })
 }

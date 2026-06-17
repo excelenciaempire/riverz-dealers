@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { csrfGuard } from '@/lib/csrf'
+import { serverError } from '@/lib/api/errors'
 import {
   getConnectionForUser,
   getConnectionForWorkspace,
@@ -45,14 +46,14 @@ export async function DELETE(req: Request) {
       .from('shopify_connections')
       .delete()
       .eq('workspace_id', workspaceId)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error)
   } else {
     // Legacy fallback for users without a workspace row.
     const { error } = await supabase
       .from('shopify_connections')
       .delete()
       .eq('user_id', user.id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error)
   }
   return NextResponse.json({ ok: true })
 }

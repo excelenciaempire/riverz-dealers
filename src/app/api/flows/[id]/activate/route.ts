@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { validateFlowForActivation } from '@/lib/flows/validate'
@@ -105,7 +106,7 @@ export async function POST(
     .select()
     .maybeSingle()
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverError(error)
   }
   // Cuando se ACTIVA por primera vez o se reactiva tras cambios,
   // snapshot del estado actual como `published`. Es la versión que

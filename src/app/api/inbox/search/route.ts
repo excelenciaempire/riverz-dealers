@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/inbox/search?q=...
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     max_rows: limit,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   // Resolve contact display names in a single round-trip — the RPC

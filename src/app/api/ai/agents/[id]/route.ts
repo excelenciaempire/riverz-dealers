@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
@@ -83,7 +84,7 @@ export async function PATCH(
 
   if (Object.keys(update).length) {
     const { error } = await admin.from('ai_agents').update(update).eq('id', id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError(error);
   }
 
   // Replace per-channel bindings when channels are provided.
@@ -154,6 +155,6 @@ export async function DELETE(
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .is('deleted_at', null);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ ok: true });
 }

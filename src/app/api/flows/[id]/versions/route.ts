@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/flows/[id]/versions — lista las últimas 50 versiones del
@@ -38,7 +39,7 @@ export async function GET(
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ versions: data ?? [] });
 }
@@ -99,7 +100,7 @@ export async function POST(
     .select('id, kind, note, created_at, created_by')
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ version: data }, { status: 201 });
 }

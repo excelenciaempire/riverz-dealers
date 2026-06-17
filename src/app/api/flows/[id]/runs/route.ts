@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { serverError } from '@/lib/api/errors'
 
 /**
  * GET /api/flows/[id]/runs
@@ -53,7 +54,7 @@ export async function GET(
     .order('started_at', { ascending: false })
     .limit(50)
   if (runsErr) {
-    return NextResponse.json({ error: runsErr.message }, { status: 500 })
+    return serverError(runsErr)
   }
 
   const runIds = ((runs ?? []) as Array<{ id: string }>).map((r) => r.id)

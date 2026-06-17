@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -41,7 +42,7 @@ export async function POST(
     .eq('id', id)
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!product) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -149,6 +150,6 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         ai_research_error: msg,
       })
       .eq('id', id);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return serverError(err);
   }
 }

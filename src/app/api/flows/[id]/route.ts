@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { serverError } from '@/lib/api/errors'
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.
@@ -139,7 +140,7 @@ export async function PUT(
     .update(flowPatch)
     .eq('id', id)
   if (updErr) {
-    return NextResponse.json({ error: updErr.message }, { status: 500 })
+    return serverError(updErr)
   }
 
   if (body.nodes !== undefined) {
@@ -150,7 +151,7 @@ export async function PUT(
       .delete()
       .eq('flow_id', id)
     if (delErr) {
-      return NextResponse.json({ error: delErr.message }, { status: 500 })
+      return serverError(delErr)
     }
     if (body.nodes.length > 0) {
       const { error: insErr } = await admin.from('flow_nodes').insert(
@@ -164,7 +165,7 @@ export async function PUT(
         })),
       )
       if (insErr) {
-        return NextResponse.json({ error: insErr.message }, { status: 500 })
+        return serverError(insErr)
       }
     }
   }
@@ -219,7 +220,7 @@ export async function DELETE(
     .eq('id', id)
     .is('deleted_at', null)
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverError(error)
   }
   return NextResponse.json({ ok: true })
 }

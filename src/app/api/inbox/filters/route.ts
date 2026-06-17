@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/inbox/filters — lista los filtros guardados del usuario.
@@ -22,7 +23,7 @@ export async function GET() {
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ filters: data ?? [] });
 }
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     .select('id, name, config, sort_order')
     .single();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ filter: data }, { status: 201 });
 }
@@ -90,7 +91,7 @@ export async function DELETE(request: Request) {
     .delete()
     .eq('id', id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ ok: true });
 }

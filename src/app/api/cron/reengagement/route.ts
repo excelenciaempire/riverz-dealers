@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/api/errors'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
     .eq('trigger_event', 'shopify_order_created')
     .not('contact_id', 'is', null)
   if (ordersErr) {
-    return NextResponse.json({ error: ordersErr.message }, { status: 500 })
+    return serverError(ordersErr)
   }
   const customerContactIds = new Set<string>()
   for (const row of (orderLogs ?? []) as Array<{ contact_id: string | null }>) {
@@ -107,7 +108,7 @@ export async function GET(request: Request) {
     .order('last_inbound_at', { ascending: true })
     .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error)
   if (!candidates || candidates.length === 0) {
     return NextResponse.json({ processed: 0 })
   }

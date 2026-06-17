@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
 import type { ChannelConnection } from "@/types";
@@ -34,7 +35,7 @@ export async function GET(req: Request): Promise<Response> {
     .eq("status", "connected");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
 
   let totalInserted = 0;

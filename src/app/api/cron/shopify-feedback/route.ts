@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
 import { getConnectionByShop } from '@/lib/shopify/connection'
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
     .order('delivered_at', { ascending: true })
     .limit(50)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error)
   if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
   let dispatched = 0

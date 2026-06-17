@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { getTemplate } from '@/lib/automations/templates'
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
     .eq('workspace_id', resolvedWorkspaceId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error)
   return NextResponse.json({ automations: data ?? [] })
 }
 
@@ -182,15 +183,12 @@ export async function POST(request: Request) {
     .single()
 
   if (insertErr || !automation) {
-    return NextResponse.json(
-      { error: insertErr?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+    return serverError(insertErr)
   }
 
   if (effectiveSteps && effectiveSteps.length > 0) {
     const err = await insertSteps(automation.id, effectiveSteps)
-    if (err) return NextResponse.json({ error: err }, { status: 500 })
+    if (err) return serverError(err)
   }
 
   return NextResponse.json({ automation }, { status: 201 })

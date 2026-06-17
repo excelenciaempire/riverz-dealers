@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { serverError } from "@/lib/api/errors";
 
 /**
  * DELETE /api/conversations/:id
@@ -54,7 +55,7 @@ export async function DELETE(
   // Messages are CASCADE-deleted via the FK in 001_initial_schema.sql.
   const { error } = await admin.from("conversations").delete().eq("id", id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { getFlowTemplate } from '@/lib/flows/templates'
@@ -41,7 +42,7 @@ export async function GET() {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverError(error)
   }
   return NextResponse.json({ flows: data ?? [] })
 }
@@ -120,10 +121,7 @@ export async function POST(request: Request) {
       .select()
       .single()
     if (flowErr || !flow) {
-      return NextResponse.json(
-        { error: flowErr?.message ?? 'flow insert failed' },
-        { status: 500 },
-      )
+      return serverError(flowErr)
     }
     if (template.nodes.length > 0) {
       const { error: nodesErr } = await admin.from('flow_nodes').insert(
@@ -139,10 +137,7 @@ export async function POST(request: Request) {
         // sit as an empty draft. CASCADE on flow_id removes the
         // (probably zero) nodes too.
         await admin.from('flows').delete().eq('id', flow.id)
-        return NextResponse.json(
-          { error: nodesErr.message },
-          { status: 500 },
-        )
+        return serverError(nodesErr)
       }
     }
     return NextResponse.json({ flow }, { status: 201 })
@@ -172,10 +167,7 @@ export async function POST(request: Request) {
     .select()
     .single()
   if (error || !data) {
-    return NextResponse.json(
-      { error: error?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+    return serverError(error)
   }
   return NextResponse.json({ flow: data }, { status: 201 })
 }

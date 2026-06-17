@@ -5,6 +5,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { decrypt } from '@/lib/channels/encryption';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * POST /api/products/sync
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (connErr) {
-    return NextResponse.json({ error: connErr.message }, { status: 500 });
+    return serverError(connErr);
   }
   if (!connection) {
     return NextResponse.json(

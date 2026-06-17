@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
 
 /**
@@ -22,7 +23,6 @@ import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
  */
 
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev';
-const FIRECRAWL_DEFAULT_KEY = 'fc-33dd0d0bd6b4430c9f36d0555660ddae';
 const KNOWLEDGE_CHAR_CAP = 30_000;
 const CRAWL_PAGE_LIMIT = 30;
 const POLL_INTERVAL_MS = 5_000;
@@ -57,15 +57,6 @@ interface AgentConfigSuggestion {
   language: string;
 }
 
-function isValidHttpsUrl(raw: string): URL | null {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-    return u;
-  } catch {
-    return null;
-  }
-}
 
 function aggregateMarkdown(pages: FirecrawlCrawlPage[]): string {
   const chunks: string[] = [];
@@ -92,7 +83,10 @@ async function sleep(ms: number) {
 }
 
 async function scrapeSite(url: string): Promise<string> {
-  const apiKey = process.env.FIRECRAWL_API_KEY || FIRECRAWL_DEFAULT_KEY;
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    throw new Error('Falta FIRECRAWL_API_KEY en el servidor.');
+  }
   const startRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl`, {
     method: 'POST',
     headers: {
@@ -248,7 +242,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const parsed = isValidHttpsUrl(rawUrl);
+  const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
       { error: 'URL inválida. Debe empezar con https://' },

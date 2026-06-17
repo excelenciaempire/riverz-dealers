@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { serverError } from '@/lib/api/errors'
 import { getTemplate } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
       // Clean up the orphan automation row so the user doesn't end up
       // with an empty automation if the steps insert fails.
       await admin.from('automations').delete().eq('id', automation.id)
-      return NextResponse.json({ error: err }, { status: 500 })
+      return serverError(err)
     }
   }
 

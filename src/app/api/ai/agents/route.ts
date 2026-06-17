@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from '@/lib/ai/types';
 
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     .eq('workspace_id', workspaceId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
 
   // Never leak the encrypted key.
   const safe = (data ?? []).map((a) => stripKey(a as AgentWithChannels));
@@ -113,10 +114,7 @@ export async function POST(request: Request) {
     .select()
     .single();
   if (error || !created) {
-    return NextResponse.json(
-      { error: error?.message ?? 'insert failed' },
-      { status: 500 },
-    );
+    return serverError(error);
   }
 
   if (body.scope === 'channels' && Array.isArray(body.channels) && body.channels.length) {

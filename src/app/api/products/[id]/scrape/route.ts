@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * POST /api/products/[id]/scrape
@@ -38,7 +39,7 @@ export async function POST(
     .eq('id', id)
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!product) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -88,6 +89,6 @@ export async function POST(
         scrape_error: msg,
       })
       .eq('id', id);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return serverError(err);
   }
 }

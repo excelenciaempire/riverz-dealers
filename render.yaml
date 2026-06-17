@@ -50,6 +50,11 @@ services:
       # Claude API — redacción con IA del cuerpo de plantillas.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Firecrawl — scrape de la web de la marca para generar/actualizar
+      # el conocimiento del agente IA. Obligatoria: sin esta var el scrape
+      # responde 500. Crear key en https://firecrawl.dev.
+      - key: FIRECRAWL_API_KEY
+        sync: false
       # Secreto compartido para el cron de campañas programadas
       # (GET /api/broadcasts/cron con header x-cron-secret).
       - key: BROADCAST_CRON_SECRET

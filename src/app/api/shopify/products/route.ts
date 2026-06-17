@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * List the synced Shopify product catalog for the current workspace.
@@ -32,6 +33,6 @@ export async function GET(request: Request) {
     query = query.ilike('title', `%${search}%`);
   }
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error);
   return NextResponse.json({ products: data ?? [] });
 }

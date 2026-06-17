@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -64,16 +66,6 @@ async function requireMember(agentId: string, userId: string) {
   return agent as { id: string; workspace_id: string };
 }
 
-function isValidHttpsUrl(raw: string): URL | null {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-    return u;
-  } catch {
-    return null;
-  }
-}
-
 function aggregateMarkdown(pages: FirecrawlCrawlPage[]): string {
   const chunks: string[] = [];
   let total = 0;
@@ -120,7 +112,7 @@ export async function POST(
   if (!rawUrl) {
     return NextResponse.json({ error: 'url required' }, { status: 400 });
   }
-  const parsed = isValidHttpsUrl(rawUrl);
+  const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
       { error: 'URL inválida. Debe empezar con https://' },
@@ -128,7 +120,7 @@ export async function POST(
     );
   }
 
-  const apiKey = process.env.FIRECRAWL_API_KEY || 'fc-33dd0d0bd6b4430c9f36d0555660ddae';
+  const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { error: 'Falta FIRECRAWL_API_KEY en el servidor.' },
@@ -165,10 +157,7 @@ export async function POST(
       );
     }
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'No se pudo contactar Firecrawl' },
-      { status: 502 },
-    );
+    return serverError(err, 'No se pudo contactar Firecrawl', 502);
   }
 
   const crawlId = startJson.id;
@@ -213,7 +202,7 @@ export async function POST(
     })
     .eq('id', id);
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError(updateError);
   }
 
   const { data: fresh } = await admin

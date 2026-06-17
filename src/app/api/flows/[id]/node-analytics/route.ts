@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/flows/[id]/node-analytics?days=7
@@ -37,7 +38,7 @@ export async function GET(
     .eq('flow_id', id)
     .gte('started_at', since);
   if (rErr) {
-    return NextResponse.json({ error: rErr.message }, { status: 500 });
+    return serverError(rErr);
   }
   const runIds = (runs ?? []).map((r: { id: string }) => r.id);
   if (runIds.length === 0) {
@@ -51,7 +52,7 @@ export async function GET(
     .eq('event_type', 'node_entered')
     .not('node_key', 'is', null);
   if (eErr) {
-    return NextResponse.json({ error: eErr.message }, { status: 500 });
+    return serverError(eErr);
   }
 
   // Agregamos en el server: por cada node_key, cantidad de entries.

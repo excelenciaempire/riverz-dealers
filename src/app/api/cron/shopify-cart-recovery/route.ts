@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
     .limit(50)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return serverError(error)
   }
   if (!due || due.length === 0) {
     return NextResponse.json({ processed: 0 })

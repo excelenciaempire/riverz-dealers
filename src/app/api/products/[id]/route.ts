@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/products/[id]
@@ -33,7 +34,7 @@ export async function GET(
     .eq('id', id)
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!product) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -110,7 +111,7 @@ export async function PATCH(
     .eq('id', id)
     .maybeSingle();
   if (readErr) {
-    return NextResponse.json({ error: readErr.message }, { status: 500 });
+    return serverError(readErr);
   }
   if (!current) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -126,7 +127,7 @@ export async function PATCH(
     .select('*')
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error);
   }
   if (!updated) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
