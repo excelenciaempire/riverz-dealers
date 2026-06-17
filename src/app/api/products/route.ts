@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { serverError } from '@/lib/api/errors';
+import { escapeLike } from '@/lib/security/like';
 
 /**
  * GET /api/products
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     .limit(500);
 
   if (search) {
-    query = query.ilike('title', `%${search}%`);
+    query = query.ilike('title', `%${escapeLike(search)}%`);
   }
   if (status === 'pending') {
     query = query.in('scrape_status', ['idle', 'queued']);

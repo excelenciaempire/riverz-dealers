@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { escapeLike } from '@/lib/security/like';
 
 /**
  * POST /api/broadcasts/audience-preview
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
     if (a.customField.operator === 'is') q = q.eq('value', a.customField.value);
     else if (a.customField.operator === 'is_not')
       q = q.neq('value', a.customField.value);
-    else q = q.ilike('value', `%${a.customField.value}%`);
+    else q = q.ilike('value', `%${escapeLike(a.customField.value)}%`);
     const { data } = await q;
     candidateIds = Array.from(
       new Set(

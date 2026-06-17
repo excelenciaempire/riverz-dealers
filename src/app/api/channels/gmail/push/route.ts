@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeSecretEqual } from "@/lib/auth/cron";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { getFreshAccessToken } from "@/lib/channels/gmail/watch";
@@ -33,7 +34,9 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 export async function POST(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const expected = process.env.GMAIL_PUSH_SECRET;
-  if (!expected || url.searchParams.get("secret") !== expected) {
+  // Comparación timing-safe (Pub/Sub solo permite el secret en la query,
+  // no headers custom, así que el secret sigue en `?secret=`).
+  if (!safeSecretEqual(url.searchParams.get("secret"), expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

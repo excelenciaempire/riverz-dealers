@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { serverError } from "@/lib/api/errors";
 
 /**
  * POST /api/workspace/invite
@@ -61,7 +62,7 @@ export async function POST(req: Request): Promise<Response> {
     invited_by: user.id,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return serverError(error, "No se pudo crear la invitación", 400);
   }
 
   const acceptUrl = new URL(req.url);
@@ -91,9 +92,19 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (!mailDelivered) {
-    console.info(
-      `[workspace/invite] would-send-invite-to=${email} link=${acceptUrl.toString()} (SMTP not configured)`,
-    );
+    // No logueamos el token/accept-link en prod: es el secreto bearer del
+    // flujo de invitación y quedaría en logs. El accept_url ya viaja en la
+    // respuesta JSON al admin autenticado para hand-delivery. En dev sí lo
+    // mostramos para poder probar sin SMTP.
+    if (process.env.NODE_ENV !== "production") {
+      console.info(
+        `[workspace/invite] would-send-invite-to=${email} link=${acceptUrl.toString()} (SMTP not configured)`,
+      );
+    } else {
+      console.info(
+        `[workspace/invite] invite created for=${email} (SMTP not configured; accept_url devuelto en la respuesta)`,
+      );
+    }
   }
 
   return NextResponse.json({

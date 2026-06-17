@@ -10,7 +10,12 @@ import { verifyWebhookHmac } from '@/lib/shopify/oauth'
  */
 export async function handleGdprWebhook(request: Request): Promise<NextResponse> {
   const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) return NextResponse.json({ ok: true })
+  // Fail-closed: si falta el secreto, NO aceptar ciegamente (503) — igual que
+  // orders/checkouts. Devolver 200 sin verificar convertiría una
+  // desconfiguración en un endpoint sin auth.
+  if (!apiSecret) {
+    return new NextResponse('Webhook not configured', { status: 503 })
+  }
   const rawBody = await request.text()
   if (
     !verifyWebhookHmac(

@@ -16,6 +16,9 @@ function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV === 'development'
   const directives = [
     "default-src 'self'",
+    // object-src 'none' explícito: <object>/<embed> pueden cargar plugins
+    // legacy que evaden 'self' y no están cubiertos por strict-dynamic.
+    "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.shopify.com https://cdn.shopify.com https://*.supabase.co",

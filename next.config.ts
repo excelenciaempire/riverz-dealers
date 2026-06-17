@@ -26,8 +26,22 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+    // Denegamos features sensibles que la app no usa, para que un script
+    // comprometido o un plugin olvidado no pueda activarlas en silencio.
+    value:
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=(), interest-cohort=()",
   },
+  // COOP aísla nuestro browsing context (XS-Leaks / window.opener hijacking).
+  // `allow-popups` para no romper el popup de FB.login (Embedded Signup),
+  // que usa window.opener/postMessage. CORP same-origin evita que terceros
+  // embeban nuestros recursos. NO seteamos COEP (require-corp) porque
+  // rompería el SDK de Facebook e imágenes de CDNs externos.
+  {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin-allow-popups",
+  },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
 ] as const;
 
 /**

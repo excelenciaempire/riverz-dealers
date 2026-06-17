@@ -123,7 +123,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
     const { phone_number_id, waba_id, access_token, verify_token } = body
 
     if (!access_token || !phone_number_id) {

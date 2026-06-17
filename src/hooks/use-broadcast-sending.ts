@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
 import { resolveSegment } from '@/lib/segments/resolve';
+import { escapeLike } from '@/lib/security/like';
 import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
@@ -330,7 +331,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     if (operator === 'is') query = query.eq('value', value);
     else if (operator === 'is_not') query = query.neq('value', value);
-    else if (operator === 'contains') query = query.ilike('value', `%${value}%`);
+    else if (operator === 'contains') query = query.ilike('value', `%${escapeLike(value)}%`);
 
     const { data: matches, error: matchErr } = await query;
     if (matchErr)

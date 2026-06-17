@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { serverError } from "@/lib/api/errors";
 
 /**
  * POST /api/workspaces/delete
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", ws.id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return serverError(error, "No se pudo eliminar el workspace", 400);
   }
 
   return NextResponse.json({ ok: true });

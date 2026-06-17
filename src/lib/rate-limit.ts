@@ -228,10 +228,31 @@ export const RATE_LIMITS = {
 } as const;
 
 /** Best-effort client IP from common proxy headers, falling back to
- *  a literal so the limiter still works on a single tenant. */
+ *  a literal so the limiter still works on a single tenant.
+ *
+ *  X-Forwarded-For lo APPENDEA el proxy confiable (Render) al final; lo que
+ *  el cliente pone llega a la izquierda. Tomar el primer token dejaba que un
+ *  atacante falsificara su IP rotando el header y evadiera el rate-limit
+ *  per-IP de auth. Tomamos el token a `TRUSTED_PROXY_HOPS` posiciones desde
+ *  el final (default 1 = un único proxy frontal), que el cliente no puede
+ *  falsificar. */
 export function clientIp(req: Request): string {
+  const trustedHops = Math.max(
+    1,
+    Number(process.env.TRUSTED_PROXY_HOPS ?? "1") || 1,
+  );
   const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
+  if (fwd) {
+    const parts = fwd
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length) {
+      const idx = Math.max(0, parts.length - trustedHops);
+      const ip = parts[idx];
+      if (ip) return ip;
+    }
+  }
   const real = req.headers.get("x-real-ip");
   if (real) return real.trim();
   return "unknown";

@@ -206,6 +206,15 @@ function MediaVideo({ url }: { url: string }) {
   );
 }
 
+/** Defensa XSS: solo permitimos URLs de adjunto con esquema seguro
+ *  (http/https/blob o ruta relativa a nuestro proxy). Hoy las URLs vienen
+ *  de Supabase Storage o /api/whatsapp/media/, pero validar el esquema en el
+ *  sink evita que una fila legacy/migrada con `javascript:`/`data:text/html`
+ *  dispare XSS al usarse como href/src. Devuelve undefined si no es segura. */
+function safeMediaUrl(u?: string): string | undefined {
+  return u && /^(https?:|blob:|\/)/i.test(u.trim()) ? u : undefined;
+}
+
 /** Normalize an attachment's mime to a coarse kind. Handles both the
  *  new real mimes ("image/jpeg") and the legacy channel-type tags
  *  ("image", "video", "audio", "file") older rows stored. */
@@ -235,19 +244,27 @@ function AttachmentList({
     <div className="flex flex-col gap-1">
       {attachments.map((a, i) => {
         const kind = attachmentKind(a.mime_type);
+        const url = safeMediaUrl(a.url);
+        if (!url) {
+          return (
+            <span key={i} className="text-sm text-muted-foreground">
+              {a.name || "Archivo"} (no disponible)
+            </span>
+          );
+        }
         if (kind === "image") {
-          return <MediaImage key={i} url={a.url} alt={a.name || "Imagen compartida"} />;
+          return <MediaImage key={i} url={url} alt={a.name || "Imagen compartida"} />;
         }
         if (kind === "video") {
-          return <MediaVideo key={i} url={a.url} />;
+          return <MediaVideo key={i} url={url} />;
         }
         if (kind === "audio") {
-          return <audio key={i} src={a.url} controls className="max-w-60" />;
+          return <audio key={i} src={url} controls className="max-w-60" />;
         }
         return (
           <a
             key={i}
-            href={a.url}
+            href={url}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
@@ -281,6 +298,9 @@ function MessageContent({ message }: { message: Message }) {
     );
   }
 
+  // Esquema validado para las filas legacy que usan media_url directo.
+  const mediaUrl = safeMediaUrl(message.media_url ?? undefined);
+
   switch (message.content_type) {
     case "text":
       return (
@@ -292,8 +312,8 @@ function MessageContent({ message }: { message: Message }) {
     case "image":
       return (
         <div>
-          {message.media_url ? (
-            <MediaImage url={message.media_url} alt="Imagen compartida" />
+          {mediaUrl ? (
+            <MediaImage url={mediaUrl} alt="Imagen compartida" />
           ) : (
             <MediaUnavailable label="Imagen" />
           )}
@@ -308,8 +328,8 @@ function MessageContent({ message }: { message: Message }) {
     case "video":
       return (
         <div>
-          {message.media_url ? (
-            <MediaVideo url={message.media_url} />
+          {mediaUrl ? (
+            <MediaVideo url={mediaUrl} />
           ) : (
             <MediaUnavailable label="Video" />
           )}
@@ -324,8 +344,8 @@ function MessageContent({ message }: { message: Message }) {
     case "audio":
       return (
         <div>
-          {message.media_url ? (
-            <audio src={message.media_url} controls className="max-w-60" />
+          {mediaUrl ? (
+            <audio src={mediaUrl} controls className="max-w-60" />
           ) : (
             <MediaUnavailable label="Audio" />
           )}
@@ -333,12 +353,12 @@ function MessageContent({ message }: { message: Message }) {
       );
 
     case "document":
-      if (!message.media_url) {
+      if (!mediaUrl) {
         return <MediaUnavailable label={message.content_text || "Documento"} />;
       }
       return (
         <a
-          href={message.media_url}
+          href={mediaUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"

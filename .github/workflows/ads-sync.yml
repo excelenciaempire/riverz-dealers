@@ -11,9 +11,9 @@ name: Ads sync
 #
 # Secrets used:
 #   - ADS_SYNC_URL     /api/meta/ads-sync on prod
-#   - ADS_SYNC_SECRET  matches ADS_SYNC_SECRET in Render env (also
-#                      passed as ?secret= since the endpoint uses
-#                      that style instead of a header)
+#   - ADS_SYNC_SECRET  matches ADS_SYNC_SECRET in Render env, enviado en
+#                      el header `x-cron-secret` (timing-safe, no en la
+#                      query string para no filtrarlo en logs)
 
 on:
   schedule:
@@ -33,5 +33,6 @@ jobs:
         run: |
           set -euo pipefail
           response=$(curl -fsS \
-            "${{ secrets.ADS_SYNC_URL }}?secret=${{ secrets.ADS_SYNC_SECRET }}")
+            -H "x-cron-secret: ${{ secrets.ADS_SYNC_SECRET }}" \
+            "${{ secrets.ADS_SYNC_URL }}")
           echo "$response"

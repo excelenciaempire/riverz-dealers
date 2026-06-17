@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
@@ -138,10 +139,7 @@ export async function POST(
       },
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'AI call failed' },
-      { status: 502 },
-    );
+    return serverError(err, 'No se pudo generar la respuesta', 502);
   }
 }
 

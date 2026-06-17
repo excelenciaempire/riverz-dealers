@@ -27,6 +27,19 @@ import crypto from 'crypto'
  */
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!
+
+/**
+ * Valida que ENCRYPTION_KEY sea exactamente 64 hex chars (32 bytes para
+ * AES-256). `Buffer.from(x, 'hex')` NO lanza ante input inválido: descarta
+ * los bytes no-hex silenciosamente y puede dar una clave más corta, lo que
+ * degradaría el cifrado y la firma HMAC del state OAuth (misma clave) sin
+ * aviso. Llamado al boot (instrumentation) para fallar temprano y fuerte
+ * en vez de tarde y por request. Devuelve true si es válida.
+ */
+export function assertEncryptionKey(): boolean {
+  return /^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_KEY ?? '')
+}
+
 // 12 bytes is the NIST-recommended IV length for GCM — keeps the
 // counter block well below 2^32 and matches the default web-crypto
 // behaviour, so any future port is straightforward.

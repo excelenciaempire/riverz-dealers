@@ -19,7 +19,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
-import { ingestRawMedia } from "../media-ingest";
+import {
+  ingestRawMedia,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+} from "../media-ingest";
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
 const OAUTH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
@@ -235,8 +239,11 @@ export async function fetchOutlookAttachments(
   };
   const out: MessageAttachment[] = [];
   for (const a of j.value ?? []) {
+    if (out.length >= MAX_ATTACHMENTS_PER_MESSAGE) break;
     if (a["@odata.type"] !== "#microsoft.graph.fileAttachment") continue;
     if (a.isInline || !a.contentBytes) continue;
+    // Descartar por tamaño declarado antes de decodificar.
+    if (a.size && a.size > MAX_ATTACHMENT_BYTES) continue;
     try {
       const buffer = Buffer.from(a.contentBytes, "base64");
       const ingested = await ingestRawMedia({

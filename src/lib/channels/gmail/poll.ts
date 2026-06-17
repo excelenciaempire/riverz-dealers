@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import type { InboundEvent } from "../types";
 import { ingestInboundEvent } from "../inbox-writer";
-import { ingestRawMedia } from "../media-ingest";
+import {
+  ingestRawMedia,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+} from "../media-ingest";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 
@@ -282,6 +286,7 @@ interface GmailAttachmentRef {
   attachmentId: string;
   filename: string;
   mimeType: string;
+  size: number;
 }
 
 /** Walk the MIME tree for parts that are real file attachments (have a
@@ -295,6 +300,7 @@ export function collectGmailAttachments(payload?: GmailPayload): GmailAttachment
         attachmentId: p.body.attachmentId,
         filename: p.filename,
         mimeType: p.mimeType || "application/octet-stream",
+        size: p.body.size ?? 0,
       });
     }
     for (const part of p.parts ?? []) walk(part);
@@ -314,6 +320,9 @@ export async function fetchGmailAttachments(
 ): Promise<MessageAttachment[]> {
   const out: MessageAttachment[] = [];
   for (const ref of refs) {
+    if (out.length >= MAX_ATTACHMENTS_PER_MESSAGE) break;
+    // Descartar por tamaño declarado ANTES de descargar/decodificar.
+    if (ref.size && ref.size > MAX_ATTACHMENT_BYTES) continue;
     try {
       const r = await fetch(
         `${GMAIL_API}/users/me/messages/${gmailMessageId}/attachments/${ref.attachmentId}`,
@@ -322,6 +331,8 @@ export async function fetchGmailAttachments(
       if (!r.ok) continue;
       const j = (await r.json()) as { data?: string; size?: number };
       if (!j.data) continue;
+      // base64url -> bytes ~ length * 0.75: descartar sin decodificar si excede.
+      if (j.data.length * 0.75 > MAX_ATTACHMENT_BYTES) continue;
       const buffer = Buffer.from(
         j.data.replace(/-/g, "+").replace(/_/g, "/"),
         "base64",

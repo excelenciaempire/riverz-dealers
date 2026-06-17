@@ -65,6 +65,18 @@ export async function POST(
   if (!body?.kind) {
     return NextResponse.json({ error: 'Falta kind' }, { status: 400 });
   }
+  // Pre-check de propiedad con el cliente RLS-scoped del caller ANTES de
+  // tocar el admin client (que bypassa RLS). Sin esto, un usuario de otro
+  // workspace que conozca el flow_id podría snapshotear/borrar el draft de
+  // un flujo ajeno. Mismo patrón que activate/runs/restore.
+  const { data: owned } = await supabase
+    .from('flows')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+  if (!owned) {
+    return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+  }
   const admin = supabaseAdmin();
   // Snapshot del flujo entero.
   const [{ data: flow }, { data: nodes }] = await Promise.all([

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
+import { escapeLike } from '@/lib/security/like';
 
 /**
  * List the synced Shopify product catalog for the current workspace.
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     .order('title', { ascending: true })
     .limit(500);
   if (search) {
-    query = query.ilike('title', `%${search}%`);
+    query = query.ilike('title', `%${escapeLike(search)}%`);
   }
   const { data, error } = await query;
   if (error) return serverError(error);

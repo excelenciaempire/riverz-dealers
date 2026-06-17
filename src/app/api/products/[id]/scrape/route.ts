@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client';
 import { serverError } from '@/lib/api/errors';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 
 /**
  * POST /api/products/[id]/scrape
@@ -47,6 +48,14 @@ export async function POST(
   if (!product.url) {
     return NextResponse.json(
       { error: 'El producto no tiene URL pública' },
+      { status: 400 },
+    );
+  }
+  // Defensa SSRF homogénea con las rutas de AI agents: solo https a hosts
+  // públicos (no loopback/privadas/metadata), aunque la URL venga del sync.
+  if (!isPublicHttpsUrl(product.url)) {
+    return NextResponse.json(
+      { error: 'URL de producto no válida' },
       { status: 400 },
     );
   }

@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
 
@@ -332,10 +333,7 @@ export async function POST(request: Request) {
     .select()
     .single();
   if (error || !created) {
-    return NextResponse.json(
-      { error: error?.message ?? 'No se pudo crear el agente' },
-      { status: 500 },
-    );
+    return serverError(error, 'No se pudo crear el agente', 500);
   }
 
   const { data: fresh } = await admin

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertCronAuth } from "@/lib/auth/cron";
 import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
@@ -11,20 +12,16 @@ import type { ChannelConnection } from "@/types";
  * connection and refreshes the post_id → ad_id mapping so the inbox
  * can correctly flag which incoming comments came from ads.
  *
- * Auth: pass `?secret=…` matching ADS_SYNC_SECRET (env). Mirrors the
- * automation-cron pattern already in this repo.
+ * Auth: header `x-cron-secret` matching ADS_SYNC_SECRET (env), vía el
+ * helper central timing-safe assertCronAuth — igual que el resto de los
+ * crons. (Antes usaba `?secret=` en la query, que quedaba en logs y se
+ * comparaba sin constant-time.)
  */
 export async function GET(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const expected = process.env.ADS_SYNC_SECRET;
-  // Fail-closed when the secret is unset (e.g. forgotten in a Render
-  // env reload). Without this, anonymous callers could DOS the route
-  // and burn Meta Graph quota.
-  if (!expected) {
-    return NextResponse.json({ error: "Cron not configured" }, { status: 503 });
-  }
-  if (url.searchParams.get("secret") !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    assertCronAuth(req, "ADS_SYNC_SECRET");
+  } catch (r) {
+    return r as Response;
   }
 
   const db = supabaseAdmin();

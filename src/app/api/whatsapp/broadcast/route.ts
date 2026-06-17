@@ -78,7 +78,10 @@ export async function POST(request: Request) {
       return rateLimitResponse(limit)
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
     const {
       recipients: newRecipients,
       phone_numbers,
@@ -104,6 +107,20 @@ export async function POST(request: Request) {
         {
           error:
             'Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Tope de tamaño: el fan-out itera el array completo en una request, así
+    // que un array gigante mantendría el handler vivo consumiendo CPU/memoria
+    // antes de que el throttle module la salida. Campañas más grandes deben
+    // dividirse.
+    const MAX_RECIPIENTS = 5000
+    if (recipients.length > MAX_RECIPIENTS) {
+      return NextResponse.json(
+        {
+          error: `Demasiados destinatarios (máx ${MAX_RECIPIENTS}). Dividí la campaña.`,
         },
         { status: 400 }
       )

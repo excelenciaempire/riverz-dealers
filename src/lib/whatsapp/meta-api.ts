@@ -643,7 +643,14 @@ export async function getMediaUrl(
   args: GetMediaUrlArgs
 ): Promise<{ url: string; mimeType: string }> {
   const { mediaId, accessToken } = args
-  const response = await fetch(`${META_API_BASE}/${mediaId}`, {
+  // Validar el formato del mediaId antes de interpolarlo en la URL de Graph:
+  // un valor como `me?fields=...` o `123/something` permitiría pivotear el
+  // recurso/query del llamado a Graph (parameter injection). Los media IDs de
+  // Meta son numéricos largos.
+  if (!/^\d{5,}$/.test(mediaId)) {
+    throw new Error('Invalid media id')
+  }
+  const response = await fetch(`${META_API_BASE}/${encodeURIComponent(mediaId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {

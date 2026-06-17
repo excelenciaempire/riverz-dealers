@@ -41,7 +41,10 @@ export async function POST(request: Request) {
       return rateLimitResponse(limit)
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
     const {
       conversation_id,
       message_type,

@@ -8,7 +8,11 @@ import { verifyWebhookHmac } from '@/lib/shopify/oauth'
  */
 export async function POST(request: Request) {
   const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) return NextResponse.json({ ok: true })
+  // Fail-closed: sin secreto no verificamos firma, así que rechazamos (503)
+  // en vez de aceptar y marcar conexiones como 'uninstalled' sin auth.
+  if (!apiSecret) {
+    return new NextResponse('Webhook not configured', { status: 503 })
+  }
 
   const rawBody = await request.text()
   if (!verifyWebhookHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'), apiSecret)) {

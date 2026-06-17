@@ -122,6 +122,17 @@ function withRePrefix(subject: string): string {
   return /^\s*re:/i.test(subject) ? subject : `Re: ${subject}`;
 }
 
+/**
+ * Neutraliza header injection (CRLF): el subject y el email del contacto
+ * provienen de correo entrante controlado por el remitente. Sin esto, un
+ * `Subject: Hola\r\nBcc: atacante@evil.com` inyectaría cabeceras nuevas (o
+ * con `\r\n\r\n` un cuerpo/MIME falso) cuando Gmail interpreta el RFC2822
+ * crudo. Aplicar SOLO a valores de cabecera, nunca al body.
+ */
+function sanitizeHeader(value: string): string {
+  return String(value).replace(/[\r\n ]+/g, " ").trim();
+}
+
 function buildRfc2822(args: {
   from: string;
   to: string;
@@ -130,13 +141,13 @@ function buildRfc2822(args: {
   inReplyTo?: string;
 }): string {
   const lines = [
-    `From: ${args.from}`,
-    `To: ${args.to}`,
-    `Subject: ${args.subject}`,
+    `From: ${sanitizeHeader(args.from)}`,
+    `To: ${sanitizeHeader(args.to)}`,
+    `Subject: ${sanitizeHeader(args.subject)}`,
     "MIME-Version: 1.0",
     "Content-Type: text/plain; charset=UTF-8",
-    args.inReplyTo ? `In-Reply-To: ${args.inReplyTo}` : "",
-    args.inReplyTo ? `References: ${args.inReplyTo}` : "",
+    args.inReplyTo ? `In-Reply-To: ${sanitizeHeader(args.inReplyTo)}` : "",
+    args.inReplyTo ? `References: ${sanitizeHeader(args.inReplyTo)}` : "",
     "",
     args.body,
   ].filter(Boolean);

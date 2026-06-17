@@ -130,12 +130,24 @@ export async function POST(request: Request) {
     Array.isArray(body.product_ids) &&
     body.product_ids.length
   ) {
-    await admin.from('ai_agent_products').insert(
-      body.product_ids.map((product_id) => ({
+    // Validar que cada product_id pertenece al workspace del agente: el admin
+    // client bypassa RLS, así que sin esto un miembro podría asociar productos
+    // de otro tenant a su agente. Solo insertamos los que pertenecen.
+    const { data: owned } = await admin
+      .from('shopify_products')
+      .select('id')
+      .eq('workspace_id', (created as AiAgent).workspace_id)
+      .in('id', body.product_ids);
+    const validIds = new Set((owned ?? []).map((p) => p.id as string));
+    const rows = body.product_ids
+      .filter((product_id) => validIds.has(product_id))
+      .map((product_id) => ({
         agent_id: (created as AiAgent).id,
         product_id,
-      })),
-    );
+      }));
+    if (rows.length) {
+      await admin.from('ai_agent_products').insert(rows);
+    }
   }
 
   // Re-read with relations so the client can drop it into its grid
