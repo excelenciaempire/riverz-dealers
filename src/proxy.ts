@@ -21,7 +21,13 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.shopify.com https://cdn.shopify.com https://*.supabase.co",
+    // Any https image source. The inbox renders real email bodies in a
+    // sandboxed (script-free) <iframe srcdoc>, which inherits THIS policy;
+    // marketing/transactional mail pulls logos and hero images from
+    // arbitrary CDNs, so they must be allowed or every email renders
+    // broken. Images can't execute code, and scripts stay fully blocked
+    // by script-src, so this doesn't widen the XSS surface.
+    "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com",
     "frame-ancestors 'none'",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction, MessageAttachment } from "@/types";
 import {
@@ -422,41 +422,90 @@ function MessageContent({ message }: { message: Message }) {
 }
 
 /**
- * Email body renderer. Two jobs:
- *   1. Decode the HTML entities (&gt;, &nbsp;, …) the raw text body
- *      shows up with after our html-to-text pass at ingest time.
- *   2. Detect the quoted reply chain (everything below "El X escribió:",
- *      "On … wrote:", "From:", "De:", "-----Original Message-----", or
- *      a run of lines starting with ">") and collapse it behind a
- *      toggle, so the visible body is just the new content of THIS
- *      message — like Gmail's "..." quote fold.
+ * Email body renderer. Shows the message exactly as it looks in a mail
+ * client: when the row carries an HTML body we render that real HTML
+ * (logos, tables, formatting) instead of a stripped-text blob; otherwise
+ * we fall back to the decoded plain text.
  */
-function EmailBody({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  const { primary, quoted } = splitEmailQuote(text);
+function EmailBody({ message }: { message: Message }) {
+  const html = message.html_body?.trim();
+  if (html) return <EmailHtmlBody html={html} />;
+  const text = decodeHtmlEntities(message.content_text ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
   return (
-    <div>
-      <p className="whitespace-pre-wrap break-words text-sm">
-        {primary || (quoted ? "" : "[sin contenido]")}
-      </p>
-      {quoted && (
-        <>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            ···
-            {open ? " Ocultar historial de mensajes" : " Mostrar historial de mensajes"}
-          </button>
-          {open && (
-            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted/30 p-2 text-[11px] text-muted-foreground">
-              {quoted}
-            </pre>
-          )}
-        </>
-      )}
-    </div>
+    <p className="whitespace-pre-wrap break-words text-sm">
+      {text || "[sin contenido]"}
+    </p>
+  );
+}
+
+/**
+ * Render an email's real HTML body so it reads exactly like it does in a
+ * mail client, instead of a flattened-text approximation.
+ *
+ * The HTML is untrusted, so it renders inside a sandboxed <iframe>:
+ *   - NO `allow-scripts` → no email JavaScript ever runs, so this is
+ *     XSS-safe even for hostile mail.
+ *   - `allow-same-origin` → lets the parent read the document height to
+ *     size the frame. Safe precisely because scripts are disabled: the
+ *     classic allow-scripts+allow-same-origin sandbox-escape can't apply.
+ *   - `allow-popups` + injected `<base target="_blank">` → links open in a
+ *     new tab rather than navigating the inbox.
+ * The frame auto-grows to its content via a ResizeObserver on the body
+ * (so it keeps up as remote images finish loading).
+ */
+function EmailHtmlBody({ html }: { html: string }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const [height, setHeight] = useState(160);
+
+  const srcDoc = useMemo(
+    () =>
+      `<!doctype html><html><head><meta charset="utf-8">` +
+      `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+      `<base target="_blank">` +
+      `<style>` +
+      `html,body{margin:0;padding:0;background:#fff;}` +
+      `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
+      `font-size:14px;line-height:1.5;color:#1a1a1a;word-break:break-word;overflow-wrap:anywhere;}` +
+      `img{max-width:100%;height:auto;}table{max-width:100%;}a{color:#2563eb;}` +
+      `</style></head><body>${html}</body></html>`,
+    [html],
+  );
+
+  const measure = useCallback(() => {
+    const doc = frameRef.current?.contentDocument;
+    const body = doc?.body;
+    if (!body || !doc) return;
+    const h = Math.max(body.scrollHeight, doc.documentElement.scrollHeight);
+    if (h > 0) setHeight(Math.min(h + 4, 20000));
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    measure();
+    const body = frameRef.current?.contentDocument?.body;
+    if (!body) return;
+    // Re-measure as images/web fonts finish loading and the body reflows.
+    roRef.current?.disconnect();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(body);
+    roRef.current = ro;
+  }, [measure]);
+
+  useEffect(() => () => roRef.current?.disconnect(), []);
+
+  return (
+    <iframe
+      ref={frameRef}
+      title="Correo"
+      sandbox="allow-same-origin allow-popups"
+      srcDoc={srcDoc}
+      onLoad={handleLoad}
+      scrolling="no"
+      className="w-full overflow-hidden rounded border-0 bg-white"
+      style={{ height }}
+    />
   );
 }
 
@@ -481,52 +530,6 @@ function decodeHtmlEntities(s: string): string {
     }
     return full;
   });
-}
-
-function splitEmailQuote(raw: string): { primary: string; quoted: string } {
-  const decoded = decodeHtmlEntities(raw).replace(/\r\n/g, "\n");
-
-  // Quote-intro phrases unambiguous enough to detect ANYWHERE in the body,
-  // not just at the start of a line. This is what lets the fold work on
-  // legacy rows whose HTML was flattened to a single line at ingest time
-  // ("…Saludos El mié, 10 de jun de 2026, 14:10, … escribió: Pedido #52021…").
-  const inlineMarkers: RegExp[] = [
-    // Gmail / Apple Mail: "El <día>, <fecha> … escribió:". Anchored on a
-    // weekday + day-number so a stray "El lunes" in prose can't trip it.
-    /El\s+(?:lun|mar|mi[eé]|jue|vie|s[aá]b|dom)[a-zé.]*,?\s+\d{1,2}\b[\s\S]*?escribi[oó]:/i,
-    // English: "On <weekday>, <date> … wrote:".
-    /On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[\s\S]*?\bwrote:/i,
-    // Outlook reply header block: "De: … Enviado: …" / "From: … Sent: …".
-    // Bounded lazy span so it only fires on the real header pair, not a
-    // stray "De:" elsewhere in prose.
-    /\bDe:\s[\s\S]{0,400}?\bEnviado(?:\s+el)?:/i,
-    /\bFrom:\s[\s\S]{0,400}?\bSent:/i,
-    // Outlook mobile signature that precedes the quoted header block.
-    /Obtener\s+Outlook\s+para\s+\w+/i,
-    /Get\s+Outlook\s+for\s+\w+/i,
-    // Other mobile signatures.
-    /Enviado\s+desde\s+mi\s+\w+/i,
-    /Sent\s+from\s+my\s+\w+/i,
-    // Classic separators inserted by Outlook / forwarders.
-    /-{2,}\s*(?:Original\s*Message|Mensaje\s*original)\s*-{2,}/i,
-    // Outlook's long underscore rule above a forwarded header block.
-    /_{10,}/,
-  ];
-  // Only meaningful at the start of a line (well-formed multi-line bodies):
-  // ">"-quoted plain-text replies.
-  const lineMarkers: RegExp[] = [/^>+ /m];
-
-  let cutAt = decoded.length;
-  for (const m of [...inlineMarkers, ...lineMarkers]) {
-    const match = decoded.match(m);
-    if (match && match.index !== undefined && match.index < cutAt) {
-      cutAt = match.index;
-    }
-  }
-  return {
-    primary: decoded.slice(0, cutAt).trim(),
-    quoted: decoded.slice(cutAt).trim(),
-  };
 }
 
 export function MessageBubble({
@@ -586,7 +589,7 @@ export function MessageBubble({
             {reply && (
               <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
             )}
-            <EmailBody text={message.content_text ?? ""} />
+            <EmailBody message={message} />
             {message.attachments && message.attachments.length > 0 && (
               <div className="mt-2">
                 <AttachmentList attachments={message.attachments} />
