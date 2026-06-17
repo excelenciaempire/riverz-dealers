@@ -79,6 +79,7 @@ export default function AutomationsPage() {
   // whatsapp_config). The module layout only requires *some* channel, so a
   // workspace with e.g. only email connected still needs this WA-specific gate.
   const whatsappConnected = connections.channels.has("whatsapp")
+  const whatsappLabel = connections.labels.get("whatsapp")
 
   async function load(workspaceId: string) {
     try {
@@ -196,7 +197,13 @@ export default function AutomationsPage() {
         (whatsappConnected ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
-            <span>Tus automatizaciones se ejecutan por tu WhatsApp conectado.</span>
+            <span>
+              Tus automatizaciones se ejecutan por tu WhatsApp conectado
+              {whatsappLabel ? (
+                <span className="font-medium text-foreground"> ({whatsappLabel})</span>
+              ) : null}
+              .
+            </span>
           </div>
         ) : (
           <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">

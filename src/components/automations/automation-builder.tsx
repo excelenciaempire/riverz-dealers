@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   ArrowLeft,
+  AlertTriangle,
   ChevronDown,
   Plus,
   Trash2,
@@ -50,6 +51,7 @@ import type {
 } from "@/types"
 import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
+import { useActiveConnections } from "@/hooks/use-active-connections"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
@@ -395,6 +397,11 @@ export function AutomationBuilder({
 }) {
   const router = useRouter()
   const fetchWithCsrf = useFetchWithCsrf()
+  const connections = useActiveConnections()
+  // Automations send only through WhatsApp; surface which number runs them
+  // and warn right in the canvas when none is connected.
+  const whatsappConnected = connections.channels.has("whatsapp")
+  const whatsappLabel = connections.labels.get("whatsapp")
   const isEditing = !!initial.id
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
@@ -566,6 +573,31 @@ export function AutomationBuilder({
           </span>
         </div>
       )}
+
+      {/* WhatsApp channel strip — automations run only through the connected
+          WhatsApp, so name it here (and warn loudly when there's none). */}
+      {!connections.loading &&
+        (whatsappConnected ? (
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2 text-xs text-muted-foreground">
+            <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
+            <span>
+              Se ejecuta por tu WhatsApp conectado
+              {whatsappLabel ? (
+                <span className="font-medium text-foreground"> · {whatsappLabel}</span>
+              ) : null}
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="text-foreground">
+              No hay un WhatsApp conectado y funcional — esta automatización no podrá enviar mensajes.
+            </span>
+            <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
+              Conectar WhatsApp
+            </Link>
+          </div>
+        ))}
 
       <AudienceStrip
         segments={segments}

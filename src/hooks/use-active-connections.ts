@@ -7,6 +7,10 @@ import type { Channel } from "@/types";
 interface ActiveConnectionsState {
   /** Set of channels that have at least one connection with status='connected'. */
   channels: Set<Channel>;
+  /** Human label per connected channel (the merchant's label, falling back to
+   *  the external account id — e.g. the WhatsApp number / phone_number_id).
+   *  Lets callers tell the user *which* account an action runs through. */
+  labels: Map<Channel, string>;
   /** Convenience: true when at least one channel is connected. */
   hasAny: boolean;
   loading: boolean;
@@ -20,6 +24,7 @@ interface ActiveConnectionsState {
  */
 export function useActiveConnections(): ActiveConnectionsState {
   const [channels, setChannels] = useState<Set<Channel>>(new Set());
+  const [labels, setLabels] = useState<Map<Channel, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
@@ -29,14 +34,24 @@ export function useActiveConnections(): ActiveConnectionsState {
       const supabase = createClient();
       const { data } = await supabase
         .from("channel_connections")
-        .select("channel")
+        .select("channel, label, external_account_id")
         .eq("status", "connected");
       if (cancelled) return;
       const set = new Set<Channel>();
-      for (const row of (data ?? []) as Array<{ channel: Channel }>) {
+      const labelMap = new Map<Channel, string>();
+      for (const row of (data ?? []) as Array<{
+        channel: Channel;
+        label: string | null;
+        external_account_id: string | null;
+      }>) {
         set.add(row.channel);
+        if (!labelMap.has(row.channel)) {
+          const lbl = row.label ?? row.external_account_id ?? null;
+          if (lbl) labelMap.set(row.channel, lbl);
+        }
       }
       setChannels(set);
+      setLabels(labelMap);
       setLoading(false);
     })();
     return () => {
@@ -46,6 +61,7 @@ export function useActiveConnections(): ActiveConnectionsState {
 
   return {
     channels,
+    labels,
     hasAny: channels.size > 0,
     loading,
     reload: () => setTick((n) => n + 1),
