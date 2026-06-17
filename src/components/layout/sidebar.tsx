@@ -83,17 +83,12 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "Instagram",
-    items: [
-      { href: "/agente-instagram", label: "Agente de Instagram", icon: InstagramIcon, beta: true },
-    ],
-  },
-  {
     title: "Envíos",
     items: [
       { href: "/campanas", label: "Campañas", icon: Megaphone },
       { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
       { href: "/plantillas", label: "Plantillas", icon: LayoutTemplate },
+      { href: "/agente-instagram", label: "Agente de Instagram", icon: InstagramIcon, beta: true },
     ],
   },
   {
