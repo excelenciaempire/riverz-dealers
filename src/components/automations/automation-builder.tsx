@@ -566,11 +566,7 @@ export function AutomationBuilder({
       {templatePreview && (
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
           <Zap className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
-          <span>
-            Estás viendo una plantilla. Tocá{" "}
-            <span className="font-medium text-foreground">Usar plantilla</span> para agregarla a tus
-            automatizaciones y empezar a editarla.
-          </span>
+          <span>Vista previa de la plantilla.</span>
         </div>
       )}
 
@@ -591,7 +587,7 @@ export function AutomationBuilder({
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="text-foreground">
-              No hay un WhatsApp conectado y funcional — esta automatización no podrá enviar mensajes.
+              No hay un WhatsApp conectado — no podrá enviar mensajes.
             </span>
             <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
               Conectar WhatsApp

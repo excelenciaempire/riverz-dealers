@@ -178,7 +178,7 @@ export default function AutomationsPage() {
             Automatizaciones
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Empezá desde una plantilla lista o construí la tuya desde cero.
+            Empieza desde una plantilla o crea la tuya.
           </p>
         </div>
         <Button
@@ -210,11 +210,10 @@ export default function AutomationsPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0">
               <p className="font-medium text-foreground">
-                No tenés un WhatsApp conectado y funcional
+                No hay un WhatsApp conectado
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Las automatizaciones envían por WhatsApp. No podrán entregar mensajes hasta que
-                conectes uno.{" "}
+                Las automatizaciones envían por WhatsApp.{" "}
                 <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
                   Conectar WhatsApp
                 </Link>
@@ -267,10 +266,10 @@ export default function AutomationsPage() {
               <Zap className="size-6" />
             </div>
             <p className="mt-3 text-sm font-semibold text-foreground">
-              Todavía no tenés ninguna
+              Aún no tienes ninguna
             </p>
             <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              Mirá una plantilla de arriba y tocá «Usar plantilla» para dejarla lista.
+              Usa una plantilla de arriba para empezar.
             </p>
           </div>
         ) : (
@@ -358,17 +357,7 @@ function TemplateCard({
         {template.description}
       </p>
 
-      <div className="mt-4 flex items-end justify-between gap-2 pt-1">
-        <div className="flex flex-wrap gap-1.5">
-          {template.tags.slice(0, 2).map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center rounded-full border border-border bg-background/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
+      <div className="mt-4 flex items-end justify-end gap-2 pt-1">
         <span
           className={cn(
             "inline-flex items-center gap-1 text-xs font-medium text-accent-ink",

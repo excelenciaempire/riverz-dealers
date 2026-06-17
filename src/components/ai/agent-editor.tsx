@@ -341,7 +341,7 @@ export function AgentEditor({
   async function generateFromUrl() {
     const url = genUrl.trim();
     if (!url) {
-      toast.error('Pegá la URL de tu tienda.');
+      toast.error('Pega la URL de tu tienda.');
       return;
     }
     if (!/^https?:\/\//i.test(url)) {
@@ -375,7 +375,7 @@ export function AgentEditor({
       setLanguage(a.language ?? 'es');
       setIsActive(Boolean(a.is_active));
       setCurrentAgentId(a.id);
-      toast.success('Asistente generado. Revisalo y guardá si querés ajustes.');
+      toast.success('Asistente generado. Revísalo y guarda los cambios.');
       // Notificamos al padre para que aparezca en la lista ya como
       // creado — el editor sigue abierto en modo "edición" del nuevo.
       // Usamos onAgentUpserted (no onSaved) porque onSaved cierra el
@@ -536,12 +536,12 @@ export function AgentEditor({
 
   async function syncKnowledge() {
     if (!currentAgentId) {
-      toast.error('Guardá el asistente antes de sincronizar.');
+      toast.error('Guarda el asistente antes de sincronizar.');
       return;
     }
     const url = knowledgeUrl.trim();
     if (!url) {
-      toast.error('Pegá la URL de tu tienda.');
+      toast.error('Pega la URL de tu tienda.');
       return;
     }
     if (!/^https?:\/\//i.test(url)) {
@@ -570,7 +570,7 @@ export function AgentEditor({
           `Sincronizado. ${pages} página${pages === 1 ? '' : 's'} indexada${pages === 1 ? '' : 's'} (${chars} caracteres).`,
         );
       } else {
-        toast.message('Sincronización iniciada. Aún no llegan páginas, probá de nuevo en un minuto.');
+        toast.message('Sincronización iniciada. Vuelve a intentar en un minuto.');
       }
       if (json.agent) {
         // En sync-knowledge no cerramos el editor (el usuario sigue
@@ -738,7 +738,7 @@ export function AgentEditor({
                         Generar con IA desde mi web
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Pegá la URL de tu tienda. Leemos tu sitio y armamos
+                        Pega la URL de tu tienda. Leemos tu sitio y armamos
                         identidad, tono y conocimiento en menos de un minuto.
                       </p>
                     </div>
@@ -792,7 +792,7 @@ export function AgentEditor({
                     con decisiones técnicas. */}
                 <SectionCard
                   title="Identidad del asistente"
-                  hint="Cómo se llama y qué tono usa. Editá si querés algo distinto a lo generado."
+                  hint="Cómo se llama y qué tono usa. Edítalo si quieres."
                 >
                   <Field label="Nombre del asistente">
                     <Input
@@ -847,7 +847,7 @@ export function AgentEditor({
                     quiera reescribir el system prompt entero. */}
                 <SectionCard
                   title="Cómo se presenta y actúa"
-                  hint="System prompt del asistente. La IA ya lo armó por vos. Editá solo si querés afinar reglas o tono."
+                  hint="System prompt del asistente. Edítalo solo para afinar reglas o tono."
                   right={
                     <button
                       type="button"
@@ -868,12 +868,12 @@ export function AgentEditor({
                       value={persona}
                       rows={10}
                       onChange={(e) => setPersona(e.target.value)}
-                      placeholder="Sos Pili, asesora de Vitalú. Atendés con calidez, una pregunta por turno, nunca admitís ser IA."
+                      placeholder="Eres Pili, asesora de Vitalú. Atiendes con calidez, una pregunta por turno, nunca admites ser IA."
                       className="resize-y bg-background font-mono text-xs leading-relaxed"
                     />
                   ) : (
                     <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
-                      {persona.trim() || 'Sin definir todavía. Generá con IA o tocá "Editar avanzado".'}
+                      {persona.trim() || 'Sin definir. Genera con IA o toca "Editar avanzado".'}
                     </p>
                   )}
                 </SectionCard>
@@ -882,7 +882,7 @@ export function AgentEditor({
                     + preview, ahora dentro de "Mi negocio". */}
                 <SectionCard
                   title="Base de conocimiento"
-                  hint="Tu agente responde mejor cuando tiene contexto de tu tienda. Pegá la URL de tu sitio web y sincronizá. Vamos a indexar tu home, políticas, FAQ y páginas de productos."
+                  hint="Pega la URL de tu sitio y sincroniza. Indexamos tu home, políticas, FAQ y productos."
                 >
                   <Field label="URL de tu tienda">
                     <div className="relative">
@@ -918,7 +918,7 @@ export function AgentEditor({
                   </div>
                   {!editing && (
                     <p className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-                      Guardá el asistente para poder sincronizar.
+                      Guarda el asistente para sincronizar.
                     </p>
                   )}
                   <button
@@ -941,12 +941,12 @@ export function AgentEditor({
                           {knowledge.length > 2000 && '\n\n…'}
                         </pre>
                       ) : (
-                        <p className="italic">Sin contenido todavía. Sincronizá tu web o pegá info abajo.</p>
+                        <p className="italic">Sin contenido. Sincroniza tu web o pega info abajo.</p>
                       )}
                     </div>
                   )}
                   <p className="text-[11px] text-muted-foreground">
-                    Volvé a sincronizar cuando subas un producto nuevo o cambies precios.
+                    Vuelve a sincronizar cuando cambies productos o precios.
                   </p>
                 </SectionCard>
 
@@ -1401,7 +1401,7 @@ export function AgentEditor({
                 <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
                   <Sparkles className="size-6" />
                   <p className="text-xs leading-snug">
-                    Escribí un mensaje abajo para empezar la conversación.
+                    Escribe un mensaje para empezar.
                   </p>
                 </div>
               )}
@@ -1477,7 +1477,7 @@ export function AgentEditor({
               )}
               {!editing && (
                 <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
-                  Guardá el asistente antes de probarlo.
+                  Guarda el asistente antes de probarlo.
                 </p>
               )}
             </div>

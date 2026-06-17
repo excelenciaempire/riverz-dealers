@@ -671,7 +671,7 @@ function InboxEmptyState({ hasFilters }: { hasFilters: boolean }) {
       </p>
       <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
         {hasFilters
-          ? "Probá quitando el filtro o ampliando la búsqueda."
+          ? "Prueba quitar el filtro o ampliar la búsqueda."
           : "Conecta WhatsApp, Instagram, Messenger o tu correo para empezar a recibir mensajes."}
       </p>
       {!hasFilters && (
