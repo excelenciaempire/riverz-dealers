@@ -116,13 +116,17 @@ export default function AiAgentsPage() {
 
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Asistentes con IA</h1>
-        <Button
-          onClick={() => setEditing('new')}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="size-4" />
-          Nuevo asistente
-        </Button>
+        {/* El botón solo cuando ya hay asistentes: en vacío manda el CTA del
+            empty state, sin duplicar la acción. */}
+        {agents.length > 0 && (
+          <Button
+            onClick={() => setEditing('new')}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="size-4" />
+            Nuevo asistente
+          </Button>
+        )}
       </header>
 
       {loading ? (

@@ -35,7 +35,7 @@ import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
 /**
  * Flows list page.
  *
- * "Nuevo menú" opens a two-step picker: first the user chooses between
+ * "Nuevo flujo" opens a two-step picker: first the user chooses between
  * cloning a template or starting blank, then either confirms the
  * template or types a name. The template path skips the name input —
  * the user can rename inside the editor.
@@ -92,7 +92,7 @@ export default function FlowsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudieron cargar los menús.");
+          toast.error("No se pudieron cargar los flujos.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -130,7 +130,7 @@ export default function FlowsPage() {
       router.push(`/menus/${json.flow.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo crear el menú.");
+      toast.error("No se pudo crear el flujo.");
     } finally {
       setCreating(false);
     }
@@ -184,12 +184,16 @@ export default function FlowsPage() {
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <SupportModeSwitcher current="flows" />
 
-      <div className="flex justify-end">
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Nuevo menú
-        </Button>
-      </div>
+      {/* El botón solo cuando ya hay flujos: en vacío manda el CTA del empty
+          state, sin duplicar la acción. */}
+      {flows.length > 0 && (
+        <div className="flex justify-end">
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Nuevo flujo
+          </Button>
+        </div>
+      )}
 
       {flows.length === 0 ? (
         <EmptyState onCreate={openCreate} />
@@ -257,7 +261,7 @@ export default function FlowsPage() {
                 </button>
               )}
               {step === "choose" && "¿Cómo quieres empezar?"}
-              {step === "name" && "Nombre del menú"}
+              {step === "name" && "Nombre del flujo"}
               {step === "template" && "Elige una plantilla"}
             </DialogTitle>
           </DialogHeader>
@@ -267,7 +271,7 @@ export default function FlowsPage() {
               <ChoiceCard
                 icon={<Sparkles className="h-5 w-5 text-accent-ink" />}
                 title="Usar una plantilla"
-                description="Empiezas con un menú de ejemplo y lo editas."
+                description="Empiezas con un flujo de ejemplo y lo editas."
                 badge="Recomendado"
                 onClick={() => setStep("template")}
               />
@@ -285,7 +289,7 @@ export default function FlowsPage() {
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ej: Menú de bienvenida"
+                placeholder="Ej: Flujo de bienvenida"
                 className="bg-muted"
                 autoFocus
                 onKeyDown={(e) => {
@@ -305,7 +309,7 @@ export default function FlowsPage() {
                   disabled={!newName.trim() || creating}
                 >
                   {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Crear menú vacío
+                  Crear flujo vacío
                 </Button>
               </DialogFooter>
             </>
@@ -416,15 +420,15 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         <Workflow className="h-6 w-6 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-base font-medium text-foreground">
-        Sin menús todavía
+        Sin flujos todavía
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Un menú es la conversación que ve tu cliente cuando escribe.
-        Empieza con una plantilla lista o créalo desde cero.
+        Un flujo guía al cliente con botones: toca una opción y avanza al
+        siguiente paso, sin IA. Empieza con una plantilla o créalo desde cero.
       </p>
       <Button onClick={onCreate} className="mt-5">
         <Plus className="h-4 w-4" />
-        Crear mi primer menú
+        Crear mi primer flujo
       </Button>
     </div>
   );
