@@ -424,7 +424,7 @@ function MessageContent({ message }: { message: Message }) {
 /**
  * Email body renderer. Two jobs:
  *   1. Decode the HTML entities (&gt;, &nbsp;, …) the raw text body
- *      shows up with after our stripHtml pass at ingest time.
+ *      shows up with after our html-to-text pass at ingest time.
  *   2. Detect the quoted reply chain (everything below "El X escribió:",
  *      "On … wrote:", "From:", "De:", "-----Original Message-----", or
  *      a run of lines starting with ">") and collapse it behind a
@@ -447,7 +447,7 @@ function EmailBody({ text }: { text: string }) {
             className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             ···
-            {open ? " ocultar cita" : " mostrar cita"}
+            {open ? " Ocultar historial de mensajes" : " Mostrar historial de mensajes"}
           </button>
           {open && (
             <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted/30 p-2 text-[11px] text-muted-foreground">
@@ -485,20 +485,39 @@ function decodeHtmlEntities(s: string): string {
 
 function splitEmailQuote(raw: string): { primary: string; quoted: string } {
   const decoded = decodeHtmlEntities(raw).replace(/\r\n/g, "\n");
-  // Common reply-chain markers (Outlook, Gmail, Apple Mail, ES + EN).
-  const markers: RegExp[] = [
-    /^[ \t>]*El\s+\w+,?\s.+escribi[oó]:\s*$/im,
-    /^[ \t>]*On\s.+wrote:\s*$/im,
-    /^[ \t>]*-{2,}\s*(Original\s*Message|Mensaje\s*original)\s*-{2,}\s*$/im,
-    /^[ \t>]*De:\s.+$/im,
-    /^[ \t>]*From:\s.+$/im,
-    /^[ \t>]*Enviado\s+desde\s+mi\s+\w+/im,
-    /^[ \t>]*Sent\s+from\s+my\s+\w+/im,
-    /^[ \t>]*Obtener\s+Outlook\s+para/im,
-    /^>+ /m,
+
+  // Quote-intro phrases unambiguous enough to detect ANYWHERE in the body,
+  // not just at the start of a line. This is what lets the fold work on
+  // legacy rows whose HTML was flattened to a single line at ingest time
+  // ("…Saludos El mié, 10 de jun de 2026, 14:10, … escribió: Pedido #52021…").
+  const inlineMarkers: RegExp[] = [
+    // Gmail / Apple Mail: "El <día>, <fecha> … escribió:". Anchored on a
+    // weekday + day-number so a stray "El lunes" in prose can't trip it.
+    /El\s+(?:lun|mar|mi[eé]|jue|vie|s[aá]b|dom)[a-zé.]*,?\s+\d{1,2}\b[\s\S]*?escribi[oó]:/i,
+    // English: "On <weekday>, <date> … wrote:".
+    /On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[\s\S]*?\bwrote:/i,
+    // Outlook reply header block: "De: … Enviado: …" / "From: … Sent: …".
+    // Bounded lazy span so it only fires on the real header pair, not a
+    // stray "De:" elsewhere in prose.
+    /\bDe:\s[\s\S]{0,400}?\bEnviado(?:\s+el)?:/i,
+    /\bFrom:\s[\s\S]{0,400}?\bSent:/i,
+    // Outlook mobile signature that precedes the quoted header block.
+    /Obtener\s+Outlook\s+para\s+\w+/i,
+    /Get\s+Outlook\s+for\s+\w+/i,
+    // Other mobile signatures.
+    /Enviado\s+desde\s+mi\s+\w+/i,
+    /Sent\s+from\s+my\s+\w+/i,
+    // Classic separators inserted by Outlook / forwarders.
+    /-{2,}\s*(?:Original\s*Message|Mensaje\s*original)\s*-{2,}/i,
+    // Outlook's long underscore rule above a forwarded header block.
+    /_{10,}/,
   ];
+  // Only meaningful at the start of a line (well-formed multi-line bodies):
+  // ">"-quoted plain-text replies.
+  const lineMarkers: RegExp[] = [/^>+ /m];
+
   let cutAt = decoded.length;
-  for (const m of markers) {
+  for (const m of [...inlineMarkers, ...lineMarkers]) {
     const match = decoded.match(m);
     if (match && match.index !== undefined && match.index < cutAt) {
       cutAt = match.index;

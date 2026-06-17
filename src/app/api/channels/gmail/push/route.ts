@@ -7,6 +7,7 @@ import {
   collectGmailAttachments,
   fetchGmailAttachments,
 } from "@/lib/channels/gmail/poll";
+import { htmlToText } from "@/lib/channels/html-to-text";
 import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "@/lib/channels/types";
 
@@ -256,7 +257,7 @@ async function fetchAndBuild(
     externalMessageId: messageIdHeader || msg.id,
     externalThreadId: msg.threadId,
     subject,
-    text: text || stripHtml(html) || "",
+    text: text || htmlToText(html) || "",
     htmlBody: html || undefined,
     receivedAt: msg.internalDate
       ? new Date(Number(msg.internalDate)).toISOString()
@@ -289,12 +290,4 @@ function decode(b: string): string {
   const p = b.replace(/-/g, "+").replace(/_/g, "/");
   const pad = p.length % 4 ? p + "=".repeat(4 - (p.length % 4)) : p;
   return Buffer.from(pad, "base64").toString("utf8");
-}
-function stripHtml(h: string): string {
-  return h
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }

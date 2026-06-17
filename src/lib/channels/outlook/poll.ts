@@ -5,6 +5,7 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { fetchOutlookAttachments } from "./watch";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { htmlToText } from "../html-to-text";
 
 /**
  * Microsoft Graph polls every connected Outlook/Hotmail mailbox via
@@ -240,7 +241,7 @@ function buildOutboundEvent(
     externalMessageId: msg.internetMessageId || msg.id,
     externalThreadId: msg.conversationId,
     subject: msg.subject ?? "",
-    text: text || stripHtml(html) || msg.bodyPreview || "",
+    text: text || htmlToText(html) || msg.bodyPreview || "",
     htmlBody: html || undefined,
     receivedAt: msg.sentDateTime ?? msg.receivedDateTime ?? new Date().toISOString(),
     outbound: true,
@@ -281,18 +282,9 @@ function buildInboundEvent(
     externalMessageId: msg.internetMessageId || msg.id,
     externalThreadId: msg.conversationId,
     subject: msg.subject ?? "",
-    text: text || stripHtml(html) || msg.bodyPreview || "",
+    text: text || htmlToText(html) || msg.bodyPreview || "",
     htmlBody: html || undefined,
     receivedAt: msg.receivedDateTime ?? new Date().toISOString(),
     raw: { graphId: msg.id },
   };
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }

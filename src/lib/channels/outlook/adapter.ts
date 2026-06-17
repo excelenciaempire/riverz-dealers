@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
+import { htmlToText } from "../html-to-text";
 import {
   fetchOutlookMessage,
   fetchOutlookAttachments,
@@ -182,7 +183,7 @@ export const outlookAdapter: ChannelAdapter = {
         externalMessageId: msg.internetMessageId || msg.id,
         externalThreadId: msg.conversationId,
         subject: msg.subject ?? "",
-        text: text || stripHtml(html) || msg.bodyPreview || "",
+        text: text || htmlToText(html) || msg.bodyPreview || "",
         htmlBody: html || undefined,
         receivedAt: msg.receivedDateTime ?? new Date().toISOString(),
         attachments: attachments.length ? attachments : undefined,
@@ -239,13 +240,4 @@ async function findMessageIdInConversation(
 function extractMessageId(resource: string): string {
   const m = resource.match(/[Mm]essages[/(']([^/)']+)/);
   return m ? m[1] : "";
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }

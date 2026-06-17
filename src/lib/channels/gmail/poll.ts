@@ -9,6 +9,7 @@ import {
 } from "../media-ingest";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { htmlToText } from "../html-to-text";
 
 /**
  * Gmail does not push inbound mail without a Pub/Sub topic. To avoid
@@ -274,7 +275,7 @@ async function buildInboundEvent(
     externalMessageId: messageIdHeader || msg.id,
     externalThreadId: msg.threadId,
     subject,
-    text: text || stripHtml(html) || "",
+    text: text || htmlToText(html) || "",
     htmlBody: html || undefined,
     receivedAt,
     attachments: attachments.length ? attachments : undefined,
@@ -386,7 +387,7 @@ function buildOutboundEvent(
     externalMessageId: msg.id,
     externalThreadId: msg.threadId,
     subject,
-    text: text || stripHtml(html) || "",
+    text: text || htmlToText(html) || "",
     htmlBody: html || undefined,
     receivedAt: msg.internalDate
       ? new Date(Number(msg.internalDate)).toISOString()
@@ -424,13 +425,4 @@ function decodeBody(data: string): string {
   const padded = data.replace(/-/g, "+").replace(/_/g, "/");
   const pad = padded.length % 4 ? padded + "=".repeat(4 - (padded.length % 4)) : padded;
   return Buffer.from(pad, "base64").toString("utf8");
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
