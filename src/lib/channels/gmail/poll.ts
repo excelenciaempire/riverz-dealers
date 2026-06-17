@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import type { InboundEvent } from "../types";
 import { ingestInboundEvent } from "../inbox-writer";
+import { ingestRawMedia } from "../media-ingest";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 
@@ -94,7 +95,7 @@ async function pollOne(
       const h = BigInt(msg.historyId);
       if (h > maxHistoryId) maxHistoryId = h;
     }
-    const event = buildInboundEvent(connection, msg);
+    const event = await buildInboundEvent(connection, msg, accessToken);
     if (!event) continue;
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
@@ -205,7 +206,8 @@ interface GmailMessage {
 interface GmailPayload {
   headers?: { name: string; value: string }[];
   mimeType?: string;
-  body?: { data?: string; size?: number };
+  filename?: string;
+  body?: { data?: string; size?: number; attachmentId?: string };
   parts?: GmailPayload[];
 }
 
@@ -222,10 +224,11 @@ async function fetchMessage(
   return (await r.json()) as GmailMessage;
 }
 
-function buildInboundEvent(
+async function buildInboundEvent(
   connection: ChannelConnection,
   msg: GmailMessage,
-): InboundEvent | null {
+  accessToken: string,
+): Promise<InboundEvent | null> {
   const headers = msg.payload?.headers ?? [];
   const getH = (name: string): string | undefined =>
     headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
@@ -245,6 +248,20 @@ function buildInboundEvent(
     ? new Date(Number(msg.internalDate)).toISOString()
     : new Date().toISOString();
 
+  // Download any file attachments (photos, PDFs, …) the customer emailed
+  // to Storage so the inbox can show them. Keyed by sender email since
+  // the conversation row doesn't exist yet at this point.
+  const refs = collectGmailAttachments(msg.payload);
+  const attachments = refs.length
+    ? await fetchGmailAttachments(
+        accessToken,
+        msg.id,
+        refs,
+        connection.workspace_id,
+        email,
+      )
+    : [];
+
   return {
     channel: "gmail",
     connection,
@@ -256,8 +273,79 @@ function buildInboundEvent(
     text: text || stripHtml(html) || "",
     htmlBody: html || undefined,
     receivedAt,
+    attachments: attachments.length ? attachments : undefined,
     raw: { gmailId: msg.id, labels },
   };
+}
+
+interface GmailAttachmentRef {
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+}
+
+/** Walk the MIME tree for parts that are real file attachments (have a
+ *  filename + a fetchable attachmentId). */
+function collectGmailAttachments(payload?: GmailPayload): GmailAttachmentRef[] {
+  const out: GmailAttachmentRef[] = [];
+  const walk = (p?: GmailPayload) => {
+    if (!p) return;
+    if (p.filename && p.body?.attachmentId) {
+      out.push({
+        attachmentId: p.body.attachmentId,
+        filename: p.filename,
+        mimeType: p.mimeType || "application/octet-stream",
+      });
+    }
+    for (const part of p.parts ?? []) walk(part);
+  };
+  walk(payload);
+  return out;
+}
+
+/** Download each Gmail attachment (base64url) and re-host in Storage.
+ *  Best-effort per file — a failed one is skipped, not fatal. */
+async function fetchGmailAttachments(
+  accessToken: string,
+  gmailMessageId: string,
+  refs: GmailAttachmentRef[],
+  workspaceId: string,
+  convKey: string,
+): Promise<MessageAttachment[]> {
+  const out: MessageAttachment[] = [];
+  for (const ref of refs) {
+    try {
+      const r = await fetch(
+        `${GMAIL_API}/users/me/messages/${gmailMessageId}/attachments/${ref.attachmentId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!r.ok) continue;
+      const j = (await r.json()) as { data?: string; size?: number };
+      if (!j.data) continue;
+      const buffer = Buffer.from(
+        j.data.replace(/-/g, "+").replace(/_/g, "/"),
+        "base64",
+      );
+      const ingested = await ingestRawMedia({
+        buffer,
+        mime: ref.mimeType,
+        workspaceId,
+        conversationId: convKey,
+        id: `${gmailMessageId}-${ref.attachmentId}`.slice(0, 120),
+        fileName: ref.filename,
+      });
+      if (!ingested) continue;
+      out.push({
+        url: ingested.publicUrl,
+        mime_type: ingested.mediaMime,
+        name: ref.filename,
+        size: ingested.mediaSize,
+      });
+    } catch {
+      /* skip this attachment */
+    }
+  }
+  return out;
 }
 
 function buildOutboundEvent(

@@ -135,6 +135,52 @@ export async function ingestMetaAttachment(opts: {
   }
 }
 
+/**
+ * Persist already-downloaded bytes (email attachments — Gmail returns
+ * base64url via attachments.get, Graph returns base64 contentBytes) to
+ * Storage. Same contract as the other ingesters: returns the public URL
+ * metadata or null on failure, never throws.
+ */
+export async function ingestRawMedia(opts: {
+  buffer: Buffer;
+  mime: string;
+  workspaceId: string;
+  conversationId: string;
+  id: string;
+  fileName?: string;
+  hintedKind?: MediaCategory;
+}): Promise<IngestedMedia | null> {
+  try {
+    const mime = opts.mime || "application/octet-stream";
+    const category = opts.hintedKind ?? mimeToCategory(mime);
+    // Prefer the real filename's extension (preserves .pdf/.docx names);
+    // fall back to the mime map.
+    const nameExt =
+      opts.fileName && opts.fileName.includes(".")
+        ? opts.fileName.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "")
+        : "";
+    const ext = nameExt || mimeToExtension(mime);
+    const path = buildStoragePath(
+      opts.workspaceId,
+      opts.conversationId,
+      opts.id,
+      ext,
+    );
+    const publicUrl = await uploadToStorage(path, opts.buffer, mime);
+    if (!publicUrl) return null;
+    return {
+      publicUrl,
+      mediaType: category,
+      mediaMime: mime,
+      mediaSize: opts.buffer.length,
+      fileName: opts.fileName,
+    };
+  } catch (err) {
+    console.warn("[media-ingest] raw media failed:", err);
+    return null;
+  }
+}
+
 async function uploadToStorage(
   path: string,
   buffer: Buffer,

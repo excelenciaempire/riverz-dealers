@@ -17,8 +17,9 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
+import { ingestRawMedia } from "../media-ingest";
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
 const OAUTH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
@@ -181,7 +182,7 @@ export async function fetchOutlookMessage(
   const u = new URL(`${GRAPH_API}/me/messages/${graphMessageId}`);
   u.searchParams.set(
     "$select",
-    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead",
+    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead,hasAttachments",
   );
   const r = await fetch(u.toString(), {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -201,4 +202,61 @@ export interface GraphMessageFull {
   body?: { contentType?: string; content?: string };
   receivedDateTime?: string;
   isRead?: boolean;
+  hasAttachments?: boolean;
+}
+
+/**
+ * Download a message's file attachments (the customer emailed a photo,
+ * PDF, …) and re-host them in Storage. Graph returns fileAttachment
+ * bytes inline as base64 `contentBytes`. Skips inline images (signature
+ * logos) and non-file attachment types. Best-effort per file.
+ */
+export async function fetchOutlookAttachments(
+  accessToken: string,
+  graphMessageId: string,
+  workspaceId: string,
+  convKey: string,
+): Promise<MessageAttachment[]> {
+  const r = await fetch(
+    `${GRAPH_API}/me/messages/${graphMessageId}/attachments`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!r.ok) return [];
+  const j = (await r.json()) as {
+    value?: Array<{
+      "@odata.type"?: string;
+      id?: string;
+      name?: string;
+      contentType?: string;
+      size?: number;
+      contentBytes?: string;
+      isInline?: boolean;
+    }>;
+  };
+  const out: MessageAttachment[] = [];
+  for (const a of j.value ?? []) {
+    if (a["@odata.type"] !== "#microsoft.graph.fileAttachment") continue;
+    if (a.isInline || !a.contentBytes) continue;
+    try {
+      const buffer = Buffer.from(a.contentBytes, "base64");
+      const ingested = await ingestRawMedia({
+        buffer,
+        mime: a.contentType || "application/octet-stream",
+        workspaceId,
+        conversationId: convKey,
+        id: `${graphMessageId}-${a.id ?? out.length}`.slice(0, 120),
+        fileName: a.name,
+      });
+      if (!ingested) continue;
+      out.push({
+        url: ingested.publicUrl,
+        mime_type: ingested.mediaMime,
+        name: a.name,
+        size: ingested.mediaSize,
+      });
+    } catch {
+      /* skip this attachment */
+    }
+  }
+  return out;
 }

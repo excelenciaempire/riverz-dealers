@@ -7,7 +7,11 @@ import type {
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
-import { fetchOutlookMessage, getFreshAccessToken } from "./watch";
+import {
+  fetchOutlookMessage,
+  fetchOutlookAttachments,
+  getFreshAccessToken,
+} from "./watch";
 
 /**
  * Outlook / Hotmail via Microsoft Graph (OAuth 2.0, scope Mail.Send +
@@ -162,6 +166,14 @@ export const outlookAdapter: ChannelAdapter = {
 
       const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
       const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
+      const attachments = msg.hasAttachments
+        ? await fetchOutlookAttachments(
+            accessToken,
+            msg.id,
+            connection.workspace_id,
+            email,
+          )
+        : [];
       events.push({
         channel: "outlook",
         connection,
@@ -173,6 +185,7 @@ export const outlookAdapter: ChannelAdapter = {
         text: text || stripHtml(html) || msg.bodyPreview || "",
         htmlBody: html || undefined,
         receivedAt: msg.receivedDateTime ?? new Date().toISOString(),
+        attachments: attachments.length ? attachments : undefined,
         raw: { graphId: msg.id },
       });
     }

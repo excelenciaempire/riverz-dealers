@@ -39,7 +39,9 @@ export default function NewAutomationPage() {
     return {
       name: "",
       description: "",
-      trigger_type: "new_message_received" as AutomationTriggerType,
+      // Default to a currently-offered trigger (the picker is limited to
+      // Shopify events + "tag added").
+      trigger_type: "tag_added" as AutomationTriggerType,
       trigger_config: {},
       is_active: false,
       steps: [],

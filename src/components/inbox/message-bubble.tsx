@@ -548,6 +548,11 @@ export function MessageBubble({
               <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
             )}
             <EmailBody text={message.content_text ?? ""} />
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-2">
+                <AttachmentList attachments={message.attachments} />
+              </div>
+            )}
           </div>
         </div>
       </div>

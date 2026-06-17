@@ -201,17 +201,15 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "close_conversation",
 ]
 
+// Selectable triggers are intentionally limited to Shopify events +
+// "tag added". The other trigger types still exist in the engine/types
+// (so any legacy automation keeps firing and renders its label via
+// TRIGGER_META), they're just not offered when building a new one.
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
-  { value: "new_message_received", label: "Nuevo mensaje recibido" },
-  { value: "first_inbound_message", label: "Primer mensaje del contacto" },
-  { value: "keyword_match", label: "Coincidencia de palabra clave" },
-  { value: "new_contact_created", label: "Nuevo contacto creado" },
-  { value: "conversation_assigned", label: "Conversación asignada" },
   { value: "tag_added", label: "Etiqueta añadida" },
-  { value: "time_based", label: "Programada" },
-  { value: "shopify_abandoned_checkout", label: "Carrito abandonado (Shopify)" },
   { value: "shopify_order_created", label: "Nuevo pedido (Shopify)" },
   { value: "shopify_order_fulfilled", label: "Pedido despachado (Shopify)" },
+  { value: "shopify_abandoned_checkout", label: "Carrito abandonado (Shopify)" },
 ]
 
 /**

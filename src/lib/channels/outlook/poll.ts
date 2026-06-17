@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "../types";
 import { ingestInboundEvent } from "../inbox-writer";
+import { fetchOutlookAttachments } from "./watch";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 
@@ -97,6 +98,18 @@ async function pollOne(
     }
     const event = buildInboundEvent(connection, msg);
     if (!event) continue;
+    // Re-host any file attachments the customer emailed so the inbox can
+    // show them. Keyed by sender email (the conversation row doesn't
+    // exist yet). Best-effort — never blocks the message ingest.
+    if (msg.hasAttachments) {
+      const atts = await fetchOutlookAttachments(
+        accessToken,
+        msg.id,
+        connection.workspace_id,
+        event.externalContactId,
+      );
+      if (atts.length) event.attachments = atts;
+    }
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
   }
@@ -194,7 +207,7 @@ async function listFolder(
   const u = new URL(`${GRAPH_API}/me/mailFolders/${folder}/messages`);
   u.searchParams.set(
     "$select",
-    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,sentDateTime,isRead",
+    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,sentDateTime,isRead,hasAttachments",
   );
   u.searchParams.set("$top", "50");
   u.searchParams.set("$orderby", `${dateField} asc`);
@@ -247,6 +260,7 @@ interface GraphMessage {
   receivedDateTime?: string;
   sentDateTime?: string;
   isRead?: boolean;
+  hasAttachments?: boolean;
 }
 
 function buildInboundEvent(
