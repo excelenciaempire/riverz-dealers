@@ -286,7 +286,7 @@ interface GmailAttachmentRef {
 
 /** Walk the MIME tree for parts that are real file attachments (have a
  *  filename + a fetchable attachmentId). */
-function collectGmailAttachments(payload?: GmailPayload): GmailAttachmentRef[] {
+export function collectGmailAttachments(payload?: GmailPayload): GmailAttachmentRef[] {
   const out: GmailAttachmentRef[] = [];
   const walk = (p?: GmailPayload) => {
     if (!p) return;
@@ -305,7 +305,7 @@ function collectGmailAttachments(payload?: GmailPayload): GmailAttachmentRef[] {
 
 /** Download each Gmail attachment (base64url) and re-host in Storage.
  *  Best-effort per file — a failed one is skipped, not fatal. */
-async function fetchGmailAttachments(
+export async function fetchGmailAttachments(
   accessToken: string,
   gmailMessageId: string,
   refs: GmailAttachmentRef[],

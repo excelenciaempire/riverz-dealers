@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { getFreshAccessToken } from "@/lib/channels/gmail/watch";
+import {
+  collectGmailAttachments,
+  fetchGmailAttachments,
+} from "@/lib/channels/gmail/poll";
 import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "@/lib/channels/types";
 
@@ -224,6 +228,23 @@ async function fetchAndBuild(
     return null;
   }
   const { text, html } = extractBody(msg.payload);
+
+  // Download file attachments to Storage too, so push-ingested mail has
+  // the same media as poll-ingested mail (reuses the poller's helpers;
+  // format=full responses carry filename + body.attachmentId at runtime).
+  const refs = collectGmailAttachments(
+    msg.payload as unknown as Parameters<typeof collectGmailAttachments>[0],
+  );
+  const attachments = refs.length
+    ? await fetchGmailAttachments(
+        accessToken,
+        msg.id,
+        refs,
+        connection.workspace_id,
+        fromEmail,
+      )
+    : [];
+
   return {
     channel: "gmail",
     connection,
@@ -237,6 +258,7 @@ async function fetchAndBuild(
     receivedAt: msg.internalDate
       ? new Date(Number(msg.internalDate)).toISOString()
       : new Date().toISOString(),
+    attachments: attachments.length ? attachments : undefined,
   };
 }
 

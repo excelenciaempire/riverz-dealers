@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 import { assertCronAuth } from '@/lib/auth/cron'
+import { pingCron } from '@/lib/cron/heartbeat'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
+  void pingCron('automations')
 
   const admin = supabaseAdmin()
   const { data: due, error } = await admin

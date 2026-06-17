@@ -8,6 +8,7 @@ import type {
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
+import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
 
 /**
@@ -55,6 +56,7 @@ export async function ingestInboundEvent(
     connection_id: event.connection.id,
     subject: event.subject,
     thread_external_id: event.externalThreadId ?? event.comment?.postId ?? null,
+    firstMessageText: event.text,
   });
   if (!conversation) return null;
 
@@ -277,6 +279,8 @@ interface FindOrCreateConversationInput {
   connection_id: string;
   subject?: string;
   thread_external_id: string | null;
+  /** Inbound text — feeds the by_keyword assignment rule. */
+  firstMessageText?: string;
 }
 
 async function findOrCreateConversation(
@@ -299,6 +303,22 @@ async function findOrCreateConversation(
   const { data: existing } = await query.limit(1).maybeSingle();
   if (existing) return existing as Conversation;
 
+  // Run assignment rules so non-WhatsApp inbound (IG/Messenger/email/
+  // comments) auto-assigns to an agent, same as the legacy WhatsApp
+  // path. Best-effort — a failure just leaves it unassigned.
+  let assignedAgentId: string | null = null;
+  try {
+    assignedAgentId = await resolveAssignmentForConversation(db, {
+      workspaceId: input.workspace_id,
+      conversationId: "",
+      channel: input.channel,
+      contactId: input.contact_id,
+      firstMessageText: input.firstMessageText ?? "",
+    });
+  } catch (err) {
+    console.error("[inbox-writer] assignment rules failed:", err);
+  }
+
   const { data: created, error } = await db
     .from("conversations")
     .insert({
@@ -308,6 +328,7 @@ async function findOrCreateConversation(
       connection_id: input.connection_id,
       subject: input.subject,
       thread_external_id: input.thread_external_id,
+      assigned_agent_id: assignedAgentId,
       status: "open",
       unread_count: 0,
     })

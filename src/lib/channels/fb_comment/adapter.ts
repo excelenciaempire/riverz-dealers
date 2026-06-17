@@ -5,9 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
+import { ingestMetaAttachment } from "../media-ingest";
 
 /**
  * Facebook ad / post comments via Graph API.
@@ -74,6 +75,28 @@ export const fbCommentAdapter: ChannelAdapter = {
         if (!value || value.item !== "comment" || value.verb !== "add") continue;
         const fromObj = value.from as { id?: string; name?: string } | undefined;
         if (!fromObj?.id) continue;
+        // A comment made WITH a photo ships its CDN url on `value.photo`.
+        // Re-host it to Storage so it shows in the inbox (the url expires).
+        const photoUrl = typeof value.photo === "string" ? value.photo : "";
+        let attachments: MessageAttachment[] | undefined;
+        if (photoUrl) {
+          const ingested = await ingestMetaAttachment({
+            attachmentUrl: photoUrl,
+            workspaceId: connection.workspace_id,
+            conversationId: fromObj.id,
+            externalMessageId: String(value.comment_id ?? ""),
+            hintedKind: "image",
+          });
+          if (ingested) {
+            attachments = [
+              {
+                url: ingested.publicUrl,
+                mime_type: ingested.mediaMime,
+                size: ingested.mediaSize,
+              },
+            ];
+          }
+        }
         events.push({
           channel: "fb_comment",
           connection,
@@ -81,6 +104,7 @@ export const fbCommentAdapter: ChannelAdapter = {
           contactName: fromObj.name,
           externalMessageId: String(value.comment_id ?? ""),
           text: String(value.message ?? ""),
+          attachments,
           comment: {
             postId: String(value.post_id ?? ""),
             parentCommentId: value.parent_id ? String(value.parent_id) : undefined,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/flows/admin-client";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { pingCron } from "@/lib/cron/heartbeat";
 import {
   failRunFromRetry,
   nextRetryDelayMs,
@@ -21,11 +22,15 @@ import type { FlowNodeRow, FlowRunRow } from "@/lib/flows/types";
  */
 export async function GET(request: Request) {
   try {
-    assertCronAuth(request, "FLOWS_RETRY_CRON_SECRET");
+    // Reuse AUTOMATION_CRON_SECRET — the value every Render cron already
+    // sends — so this endpoint doesn't need a separate env var that isn't
+    // provisioned (it would otherwise 503 forever).
+    assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
+  void pingCron("flows-retries");
 
   const admin = supabaseAdmin();
   const nowIso = new Date().toISOString();
