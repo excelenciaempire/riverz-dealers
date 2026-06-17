@@ -98,6 +98,9 @@ export async function POST(
         scrape_error: msg,
       })
       .eq('id', id);
-    return serverError(err);
+    // 502: el fallo es de Firecrawl (upstream), no interno. El detalle real
+    // ya quedó persistido en scrape_error (visible al recargar); al cliente
+    // le damos un mensaje genérico no-filtrante.
+    return serverError(err, 'No se pudo leer la página', 502);
   }
 }

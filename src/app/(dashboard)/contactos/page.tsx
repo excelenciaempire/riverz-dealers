@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { escapeLike } from '@/lib/security/like';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -134,13 +135,24 @@ export default function ContactsPage() {
       query = query.in('id', taggedIds);
     }
 
-    // Saneamos el término antes de interpolarlo en el filtro `.or()`: quitamos
-    // los caracteres con significado en la gramática PostgREST (`,()` `:` `*`)
-    // y los comodines ilike (`%` `_` `\`) para que no se pueda romper/inyectar
-    // el filtro. La query ya está acotada por workspace_id + RLS.
-    const safeSearch = search.trim().replace(/[,()\\:*%_]/g, ' ').trim();
-    if (safeSearch) {
-      const term = `%${safeSearch}%`;
+    // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
+    // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
+    //     escapables ahí (`,` `(` `)` `:` `*` y `\`), y
+    // (2) escapamos los comodines ilike (`%` `_`) con escapeLike para tratarlos
+    //     como literales — sin esto, `juan_perez` no matchearía su propio `_`.
+    // La query ya está acotada por workspace_id + RLS.
+    const rawSearch = search.trim();
+    if (rawSearch) {
+      const cleaned = rawSearch.replace(/[,()\\:*]/g, ' ').trim();
+      if (!cleaned) {
+        // Término compuesto solo por caracteres saneados: sin resultados, en
+        // vez de listar todo el workspace.
+        setContacts([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
+      const term = `%${escapeLike(cleaned)}%`;
       query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
     }
 

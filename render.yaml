@@ -87,6 +87,12 @@ services:
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+      # Hops de proxy confiables para resolver la IP real del cliente desde
+      # X-Forwarded-For (rate-limit per-IP). Render appendea la IP real al
+      # final, así que 1 (el proxy frontal) es correcto. Subir SOLO si se
+      # agrega otro proxy/CDN (p.ej. Cloudflare) delante de Render.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       # Pilar automations — IDs configurables sin redeploy. Hay defaults
       # hardcoded en /api/cron/shopify-feedback y /api/cron/reengagement
       # apuntando a los UUIDs del workspace de Pilar; estas vars permiten

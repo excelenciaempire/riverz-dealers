@@ -150,6 +150,8 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         ai_research_error: msg,
       })
       .eq('id', id);
-    return serverError(err);
+    // 502: fallo del proveedor de IA (upstream). El detalle ya quedó en
+    // ai_research_error; al cliente, mensaje genérico no-filtrante.
+    return serverError(err, 'No se pudo generar la investigación', 502);
   }
 }
