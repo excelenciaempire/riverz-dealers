@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowLeft, Blocks } from 'lucide-react';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
+import { KlaviyoCard } from '@/components/settings/klaviyo-card';
 
 /**
  * /integraciones — todas las apps externas y canales que se conectan a
@@ -38,6 +39,13 @@ export default function IntegracionesPage() {
       </div>
 
       <ChannelsPanel />
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">
+          Audiencia propia
+        </h2>
+        <KlaviyoCard />
+      </div>
     </div>
   );
 }

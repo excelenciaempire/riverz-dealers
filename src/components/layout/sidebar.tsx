@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
@@ -43,11 +43,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { InstagramIcon } from "@/components/layout/instagram-icon";
 
 interface NavItem {
   href: string;
   label: string;
-  icon: typeof Home;
+  /** Acepta iconos de lucide y componentes propios (p. ej. el glifo de
+   *  Instagram) — todos respetan el contrato `{ className }`. */
+  icon: ComponentType<{ className?: string }>;
   beta?: boolean;
   alsoActiveOn?: string[];
 }
@@ -77,6 +80,12 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/asistente", label: "Asistente IA", icon: Sparkles },
       { href: "/menus", label: "Flujos", icon: Workflow },
+    ],
+  },
+  {
+    title: "Instagram",
+    items: [
+      { href: "/agente-instagram", label: "Agente de Instagram", icon: InstagramIcon, beta: true },
     ],
   },
   {

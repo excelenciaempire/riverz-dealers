@@ -30,7 +30,10 @@ function buildCsp(nonce: string): string {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com",
-    "frame-ancestors 'none'",
+    // Superconductor's embedded live preview runs in a cross-origin iframe.
+    isDev
+      ? "frame-ancestors 'self' https://superconductor.com https://*.superconductor.com"
+      : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     'upgrade-insecure-requests',

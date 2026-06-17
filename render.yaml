@@ -189,6 +189,23 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Agente de Instagram — envía DMs en cola, detecta respuestas/captura leads
+  # y atribuye conversiones de Shopify para las campañas activas.
+  - type: cron
+    name: cron-instagram-agent
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/instagram-agent
+    schedule: "*/2 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   - type: cron
     name: cron-gmail-watch
     runtime: node
