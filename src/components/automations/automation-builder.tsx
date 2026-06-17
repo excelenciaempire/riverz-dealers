@@ -24,8 +24,7 @@ import {
   CircleSlash,
   Zap,
   Loader2,
-  ArrowDown,
-  ArrowUp,
+  ArrowRight,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -48,6 +47,8 @@ import type {
   AutomationTriggerType,
   KeywordMatchTriggerConfig,
   MessageTemplate,
+  Profile,
+  Tag as ContactTag,
 } from "@/types"
 import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
@@ -67,6 +68,15 @@ const TemplatesContext = createContext<MessageTemplate[]>([])
 /** Saved contact segments — used by the audience picker on the trigger
  *  card and by the `in_segment` condition subject inside the step tree. */
 const SegmentsContext = createContext<ContactSegment[]>([])
+
+/** The workspace's tags. Powers every "pick a tag" dropdown (add/remove
+ *  tag steps, the tag_added trigger, the tag_presence condition) so the
+ *  user chooses a name instead of pasting a raw id. */
+const TagsContext = createContext<ContactTag[]>([])
+
+/** Team members. Powers the agent picker when a conversation is assigned
+ *  to a specific person — name in the menu, user id under the hood. */
+const AgentsContext = createContext<Profile[]>([])
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -270,6 +280,19 @@ function AudienceStrip({
  * saved-segment list from SegmentsContext (the `in_segment` subject
  * needs a real dropdown, not a free-text segment-id field).
  */
+// Common order data a merchant might branch on. The `key` is the real
+// context.vars name the Shopify webhook seeds (see buildVarsForOrder in
+// the orders webhook); the label is what the user sees.
+const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
+  { key: "is_repeat_customer", label: "¿Es cliente recurrente?" },
+  { key: "total_price", label: "Total del pedido" },
+  { key: "item_count", label: "Cantidad de productos" },
+  { key: "first_item", label: "Primer producto" },
+  { key: "currency", label: "Moneda" },
+  { key: "order_number", label: "Número de pedido" },
+  { key: "tracking_number", label: "Número de seguimiento" },
+]
+
 function ConditionFields({
   cfg,
   set,
@@ -281,28 +304,38 @@ function ConditionFields({
   const subject = (cfg.subject as string) ?? "tag_presence"
   return (
     <>
-      <FieldBlock label="Sujeto">
+      <FieldBlock label="¿Qué quieres revisar?">
         <select
           value={subject}
           onChange={(e) => set({ subject: e.target.value, operand: "", value: "" })}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
         >
-          <option value="tag_presence">Presencia de etiqueta</option>
-          <option value="contact_field">Campo del contacto</option>
-          <option value="message_content">Contenido del mensaje</option>
-          <option value="time_of_day">Hora del día</option>
-          <option value="in_segment">Pertenece a un segmento</option>
-          <option value="context_var">Variable del evento (Shopify, etc.)</option>
+          <option value="tag_presence">Si el contacto tiene una etiqueta</option>
+          <option value="in_segment">Si está en un segmento</option>
+          <option value="contact_field">Un dato del contacto</option>
+          <option value="message_content">Lo que escribió el cliente</option>
+          <option value="time_of_day">La hora del día</option>
+          <option value="context_var">Un dato del pedido (Shopify)</option>
         </select>
       </FieldBlock>
-      {subject === "in_segment" ? (
+
+      {subject === "tag_presence" && (
+        <FieldBlock label="Etiqueta">
+          <TagSelect
+            value={(cfg.operand as string) ?? ""}
+            onChange={(v) => set({ operand: v })}
+          />
+        </FieldBlock>
+      )}
+
+      {subject === "in_segment" && (
         <FieldBlock label="Segmento">
           <select
             value={(cfg.operand as string) ?? ""}
             onChange={(e) => set({ operand: e.target.value })}
             className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
           >
-            <option value=""></option>
+            <option value="">Elige un segmento…</option>
             {segments.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -310,38 +343,172 @@ function ConditionFields({
             ))}
           </select>
         </FieldBlock>
-      ) : (
-        <FieldBlock label="Operando">
-          <Input
-            placeholder={
-              subject === "time_of_day"
-                ? "HH:mm-HH:mm"
-                : subject === "contact_field"
-                ? "nombre / correo / empresa"
-                : subject === "tag_presence"
-                ? "ID de la etiqueta"
-                : subject === "context_var"
-                ? "is_repeat_customer / total_price / tracking_number…"
-                : ""
-            }
-            value={(cfg.operand as string) ?? ""}
-            onChange={(e) => set({ operand: e.target.value })}
-            className="bg-muted text-foreground"
-          />
-        </FieldBlock>
       )}
-      {(subject === "contact_field" ||
-        subject === "message_content" ||
-        subject === "context_var") && (
-        <FieldBlock label="Valor">
+
+      {subject === "contact_field" && (
+        <>
+          <FieldBlock label="Dato">
+            <select
+              value={(cfg.operand as string) ?? "name"}
+              onChange={(e) => set({ operand: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="name">Nombre</option>
+              <option value="email">Correo</option>
+              <option value="company">Empresa</option>
+            </select>
+          </FieldBlock>
+          <FieldBlock label="Es igual a">
+            <Input
+              value={(cfg.value as string) ?? ""}
+              onChange={(e) => set({ value: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </>
+      )}
+
+      {subject === "message_content" && (
+        <FieldBlock label="El mensaje contiene">
+          {/* Engine matches on `value`; we mirror it into `operand` so the
+              activation check (which requires a non-empty operand for every
+              condition) passes without a second field. */}
           <Input
             value={(cfg.value as string) ?? ""}
-            onChange={(e) => set({ value: e.target.value })}
+            onChange={(e) => set({ value: e.target.value, operand: e.target.value })}
+            placeholder="Ej: factura, cambio, reembolso"
             className="bg-muted text-foreground"
           />
         </FieldBlock>
       )}
+
+      {subject === "time_of_day" && (
+        <FieldBlock label="Entre estas horas">
+          <Input
+            value={(cfg.operand as string) ?? ""}
+            onChange={(e) => set({ operand: e.target.value })}
+            placeholder="09:00-18:00"
+            className="bg-muted text-foreground"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Desde-hasta, en formato 24 h.
+          </p>
+        </FieldBlock>
+      )}
+
+      {subject === "context_var" && (
+        <>
+          <FieldBlock label="Dato del pedido">
+            <select
+              value={(cfg.operand as string) ?? ""}
+              onChange={(e) => set({ operand: e.target.value, value: "" })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="">Elige un dato…</option>
+              {ORDER_DATA_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </FieldBlock>
+          {cfg.operand === "is_repeat_customer" ? (
+            <FieldBlock label="Cuando sea">
+              <select
+                value={(cfg.value as string) ?? "true"}
+                onChange={(e) => set({ value: e.target.value })}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="true">Sí, ya compró antes</option>
+                <option value="false">No, es su primera compra</option>
+              </select>
+            </FieldBlock>
+          ) : cfg.operand ? (
+            <FieldBlock label="Es igual a">
+              <Input
+                value={(cfg.value as string) ?? ""}
+                onChange={(e) => set({ value: e.target.value })}
+                className="bg-muted text-foreground"
+              />
+            </FieldBlock>
+          ) : null}
+        </>
+      )}
     </>
+  )
+}
+
+/** Tag dropdown — name in the menu, tag id in the value. Used anywhere a
+ *  step or condition needs to point at a tag without the user knowing it
+ *  has an id at all. */
+function TagSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  const tags = useContext(TagsContext)
+  if (tags.length === 0) {
+    return (
+      <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        Aún no tienes etiquetas.{" "}
+        <Link href="/contactos?tab=tags" className="text-accent-ink underline hover:opacity-80">
+          Crear una
+        </Link>
+        .
+      </p>
+    )
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+    >
+      <option value="">Elige una etiqueta…</option>
+      {tags.map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Team-member dropdown — full name in the menu, user id in the value. */
+function AgentSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  const agents = useContext(AgentsContext)
+  if (agents.length === 0) {
+    return (
+      <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        Aún no hay nadie más en tu equipo.{" "}
+        <Link href="/ajustes" className="text-accent-ink underline hover:opacity-80">
+          Invitar a alguien
+        </Link>
+        .
+      </p>
+    )
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+    >
+      <option value="">Elige a alguien…</option>
+      {agents.map((a) => (
+        <option key={a.user_id} value={a.user_id}>
+          {a.full_name || a.email}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -406,6 +573,8 @@ export function AutomationBuilder({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [segments, setSegments] = useState<ContactSegment[]>([])
+  const [tags, setTags] = useState<ContactTag[]>([])
+  const [agents, setAgents] = useState<Profile[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
 
   // Load the user's templates once — powers the send_template picker and
@@ -419,20 +588,27 @@ export function AutomationBuilder({
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
-      const [{ data: tpl }, { data: seg }] = await Promise.all([
-        supabase
-          .from("message_templates")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("status", { ascending: true })
-          .order("name", { ascending: true }),
-        supabase
-          .from("contact_segments")
-          .select("*")
-          .order("name", { ascending: true }),
-      ])
+      const [{ data: tpl }, { data: seg }, { data: tg }, { data: ag }] =
+        await Promise.all([
+          supabase
+            .from("message_templates")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("status", { ascending: true })
+            .order("name", { ascending: true }),
+          supabase
+            .from("contact_segments")
+            .select("*")
+            .order("name", { ascending: true }),
+          // Tags + team members are RLS-scoped to the user's workspace,
+          // so a plain select returns only what they're allowed to pick.
+          supabase.from("tags").select("*").order("name", { ascending: true }),
+          supabase.from("profiles").select("*").order("full_name", { ascending: true }),
+        ])
       setTemplates((tpl as MessageTemplate[]) ?? [])
       setSegments((seg as ContactSegment[]) ?? [])
+      setTags((tg as ContactTag[]) ?? [])
+      setAgents((ag as Profile[]) ?? [])
     })()
   }, [])
 
@@ -520,6 +696,8 @@ export function AutomationBuilder({
   return (
     <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
+    <TagsContext.Provider value={tags}>
+    <AgentsContext.Provider value={agents}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -603,8 +781,9 @@ export function AutomationBuilder({
       <div className="relative flex min-h-0 flex-1">
         {/* Canvas — Miro-style infinite viewport: pan with middle mouse or
             Space+drag, zoom with Ctrl+wheel, trackpad two-finger scrolls,
-            buttons for explicit zoom + reset. Trigger → steps still flow
-            left-to-right inside; condition branches stay vertical. */}
+            buttons for explicit zoom + reset. Trigger → steps flow
+            left-to-right, and a condition's Sí/No lanes fork off to the
+            right so the whole thing reads in one direction. */}
         <CanvasViewport>
           <div className="flex w-max items-start gap-0 px-8 py-10">
             <TriggerCard
@@ -658,6 +837,8 @@ export function AutomationBuilder({
         )}
       </div>
     </div>
+    </AgentsContext.Provider>
+    </TagsContext.Provider>
     </SegmentsContext.Provider>
     </TemplatesContext.Provider>
   )
@@ -846,13 +1027,9 @@ function TriggerCard({
               />
             )}
             {type === "tag_added" && (
-              <Input
-              placeholder="ID de la etiqueta"
+              <TagSelect
                 value={(config.tag_id as string) ?? ""}
-                onChange={(e) =>
-                  onConfigChange({ ...config, tag_id: e.target.value })
-                }
-                className="bg-muted text-foreground"
+                onChange={(v) => onConfigChange({ ...config, tag_id: v })}
               />
             )}
             {type === "time_based" && (
@@ -943,9 +1120,9 @@ interface StepListProps {
 
 function StepList(props: StepListProps) {
   const { steps, parentPath, ...rest } = props
-  // Root flow runs horizontally; condition branches (non-empty parentPath)
-  // keep the vertical stack so each lane reads top-to-bottom.
-  const horizontal = parentPath.length === 0
+  // Everything flows left-to-right — the root chain AND each condition
+  // branch. A branch is just the chain continuing horizontally down its
+  // own lane, so the two paths read as a fork along the same direction.
   const parentScope: ParentScope =
     parentPath.length === 0
       ? { kind: "root" }
@@ -956,18 +1133,14 @@ function StepList(props: StepListProps) {
         })()
 
   return (
-    <div className={cn(horizontal ? "flex items-start" : "flex flex-col items-center")}>
-      <AddButton
-        orientation={horizontal ? "h" : "v"}
-        onPick={(t) => props.addStepAt(parentScope, 0, t)}
-      />
+    <div className="flex items-start">
+      <AddButton orientation="h" onPick={(t) => props.addStepAt(parentScope, 0, t)} />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
           step={step}
           index={idx}
           total={steps.length}
-          horizontal={horizontal}
           parentScope={parentScope}
           parentPath={parentPath}
           {...rest}
@@ -981,7 +1154,6 @@ function StepRenderer({
   step,
   index,
   total,
-  horizontal,
   parentScope,
   parentPath,
   ...props
@@ -989,7 +1161,6 @@ function StepRenderer({
   step: BuilderStep
   index: number
   total: number
-  horizontal: boolean
   parentScope: ParentScope
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
@@ -1010,9 +1181,8 @@ function StepRenderer({
     ? "w-full max-w-[400px] sm:w-[400px]"
     : "w-full max-w-[320px] sm:w-80"
 
-  return (
-    <>
-      <div className={cn("z-10 flex flex-col", width)}>
+  const cardEl = (
+    <div className={cn("flex flex-col", width)}>
         <div
           className={cn(
             "rounded-lg border border-border border-l-4 bg-card shadow-lg",
@@ -1063,19 +1233,19 @@ function StepRenderer({
                     variant="ghost"
                     size="icon"
                     disabled={index === 0}
-                    aria-label="Subir"
+                    aria-label="Mover antes"
                     onClick={() => props.moveStepAt(path, -1)}
                   >
-                    <ArrowUp className="h-4 w-4" />
+                    <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     disabled={index === total - 1}
-                    aria-label="Bajar"
+                    aria-label="Mover después"
                     onClick={() => props.moveStepAt(path, 1)}
                   >
-                    <ArrowDown className="h-4 w-4" />
+                    <ArrowRight className="h-4 w-4" />
                   </Button>
                 </div>
                 <Button
@@ -1090,14 +1260,25 @@ function StepRenderer({
             </div>
           )}
         </div>
+    </div>
+  )
 
-        {isCondition && (
+  return (
+    <>
+      {isCondition ? (
+        // Condition: card on the left, its two branch lanes fanning out to
+        // the right so each path keeps flowing in the chain's direction
+        // instead of dropping into stacked vertical columns.
+        <div className="z-10 flex items-start gap-4">
+          {cardEl}
           <ConditionBranches step={step} parentPath={path} {...props} />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="z-10">{cardEl}</div>
+      )}
 
       <AddButton
-        orientation={horizontal ? "h" : "v"}
+        orientation="h"
         onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
       />
     </>
@@ -1126,21 +1307,21 @@ function ConditionBranches({
     { kind: "branch", parentCid: step.cid, branch: "no", index: 0 },
   ]
   return (
-    // Stack Yes/No vertically on mobile — two columns at 375px would
-    // cram each branch to ~170px which is too narrow for the nested
-    // cards. Two-column grid returns on sm+.
-    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <BranchColumn label="Sí" color="text-accent-ink">
+    // Two lanes stacked one over the other (Sí above, No below). Each lane
+    // is a horizontal chain, so the branches read as the flow forking and
+    // carrying on rightward. The dashed rail ties them back to the card.
+    <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
+      <BranchLane label="Sí" color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink">
         <StepList {...props} steps={yes} parentPath={yesPath} />
-      </BranchColumn>
-      <BranchColumn label="No" color="text-rose-600 dark:text-rose-400">
+      </BranchLane>
+      <BranchLane label="No" color="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400">
         <StepList {...props} steps={no} parentPath={noPath} />
-      </BranchColumn>
+      </BranchLane>
     </div>
   )
 }
 
-function BranchColumn({
+function BranchLane({
   label,
   color,
   children,
@@ -1150,8 +1331,17 @@ function BranchColumn({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center">
-      <div className={cn("mb-2 text-[11px] font-semibold uppercase", color)}>{label}</div>
+    <div className="flex items-start gap-1">
+      {/* Pill sits at the card-header line (~28px) so it aligns with the
+          first step's icon row in the lane. */}
+      <span
+        className={cn(
+          "mt-7 shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
+          color,
+        )}
+      >
+        {label}
+      </span>
       {children}
     </div>
   )
@@ -1256,7 +1446,7 @@ function StepEditor({
       )
     case "send_template":
       return (
-        <FieldBlock label="Plantilla aprobada">
+        <FieldBlock label="Plantilla de WhatsApp">
           {templates.length > 0 ? (
             <select
               value={(cfg.template_name as string) ?? ""}
@@ -1272,7 +1462,7 @@ function StepEditor({
               <option value="">Elige una plantilla…</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.name}>
-                  {t.name} · {t.language ?? "es"}
+                  {t.name}
                 </option>
               ))}
             </select>
@@ -1290,33 +1480,31 @@ function StepEditor({
     case "add_tag":
     case "remove_tag":
       return (
-        <FieldBlock label="ID de la etiqueta">
-          <Input
+        <FieldBlock label="Etiqueta">
+          <TagSelect
             value={(cfg.tag_id as string) ?? ""}
-            onChange={(e) => set({ tag_id: e.target.value })}
-            className="bg-muted text-foreground"
+            onChange={(v) => set({ tag_id: v })}
           />
         </FieldBlock>
       )
     case "assign_conversation":
       return (
         <>
-          <FieldBlock label="Modo">
+          <FieldBlock label="¿A quién se la paso?">
             <select
               value={(cfg.mode as string) ?? "round_robin"}
               onChange={(e) => set({ mode: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="round_robin">Reparto rotativo</option>
-              <option value="specific">Agente específico</option>
+              <option value="round_robin">Repartir entre el equipo</option>
+              <option value="specific">Siempre a la misma persona</option>
             </select>
           </FieldBlock>
           {cfg.mode === "specific" && (
-            <FieldBlock label="ID del agente">
-              <Input
+            <FieldBlock label="Persona">
+              <AgentSelect
                 value={(cfg.agent_id as string) ?? ""}
-                onChange={(e) => set({ agent_id: e.target.value })}
-                className="bg-muted text-foreground"
+                onChange={(v) => set({ agent_id: v })}
               />
             </FieldBlock>
           )}
@@ -1325,7 +1513,7 @@ function StepEditor({
     case "update_contact_field":
       return (
         <>
-          <FieldBlock label="Campo">
+          <FieldBlock label="¿Qué dato?">
             <select
               value={(cfg.field as string) ?? "name"}
               onChange={(e) => set({ field: e.target.value })}
@@ -1336,7 +1524,7 @@ function StepEditor({
               <option value="company">Empresa</option>
             </select>
           </FieldBlock>
-          <FieldBlock label="Valor">
+          <FieldBlock label="Nuevo valor">
             <Input
               value={(cfg.value as string) ?? ""}
               onChange={(e) => set({ value: e.target.value })}
@@ -1414,16 +1602,36 @@ function FieldBlock({
   )
 }
 
+const WAIT_UNIT_LABELS: Record<string, [string, string]> = {
+  minutes: ["minuto", "minutos"],
+  hours: ["hora", "horas"],
+  days: ["día", "días"],
+}
+
+const CONDITION_SUBJECT_PREVIEW: Record<string, string> = {
+  tag_presence: "según una etiqueta",
+  in_segment: "según el segmento",
+  contact_field: "según un dato del contacto",
+  message_content: "según lo que escribió",
+  time_of_day: "según la hora del día",
+  context_var: "según un dato del pedido",
+}
+
 function previewFor(step: BuilderStep): string {
   switch (step.step_type) {
     case "send_message":
       return (step.step_config.text as string) || "sin texto aún"
     case "send_template":
       return (step.step_config.template_name as string) || "elige una plantilla"
-    case "wait":
-      return `${step.step_config.amount ?? "?"} ${step.step_config.unit ?? ""}`
+    case "wait": {
+      const amount = Number(step.step_config.amount ?? 0)
+      const unit = String(step.step_config.unit ?? "hours")
+      const [one, many] = WAIT_UNIT_LABELS[unit] ?? ["", ""]
+      if (!amount) return "define cuánto esperar"
+      return `${amount} ${amount === 1 ? one : many}`
+    }
     case "condition":
-      return `cuando ${step.step_config.subject ?? "?"}`
+      return CONDITION_SUBJECT_PREVIEW[String(step.step_config.subject ?? "")] || "define la condición"
     case "send_webhook":
       return (step.step_config.url as string) || "sin URL"
     default:

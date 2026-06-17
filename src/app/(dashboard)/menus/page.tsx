@@ -494,7 +494,7 @@ function TemplateCard({
             {template.nodes.length} pasos
           </Badge>
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {template.description}
         </p>
       </div>
