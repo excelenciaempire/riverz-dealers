@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
-import { encrypt } from "@/lib/channels/encryption";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
+import {
+  upsertSingleWhatsAppConnection,
+  WhatsAppAlreadyConnectedError,
+} from "@/lib/channels/whatsapp/connect";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -85,10 +88,6 @@ export async function POST(req: Request): Promise<Response> {
         })
       : {};
 
-    const label = phone.verified_name
-      ? `${phone.verified_name} (${phone.display_phone_number ?? ""})`.trim()
-      : `WhatsApp ${body.phone_number_id}`;
-
     // 3. Subscribe the WABA to our app so webhooks fire.
     try {
       await fetch(`${GRAPH}/${body.waba_id}/subscribed_apps`, {
@@ -112,65 +111,39 @@ export async function POST(req: Request): Promise<Response> {
       // best-effort
     }
 
-    // 5. Persist (or refresh) the connection.
-    const payload = {
-      workspace_id: body.workspace_id,
-      channel: "whatsapp" as const,
-      label,
-      status: "connected" as const,
-      external_account_id: body.phone_number_id,
-      config: {
-        phone_number_id: body.phone_number_id,
-        waba_id: body.waba_id,
-        display_phone_number: phone.display_phone_number,
-        verified_name: phone.verified_name,
-        coexistence: Boolean(phone.is_on_biz_app),
-        onboarding: "embedded_signup",
-      },
-      secrets: { access_token: encrypt(token) },
-      created_by: user.id,
-    };
-    const { error: insErr, data: inserted } = await admin
-      .from("channel_connections")
-      .insert(payload)
-      .select("id")
-      .single();
-    let connectionId = (inserted?.id as string | undefined) ?? null;
-    if (insErr) {
-      if (insErr.code === "23505") {
-        const { data: existing } = await admin
-          .from("channel_connections")
-          .update({
-            secrets: payload.secrets,
-            config: payload.config,
-            label,
-            status: "connected",
-            last_error: null,
-          })
-          .eq("workspace_id", body.workspace_id)
-          .eq("channel", "whatsapp")
-          .eq("external_account_id", body.phone_number_id)
-          .select("id")
-          .maybeSingle();
-        connectionId = (existing?.id as string | undefined) ?? null;
-      } else {
-        throw new Error(`insert failed: ${insErr.message}`);
-      }
-    }
+    // 5. Persist (or refresh) the connection — one WhatsApp per
+    //    workspace; reconnecting the same number updates in place.
+    const { connectionId, label } = await upsertSingleWhatsAppConnection(admin, {
+      workspaceId: body.workspace_id,
+      userId: user.id,
+      token,
+      phoneNumberId: body.phone_number_id,
+      wabaId: body.waba_id,
+      displayPhoneNumber: phone.display_phone_number,
+      verifiedName: phone.verified_name,
+      coexistence: Boolean(phone.is_on_biz_app),
+      onboarding: "embedded_signup",
+    });
 
     // Cache the WABA messaging-tier so bulk paths can gate sends without
     // a Meta roundtrip per message. Best-effort: errors leave the
     // cached tier alone (NULL is treated as TIER_50 downstream).
-    if (connectionId) {
-      await refreshMessagingLimitTier(admin, {
-        connectionId,
-        wabaId: body.waba_id,
-        accessToken: token,
-      });
-    }
+    await refreshMessagingLimitTier(admin, {
+      connectionId,
+      wabaId: body.waba_id,
+      accessToken: token,
+    });
 
     return NextResponse.json({ ok: true, label, coexistence: Boolean(phone.is_on_biz_app) });
   } catch (err) {
+    if (err instanceof WhatsAppAlreadyConnectedError) {
+      return NextResponse.json(
+        {
+          error: `Ya tienes un WhatsApp conectado (${err.existingLabel}). Desconéctalo antes de conectar otro número.`,
+        },
+        { status: 409 },
+      );
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 400 });
   }

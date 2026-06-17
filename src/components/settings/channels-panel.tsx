@@ -406,11 +406,18 @@ export function ChannelsPanel() {
               {/* CTA */}
               {isAdmin && (
                 <div className="mt-auto space-y-1.5">
-                  {/* WhatsApp: Embedded Signup (Coexistence/new number) is
+                  {/* WhatsApp is one-per-workspace: once a number is
+                      connected, hide the connect CTAs and tell the admin to
+                      disconnect first to switch numbers. */}
+                  {g.connectChannel === "whatsapp" && anyConnected ? (
+                    <p className="text-center text-[10px] leading-snug text-muted-foreground">
+                      Un WhatsApp por cuenta. Desconéctalo para cambiar de número.
+                    </p>
+                  ) : /* WhatsApp: Embedded Signup (Coexistence/new number) is
                       the primary path WHEN configured; otherwise fall through
                       to the manual paste button so the WhatsApp card still
-                      lets the admin connect any number via token paste. */}
-                  {g.connectChannel === "whatsapp" &&
+                      lets the admin connect any number via token paste. */
+                  g.connectChannel === "whatsapp" &&
                   ready &&
                   process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
                     <>

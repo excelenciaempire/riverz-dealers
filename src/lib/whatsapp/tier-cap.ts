@@ -171,12 +171,13 @@ export async function assertWithinTierCap(
 }
 
 /**
- * Resolve the WhatsApp `channel_connections.id` for a workspace. The
- * broadcasts cron currently scopes by workspace + channel='whatsapp'
- * (one WhatsApp connection per workspace is the common case). Returns
- * `null` if the workspace has no connected WhatsApp number — callers
- * then skip the tier check and rely on the legacy `whatsapp_config`
- * path (which itself errors out without credentials).
+ * Resolve the WhatsApp `channel_connections.id` for a workspace. There
+ * is exactly one active WhatsApp per workspace (enforced by migration
+ * 063's partial unique index + upsertSingleWhatsAppConnection), so we
+ * skip disconnected rows and return that single active connection.
+ * Returns `null` if the workspace has no active WhatsApp number —
+ * callers then skip the tier check and rely on the legacy
+ * `whatsapp_config` path (which itself errors out without credentials).
  */
 export async function resolveWhatsAppConnectionId(
   admin: SupabaseClient,
@@ -187,6 +188,7 @@ export async function resolveWhatsAppConnectionId(
     .select('id')
     .eq('workspace_id', workspaceId)
     .eq('channel', 'whatsapp')
+    .neq('status', 'disconnected')
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()

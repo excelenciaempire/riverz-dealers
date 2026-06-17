@@ -5,6 +5,10 @@ import { csrfGuard } from "@/lib/csrf";
 import { encrypt } from "@/lib/channels/encryption";
 import { subscribePageToWebhooks } from "@/lib/channels/meta-graph";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
+import {
+  upsertSingleWhatsAppConnection,
+  WhatsAppAlreadyConnectedError,
+} from "@/lib/channels/whatsapp/connect";
 import type { Channel } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -102,6 +106,14 @@ export async function POST(req: Request): Promise<Response> {
       igUserIdHint: body.ig_user_id,
     });
   } catch (err) {
+    if (err instanceof WhatsAppAlreadyConnectedError) {
+      return NextResponse.json(
+        {
+          error: `Ya tienes un WhatsApp conectado (${err.existingLabel}). Desconéctalo antes de conectar otro número.`,
+        },
+        { status: 409 },
+      );
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 400 });
   }
@@ -263,49 +275,29 @@ async function connectWhatsApp(
     platform_type?: string;
   };
 
-  const label = phone.verified_name
-    ? `${phone.verified_name} (${phone.display_phone_number ?? ""})`.trim()
-    : `WhatsApp ${args.phone_number_id}`;
-
-  const { error: insErr, data: inserted } = await admin
-    .from("channel_connections")
-    .insert({
-      workspace_id: args.workspaceId,
-      channel: "whatsapp",
-      label,
-      status: "connected",
-      external_account_id: args.phone_number_id,
-      config: {
-        phone_number_id: args.phone_number_id,
-        waba_id: args.waba_id,
-        display_phone_number: phone.display_phone_number,
-        verified_name: phone.verified_name,
-      },
-      secrets: { access_token: encrypt(args.token) },
-      created_by: args.userId,
-    })
-    .select("id")
-    .single();
-  if (insErr) {
-    if (insErr.code === "23505") {
-      return NextResponse.json(
-        { error: "this phone is already connected to the workspace" },
-        { status: 409 },
-      );
-    }
-    throw new Error(`insert failed: ${insErr.message}`);
-  }
+  // One WhatsApp per workspace; reconnecting the same number updates in
+  // place. A different number while one is active throws
+  // WhatsAppAlreadyConnectedError → 409 (handled by the POST catch).
+  const { connectionId, label } = await upsertSingleWhatsAppConnection(admin, {
+    workspaceId: args.workspaceId,
+    userId: args.userId,
+    token: args.token,
+    phoneNumberId: args.phone_number_id,
+    wabaId: args.waba_id,
+    displayPhoneNumber: phone.display_phone_number,
+    verifiedName: phone.verified_name,
+    coexistence: Boolean(phone.is_on_biz_app),
+    onboarding: "manual",
+  });
 
   // Cache the WABA messaging-tier so bulk paths can gate sends without
   // a Meta roundtrip per message. Best-effort: errors leave the cached
   // tier as NULL (treated as TIER_50 — safest default).
-  if (inserted?.id) {
-    await refreshMessagingLimitTier(admin, {
-      connectionId: inserted.id as string,
-      wabaId: args.waba_id,
-      accessToken: args.token,
-    });
-  }
+  await refreshMessagingLimitTier(admin, {
+    connectionId,
+    wabaId: args.waba_id,
+    accessToken: args.token,
+  });
 
-  return NextResponse.json({ ok: true, connection_id: inserted?.id, label });
+  return NextResponse.json({ ok: true, connection_id: connectionId, label });
 }
