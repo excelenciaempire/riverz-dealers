@@ -8,8 +8,7 @@ export type Channel =
   | 'gmail'
   | 'outlook'
   | 'fb_comment'
-  | 'ig_comment'
-  | 'sms';
+  | 'ig_comment';
 
 export const CHANNELS: Channel[] = [
   'whatsapp',
@@ -19,7 +18,6 @@ export const CHANNELS: Channel[] = [
   'outlook',
   'fb_comment',
   'ig_comment',
-  'sms',
 ];
 
 // ============================================================

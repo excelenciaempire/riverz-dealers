@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
  * channels we reuse the parent platform logo (Facebook for fb_comment,
  * Instagram for ig_comment) with a small "·" overlay treatment.
  *
- * SMS has no public brand so we render a lucide MessageSquare instead
- * of pointing at a missing /public/channels/sms.svg.
+ * Any channel without a brand logo falls back to a lucide MessageSquare
+ * rather than pointing at a missing asset.
  */
 interface ChannelLogoProps {
   channel: Channel;

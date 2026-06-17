@@ -40,7 +40,6 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   outlook: 'Outlook',
   fb_comment: 'Comentarios FB',
   ig_comment: 'Comentarios IG',
-  sms: 'SMS',
 };
 
 export default function AiAgentsPage() {

@@ -478,51 +478,9 @@ export function ChannelsPanel() {
             </li>
           );
         })}
-        {/* SMS — stub. La taxonomía y el adapter están registrados pero
-            el envío con un gateway real (Twilio, MessageBird) todavía no
-            está implementado. La tarjeta queda visible como "próximamente"
-            para que el usuario sepa que está en el roadmap. */}
-        <SmsComingSoonCard />
         <ShopifyCard />
       </ul>
     </div>
-  );
-}
-
-function SmsComingSoonCard() {
-  return (
-    <li
-      aria-disabled="true"
-      className="group flex flex-col gap-3 overflow-hidden rounded-xl border border-dashed border-border bg-card/60 p-4 opacity-70"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
-          <ChannelLogo channel="sms" size={28} />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">
-            SMS{" "}
-            <span className="font-normal text-muted-foreground">
-              (próximamente)
-            </span>
-          </p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-            Enviá mensajes de texto desde la misma bandeja. Estamos integrando
-            un gateway compatible.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-auto">
-        <button
-          type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-muted-foreground"
-        >
-          Próximamente
-        </button>
-      </div>
-    </li>
   );
 }
 

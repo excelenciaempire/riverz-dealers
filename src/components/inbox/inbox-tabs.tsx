@@ -12,7 +12,6 @@ export const MESSAGE_CHANNELS: Channel[] = [
   "messenger",
   "gmail",
   "outlook",
-  "sms",
 ];
 export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment"];
 

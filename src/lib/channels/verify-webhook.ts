@@ -89,12 +89,6 @@ export async function verifyChannelWebhook(
     return { ok: true };
   }
 
-  if (channel === "sms") {
-    // SMS is a stub — no inbound webhook exists yet. Reject so a misrouted
-    // call can't sneak past unverified.
-    return { ok: false, reason: "sms channel not configured" };
-  }
-
   return { ok: false, reason: `no verifier for channel ${channel}` };
 }
 

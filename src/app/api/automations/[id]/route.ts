@@ -192,7 +192,10 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = supabaseAdmin()
-  const loaded = await loadAuthorizedAutomation(admin, id, user.id, 'id')
+  // Must include workspace_id: loadAuthorizedAutomation reads it to run
+  // the membership check. Selecting only 'id' left workspace_id undefined
+  // and made every delete 404 with "Not found".
+  const loaded = await loadAuthorizedAutomation(admin, id, user.id, 'id, workspace_id')
   if (!loaded.ok) return loaded.response
 
   // Soft-delete via migration 059's `deleted_at` column — preserves
