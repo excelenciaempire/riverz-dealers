@@ -181,6 +181,20 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         message: 'El cuerpo no puede empezar ni terminar con espacios o saltos de línea.',
       });
     }
+    // Meta rechaza plantillas cuyo cuerpo empieza o termina con una
+    // variable ({{1}}): "Las variables no pueden estar al principio ni al
+    // final de la plantilla." Lo atajamos acá para no gastar un ciclo de
+    // revisión de Meta.
+    const trimmedBody = input.bodyText.trim();
+    if (/^\{\{\s*\d+\s*\}\}/.test(trimmedBody) || /\{\{\s*\d+\s*\}\}$/.test(trimmedBody)) {
+      issues.push({
+        field: 'body',
+        severity: 'error',
+        code: 'body_var_at_edge',
+        message:
+          'El cuerpo no puede empezar ni terminar con una variable. Agrega texto antes o después de {{1}}.',
+      });
+    }
     // Patrones spam.
     for (const f of FORBIDDEN_PATTERNS) {
       if (f.pattern.test(input.bodyText)) {

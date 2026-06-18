@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Sync message templates from Meta → local message_templates table.
@@ -126,6 +127,17 @@ export async function POST(req: Request) {
       )
     }
 
+    // message_templates.workspace_id is NOT NULL — resolve it so the
+    // upserts below don't all fail the not-null constraint (which would
+    // leave the local catalog permanently empty after a "successful" sync).
+    const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: 'No workspace resolved for this account.' },
+        { status: 400 },
+      )
+    }
+
     const accessToken = decrypt(config.access_token)
 
     // Paginate through every template Meta has for this WABA. Meta
@@ -177,6 +189,7 @@ export async function POST(req: Request) {
 
       const row = {
         user_id: user.id,
+        workspace_id: workspaceId,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,

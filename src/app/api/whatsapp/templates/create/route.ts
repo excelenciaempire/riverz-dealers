@@ -16,6 +16,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * Submit a NEW WhatsApp message template to Meta for approval, then mirror
@@ -118,6 +119,18 @@ export async function POST(request: Request) {
       )
     }
 
+    // message_templates.workspace_id is NOT NULL. Resolve it now so the
+    // local mirror actually persists — without it the INSERT below fails
+    // the not-null constraint and the template silently never appears in
+    // the catalog (the picker, broadcasts and automations all read it).
+    const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: 'No se pudo resolver el workspace de tu cuenta.' },
+        { status: 400 },
+      )
+    }
+
     const accessToken = decrypt(config.access_token)
 
     let metaResult
@@ -146,6 +159,7 @@ export async function POST(request: Request) {
 
     const row = {
       user_id: user.id,
+      workspace_id: workspaceId,
       name,
       category: DB_CATEGORY[category],
       language,
@@ -170,10 +184,22 @@ export async function POST(request: Request) {
       .eq('language', language)
       .maybeSingle()
 
-    if (existing?.id) {
-      await supabase.from('message_templates').update(row).eq('id', existing.id)
-    } else {
-      await supabase.from('message_templates').insert(row)
+    const { error: writeErr } = existing?.id
+      ? await supabase.from('message_templates').update(row).eq('id', existing.id)
+      : await supabase.from('message_templates').insert(row)
+
+    // The template DID reach Meta (it's queued for review), but if the
+    // local mirror failed the catalog/picker won't show it. Surface it
+    // instead of returning a false success.
+    if (writeErr) {
+      console.error('Template mirror failed:', writeErr)
+      return NextResponse.json(
+        {
+          error: `La plantilla se envió a Meta pero no se pudo guardar localmente: ${writeErr.message}`,
+          meta_template_id: metaResult.id,
+        },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({
