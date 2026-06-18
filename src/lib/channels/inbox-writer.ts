@@ -32,6 +32,25 @@ export async function ingestInboundEvent(
   const workspaceId = event.connection.workspace_id;
   const channel: Channel = event.channel;
 
+  // 0. Never ingest the business's OWN account as a customer. Meta sends
+  //    echo webhooks for messages we send (sender = our own page/IG id)
+  //    and fires comment webhooks when the page comments on its own posts;
+  //    ingesting those makes the account its own "customer" and inflates
+  //    every tenant's metrics. This is the single chokepoint that protects
+  //    EVERY channel + EVERY connected workspace (each connection carries
+  //    its own ids), so it holds even if a future adapter forgets to
+  //    filter. Outbound events (event.outbound) key on the recipient, not
+  //    us, so they pass through untouched.
+  const connCfg = (event.connection.config ?? {}) as Record<string, unknown>;
+  const ownAccountIds = new Set(
+    [event.connection.external_account_id, connCfg.page_id, connCfg.ig_user_id]
+      .map((v) => (v == null ? "" : String(v)))
+      .filter(Boolean),
+  );
+  if (!event.outbound && ownAccountIds.has(String(event.externalContactId))) {
+    return null;
+  }
+
   // 1. Upsert contact by (workspace_id, channel, external_id).
   const contact = await upsertContact(db, {
     workspace_id: workspaceId,
