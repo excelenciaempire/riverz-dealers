@@ -49,7 +49,45 @@ export async function GET(
     byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
   }
 
-  return NextResponse.json({ campaign, recipients_by_status: byStatus });
+  // Ingresos por post de origen — "qué post genera ventas" (atribución por
+  // fuente, estilo Blueberry). Solo cuenta destinatarios convertidos cuyo
+  // post de origen conocemos (los del trigger en tiempo real).
+  const { data: converted } = await supabase
+    .from('instagram_campaign_recipients')
+    .select('source_post_id, revenue, currency')
+    .eq('campaign_id', id)
+    .eq('status', 'converted')
+    .not('source_post_id', 'is', null)
+    .limit(5000);
+  const postMap = new Map<
+    string,
+    { conversions: number; revenue: number; currency: string | null }
+  >();
+  for (const r of (converted ?? []) as Array<{
+    source_post_id: string;
+    revenue: number | null;
+    currency: string | null;
+  }>) {
+    const cur = postMap.get(r.source_post_id) ?? {
+      conversions: 0,
+      revenue: 0,
+      currency: null,
+    };
+    cur.conversions += 1;
+    cur.revenue += Number(r.revenue ?? 0) || 0;
+    cur.currency = r.currency ?? cur.currency;
+    postMap.set(r.source_post_id, cur);
+  }
+  const revenue_by_post = [...postMap.entries()]
+    .map(([post_id, v]) => ({ post_id, ...v }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  return NextResponse.json({
+    campaign,
+    recipients_by_status: byStatus,
+    revenue_by_post,
+  });
 }
 
 export async function PATCH(

@@ -284,7 +284,7 @@ async function generateCloserReply(input: {
       system: [{ type: 'text', text: CLOSE_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }],
     });
-    let text = res.content
+    const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')

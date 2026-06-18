@@ -16,6 +16,7 @@ import {
   Pause,
   Play,
   CheckCircle2,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,9 @@ export default function CampaignDetailPage() {
   const fetchWithCsrf = useFetchWithCsrf();
   const [campaign, setCampaign] = useState<InstagramCampaign | null>(null);
   const [byStatus, setByStatus] = useState<Record<string, number>>({});
+  const [revenueByPost, setRevenueByPost] = useState<
+    Array<{ post_id: string; conversions: number; revenue: number; currency: string | null }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -54,6 +58,14 @@ export default function CampaignDetailPage() {
       if (res.ok) {
         setCampaign(json.campaign as InstagramCampaign);
         setByStatus((json.recipients_by_status ?? {}) as Record<string, number>);
+        setRevenueByPost(
+          (json.revenue_by_post ?? []) as Array<{
+            post_id: string;
+            conversions: number;
+            revenue: number;
+            currency: string | null;
+          }>,
+        );
       } else {
         toast.error(json.error ?? 'No se pudo cargar la campaña');
       }
@@ -259,6 +271,47 @@ export default function CampaignDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Ingresos por post — "qué publicación genera ventas" (atribución
+          por fuente). Solo aparece cuando el trigger en tiempo real ya
+          atribuyó alguna venta a un post concreto. */}
+      {revenueByPost.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="app-eyebrow flex items-center gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5 text-accent-ink" />
+            Ingresos por post
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Qué publicación está generando ventas — atribuido al post donde la
+            persona interactuó antes del DM.
+          </p>
+          <ul className="mt-3 divide-y divide-border">
+            {revenueByPost.map((p) => (
+              <li
+                key={p.post_id}
+                className="flex items-center justify-between gap-3 py-2"
+              >
+                <div className="min-w-0">
+                  <a
+                    href={`https://www.instagram.com/p/${p.post_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate font-mono text-xs text-foreground hover:text-accent-ink hover:underline"
+                  >
+                    Post …{p.post_id.slice(-8)}
+                  </a>
+                  <p className="text-[11px] text-muted-foreground">
+                    {p.conversions} {p.conversions === 1 ? 'venta' : 'ventas'}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-accent-ink">
+                  {p.revenue.toLocaleString()} {p.currency ?? ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Plan */}
       <div className="grid gap-4 lg:grid-cols-5">
