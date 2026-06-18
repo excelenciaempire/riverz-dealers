@@ -4,9 +4,7 @@ import type { Channel } from "@/types";
 import { CHANNEL_DISPLAY } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { cn } from "@/lib/utils";
-import { Inbox, Megaphone } from "lucide-react";
-
-export type AdsFilter = "off" | "only";
+import { Inbox } from "lucide-react";
 
 interface ChannelFilterProps {
   /** Currently-selected channel, or null for "all channels". */
@@ -17,13 +15,6 @@ interface ChannelFilterProps {
   available: Set<Channel>;
   /** Per-channel unread counts so chips can show a hint dot. */
   unread?: Partial<Record<Channel | "all", number>>;
-  /** "only" hides everything except conversations where a message has
-   * comments_meta.is_ad = true. Toggled by the Ads chip. */
-  adsFilter?: AdsFilter;
-  onAdsFilterChange?: (next: AdsFilter) => void;
-  /** Count of unread conversations that match the Ads-only filter,
-   * shown next to the Ads chip. */
-  adsUnreadCount?: number;
 }
 
 export function ChannelFilter({
@@ -31,9 +22,6 @@ export function ChannelFilter({
   onChange,
   available,
   unread,
-  adsFilter = "off",
-  onAdsFilterChange,
-  adsUnreadCount,
 }: ChannelFilterProps) {
   const totalUnread = unread?.all ?? 0;
   return (
@@ -41,25 +29,10 @@ export function ChannelFilter({
       <Chip
         label="Todos"
         icon={<Inbox className="h-3.5 w-3.5" />}
-        active={value === null && adsFilter === "off"}
-        onClick={() => {
-          onChange(null);
-          onAdsFilterChange?.("off");
-        }}
+        active={value === null}
+        onClick={() => onChange(null)}
         count={totalUnread}
       />
-      {/* Ads-only chip — sits next to All because business.facebook.com
-          treats this as a top-level mode rather than a per-channel filter. */}
-      {onAdsFilterChange && (
-        <Chip
-          label="Anuncios"
-          icon={<Megaphone className="h-3.5 w-3.5" />}
-          tone="#f59e0b"
-          active={adsFilter === "only"}
-          onClick={() => onAdsFilterChange(adsFilter === "only" ? "off" : "only")}
-          count={adsUnreadCount}
-        />
-      )}
       {Object.values(CHANNEL_DISPLAY)
         // Only render chips for channels the caller marked as available.
         .filter((d) => available.has(d.channel))
@@ -72,11 +45,8 @@ export function ChannelFilter({
             // the row is the channel filter, so showing the actual
             // app icons makes the affordance obvious at a glance.
             icon={<ChannelLogo channel={d.channel} size={14} />}
-            active={value === d.channel && adsFilter === "off"}
-            onClick={() => {
-              onChange(d.channel);
-              onAdsFilterChange?.("off");
-            }}
+            active={value === d.channel}
+            onClick={() => onChange(d.channel)}
             count={unread?.[d.channel] ?? 0}
           />
         ))}

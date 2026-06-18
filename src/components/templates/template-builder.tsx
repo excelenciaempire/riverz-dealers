@@ -129,6 +129,9 @@ export function TemplateBuilder() {
   const [buttons, setButtons] = useState<TemplateButtonInput[]>([]);
   const [samples, setSamples] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  // Validation only surfaces AFTER the user tries to save — never on a
+  // pristine/empty form.
+  const [attempted, setAttempted] = useState(false);
 
   const variables = useMemo(() => extractVariables(bodyText), [bodyText]);
 
@@ -195,6 +198,7 @@ export function TemplateBuilder() {
   }
 
   async function handleSubmit() {
+    setAttempted(true);
     if (blockers.length > 0) {
       toast.error(
         `Corrige ${blockers.length} ${blockers.length === 1 ? 'error' : 'errores'} antes de enviar a Meta.`,
@@ -452,7 +456,7 @@ export function TemplateBuilder() {
           {/* Validación en vivo contra las reglas de Meta. Aparece
               solo cuando hay issues; cuando todo está limpio, la
               tarjeta no se muestra. */}
-          {issues.length > 0 && <TemplateIssuesPanel issues={issues} />}
+          {attempted && issues.length > 0 && <TemplateIssuesPanel issues={issues} />}
 
           {/* Footer actions */}
           <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
@@ -465,7 +469,7 @@ export function TemplateBuilder() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting || blockers.length > 0}
+              disabled={submitting}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {submitting ? (

@@ -19,7 +19,6 @@ import {
 import { ResizablePane } from "@/components/inbox/resizable-pane";
 import { InboxSearchBox } from "@/components/inbox/search-box";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +37,6 @@ export default function InboxPage() {
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [channelFilter, setChannelFilter] = useState<Channel | null>(null);
-  const [adsFilter, setAdsFilter] = useState<"off" | "only">("off");
   const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
@@ -553,14 +551,12 @@ export default function InboxPage() {
   // first inbound message has arrived.
   const availableChannels = new Set<Channel>(connectedChannels);
   const unreadByChannel: Partial<Record<Channel | "all", number>> = { all: 0 };
-  let adsUnreadCount = 0;
   const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
     availableChannels.add(c.channel);
     const unread = c.unread_count ?? 0;
     unreadByChannel.all = (unreadByChannel.all ?? 0) + unread;
     unreadByChannel[c.channel] = (unreadByChannel[c.channel] ?? 0) + unread;
-    if (c.is_ad) adsUnreadCount += unread;
     if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
     else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
   }
@@ -584,14 +580,12 @@ export default function InboxPage() {
     } else {
       list = list.filter((c) => MESSAGE_CHANNELS.includes(c.channel));
     }
-    // Secondary filter (channel chips or Ads-only)
-    if (adsFilter === "only") {
-      list = list.filter((c) => c.is_ad);
-    } else if (channelFilter) {
+    // Secondary filter (channel chips)
+    if (channelFilter) {
       list = list.filter((c) => c.channel === channelFilter);
     }
     return list;
-  }, [conversations, inboxTab, adsFilter, channelFilter]);
+  }, [conversations, inboxTab, channelFilter]);
 
   // Switching tab clears any channel filter that no longer applies, so
   // the user doesn't get an empty list because a stale chip is still
@@ -602,11 +596,8 @@ export default function InboxPage() {
       if (channelFilter && !channelBelongsToTab(channelFilter, next)) {
         setChannelFilter(null);
       }
-      if (adsFilter === "only" && next !== "comments") {
-        setAdsFilter("off");
-      }
     },
-    [channelFilter, adsFilter],
+    [channelFilter],
   );
 
   return (
@@ -664,9 +655,6 @@ export default function InboxPage() {
               onChange={setChannelFilter}
               available={visibleAvailableChannels}
               unread={unreadByChannel}
-              adsFilter={inboxTab === "comments" ? adsFilter : "off"}
-              onAdsFilterChange={inboxTab === "comments" ? setAdsFilter : undefined}
-              adsUnreadCount={adsUnreadCount}
             />
             <div className="flex-1 overflow-hidden">
               <ConversationList
