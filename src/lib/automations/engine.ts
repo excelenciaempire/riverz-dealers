@@ -561,15 +561,65 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   const fromCtx = args.context.conversation_id
   if (fromCtx) return fromCtx
   if (!args.contactId) throw new Error('cannot resolve conversation: no contact')
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin()
+  const { data, error } = await db
     .from('conversations')
     .select('id')
     .eq('workspace_id', args.automation.workspace_id)
     .eq('contact_id', args.contactId)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
   if (error) throw new Error(`conversation lookup failed: ${error.message}`)
-  if (!data?.id) throw new Error('no conversation for contact')
-  return data.id as string
+  if (data?.id) return data.id as string
+
+  // No conversation yet. This is the COMMON case for Shopify automations:
+  // a customer who placed an order (or abandoned a cart) but never messaged
+  // us has no WhatsApp conversation. Throwing here made every order
+  // confirmation / tracking / recovery message fail for first-time
+  // customers. Create the conversation so the template has somewhere to
+  // land and the thread shows up in the unified inbox.
+  let connectionId: string | null = null
+  const { data: conn } = await db
+    .from('channel_connections')
+    .select('id')
+    .eq('workspace_id', args.automation.workspace_id)
+    .eq('channel', 'whatsapp')
+    .neq('status', 'disconnected')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  connectionId = (conn as { id?: string } | null)?.id ?? null
+
+  const { data: created, error: insErr } = await db
+    .from('conversations')
+    .insert({
+      user_id: args.ownerUserId,
+      workspace_id: args.automation.workspace_id,
+      contact_id: args.contactId,
+      channel: 'whatsapp',
+      connection_id: connectionId,
+      status: 'open',
+    })
+    .select('id')
+    .single()
+  if (!insErr && created?.id) return created.id as string
+
+  // Race: a concurrent dispatch (or the inbound webhook) created it between
+  // our SELECT and INSERT. Unique index (migration 035) rejects the second
+  // INSERT with 23505 — re-select the winner instead of failing the send.
+  if ((insErr as { code?: string } | null)?.code === '23505') {
+    const { data: winner } = await db
+      .from('conversations')
+      .select('id')
+      .eq('workspace_id', args.automation.workspace_id)
+      .eq('contact_id', args.contactId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (winner?.id) return winner.id as string
+  }
+  throw new Error(`could not create conversation: ${insErr?.message ?? 'unknown'}`)
 }
 
 /**

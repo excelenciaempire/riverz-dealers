@@ -43,12 +43,21 @@ export async function upsertWhatsappContact(
   admin: SupabaseClient,
   args: { workspaceId: string; phone: string; name?: string; email?: string },
 ): Promise<string | null> {
+  // Sanitize to the canonical E.164-digits form BEFORE lookup/insert. Callers
+  // pass phones in mixed shapes — the orders webhook pre-sanitizes, but the
+  // cart-recovery cron forwards the raw stored checkout phone (e.g.
+  // "+19802052076"). Keying on the raw value would create a second contact
+  // ("+19802052076") distinct from the canonical one ("19802052076") and the
+  // send would target a brand-new conversation-less contact.
+  const phone = sanitizePhoneForMeta(args.phone)
+  if (!isValidE164(phone)) return null
+
   const { data: existing } = await admin
     .from('contacts')
     .select('id, is_shopify_customer')
     .eq('workspace_id', args.workspaceId)
     .eq('channel', 'whatsapp')
-    .eq('external_id', args.phone)
+    .eq('external_id', phone)
     .maybeSingle()
   if (existing?.id) {
     if (!(existing as { is_shopify_customer?: boolean }).is_shopify_customer) {
@@ -77,8 +86,8 @@ export async function upsertWhatsappContact(
       workspace_id: args.workspaceId,
       user_id: ownerUserId,
       channel: 'whatsapp',
-      external_id: args.phone,
-      phone: args.phone,
+      external_id: phone,
+      phone: phone,
       name: args.name ?? null,
       email: args.email ?? null,
       is_shopify_customer: true,
