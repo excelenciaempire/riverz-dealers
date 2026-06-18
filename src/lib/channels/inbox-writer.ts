@@ -10,6 +10,10 @@ import { runAiAgent } from "@/lib/ai/runner";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
+import {
+  maybeInstantOutreach,
+  maybeRunCloser,
+} from "@/lib/instagram-agent/realtime";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -170,6 +174,24 @@ export async function ingestInboundEvent(
     }
   }
 
+  // Real-time outreach: an Instagram comment is peak intent. Enroll the
+  // commenter in the active campaign and DM them now (Blueberry's instant
+  // loop). Fire-and-forget; no active campaign → no-op.
+  if (channel === "ig_comment" && !event.outbound) {
+    maybeInstantOutreach(db, {
+      workspaceId,
+      contact: {
+        id: contact.id,
+        external_id: contact.external_id ?? null,
+        name: contact.name ?? null,
+      },
+      sourcePostId: event.comment?.postId ?? null,
+      engagementText: event.text,
+    }).catch((err) =>
+      console.error("[ig-agent] instant outreach failed:", err),
+    );
+  }
+
   // 5. Bump conversation summary fields. Outbound (our own sent mail)
   //    must not increment the unread counter.
   await db
@@ -190,14 +212,38 @@ export async function ingestInboundEvent(
   // surfaces (DMs and email). Fire-and-forget so a slow LLM call
   // never blocks the webhook response.
   if (!event.outbound && channel !== "fb_comment" && channel !== "ig_comment") {
-    runAiAgent(db, {
-      workspaceId,
-      channel,
-      conversation,
-      contact,
-      connection: event.connection,
-      inboundMessage: message as Message,
-    }).catch((err) => console.error("[ai] dispatch failed:", err));
+    const dispatchGeneric = () =>
+      runAiAgent(db, {
+        workspaceId,
+        channel,
+        conversation,
+        contact,
+        connection: event.connection,
+        inboundMessage: message as Message,
+      }).catch((err) => console.error("[ai] dispatch failed:", err));
+
+    if (channel === "instagram") {
+      // If this DM is a reply from a live campaign recipient, the campaign
+      // closer answers in-context (their offer, code, brand voice) and we
+      // suppress the generic assistant so they don't both reply. Otherwise
+      // fall through to the normal customer-service agent.
+      maybeRunCloser(db, {
+        workspaceId,
+        contact: {
+          id: contact.id,
+          external_id: contact.external_id ?? null,
+          name: contact.name ?? null,
+        },
+        connection: event.connection,
+        inboundText: event.text,
+      })
+        .then((handled) => {
+          if (!handled) dispatchGeneric();
+        })
+        .catch(() => dispatchGeneric());
+    } else {
+      dispatchGeneric();
+    }
   }
 
   return { contact, conversation, message: message as Message };
