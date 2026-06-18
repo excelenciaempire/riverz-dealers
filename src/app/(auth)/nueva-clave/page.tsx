@@ -98,9 +98,6 @@ export default function NewPasswordPage() {
           <CardTitle className="text-xl text-foreground">
             Crear nueva contraseña
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Elige una contraseña segura para tu cuenta.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

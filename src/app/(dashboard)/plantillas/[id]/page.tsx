@@ -8,21 +8,15 @@ import {
   Loader2,
   Trash2,
   ExternalLink,
-  AlertCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { MessageTemplate, Broadcast } from '@/types';
-import { findPlaceholderTemplate } from '@/lib/templates/placeholder-data';
 
 /**
  * Detail de una plantilla — preview del mensaje + datos de aprobación +
  * dónde se está usando (qué campañas la referencian).
- *
- * Acepta IDs demo-* y los rinde con la data de placeholder (no toca DB)
- * para que el usuario pueda explorar la UI antes de tener plantillas
- * reales aprobadas por Meta.
  */
 const CATEGORY_LABELS: Record<string, string> = {
   Marketing: 'Marketing',
@@ -69,18 +63,9 @@ export default function TemplateDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isPlaceholder = templateId?.startsWith('demo-') ?? false;
-
   useEffect(() => {
     async function load() {
       if (!templateId) return;
-      if (isPlaceholder) {
-        const ph = findPlaceholderTemplate(templateId);
-        if (ph) setTemplate(ph);
-        else setError('Plantilla de ejemplo no encontrada');
-        setLoading(false);
-        return;
-      }
       try {
         const supabase = createClient();
         const { data, error: err } = await supabase
@@ -113,10 +98,10 @@ export default function TemplateDetailPage() {
       }
     }
     void load();
-  }, [templateId, isPlaceholder]);
+  }, [templateId]);
 
   async function handleDelete() {
-    if (!template || isPlaceholder) {
+    if (!template) {
       router.push('/plantillas');
       return;
     }
@@ -193,18 +178,16 @@ export default function TemplateDetailPage() {
             </div>
           </div>
         </div>
-        {!isPlaceholder && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
-          >
-            <Trash2 className="size-3.5" />
-            Eliminar
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+        >
+          <Trash2 className="size-3.5" />
+          Eliminar
+        </Button>
       </div>
 
       {/* Preview + datos */}
@@ -329,16 +312,6 @@ export default function TemplateDetailPage() {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {isPlaceholder && (
-            <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">
-                Plantilla de ejemplo. Cuando sincronices tus plantillas
-                aprobadas en Meta, las vas a ver acá con su data real.
-              </p>
             </div>
           )}
         </div>

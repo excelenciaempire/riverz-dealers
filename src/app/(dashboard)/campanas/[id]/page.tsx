@@ -38,7 +38,6 @@ import {
 } from '@/lib/broadcast-status';
 import { ActiveHoursChart } from '@/components/broadcasts/active-hours-chart';
 import { cn } from '@/lib/utils';
-import { findPlaceholderBroadcast } from '@/lib/broadcasts/placeholder-data';
 
 /** Human label for a broadcast's audience filter (the "Segmentación"). */
 function segmentationLabel(filter: unknown): string {
@@ -120,12 +119,9 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   const max = Math.max(...steps.map((s) => s.value), 1);
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="mb-1 text-sm font-medium text-foreground">
+      <h3 className="mb-4 text-sm font-medium text-foreground">
         Embudo de entrega
       </h3>
-      <p className="mb-4 text-xs text-muted-foreground">
-        Cuántos llegaron a cada etapa.
-      </p>
       <div className="space-y-2.5">
         {steps.map((step, idx) => {
           const pctOfMax = Math.max(6, Math.round((step.value / max) * 100));
@@ -199,21 +195,6 @@ export default function BroadcastDetailPage() {
 
   useEffect(() => {
     async function fetchData() {
-      // Si es una fila demo (sin row real en DB), mostramos los datos
-      // del placeholder en lugar de tirar "no encontrada". Mismo
-      // patrón que /campanas list — el cliente puede explorar la UI
-      // sin haber creado ninguna campaña real todavía.
-      if (broadcastId.startsWith('demo-')) {
-        const placeholder = findPlaceholderBroadcast(broadcastId);
-        if (placeholder) {
-          setBroadcast(placeholder);
-          setRecipients([]);
-        } else {
-          setError('Campaña de ejemplo no encontrada');
-        }
-        setLoading(false);
-        return;
-      }
       try {
         const supabase = createClient();
 
@@ -288,11 +269,6 @@ export default function BroadcastDetailPage() {
   }
 
   async function handleDelete() {
-    if (broadcastId.startsWith('demo-')) {
-      // Filas demo no existen en DB — devolvemos al listado nomás.
-      router.push('/campanas');
-      return;
-    }
     setDeleting(true);
     const supabase = createClient();
     const { error: delErr } = await supabase

@@ -17,9 +17,9 @@ interface ReplyDraft {
  * Snippets de texto del operador. El asesor tipea "/saludo" + Enter
  * y se inserta el texto completo. Por ahora hardcodeados; la próxima
  * iteración los lleva a Ajustes → Snippets para que cada workspace
- * defina los suyos. Cubren los 6 casos más repetidos en LATAM DTC:
- * saludo de bienvenida, estado de envío, política de devolución,
- * horario, métodos de pago y agradecimiento.
+ * defina los suyos. Solo incluimos atajos genéricos (saludo de
+ * bienvenida y agradecimiento) que no asumen ninguna política de
+ * negocio del merchant.
  */
 interface Snippet {
   trigger: string;
@@ -31,26 +31,6 @@ const SNIPPETS: Snippet[] = [
     trigger: "saludo",
     label: "Saludo de bienvenida",
     body: "¡Hola! Gracias por escribirnos. ¿En qué te puedo ayudar?",
-  },
-  {
-    trigger: "envio",
-    label: "Tiempo de envío",
-    body: "Enviamos a todo el país en 2 a 4 días hábiles. El envío es gratis en compras desde 80 mil pesos.",
-  },
-  {
-    trigger: "devolucion",
-    label: "Política de devolución",
-    body: "Tienes 30 días para cambios o devoluciones. El producto debe estar sin uso y con su empaque original.",
-  },
-  {
-    trigger: "horario",
-    label: "Horario de atención",
-    body: "Te respondemos de lunes a viernes de 9 a 18h y sábados de 10 a 14h.",
-  },
-  {
-    trigger: "pago",
-    label: "Métodos de pago",
-    body: "Aceptamos tarjeta de crédito, débito, transferencia y PSE. El pago contra entrega también está disponible en ciudades principales.",
   },
   {
     trigger: "gracias",

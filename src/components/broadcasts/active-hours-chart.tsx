@@ -28,10 +28,7 @@ export function ActiveHoursChart({ timestamps }: ActiveHoursChartProps) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="mb-1 text-sm font-medium text-foreground">Horas activas</h3>
-      <p className="mb-4 text-xs text-muted-foreground">
-        Cuándo se enviaron los mensajes durante el día.
-      </p>
+      <h3 className="mb-4 text-sm font-medium text-foreground">Horas activas</h3>
       {total === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Aún no hay envíos para mostrar actividad por hora.

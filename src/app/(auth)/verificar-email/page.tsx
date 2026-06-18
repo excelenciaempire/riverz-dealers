@@ -102,7 +102,6 @@ export default function VerifyEmailPage() {
           <CardDescription className="text-muted-foreground">
             Te enviamos un enlace de confirmación a{" "}
             <span className="text-foreground">{email ?? "tu correo"}</span>.
-            Ábrelo para activar tu cuenta.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

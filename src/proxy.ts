@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isDemoMode } from '@/lib/demo'
 import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
@@ -82,24 +81,6 @@ export async function proxy(request: NextRequest) {
     }
     url.search = `?${next.toString()}`
     return applyCsp(NextResponse.redirect(url), nonce)
-  }
-
-  // Demo mode: act as if the user is already signed in. Bypasses the
-  // entire auth check so the inbox is reachable without a Supabase
-  // project. The dashboard then loads its data from the mock client.
-  // The helper hard-disables demo in production regardless of env value.
-  if (isDemoMode()) {
-    if (
-      request.nextUrl.pathname === '/ingresar' ||
-      request.nextUrl.pathname === '/registro' ||
-      request.nextUrl.pathname === '/recuperar-clave' ||
-      request.nextUrl.pathname === '/nueva-clave'
-    ) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/panel'
-      return applyCsp(NextResponse.redirect(url), nonce)
-    }
-    return applyCsp(NextResponse.next({ request: { headers: requestHeaders } }), nonce)
   }
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })

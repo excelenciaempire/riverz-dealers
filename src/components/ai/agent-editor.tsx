@@ -822,8 +822,8 @@ export function AgentEditor({
                       ))}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Ajusta sutilmente el estilo. La personalidad real la define
-                      lo que escribís más abajo en &quot;Cómo se presenta y actúa&quot;.
+                      Ajusta sutilmente el estilo. El detalle de la personalidad
+                      va en &quot;Cómo se presenta y actúa&quot;.
                     </p>
                   </Field>
                   <Field label="Idioma">
@@ -1119,7 +1119,7 @@ export function AgentEditor({
                       checked={replyOutsideHours}
                       onChange={setReplyOutsideHours}
                       title="Responder fuera del horario"
-                      hint="Apagá para que solo responda dentro del horario de oficina."
+                      hint="Apágalo para que solo responda dentro del horario de oficina."
                     />
                   </div>
                 </Field>
@@ -1372,7 +1372,7 @@ export function AgentEditor({
                   Probar el asistente
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Conversá con el bot como si fueras un cliente.
+                  Conversa con el bot como si fueras un cliente.
                 </p>
               </div>
               {testHistory.length > 0 && (

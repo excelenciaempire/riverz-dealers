@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Loader2, Search, Info, ExternalLink, Send } from 'lucide-react';
+import { Plus, Loader2, Search, Info, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 
@@ -181,18 +181,6 @@ export default function BroadcastsPage() {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Campañas masivas
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Envía una plantilla aprobada a una lista de contactos.{' '}
-          <a
-            href="https://www.facebook.com/business/help/2055875911147364"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-0.5 text-foreground underline underline-offset-2 hover:text-accent-ink"
-          >
-            Saber más
-            <ExternalLink className="size-3" />
-          </a>
-        </p>
       </div>
 
       {/* ── Toolbar: search + action ── */}

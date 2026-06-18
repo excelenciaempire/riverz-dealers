@@ -13,7 +13,6 @@ import {
   PauseCircle,
   ChevronDown,
   ChevronRight,
-  Info,
   Search,
   Filter,
 } from "lucide-react";
@@ -35,9 +34,8 @@ import { cn } from "@/lib/utils";
  * a cada cliente, dónde se trabó. Diseño minimalista — mismo lenguaje
  * que /campanas/[id]: métricas grandes arriba sin íconos coloridos,
  * sparkline neutro, tabla compacta abajo con búsqueda + filtro de
- * estado. Mientras el menú no tenga ejecuciones reales, mostramos un
- * banner "Ejemplos" + filas placeholder para que el merchant entienda
- * qué va a ver.
+ * estado. Cuando el menú aún no tiene ejecuciones reales, mostramos un
+ * empty-state.
  */
 
 type RunStatus =
@@ -290,10 +288,8 @@ export default function FlowRunsPage() {
     };
   }, [params.id]);
 
-  // Fuente: reales si hay; placeholder si no.
-  const sourceRuns = runs.length > 0 ? runs : PLACEHOLDER_RUNS;
-  const sourceEvents = runs.length > 0 ? events : PLACEHOLDER_EVENTS;
-  const isPlaceholderView = runs.length === 0;
+  const sourceRuns = runs;
+  const sourceEvents = events;
 
   // ── Métricas ──
   const counts = useMemo(() => {
@@ -418,24 +414,22 @@ export default function FlowRunsPage() {
         </div>
       </div>
 
-      {/* Banner de ejemplos */}
-      {isPlaceholderView && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Vista previa con datos de ejemplo
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Estos números y filas son ilustrativos — desaparecen cuando un
-              cliente real ejecute este menú por primera vez.
-            </p>
+      {runs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-6 py-16 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-accent-ink">
+            <PlayCircle className="size-6" />
           </div>
+          <h2 className="text-base font-medium text-foreground">
+            Este menú aún no se ha usado
+          </h2>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Aquí verás cada conversación cuando un cliente lo ejecute.
+          </p>
         </div>
-      )}
-
-      {/* Métricas top */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      ) : (
+        <>
+          {/* Métricas top */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard label="Usos totales" value={totalRuns} emphasis />
         <MetricCard label="Activos" value={counts.active} />
         <MetricCard label="Completados" value={`${completedPct}%`} />
@@ -536,6 +530,8 @@ export default function FlowRunsPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -681,214 +677,3 @@ function summarizePayload(payload: Record<string, unknown>): string {
   }
   return "";
 }
-
-// ============================================================
-// Placeholder data — mostrado cuando el menú todavía no se ejecutó
-// con ningún cliente real. Marca con id "demo-*" así nada pretende
-// ser navegable a un detalle externo.
-// ============================================================
-const now = () => new Date(2026, 5, 13, 16, 30, 0);
-const daysAgo = (d: number, hours = 0): string => {
-  const x = now();
-  x.setDate(x.getDate() - d);
-  x.setHours(x.getHours() - hours);
-  return x.toISOString();
-};
-
-const PLACEHOLDER_RUNS: RunRow[] = [
-  {
-    id: "demo-1",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(0, 2),
-    last_advanced_at: daysAgo(0, 1),
-    ended_at: daysAgo(0, 1),
-    end_reason: "completed",
-    vars: { numero_pedido: "1042" },
-    reprompt_count: 0,
-    contact: { id: "c1", name: "Lucía Méndez", phone: "+57 312 555 7740" },
-  },
-  {
-    id: "demo-2",
-    status: "handed_off",
-    current_node_key: "handoff_directo",
-    started_at: daysAgo(0, 4),
-    last_advanced_at: daysAgo(0, 3),
-    ended_at: daysAgo(0, 3),
-    end_reason: "handoff",
-    vars: {},
-    reprompt_count: 1,
-    contact: { id: "c2", name: "Carlos Rivera", phone: "+57 318 444 9921" },
-  },
-  {
-    id: "demo-3",
-    status: "active",
-    current_node_key: "preguntas_list",
-    started_at: daysAgo(0, 0),
-    last_advanced_at: daysAgo(0, 0),
-    ended_at: null,
-    end_reason: null,
-    vars: {},
-    reprompt_count: 0,
-    contact: { id: "c3", name: "Andrea Silva", phone: "+57 301 233 8800" },
-  },
-  {
-    id: "demo-4",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(1, 1),
-    last_advanced_at: daysAgo(1, 0),
-    ended_at: daysAgo(1, 0),
-    end_reason: "completed",
-    vars: { faq_tema: "envios" },
-    reprompt_count: 0,
-    contact: { id: "c4", name: "María Torres", phone: "+57 312 998 1142" },
-  },
-  {
-    id: "demo-5",
-    status: "timed_out",
-    current_node_key: "pedido_pedir_numero",
-    started_at: daysAgo(2, 5),
-    last_advanced_at: daysAgo(2, 4),
-    ended_at: daysAgo(2, 0),
-    end_reason: "no_activity_24h",
-    vars: {},
-    reprompt_count: 2,
-    contact: { id: "c5", name: null, phone: "+57 322 776 5511" },
-  },
-  {
-    id: "demo-6",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(2, 8),
-    last_advanced_at: daysAgo(2, 7),
-    ended_at: daysAgo(2, 7),
-    end_reason: "completed",
-    vars: { numero_pedido: "1041" },
-    reprompt_count: 0,
-    contact: { id: "c6", name: "Federico Núñez", phone: "+57 319 220 1133" },
-  },
-  {
-    id: "demo-7",
-    status: "failed",
-    current_node_key: "pedido_buscar",
-    started_at: daysAgo(3, 6),
-    last_advanced_at: daysAgo(3, 6),
-    ended_at: daysAgo(3, 6),
-    end_reason: "shopify_unreachable",
-    vars: { numero_pedido: "X" },
-    reprompt_count: 0,
-    contact: { id: "c7", name: "Paula Gómez", phone: "+57 311 005 8800" },
-  },
-  {
-    id: "demo-8",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(4, 2),
-    last_advanced_at: daysAgo(4, 1),
-    ended_at: daysAgo(4, 1),
-    end_reason: "completed",
-    vars: {},
-    reprompt_count: 0,
-    contact: { id: "c8", name: "Diego Ortiz", phone: "+57 315 332 1100" },
-  },
-  {
-    id: "demo-9",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(6, 9),
-    last_advanced_at: daysAgo(6, 8),
-    ended_at: daysAgo(6, 8),
-    end_reason: "completed",
-    vars: {},
-    reprompt_count: 1,
-    contact: { id: "c9", name: "Sofía Bernal", phone: "+57 313 887 5544" },
-  },
-  {
-    id: "demo-10",
-    status: "completed",
-    current_node_key: null,
-    started_at: daysAgo(9, 4),
-    last_advanced_at: daysAgo(9, 3),
-    ended_at: daysAgo(9, 3),
-    end_reason: "completed",
-    vars: {},
-    reprompt_count: 0,
-    contact: { id: "c10", name: "Miguel Castro", phone: "+57 318 119 2200" },
-  },
-];
-
-const PLACEHOLDER_EVENTS: EventRow[] = [
-  // demo-1: completó comprando estado de pedido
-  {
-    flow_run_id: "demo-1",
-    event_type: "started",
-    node_key: "menu_root",
-    payload: {},
-    created_at: daysAgo(0, 2),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "message_sent",
-    node_key: "menu_root",
-    payload: {},
-    created_at: daysAgo(0, 2),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "reply_received",
-    node_key: "menu_root",
-    payload: { reply_id: "pedido" },
-    created_at: daysAgo(0, 2),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "node_entered",
-    node_key: "pedido_pedir_numero",
-    payload: {},
-    created_at: daysAgo(0, 2),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "reply_received",
-    node_key: "pedido_pedir_numero",
-    payload: { captured_key: "numero_pedido" },
-    created_at: daysAgo(0, 1),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "node_entered",
-    node_key: "pedido_buscar",
-    payload: { advancing_to: "pedido_responder_encontrado" },
-    created_at: daysAgo(0, 1),
-  },
-  {
-    flow_run_id: "demo-1",
-    event_type: "completed",
-    node_key: "fin_ok",
-    payload: {},
-    created_at: daysAgo(0, 1),
-  },
-  // demo-2: handoff
-  {
-    flow_run_id: "demo-2",
-    event_type: "started",
-    node_key: "menu_root",
-    payload: {},
-    created_at: daysAgo(0, 4),
-  },
-  {
-    flow_run_id: "demo-2",
-    event_type: "reply_received",
-    node_key: "menu_root",
-    payload: { reply_id: "asesor" },
-    created_at: daysAgo(0, 4),
-  },
-  {
-    flow_run_id: "demo-2",
-    event_type: "handoff",
-    node_key: "handoff_directo",
-    payload: { reason: "client_requested" },
-    created_at: daysAgo(0, 3),
-  },
-];

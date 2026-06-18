@@ -19,8 +19,6 @@ services:
         value: "20"
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
-      - key: NEXT_PUBLIC_DEMO_MODE
-        value: "false"
       # Supabase + OAuth secrets se gestionan en el dashboard Render
       # como "Environment Variables" para no exponer en el repo.
       - key: NEXT_PUBLIC_SUPABASE_URL

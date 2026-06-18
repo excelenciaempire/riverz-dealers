@@ -1,7 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { createMockClient } from '@/lib/demo/mock-client'
-import { isDemoMode } from '@/lib/demo'
 
 // SameSite=lax: the cookie travels on top-level GET navigations (clicking
 // a link, OAuth provider redirects back to us) but is BLOCKED on cross-site
@@ -28,10 +26,6 @@ export const SESSION_COOKIE_OPTIONS = {
 } as const
 
 export async function createClient() {
-  if (isDemoMode()) {
-    return createMockClient() as unknown as ReturnType<typeof createServerClient>
-  }
-
   const cookieStore = await cookies()
 
   return createServerClient(

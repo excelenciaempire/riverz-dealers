@@ -407,9 +407,7 @@ export default function ProductDetailPage() {
           </Button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Las tuyas tienen prioridad sobre las generadas por la IA. Una buena
-          FAQ es corta — pensá en lo que un cliente real preguntaría por
-          WhatsApp.
+          Las tuyas tienen prioridad sobre las generadas por la IA.
         </p>
 
         {faqs.length === 0 && product.ai_generated_faqs.length === 0 && (

@@ -84,14 +84,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
     description:
-      'Recuperá ventas perdidas. Cuando un cliente abandona su carrito en Shopify, le mandamos un mensaje 2 horas después con el link para retomar y un recordatorio del envío gratis.',
+      'Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.',
     category: 'shopify',
     icon: 'shopping-cart',
     tags: ['Shopify', 'Recovery'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     suggested_template_body:
-      'Hola {{customer_name}}, te dejaste el carrito sin terminar. Te lo guardamos por si querés retomarlo: {{checkout_url}}. Recordá que con nosotros el envío es gratis.',
+      'Hola {{customer_name}}, dejaste tu carrito sin terminar. Te lo guardamos por si quieres retomarlo: {{checkout_url}}.',
     steps: [
       {
         step_type: 'wait',
@@ -150,7 +150,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'shopify_order_fulfilled',
     trigger_config: {},
     suggested_template_body:
-      'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo seguís acá: {{tracking_url}}. ETA estimado 3 a 5 días hábiles.',
+      'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo sigues aquí: {{tracking_url}}.',
     steps: [
       {
         step_type: 'send_template',
@@ -208,7 +208,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'customer_inactive',
     trigger_config: { days_threshold: 45 },
     suggested_template_body:
-      'Hola {{customer_name}}, hace un tiempo del último pedido. ¿Te queda poco del Sérum? Si querés reponer te dejo el link para volver a llevar.',
+      'Hola {{customer_name}}, hace un tiempo de tu último pedido. ¿Quieres reponer? Te dejo el link para volver a comprar.',
     steps: [
       {
         step_type: 'send_template',

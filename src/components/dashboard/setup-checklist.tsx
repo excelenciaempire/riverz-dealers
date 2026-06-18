@@ -71,7 +71,7 @@ export function SetupChecklist() {
               : `${status.completed} de ${steps.length} pasos listos`}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Con estos tres pasos tu inbox, tu bot y tus campañas funcionan.
+            Completa la configuración para activar tu inbox, tu bot y tus campañas.
           </p>
         </div>
         <div className="flex items-center gap-1">

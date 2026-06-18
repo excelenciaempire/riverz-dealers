@@ -28,7 +28,6 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import type { MessageTemplate } from '@/types';
-import { PLACEHOLDER_TEMPLATES } from '@/lib/templates/placeholder-data';
 
 const CATEGORY_LABELS: Record<string, string> = {
   Marketing: 'Marketing',
@@ -145,7 +144,7 @@ export default function TemplatesPage() {
     }
   }
 
-  const rows = templates.length === 0 ? PLACEHOLDER_TEMPLATES : templates;
+  const rows = templates;
   const filteredRows = useMemo(() => {
     if (!query.trim()) return rows;
     const q = query.trim().toLowerCase();
@@ -165,7 +164,7 @@ export default function TemplatesPage() {
           Plantillas de WhatsApp
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Prepará el mensaje antes de enviarlo a tus clientes.{' '}
+          Prepara el mensaje antes de enviarlo a tus clientes.{' '}
           <a
             href="https://www.facebook.com/business/help/2055875911147364"
             target="_blank"
@@ -215,10 +214,10 @@ export default function TemplatesPage() {
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground">
-              Vista previa con datos de ejemplo
+              Todavía no tienes plantillas
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Estas filas son de ejemplo. Desaparecen cuando creas o sincronizas tus plantillas de Meta.
+              Crea una nueva o sincroniza las que ya aprobaste en Meta.
             </p>
           </div>
         </div>
@@ -264,7 +263,6 @@ export default function TemplatesPage() {
                 </TableRow>
               ) : (
                 filteredRows.map((template) => {
-                  const isPlaceholder = template.id.startsWith('demo-');
                   return (
                     <TableRow
                       key={template.id}
@@ -293,11 +291,8 @@ export default function TemplatesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() =>
-                            !isPlaceholder && handleDelete(template.id)
-                          }
-                          disabled={isPlaceholder}
-                          className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 disabled:cursor-default disabled:opacity-30"
+                          onClick={() => handleDelete(template.id)}
+                          className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                           aria-label="Eliminar plantilla"
                         >
                           <Trash2 className="size-3.5" />

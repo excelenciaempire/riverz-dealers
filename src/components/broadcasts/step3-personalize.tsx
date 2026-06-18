@@ -36,18 +36,6 @@ const contactFields = [
   { value: 'company', label: 'Empresa' },
 ];
 
-const SAMPLE_CONTACT: Contact = {
-  id: 'sample',
-  workspace_id: '',
-  channel: 'whatsapp',
-  name: 'Juan Pérez',
-  phone: '+57 300 123 4567',
-  email: 'juan@correo.com',
-  company: 'Acme S.A.',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
 export function Step3Personalize({
   template,
   variables,
@@ -143,7 +131,7 @@ export function Step3Personalize({
    * possible. Placeholders keyed by "{{N}}" map to variable key "N".
    */
   const previewText = useMemo(() => {
-    const contact = firstContact ?? SAMPLE_CONTACT;
+    const contact = firstContact;
     const customValues = firstContact
       ? firstContactCustomValues
       : new Map<string, string>();
@@ -159,10 +147,10 @@ export function Step3Personalize({
           replacement = mapping.value;
         } else if (mapping.type === 'field' && mapping.value) {
           const fieldMap: Record<string, string | undefined> = {
-            name: contact.name,
-            phone: contact.phone,
-            email: contact.email,
-            company: contact.company,
+            name: contact?.name,
+            phone: contact?.phone,
+            email: contact?.email,
+            company: contact?.company,
           };
           replacement = fieldMap[mapping.value] ?? placeholder;
         } else if (mapping.type === 'custom_field' && mapping.value) {
@@ -188,10 +176,6 @@ export function Step3Personalize({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Personalizar mensaje</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Asocia las variables de la plantilla a campos del contacto, campos
-          personalizados o valores estáticos.
-        </p>
       </div>
 
       {placeholders.length === 0 ? (

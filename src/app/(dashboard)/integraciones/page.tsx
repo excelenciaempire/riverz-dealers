@@ -24,11 +24,6 @@ export default function IntegracionesPage() {
           Configuración
         </div>
         <h1 className="mt-1 text-2xl font-bold text-foreground">Integraciones</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Conecta WhatsApp, Shopify, Gmail, Outlook, Facebook e Instagram para
-          que tu equipo trabaje desde una sola bandeja y los bots tengan
-          contexto de tu tienda.
-        </p>
         <Link
           href="/ajustes"
           className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
