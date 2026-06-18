@@ -88,7 +88,10 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // Render as a normal dropdown BELOW the trigger. With this true (Base UI's
+  // default) the popup overlays the trigger and extends upward over the
+  // field's own label, covering it.
+  alignItemWithTrigger = false,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<

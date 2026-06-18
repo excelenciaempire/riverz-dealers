@@ -226,7 +226,7 @@ export function TemplateBuilder() {
           headerText: headerType === 'text' ? headerText : undefined,
           bodyText,
           footerText,
-          buttons: buttonsOn ? buttons : [],
+          buttons: buttonsOn ? normalizeButtons(buttons) : [],
           bodySamples: variables.map((v) => samples[v] ?? ''),
         }),
       });
@@ -515,6 +515,19 @@ function Field({
   );
 }
 
+/** Prepend https:// when the user typed a bare domain, so they never have to
+ *  type the scheme and Meta's https-only rule still passes. Empty stays empty
+ *  (a URL button with no URL still surfaces its own "missing URL" error). */
+function withHttps(url?: string): string {
+  const u = (url ?? '').trim();
+  if (!u) return '';
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+}
+
+function normalizeButtons(buttons: TemplateButtonInput[]): TemplateButtonInput[] {
+  return buttons.map((b) => (b.type === 'URL' ? { ...b, url: withHttps(b.url) } : b));
+}
+
 function ButtonRow({
   button,
   onChange,
@@ -564,9 +577,11 @@ function ButtonRow({
       </div>
       {button.type === 'URL' && (
         <Input
-          placeholder="https://tu-pagina.com/oferta"
+          placeholder="tu-pagina.com/oferta"
           value={button.url ?? ''}
           onChange={(e) => onChange({ url: e.target.value })}
+          // Auto-add https:// so the user never has to type the scheme.
+          onBlur={() => button.url && onChange({ url: withHttps(button.url) })}
           className="mt-2 bg-background"
         />
       )}
