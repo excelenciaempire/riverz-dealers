@@ -180,6 +180,17 @@ export async function GET(request: Request) {
       ids.push(legacyAutomationId)
     }
 
+    // Fetch the contact's name so the feedback template can address the
+    // customer ({{customer_name}}). The fulfillment-state row only carries
+    // order_id/delivered_at, so without this the survey template renders a
+    // blank name. One indexed read per due row.
+    const { data: contactRow } = await admin
+      .from('contacts')
+      .select('name')
+      .eq('id', contactId)
+      .maybeSingle()
+    const customerName = (contactRow as { name?: string | null } | null)?.name ?? ''
+
     let anyExecuted = false
     for (const automationId of ids) {
       const result = await runAutomationById({
@@ -187,6 +198,7 @@ export async function GET(request: Request) {
         contactId,
         context: {
           vars: {
+            customer_name: customerName,
             order_id: String(r.order_id),
             delivered_at: r.delivered_at,
           },

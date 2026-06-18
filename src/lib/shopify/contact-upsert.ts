@@ -1,4 +1,5 @@
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -61,10 +62,20 @@ export async function upsertWhatsappContact(
     return existing.id as string
   }
 
+  // Stamp the legacy single-tenant user_id (= workspace owner). The
+  // automation sender (engineSendTemplate / engineSendText) looks up the
+  // contact with `.eq('user_id', ownerUserId)`, so a contact created
+  // WITHOUT user_id can never be messaged by any Shopify automation —
+  // the send throws "contact not found for this user". The WhatsApp
+  // inbound webhook already sets user_id; we mirror it here so
+  // Shopify-created contacts behave identically.
+  const ownerUserId = await resolveWorkspaceOwnerUserId(admin, args.workspaceId)
+
   const { data: created, error } = await admin
     .from('contacts')
     .insert({
       workspace_id: args.workspaceId,
+      user_id: ownerUserId,
       channel: 'whatsapp',
       external_id: args.phone,
       phone: args.phone,

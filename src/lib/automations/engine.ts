@@ -436,7 +436,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
               if (bNum) return 1
               return a.localeCompare(b)
             })
-            .map((k) => String(cfg.variables![k]))
+            // Each variable value may itself contain {{vars.x}} /
+            // {{message.text}} placeholders (e.g. a "Nuevo pedido"
+            // template mapping {{1}} → "{{vars.customer_name}}"). Run it
+            // through interpolate() — same as send_message's text — so the
+            // Shopify/cron context vars actually land in the Meta params
+            // instead of the literal "{{vars.customer_name}}" string.
+            .map((k) => interpolate(String(cfg.variables![k]), args))
         : []
       const { whatsapp_message_id } = await engineSendTemplate({
         userId: args.ownerUserId,
