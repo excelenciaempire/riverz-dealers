@@ -94,12 +94,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       'Hola {{customer_name}}, dejaste tu carrito sin terminar. Te lo guardamos por si quieres retomarlo: {{checkout_url}}.',
     steps: [
       {
-        step_type: 'wait',
-        step_config: { amount: 2, unit: 'hours' },
-      },
-      {
-        // After a 2h wait we're outside Meta's 24h customer-service
-        // window — only approved templates can be sent. Free-text
+        // No `wait` step here: the cart-recovery cron only fires this
+        // trigger once the checkout is `created_at < now() - 2h`, so the
+        // 2-hour delay is already applied upstream. A wait step here would
+        // stack on top and push the recovery message to ~4h, contradicting
+        // the "2 horas después" the card promises.
+        //
+        // The cron always fires outside Meta's 24h customer-service
+        // window, so only an approved template can be sent — free-text
         // `send_message` would fail at runtime.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
