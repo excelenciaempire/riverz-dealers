@@ -4,15 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import {
-  Loader2,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Search,
-  Info,
-  ExternalLink,
-} from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Trash2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useAuth } from '@/hooks/use-auth';
@@ -158,36 +150,11 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Header ── */}
-      <div>
+      {/* ── Header + actions ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           Plantillas de WhatsApp
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Prepara el mensaje antes de enviarlo a tus clientes.{' '}
-          <a
-            href="https://www.facebook.com/business/help/2055875911147364"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-0.5 text-foreground underline underline-offset-2 hover:text-accent-ink"
-          >
-            Saber más
-            <ExternalLink className="size-3" />
-          </a>
-        </p>
-      </div>
-
-      {/* ── Top toolbar: search + actions ── */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-md">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar plantilla…"
-            className="h-9 pl-8"
-          />
-        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -208,28 +175,30 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      {/* ── Empty-state info banner (only when real list is empty) ── */}
-      {!loading && templates.length === 0 && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5">
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Todavía no tienes plantillas
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Crea una nueva o sincroniza las que ya aprobaste en Meta.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Table ── */}
+      {/* ── Body ── */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
+      ) : templates.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-card/40 py-16 text-center">
+          <p className="text-sm font-medium text-foreground">Todavía no tienes plantillas</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Crea una nueva o sincronízalas desde Meta.
+          </p>
+        </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="space-y-3">
+          <div className="relative w-full max-w-md">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar plantilla…"
+              className="h-9 pl-8"
+            />
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -304,6 +273,7 @@ export default function TemplatesPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
     </div>
