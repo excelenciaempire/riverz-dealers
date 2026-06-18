@@ -7,6 +7,7 @@ import { subscribePageToWebhooks } from "@/lib/channels/meta-graph";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import {
   upsertSingleWhatsAppConnection,
+  syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
 import type { Channel } from "@/types";
@@ -297,6 +298,15 @@ async function connectWhatsApp(
     connectionId,
     wabaId: args.waba_id,
     accessToken: args.token,
+  });
+
+  // Bridge to the legacy whatsapp_config table so automations / flows /
+  // templates / broadcasts / agents can send through this number too.
+  await syncLegacyWhatsAppConfig(admin, {
+    workspaceId: args.workspaceId,
+    phoneNumberId: args.phone_number_id,
+    wabaId: args.waba_id,
+    token: args.token,
   });
 
   return NextResponse.json({ ok: true, connection_id: connectionId, label });

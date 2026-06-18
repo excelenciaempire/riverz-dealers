@@ -24,6 +24,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encrypt } from "@/lib/channels/encryption";
+import { encrypt as encryptLegacy } from "@/lib/whatsapp/encryption";
+import { resolveWorkspaceOwnerUserId } from "@/lib/workspaces/owner";
 
 /** Thrown when a workspace already has a different active WhatsApp. */
 export class WhatsAppAlreadyConnectedError extends Error {
@@ -130,4 +132,53 @@ export async function upsertSingleWhatsAppConnection(
     throw new Error(`insert failed: ${error.message}`);
   }
   return { connectionId: data.id as string, label };
+}
+
+/**
+ * Bridge the WhatsApp connection into the LEGACY `whatsapp_config` table.
+ *
+ * The unified inbox sends through `channel_connections` (above), but the
+ * automations engine, flow engine, template sync/create, broadcasts and the
+ * AI agents all still read WhatsApp credentials from the per-user
+ * `whatsapp_config` table — keyed on the WORKSPACE OWNER's `user_id` (via
+ * `resolveWorkspaceOwnerUserId`). Without this bridge, connecting WhatsApp
+ * lights up the inbox but leaves every one of those features with no number
+ * to send through. So on every WhatsApp connect we mirror the creds here too.
+ *
+ * Best-effort: a failure here is logged, never blocks the primary connect.
+ * Note the separate `@/lib/whatsapp/encryption` key — this table predates the
+ * channels encryption and the send paths decrypt with the legacy key.
+ */
+export async function syncLegacyWhatsAppConfig(
+  admin: SupabaseClient,
+  args: { workspaceId: string; phoneNumberId: string; wabaId: string; token: string },
+): Promise<void> {
+  try {
+    const ownerId = await resolveWorkspaceOwnerUserId(admin, args.workspaceId);
+    if (!ownerId) {
+      console.warn("[whatsapp] legacy config sync: no workspace owner", args.workspaceId);
+      return;
+    }
+    const row = {
+      phone_number_id: args.phoneNumberId,
+      waba_id: args.wabaId,
+      access_token: encryptLegacy(args.token),
+      status: "connected",
+      connected_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      workspace_id: args.workspaceId,
+    };
+    const { data: existing } = await admin
+      .from("whatsapp_config")
+      .select("id")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+    if (existing) {
+      await admin.from("whatsapp_config").update(row).eq("user_id", ownerId);
+    } else {
+      await admin.from("whatsapp_config").insert({ user_id: ownerId, ...row });
+    }
+  } catch (err) {
+    console.warn("[whatsapp] legacy config sync failed:", err);
+  }
 }

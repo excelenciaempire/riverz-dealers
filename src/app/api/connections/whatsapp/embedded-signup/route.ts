@@ -5,6 +5,7 @@ import { csrfGuard } from "@/lib/csrf";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import {
   upsertSingleWhatsAppConnection,
+  syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
 
@@ -132,6 +133,15 @@ export async function POST(req: Request): Promise<Response> {
       connectionId,
       wabaId: body.waba_id,
       accessToken: token,
+    });
+
+    // Bridge to the legacy whatsapp_config table so automations / flows /
+    // templates / broadcasts / agents can send through this number too.
+    await syncLegacyWhatsAppConfig(admin, {
+      workspaceId: body.workspace_id,
+      phoneNumberId: body.phone_number_id,
+      wabaId: body.waba_id,
+      token,
     });
 
     return NextResponse.json({ ok: true, label, coexistence: Boolean(phone.is_on_biz_app) });
