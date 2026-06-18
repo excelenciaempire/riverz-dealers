@@ -270,12 +270,14 @@ const FB_PAGE_FIELDS = [
   "message_reads",
   "feed", // FB post/ad comments arrive under the `feed` field
 ];
-const IG_PAGE_FIELDS = [
-  "messages",
-  "messaging_postbacks",
-  "message_reactions",
-  "comments", // IG post/ad comments
-];
+// NOTE: `comments` is intentionally NOT here. IG comment webhooks are
+// subscribed at the APP level (Meta App Dashboard › Instagram › Webhooks),
+// not per-page via subscribed_apps — POSTing `comments` to a page's
+// subscribed_apps 400s and would abort the whole subscribe (skipping the
+// IG-user messaging subscribe below it). Verified in prod: the page has no
+// `comments` field yet IG comments still arrive. Page-level IG handles
+// messaging only; the ig-user object is subscribed separately.
+const IG_PAGE_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
 const IG_USER_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
 
 /** The full set of page-level webhook fields to subscribe when connecting
