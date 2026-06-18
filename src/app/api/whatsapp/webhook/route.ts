@@ -953,6 +953,14 @@ async function findOrCreateContact(
     .insert({
       user_id: userId,
       workspace_id: workspaceId,
+      channel: 'whatsapp',
+      // Key the contact by external_id = phone, the same convention the
+      // unified-inbox / Shopify upsert uses (upsertWhatsappContact looks
+      // up by external_id). Without it, a phone that first messages on
+      // WhatsApp (external_id NULL) and later places a Shopify order
+      // becomes TWO contacts — the Shopify upsert can't find the
+      // webhook-created one and inserts a duplicate.
+      external_id: phone,
       phone,
       name: name || phone,
     })
