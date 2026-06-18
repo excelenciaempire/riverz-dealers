@@ -46,43 +46,13 @@ export function ProfileForm() {
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
-  const [timezone, setTimezone] = useState<string>('America/Bogota');
 
   // Seed form state once the profile loads.
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
-    const tz = (profile as { timezone?: string }).timezone;
-    if (tz) setTimezone(tz);
   }, [profile]);
-
-  // Full IANA list — Intl.supportedValuesOf is the standard way to
-  // enumerate every zone the browser/engine knows. Grouped lightly so
-  // the dropdown isn't 600 unsorted rows.
-  const timezones = (() => {
-    try {
-      const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] })
-        .supportedValuesOf;
-      if (sv) return sv('timeZone');
-    } catch {
-      // Fall through to a small handpicked default — enough for the
-      // initial user base, and the user can still type a custom value
-      // because the input is a datalist-backed text box.
-    }
-    return [
-      'America/Bogota',
-      'America/Buenos_Aires',
-      'America/Mexico_City',
-      'America/Lima',
-      'America/Santiago',
-      'America/New_York',
-      'America/Los_Angeles',
-      'Europe/Madrid',
-      'Europe/London',
-      'UTC',
-    ];
-  })();
 
   // Cleanup object URLs to avoid leaks.
   useEffect(() => {
@@ -167,13 +137,13 @@ export function ProfileForm() {
         nextAvatarUrl = null;
       }
 
-      // Persist name + avatar + timezone to profiles.
+      // Persist name + avatar to profiles. (Timezone is workspace-level now —
+      // set in Ajustes → Espacio de trabajo.)
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
-          timezone,
         })
         .eq('user_id', user.id);
       if (updateError) {
@@ -225,8 +195,7 @@ export function ProfileForm() {
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
       pendingAvatar !== null ||
-      removeAvatar ||
-      timezone !== ((profile as { timezone?: string }).timezone ?? 'America/Bogota'));
+      removeAvatar);
 
   const joined = user?.created_at
     ? new Date(user.created_at).toLocaleDateString('es-ES', {
@@ -325,27 +294,6 @@ export function ProfileForm() {
                 </span>
               </p>
             )}
-          </div>
-
-          {/* Timezone — drives every time format() in the inbox so the
-              user sees timestamps relative to their own clock. */}
-          <div className="space-y-2">
-            <Label htmlFor="profile-timezone" className="text-foreground">
-              Zona horaria
-            </Label>
-            <select
-              id="profile-timezone"
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              disabled={saving}
-              className="flex h-9 w-full rounded-md border border-border bg-card px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {timezones.map((z) => (
-                <option key={z} value={z}>
-                  {z.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Read-only block */}

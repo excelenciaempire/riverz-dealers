@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import {
   Megaphone,
@@ -40,22 +40,49 @@ export default function MetricasPage() {
   const [data, setData] = useState<AttributionResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch(`/api/analytics/attribution?days=${days}`)
+  // Attribution is computed server-side from Shopify orders (which land
+  // via Shopify webhooks), so there's no Supabase table to subscribe to —
+  // instead we poll on an interval and refetch when the tab regains focus,
+  // so the revenue numbers stay current without a manual reload. State is
+  // written only in async callbacks (safe to call from an effect); the
+  // initial spinner comes from `loading`'s initial true, and the range
+  // buttons flip it back on when the window changes.
+  // Guards against out-of-order responses: switching the day-range (or an
+  // auto-refresh tick) bumps the epoch, so a slower earlier request can't
+  // land its stale data on top of a newer one. Replaces the `cancelled`
+  // flag the single-shot effect used to carry.
+  const reqEpoch = useRef(0);
+  const load = useCallback(() => {
+    const epoch = ++reqEpoch.current;
+    return fetch(`/api/analytics/attribution?days=${days}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          setLoading(false);
-        }
+        if (epoch === reqEpoch.current && d) setData(d);
       })
-      .catch(() => setLoading(false));
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => {})
+      .finally(() => {
+        if (epoch === reqEpoch.current) setLoading(false);
+      });
   }, [days]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Auto-refresh every 60s + on tab focus (silent — keeps tables on screen).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [load]);
 
   const totalBroadcastRevenue =
     data?.by_broadcast?.reduce((s, r) => s + r.revenue, 0) ?? 0;
@@ -87,7 +114,12 @@ export default function MetricasPage() {
           {[7, 30, 90].map((r) => (
             <button
               key={r}
-              onClick={() => setDays(r as Range)}
+              onClick={() => {
+                if (r !== days) {
+                  setLoading(true);
+                  setDays(r as Range);
+                }
+              }}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs transition-colors',
                 days === r

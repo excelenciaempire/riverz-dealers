@@ -9,6 +9,9 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
+import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { handleMetaGraphError } from "../meta-auth";
+import { supabaseAdmin } from "../admin-client";
 
 /**
  * Facebook ad / post comments via Graph API.
@@ -54,7 +57,13 @@ export const fbCommentAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`[fb_comment] reply failed (${res.status}): ${detail}`);
+      const parsed = parseMetaError(detail);
+      // Flip the connection to error on a genuine token death (so Settings
+      // › Canales shows a Reconectar CTA) — same as the DM adapters.
+      await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
+      // Log Meta's raw body server-side; surface a clear Spanish message.
+      console.error(`[fb_comment] reply failed (${res.status}): ${detail}`);
+      throw new Error(describeMetaSendError("fb_comment", res.status, parsed).userMessage);
     }
     const json = (await res.json()) as { id?: string };
     return { externalMessageId: json.id, status: "sent" };

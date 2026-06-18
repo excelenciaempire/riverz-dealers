@@ -9,11 +9,9 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
-import {
-  handleMetaGraphError,
-  parseMetaErrorBody,
-  clearMetaConnectionError,
-} from "../meta-auth";
+import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
+import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { buildParticipantMap } from "../meta-participants";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -75,13 +73,13 @@ export const instagramAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      await handleMetaGraphError(
-        supabaseAdmin(),
-        input.connection,
-        res.status,
-        parseMetaErrorBody(detail),
-      );
-      throw new Error(`[instagram] send failed (${res.status}): ${detail}`);
+      const parsed = parseMetaError(detail);
+      await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
+      // Keep Meta's raw body in the server logs for debugging, but surface
+      // only a clear, actionable Spanish message to the agent (the toast /
+      // campaign log shows this) instead of a wall of JSON.
+      console.error(`[instagram] send failed (${res.status}): ${detail}`);
+      throw new Error(describeMetaSendError("instagram", res.status, parsed).userMessage);
     }
     // Send succeeded — auto-restore a connection previously flagged dead
     // so a recovered token re-greens without a manual reconnect.
@@ -107,6 +105,24 @@ export const instagramAdapter: ChannelAdapter = {
       pageToken = enc ? decrypt(enc) : "";
       return pageToken;
     };
+    // IG webhooks ship the IGSID but no display label. The /{igsid} profile
+    // lookup returns nothing for DM senders without Advanced Access, so the
+    // reliable source is the conversations API (participants carry the
+    // username). Build that map ONCE per delivery (lazily, best-effort) and
+    // resolve from it first; fall back to the per-id lookup. This makes
+    // "@handle" show on the first message instead of waiting for the
+    // backfill cron. Capped low — the just-messaged sender is most-recent.
+    let participantMap: Map<string, string> | null = null;
+    const getParticipantMap = async (): Promise<Map<string, string>> => {
+      if (participantMap) return participantMap;
+      participantMap = await buildParticipantMap(
+        "instagram",
+        connection,
+        getToken() ?? "",
+        3,
+      ).catch(() => new Map<string, string>());
+      return participantMap;
+    };
     for (const entry of entries) {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
@@ -115,10 +131,9 @@ export const instagramAdapter: ChannelAdapter = {
           | { mid?: string; text?: string; attachments?: Array<Record<string, unknown>> }
           | undefined;
         if (!sender?.id || !message) continue;
-        // IG webhooks ship the IGSID but no display label — resolve to
-        // @username from /{igsid}?fields=username,name so the inbox row
-        // reads as "@somehandle" instead of a 17-digit id.
-        const name = await fetchInstagramName(sender.id, getToken());
+        const name =
+          (await getParticipantMap()).get(sender.id) ??
+          (await fetchInstagramName(sender.id, getToken()));
         // Bajamos cada attachment a Storage para tener un permalink —
         // las CDN URLs de IG caducan en horas y el inbox necesita
         // poder mostrar el adjunto días después.

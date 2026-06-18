@@ -30,6 +30,10 @@ export interface Workspace {
   name: string;
   slug?: string;
   owner_id: string;
+  /** IANA timezone (e.g. "America/Bogota"). The single "app timezone" that
+   *  drives every metric day-boundary and every inbox timestamp. Migration
+   *  072. Admins set it in Ajustes → Espacio de trabajo. */
+  timezone?: string;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

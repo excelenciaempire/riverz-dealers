@@ -6,8 +6,10 @@
  */
 
 import type { Channel } from "@/types";
+import { getLogger } from "@/lib/log/logger";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
+const log = getLogger("channels.meta-graph");
 
 export interface MetaPage {
   id: string;
@@ -152,52 +154,141 @@ export async function subscribePageToWebhooks(args: {
   pageAccessToken: string;
   igUserId?: string;
 }): Promise<void> {
-  const subscribedFields = fieldsForChannel(args.channel);
-  if (subscribedFields.length === 0) return;
-
-  if (args.channel === "instagram" || args.channel === "ig_comment") {
-    // For IG we subscribe via the page (the IG Business account inherits).
-    // Newer Graph: also subscribe the IG user directly for messaging fields.
-    const r = await fetch(
-      `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${subscribedFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
-      { method: "POST" },
-    );
-    if (!r.ok) {
-      const detail = await r.text();
-      throw new Error(`[meta] page subscribe failed (${r.status}): ${detail}`);
-    }
-    // Some scopes (instagram_manage_messages) also require subscribing
-    // the IG user object directly.
-    if (args.igUserId) {
-      await fetch(
-        `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_reactions&access_token=${encodeURIComponent(args.pageAccessToken)}`,
-        { method: "POST" },
-      );
-    }
+  const familyFields = pageFieldsForChannel(args.channel);
+  if (familyFields.length === 0) {
+    // Defensive: only fires for a channel with no field map (a future
+    // channel shipped without one) — log so it doesn't silently no-op.
+    log.warn("no webhook fields defined for channel; skipping subscribe", {
+      channel: args.channel,
+    });
     return;
   }
 
-  // FB messenger / comments — subscribe the page.
+  // Read the page's CURRENT subscribed fields and POST the UNION with this
+  // family's fields. A single Meta page delivers both messaging AND
+  // comment/feed webhooks, and `subscribed_apps` sets the field list per
+  // app-page — so connecting (or reconnecting) just "instagram" must NOT
+  // leave the page without `comments`, nor wipe `feed` from a page that
+  // also has Messenger. Reading-then-unioning is robust whether Meta
+  // merges or replaces the field set, and is order-independent.
+  const currentPage = await getSubscribedFields(args.pageId, args.pageAccessToken);
+  if (currentPage === null) {
+    // Couldn't read existing fields (token/scope/transient). We still POST
+    // this family's fields so THIS channel works, but warn — under
+    // replace-semantics another family's fields could be lost until the
+    // verify cron re-applies them.
+    log.warn("could not read current page subscription; applying family fields only", {
+      pageId: args.pageId,
+      channel: args.channel,
+    });
+  }
+  const pageFields = Array.from(new Set([...(currentPage ?? []), ...familyFields]));
   const r = await fetch(
-    `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${subscribedFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+    `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${pageFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
     { method: "POST" },
   );
   if (!r.ok) {
     const detail = await r.text();
     throw new Error(`[meta] page subscribe failed (${r.status}): ${detail}`);
   }
+
+  // IG messaging also requires subscribing the IG user object directly
+  // (some scopes like instagram_manage_messages only deliver that way).
+  if ((args.channel === "instagram" || args.channel === "ig_comment") && args.igUserId) {
+    const currentUser = (await getSubscribedFields(args.igUserId, args.pageAccessToken)) ?? [];
+    const userFields = Array.from(new Set([...currentUser, ...IG_USER_FIELDS]));
+    const ur = await fetch(
+      `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=${userFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+      { method: "POST" },
+    );
+    // Best-effort (the page subscription above is the critical one), but a
+    // failure here means IG DMs may not deliver — surface it instead of
+    // swallowing it silently.
+    if (!ur.ok) {
+      const detail = await ur.text().catch(() => "");
+      log.warn("IG user webhook subscribe failed", {
+        igUserId: args.igUserId,
+        status: ur.status,
+        detail: detail.slice(0, 300),
+      });
+    }
+  }
 }
 
-function fieldsForChannel(channel: Channel): string[] {
+/**
+ * Read the webhook fields THIS app is currently subscribed to on a page or
+ * IG-user object. Returns the flattened `subscribed_fields`, or null if the
+ * call fails (so callers treat "unknown" as "subscribe everything"). Used
+ * by subscribePageToWebhooks (read-union-post) and the verify/repair cron.
+ */
+export async function getSubscribedFields(
+  objectId: string,
+  pageAccessToken: string,
+): Promise<string[] | null> {
+  try {
+    const r = await fetch(
+      `${GRAPH}/${objectId}/subscribed_apps?access_token=${encodeURIComponent(pageAccessToken)}`,
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      data?: Array<{ id?: string; subscribed_fields?: unknown }>;
+    };
+    // GET /subscribed_apps can list MULTIPLE apps subscribed to the object
+    // (e.g. Meta Business Suite alongside us). Only union in OUR app's
+    // fields — folding in another app's fields and POSTing them back under
+    // our subscription could include a field invalid for our scopes and
+    // 400 the whole subscribe. Filter by our app id when we know it.
+    const appId = process.env.META_APP_ID;
+    const fields = new Set<string>();
+    for (const app of j.data ?? []) {
+      if (appId && app.id && String(app.id) !== appId) continue;
+      const sf = app.subscribed_fields;
+      // Meta returns either string[] or [{name}] depending on API version.
+      if (Array.isArray(sf)) {
+        for (const f of sf) {
+          if (typeof f === "string") fields.add(f);
+          else if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
+            fields.add((f as { name: string }).name);
+          }
+        }
+      }
+    }
+    return [...fields];
+  } catch {
+    return null;
+  }
+}
+
+// Webhook fields per page "family". We subscribe the whole family union on
+// every connect so DMs + comments are always both covered regardless of
+// which channel triggered the subscription or the order pages were linked.
+const FB_PAGE_FIELDS = [
+  "messages",
+  "messaging_postbacks",
+  "message_reactions",
+  "message_deliveries",
+  "message_reads",
+  "feed", // FB post/ad comments arrive under the `feed` field
+];
+const IG_PAGE_FIELDS = [
+  "messages",
+  "messaging_postbacks",
+  "message_reactions",
+  "comments", // IG post/ad comments
+];
+const IG_USER_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
+
+/** The full set of page-level webhook fields to subscribe when connecting
+ *  any channel in the page's family (FB page vs IG). Exported so the
+ *  re-subscribe/verify cron applies the exact same set. */
+export function pageFieldsForChannel(channel: Channel): string[] {
   switch (channel) {
     case "messenger":
-      return ["messages", "messaging_postbacks", "message_reactions", "message_deliveries", "message_reads"];
     case "fb_comment":
-      return ["feed"];
+      return FB_PAGE_FIELDS;
     case "instagram":
-      return ["messages", "messaging_postbacks", "message_reactions"];
     case "ig_comment":
-      return ["comments"];
+      return IG_PAGE_FIELDS;
     default:
       return [];
   }

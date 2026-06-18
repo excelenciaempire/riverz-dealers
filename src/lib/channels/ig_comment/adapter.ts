@@ -8,6 +8,9 @@ import type {
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
+import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { handleMetaGraphError } from "../meta-auth";
+import { supabaseAdmin } from "../admin-client";
 
 /**
  * Instagram ad / post comments via Graph API.
@@ -49,7 +52,10 @@ export const igCommentAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`[ig_comment] reply failed (${res.status}): ${detail}`);
+      const parsed = parseMetaError(detail);
+      await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
+      console.error(`[ig_comment] reply failed (${res.status}): ${detail}`);
+      throw new Error(describeMetaSendError("ig_comment", res.status, parsed).userMessage);
     }
     const json = (await res.json()) as { id?: string };
     return { externalMessageId: json.id, status: "sent" };

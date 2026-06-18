@@ -598,14 +598,6 @@ const ConversationItem = memo(function ConversationItem({
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
-            {conversation.is_ad && (
-              <span
-                title="Comentario en un anuncio pagado"
-                className="inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
-              >
-                Anuncio
-              </span>
-            )}
           </div>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>

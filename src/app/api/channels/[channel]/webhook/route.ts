@@ -298,6 +298,24 @@ async function routesByPayload(
     payload: { ...(body as object), entry: b.entries },
   }));
   if (unmatched.length > 0) {
+    // We still route these to the first connected row (so nothing is
+    // silently dropped), but flag it: a persistent mismatch means a
+    // connection's stored page_id / ig_user_id doesn't match what Meta is
+    // stamping on the webhook — the usual cause of "messages aren't
+    // arriving in the inbox".
+    log.warn("webhook entries matched no connection by id", {
+      channel,
+      unmatchedEntryIds: unmatched.map((e) =>
+        e && typeof e === "object" ? String((e as { id?: unknown }).id ?? "") : "",
+      ),
+      knownConnectionIds: conns.map((c) => ({
+        id: c.id,
+        external_account_id: c.external_account_id,
+        config_ids: ["page_id", "ig_user_id", "phone_number_id", "waba_id"]
+          .map((k) => (c.config as Record<string, unknown> | null)?.[k])
+          .filter(Boolean),
+      })),
+    });
     routes.push({
       connection: conns[0],
       payload: { ...(body as object), entry: unmatched },

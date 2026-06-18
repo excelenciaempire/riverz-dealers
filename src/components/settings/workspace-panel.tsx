@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Building2,
+  Clock,
   Loader2,
   Mail,
   Trash2,
@@ -19,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
+import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types";
 
 interface UsageData {
@@ -32,6 +35,8 @@ export function WorkspacePanel() {
   const fetchWithCsrf = useFetchWithCsrf();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [savingTz, setSavingTz] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -42,7 +47,10 @@ export function WorkspacePanel() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (workspace) setName(workspace.name);
+    if (workspace) {
+      setName(workspace.name);
+      setTimezone(workspace.timezone ?? DEFAULT_TIMEZONE);
+    }
   }, [workspace]);
 
   const fetchMembersAndInvites = useCallback(async () => {
@@ -123,6 +131,27 @@ export function WorkspacePanel() {
     toast.success("Espacio de trabajo renombrado");
     reload();
   }, [workspace, name, reload]);
+
+  const handleSaveTimezone = useCallback(async () => {
+    if (!workspace) return;
+    if (timezone === (workspace.timezone ?? DEFAULT_TIMEZONE)) return;
+    setSavingTz(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspaces")
+      .update({ timezone, updated_at: new Date().toISOString() })
+      .eq("id", workspace.id);
+    setSavingTz(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    // Prime the cache so the inbox + dashboard pick up the new zone on the
+    // next navigation instead of flashing the old cached value.
+    cacheWorkspaceTimezone(timezone);
+    toast.success("Zona horaria actualizada");
+    reload();
+  }, [workspace, timezone, reload]);
 
   const handleInvite = useCallback(async () => {
     if (!workspace || !inviteEmail.trim()) return;
@@ -227,6 +256,46 @@ export function WorkspacePanel() {
             </Button>
           )}
         </div>
+
+        {/* Timezone — the single app reporting zone. Governs the "día" of
+            every metric (panel, gráficas, uso mensual) AND the hours shown
+            in the inbox, so the whole team agrees on the numbers. */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="size-3.5" />
+              Zona horaria
+            </Label>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              disabled={!isAdmin || savingTz}
+              className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {listTimeZones().map((z) => (
+                <option key={z} value={z}>
+                  {z.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={handleSaveTimezone}
+              disabled={
+                savingTz ||
+                timezone === (workspace.timezone ?? DEFAULT_TIMEZONE)
+              }
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {savingTz ? <Loader2 className="size-4 animate-spin" /> : "Guardar"}
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Rige el día de todas las métricas y las horas que se muestran en la
+          bandeja, para todo el equipo.
+        </p>
       </section>
 
       {/* Members card */}
@@ -339,7 +408,8 @@ export function WorkspacePanel() {
           </div>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Contadores del mes calendario actual (UTC).
+          Contadores del mes calendario actual, según la zona horaria del
+          espacio de trabajo.
         </p>
       </section>
 

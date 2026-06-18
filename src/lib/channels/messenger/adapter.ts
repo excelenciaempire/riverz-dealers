@@ -9,11 +9,9 @@ import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
-import {
-  handleMetaGraphError,
-  parseMetaErrorBody,
-  clearMetaConnectionError,
-} from "../meta-auth";
+import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
+import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { buildParticipantMap } from "../meta-participants";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -59,13 +57,12 @@ export const messengerAdapter: ChannelAdapter = {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      await handleMetaGraphError(
-        supabaseAdmin(),
-        input.connection,
-        res.status,
-        parseMetaErrorBody(detail),
-      );
-      throw new Error(`[messenger] send failed (${res.status}): ${detail}`);
+      const parsed = parseMetaError(detail);
+      await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
+      // Keep Meta's raw body in the server logs for debugging, but surface
+      // only a clear, actionable Spanish message to the agent.
+      console.error(`[messenger] send failed (${res.status}): ${detail}`);
+      throw new Error(describeMetaSendError("messenger", res.status, parsed).userMessage);
     }
     // Send succeeded — auto-restore a connection previously flagged dead
     // so a recovered token re-greens without a manual reconnect.
@@ -93,6 +90,21 @@ export const messengerAdapter: ChannelAdapter = {
       pageToken = enc ? decrypt(enc) : "";
       return pageToken;
     };
+    // Messenger webhooks don't carry the sender's name. The /{psid} profile
+    // lookup often returns nothing without Advanced Access, so resolve from
+    // the conversations API (participants carry the name) first, then fall
+    // back to the per-id lookup. Built once per delivery, best-effort.
+    let participantMap: Map<string, string> | null = null;
+    const getParticipantMap = async (): Promise<Map<string, string>> => {
+      if (participantMap) return participantMap;
+      participantMap = await buildParticipantMap(
+        "messenger",
+        connection,
+        getToken() ?? "",
+        3,
+      ).catch(() => new Map<string, string>());
+      return participantMap;
+    };
     for (const entry of entries) {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
@@ -105,11 +117,9 @@ export const messengerAdapter: ChannelAdapter = {
             }
           | undefined;
         if (!sender?.id || !message) continue;
-        // Messenger webhooks don't carry the sender's name — resolve it
-        // from /{psid}?fields=name so the inbox shows "Juan Pérez"
-        // instead of a 16-digit PSID. Best-effort: any error keeps the
-        // event flowing (the PSID stays as the fallback display).
-        const name = await fetchMessengerName(sender.id, getToken());
+        const name =
+          (await getParticipantMap()).get(sender.id) ??
+          (await fetchMessengerName(sender.id, getToken()));
         // Messenger ships attachments con `type` (image/video/audio/file)
         // y `payload.url` ya público. Lo persistimos en Storage para
         // que la URL no se nos expire después.

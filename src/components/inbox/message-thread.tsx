@@ -1072,7 +1072,6 @@ export function MessageThread({
             ? `https://facebook.com/${postId}`
             : null);
         const caption = postPreview?.caption || conversation.subject || "Comentario en una publicación";
-        const isAd = postPreview?.isAd ?? conversation.is_ad;
         return (
           <div className="flex items-start gap-3 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
             {/* Thumbnail of the actual post/ad. */}
@@ -1103,14 +1102,6 @@ export function MessageThread({
               </span>
             )}
             <div className="min-w-0 flex-1">
-              {isAd && (
-                <span
-                  title="Anuncio pagado"
-                  className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
-                >
-                  Anuncio
-                </span>
-              )}
               <p className="mt-0.5 line-clamp-2 text-foreground">{caption}</p>
               {postUrl && (
                 <a

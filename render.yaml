@@ -279,6 +279,24 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Re-applies + verifies Meta webhook field subscriptions so the inbox
+  # never silently stops receiving DMs/comments (Meta unsubscribes a page
+  # after sustained webhook errors and never re-subscribes on its own).
+  - type: cron
+    name: cron-meta-webhook-subscriptions
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/meta-webhook-subscriptions
+    schedule: "0 */6 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   - type: cron
     name: cron-broadcasts
     runtime: node

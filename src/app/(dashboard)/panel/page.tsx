@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   MessageSquare,
@@ -9,8 +9,11 @@ import {
   Send,
   Inbox,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
+import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
+import { useTimezone } from '@/hooks/use-timezone'
 
 import {
   loadActivity,
@@ -54,42 +57,109 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  const loadAll = useCallback(() => {
-    const db = createClient()
+  // Current range in a ref so the realtime refetch (a stable callback)
+  // reloads whichever range the user is viewing without re-subscribing.
+  const rangeRef = useRef(range)
+  useEffect(() => {
+    rangeRef.current = range
+  }, [range])
 
-    // Kick everything off in parallel. Each block has its own
-    // setState + finally so a slow query doesn't hold up faster
-    // sections — each widget shows its own skeleton independently.
-    void loadMetrics(db)
+  // The workspace timezone (the app's single reporting zone) drives every
+  // day-boundary in the loaders below. Mirror it into a ref for the same
+  // reason as range: `refresh` is a stable []-memoised callback and must
+  // read the latest tz without being re-created.
+  const tz = useTimezone()
+  const tzRef = useRef(tz)
+
+  // Refetch everything. All state writes happen in async callbacks (never
+  // synchronously here) so this is safe to call straight from an effect —
+  // first-load skeletons come from the initial `*Loading = true` state, and
+  // live refetches update the numbers in place without a skeleton flash.
+  // `silent` only controls series-cache invalidation (see below).
+  const refresh = useCallback((opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false
+    const db = createClient()
+    const r = rangeRef.current
+    const activeTz = tzRef.current
+
+    void loadMetrics(db, activeTz)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, 30)
-      .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
+    // Reload the range in view and invalidate the other cached ranges so
+    // they refetch on next view — a live update makes all of them stale.
+    void loadConversationsSeries(db, activeTz, r)
+      .then((s) => {
+        // If the user switched ranges while this was in flight, drop the
+        // result — handleRangeChange now owns the visible range, and
+        // applying stale data here would clobber it (flicker / wrong bars).
+        if (rangeRef.current !== r) return
+        setSeries((prev) => {
+          const next: Record<RangeDays, ConversationsSeriesPoint[] | null> =
+            silent ? { 7: null, 30: null, 90: null } : { ...prev }
+          next[r] = s
+          return next
+        })
+      })
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
-    void loadResponseTime(db)
-      .then((r) => setResponseTime(r))
+    void loadResponseTime(db, activeTz)
+      .then((rt) => setResponseTime(rt))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
 
-    // Fetch up to 50 so the biggest page-size option in the feed
-    // (50 rows) is already in memory — switching sizes then becomes
-    // a pure client-side slice with no extra round trip.
+    // Fetch up to 50 so the biggest page-size option in the feed (50 rows)
+    // is already in memory — switching sizes is then a pure client slice.
     void loadActivity(db, 50)
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
   }, [])
 
+  // Initial load. Reads tzRef.current, seeded from the cached workspace tz,
+  // so the very first buckets are already in the right zone for a returning
+  // user.
   useEffect(() => {
-    loadAll()
-  }, [loadAll])
+    refresh()
+  }, [refresh])
 
-  // Range switch handler — kept in an event callback (not an effect)
-  // so the setState calls stay out of the react-hooks/set-state-in-effect
+  // When the workspace tz resolves to a value different from the cached
+  // seed (or an admin changes it), re-bucket everything in the new zone.
+  // The ref guard makes this a no-op on mount, so the initial load above
+  // isn't duplicated.
+  useEffect(() => {
+    if (tzRef.current === tz) return
+    tzRef.current = tz
+    refresh({ silent: true })
+  }, [tz, refresh])
+
+  // Live updates — any change to messages / conversations / contacts /
+  // broadcasts / automation_logs (debounced) triggers a silent refetch so
+  // the numbers stay in sync without a manual reload.
+  const { isConnected } = useDashboardRealtime({
+    onChange: () => refresh({ silent: true }),
+  })
+
+  // Catch-up resync: Realtime does NOT replay events missed while the
+  // socket was down or the tab was backgrounded, so refetch whenever the
+  // channel reconnects or the tab returns to the foreground.
+  const wasConnected = useRef(isConnected)
+  useEffect(() => {
+    if (isConnected && !wasConnected.current) refresh({ silent: true })
+    wasConnected.current = isConnected
+  }, [isConnected, refresh])
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh({ silent: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
+
+  // Range switch handler — kept in an event callback (not an effect) so
+  // the setState calls stay out of the react-hooks/set-state-in-effect
   // rule's way. The cached bucket check means switching back to a
   // previously-viewed range is instant and doesn't re-fetch.
   const handleRangeChange = useCallback(
@@ -98,20 +168,23 @@ export default function DashboardPage() {
       if (series[r] !== null) return
       setSeriesLoading(true)
       const db = createClient()
-      loadConversationsSeries(db, r)
+      loadConversationsSeries(db, tz, r)
         .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
         .catch((err) => console.error('[dashboard] series failed:', err))
         .finally(() => setSeriesLoading(false))
     },
-    [series],
+    [series, tz],
   )
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div>
-        <p className="app-eyebrow">Inicio</p>
-        <h1 className="app-page-title mt-1.5">Resumen</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="app-eyebrow">Inicio</p>
+          <h1 className="app-page-title mt-1.5">Resumen</h1>
+        </div>
+        <LiveIndicator connected={isConnected} />
       </div>
 
       {/* Checklist de onboarding. Solo aparece mientras falte algo. */}
@@ -210,6 +283,26 @@ export default function DashboardPage() {
 }
 
 // ------------------------------------------------------------
+
+// Subtle live-sync badge. Green pulsing dot while the realtime channel is
+// subscribed; muted when the socket is down (data still loads, just not
+// pushed live).
+function LiveIndicator({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground"
+      title={connected ? 'Datos en tiempo real' : 'Sin conexión en vivo'}
+    >
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          connected ? 'animate-pulse bg-emerald-500' : 'bg-muted-foreground/40',
+        )}
+      />
+      {connected ? 'En vivo' : 'Sin conexión'}
+    </span>
+  )
+}
 
 function deltaLabel(delta: number, suffix: string): string {
   if (delta === 0) return `Sin cambios ${suffix}`

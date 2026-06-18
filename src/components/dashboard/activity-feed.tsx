@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   MessageSquare,
   UserPlus,
@@ -41,6 +41,19 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   // dominating vertical real estate. User expands explicitly via the
   // footer control when they want deeper history.
   const [pageSize, setPageSize] = useState<PageSize>(5)
+
+  // Re-render on a timer so the relative timestamps ("hace 2m") keep
+  // advancing while the dashboard sits open — relativeTime() reads
+  // Date.now() at render, so without this they'd freeze at first paint.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => {
+      // Skip backgrounded tabs — no point re-rendering timestamps nobody
+      // is looking at. The feed re-renders on focus anyway via the parent.
+      if (document.visibilityState === 'visible') setTick((t) => t + 1)
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const totalLoaded = items?.length ?? 0
   const visible = items?.slice(0, pageSize) ?? []

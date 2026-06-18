@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { getUsageSummary } from "@/lib/metering";
+import { DEFAULT_TIMEZONE } from "@/lib/timezones";
 
 /**
  * GET /api/workspaces/usage?workspace_id=...
@@ -40,6 +41,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const usage = await getUsageSummary(workspaceId);
+  // Bucket the month by the workspace's reporting zone, not UTC.
+  const { data: ws } = await admin
+    .from("workspaces")
+    .select("timezone")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const tz = (ws as { timezone?: string } | null)?.timezone || DEFAULT_TIMEZONE;
+
+  const usage = await getUsageSummary(workspaceId, tz);
   return NextResponse.json(usage);
 }

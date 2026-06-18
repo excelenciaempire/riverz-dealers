@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  dayKey,
   daysAgoStart,
   DOW_SHORT_MON_FIRST,
   lastNDayKeys,
-  localDayKey,
   mondayIndex,
-  startOfLocalDay,
+  startOfDay,
 } from './date-utils'
 import type {
   ActivityItem,
@@ -27,14 +27,14 @@ type DB = SupabaseClient
 
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB): Promise<MetricsBundle> {
-  const todayStart = startOfLocalDay().toISOString()
-  const yesterdayStart = daysAgoStart(1).toISOString()
+export async function loadMetrics(db: DB, tz: string): Promise<MetricsBundle> {
+  const todayStart = startOfDay(tz).toISOString()
+  const yesterdayStart = daysAgoStart(tz, 1).toISOString()
 
   // daysAgoStart(N) returns midnight N days ago, so "last 7 days" is
   // N-1 (6 prior days + today = 7 calendar days). Matches the
   // loadConversationsSeries / lastNDayKeys convention used elsewhere.
-  const sevenDayStart = daysAgoStart(6).toISOString()
+  const sevenDayStart = daysAgoStart(tz, 6).toISOString()
   const [
     openConvCur,
     newContactsToday,
@@ -151,9 +151,10 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
 
 export async function loadConversationsSeries(
   db: DB,
+  tz: string,
   rangeDays: number,
 ): Promise<ConversationsSeriesPoint[]> {
-  const start = daysAgoStart(rangeDays - 1).toISOString()
+  const start = daysAgoStart(tz, rangeDays - 1).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('created_at, sender_type')
@@ -161,12 +162,12 @@ export async function loadConversationsSeries(
     .order('created_at', { ascending: true })
   if (error) throw error
 
-  const keys = lastNDayKeys(rangeDays)
+  const keys = lastNDayKeys(tz, rangeDays)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
   for (const row of (data ?? []) as { created_at: string; sender_type: string }[]) {
-    const key = localDayKey(row.created_at)
+    const key = dayKey(tz, row.created_at)
     const bucket = buckets.get(key)
     if (!bucket) continue
     if (row.sender_type === 'customer') bucket.incoming += 1
@@ -178,13 +179,13 @@ export async function loadConversationsSeries(
 
 // --- 3. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
+export async function loadResponseTime(db: DB, tz: string): Promise<ResponseTimeSummary> {
   // Pull the last 14 days of messages in one shot, then walk per
   // conversation to find each "first inbound" → "first subsequent
   // outbound" pair. 14 days gives us both "this week" + "last week"
   // with enough overlap if the user opens the dashboard late on a
   // Monday.
-  const fourteenDaysAgo = daysAgoStart(13).toISOString()
+  const fourteenDaysAgo = daysAgoStart(tz, 13).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
@@ -226,8 +227,8 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   }
 
   const now = new Date()
-  const thisWeekStart = daysAgoStart(mondayIndex(now))
-  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7)
+  const thisWeekStart = daysAgoStart(tz, mondayIndex(tz, now))
+  const lastWeekStart = daysAgoStart(tz, mondayIndex(tz, now) + 7)
 
   // Per-day-of-week buckets, averaged over both weeks' worth of data
   // so each bar has more samples to stand on. If a day has no samples
@@ -240,7 +241,7 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   for (const s of samples) {
     const diffMin = (s.responseAt.getTime() - s.customerAt.getTime()) / 60_000
     if (diffMin < 0) continue
-    const dow = mondayIndex(s.customerAt)
+    const dow = mondayIndex(tz, s.customerAt)
     byDow.get(dow)!.push(diffMin)
     if (s.customerAt >= thisWeekStart) {
       thisWeekMins.push(diffMin)

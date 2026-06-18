@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { buildParticipantMap } from "@/lib/channels/meta-participants";
 import type { ChannelConnection, Contact } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -94,63 +95,6 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ ok: true, results });
-}
-
-interface GraphParticipant {
-  id?: string;
-  username?: string;
-  name?: string;
-}
-interface GraphConversation {
-  participants?: { data?: GraphParticipant[] };
-}
-
-/**
- * Build a `{ senderId → "@username" | name }` map from the channel's
- * conversations. This is the path that actually carries Instagram DM
- * usernames (the /{IGSID} profile lookup does not). Paginated + capped so a
- * busy inbox doesn't run the cron forever.
- */
-async function buildParticipantMap(
-  channel: "instagram" | "messenger",
-  conn: ChannelConnection | undefined,
-  token: string,
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  const cfg = (conn?.config ?? {}) as Record<string, unknown>;
-  const node =
-    channel === "instagram"
-      ? String(cfg.ig_user_id ?? cfg.page_id ?? "me")
-      : String(cfg.page_id ?? "me");
-  const platform = channel === "instagram" ? "instagram" : "messenger";
-
-  let url: string | null =
-    `${GRAPH}/${node}/conversations?platform=${platform}` +
-    `&fields=participants&limit=50&access_token=${encodeURIComponent(token)}`;
-  let pages = 0;
-  while (url && pages < 12) {
-    pages++;
-    const r = await fetch(url);
-    if (!r.ok) break;
-    const j = (await r.json()) as {
-      data?: GraphConversation[];
-      paging?: { next?: string };
-    };
-    for (const conv of j.data ?? []) {
-      for (const p of conv.participants?.data ?? []) {
-        if (!p.id) continue;
-        const label =
-          channel === "instagram"
-            ? p.username
-              ? `@${p.username.trim()}`
-              : p.name?.trim() ?? null
-            : p.name?.trim() ?? null;
-        if (label) map.set(p.id, label);
-      }
-    }
-    url = j.paging?.next ?? null;
-  }
-  return map;
 }
 
 async function resolveName(
