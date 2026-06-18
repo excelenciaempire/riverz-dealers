@@ -68,6 +68,12 @@ export const igCommentAdapter: ChannelAdapter = {
     const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
+    // Our OWN account ids — skip comments the business makes on its own
+    // posts / replies it leaves, so it isn't ingested as a "customer".
+    const cfg = (connection.config ?? {}) as Record<string, unknown>;
+    const selfIds = new Set(
+      [String(cfg.ig_user_id ?? ""), String(cfg.page_id ?? "")].filter(Boolean),
+    );
     for (const entry of entries) {
       const changes = (entry.changes as Array<Record<string, unknown>> | undefined) ?? [];
       for (const c of changes) {
@@ -76,6 +82,7 @@ export const igCommentAdapter: ChannelAdapter = {
         if (!value) continue;
         const fromObj = value.from as { id?: string; username?: string } | undefined;
         if (!fromObj?.id) continue;
+        if (selfIds.has(String(fromObj.id))) continue;
         // Render IG handles as "@usuario" — matches how IG DMs and the
         // meta-contact-names backfill cron store them, so the same person
         // reads consistently whether they DM'd or commented (and the

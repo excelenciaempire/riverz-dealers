@@ -76,6 +76,10 @@ export const fbCommentAdapter: ChannelAdapter = {
     const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
+    // Our OWN page id — skip comments/replies the page leaves itself so it
+    // isn't ingested as a "customer".
+    const cfg = (connection.config ?? {}) as Record<string, unknown>;
+    const selfIds = new Set([String(cfg.page_id ?? "")].filter(Boolean));
     for (const entry of entries) {
       const changes = (entry.changes as Array<Record<string, unknown>> | undefined) ?? [];
       for (const c of changes) {
@@ -84,6 +88,7 @@ export const fbCommentAdapter: ChannelAdapter = {
         if (!value || value.item !== "comment" || value.verb !== "add") continue;
         const fromObj = value.from as { id?: string; name?: string } | undefined;
         if (!fromObj?.id) continue;
+        if (selfIds.has(String(fromObj.id))) continue;
         // A comment made WITH a photo ships its CDN url on `value.photo`.
         // Re-host it to Storage so it shows in the inbox (the url expires).
         const photoUrl = typeof value.photo === "string" ? value.photo : "";

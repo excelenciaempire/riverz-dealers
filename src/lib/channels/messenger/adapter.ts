@@ -80,6 +80,9 @@ export const messengerAdapter: ChannelAdapter = {
     const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
+    // Our OWN page id — never ingest events where WE are the sender.
+    const cfg = (connection.config ?? {}) as Record<string, unknown>;
+    const selfIds = new Set([String(cfg.page_id ?? "")].filter(Boolean));
     // Decrypt the page token once and reuse it across senders in this
     // payload, so an inbox of bursty replies doesn't decrypt N times.
     let pageToken: string | null = null;
@@ -113,10 +116,15 @@ export const messengerAdapter: ChannelAdapter = {
           | {
               mid?: string;
               text?: string;
+              is_echo?: boolean;
               attachments?: Array<Record<string, unknown>>;
             }
           | undefined;
         if (!sender?.id || !message) continue;
+        // Skip our own page: Messenger echoes every message we send
+        // (sender = page id). Ingesting echoes as inbound makes the page
+        // its own "customer" and inflates received counts.
+        if (message.is_echo || selfIds.has(String(sender.id))) continue;
         const name =
           (await getParticipantMap()).get(sender.id) ??
           (await fetchMessengerName(sender.id, getToken()));

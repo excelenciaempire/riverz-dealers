@@ -97,6 +97,11 @@ export const instagramAdapter: ChannelAdapter = {
     const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
+    // Our OWN account ids — never ingest events where WE are the sender.
+    const cfg = (connection.config ?? {}) as Record<string, unknown>;
+    const selfIds = new Set(
+      [String(cfg.ig_user_id ?? ""), String(cfg.page_id ?? "")].filter(Boolean),
+    );
     let pageToken: string | null = null;
     const getToken = (): string | null => {
       if (pageToken !== null) return pageToken;
@@ -128,9 +133,15 @@ export const instagramAdapter: ChannelAdapter = {
       for (const m of messaging) {
         const sender = m.sender as { id?: string } | undefined;
         const message = m.message as
-          | { mid?: string; text?: string; attachments?: Array<Record<string, unknown>> }
+          | { mid?: string; text?: string; is_echo?: boolean; attachments?: Array<Record<string, unknown>> }
           | undefined;
         if (!sender?.id || !message) continue;
+        // Skip the business's OWN account. IG delivers an "echo" webhook
+        // for every DM we send (sender = our IG id); ingesting those as
+        // inbound turns the account into its own "customer" and inflates
+        // received counts. Our sends are recorded when WE send them / by
+        // the DM-backfill cron, not from echoes.
+        if (message.is_echo || selfIds.has(String(sender.id))) continue;
         const name =
           (await getParticipantMap()).get(sender.id) ??
           (await fetchInstagramName(sender.id, getToken()));
