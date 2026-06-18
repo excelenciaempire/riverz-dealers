@@ -132,12 +132,9 @@ function StatusBreakdown({
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="mb-1 text-sm font-medium text-foreground">
+      <h3 className="mb-3 text-sm font-medium text-foreground">
         Cómo terminaron
       </h3>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Reparto de los últimos ejecutados.
-      </p>
       <div className="space-y-1.5">
         {(['success', 'partial', 'failed'] as LogStatus[]).map((s) => {
           const n = counts[s] ?? 0;

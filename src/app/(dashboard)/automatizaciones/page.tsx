@@ -177,9 +177,6 @@ export default function AutomationsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Automatizaciones
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Empieza desde una plantilla o crea la tuya.
-          </p>
         </div>
         <Button
           variant="outline"
@@ -267,9 +264,6 @@ export default function AutomationsPage() {
             </div>
             <p className="mt-3 text-sm font-semibold text-foreground">
               Aún no tienes ninguna
-            </p>
-            <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              Usa una plantilla de arriba para empezar.
             </p>
           </div>
         ) : (

@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Loader2, Search, Info, Send } from 'lucide-react';
+import { Plus, Loader2, Search, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 
@@ -214,8 +214,7 @@ export default function BroadcastsPage() {
             Tu primera campaña masiva
           </p>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Envía una plantilla aprobada por WhatsApp a una lista de contactos
-            con un clic. Vas a ver acá los envíos, su entrega y su lectura.
+            Envía una plantilla aprobada a una lista de contactos.
           </p>
           <Button
             onClick={() => router.push('/campanas/nueva')}
@@ -224,10 +223,6 @@ export default function BroadcastsPage() {
             <Plus className="size-4" />
             Crear primera campaña
           </Button>
-          <p className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Info className="size-3" />
-            Necesitas una plantilla aprobada en Meta para enviar.
-          </p>
         </div>
       ) : (
       /* ── Table ── */

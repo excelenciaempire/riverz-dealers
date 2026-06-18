@@ -509,10 +509,6 @@ export default function ProductDetailPage() {
           <Bot className="size-4" />
           Asistentes que conocen este producto
         </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Estos asistentes ven este producto en su catálogo y pueden
-          responder dudas sobre él.
-        </p>
 
         {allAgents.length === 0 ? (
           <p className="mt-3 text-xs italic text-muted-foreground">

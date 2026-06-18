@@ -610,7 +610,7 @@ export default function NewBroadcastPage() {
             <div className="rounded-xl border border-border bg-muted/20 p-4">
               <p className="text-sm font-medium text-foreground">Envío de prueba</p>
               <p className="mb-2 text-xs text-muted-foreground">
-                Envía esta plantilla a un número para verla en WhatsApp antes de lanzar la campaña.
+                Envía la plantilla a un número antes de lanzar la campaña.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Input

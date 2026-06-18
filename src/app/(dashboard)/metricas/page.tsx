@@ -123,10 +123,6 @@ export default function MetricasPage() {
         <div>
           <p className="app-eyebrow">Análisis</p>
           <h1 className="app-page-title mt-1.5">Métricas y atribución</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Revenue de Shopify atribuido a campañas y flujos en el rango
-            seleccionado.
-          </p>
         </div>
         <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>

@@ -182,11 +182,6 @@ export default function InstagramAgentPage() {
             <InstagramIcon className="h-5 w-5" />
             Agente de Instagram
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Dale un objetivo en lenguaje natural y tu agente convierte el
-            engagement de Instagram —comentarios, respuestas a historias y
-            DMs— en ventas con mensajes 1:1 personalizados.
-          </p>
         </div>
       </div>
 

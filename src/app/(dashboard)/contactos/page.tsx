@@ -436,15 +436,9 @@ export default function ContactsPage() {
                   ) : (
                     <div className="flex flex-col items-center gap-3">
                       <Users className="size-8 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          Aún no tienes contactos
-                        </p>
-                        <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                          Agrega tu primer contacto para empezar a chatear y
-                          armar campañas.
-                        </p>
-                      </div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Aún no tienes contactos
+                      </p>
                       <Button
                         onClick={openAddForm}
                         className="bg-primary text-primary-foreground hover:bg-primary/90"

@@ -222,10 +222,6 @@ export default function ProductosPage() {
             Catálogo
           </div>
           <h1 className="mt-1 text-2xl font-bold text-foreground">Productos</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Sincroniza tu catálogo de Shopify y asigna un asistente a cada
-            producto.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {counts.pending + counts.failed > 0 && (
@@ -503,10 +499,6 @@ function EmptyState({
       <h2 className="mt-3 text-base font-medium text-foreground">
         Conecta tu catálogo
       </h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Si ya conectaste Shopify, toca «Sincronizar». Si no, primero conéctalo
-        en Integraciones.
-      </p>
       <div className="mt-4 flex items-center justify-center gap-2">
         <Button
           onClick={onSync}

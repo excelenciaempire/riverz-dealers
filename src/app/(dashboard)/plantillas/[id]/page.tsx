@@ -198,7 +198,7 @@ export default function TemplateDetailPage() {
             Vista previa
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Así se verá en WhatsApp. Los {`{{n}}`} se reemplazan al enviar.
+            Los {`{{n}}`} se reemplazan al enviar.
           </p>
 
           <div
