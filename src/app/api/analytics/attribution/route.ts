@@ -1,45 +1,55 @@
 import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import {
+  fetchRecentOrders,
+  getActiveShopifyConnection,
+  normPhone,
+} from '@/lib/attribution/shopify';
 
 /**
  * GET /api/analytics/attribution?days=30
  *
- * Atribuye revenue de Shopify a campañas y flujos del workspace en
- * los últimos `days` días. La lógica es directa: una orden cuenta
- * para una campaña / flujo si dentro de las 24h previas al pedido
- * hubo una interacción enviada o recibida en esa conversación que
- * el flujo / la campaña disparó.
+ * Atribuye revenue de Shopify a las entidades del workspace en los últimos
+ * `days` días, en cuatro lentes independientes:
+ *
+ *   - by_broadcast        — última campaña enviada al contacto 24h antes de la orden
+ *   - by_flow             — último flow_run del contacto 24h antes de la orden
+ *   - by_automation       — último automation_log (success/partial) 24h antes
+ *   - by_instagram_agent  — revenue ya atribuido por el Agente de IG a sus
+ *                           destinatarios (determinista + incrementalidad),
+ *                           dentro de la ventana de `days`.
+ *
+ * Son lentes SEPARADAS, no una partición: una misma orden puede contar para
+ * varias (p. ej. el contacto recibió una campaña Y pasó por un flujo). Por eso
+ * NO sumamos un total combinado — eso duplicaría órdenes.
  *
  * Output:
- *   {
- *     days,
- *     by_broadcast: [{ id, name, orders_count, revenue, currency }],
- *     by_flow:      [{ id, name, orders_count, revenue, currency }]
- *   }
+ *   { days, by_broadcast, by_flow, by_automation, by_instagram_agent }
+ *   donde cada bucket es [{ id, name, orders_count, revenue, currency }]
  *
- * Limit por simplicidad: solo cuenta órdenes con `email` o `phone`
- * que matchea con un contacto del workspace. Si Shopify no devuelve
- * email/phone, esa orden queda fuera de la atribución.
+ * Limit por simplicidad: las lentes by_broadcast/by_flow/by_automation solo
+ * cuentan órdenes con `email`/`phone` que matchea un contacto del workspace.
  */
 
-interface ShopifyOrder {
-  id: number;
-  email?: string;
-  phone?: string;
-  total_price?: string;
-  currency?: string;
-  created_at: string;
-}
-
-interface FlowAttrRow {
+interface AttrRow {
   id: string;
   name: string;
   orders_count: number;
   revenue: number;
   currency: string;
+}
+
+function emptyResponse(days: number) {
+  return {
+    days,
+    by_broadcast: [] as AttrRow[],
+    by_flow: [] as AttrRow[],
+    by_automation: [] as AttrRow[],
+    by_instagram_agent: [] as AttrRow[],
+  };
 }
 
 export async function GET(request: Request) {
@@ -57,81 +67,44 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin();
 
-  // Resolver el workspace del caller. Sin esto, los joins contra
-  // contacts / broadcast_recipients / flow_runs vía service role
-  // verían el cruce de TODOS los workspaces (un email/teléfono que
-  // colisione entre tenants atribuiría revenue ajeno).
-  const { data: member } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const workspaceId =
-    (member as { workspace_id?: string } | null)?.workspace_id ?? null;
+  // Resolver el workspace del caller EXACTAMENTE como lo resuelve el resto de
+  // la app (instalación, productos, status): owner-first vía
+  // resolveWorkspaceIdForUser. Antes este endpoint usaba `workspace_members`
+  // ordenado por joined_at, que difería del id bajo el que se guarda la
+  // conexión de Shopify — y reportaba "no conectado" en un shop conectado.
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   if (!workspaceId) {
-    return NextResponse.json({ days, by_broadcast: [], by_flow: [] });
+    return NextResponse.json(emptyResponse(days));
   }
 
-  // 1) Shopify connection — scoped to the resolved workspace (migration
-  //    055). We previously read by user_id which conflated tenants when
-  //    a user owned multiple workspaces.
-  const { data: connRow } = await admin
-    .from('shopify_connections')
-    .select('shop_domain, access_token, status')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!connRow) {
-    return NextResponse.json({
-      days,
-      by_broadcast: [],
-      by_flow: [],
-      not_connected: true,
-    });
-  }
-  const conn = connRow as { shop_domain: string; access_token: string };
-  const token = (() => {
-    try {
-      return decrypt(conn.access_token);
-    } catch {
-      return null;
-    }
-  })();
-  if (!token) {
-    return NextResponse.json({
-      days,
-      by_broadcast: [],
-      by_flow: [],
-      not_connected: true,
-    });
+  // Conexión Shopify del workspace (token descifrado). null = sin conexión
+  // activa o token indescifrable → la UI muestra el estado "Conectar Shopify".
+  const conn = await getActiveShopifyConnection(admin, workspaceId);
+  if (!conn) {
+    return NextResponse.json({ ...emptyResponse(days), not_connected: true });
   }
 
-  // 2) Órdenes recientes desde Shopify.
-  const client = new ShopifyAdminClient(conn.shop_domain, token);
-  let orders: ShopifyOrder[] = [];
+  // Órdenes recientes desde Shopify.
+  let orders;
   try {
-    const data = await client.rest<{ orders: ShopifyOrder[] }>(
-      `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=250`,
-    );
-    orders = data.orders ?? [];
+    orders = await fetchRecentOrders(conn, sinceIso);
   } catch {
     return NextResponse.json({
-      days,
-      by_broadcast: [],
-      by_flow: [],
+      ...emptyResponse(days),
       error: 'shopify_fetch_failed',
     });
   }
 
-  if (orders.length === 0) {
-    return NextResponse.json({ days, by_broadcast: [], by_flow: [] });
-  }
+  // Agente de IG: revenue ya persistido por su motor (no depende del fetch de
+  // arriba, pero solo lo mostramos en el camino feliz para no contradecir el
+  // estado "conectado").
+  const by_instagram_agent = await attributeInstagramAgent(
+    admin,
+    workspaceId,
+    sinceIso,
+  );
 
-  // 3) Match cada orden con un contact (por email o phone).
+  // Match cada orden con un contact (por email o phone).
   const emails = Array.from(
     new Set(orders.map((o) => o.email).filter((x): x is string => !!x)),
   );
@@ -160,11 +133,11 @@ export async function GET(request: Request) {
     if (row.phone) phoneToContact.set(normPhone(row.phone) ?? '', row.id);
   }
 
-  // 4) Por cada orden, buscamos su contacto y la conversación.
-  //    Después atribuimos a la última broadcast_recipients que
-  //    le mandó algo en las 24h previas, y al último flow_run.
-  const byBroadcast = new Map<string, FlowAttrRow>();
-  const byFlow = new Map<string, FlowAttrRow>();
+  // Por cada orden buscamos su contacto y atribuimos a la última campaña,
+  // flujo y automatización que lo tocaron en las 24h previas (last-touch).
+  const byBroadcast = new Map<string, AttrRow>();
+  const byFlow = new Map<string, AttrRow>();
+  const byAutomation = new Map<string, AttrRow>();
 
   for (const order of orders) {
     const cId =
@@ -191,17 +164,7 @@ export async function GET(request: Request) {
     if (bcRow) {
       const row = bcRow as { broadcast_id: string; broadcasts: { name?: string } | { name?: string }[] };
       const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
-      const name = join?.name ?? 'Campaña';
-      const cur = byBroadcast.get(row.broadcast_id) ?? {
-        id: row.broadcast_id,
-        name,
-        orders_count: 0,
-        revenue: 0,
-        currency,
-      };
-      cur.orders_count += 1;
-      cur.revenue += total;
-      byBroadcast.set(row.broadcast_id, cur);
+      accumulate(byBroadcast, row.broadcast_id, join?.name ?? 'Campaña', total, currency);
     }
 
     // Last flow run for this contact in the lookback window.
@@ -218,31 +181,105 @@ export async function GET(request: Request) {
     if (frRow) {
       const row = frRow as { flow_id: string; flows: { name?: string } | { name?: string }[] };
       const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
-      const name = join?.name ?? 'Flujo';
-      const cur = byFlow.get(row.flow_id) ?? {
-        id: row.flow_id,
-        name,
-        orders_count: 0,
-        revenue: 0,
-        currency,
-      };
-      cur.orders_count += 1;
-      cur.revenue += total;
-      byFlow.set(row.flow_id, cur);
+      accumulate(byFlow, row.flow_id, join?.name ?? 'Flujo', total, currency);
+    }
+
+    // Last successful/partial automation run for this contact in the window.
+    const { data: autoRow } = await admin
+      .from('automation_logs')
+      .select('automation_id, automations(name)')
+      .eq('contact_id', cId)
+      .eq('workspace_id', workspaceId)
+      .in('status', ['success', 'partial'])
+      .gte('created_at', lookback)
+      .lte('created_at', order.created_at)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (autoRow) {
+      const row = autoRow as { automation_id: string; automations: { name?: string } | { name?: string }[] };
+      const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
+      accumulate(byAutomation, row.automation_id, join?.name ?? 'Automatización', total, currency);
     }
   }
 
   return NextResponse.json({
     days,
-    by_broadcast: Array.from(byBroadcast.values()).sort(
-      (a, b) => b.revenue - a.revenue,
-    ),
-    by_flow: Array.from(byFlow.values()).sort((a, b) => b.revenue - a.revenue),
+    by_broadcast: sortByRevenue(byBroadcast),
+    by_flow: sortByRevenue(byFlow),
+    by_automation: sortByRevenue(byAutomation),
+    by_instagram_agent,
   });
 }
 
-function normPhone(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  const d = raw.replace(/[^\d]/g, '');
-  return d.length >= 8 ? d : null;
+/** Add one order's revenue to the bucket keyed by entity id (last-touch). */
+function accumulate(
+  bucket: Map<string, AttrRow>,
+  id: string,
+  name: string,
+  total: number,
+  currency: string,
+): void {
+  const cur =
+    bucket.get(id) ?? { id, name, orders_count: 0, revenue: 0, currency };
+  cur.orders_count += 1;
+  cur.revenue += total;
+  bucket.set(id, cur);
+}
+
+function sortByRevenue(bucket: Map<string, AttrRow>): AttrRow[] {
+  return Array.from(bucket.values()).sort((a, b) => b.revenue - a.revenue);
+}
+
+/**
+ * Revenue del Agente de IG dentro de la ventana. A diferencia de los otros
+ * buckets, NO recalcula sobre las órdenes en vivo: lee el revenue que el motor
+ * del agente ya atribuyó por destinatario (determinista por código + control).
+ *
+ * Ojo: ventana por `converted_at` = cuándo el motor RECONOCIÓ la venta (lo
+ * estampa con NOW al correr el cron), no `created_at` de la orden. Los otros
+ * tres buckets sí usan la fecha de la orden. El desfase está acotado (el motor
+ * atribuye dentro de ~7 días del envío), pero por eso este lente mide
+ * "reconocido en los últimos N días", no "comprado". `orders_count` aquí cuenta
+ * destinatarios convertidos (1 por persona), equivalente a órdenes en la práctica.
+ */
+async function attributeInstagramAgent(
+  admin: SupabaseClient,
+  workspaceId: string,
+  sinceIso: string,
+): Promise<AttrRow[]> {
+  const { data } = await admin
+    .from('instagram_campaign_recipients')
+    .select('revenue, currency, campaign_id, instagram_campaigns!inner(name, workspace_id)')
+    .eq('status', 'converted')
+    .eq('instagram_campaigns.workspace_id', workspaceId)
+    .gte('converted_at', sinceIso)
+    .not('revenue', 'is', null)
+    .limit(5000);
+
+  const map = new Map<string, AttrRow>();
+  for (const r of data ?? []) {
+    const row = r as {
+      revenue: number | null;
+      currency: string | null;
+      campaign_id: string;
+      instagram_campaigns: { name?: string } | { name?: string }[] | null;
+    };
+    const join = Array.isArray(row.instagram_campaigns)
+      ? row.instagram_campaigns[0]
+      : row.instagram_campaigns;
+    const cur =
+      map.get(row.campaign_id) ?? {
+        id: row.campaign_id,
+        name: join?.name ?? 'Campaña IG',
+        orders_count: 0,
+        revenue: 0,
+        currency: row.currency || 'USD',
+      };
+    cur.orders_count += 1;
+    cur.revenue += Number(row.revenue ?? 0) || 0;
+    if (row.currency) cur.currency = row.currency;
+    map.set(row.campaign_id, cur);
+  }
+  return sortByRevenue(map);
 }

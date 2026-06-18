@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { getActiveShopifyConnection } from '@/lib/attribution/shopify';
 
 /**
  * GET /api/shopify/customer?email=&phone=
@@ -84,46 +85,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'email o phone requerido' }, { status: 400 });
   }
 
-  // Cargar la conexión Shopify del workspace (la primera activa).
-  // Resolvemos workspace por owner_id/membership y leemos por
-  // workspace_id post-055; el legacy `.eq('user_id', user.id)` rompía en
-  // workspaces compartidos donde el panel lo abre un miembro que no es
-  // dueño de la conexión.
+  // Conexión Shopify del workspace. Resolvemos el workspace owner-first
+  // (resolveWorkspaceIdForUser) — igual que la instalación y el resto de la
+  // app — para que el panel funcione también cuando lo abre un miembro que no
+  // es el dueño de la conexión. El legacy `workspace_members` por joined_at
+  // resolvía un workspace distinto al que guarda la conexión.
   const admin = supabaseAdmin();
-  const { data: member } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const workspaceId =
-    (member as { workspace_id?: string } | null)?.workspace_id ?? null;
-  const { data: row } = workspaceId
-    ? await admin
-        .from('shopify_connections')
-        .select('shop_domain, access_token, status')
-        .eq('workspace_id', workspaceId)
-        .eq('status', 'active')
-        .order('installed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : { data: null as { shop_domain: string; access_token: string; status: string } | null };
-  if (!row) {
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  const conn = workspaceId
+    ? await getActiveShopifyConnection(admin, workspaceId)
+    : null;
+  if (!conn) {
     return NextResponse.json({ connected: false });
   }
-  const conn = row as { shop_domain: string; access_token: string };
-  const token = (() => {
-    try {
-      return decrypt(conn.access_token);
-    } catch {
-      return null;
-    }
-  })();
-  if (!token) {
-    return NextResponse.json({ connected: false });
-  }
-  const client = new ShopifyAdminClient(conn.shop_domain, token);
+  const client = new ShopifyAdminClient(conn.shopDomain, conn.token);
 
   // Búsqueda por email tiene endpoint específico; por teléfono usamos
   // el endpoint de search (más flexible). Si ambos fallan, customer = null.
@@ -165,7 +140,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       connected: true,
-      shop_domain: conn.shop_domain,
+      shop_domain: conn.shopDomain,
       customer: {
         id: customer.id,
         first_name: customer.first_name ?? '',

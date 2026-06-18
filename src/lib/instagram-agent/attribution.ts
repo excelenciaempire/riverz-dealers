@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import {
+  fetchRecentOrders,
+  getActiveShopifyConnection,
+  normPhone,
+  type ShopifyOrder,
+} from '@/lib/attribution/shopify';
 import { EMPTY_METRICS, type CampaignMetrics, type InstagramCampaign } from './types';
 
 /**
@@ -16,16 +20,6 @@ import { EMPTY_METRICS, type CampaignMetrics, type InstagramCampaign } from './t
  * Service-role: el cron no tiene sesión.
  */
 const ATTRIBUTION_WINDOW_DAYS = 7;
-
-interface ShopifyOrder {
-  id: number;
-  email?: string;
-  phone?: string;
-  total_price?: string;
-  currency?: string;
-  created_at: string;
-  discount_codes?: Array<{ code?: string }>;
-}
 
 interface ContactRef {
   email: string | null;
@@ -103,12 +97,6 @@ export function computeIncrementality(input: {
 
 function contactOf(r: { contacts: ContactRef | ContactRef[] | null }): ContactRef | null {
   return Array.isArray(r.contacts) ? r.contacts[0] ?? null : r.contacts;
-}
-
-function normPhone(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  const d = raw.replace(/[^\d]/g, '');
-  return d.length >= 8 ? d : null;
 }
 
 export async function attributeAndRollup(
@@ -227,33 +215,14 @@ async function attributeFromShopify(
     controlPhones.size === 0;
   if (nothingToDo) return { currency: null, controlConversions: 0 };
 
-  // Conexión Shopify del workspace.
-  const { data: connRow } = await db
-    .from('shopify_connections')
-    .select('shop_domain, access_token, status')
-    .eq('workspace_id', campaign.workspace_id)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const conn = connRow as { shop_domain: string; access_token: string } | null;
+  // Conexión Shopify del workspace (token descifrado, o null si no conecta).
+  const conn = await getActiveShopifyConnection(db, campaign.workspace_id);
   if (!conn) return { currency: null, controlConversions: 0 };
-
-  let token: string;
-  try {
-    token = decrypt(conn.access_token);
-  } catch {
-    return { currency: null, controlConversions: 0 };
-  }
 
   const since = campaign.launched_at
     ? new Date(campaign.launched_at)
     : new Date(Date.now() - 30 * 86_400_000);
-  const client = new ShopifyAdminClient(conn.shop_domain, token);
-  const data = await client.rest<{ orders: ShopifyOrder[] }>(
-    `/orders.json?status=any&created_at_min=${encodeURIComponent(since.toISOString())}&limit=250`,
-  );
-  const orders = data.orders ?? [];
+  const orders = await fetchRecentOrders(conn, since.toISOString());
 
   let currency: string | null = null;
   let controlConversions = 0;

@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import {
-  TrendingUp,
   Megaphone,
   Workflow,
   Loader2,
   ShoppingBag,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
+import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { cn } from '@/lib/utils';
+
+type IconType = ComponentType<{ className?: string }>;
 
 interface AttributionRow {
   id: string;
@@ -24,6 +27,8 @@ interface AttributionResponse {
   days: number;
   by_broadcast: AttributionRow[];
   by_flow: AttributionRow[];
+  by_automation: AttributionRow[];
+  by_instagram_agent: AttributionRow[];
   not_connected?: boolean;
   error?: string;
 }
@@ -53,11 +58,19 @@ export default function MetricasPage() {
   }, [days]);
 
   const totalBroadcastRevenue =
-    data?.by_broadcast.reduce((s, r) => s + r.revenue, 0) ?? 0;
+    data?.by_broadcast?.reduce((s, r) => s + r.revenue, 0) ?? 0;
   const totalFlowRevenue =
-    data?.by_flow.reduce((s, r) => s + r.revenue, 0) ?? 0;
+    data?.by_flow?.reduce((s, r) => s + r.revenue, 0) ?? 0;
+  const totalAutomationRevenue =
+    data?.by_automation?.reduce((s, r) => s + r.revenue, 0) ?? 0;
+  const totalInstagramRevenue =
+    data?.by_instagram_agent?.reduce((s, r) => s + r.revenue, 0) ?? 0;
   const currency =
-    data?.by_broadcast[0]?.currency ?? data?.by_flow[0]?.currency ?? 'USD';
+    data?.by_broadcast?.[0]?.currency ??
+    data?.by_flow?.[0]?.currency ??
+    data?.by_instagram_agent?.[0]?.currency ??
+    data?.by_automation?.[0]?.currency ??
+    'USD';
 
   return (
     <div className="space-y-5">
@@ -118,20 +131,38 @@ export default function MetricasPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryCard
               icon={Megaphone}
-              label="Revenue atribuido a campañas"
+              label="Campañas"
               value={formatMoney(totalBroadcastRevenue, currency)}
-              sub={`${data?.by_broadcast.length ?? 0} campañas activas`}
+              sub={`${data?.by_broadcast?.length ?? 0} con ventas`}
             />
             <SummaryCard
               icon={Workflow}
-              label="Revenue atribuido a flujos"
+              label="Flujos"
               value={formatMoney(totalFlowRevenue, currency)}
-              sub={`${data?.by_flow.length ?? 0} flujos activos`}
+              sub={`${data?.by_flow?.length ?? 0} con ventas`}
+            />
+            <SummaryCard
+              icon={InstagramIcon}
+              label="Agente de Instagram"
+              value={formatMoney(totalInstagramRevenue, currency)}
+              sub={`${data?.by_instagram_agent?.length ?? 0} con ventas`}
+            />
+            <SummaryCard
+              icon={Zap}
+              label="Automatizaciones"
+              value={formatMoney(totalAutomationRevenue, currency)}
+              sub={`${data?.by_automation?.length ?? 0} con ventas`}
             />
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Cada lente atribuye por separado (último toque, 24h antes de la
+            orden). Una misma venta puede contar en más de una, así que no las
+            sumes como total.
+          </p>
 
           <AttributionTable
             title="Top campañas"
@@ -145,6 +176,18 @@ export default function MetricasPage() {
             icon={Workflow}
             emptyLabel="Sin flujos con revenue atribuible en este rango."
           />
+          <AttributionTable
+            title="Top campañas de Instagram"
+            rows={data?.by_instagram_agent ?? []}
+            icon={InstagramIcon}
+            emptyLabel="Sin ventas atribuidas al Agente de Instagram en este rango."
+          />
+          <AttributionTable
+            title="Top automatizaciones"
+            rows={data?.by_automation ?? []}
+            icon={Zap}
+            emptyLabel="Sin automatizaciones con revenue atribuible en este rango."
+          />
         </>
       )}
     </div>
@@ -157,7 +200,7 @@ function SummaryCard({
   value,
   sub,
 }: {
-  icon: typeof TrendingUp;
+  icon: IconType;
   label: string;
   value: string;
   sub: string;
@@ -184,7 +227,7 @@ function AttributionTable({
 }: {
   title: string;
   rows: AttributionRow[];
-  icon: typeof Megaphone;
+  icon: IconType;
   emptyLabel: string;
 }) {
   return (
