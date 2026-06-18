@@ -11,7 +11,12 @@ import {
   Zap,
 } from 'lucide-react';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
-import { cn } from '@/lib/utils';
+import { useTimezone } from '@/hooks/use-timezone';
+import { rangeForPreset, type RangePreset } from '@/lib/dashboard/date-utils';
+import {
+  DateRangeFilter,
+  type CustomRange,
+} from '@/components/dashboard/date-range-filter';
 
 type IconType = ComponentType<{ className?: string }>;
 
@@ -33,28 +38,25 @@ interface AttributionResponse {
   error?: string;
 }
 
-type Range = 7 | 30 | 90;
-
 export default function MetricasPage() {
-  const [days, setDays] = useState<Range>(30);
+  const tz = useTimezone();
+  const [preset, setPreset] = useState<RangePreset>('30d');
+  const [custom, setCustom] = useState<CustomRange | null>(null);
   const [data, setData] = useState<AttributionResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Attribution is computed server-side from Shopify orders (which land
-  // via Shopify webhooks), so there's no Supabase table to subscribe to —
-  // instead we poll on an interval and refetch when the tab regains focus,
-  // so the revenue numbers stay current without a manual reload. State is
-  // written only in async callbacks (safe to call from an effect); the
-  // initial spinner comes from `loading`'s initial true, and the range
-  // buttons flip it back on when the window changes.
-  // Guards against out-of-order responses: switching the day-range (or an
-  // auto-refresh tick) bumps the epoch, so a slower earlier request can't
-  // land its stale data on top of a newer one. Replaces the `cancelled`
-  // flag the single-shot effect used to carry.
+  const presetRef = useRef(preset);
+  const customRef = useRef(custom);
+  const tzRef = useRef(tz);
+
+  // Out-of-order guard: a slower earlier request can't overwrite a newer one.
   const reqEpoch = useRef(0);
+
   const load = useCallback(() => {
+    const range = rangeForPreset(tzRef.current, presetRef.current, customRef.current);
     const epoch = ++reqEpoch.current;
-    return fetch(`/api/analytics/attribution?days=${days}`)
+    const qs = `start=${encodeURIComponent(range.start.toISOString())}&end=${encodeURIComponent(range.end.toISOString())}`;
+    return fetch(`/api/analytics/attribution?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (epoch === reqEpoch.current && d) setData(d);
@@ -63,13 +65,17 @@ export default function MetricasPage() {
       .finally(() => {
         if (epoch === reqEpoch.current) setLoading(false);
       });
-  }, [days]);
+  }, []);
 
+  // Initial load + reload when the workspace tz resolves/changes. State is
+  // written only in async callbacks, so this is safe to call from an effect.
   useEffect(() => {
+    tzRef.current = tz;
     load();
-  }, [load]);
+  }, [tz, load]);
 
-  // Auto-refresh every 60s + on tab focus (silent — keeps tables on screen).
+  // Auto-refresh every 60s + on tab focus (attribution is Shopify-driven, no
+  // realtime table to subscribe to). Silent — no spinner flash.
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === 'visible') load();
@@ -83,6 +89,18 @@ export default function MetricasPage() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [load]);
+
+  const handleFilterChange = useCallback(
+    (next: RangePreset, nextCustom?: CustomRange | null) => {
+      setPreset(next);
+      setCustom(nextCustom ?? null);
+      presetRef.current = next;
+      customRef.current = nextCustom ?? null;
+      setLoading(true);
+      load();
+    },
+    [load],
+  );
 
   const totalBroadcastRevenue =
     data?.by_broadcast?.reduce((s, r) => s + r.revenue, 0) ?? 0;
@@ -106,31 +124,11 @@ export default function MetricasPage() {
           <p className="app-eyebrow">Análisis</p>
           <h1 className="app-page-title mt-1.5">Métricas y atribución</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Revenue de Shopify atribuido a campañas y flujos en los últimos
-            días.
+            Revenue de Shopify atribuido a campañas y flujos en el rango
+            seleccionado.
           </p>
         </div>
-        <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
-          {[7, 30, 90].map((r) => (
-            <button
-              key={r}
-              onClick={() => {
-                if (r !== days) {
-                  setLoading(true);
-                  setDays(r as Range);
-                }
-              }}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-xs transition-colors',
-                days === r
-                  ? 'bg-accent text-accent-ink'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {r} días
-            </button>
-          ))}
-        </div>
+        <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>
 
       {loading ? (

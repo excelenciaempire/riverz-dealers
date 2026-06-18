@@ -8,12 +8,17 @@ export interface MetricDelta {
 }
 
 export interface MetricsBundle {
+  /** Live "open right now" count — independent of the selected range. */
   activeConversations: MetricDelta
-  newContactsToday: MetricDelta
-  resolvedToday: MetricDelta
-  messagesSentToday: MetricDelta
-  messagesReceivedToday: MetricDelta
-  /** Volume mix by channel for the last 7 days. */
+  /** New contacts in the selected range (current) vs the previous period. */
+  newContacts: MetricDelta
+  /** Conversations resolved (closed) in the range vs previous period. */
+  resolved: MetricDelta
+  /** Messages we sent in the range vs previous period. */
+  messagesSent: MetricDelta
+  /** Messages received in the range vs previous period. */
+  messagesReceived: MetricDelta
+  /** Volume mix by channel over the selected range. */
   channelMix: ChannelMixPoint[]
 }
 
@@ -24,7 +29,9 @@ export interface ChannelMixPoint {
 }
 
 export interface ConversationsSeriesPoint {
-  day: string // YYYY-MM-DD local
+  /** Bucket key in workspace tz: `YYYY-MM-DD` (daily) or `YYYY-MM-DDTHH`
+   *  (hourly, used for short ranges like Hoy/Ayer). */
+  day: string
   incoming: number
   outgoing: number
 }
@@ -39,8 +46,10 @@ export interface ResponseTimeBucket {
 
 export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
-  thisWeekAvg: number | null
-  lastWeekAvg: number | null
+  /** Average first-response (minutes) over the selected range. */
+  thisPeriodAvg: number | null
+  /** Average over the previous equal-length period, for comparison. */
+  prevPeriodAvg: number | null
 }
 
 export type ActivityKind =

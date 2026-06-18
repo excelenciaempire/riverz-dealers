@@ -1,11 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  dayKey,
-  daysAgoStart,
-  DOW_SHORT_MON_FIRST,
-  lastNDayKeys,
+  bucketGranularity,
+  bucketKeyOf,
   mondayIndex,
-  startOfDay,
+  rangeBucketKeys,
+  type DateRange,
 } from './date-utils'
 import type {
   ActivityItem,
@@ -17,92 +16,59 @@ import type {
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
-// signed-in user automatically, so we never pass user_id explicitly
-// here. Perf is acceptable for the current scale (low thousands of
-// messages) — if a tenant's dataset outgrows this, we'd migrate the
-// heavy aggregations to SQL RPCs. Noted in the PR.
+// signed-in user's workspace automatically, so we never pass user_id
+// explicitly here. Every loader takes an explicit [start, end) DateRange
+// (resolved from the dashboard's date-range filter, in workspace tz) plus a
+// `prev` window for deltas. Perf is fine at our scale (low thousands of
+// messages); heavy aggregations would move to SQL RPCs if a tenant grows.
 // ------------------------------------------------------------
 
 type DB = SupabaseClient
 
+const iso = (d: Date) => d.toISOString()
+
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB, tz: string): Promise<MetricsBundle> {
-  const todayStart = startOfDay(tz).toISOString()
-  const yesterdayStart = daysAgoStart(tz, 1).toISOString()
+export async function loadMetrics(
+  db: DB,
+  tz: string,
+  range: DateRange,
+  prev: DateRange,
+): Promise<MetricsBundle> {
+  const s = iso(range.start)
+  const e = iso(range.end)
+  const ps = iso(prev.start)
+  const pe = iso(prev.end)
 
-  // daysAgoStart(N) returns midnight N days ago, so "last 7 days" is
-  // N-1 (6 prior days + today = 7 calendar days). Matches the
-  // loadConversationsSeries / lastNDayKeys convention used elsewhere.
-  const sevenDayStart = daysAgoStart(tz, 6).toISOString()
   const [
     openConvCur,
-    newContactsToday,
-    newContactsYesterday,
-    resolvedToday,
-    resolvedYesterday,
-    messagesSentToday,
-    messagesSentYesterday,
-    messagesRecvToday,
-    messagesRecvYesterday,
+    newContactsCur,
+    newContactsPrev,
+    resolvedCur,
+    resolvedPrev,
+    messagesSentCur,
+    messagesSentPrev,
+    messagesRecvCur,
+    messagesRecvPrev,
     channelMixRows,
   ] = await Promise.all([
+    // Active conversations = open RIGHT NOW (a live snapshot, not range-bound).
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-    db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    // "Resueltas hoy" — gate on closed_at (set by code only when status
-    // actually flips to closed) rather than updated_at, which the
-    // BEFORE UPDATE trigger bumps on every unrelated edit (last_message
-    // refresh, ai_summary, etc). Otherwise a conversation that closed
-    // last week and got an inbound today would be miscounted as
-    // resolved-today.
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'closed')
-      .gte('closed_at', todayStart),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'closed')
-      .gte('closed_at', yesterdayStart)
-      .lt('closed_at', todayStart),
-    // "Mensajes enviados hoy" — anything we sent counts: agent (human)
-    // + bot (AI / automations / flows / broadcasts). Matches the
-    // conversations-series chart's outgoing branch below (line 161).
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .neq('sender_type', 'customer')
-      .gte('created_at', todayStart),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .neq('sender_type', 'customer')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'customer')
-      .gte('created_at', todayStart),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'customer')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    // Channel mix — aggregated client-side from the last 7 days of
-    // message rows. Cheap enough at the scale we run today; revisit
-    // if a tenant tips into millions of messages.
-    db
-      .from('messages')
-      .select('channel, sender_type')
-      .gte('created_at', sevenDayStart),
+    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', s).lt('created_at', e),
+    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', ps).lt('created_at', pe),
+    // "Resueltas" — gate on closed_at (set by code only when status actually
+    // flips to closed), not updated_at which the BEFORE UPDATE trigger bumps
+    // on every unrelated edit.
+    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'closed').gte('closed_at', s).lt('closed_at', e),
+    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'closed').gte('closed_at', ps).lt('closed_at', pe),
+    // "Mensajes enviados" — anything we sent: agent (human) + bot (AI /
+    // automations / flows / broadcasts). Matches the series' outgoing branch.
+    db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
+    db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
+    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
+    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
+    // Channel mix — over the selected range.
+    db.from('messages').select('channel, sender_type').gte('created_at', s).lt('created_at', e),
   ])
 
   const mix = new Map<string, { inbound: number; outbound: number }>()
@@ -119,30 +85,16 @@ export async function loadMetrics(db: DB, tz: string): Promise<MetricsBundle> {
     .sort((a, b) => b.inbound + b.outbound - (a.inbound + a.outbound))
 
   return {
-    // "previous" for an instantaneous count like Active Conversations is
-    // meaningless without historical state, so we report it as itself —
-    // the delta widget renders neutral (no up/down arrow) when current
-    // === previous.
+    // Instantaneous count — "previous" equals current so the delta widget
+    // renders neutral (it's "en curso ahora", not a windowed metric).
     activeConversations: {
       current: openConvCur.count ?? 0,
       previous: openConvCur.count ?? 0,
     },
-    newContactsToday: {
-      current: newContactsToday.count ?? 0,
-      previous: newContactsYesterday.count ?? 0,
-    },
-    resolvedToday: {
-      current: resolvedToday.count ?? 0,
-      previous: resolvedYesterday.count ?? 0,
-    },
-    messagesSentToday: {
-      current: messagesSentToday.count ?? 0,
-      previous: messagesSentYesterday.count ?? 0,
-    },
-    messagesReceivedToday: {
-      current: messagesRecvToday.count ?? 0,
-      previous: messagesRecvYesterday.count ?? 0,
-    },
+    newContacts: { current: newContactsCur.count ?? 0, previous: newContactsPrev.count ?? 0 },
+    resolved: { current: resolvedCur.count ?? 0, previous: resolvedPrev.count ?? 0 },
+    messagesSent: { current: messagesSentCur.count ?? 0, previous: messagesSentPrev.count ?? 0 },
+    messagesReceived: { current: messagesRecvCur.count ?? 0, previous: messagesRecvPrev.count ?? 0 },
     channelMix,
   }
 }
@@ -152,22 +104,25 @@ export async function loadMetrics(db: DB, tz: string): Promise<MetricsBundle> {
 export async function loadConversationsSeries(
   db: DB,
   tz: string,
-  rangeDays: number,
+  range: DateRange,
 ): Promise<ConversationsSeriesPoint[]> {
-  const start = daysAgoStart(tz, rangeDays - 1).toISOString()
   const { data, error } = await db
     .from('messages')
     .select('created_at, sender_type')
-    .gte('created_at', start)
+    .gte('created_at', iso(range.start))
+    .lt('created_at', iso(range.end))
     .order('created_at', { ascending: true })
   if (error) throw error
 
-  const keys = lastNDayKeys(tz, rangeDays)
+  // Hourly buckets for short ranges (Hoy/Ayer) so the curve is meaningful;
+  // daily otherwise. Seed every bucket so empty ones render as 0.
+  const gran = bucketGranularity(range)
+  const keys = rangeBucketKeys(tz, range, gran)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
   for (const row of (data ?? []) as { created_at: string; sender_type: string }[]) {
-    const key = dayKey(tz, row.created_at)
+    const key = bucketKeyOf(tz, row.created_at, gran)
     const bucket = buckets.get(key)
     if (!bucket) continue
     if (row.sender_type === 'customer') bucket.incoming += 1
@@ -179,17 +134,23 @@ export async function loadConversationsSeries(
 
 // --- 3. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB, tz: string): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
-  const fourteenDaysAgo = daysAgoStart(tz, 13).toISOString()
+export async function loadResponseTime(
+  db: DB,
+  tz: string,
+  range: DateRange,
+  prev: DateRange,
+): Promise<ResponseTimeSummary> {
+  // Fetch the union of the current + previous windows in one shot, then
+  // classify each "first inbound → first subsequent outbound" pair into the
+  // period its customer message falls in. Day-of-week buckets reflect the
+  // CURRENT range only; prev feeds the comparison average.
+  const fetchStart = iso(new Date(Math.min(range.start.getTime(), prev.start.getTime())))
+  const fetchEnd = iso(new Date(Math.max(range.end.getTime(), prev.end.getTime())))
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
-    .gte('created_at', fourteenDaysAgo)
+    .gte('created_at', fetchStart)
+    .lt('created_at', fetchEnd)
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -200,16 +161,14 @@ export async function loadResponseTime(db: DB, tz: string): Promise<ResponseTime
     created_at: string
   }[]
 
-  // Group per conversation, pair unreplied customer messages with the
-  // next outbound message from the agent/bot. A single customer message
-  // can only count once (avoids inflating averages if the customer
-  // double-messages while the agent takes time to reply).
+  // Pair each unreplied customer message with the next outbound from the
+  // agent/bot. A customer message counts once (avoids inflating averages if
+  // the customer double-messages while we take time to reply).
   interface Sample {
     customerAt: Date
     responseAt: Date
   }
   const samples: Sample[] = []
-
   let currentConv = ''
   let pendingCustomer: Date | null = null
   for (const row of rows) {
@@ -226,78 +185,73 @@ export async function loadResponseTime(db: DB, tz: string): Promise<ResponseTime
     }
   }
 
-  const now = new Date()
-  const thisWeekStart = daysAgoStart(tz, mondayIndex(tz, now))
-  const lastWeekStart = daysAgoStart(tz, mondayIndex(tz, now) + 7)
+  const inRange = (d: Date, r: DateRange) => d >= r.start && d < r.end
 
-  // Per-day-of-week buckets, averaged over both weeks' worth of data
-  // so each bar has more samples to stand on. If a day has no samples
-  // its avgMinutes stays null and the chart renders the bar muted.
   const byDow = new Map<number, number[]>()
   for (let i = 0; i < 7; i++) byDow.set(i, [])
-  const thisWeekMins: number[] = []
-  const lastWeekMins: number[] = []
+  const curMins: number[] = []
+  const prevMins: number[] = []
 
-  for (const s of samples) {
-    const diffMin = (s.responseAt.getTime() - s.customerAt.getTime()) / 60_000
+  for (const sple of samples) {
+    const diffMin = (sple.responseAt.getTime() - sple.customerAt.getTime()) / 60_000
     if (diffMin < 0) continue
-    const dow = mondayIndex(tz, s.customerAt)
-    byDow.get(dow)!.push(diffMin)
-    if (s.customerAt >= thisWeekStart) {
-      thisWeekMins.push(diffMin)
-    } else if (s.customerAt >= lastWeekStart && s.customerAt < thisWeekStart) {
-      lastWeekMins.push(diffMin)
+    if (inRange(sple.customerAt, range)) {
+      byDow.get(mondayIndex(tz, sple.customerAt))!.push(diffMin)
+      curMins.push(diffMin)
+    } else if (inRange(sple.customerAt, prev)) {
+      prevMins.push(diffMin)
     }
   }
 
-  const avg = (arr: number[]) =>
-    arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
+  const avg = (arr: number[]) => (arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length)
 
   const buckets: ResponseTimeBucket[] = Array.from({ length: 7 }, (_, dow) => {
-    const samples = byDow.get(dow) ?? []
-    return {
-      dow,
-      avgMinutes: avg(samples),
-      samples: samples.length,
-    }
+    const list = byDow.get(dow) ?? []
+    return { dow, avgMinutes: avg(list), samples: list.length }
   })
-
-  // Silence unused-label warnings — keep the arrays explicitly named
-  // for readability above.
-  void DOW_SHORT_MON_FIRST
 
   return {
     buckets,
-    thisWeekAvg: avg(thisWeekMins),
-    lastWeekAvg: avg(lastWeekMins),
+    thisPeriodAvg: avg(curMins),
+    prevPeriodAvg: avg(prevMins),
   }
 }
 
 // --- 4. Activity feed --------------------------------------------------
 
-export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> {
+export async function loadActivity(db: DB, range: DateRange, limit = 20): Promise<ActivityItem[]> {
+  const s = iso(range.start)
+  const e = iso(range.end)
   const [msgs, contacts, broadcasts, autoLogs] = await Promise.all([
     db
       .from('messages')
       .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
       .eq('sender_type', 'customer')
+      .gte('created_at', s)
+      .lt('created_at', e)
       .order('created_at', { ascending: false })
-      .limit(10),
+      .limit(limit),
     db
       .from('contacts')
       .select('id, name, phone, created_at')
+      .gte('created_at', s)
+      .lt('created_at', e)
       .order('created_at', { ascending: false })
-      .limit(10),
+      .limit(limit),
     db
       .from('broadcasts')
       .select('id, name, status, total_recipients, created_at')
+      .gte('created_at', s)
+      .lt('created_at', e)
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(limit),
     db
       .from('automation_logs')
       .select('id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)')
+      .gte('created_at', s)
+      .lt('created_at', e)
       .order('created_at', { ascending: false })
-      .limit(10),
+      .limit(limit),
   ])
 
   const items: ActivityItem[] = []

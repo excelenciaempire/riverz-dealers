@@ -5,16 +5,11 @@ import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
-import { cn } from '@/lib/utils'
-
-type RangeDays = 7 | 30 | 90
 
 interface ConversationsChartProps {
-  /** Per-range data, so switching tabs never re-fetches. */
-  series: Record<RangeDays, ConversationsSeriesPoint[] | null>
+  /** Series for the globally-selected date range (daily or hourly buckets). */
+  data: ConversationsSeriesPoint[] | null
   loading: boolean
-  range: RangeDays
-  onRangeChange: (r: RangeDays) => void
 }
 
 // ------------------------------------------------------------
@@ -27,10 +22,8 @@ const VB_W = 760
 const VB_H = 240
 const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
-export function ConversationsChart({ series, loading, range, onRangeChange }: ConversationsChartProps) {
-  const data = series[range]
-
-  // Memoise the max so per-day hover math doesn't recompute it.
+export function ConversationsChart({ data, loading }: ConversationsChartProps) {
+  // Memoise the max so per-point hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
     const arr = data ?? []
     const max = arr.reduce(
@@ -50,23 +43,6 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Conversaciones en el tiempo</h2>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-          {[7, 30, 90].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onRangeChange(r as RangeDays)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                range === r
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {r} días
-            </button>
-          ))}
         </div>
       </header>
 
@@ -307,17 +283,27 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   )
 }
 
+// Bucket keys are either `YYYY-MM-DD` (daily) or `YYYY-MM-DDTHH` (hourly).
+// Construct the Date from parts (never parse the raw string) so the label
+// reflects the workspace-tz calendar value, not a browser-tz reparse.
+function parseKey(key: string): { date: Date; isHour: boolean } {
+  const [datePart, hourPart] = key.split('T')
+  const [y, m, d] = datePart.split('-').map(Number)
+  const h = hourPart != null ? Number(hourPart) : 0
+  return { date: new Date(y, m - 1, d, h), isHour: hourPart != null }
+}
+
 function shortDayLabel(key: string): string {
-  // key is YYYY-MM-DD; return "Apr 17"-style. Using Date with an
-  // appended time avoids timezone-shift surprises across midnight.
-  const [y, m, d] = key.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
+  const { date, isHour } = parseKey(key)
+  if (isHour) return `${String(date.getHours()).padStart(2, '0')}:00`
   return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
 }
 
 function longDayLabel(key: string): string {
-  const [y, m, d] = key.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
+  const { date, isHour } = parseKey(key)
+  if (isHour) {
+    return `${date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}, ${String(date.getHours()).padStart(2, '0')}:00`
+  }
   return date.toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 

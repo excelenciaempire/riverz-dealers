@@ -32,17 +32,17 @@ export function ResponseTimeChart({
             Tiempo medio de primera respuesta
           </h2>
         </div>
-        {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
+        {data && (data.thisPeriodAvg != null || data.prevPeriodAvg != null) && (
           <div className="text-right text-xs">
             <div className="text-muted-foreground">
-              Esta semana:{' '}
+              Promedio:{' '}
               <span className="font-medium text-foreground tabular-nums">
-                {fmt(data.thisWeekAvg)}
+                {fmt(data.thisPeriodAvg)}
               </span>
             </div>
             <div className="text-muted-foreground">
-              Semana pasada:{' '}
-              <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
+              Período anterior:{' '}
+              <span className="tabular-nums">{fmt(data.prevPeriodAvg)}</span>
             </div>
           </div>
         )}
@@ -107,7 +107,7 @@ function Bars({
               dominantBaseline="middle"
               className="fill-muted-foreground text-[10px]"
             >
-              {t}m
+              {fmt(t)}
             </text>
           </g>
         )
@@ -127,13 +127,15 @@ function Bars({
             strokeWidth={1.25}
             opacity={0.8}
           />
+          {/* Left-anchored so the label never collides with the (usually
+              taller) bars on the right side of the chart. */}
           <text
-            x={VB_W - PADDING.right - 4}
+            x={PADDING.left + 4}
             y={yFor(thresholdMinutes) - 4}
-            textAnchor="end"
+            textAnchor="start"
             className="fill-rose-300 text-[10px]"
           >
-            objetivo {thresholdMinutes}m
+            objetivo {fmt(thresholdMinutes)}
           </text>
         </g>
       )}
@@ -158,7 +160,7 @@ function Bars({
             >
               <title>
                 {DOW_SHORT_MON_FIRST[i]}:{' '}
-                {b.avgMinutes == null ? 'sin muestras' : `${b.avgMinutes.toFixed(1)} min promedio`}
+                {b.avgMinutes == null ? 'sin muestras' : `${fmt(b.avgMinutes)} promedio`}
                 {b.samples > 0 ? ` (${b.samples} muestra${b.samples === 1 ? '' : 's'})` : ''}
               </title>
             </rect>
@@ -179,8 +181,9 @@ function Bars({
 
 function fmt(mins: number | null): string {
   if (mins == null) return '—'
+  if (mins <= 0) return '0'
   if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`
-  if (mins < 60) return `${mins.toFixed(1)}m`
+  if (mins < 60) return `${Math.round(mins)}m`
   return `${(mins / 60).toFixed(1)}h`
 }
 

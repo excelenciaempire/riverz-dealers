@@ -14,6 +14,10 @@ import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
+import {
+  DateRangeFilter,
+  type CustomRange,
+} from '@/components/dashboard/date-range-filter'
 
 import {
   loadActivity,
@@ -21,6 +25,11 @@ import {
   loadMetrics,
   loadResponseTime,
 } from '@/lib/dashboard/queries'
+import {
+  previousRange,
+  rangeForPreset,
+  type RangePreset,
+} from '@/lib/dashboard/date-utils'
 import type {
   ActivityItem,
   ConversationsSeriesPoint,
@@ -34,162 +43,141 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
-type RangeDays = 7 | 30 | 90
-
 export default function DashboardPage() {
+  const tz = useTimezone()
+
+  // One global date-range filter drives every card, chart and feed.
+  const [preset, setPreset] = useState<RangePreset>('7d')
+  const [custom, setCustom] = useState<CustomRange | null>(null)
+
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
-
-  const [range, setRange] = useState<RangeDays>(30)
-  // Keep a cache per range so switching tabs doesn't re-fetch what we
-  // already have. Ranges the user hasn't opened yet stay null and
-  // trigger a fetch on first view.
-  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
-    7: null,
-    30: null,
-    90: null,
-  })
+  const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(true)
-
   const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
-
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  // Current range in a ref so the realtime refetch (a stable callback)
-  // reloads whichever range the user is viewing without re-subscribing.
-  const rangeRef = useRef(range)
-  useEffect(() => {
-    rangeRef.current = range
-  }, [range])
-
-  // The workspace timezone (the app's single reporting zone) drives every
-  // day-boundary in the loaders below. Mirror it into a ref for the same
-  // reason as range: `refresh` is a stable []-memoised callback and must
-  // read the latest tz without being re-created.
-  const tz = useTimezone()
+  // Latest filter + tz in refs so the stable `refresh` callback always reads
+  // current values without being recreated (which would re-run effects).
+  const presetRef = useRef(preset)
+  const customRef = useRef(custom)
   const tzRef = useRef(tz)
+  useEffect(() => {
+    tzRef.current = tz
+  }, [tz])
 
-  // Refetch everything. All state writes happen in async callbacks (never
-  // synchronously here) so this is safe to call straight from an effect —
-  // first-load skeletons come from the initial `*Loading = true` state, and
-  // live refetches update the numbers in place without a skeleton flash.
-  // `silent` only controls series-cache invalidation (see below).
-  const refresh = useCallback((opts?: { silent?: boolean }) => {
-    const silent = opts?.silent ?? false
+  // Epoch guard: switching the range (or a realtime tick) bumps the epoch so
+  // a slower earlier response can never land its stale data on a newer one.
+  const epochRef = useRef(0)
+
+  const refresh = useCallback(() => {
     const db = createClient()
-    const r = rangeRef.current
     const activeTz = tzRef.current
+    const range = rangeForPreset(activeTz, presetRef.current, customRef.current)
+    const prev = previousRange(range)
+    const epoch = ++epochRef.current
+    const fresh = () => epoch === epochRef.current
 
-    void loadMetrics(db, activeTz)
-      .then((m) => setMetrics(m))
+    void loadMetrics(db, activeTz, range, prev)
+      .then((m) => {
+        if (fresh()) setMetrics(m)
+      })
       .catch((err) => console.error('[dashboard] metrics failed:', err))
-      .finally(() => setMetricsLoading(false))
+      .finally(() => {
+        if (fresh()) setMetricsLoading(false)
+      })
 
-    // Reload the range in view and invalidate the other cached ranges so
-    // they refetch on next view — a live update makes all of them stale.
-    void loadConversationsSeries(db, activeTz, r)
+    void loadConversationsSeries(db, activeTz, range)
       .then((s) => {
-        // If the user switched ranges while this was in flight, drop the
-        // result — handleRangeChange now owns the visible range, and
-        // applying stale data here would clobber it (flicker / wrong bars).
-        if (rangeRef.current !== r) return
-        setSeries((prev) => {
-          const next: Record<RangeDays, ConversationsSeriesPoint[] | null> =
-            silent ? { 7: null, 30: null, 90: null } : { ...prev }
-          next[r] = s
-          return next
-        })
+        if (fresh()) setSeries(s)
       })
       .catch((err) => console.error('[dashboard] series failed:', err))
-      .finally(() => setSeriesLoading(false))
+      .finally(() => {
+        if (fresh()) setSeriesLoading(false)
+      })
 
-    void loadResponseTime(db, activeTz)
-      .then((rt) => setResponseTime(rt))
+    void loadResponseTime(db, activeTz, range, prev)
+      .then((rt) => {
+        if (fresh()) setResponseTime(rt)
+      })
       .catch((err) => console.error('[dashboard] response time failed:', err))
-      .finally(() => setResponseTimeLoading(false))
+      .finally(() => {
+        if (fresh()) setResponseTimeLoading(false)
+      })
 
-    // Fetch up to 50 so the biggest page-size option in the feed (50 rows)
-    // is already in memory — switching sizes is then a pure client slice.
-    void loadActivity(db, 50)
-      .then((a) => setActivity(a))
+    void loadActivity(db, range, 50)
+      .then((a) => {
+        if (fresh()) setActivity(a)
+      })
       .catch((err) => console.error('[dashboard] activity failed:', err))
-      .finally(() => setActivityLoading(false))
+      .finally(() => {
+        if (fresh()) setActivityLoading(false)
+      })
   }, [])
 
-  // Initial load. Reads tzRef.current, seeded from the cached workspace tz,
-  // so the very first buckets are already in the right zone for a returning
-  // user.
+  // Initial load + re-fetch when the workspace timezone resolves/changes
+  // (useTimezone starts with a cached/fallback value, then updates from the
+  // DB). This single effect covers BOTH mount and tz changes — skeletons come
+  // from the initial *Loading=true state, so refresh never setState's
+  // synchronously (safe to call from an effect).
   useEffect(() => {
     refresh()
-  }, [refresh])
-
-  // When the workspace tz resolves to a value different from the cached
-  // seed (or an admin changes it), re-bucket everything in the new zone.
-  // The ref guard makes this a no-op on mount, so the initial load above
-  // isn't duplicated.
-  useEffect(() => {
-    if (tzRef.current === tz) return
-    tzRef.current = tz
-    refresh({ silent: true })
   }, [tz, refresh])
 
-  // Live updates — any change to messages / conversations / contacts /
-  // broadcasts / automation_logs (debounced) triggers a silent refetch so
-  // the numbers stay in sync without a manual reload.
-  const { isConnected } = useDashboardRealtime({
-    onChange: () => refresh({ silent: true }),
-  })
+  // Filter change is a user event → safe to flip skeletons on synchronously.
+  const handleFilterChange = useCallback(
+    (next: RangePreset, nextCustom?: CustomRange | null) => {
+      setPreset(next)
+      setCustom(nextCustom ?? null)
+      presetRef.current = next
+      customRef.current = nextCustom ?? null
+      setMetricsLoading(true)
+      setSeriesLoading(true)
+      setResponseTimeLoading(true)
+      setActivityLoading(true)
+      refresh()
+    },
+    [refresh],
+  )
 
-  // Catch-up resync: Realtime does NOT replay events missed while the
-  // socket was down or the tab was backgrounded, so refetch whenever the
-  // channel reconnects or the tab returns to the foreground.
+  // Live updates — debounced silent refetch keeps the numbers current.
+  const { isConnected } = useDashboardRealtime({ onChange: () => refresh() })
+
+  // Catch-up resync on reconnect / tab refocus (Realtime doesn't replay
+  // events missed while the socket was down or the tab was backgrounded).
   const wasConnected = useRef(isConnected)
   useEffect(() => {
-    if (isConnected && !wasConnected.current) refresh({ silent: true })
+    if (isConnected && !wasConnected.current) refresh()
     wasConnected.current = isConnected
   }, [isConnected, refresh])
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh({ silent: true })
+      if (document.visibilityState === 'visible') refresh()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refresh])
 
-  // Range switch handler — kept in an event callback (not an effect) so
-  // the setState calls stay out of the react-hooks/set-state-in-effect
-  // rule's way. The cached bucket check means switching back to a
-  // previously-viewed range is instant and doesn't re-fetch.
-  const handleRangeChange = useCallback(
-    (r: RangeDays) => {
-      setRange(r)
-      if (series[r] !== null) return
-      setSeriesLoading(true)
-      const db = createClient()
-      loadConversationsSeries(db, tz, r)
-        .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
-        .catch((err) => console.error('[dashboard] series failed:', err))
-        .finally(() => setSeriesLoading(false))
-    },
-    [series, tz],
-  )
+  const suffix = deltaSuffix(preset)
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="app-eyebrow">Inicio</p>
           <h1 className="app-page-title mt-1.5">Resumen</h1>
         </div>
-        <LiveIndicator connected={isConnected} />
+        <div className="flex flex-wrap items-center gap-3">
+          <LiveIndicator connected={isConnected} />
+          <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
+        </div>
       </div>
 
       {/* Checklist de onboarding. Solo aparece mientras falte algo. */}
       <SetupChecklist />
-
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -204,74 +192,40 @@ export default function DashboardPage() {
               subtitle="En curso ahora"
             />
             <MetricCard
-              title="Contactos nuevos hoy"
-              value={metrics.newContactsToday.current.toLocaleString()}
+              title="Contactos nuevos"
+              value={metrics.newContacts.current.toLocaleString()}
               icon={UserPlus}
-              delta={{
-                sign:
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                label: deltaLabel(
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                  'vs ayer',
-                ),
-              }}
+              delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix)}
             />
             <MetricCard
-              title="Resueltas hoy"
-              value={metrics.resolvedToday.current.toLocaleString()}
+              title="Resueltas"
+              value={metrics.resolved.current.toLocaleString()}
               icon={CheckCircle2}
-              delta={{
-                sign:
-                  metrics.resolvedToday.current - metrics.resolvedToday.previous,
-                label: deltaLabel(
-                  metrics.resolvedToday.current - metrics.resolvedToday.previous,
-                  'vs ayer',
-                ),
-              }}
+              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix)}
             />
             <MetricCard
-              title="Mensajes recibidos hoy"
-              value={metrics.messagesReceivedToday.current.toLocaleString()}
+              title="Mensajes recibidos"
+              value={metrics.messagesReceived.current.toLocaleString()}
               icon={Inbox}
-              delta={{
-                sign:
-                  metrics.messagesReceivedToday.current - metrics.messagesReceivedToday.previous,
-                label: deltaLabel(
-                  metrics.messagesReceivedToday.current - metrics.messagesReceivedToday.previous,
-                  'vs ayer',
-                ),
-              }}
+              delta={deltaFor(metrics.messagesReceived.current, metrics.messagesReceived.previous, suffix)}
             />
             <MetricCard
-              title="Mensajes enviados hoy"
-              value={metrics.messagesSentToday.current.toLocaleString()}
+              title="Mensajes enviados"
+              value={metrics.messagesSent.current.toLocaleString()}
               icon={Send}
-              delta={{
-                sign:
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                label: deltaLabel(
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                  'vs ayer',
-                ),
-              }}
+              delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix)}
             />
           </>
         )}
       </div>
 
-      {/* Channel mix — volume per channel over the last 7 days. Helps the
-          team see WHERE the inbox load is coming from at a glance. */}
+      {/* Channel mix — volume per channel over the selected range. */}
       {metrics && metrics.channelMix.length > 0 && (
         <ChannelMixCard mix={metrics.channelMix} />
       )}
 
-      {/* Charts row */}
-      <ConversationsChart
-        series={series}
-        loading={seriesLoading}
-        range={range}
-        onRangeChange={handleRangeChange}
-      />
+      {/* Conversations over time */}
+      <ConversationsChart data={series} loading={seriesLoading} />
 
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
@@ -285,8 +239,7 @@ export default function DashboardPage() {
 // ------------------------------------------------------------
 
 // Subtle live-sync badge. Green pulsing dot while the realtime channel is
-// subscribed; muted when the socket is down (data still loads, just not
-// pushed live).
+// subscribed; muted when the socket is down (data still loads, just not live).
 function LiveIndicator({ connected }: { connected: boolean }) {
   return (
     <span
@@ -304,8 +257,26 @@ function LiveIndicator({ connected }: { connected: boolean }) {
   )
 }
 
-function deltaLabel(delta: number, suffix: string): string {
-  if (delta === 0) return `Sin cambios ${suffix}`
-  const sign = delta > 0 ? '+' : ''
-  return `${sign}${delta.toLocaleString()} ${suffix}`
+function deltaSuffix(preset: RangePreset): string {
+  switch (preset) {
+    case 'today':
+      return 'vs ayer'
+    case 'yesterday':
+      return 'vs día anterior'
+    case '7d':
+      return 'vs 7 días previos'
+    case '30d':
+      return 'vs 30 días previos'
+    case 'custom':
+      return 'vs período anterior'
+  }
+}
+
+function deltaFor(current: number, previous: number, suffix: string) {
+  const delta = current - previous
+  const label =
+    delta === 0
+      ? `Sin cambios ${suffix}`
+      : `${delta > 0 ? '+' : ''}${delta.toLocaleString()} ${suffix}`
+  return { sign: delta, label }
 }

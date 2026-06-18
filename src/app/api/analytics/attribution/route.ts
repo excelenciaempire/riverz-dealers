@@ -61,9 +61,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const url = new URL(request.url);
-  const days = Math.max(1, Math.min(90, Number(url.searchParams.get('days') ?? '30')));
-  const since = new Date(Date.now() - days * 86_400_000);
-  const sinceIso = since.toISOString();
+  // Date-range filter: prefer explicit ISO start/end (from the dashboard's
+  // global filter); fall back to the legacy ?days= window. `until` lets a
+  // custom/past range exclude orders after the picked end day.
+  const startParam = url.searchParams.get('start');
+  const endParam = url.searchParams.get('end');
+  let sinceIso: string;
+  let untilIso: string;
+  let days: number;
+  if (
+    startParam &&
+    endParam &&
+    !Number.isNaN(Date.parse(startParam)) &&
+    !Number.isNaN(Date.parse(endParam))
+  ) {
+    sinceIso = new Date(startParam).toISOString();
+    untilIso = new Date(endParam).toISOString();
+    // Defensive: never let an inverted range silently return zero orders.
+    if (Date.parse(sinceIso) > Date.parse(untilIso)) {
+      [sinceIso, untilIso] = [untilIso, sinceIso];
+    }
+    days = Math.max(1, Math.round((Date.parse(untilIso) - Date.parse(sinceIso)) / 86_400_000));
+  } else {
+    days = Math.max(1, Math.min(90, Number(url.searchParams.get('days') ?? '30')));
+    sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
+    untilIso = new Date().toISOString();
+  }
 
   const admin = supabaseAdmin();
 
@@ -84,10 +107,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...emptyResponse(days), not_connected: true });
   }
 
-  // Órdenes recientes desde Shopify.
+  // Órdenes recientes desde Shopify (fetch desde `since`), recortadas a la
+  // ventana [since, until) — `until` solo limita en rangos personalizados/pasados.
   let orders;
   try {
     orders = await fetchRecentOrders(conn, sinceIso);
+    const sinceMs = Date.parse(sinceIso);
+    const untilMs = Date.parse(untilIso);
+    orders = orders.filter((o) => {
+      const t = Date.parse(o.created_at);
+      return t >= sinceMs && t < untilMs;
+    });
   } catch {
     return NextResponse.json({
       ...emptyResponse(days),
@@ -102,6 +132,7 @@ export async function GET(request: Request) {
     admin,
     workspaceId,
     sinceIso,
+    untilIso,
   );
 
   // Match cada orden con un contact (por email o phone).
@@ -247,6 +278,7 @@ async function attributeInstagramAgent(
   admin: SupabaseClient,
   workspaceId: string,
   sinceIso: string,
+  untilIso: string,
 ): Promise<AttrRow[]> {
   const { data } = await admin
     .from('instagram_campaign_recipients')
@@ -254,6 +286,7 @@ async function attributeInstagramAgent(
     .eq('status', 'converted')
     .eq('instagram_campaigns.workspace_id', workspaceId)
     .gte('converted_at', sinceIso)
+    .lt('converted_at', untilIso)
     .not('revenue', 'is', null)
     .limit(5000);
 

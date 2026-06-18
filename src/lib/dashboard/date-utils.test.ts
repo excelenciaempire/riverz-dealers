@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DOW_SHORT_MON_FIRST,
+  bucketGranularity,
   dayKey,
   daysAgoStart,
   lastNDayKeys,
   mondayIndex,
+  previousRange,
+  rangeBucketKeys,
+  rangeForPreset,
   startOfDay,
 } from "./date-utils";
 
@@ -157,5 +161,119 @@ describe("mondayIndex", () => {
         mondayIndex(BOGOTA, new Date("2026-05-24T12:00:00.000Z"))
       ],
     ).toBe("Sun");
+  });
+});
+
+describe("rangeForPreset", () => {
+  // 2026-05-18T13:45:22Z = 08:45:22 in Bogota; today-midnight = 05:00:00Z.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-18T13:45:22.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("today = [tz-midnight, now)", () => {
+    const r = rangeForPreset(BOGOTA, "today");
+    expect(r.start.toISOString()).toBe("2026-05-18T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-18T13:45:22.000Z");
+  });
+
+  it("yesterday = full prior day [d-1 00:00, d 00:00)", () => {
+    const r = rangeForPreset(BOGOTA, "yesterday");
+    expect(r.start.toISOString()).toBe("2026-05-17T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-18T05:00:00.000Z");
+  });
+
+  it("7d = [6 days ago midnight, now)", () => {
+    const r = rangeForPreset(BOGOTA, "7d");
+    expect(r.start.toISOString()).toBe("2026-05-12T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-18T13:45:22.000Z");
+  });
+
+  it("30d = [29 days ago midnight, now)", () => {
+    const r = rangeForPreset(BOGOTA, "30d");
+    expect(r.start.toISOString()).toBe("2026-04-19T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-18T13:45:22.000Z");
+  });
+
+  it("custom spans whole days, end-day inclusive (exclusive midnight after)", () => {
+    const r = rangeForPreset(BOGOTA, "custom", { start: "2026-05-01", end: "2026-05-10" });
+    expect(r.start.toISOString()).toBe("2026-05-01T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-11T05:00:00.000Z");
+  });
+
+  it("custom normalises a reversed start/end", () => {
+    const r = rangeForPreset(BOGOTA, "custom", { start: "2026-05-10", end: "2026-05-01" });
+    expect(r.start.toISOString()).toBe("2026-05-01T05:00:00.000Z");
+    expect(r.end.toISOString()).toBe("2026-05-11T05:00:00.000Z");
+  });
+
+  it("custom with missing dates falls back to 7d", () => {
+    const r = rangeForPreset(BOGOTA, "custom", null);
+    expect(r.start.toISOString()).toBe("2026-05-12T05:00:00.000Z");
+  });
+});
+
+describe("previousRange", () => {
+  it("abuts the current window with equal duration (no gap, no overlap)", () => {
+    const range = {
+      start: new Date("2026-05-12T05:00:00.000Z"),
+      end: new Date("2026-05-18T13:45:22.000Z"),
+    };
+    const prev = previousRange(range);
+    // prev.end === range.start exactly (abutting; boundary belongs to current
+    // via .gte(start)/.lt(prevEnd)).
+    expect(prev.end.toISOString()).toBe(range.start.toISOString());
+    // Equal duration.
+    expect(prev.end.getTime() - prev.start.getTime()).toBe(
+      range.end.getTime() - range.start.getTime(),
+    );
+  });
+});
+
+describe("bucketGranularity", () => {
+  const range = (h: number) => {
+    const s = new Date("2026-05-10T00:00:00.000Z");
+    return { start: s, end: new Date(s.getTime() + h * 3600_000) };
+  };
+  it("uses hourly for ≤ 2 days (today, yesterday, 1–2 day custom)", () => {
+    expect(bucketGranularity(range(8))).toBe("hour"); // today-ish
+    expect(bucketGranularity(range(24))).toBe("hour"); // yesterday
+    expect(bucketGranularity(range(48))).toBe("hour"); // exactly 2 days
+  });
+  it("uses daily for 3+ days", () => {
+    expect(bucketGranularity(range(72))).toBe("day");
+    expect(bucketGranularity(range(7 * 24))).toBe("day");
+  });
+});
+
+describe("rangeBucketKeys", () => {
+  it("daily: one key per calendar day, end-day inclusive", () => {
+    const range = {
+      start: new Date("2026-05-12T05:00:00.000Z"), // May 12 00:00 Bogota
+      end: new Date("2026-05-18T13:45:22.000Z"), // May 18 08:45 Bogota
+    };
+    expect(rangeBucketKeys(BOGOTA, range, "day")).toEqual([
+      "2026-05-12",
+      "2026-05-13",
+      "2026-05-14",
+      "2026-05-15",
+      "2026-05-16",
+      "2026-05-17",
+      "2026-05-18",
+    ]);
+  });
+
+  it("hourly: one key per hour of the day in tz", () => {
+    const range = {
+      start: new Date("2026-05-18T05:00:00.000Z"), // 00:00 Bogota
+      end: new Date("2026-05-18T13:45:22.000Z"), // 08:45 Bogota
+    };
+    const keys = rangeBucketKeys(BOGOTA, range, "hour");
+    expect(keys[0]).toBe("2026-05-18T00");
+    expect(keys[keys.length - 1]).toBe("2026-05-18T08");
+    expect(keys).toHaveLength(9); // hours 00..08
   });
 });
