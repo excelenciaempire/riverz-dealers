@@ -39,6 +39,7 @@ interface RecipientRow {
   sent_at: string | null;
   revenue: number | null;
   currency: string | null;
+  discount_code: string | null;
   contacts: ContactRef | ContactRef[] | null;
 }
 
@@ -119,7 +120,7 @@ export async function attributeAndRollup(
 ): Promise<CampaignMetrics> {
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')
-    .select('id, status, is_holdout, sent_at, revenue, currency, contacts(email, phone)')
+    .select('id, status, is_holdout, sent_at, revenue, currency, discount_code, contacts(email, phone)')
     .eq('campaign_id', campaign.id)
     .limit(5000);
   const rows = (recipients ?? []) as unknown as RecipientRow[];
@@ -191,21 +192,27 @@ async function attributeFromShopify(
   // Tratados pendientes de convertir (no holdout, enviados/respondidos).
   const treatmentPending = new Map<string, { id: string; sentAt: number }>();
   const treatmentPendingPhone = new Map<string, { id: string; sentAt: number }>();
+  // Código único → destinatario: atribución DETERMINISTA (la orden usó SU
+  // código → convirtió ESA persona), sin adivinar por email/teléfono.
+  const codeToRecipient = new Map<string, { id: string }>();
   // Identidades del grupo de control para medir su baseline de compra.
   const controlEmails = new Set<string>();
   const controlPhones = new Set<string>();
 
   for (const r of rows) {
     const c = contactOf(r);
-    if (!c) continue;
     if (r.is_holdout) {
-      if (c.email) controlEmails.add(c.email.toLowerCase());
-      const np = normPhone(c.phone);
+      if (c?.email) controlEmails.add(c.email.toLowerCase());
+      const np = normPhone(c?.phone);
       if (np) controlPhones.add(np);
       continue;
     }
     if (r.status === 'sent' || r.status === 'replied') {
       const sentAt = r.sent_at ? new Date(r.sent_at).getTime() : 0;
+      if (r.discount_code) {
+        codeToRecipient.set(r.discount_code.trim().toLowerCase(), { id: r.id });
+      }
+      if (!c) continue;
       if (c.email) treatmentPending.set(c.email.toLowerCase(), { id: r.id, sentAt });
       const np = normPhone(c.phone);
       if (np) treatmentPendingPhone.set(np, { id: r.id, sentAt });
@@ -215,6 +222,7 @@ async function attributeFromShopify(
   const nothingToDo =
     treatmentPending.size === 0 &&
     treatmentPendingPhone.size === 0 &&
+    codeToRecipient.size === 0 &&
     controlEmails.size === 0 &&
     controlPhones.size === 0;
   if (nothingToDo) return { currency: null, controlConversions: 0 };
@@ -266,6 +274,32 @@ async function attributeFromShopify(
       controlConversions += 1;
       currency = order.currency || currency;
     }
+
+    // (b0) Atribución determinista por código único: si la orden usó el
+    // código personal de un destinatario, esa persona convirtió — sin
+    // ventana de tiempo ni match por identidad.
+    let matchedByCode = false;
+    for (const dc of order.discount_codes ?? []) {
+      const key = (dc.code ?? '').trim().toLowerCase();
+      const rec = key ? codeToRecipient.get(key) : undefined;
+      if (rec) {
+        const total = Number(order.total_price ?? '0') || 0;
+        currency = order.currency || currency;
+        await db
+          .from('instagram_campaign_recipients')
+          .update({
+            status: 'converted',
+            converted_at: new Date().toISOString(),
+            revenue: total,
+            currency: order.currency ?? null,
+          })
+          .eq('id', rec.id);
+        codeToRecipient.delete(key); // un código, una conversión
+        matchedByCode = true;
+        break;
+      }
+    }
+    if (matchedByCode) continue;
 
     // (b) Conversión del grupo tratado.
     const match =

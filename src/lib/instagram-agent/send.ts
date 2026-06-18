@@ -6,6 +6,12 @@ import type { InstagramCampaign } from './types';
 import { loadBrandContext } from './brand-context';
 import { latestInboundText } from './engagement';
 import { craftPersonalizedDM } from './personalize-dm';
+import {
+  getShopifyAdmin,
+  ensureCampaignPriceRule,
+  mintUniqueCode,
+  parsePercent,
+} from './discounts';
 
 /**
  * Envía la tanda de DMs en cola de una campaña de Instagram.
@@ -24,6 +30,7 @@ export async function sendCampaignBatch(
   db: SupabaseClient,
   campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan' | 'offer_code'> & {
     goal?: string | null;
+    shopify_price_rule_id?: number | null;
   },
   limit = 25,
 ): Promise<{ sent: number; failed: number; remaining: number; skipped?: string }> {
@@ -77,9 +84,40 @@ export async function sendCampaignBatch(
       ? { code: campaign.offer_code, discount: '' }
       : null;
 
+  // Per-user discount codes (Blueberry's "Code: Grace10"): mint a unique
+  // Shopify code per recipient under one campaign price rule. Sequential,
+  // because Shopify's Admin API rate-limits hard. Gated on a percentage
+  // offer + Shopify connected; any failure leaves the shared code in place.
+  const pct = parsePercent(campaign.plan.offer?.discount);
+  const codeByRecipient = new Map<string, string>();
+  if (pct && offer) {
+    const shop = await getShopifyAdmin(db, campaign.workspace_id);
+    if (shop) {
+      const priceRuleId = await ensureCampaignPriceRule(db, campaign, shop.client);
+      if (priceRuleId) {
+        for (const r of rows) {
+          const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+          if (!contact?.external_id) continue;
+          const code = await mintUniqueCode(shop.client, priceRuleId, {
+            name: contact.name,
+            pct,
+            recipientId: r.id,
+          });
+          if (code) {
+            codeByRecipient.set(r.id, code);
+            await db
+              .from('instagram_campaign_recipients')
+              .update({ discount_code: code })
+              .eq('id', r.id);
+          }
+        }
+      }
+    }
+  }
+
   // Craft a 1:1 DM per recipient IN PARALLEL (each grounded in the person's
-  // own engagement + the brand voice). The model calls dominate latency, so
-  // doing them concurrently keeps a 25-person batch within a few seconds.
+  // own engagement + the brand voice + their own code). The model calls
+  // dominate latency, so concurrency keeps a 25-person batch within seconds.
   type Prepared = {
     id: string;
     contact: { id: string; external_id: string } | null;
@@ -90,12 +128,16 @@ export async function sendCampaignBatch(
       const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
       if (!contact?.external_id) return { id: r.id, contact: null, text: '' };
       const engagement = await latestInboundText(db, contact.id).catch(() => null);
+      const personalCode = codeByRecipient.get(r.id);
+      const recipientOffer = personalCode
+        ? { code: personalCode, discount: offer?.discount || (pct ? `${pct}%` : '') }
+        : offer;
       const text = await craftPersonalizedDM({
         apiKey,
         base: campaign.plan.message.text,
         brand,
         goal: campaign.goal ?? null,
-        offer,
+        offer: recipientOffer,
         products: campaign.plan.recommended_products,
         name: contact.name,
         engagement,
