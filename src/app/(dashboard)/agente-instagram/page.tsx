@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -19,6 +19,7 @@ import {
   Radio,
   Save,
   Trash2,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,6 +33,7 @@ interface PlanContext {
   total_contacts: number;
   currency: string;
   has_catalog: boolean;
+  product_count?: number;
 }
 
 interface CampaignRow {
@@ -75,6 +77,21 @@ export default function InstagramAgentPage() {
     } catch {
       /* silencioso: la lista es secundaria */
     }
+  }, []);
+
+  // Cheap context snapshot on mount so the goal box + the "thinking" states
+  // can show real numbers (reachable audience, catalog) before generating.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/instagram-agent/context', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j) setContext(j as PlanContext);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -236,6 +253,14 @@ export default function InstagramAgentPage() {
         </div>
       </div>
 
+      {/* El agente trabajando — estados en vivo, al estilo Blueberry. */}
+      {loading && (
+        <AgentThinking
+          audience={context?.total_contacts}
+          productCount={context?.product_count}
+        />
+      )}
+
       {/* Plan generado */}
       {plan && (
         <div className="space-y-4">
@@ -317,11 +342,10 @@ export default function InstagramAgentPage() {
                 )}
               </div>
               <p className="mt-2 text-[10px] text-muted-foreground">
-                <code className="rounded bg-muted px-1 py-0.5">
-                  {'{{nombre}}'}
-                </code>{' '}
-                se personaliza con el nombre de cada persona. Vista previa con “
-                {plan.message.preview_name}”.
+                Este es el DM base. Al enviarse, el agente lo reescribe 1:1
+                para cada persona en tu voz de marca, respondiendo a su
+                interacción y con su propio código de descuento. Vista previa
+                con “{plan.message.preview_name}”.
               </p>
 
               {/* Follow-up */}
@@ -544,6 +568,75 @@ export default function InstagramAgentPage() {
           </ol>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Live "agent thinking" panel — Blueberry's signature. While the plan is
+ * generating, it walks through believable status steps (grounded in the
+ * real audience + catalog numbers) with spinner → check transitions, so the
+ * wait reads as the agent actually scanning and working.
+ */
+function AgentThinking({
+  audience,
+  productCount,
+}: {
+  audience?: number;
+  productCount?: number;
+}) {
+  const steps = useMemo(
+    () => [
+      'Entendiendo tu objetivo…',
+      productCount
+        ? `Revisando tu catálogo (${productCount} productos)…`
+        : 'Revisando tu catálogo…',
+      audience
+        ? `Escaneando tu audiencia de Instagram (${audience.toLocaleString()} personas)…`
+        : 'Escaneando tu audiencia de Instagram…',
+      'Detectando señales de intención…',
+      'Filtrando comentarios y respuestas a historias…',
+      'Redactando el DM 1:1 en tu voz de marca…',
+      'Calculando el embudo y la oferta…',
+    ],
+    [audience, productCount],
+  );
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    if (active >= steps.length - 1) return;
+    const t = setTimeout(
+      () => setActive((a) => Math.min(a + 1, steps.length - 1)),
+      850,
+    );
+    return () => clearTimeout(t);
+  }, [active, steps.length]);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <p className="app-eyebrow flex items-center gap-1.5">
+        <Radio className="h-3.5 w-3.5 text-accent-ink" />
+        El agente está trabajando
+      </p>
+      <ul className="mt-3 space-y-2">
+        {steps.map((s, i) => (
+          <li
+            key={i}
+            className={cn(
+              'flex items-center gap-2 text-sm transition-colors',
+              i <= active ? 'text-foreground' : 'text-muted-foreground/40',
+            )}
+          >
+            {i < active ? (
+              <Check className="h-4 w-4 shrink-0 text-emerald-500" />
+            ) : i === active ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent-ink" />
+            ) : (
+              <span className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/30" />
+            )}
+            {s}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
