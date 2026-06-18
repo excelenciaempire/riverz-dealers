@@ -713,7 +713,10 @@ export default function InboxPage() {
             default and revealed via the thread header's toggle. */}
         {contactPanelOpen && (
           <div className="hidden shrink-0 lg:block">
-            <ContactSidebar contact={activeContact} />
+            <ContactSidebar
+              contact={activeContact}
+              onClose={() => setContactPanelOpen(false)}
+            />
           </div>
         )}
       </div>

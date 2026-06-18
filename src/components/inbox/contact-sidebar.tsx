@@ -14,6 +14,7 @@ import {
   Sparkles,
   RefreshCw,
   Activity,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,9 +28,27 @@ type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** When provided, renders a close (X) button at the top-right that calls
+   *  this — lets the user collapse the panel from the panel itself. */
+  onClose?: () => void;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+/** Small close button pinned to the panel's top-right corner. */
+function CloseButton({ onClose }: { onClose?: () => void }) {
+  if (!onClose) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Cerrar panel"
+      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <X className="h-4 w-4" />
+    </button>
+  );
+}
+
+export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
@@ -131,7 +150,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   if (!contact) {
     return (
-      <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
+      <div className="relative flex h-full w-70 items-center justify-center border-l border-border bg-card">
+        <CloseButton onClose={onClose} />
         <p className="text-sm text-muted-foreground">Selecciona una conversación</p>
       </div>
     );
@@ -141,7 +161,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    <div className="flex h-full w-70 flex-col border-l border-border bg-card">
+    <div className="relative flex h-full w-70 flex-col border-l border-border bg-card">
+      <CloseButton onClose={onClose} />
       <ScrollArea className="flex-1">
         <div className="p-4">
           {/* Contact Info */}

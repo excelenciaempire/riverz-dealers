@@ -51,6 +51,20 @@ export async function GET(request: Request) {
       results[channel] = { resolved: 0, skipped: 0 };
       continue;
     }
+
+    // For DM channels, the per-id profile lookup (/{IGSID}?fields=username)
+    // is unreliable on Instagram — in practice it returns nothing for DM
+    // senders. The reliable source is the conversations API, whose
+    // `participants` carry each person's username/name. Build that map once
+    // per run and resolve from it first; fall back to the per-id lookup.
+    let participantMap: Map<string, string> | null = null;
+    if (channel === "instagram" || channel === "messenger") {
+      const conn = (conns as ChannelConnection[]).find((x) => x.channel === channel);
+      participantMap = await buildParticipantMap(channel, conn, token).catch(
+        () => null,
+      );
+    }
+
     // Pull only contacts that still need a name.
     const { data: contacts } = await admin
       .from("contacts")
@@ -66,7 +80,9 @@ export async function GET(request: Request) {
         skipped++;
         continue;
       }
-      const name = await resolveName(channel, c.external_id, token);
+      const name =
+        participantMap?.get(c.external_id) ??
+        (await resolveName(channel, c.external_id, token));
       if (!name) {
         skipped++;
         continue;
@@ -78,6 +94,63 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ ok: true, results });
+}
+
+interface GraphParticipant {
+  id?: string;
+  username?: string;
+  name?: string;
+}
+interface GraphConversation {
+  participants?: { data?: GraphParticipant[] };
+}
+
+/**
+ * Build a `{ senderId → "@username" | name }` map from the channel's
+ * conversations. This is the path that actually carries Instagram DM
+ * usernames (the /{IGSID} profile lookup does not). Paginated + capped so a
+ * busy inbox doesn't run the cron forever.
+ */
+async function buildParticipantMap(
+  channel: "instagram" | "messenger",
+  conn: ChannelConnection | undefined,
+  token: string,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const cfg = (conn?.config ?? {}) as Record<string, unknown>;
+  const node =
+    channel === "instagram"
+      ? String(cfg.ig_user_id ?? cfg.page_id ?? "me")
+      : String(cfg.page_id ?? "me");
+  const platform = channel === "instagram" ? "instagram" : "messenger";
+
+  let url: string | null =
+    `${GRAPH}/${node}/conversations?platform=${platform}` +
+    `&fields=participants&limit=50&access_token=${encodeURIComponent(token)}`;
+  let pages = 0;
+  while (url && pages < 12) {
+    pages++;
+    const r = await fetch(url);
+    if (!r.ok) break;
+    const j = (await r.json()) as {
+      data?: GraphConversation[];
+      paging?: { next?: string };
+    };
+    for (const conv of j.data ?? []) {
+      for (const p of conv.participants?.data ?? []) {
+        if (!p.id) continue;
+        const label =
+          channel === "instagram"
+            ? p.username
+              ? `@${p.username.trim()}`
+              : p.name?.trim() ?? null
+            : p.name?.trim() ?? null;
+        if (label) map.set(p.id, label);
+      }
+    }
+    url = j.paging?.next ?? null;
+  }
+  return map;
 }
 
 async function resolveName(
