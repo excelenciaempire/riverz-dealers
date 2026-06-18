@@ -943,11 +943,16 @@ async function findOrCreateContact(
     return { contact: existingContact, wasCreated: false }
   }
 
-  // Create new contact
+  // Create new contact. workspace_id is NOT NULL since migration 065, so we
+  // must resolve + set it (owner-first) — the legacy per-user insert without
+  // it now fails the constraint and silently drops every inbound from a new
+  // number.
+  const workspaceId = await resolveWorkspaceIdForUser(supabaseAdmin(), userId)
   const { data: newContact, error: createError } = await supabaseAdmin()
     .from('contacts')
     .insert({
       user_id: userId,
+      workspace_id: workspaceId,
       phone,
       name: name || phone,
     })
@@ -1003,6 +1008,23 @@ async function findOrCreateConversation(userId: string, contactId: string) {
     }
   }
 
+  // Link the conversation to the workspace's WhatsApp connection so it shows
+  // in the unified inbox (which groups/filters by connection_id). Without it
+  // the row exists but never surfaces in the bandeja.
+  let connectionId: string | null = null;
+  if (resolvedWorkspaceId) {
+    const { data: conn } = await admin
+      .from('channel_connections')
+      .select('id')
+      .eq('workspace_id', resolvedWorkspaceId)
+      .eq('channel', 'whatsapp')
+      .neq('status', 'disconnected')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    connectionId = (conn as { id?: string } | null)?.id ?? null;
+  }
+
   // Persistir workspace_id en la fila para que el fallback en la
   // dispatch de automations no tenga que volver a resolver en
   // invocaciones futuras (y para que no se rompa si el user pierde la
@@ -1014,6 +1036,8 @@ async function findOrCreateConversation(userId: string, contactId: string) {
       contact_id: contactId,
       assigned_agent_id: assignedAgentId,
       workspace_id: resolvedWorkspaceId,
+      connection_id: connectionId,
+      channel: 'whatsapp',
     })
     .select()
     .single()
