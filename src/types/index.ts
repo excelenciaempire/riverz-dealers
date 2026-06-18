@@ -90,6 +90,14 @@ export interface Contact {
   /** Resumen acumulativo (Claude Haiku) de lo que sabemos del cliente —
    *  preferencias, alergias, tono, requests comunes. Migration 049. */
   ai_summary?: string | null;
+  /** Segmento enriquecido por IA (label + rasgos), estilo CRM de Blueberry.
+   *  Calculado on-demand y cacheado. Migration 069. */
+  ai_segment?: {
+    label: string;
+    traits: string[];
+    computed_at: string;
+    up_to_message_id?: string | null;
+  } | null;
   /** Cache JSONB del customer en Shopify. Migration 049. */
   shopify_customer_data?: ShopifyCustomerSnapshot | null;
   /** Timestamp del último refresh de shopify_customer_data. Migration 049. */
