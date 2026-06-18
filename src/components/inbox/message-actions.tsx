@@ -48,6 +48,9 @@ export function MessageActions({
 
   const isAgent =
     message.sender_type === "agent" || message.sender_type === "bot";
+  // Emails render as full-width cards (often a 600px marketing layout), not
+  // chat bubbles — the 75% cap squeezes them so headings wrap mid-word.
+  const isEmail = message.channel === "gmail" || message.channel === "outlook";
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -108,12 +111,17 @@ export function MessageActions({
     <div
       className={cn(
         "flex w-full",
-        isAgent ? "justify-end" : "justify-start",
+        isEmail ? "justify-start" : isAgent ? "justify-end" : "justify-start",
       )}
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}
     >
-      <div className="group/actions relative max-w-[75%]">
+      <div
+        className={cn(
+          "group/actions relative",
+          isEmail ? "w-full" : "max-w-[75%]",
+        )}
+      >
         {children}
       <div
         data-touch-open={touchOpen || pickerOpen ? "true" : undefined}

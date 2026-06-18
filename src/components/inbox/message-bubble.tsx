@@ -502,8 +502,7 @@ function LinkifiedText({ text }: { text: string }) {
  */
 function EmailHtmlBody({ html }: { html: string }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const roRef = useRef<ResizeObserver | null>(null);
-  const [height, setHeight] = useState(160);
+  const [height, setHeight] = useState(120);
 
   const srcDoc = useMemo(
     () =>
@@ -511,34 +510,70 @@ function EmailHtmlBody({ html }: { html: string }) {
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<base target="_blank">` +
       `<style>` +
-      `html,body{margin:0;padding:0;background:#fff;}` +
+      // Kill self-sizing tricks: emails that set html/body height:100% or
+      // min-height:100vh otherwise inflate the iframe and leave a white gap
+      // below the content. Force auto height so our measurement is honest.
+      `html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;background:#fff;}` +
       `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;` +
-      `font-size:14px;line-height:1.5;color:#1a1a1a;word-break:break-word;overflow-wrap:anywhere;}` +
-      `img{max-width:100%;height:auto;}table{max-width:100%;}a{color:#2563eb;}` +
+      `font-size:14px;line-height:1.5;color:#1a1a1a;overflow-wrap:break-word;}` +
+      // Fit media/tables to the frame width without breaking words mid-letter.
+      `img{max-width:100%;height:auto;}a{color:#2563eb;}` +
       `</style></head><body>${html}</body></html>`,
     [html],
   );
 
   const measure = useCallback(() => {
     const doc = frameRef.current?.contentDocument;
-    const body = doc?.body;
-    if (!body || !doc) return;
-    const h = Math.max(body.scrollHeight, doc.documentElement.scrollHeight);
-    if (h > 0) setHeight(Math.min(h + 4, 20000));
+    if (!doc?.body || !doc.documentElement) return;
+    // Take the largest of every height signal — image-heavy emails (e.g. a
+    // big hero logo) measure short until the image loads, so under-measuring
+    // would clip them ("no se ven").
+    const h = Math.max(
+      doc.body.scrollHeight,
+      doc.body.offsetHeight,
+      doc.documentElement.scrollHeight,
+      doc.documentElement.offsetHeight,
+    );
+    if (h > 0) setHeight(Math.min(h, 20000));
   }, []);
 
-  const handleLoad = useCallback(() => {
-    measure();
-    const body = frameRef.current?.contentDocument?.body;
-    if (!body) return;
-    // Re-measure as images/web fonts finish loading and the body reflows.
-    roRef.current?.disconnect();
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(body);
-    roRef.current = ro;
-  }, [measure]);
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let ro: ResizeObserver | null = null;
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
-  useEffect(() => () => roRef.current?.disconnect(), []);
+    const onLoad = () => {
+      measure();
+      const doc = frame.contentDocument;
+      if (doc?.documentElement) {
+        ro?.disconnect();
+        ro = new ResizeObserver(() => measure());
+        // Observe both: documentElement catches width-reflow, body catches
+        // content growth as remote images/fonts finish loading.
+        ro.observe(doc.documentElement);
+        if (doc.body) ro.observe(doc.body);
+      }
+      // Backstop for late images that don't trigger an observed resize.
+      [150, 500, 1200, 2500].forEach((ms) =>
+        timers.push(setTimeout(measure, ms)),
+      );
+    };
+
+    frame.addEventListener("load", onLoad);
+    // srcDoc may already be parsed by the time the effect runs.
+    if (frame.contentDocument?.readyState === "complete") onLoad();
+    // Panel/window resize changes the frame width → content reflows taller.
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      frame.removeEventListener("load", onLoad);
+      window.removeEventListener("resize", onResize);
+      ro?.disconnect();
+      timers.forEach(clearTimeout);
+    };
+  }, [measure, srcDoc]);
 
   return (
     <iframe
@@ -546,9 +581,8 @@ function EmailHtmlBody({ html }: { html: string }) {
       title="Correo"
       sandbox="allow-same-origin allow-popups"
       srcDoc={srcDoc}
-      onLoad={handleLoad}
       scrolling="no"
-      className="w-full overflow-hidden rounded border-0 bg-white"
+      className="w-full rounded border-0 bg-white"
       style={{ height }}
     />
   );
