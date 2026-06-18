@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Channel, Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -24,7 +24,6 @@ import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function InboxPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
@@ -385,9 +384,8 @@ export default function InboxPage() {
       ) {
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one
-        // (e.g. because the user clicked it in the list and we
-        // router.replace()'d the URL, which made the ConversationList
-        // refetch and land us back here), do NOT re-apply it. Doing so
+        // (e.g. a refresh landed on /bandeja?c=<id> for a conv that's
+        // already selected), do NOT re-apply it. Doing so
         // would setMessages([]) on a thread whose messages have
         // already been loaded by MessageThread — and because
         // conversationId didn't change, MessageThread wouldn't
@@ -442,20 +440,15 @@ export default function InboxPage() {
             : c,
         ),
       );
-      // Record the selection on the deep-link ref BEFORE we change the
-      // URL. The router.replace below flips `deepLinkConvId`, which can
-      // in turn cause ConversationList to refetch and eventually call
-      // handleConversationsLoaded again. Without this line, the ref
-      // still points at the previous value, the auto-select block
-      // sees `ref !== deepLinkConvId`, fires a second time, and
-      // clobbers the messages MessageThread just fetched.
       autoSelectedForDeepLinkRef.current = conv.id;
-      // Reflect the selection in the URL so a refresh lands the user
-      // back in the same thread, and so copy-paste links work. Use
-      // replace() to avoid polluting browser history with every click.
-      router.replace(`/bandeja?c=${conv.id}`, { scroll: false });
+      // Reflect the selection in the URL (so refresh / copy-paste lands back
+      // here) WITHOUT a router navigation. router.replace() re-runs the route
+      // and made the conversation list refetch on every click — that's the
+      // "whole page reloads" the user saw. history.replaceState updates the
+      // address bar only: no re-render, no refetch. Selection is React state.
+      window.history.replaceState(null, "", `/bandeja?c=${conv.id}`);
     },
-    [activeConversation?.id, router]
+    [activeConversation?.id]
   );
 
   // Drop a conversation from local state after the user deletes it via
@@ -469,10 +462,10 @@ export default function InboxPage() {
         setActiveContact(null);
         setMessages([]);
         autoSelectedForDeepLinkRef.current = null;
-        router.replace("/bandeja", { scroll: false });
+        window.history.replaceState(null, "", "/bandeja");
       }
     },
-    [activeConversation?.id, router],
+    [activeConversation?.id],
   );
 
   // Mobile "back" — deselect the conversation so the list pane comes
@@ -485,8 +478,8 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /bandeja?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
-    router.replace("/bandeja", { scroll: false });
-  }, [router]);
+    window.history.replaceState(null, "", "/bandeja");
+  }, []);
 
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {

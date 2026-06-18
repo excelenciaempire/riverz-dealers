@@ -111,7 +111,7 @@ export function MessageActions({
     <div
       className={cn(
         "flex w-full",
-        isEmail ? "justify-start" : isAgent ? "justify-end" : "justify-start",
+        isAgent ? "justify-end" : "justify-start",
       )}
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}
@@ -119,6 +119,8 @@ export function MessageActions({
       <div
         className={cn(
           "group/actions relative",
+          // Emails get the full row and do their own left/right alignment +
+          // width inside (a wide HTML column vs a shrink-to-fit text bubble).
           isEmail ? "w-full" : "max-w-[75%]",
         )}
       >

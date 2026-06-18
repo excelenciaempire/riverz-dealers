@@ -435,19 +435,12 @@ function MessageContent({ message }: { message: Message }) {
  *   - Anything without a usable HTML body falls back to plain text.
  */
 function EmailBody({ message }: { message: Message }) {
+  if (emailIsHtml(message)) {
+    return <EmailHtmlBody html={(message.html_body as string).trim()} />;
+  }
   const rawText = message.content_text ?? "";
-  const html = message.html_body?.trim();
-
   const { primary, quoted } = splitEmailQuote(rawText);
   const isReply = quoted.length > 0;
-
-  // Designed emails are image/table-based; a plain reply is neither.
-  // Only hand a standalone email to the HTML renderer when it's actually
-  // rich, so a bare one-liner doesn't become an empty white card.
-  if (html && !isReply && isRichHtml(html)) {
-    return <EmailHtmlBody html={html} />;
-  }
-
   const text = isReply
     ? primary
     : decodeHtmlEntities(rawText).replace(/\r\n/g, "\n").trim();
@@ -459,6 +452,18 @@ function EmailBody({ message }: { message: Message }) {
  *  neither, so this cleanly separates "show the HTML" from "show text". */
 function isRichHtml(html: string): boolean {
   return /<img\b/i.test(html) || /<table\b/i.test(html);
+}
+
+/** Whether this email renders as its real HTML (a designed, standalone
+ *  email) vs as plain text (a reply / bare note). Used both to pick the
+ *  renderer AND to size the card: HTML emails want a wide column, text
+ *  replies want a chat-bubble that shrinks to content. */
+function emailIsHtml(message: Message): boolean {
+  const html = message.html_body?.trim();
+  if (!html) return false;
+  const { quoted } = splitEmailQuote(message.content_text ?? "");
+  if (quoted.length > 0) return false; // it's a reply → show the text
+  return isRichHtml(html);
 }
 
 /** Plain text with bare http(s) URLs turned into clickable links. */
@@ -678,14 +683,19 @@ export function MessageBubble({
       tz,
       "d MMM HH:mm",
     );
+    const asHtml = emailIsHtml(message);
     return (
-      <div className="w-full">
+      <div className={cn("flex w-full", isAgent ? "justify-end" : "justify-start")}>
         <div
           className={cn(
             "rounded-lg border bg-card/40",
+            // Rail on the sender's side, like a chat bubble.
             isAgent
-              ? "border-l-2 border-l-primary border-border/60"
+              ? "border-r-2 border-r-primary border-border/60"
               : "border-l-2 border-l-border border-border/60",
+            // Designed emails get a wide column (fits a 600px layout); text
+            // replies shrink to content like a normal chat bubble.
+            asHtml ? "w-full max-w-[680px]" : "max-w-[88%] sm:max-w-[600px]",
           )}
         >
           <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">

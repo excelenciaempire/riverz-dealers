@@ -200,26 +200,29 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             contactPhone={contact.phone ?? null}
           />
 
-          {/* Segmento IA — perfil enriquecido estilo CRM (Blueberry). */}
-          <div>
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-accent-ink" />
-                Segmento IA
-              </div>
-              <button
-                type="button"
-                onClick={() => fetchSegment(true)}
-                disabled={segLoading}
-                aria-label="Recalcular segmento"
-                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-              >
-                <RefreshCw className={cn("h-3 w-3", segLoading && "animate-spin")} />
-              </button>
-            </div>
-            <div className="mt-2">
-              {segment ? (
-                <>
+          {/* Segmento IA — perfil enriquecido estilo CRM (Blueberry). Solo
+              aparece cuando la IA ya pudo inferir un segmento real; si el
+              contacto no tiene datos suficientes, no mostramos nada (en vez
+              de un "Sin datos" que solo ocupa espacio). */}
+          {segment && (
+            <>
+              <div>
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <Sparkles className="h-3 w-3 text-accent-ink" />
+                    Segmento IA
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchSegment(true)}
+                    disabled={segLoading}
+                    aria-label="Recalcular segmento"
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("h-3 w-3", segLoading && "animate-spin")} />
+                  </button>
+                </div>
+                <div className="mt-2">
                   <span className="inline-flex rounded-full border border-accent-ink/30 bg-accent/40 px-2 py-0.5 text-[11px] font-medium text-accent-ink">
                     {segment.label}
                   </span>
@@ -236,29 +239,25 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                       ))}
                     </ul>
                   )}
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  {segLoading ? "Analizando…" : "Sin datos suficientes todavía."}
-                </p>
-              )}
 
-              {recentActivity && (
-                <div className="mt-3">
-                  <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    <Activity className="h-3 w-3" />
-                    Actividad reciente
-                  </p>
-                  <p className="mt-1 line-clamp-3 rounded-lg bg-muted px-2.5 py-1.5 text-xs text-foreground">
-                    {recentActivity}
-                  </p>
+                  {recentActivity && (
+                    <div className="mt-3">
+                      <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        <Activity className="h-3 w-3" />
+                        Actividad reciente
+                      </p>
+                      <p className="mt-1 line-clamp-3 rounded-lg bg-muted px-2.5 py-1.5 text-xs text-foreground">
+                        {recentActivity}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Tags */}
           <div>

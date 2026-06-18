@@ -890,18 +890,22 @@ export function MessageThread({
               <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
             </div>
           </button>
-          {/* Session timer badge — hidden on the narrowest phones so
-              the name + back arrow keep their room. */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-600 dark:text-red-400" : "text-accent-ink"
-            )}
-          >
-            <Clock className="h-3 w-3" />
-            {sessionInfo.remaining}
-          </Badge>
+          {/* Session timer badge — only meaningful for WhatsApp's 24h
+              customer-care window. For email / IG / comments there's no such
+              window, so "Expirada" was just noise; hide it there. Hidden on
+              the narrowest phones so the name + back arrow keep their room. */}
+          {conversation.channel === "whatsapp" && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
+                sessionInfo.expired ? "text-red-600 dark:text-red-400" : "text-accent-ink"
+              )}
+            >
+              <Clock className="h-3 w-3" />
+              {sessionInfo.remaining}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
