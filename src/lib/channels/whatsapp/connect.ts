@@ -159,7 +159,12 @@ export async function syncLegacyWhatsAppConfig(
       console.warn("[whatsapp] legacy config sync: no workspace owner", args.workspaceId);
       return;
     }
-    const row = {
+    // The legacy inbound webhook (/api/whatsapp/webhook) verifies Meta's GET
+    // handshake by matching hub.verify_token against this row's verify_token
+    // (per-config, NOT a global env token). Seed it with META_WEBHOOK_VERIFY_TOKEN
+    // so the operator pastes that one value in Meta and the handshake passes.
+    const verifyTokenPlain = process.env.META_WEBHOOK_VERIFY_TOKEN;
+    const row: Record<string, unknown> = {
       phone_number_id: args.phoneNumberId,
       waba_id: args.wabaId,
       access_token: encryptLegacy(args.token),
@@ -168,6 +173,7 @@ export async function syncLegacyWhatsAppConfig(
       updated_at: new Date().toISOString(),
       workspace_id: args.workspaceId,
     };
+    if (verifyTokenPlain) row.verify_token = encryptLegacy(verifyTokenPlain);
     const { data: existing } = await admin
       .from("whatsapp_config")
       .select("id")
