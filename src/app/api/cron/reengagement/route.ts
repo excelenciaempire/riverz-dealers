@@ -4,39 +4,37 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
 import { pingCron } from '@/lib/cron/heartbeat'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * Cron de re-engagement (Pilar).
+ * Cron de re-engagement (recompras / clientes inactivos).
  *
- * Corre una vez por día. Busca contactos del workspace que cumplen:
+ * Corre una vez por día. Multi-tenant: procesa TODOS los workspaces que
+ * tienen al menos una automation activa con trigger_type='customer_inactive'
+ * (más el workspace legacy de Pilar, que conserva el fallback por UUID
+ * mientras migra). Para cada workspace busca contactos que cumplen:
  *
  *   - `opted_out = false`
- *   - `last_inbound_at < now() - interval '14 days'`   (silencio prolongado)
+ *   - `last_inbound_at < now() - interval 'N days'`   (silencio prolongado;
+ *      N = el menor days_threshold de las automations activas, default 14)
  *   - `last_inbound_at IS NOT NULL`                    (alguna vez escribieron)
- *   - tienen al menos 1 pedido completado en Shopify
- *      (proxy: aparecen como customer_phone en shopify_checkouts con
- *       status='completed', o tienen una fila en automation_logs con
- *       trigger_event='shopify_order_created'). Usamos los logs porque
- *       no guardamos las órdenes completadas en una tabla propia: la
- *       trigger ya pasó por acá.
- *   - cooldown: la última fila de `contact_reengagement_state` para
- *     este contact es > 30 días atrás (o no existe)
+ *   - tienen al menos 1 pedido completado en Shopify (proxy: aparecen en
+ *      automation_logs con trigger_event='shopify_order_created').
+ *   - cooldown: la última fila de `contact_reengagement_state` para este
+ *      contact es > 30 días atrás (o no existe)
  *
- * Para cada contacto dispara la automation "Re-engagement Pilar (14d
- * inactivo)" por ID y upsertea `contact_reengagement_state` con
- * `last_reengagement_at = now()`.
+ * Para cada contacto dispara la(s) automation(s) cuyo days_threshold se
+ * cumple y upsertea `contact_reengagement_state` con `last_reengagement_at
+ * = now()`. Un fallo transitorio revierte el claim del cooldown.
  *
- * Configurable via env `PILAR_REENGAGEMENT_AUTOMATION_ID` para que se
- * pueda swapear sin redeploy.
- *
- * Discovery v2: si existe alguna automation activa con
- * trigger_type='customer_inactive' en el workspace, usamos ESAS (puede
- * haber varias con distintos days_threshold). Si no, caemos al UUID
- * legacy hard-codeado para no romper a Pilar mientras migran.
+ * Antes esta cron estaba clavada a PILAR_WORKSPACE_ID, así que ningún otro
+ * tenant recibía recompras aunque tuviera la automation activa. Ahora
+ * itera por workspace para que funcione para cualquier usuario de Riverz.
  */
 const DEFAULT_AUTOMATION_ID = '9a4c971b-7a36-48b3-be1e-cf2989b13918'
 const PILAR_WORKSPACE_ID = '522a68ae-568d-4dd9-92e5-2c8f633f1761'
 const DEFAULT_DAYS_THRESHOLD = 14
+const COOLDOWN_DAYS = 30
 
 export async function GET(request: Request) {
   try {
@@ -49,78 +47,127 @@ export async function GET(request: Request) {
 
   const legacyAutomationId =
     process.env.PILAR_REENGAGEMENT_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
-  const workspaceId =
-    process.env.PILAR_WORKSPACE_ID || PILAR_WORKSPACE_ID
+  const legacyWorkspaceId = process.env.PILAR_WORKSPACE_ID || PILAR_WORKSPACE_ID
 
   const admin = supabaseAdmin()
-  const fourteenDaysAgo = new Date(
-    Date.now() - DEFAULT_DAYS_THRESHOLD * 24 * 60 * 60 * 1000,
-  ).toISOString()
-  const thirtyDaysAgo = new Date(
-    Date.now() - 30 * 24 * 60 * 60 * 1000,
-  ).toISOString()
 
-  // Buscamos cualquier automation con trigger_type='customer_inactive'.
-  // Si hay alguna, la usamos en lugar del UUID legacy.
+  // Workspaces to process: cualquiera con una automation activa de tipo
+  // customer_inactive + el workspace legacy (que usa el fallback por UUID).
+  const { data: wsRows, error: wsErr } = await admin
+    .from('automations')
+    .select('workspace_id')
+    .eq('trigger_type', 'customer_inactive')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  if (wsErr) return serverError(wsErr)
+
+  const targets = new Set<string>()
+  for (const r of (wsRows ?? []) as Array<{ workspace_id: string | null }>) {
+    if (r.workspace_id) targets.add(r.workspace_id)
+  }
+  // Siempre incluimos el workspace legacy para conservar el fallback por
+  // UUID mientras migra (aunque no tenga una automation por trigger_type).
+  targets.add(legacyWorkspaceId)
+
+  let processed = 0
+  let dispatched = 0
+  for (const wsId of targets) {
+    try {
+      const res = await processWorkspace(
+        admin,
+        wsId,
+        wsId === legacyWorkspaceId ? legacyAutomationId : null,
+      )
+      processed += res.processed
+      dispatched += res.dispatched
+    } catch (err) {
+      console.error('[cron/reengagement] workspace failed:', wsId, err)
+    }
+  }
+
+  return NextResponse.json({ workspaces: targets.size, processed, dispatched })
+}
+
+/**
+ * Procesa un workspace. `legacyAutomationId` es no-null sólo para el
+ * workspace legacy de Pilar — para el resto, si no hay automations por
+ * trigger_type simplemente no se dispara nada (no hay fallback cross-tenant).
+ */
+async function processWorkspace(
+  admin: SupabaseClient,
+  workspaceId: string,
+  legacyAutomationId: string | null,
+): Promise<{ processed: number; dispatched: number }> {
+  // Automations activas de este workspace.
   const { data: candidateAutomations } = await admin
     .from('automations')
     .select('id, trigger_config')
     .eq('workspace_id', workspaceId)
     .eq('trigger_type', 'customer_inactive')
     .eq('is_active', true)
+    .is('deleted_at', null)
   const automationsToFire = (candidateAutomations ?? []) as Array<{
     id: string
     trigger_config: { days_threshold?: number } | null
   }>
 
-  // Paso 1: Set de contact_ids que alguna vez tuvieron una orden.
-  // Buscamos en automation_logs por trigger_event = shopify_order_created.
-  // Es una aproximación — un contacto que nunca disparó la automation
-  // no aparece. Para Pilar esto sirve porque la automation existe desde
-  // antes. Si necesitamos algo más preciso, una tabla
-  // shopify_customer_orders sería el siguiente paso.
+  // Sin automations propias y sin fallback legacy => nada que hacer.
+  if (automationsToFire.length === 0 && !legacyAutomationId) {
+    return { processed: 0, dispatched: 0 }
+  }
+
+  // El cutoff de silencio es el MENOR days_threshold configurado (así no nos
+  // perdemos contactos que califican para la automation más agresiva).
+  const minThreshold =
+    automationsToFire.length > 0
+      ? Math.min(
+          ...automationsToFire.map((a) =>
+            Number(a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD),
+          ),
+        )
+      : DEFAULT_DAYS_THRESHOLD
+  const cutoff = new Date(
+    Date.now() - minThreshold * 24 * 60 * 60 * 1000,
+  ).toISOString()
+  const cooldownAgo = new Date(
+    Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  // Set de contact_ids que alguna vez tuvieron una orden (proxy via logs).
   const { data: orderLogs, error: ordersErr } = await admin
     .from('automation_logs')
     .select('contact_id')
     .eq('workspace_id', workspaceId)
     .eq('trigger_event', 'shopify_order_created')
     .not('contact_id', 'is', null)
-  if (ordersErr) {
-    return serverError(ordersErr)
-  }
+  if (ordersErr) throw ordersErr
   const customerContactIds = new Set<string>()
   for (const row of (orderLogs ?? []) as Array<{ contact_id: string | null }>) {
     if (row.contact_id) customerContactIds.add(row.contact_id)
   }
-  if (customerContactIds.size === 0) {
-    return NextResponse.json({ processed: 0, reason: 'no_customers' })
-  }
+  if (customerContactIds.size === 0) return { processed: 0, dispatched: 0 }
 
-  // Paso 2: contactos del workspace que estuvieron 14 días en silencio.
+  // Contactos en silencio prolongado.
   const { data: candidates, error } = await admin
     .from('contacts')
     .select('id, name, phone, last_inbound_at')
     .eq('workspace_id', workspaceId)
     .eq('opted_out', false)
     .not('last_inbound_at', 'is', null)
-    .lt('last_inbound_at', fourteenDaysAgo)
+    .lt('last_inbound_at', cutoff)
     .in('id', Array.from(customerContactIds))
     .order('last_inbound_at', { ascending: true })
     .limit(100)
+  if (error) throw error
+  if (!candidates || candidates.length === 0) return { processed: 0, dispatched: 0 }
 
-  if (error) return serverError(error)
-  if (!candidates || candidates.length === 0) {
-    return NextResponse.json({ processed: 0 })
-  }
-
-  // Paso 3: cooldown. Filtramos los que recibieron un re-engagement en
-  // los últimos 30 días.
+  // Cooldown.
   const candidateIds = candidates.map((c) => (c as { id: string }).id)
   const { data: recentReengagements } = await admin
     .from('contact_reengagement_state')
     .select('contact_id, last_reengagement_at')
     .in('contact_id', candidateIds)
-    .gt('last_reengagement_at', thirtyDaysAgo)
+    .gt('last_reengagement_at', cooldownAgo)
   const cooldownSet = new Set<string>(
     ((recentReengagements ?? []) as Array<{ contact_id: string }>).map(
       (r) => r.contact_id,
@@ -129,23 +176,20 @@ export async function GET(request: Request) {
 
   let dispatched = 0
   for (const c of candidates) {
-    const contact = c as { id: string; name: string | null; phone: string }
+    const contact = c as {
+      id: string
+      name: string | null
+      phone: string
+      last_inbound_at: string | null
+    }
     if (cooldownSet.has(contact.id)) continue
 
-    // Snapshot prior state so a transient automation failure can
-    // roll back the 30-day cooldown claim. Without this, a single
-    // Meta/Supabase blip during dispatch would burn the cooldown
-    // permanently and the contact would be silently locked out for 30d.
     const { data: priorState } = await admin
       .from('contact_reengagement_state')
       .select('last_reengagement_at, reengagement_count')
       .eq('contact_id', contact.id)
       .maybeSingle()
 
-    // Reclamamos via upsert. Si dos crons concurrentes intentan tocar el
-    // mismo contact, el segundo upsert sobrescribe — pero igual decidió
-    // disparar en base al mismo snapshot pre-cooldown así que no hay
-    // doble envío real.
     const { error: claimErr } = await admin
       .from('contact_reengagement_state')
       .upsert(
@@ -164,13 +208,8 @@ export async function GET(request: Request) {
       continue
     }
 
-    // Decide qué automations disparar. Si hay configuradas, usamos
-    // todas las que cumplan su days_threshold (silencio del contacto
-    // >= days_threshold). Si no, caemos al legacy single-ID.
-    const lastInboundAt = (c as { last_inbound_at: string | null })
-      .last_inbound_at
-    const elapsedDays = lastInboundAt
-      ? (Date.now() - new Date(lastInboundAt).getTime()) / 86_400_000
+    const elapsedDays = contact.last_inbound_at
+      ? (Date.now() - new Date(contact.last_inbound_at).getTime()) / 86_400_000
       : Number.POSITIVE_INFINITY
 
     const idsToFire: string[] = []
@@ -181,7 +220,7 @@ export async function GET(request: Request) {
         )
         if (Number.isFinite(need) && elapsedDays >= need) idsToFire.push(a.id)
       }
-    } else {
+    } else if (legacyAutomationId) {
       idsToFire.push(legacyAutomationId)
     }
 
@@ -191,41 +230,30 @@ export async function GET(request: Request) {
       const result = await runAutomationById({
         automationId,
         contactId: contact.id,
-        context: {
-          vars: {
-            customer_name: contact.name ?? '',
-          },
-        },
+        context: { vars: { customer_name: contact.name ?? '' } },
       })
       if (result.executed) {
         dispatched++
         dispatchedHere++
-      } else if (
-        (result as { reason?: string }).reason === 'error'
-      ) {
+      } else if ((result as { reason?: string }).reason === 'error') {
         anyTransientError = true
       }
     }
 
-    // Rollback only when nothing actually sent AND the failure was
-    // transient (not segment_mismatch / inactive — those are deliberate
-    // and shouldn't lift the cooldown). Restore the prior row if it
-    // existed; otherwise delete the just-created claim.
+    // Rollback del cooldown sólo si nada se envió Y el fallo fue transitorio.
     if (anyTransientError && dispatchedHere === 0) {
       if (priorState) {
-        await admin
-          .from('contact_reengagement_state')
-          .upsert(
-            {
-              contact_id: contact.id,
-              workspace_id: workspaceId,
-              last_reengagement_at: (priorState as { last_reengagement_at: string })
-                .last_reengagement_at,
-              reengagement_count: (priorState as { reengagement_count: number })
-                .reengagement_count,
-            },
-            { onConflict: 'contact_id' },
-          )
+        await admin.from('contact_reengagement_state').upsert(
+          {
+            contact_id: contact.id,
+            workspace_id: workspaceId,
+            last_reengagement_at: (priorState as { last_reengagement_at: string })
+              .last_reengagement_at,
+            reengagement_count: (priorState as { reengagement_count: number })
+              .reengagement_count,
+          },
+          { onConflict: 'contact_id' },
+        )
       } else {
         await admin
           .from('contact_reengagement_state')
@@ -235,5 +263,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed: candidates.length, dispatched })
+  return { processed: candidates.length, dispatched }
 }
