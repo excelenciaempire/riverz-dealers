@@ -323,6 +323,11 @@ async function attributeFromShopify(
         currency: order.currency ?? null,
       })
       .eq('id', match.id);
+    // One recipient converts once. Drop their identities so a SECOND order
+    // in the same run can't re-match and OVERWRITE the attributed revenue
+    // (the code path already does this via codeToRecipient.delete).
+    if (email) treatmentPending.delete(email);
+    if (phone) treatmentPendingPhone.delete(phone);
   }
 
   return { currency, controlConversions };

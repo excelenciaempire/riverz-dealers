@@ -47,15 +47,27 @@ export const instagramAdapter: ChannelAdapter = {
     if (!encrypted) throw new Error("[instagram] connection missing access_token");
     const accessToken = decrypt(encrypted);
 
-    if (!input.contact.external_id) {
-      throw new Error("[instagram] contact missing external_id (IG-scoped sender id)");
+    // Two recipient shapes:
+    //  - PRIVATE REPLY to a comment: `recipient: { comment_id }`. Required to
+    //    DM someone who only commented — their comment-author id is NOT a
+    //    messageable IGSID, so a plain `{ id }` send is rejected by Meta.
+    //  - Normal DM (the user messaged us first): `recipient: { id: IGSID }`.
+    const recipient = input.commentId
+      ? { comment_id: input.commentId }
+      : input.contact.external_id
+        ? { id: input.contact.external_id }
+        : null;
+    if (!recipient) {
+      throw new Error(
+        "[instagram] no recipient — contact missing external_id (IGSID) and no comment_id",
+      );
     }
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        recipient: { id: input.contact.external_id },
+        recipient,
         messaging_type: "RESPONSE",
         message: { text: input.text },
         access_token: accessToken,

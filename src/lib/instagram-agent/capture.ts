@@ -66,10 +66,16 @@ export async function detectRepliesAndCapture(
     const inbound = (msgs ?? []) as Array<{ content_text: string | null }>;
     if (inbound.length === 0) continue;
 
-    await db
+    // Atomically claim sent → replied. If the real-time closer already
+    // marked this recipient replied, the claim affects no rows and we skip —
+    // so we don't re-capture / re-sync the same lead to Klaviyo twice.
+    const { data: claimed } = await db
       .from('instagram_campaign_recipients')
       .update({ status: 'replied', replied_at: new Date().toISOString() })
-      .eq('id', r.id);
+      .eq('id', r.id)
+      .eq('status', 'sent')
+      .select('id');
+    if (!(claimed as Array<{ id: string }> | null)?.length) continue;
     replied += 1;
 
     // Captura de email/teléfono desde el texto de las respuestas.

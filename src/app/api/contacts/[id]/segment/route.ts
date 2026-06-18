@@ -66,8 +66,15 @@ export async function GET(
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get('refresh') === '1';
 
+  // Hard min-freshness: even a forced refresh won't recompute if we just did
+  // (within 60s). Stops ?refresh=1 from being looped into repeated LLM calls.
+  const computedAt = c.ai_segment?.computed_at
+    ? new Date(c.ai_segment.computed_at).getTime()
+    : 0;
+  const justComputed = computedAt > 0 && Date.now() - computedAt < 60_000;
+
   // Serve the cache unless stale or forced.
-  if (!forceRefresh && isSegmentFresh(c.ai_segment)) {
+  if ((!forceRefresh && isSegmentFresh(c.ai_segment)) || (forceRefresh && justComputed)) {
     return NextResponse.json({ segment: c.ai_segment, recent_activity: recentActivity });
   }
 

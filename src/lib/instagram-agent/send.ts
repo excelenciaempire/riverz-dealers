@@ -159,6 +159,18 @@ export async function sendCampaignBatch(
       continue;
     }
 
+    // Atomically CLAIM the row (queued → sent) BEFORE sending. The real-time
+    // path can claim+send the same recipient concurrently; without this guard
+    // both would send and the person gets two DMs. If the claim affects no
+    // rows, the other path already took it — skip.
+    const { data: claimed } = await db
+      .from('instagram_campaign_recipients')
+      .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
+      .eq('id', p.id)
+      .eq('status', 'queued')
+      .select('id');
+    if (!(claimed as Array<{ id: string }> | null)?.length) continue;
+
     try {
       await instagramAdapter.sendText({
         channel: 'instagram',
@@ -170,10 +182,6 @@ export async function sendCampaignBatch(
         text: p.text,
       } satisfies OutboundText);
 
-      await db
-        .from('instagram_campaign_recipients')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
-        .eq('id', p.id);
       sent += 1;
     } catch (err) {
       await db

@@ -77,6 +77,19 @@ export async function ensureCampaignPriceRule(
   if (campaign.shopify_price_rule_id) return Number(campaign.shopify_price_rule_id);
   const pct = parsePercent(campaign.plan.offer?.discount);
   if (!pct) return null;
+
+  // Re-read fresh from the DB (the in-memory campaign may be stale) so a
+  // concurrent path that already created the rule wins without us creating
+  // a second one.
+  const { data: fresh } = await db
+    .from('instagram_campaigns')
+    .select('shopify_price_rule_id')
+    .eq('id', campaign.id)
+    .maybeSingle();
+  const existing = (fresh as { shopify_price_rule_id: number | null } | null)
+    ?.shopify_price_rule_id;
+  if (existing) return Number(existing);
+
   try {
     const res = await client.rest<{ price_rule?: { id?: number } }>('/price_rules.json', {
       method: 'POST',
@@ -95,15 +108,32 @@ export async function ensureCampaignPriceRule(
     });
     const id = res.price_rule?.id;
     if (!id) return null;
-    await db
+    // Persist ONLY if still null (atomic). If another path won the race,
+    // adopt its id and leave our just-created rule orphaned (no codes hang
+    // off it) so every recipient code is minted under one canonical rule.
+    const { data: won } = await db
       .from('instagram_campaigns')
       .update({ shopify_price_rule_id: id })
-      .eq('id', campaign.id);
-    return Number(id);
-  } catch {
+      .eq('id', campaign.id)
+      .is('shopify_price_rule_id', null)
+      .select('shopify_price_rule_id');
+    if ((won as Array<unknown> | null)?.length) return Number(id);
+    const { data: winner } = await db
+      .from('instagram_campaigns')
+      .select('shopify_price_rule_id')
+      .eq('id', campaign.id)
+      .maybeSingle();
+    return (
+      (winner as { shopify_price_rule_id: number | null } | null)?.shopify_price_rule_id ??
+      Number(id)
+    );
+  } catch (e) {
+    console.error('[ig-agent] ensureCampaignPriceRule failed:', e instanceof Error ? e.message.slice(0, 200) : e);
     return null;
   }
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
  * Mint a unique discount code under the price rule for one recipient. Tries a
@@ -125,16 +155,28 @@ export async function mintUniqueCode(
     `${base}${opts.pct}${rid.slice(7, 12)}`,
   ];
   for (const code of candidates) {
-    try {
-      await client.rest(`/price_rules/${priceRuleId}/discount_codes.json`, {
-        method: 'POST',
-        body: { discount_code: { code } },
-      });
-      return code;
-    } catch (e) {
-      // 422 = code already taken → try the next candidate; anything else bail.
-      if (e instanceof Error && /\b422\b/.test(e.message)) continue;
-      return null;
+    // Up to 3 tries per candidate to ride out Shopify rate-limit (429) bursts.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await client.rest(`/price_rules/${priceRuleId}/discount_codes.json`, {
+          method: 'POST',
+          body: { discount_code: { code } },
+        });
+        return code;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (/\b429\b/.test(msg)) {
+          await sleep(600 * (attempt + 1)); // rate limited → back off, retry same code
+          continue;
+        }
+        // 422 ONLY counts as "taken" when the body says so — other 422s
+        // (bad value, stale price rule) must not silently burn candidates.
+        if (/\b422\b/.test(msg) && /(already|taken|exists|been used)/i.test(msg)) {
+          break; // duplicate → try the next candidate
+        }
+        console.error('[ig-agent] mintUniqueCode failed:', msg.slice(0, 200));
+        return null; // real error → bail (fall back to the shared code)
+      }
     }
   }
   return null;

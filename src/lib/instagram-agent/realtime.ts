@@ -8,6 +8,7 @@ import { loadBrandContext, brandBrief, type BrandContext } from './brand-context
 import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
 import { pickModel } from './model';
+import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -95,6 +96,9 @@ export async function maybeInstantOutreach(
     workspaceId: string;
     contact: ContactLite;
     sourcePostId?: string | null;
+    /** The comment id, so we can DM as a private reply (required for
+     *  comment-sourced contacts whose external_id isn't messageable). */
+    commentId?: string | null;
     engagementText: string | null;
   },
 ): Promise<void> {
@@ -123,6 +127,16 @@ export async function maybeInstantOutreach(
   const recipientId = (upserted as Array<{ id: string }> | null)?.[0]?.id;
   if (!recipientId) return; // already contacted by this campaign
   if (isHoldout) return; // control group: enrolled as baseline, no DM
+
+  // Throttle the EXPENSIVE part (score + craft + DM + Shopify mint), not the
+  // enroll — a viral post with hundreds of fresh commenters shouldn't fan out
+  // unbounded LLM/Meta/Shopify calls. Over the cap, the row stays 'queued' and
+  // the cron worker drains it at its own controlled pace, so no one is lost.
+  const gate = await limitByKey(`ig-instant:${opts.workspaceId}`, {
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!gate.success) return;
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
 
@@ -220,6 +234,9 @@ export async function maybeInstantOutreach(
         id: opts.contact.id,
         external_id: opts.contact.external_id,
       } as unknown as Contact,
+      // Comment-sourced → private reply by comment id (the user's
+      // comment-author id is not a messageable IGSID).
+      commentId: opts.commentId ?? undefined,
       text,
     } satisfies OutboundText);
   } catch (err) {
@@ -343,16 +360,17 @@ export async function maybeRunCloser(
   const plan = coercePlan(camp.plan);
   if (!plan) return false;
 
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  // If we genuinely can't close (no model / no messageable id), DON'T claim
+  // this DM — return false so the generic assistant answers instead of the
+  // customer getting silence.
+  if (!apiKey || !opts.contact.external_id) return false;
+
   // Mark replied inline (faster than waiting for the cron's capture pass).
   await db
     .from('instagram_campaign_recipients')
     .update({ status: 'replied', replied_at: new Date().toISOString() })
     .eq('id', rec.id);
-
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
-  // We "handled" this contact even if we can't actually reply, so the generic
-  // assistant doesn't also fire with no campaign context.
-  if (!apiKey || !opts.contact.external_id) return true;
 
   const brand = await loadBrandContext(db, opts.workspaceId);
   const offer = rec.discount_code

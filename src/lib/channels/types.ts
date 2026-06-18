@@ -75,6 +75,11 @@ export interface OutboundText {
   text: string;
   /** Reply-target — channel-specific id (Meta wamid, Gmail messageId, …). */
   replyToExternalId?: string;
+  /** Instagram only — when set, the DM is sent as a PRIVATE REPLY to this
+   *  comment id (`recipient: { comment_id }`) instead of to the user's
+   *  IGSID. Required to DM someone who only commented (their comment-author
+   *  id is not a messageable id). */
+  commentId?: string;
 }
 
 export interface OutboundTemplate {
