@@ -379,7 +379,47 @@ const BUILTIN_FIELDS: ReadonlySet<string> = new Set([
   'phone',
   'email',
   'company',
+  // Shopify dynamic fields — resolved from contacts.shopify_customer_data.
+  'shopify_orders_count',
+  'shopify_total_spent',
+  'shopify_last_order',
+  'shopify_city',
 ])
+
+/** Resolve a Shopify dynamic field from the contact's cached
+ *  shopify_customer_data snapshot (written by the enrich cron). Returns ''
+ *  when the contact has no Shopify data yet, matching the built-in fields. */
+function resolveShopifyField(field: string, contact: Record<string, unknown>): string {
+  const scd = (contact.shopify_customer_data ?? null) as {
+    total_spent?: number
+    currency?: string
+    orders_count?: number
+    default_address?: { city?: string | null } | null
+    lifetime_orders?: Array<{ name?: string }> | null
+  } | null
+  if (!scd) return ''
+  switch (field) {
+    case 'shopify_orders_count':
+      return scd.orders_count != null ? String(scd.orders_count) : ''
+    case 'shopify_total_spent': {
+      if (scd.total_spent == null) return ''
+      const cur = scd.currency
+      try {
+        return cur
+          ? new Intl.NumberFormat('es', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(Number(scd.total_spent))
+          : String(scd.total_spent)
+      } catch {
+        return String(scd.total_spent)
+      }
+    }
+    case 'shopify_last_order':
+      return readString(scd.lifetime_orders?.[0]?.name)
+    case 'shopify_city':
+      return readString(scd.default_address?.city ?? '')
+    default:
+      return ''
+  }
+}
 
 /**
  * Si la campaña define `variable_mapping`, releemos los valores del
@@ -429,6 +469,7 @@ async function resolveParams(
     if (field === 'phone') return readString(contact.phone)
     if (field === 'email') return readString(contact.email)
     if (field === 'company') return readString(contact.company)
+    if (field.startsWith('shopify_')) return resolveShopifyField(field, contact)
     return customValues.get(field) ?? ''
   })
 }

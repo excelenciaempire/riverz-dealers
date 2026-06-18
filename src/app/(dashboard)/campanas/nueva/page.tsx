@@ -42,6 +42,12 @@ const BUILTIN_FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: 'phone', label: 'Teléfono' },
   { value: 'email', label: 'Correo' },
   { value: 'company', label: 'Empresa' },
+  // Datos dinámicos de Shopify (de contacts.shopify_customer_data; se
+  // resuelven por destinatario al momento del envío).
+  { value: 'shopify_orders_count', label: 'Shopify · N.º de pedidos' },
+  { value: 'shopify_total_spent', label: 'Shopify · Total gastado' },
+  { value: 'shopify_last_order', label: 'Shopify · Último pedido' },
+  { value: 'shopify_city', label: 'Shopify · Ciudad' },
 ];
 
 function parseUsdRate(): number {
