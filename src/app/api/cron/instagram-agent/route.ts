@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   const { data: campaigns, error } = await db
     .from('instagram_campaigns')
-    .select('id, workspace_id, plan, offer_code, status, launched_at')
+    .select('id, workspace_id, goal, plan, offer_code, status, launched_at')
     .eq('status', 'active')
     .limit(50);
   if (error) {
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   for (const raw of (campaigns ?? []) as Array<
     Pick<
       InstagramCampaign,
-      'id' | 'workspace_id' | 'offer_code' | 'status' | 'launched_at'
+      'id' | 'workspace_id' | 'goal' | 'offer_code' | 'status' | 'launched_at'
     > & {
       plan: unknown;
     }
@@ -57,6 +57,7 @@ export async function GET(request: Request) {
     const campaign = {
       id: raw.id,
       workspace_id: raw.workspace_id,
+      goal: raw.goal,
       plan,
       offer_code: raw.offer_code,
     };

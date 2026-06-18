@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { pickModel } from './model';
+import { latestInboundText } from './engagement';
 
 /**
  * Lead scoring del Agente de Instagram.
@@ -156,27 +157,4 @@ export async function scoreCampaignRecipients(
   }
 
   return { scored: rows.length, spam: spamCount };
-}
-
-/** Texto entrante más reciente del contacto (su comentario/DM de origen). */
-async function latestInboundText(
-  db: SupabaseClient,
-  contactId: string,
-): Promise<string | null> {
-  const { data: convs } = await db
-    .from('conversations')
-    .select('id')
-    .eq('contact_id', contactId);
-  const convIds = (convs ?? []).map((c) => (c as { id: string }).id);
-  if (convIds.length === 0) return null;
-
-  const { data: msgs } = await db
-    .from('messages')
-    .select('content_text')
-    .in('conversation_id', convIds)
-    .eq('sender_type', 'customer')
-    .order('created_at', { ascending: false })
-    .limit(1);
-  const top = (msgs ?? [])[0] as { content_text: string | null } | undefined;
-  return top?.content_text ?? null;
 }

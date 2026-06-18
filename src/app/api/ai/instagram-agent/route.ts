@@ -7,6 +7,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
+import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace'
+import { loadBrandContext, brandBrief } from '@/lib/instagram-agent/brand-context'
 
 /**
  * POST /api/ai/instagram-agent
@@ -130,7 +132,8 @@ export async function POST(request: Request) {
     // Datos reales del workspace para aterrizar el plan. La RLS scope por
     // workspace_member, así que la consulta autenticada ya devuelve solo
     // lo del workspace del usuario.
-    const [{ data: products }, { count: contactCount }] = await Promise.all([
+    const workspaceId = await resolveWorkspaceId(supabase, user.id)
+    const [{ data: products }, { count: contactCount }, brand] = await Promise.all([
       supabase
         .from('shopify_products')
         .select(
@@ -139,7 +142,9 @@ export async function POST(request: Request) {
         .order('title', { ascending: true })
         .limit(40),
       supabase.from('contacts').select('id', { count: 'exact', head: true }),
+      workspaceId ? loadBrandContext(supabase, workspaceId) : Promise.resolve(null),
     ])
+    const brief = brandBrief(brand)
 
     const totalContacts = contactCount ?? 0
     const rows = (products ?? []) as ProductRow[]
@@ -164,6 +169,7 @@ export async function POST(request: Request) {
     const userPrompt = [
       `OBJETIVO DE LA CAMPAÑA:\n${goal}`,
       '',
+      brief ? `VOZ Y CONOCIMIENTO DE LA MARCA (usa este tono y estos datos, no inventes nada fuera de aquí):\n${brief}\n` : '',
       `CONTEXTO DEL NEGOCIO:`,
       `- Canal: Instagram (DMs + comentarios)`,
       `- Personas/contactos disponibles para alcanzar: ${totalContacts}`,
@@ -171,7 +177,12 @@ export async function POST(request: Request) {
       `- Catálogo de productos:\n${catalog}`,
       '',
       'Diseña el plan de campaña de Instagram en el JSON especificado.',
-    ].join('\n')
+      brief
+        ? 'El campo message.text es el DM BASE de referencia; al enviarse se reescribe 1:1 por persona en la voz de la marca, así que hazlo on-brand y natural.'
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
 
     const client = new Anthropic({ apiKey })
     const response = await client.messages.create({

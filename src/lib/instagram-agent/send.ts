@@ -3,6 +3,9 @@ import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import type { InstagramCampaign } from './types';
+import { loadBrandContext } from './brand-context';
+import { latestInboundText } from './engagement';
+import { craftPersonalizedDM } from './personalize-dm';
 
 /**
  * Envía la tanda de DMs en cola de una campaña de Instagram.
@@ -19,7 +22,9 @@ import type { InstagramCampaign } from './types';
  */
 export async function sendCampaignBatch(
   db: SupabaseClient,
-  campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan' | 'offer_code'>,
+  campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan' | 'offer_code'> & {
+    goal?: string | null;
+  },
   limit = 25,
 ): Promise<{ sent: number; failed: number; remaining: number; skipped?: string }> {
   // 1) Conexión de Instagram del workspace.
@@ -63,20 +68,54 @@ export async function sendCampaignBatch(
     return { sent: 0, failed: 0, remaining: 0 };
   }
 
+  // Brand voice + knowledge once per batch, so every DM sounds on-brand.
+  const brand = await loadBrandContext(db, campaign.workspace_id);
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  const offer = campaign.plan.offer
+    ? { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount }
+    : campaign.offer_code
+      ? { code: campaign.offer_code, discount: '' }
+      : null;
+
+  // Craft a 1:1 DM per recipient IN PARALLEL (each grounded in the person's
+  // own engagement + the brand voice). The model calls dominate latency, so
+  // doing them concurrently keeps a 25-person batch within a few seconds.
+  type Prepared = {
+    id: string;
+    contact: { id: string; external_id: string } | null;
+    text: string;
+  };
+  const prepared: Prepared[] = await Promise.all(
+    rows.map(async (r): Promise<Prepared> => {
+      const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+      if (!contact?.external_id) return { id: r.id, contact: null, text: '' };
+      const engagement = await latestInboundText(db, contact.id).catch(() => null);
+      const text = await craftPersonalizedDM({
+        apiKey,
+        base: campaign.plan.message.text,
+        brand,
+        goal: campaign.goal ?? null,
+        offer,
+        products: campaign.plan.recommended_products,
+        name: contact.name,
+        engagement,
+      });
+      return { id: r.id, contact: { id: contact.id, external_id: contact.external_id }, text };
+    }),
+  );
+
   let sent = 0;
   let failed = 0;
 
-  for (const r of rows) {
-    const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
-    if (!contact?.external_id) {
+  // Send sequentially (don't hammer the Meta API in parallel).
+  for (const p of prepared) {
+    if (!p.contact) {
       await db
         .from('instagram_campaign_recipients')
         .update({ status: 'skipped', error: 'contacto sin external_id de Instagram' })
-        .eq('id', r.id);
+        .eq('id', p.id);
       continue;
     }
-
-    const text = personalize(campaign.plan.message.text, contact.name);
 
     try {
       await instagramAdapter.sendText({
@@ -85,14 +124,14 @@ export async function sendCampaignBatch(
         // El adapter de Instagram no usa `conversation` para enviar; basta
         // con un objeto mínimo para satisfacer el contrato del tipo.
         conversation: { id: '' } as unknown as Conversation,
-        contact: { id: contact.id, external_id: contact.external_id } as unknown as Contact,
-        text,
+        contact: { id: p.contact.id, external_id: p.contact.external_id } as unknown as Contact,
+        text: p.text,
       } satisfies OutboundText);
 
       await db
         .from('instagram_campaign_recipients')
         .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
-        .eq('id', r.id);
+        .eq('id', p.id);
       sent += 1;
     } catch (err) {
       await db
@@ -101,7 +140,7 @@ export async function sendCampaignBatch(
           status: 'failed',
           error: err instanceof Error ? err.message.slice(0, 500) : 'send failed',
         })
-        .eq('id', r.id);
+        .eq('id', p.id);
       failed += 1;
     }
   }
@@ -116,10 +155,4 @@ export async function sendCampaignBatch(
     .eq('is_spam', false);
 
   return { sent, failed, remaining: remaining ?? 0 };
-}
-
-/** Reemplaza el token de nombre por el del contacto (o un saludo neutro). */
-function personalize(template: string, name: string | null): string {
-  const first = (name ?? '').trim().split(/\s+/)[0] || 'hola';
-  return template.replace(/\{\{\s*(nombre|name|1)\s*\}\}/gi, first);
 }
