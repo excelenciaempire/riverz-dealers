@@ -70,6 +70,15 @@ interface ProviderConfig {
   scopes: string[];
   /** Extra query params to attach on the authorize redirect. */
   extraAuthParams?: Record<string, string>;
+  /**
+   * Facebook Login for Business configuration id. When set, the authorize
+   * call uses `config_id=` (the permissions live in the configuration) and
+   * MUST omit `scope` — they're mutually exclusive. Required for App Review
+   * of business permissions (the classic scope-based dialog won't load for a
+   * Business-type app). Create it in the Meta dashboard → Facebook Login for
+   * Business → Configurations, then set NEXT_PUBLIC_META_LOGIN_CONFIG_ID.
+   */
+  configId?: string;
 }
 
 export function metaProvider(): ProviderConfig {
@@ -78,6 +87,10 @@ export function metaProvider(): ProviderConfig {
     clientSecret: required("META_APP_SECRET"),
     authorizationUrl: "https://www.facebook.com/v21.0/dialog/oauth",
     tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
+    configId:
+      process.env.META_LOGIN_CONFIG_ID ||
+      process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID ||
+      undefined,
     scopes: [
       "pages_messaging",
       "pages_show_list",

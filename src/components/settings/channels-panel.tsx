@@ -468,10 +468,13 @@ export function ChannelsPanel() {
                             );
                             return;
                           }
-                          // Meta page channels use manual token paste (the
-                          // use-case app blocks the classic OAuth dialog).
-                          // Gmail / Outlook use real OAuth.
-                          if (isMeta) {
+                          // Meta page channels: use the real OAuth / Facebook
+                          // Login for Business flow when a login configuration
+                          // is set (required for App Review — the reviewer must
+                          // see Meta's consent screen). Without a config_id the
+                          // classic dialog won't load for a Business app, so we
+                          // fall back to manual token paste.
+                          if (isMeta && !process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID) {
                             setManualOpen(g.connectChannel as ManualChannel);
                             return;
                           }
@@ -499,6 +502,21 @@ export function ChannelsPanel() {
                           </>
                         )}
                       </button>
+                      {/* Meta: keep manual token paste available as a secondary
+                          path once OAuth is the primary (config_id set). */}
+                      {isMeta &&
+                        ready &&
+                        process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID && (
+                          <button
+                            onClick={() =>
+                              setManualOpen(g.connectChannel as ManualChannel)
+                            }
+                            className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            <KeyRound className="mr-1 inline-block size-2.5" />
+                            o conectar pegando un token manualmente
+                          </button>
+                        )}
                     </>
                   )}
                 </div>

@@ -63,7 +63,17 @@ export async function GET(
   authorize.searchParams.set("client_id", cfg.clientId);
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("response_type", "code");
-  authorize.searchParams.set("scope", cfg.scopes.join(provider === "google" ? " " : ","));
+  // Facebook Login for Business: when a configuration id is set, the
+  // requested permissions live in the configuration and `config_id` REPLACES
+  // `scope` (they're mutually exclusive). This is the flow Meta requires for
+  // business permissions — the classic scope-based dialog won't load for a
+  // Business-type app. Falls back to scope-based for non-Meta providers and
+  // when no config_id is configured.
+  if (cfg.configId) {
+    authorize.searchParams.set("config_id", cfg.configId);
+  } else {
+    authorize.searchParams.set("scope", cfg.scopes.join(provider === "google" ? " " : ","));
+  }
   authorize.searchParams.set("state", state);
   for (const [k, v] of Object.entries(cfg.extraAuthParams ?? {})) {
     authorize.searchParams.set(k, v);
