@@ -109,7 +109,6 @@ import {
 } from "@/components/canvas/canvas-viewport";
 import { WhatsappBubblePreview } from "@/components/flows/whatsapp-bubble-preview";
 import { AiBuilderPanel } from "@/components/flows/ai-builder-panel";
-import { VariablesPanel } from "@/components/flows/variables-panel";
 import {
   CommandPalette,
   type CommandItem,
@@ -2347,14 +2346,8 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         {state.nodes.length > 0 && (
           // Bottom-LEFT — los controles de zoom del CanvasViewport viven
           // en bottom-right, así que llevamos la paleta al otro lado
-          // para que no se solapen. Paleta "Agregar paso" + panel
-          // flotante de variables disponibles. Variables se apila
-          // arriba de la paleta para que el merchant las tenga a mano
-          // mientras edita textos.
+          // para que no se solape con los controles de zoom.
           <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2">
-            <div className="pointer-events-auto">
-              <VariablesPanel nodes={state.nodes} />
-            </div>
             <div className="pointer-events-auto">
               <FloatingAddPalette onAdd={addNode} />
             </div>

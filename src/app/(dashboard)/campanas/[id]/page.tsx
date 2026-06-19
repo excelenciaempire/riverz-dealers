@@ -432,6 +432,16 @@ export default function BroadcastDetailPage() {
         />
       </div>
 
+      {/* "Leído" depende de que el destinatario tenga activadas las
+          confirmaciones de lectura en WhatsApp; si las tiene apagadas,
+          el mensaje puede haberse leído sin que el visto llegue. La
+          entrega y las respuestas no dependen de ese ajuste. */}
+      <p className="text-[11px] text-muted-foreground">
+        &ldquo;Leídos&rdquo; cuenta solo a quienes tienen activados los vistos
+        en WhatsApp. Si están desactivados, pueden haber leído sin sumar aquí —
+        &ldquo;Entregados&rdquo; y &ldquo;Respondidos&rdquo; no se ven afectados.
+      </p>
+
       {/* ── Embudo + actividad por hora ── */}
       <div className="grid gap-3 lg:grid-cols-2">
         <FunnelChart steps={funnelSteps} />
