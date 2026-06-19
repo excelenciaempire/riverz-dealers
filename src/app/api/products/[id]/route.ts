@@ -55,6 +55,7 @@ export async function GET(
 }
 
 interface PatchBody {
+  description?: string | null;
   custom_notes?: string | null;
   custom_faqs?: Array<{ q: string; a: string }>;
   // Rich per-product context (migration 073) — injected into the agent prompt.
@@ -105,6 +106,7 @@ export async function PATCH(
   }
 
   const patch: Record<string, unknown> = {};
+  if (body.description !== undefined) patch.description = body.description;
   if (body.custom_notes !== undefined) patch.custom_notes = body.custom_notes;
   if (body.custom_faqs !== undefined) patch.custom_faqs = body.custom_faqs;
   if (body.say_guidelines !== undefined) patch.say_guidelines = body.say_guidelines;

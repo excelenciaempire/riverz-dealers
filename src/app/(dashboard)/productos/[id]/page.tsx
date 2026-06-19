@@ -56,6 +56,11 @@ interface Product {
   ai_research_status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
   ai_research_error: string | null;
   // Reglas/contexto que recibe el agente (migración 073).
+  structured_research: {
+    differentiators?: string[];
+    objections?: Array<{ objection?: string; rebuttal?: string }>;
+    [k: string]: unknown;
+  } | null;
   say_guidelines: string | null;
   never_say: string[] | null;
   escalation_triggers: string[] | null;
@@ -80,6 +85,14 @@ function linesToArray(text: string): string[] {
     .filter(Boolean);
 }
 
+/** Cada línea "objeción | respuesta" → { objection, rebuttal }. */
+function parseObjections(text: string): Array<{ objection: string; rebuttal: string }> {
+  return linesToArray(text).map((line) => {
+    const [objection, ...rest] = line.split('|');
+    return { objection: objection.trim(), rebuttal: rest.join('|').trim() };
+  });
+}
+
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -96,6 +109,12 @@ export default function ProductDetailPage() {
   // Form state (mirror del producto pero editable).
   const [notes, setNotes] = useState('');
   const [faqs, setFaqs] = useState<Array<{ q: string; a: string }>>([]);
+  // Descripción editable (clave para el copy del agente).
+  const [descriptionText, setDescriptionText] = useState('');
+  // Contexto para vender (lo más útil para el copywriting del agente):
+  // beneficios y objeciones+respuesta. Se guardan en structured_research.
+  const [benefits, setBenefits] = useState('');
+  const [objections, setObjections] = useState('');
   // Reglas/contexto para la IA (migración 073). Las listas se editan como
   // texto, una por línea, y se guardan como arrays.
   const [sayGuidelines, setSayGuidelines] = useState('');
@@ -119,6 +138,16 @@ export default function ProductDetailPage() {
       setNotes(prodJson.product.custom_notes ?? '');
       setFaqs(prodJson.product.custom_faqs ?? []);
       const pr = prodJson.product as Product;
+      setDescriptionText(pr.description ?? '');
+      setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
+      setObjections(
+        (pr.structured_research?.objections ?? [])
+          .map((o) =>
+            `${o.objection ?? ''}${o.rebuttal ? ` | ${o.rebuttal}` : ''}`.trim(),
+          )
+          .filter(Boolean)
+          .join('\n'),
+      );
       setSayGuidelines(pr.say_guidelines ?? '');
       setNeverSay((pr.never_say ?? []).join('\n'));
       setEscalation((pr.escalation_triggers ?? []).join('\n'));
@@ -163,6 +192,12 @@ export default function ProductDetailPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          description: descriptionText.trim() || null,
+          structured_research: {
+            ...(product.structured_research ?? {}),
+            differentiators: linesToArray(benefits),
+            objections: parseObjections(objections),
+          },
           custom_notes: notes || null,
           custom_faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
           say_guidelines: sayGuidelines.trim() || null,
@@ -404,17 +439,20 @@ export default function ProductDetailPage() {
             researchError={product.ai_research_error}
           />
 
-          {/* Descripción del catálogo (read-only) */}
-          {product.description && (
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
-                Descripción del catálogo
-              </h3>
-              <p className="line-clamp-4 text-sm text-foreground">
-                {product.description}
-              </p>
-            </div>
-          )}
+          {/* Descripción editable — es lo primero que el agente usa para hablar
+              del producto. En productos de Shopify, una nueva sincronización la
+              reescribe con la de la tienda. */}
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+              Descripción
+            </h3>
+            <Textarea
+              value={descriptionText}
+              onChange={(e) => setDescriptionText(e.target.value)}
+              placeholder="Qué es, para qué sirve y sus beneficios principales."
+              className="min-h-[100px] bg-muted/30 text-sm"
+            />
+          </div>
         </div>
       </div>
 
@@ -440,13 +478,36 @@ export default function ProductDetailPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Sparkles className="size-4" />
-          Reglas para la IA
+          Contexto para vender
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Le dan al asistente más contexto y límites cuando habla de este
-          producto. Una entrada por línea donde corresponda.
+          Mientras más completes, más preciso es el copy del agente cuando habla
+          de este producto. Una entrada por línea donde corresponda.
         </p>
         <div className="mt-3 space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">
+              Beneficios / por qué comprarlo <span className="text-muted-foreground">(uno por línea)</span>
+            </label>
+            <Textarea
+              value={benefits}
+              onChange={(e) => setBenefits(e.target.value)}
+              placeholder={"Sin alcohol, no reseca\nVegano y libre de crueldad\nResultados visibles en 2 semanas"}
+              className="min-h-[64px] bg-muted/30"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">
+              Objeciones y respuesta{' '}
+              <span className="text-muted-foreground">(una por línea: objeción | respuesta)</span>
+            </label>
+            <Textarea
+              value={objections}
+              onChange={(e) => setObjections(e.target.value)}
+              placeholder={"es caro | rinde 3 meses, sale a ~1.000 por día\n¿funciona en piel grasa? | sí, está formulado justo para piel grasa"}
+              className="min-h-[64px] bg-muted/30"
+            />
+          </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground">Qué enfatizar</label>
             <Textarea
