@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const CONTACT = "soporte@riverz.app";
+const CONTACT = "info@riverzai.com";
 
 export default async function EliminarDatosPage({
   searchParams,

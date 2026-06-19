@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "19 de junio de 2026";
-const CONTACT = "soporte@riverz.app";
+const CONTACT = "info@riverzai.com";
 
 export default function PrivacidadPage() {
   return (

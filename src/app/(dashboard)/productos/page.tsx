@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  Search,
   RefreshCw,
   ShoppingBag,
   Sparkles,
@@ -13,13 +13,10 @@ import {
   Boxes,
   ExternalLink,
   Loader2,
-  Info,
-  Wand2,
   Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -35,11 +32,9 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 interface ProductRow {
   id: string;
   title: string;
-  handle: string;
   description: string | null;
   product_type: string | null;
   vendor: string | null;
-  tags: string[];
   price_min: number | null;
   price_max: number | null;
   currency: string | null;
@@ -48,85 +43,23 @@ interface ProductRow {
   is_bundle: boolean;
   bundle_app: string | null;
   scrape_status: 'idle' | 'queued' | 'scraping' | 'done' | 'failed';
-  scraped_at: string | null;
   ai_research_status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
-  ai_research_generated_at: string | null;
-  synced_at: string;
   assigned_agent_count: number;
 }
 
-type Filter = 'all' | 'pending' | 'done' | 'failed' | 'bundle';
-
-const FILTER_LABEL: Record<Filter, string> = {
-  all: 'Todos',
-  pending: 'Sin entrenar',
-  done: 'Entrenados',
-  failed: 'Con error',
-  bundle: 'Bundles / combos',
-};
-
 export default function ProductosPage() {
+  const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [training, setTraining] = useState<{
-    running: boolean;
-    done: number;
-    total: number;
-    failed: number;
-  } | null>(null);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
 
-  // Crear producto desde cero (sin Shopify). Se guarda en la misma tabla,
-  // así aparece en el catálogo y en "Productos asignados" del agente IA.
+  // Crear producto desde cero — solo pedimos el nombre; el resto se edita
+  // en el editor (a donde redirigimos tras crear).
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    price: '',
-    currency: 'COP',
-    image_url: '',
-    custom_notes: '',
-  });
-
-  async function handleCreate() {
-    if (!form.title.trim()) {
-      toast.error('Ponle un nombre al producto.');
-      return;
-    }
-    setCreating(true);
-    try {
-      const res = await fetchWithCsrf('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title.trim(),
-          description: form.description.trim() || undefined,
-          price_min: form.price.trim() ? Number(form.price) : undefined,
-          currency: form.currency.trim() || undefined,
-          image_url: form.image_url.trim() || undefined,
-          custom_notes: form.custom_notes.trim() || undefined,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo crear el producto.');
-        return;
-      }
-      toast.success('Producto creado.');
-      setCreateOpen(false);
-      setForm({ title: '', description: '', price: '', currency: 'COP', image_url: '', custom_notes: '' });
-      void fetchProducts();
-    } catch {
-      toast.error('No se pudo crear el producto.');
-    } finally {
-      setCreating(false);
-    }
-  }
+  const [name, setName] = useState('');
 
   async function fetchProducts() {
     setLoading(true);
@@ -160,8 +93,6 @@ export default function ProductosPage() {
       const parts: string[] = [];
       if (json.synced > 0) parts.push(`${json.synced} sincronizados`);
       if (json.deleted > 0) parts.push(`${json.deleted} eliminados`);
-      if (json.bundles_detected > 0)
-        parts.push(`${json.bundles_detected} bundles detectados`);
       toast.success(parts.length ? parts.join(' · ') : 'Catálogo al día');
       await fetchProducts();
     } catch (err) {
@@ -172,226 +103,72 @@ export default function ProductosPage() {
     }
   }
 
-  /**
-   * Entrenar TODOS los productos que estén en estado "idle" o "failed".
-   * Para cada uno corre scrape + ai-research en secuencia. Lanzamos las
-   * llamadas con concurrencia limitada (default 4) para no quemarle el
-   * rate limit a Firecrawl/Anthropic. El status se persiste en la DB
-   * en cada paso, así que si el usuario cierra la pestaña, los
-   * productos completados quedan en "done" y al volver puede retomar
-   * los pendientes.
-   */
-  async function handleTrainAll() {
-    const pendientes = products.filter(
-      (p) =>
-        p.scrape_status === 'idle' ||
-        p.scrape_status === 'failed' ||
-        p.ai_research_status === 'idle' ||
-        p.ai_research_status === 'failed',
-    );
-    if (pendientes.length === 0) {
-      toast.success('Todos los productos ya están entrenados.');
+  async function handleCreate() {
+    if (!name.trim()) {
+      toast.error('Ponle un nombre al producto.');
       return;
     }
-    const ok = window.confirm(
-      `Entrenar ${pendientes.length} producto${pendientes.length === 1 ? '' : 's'}? Esto puede tardar 1-3 segundos por producto. Puedes cerrar la pestaña: el progreso se guarda.`,
-    );
-    if (!ok) return;
-
-    setTraining({ running: true, done: 0, total: pendientes.length, failed: 0 });
-    const CONCURRENCY = 4;
-    let cursor = 0;
-    let done = 0;
-    let failed = 0;
-    async function worker() {
-      while (cursor < pendientes.length) {
-        const idx = cursor++;
-        const p = pendientes[idx];
-        try {
-          // scrape primero (so ai-research has more context), después
-          // ai-research. Cada fetch espera al endpoint completo.
-          if (p.scrape_status !== 'done') {
-            await fetchWithCsrf(`/api/products/${p.id}/scrape`, { method: 'POST' });
-          }
-          await fetchWithCsrf(`/api/products/${p.id}/ai-research`, { method: 'POST' });
-          done++;
-        } catch {
-          failed++;
-        } finally {
-          setTraining((cur) =>
-            cur ? { ...cur, done, failed } : cur,
-          );
-        }
+    setCreating(true);
+    try {
+      const res = await fetchWithCsrf('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: name.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error ?? 'No se pudo crear el producto.');
+        return;
       }
+      // Vamos directo al editor a completar la info.
+      router.push(`/productos/${json.id}`);
+    } catch {
+      toast.error('No se pudo crear el producto.');
+    } finally {
+      setCreating(false);
     }
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    setTraining({ running: false, done, failed, total: pendientes.length });
-    toast.success(
-      `Entrenamiento listo · ${done} ok${failed > 0 ? ` · ${failed} fallaron` : ''}`,
-    );
-    await fetchProducts();
   }
 
-  const filtered = useMemo(() => {
-    let rows = products;
-    if (filter === 'pending') {
-      rows = rows.filter(
-        (p) => p.scrape_status === 'idle' || p.scrape_status === 'queued',
-      );
-    } else if (filter === 'done') {
-      rows = rows.filter((p) => p.scrape_status === 'done');
-    } else if (filter === 'failed') {
-      rows = rows.filter((p) => p.scrape_status === 'failed');
-    } else if (filter === 'bundle') {
-      rows = rows.filter((p) => p.is_bundle);
-    }
-    const q = query.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          (p.vendor ?? '').toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)),
-      );
-    }
-    return rows;
-  }, [products, filter, query]);
-
-  const counts = useMemo(() => {
-    return {
-      total: products.length,
-      done: products.filter((p) => p.scrape_status === 'done').length,
-      pending: products.filter(
-        (p) => p.scrape_status === 'idle' || p.scrape_status === 'queued',
-      ).length,
-      failed: products.filter((p) => p.scrape_status === 'failed').length,
-      bundles: products.filter((p) => p.is_bundle).length,
-      assigned: products.filter((p) => p.assigned_agent_count > 0).length,
-    };
-  }, [products]);
-
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <ShoppingBag className="size-3.5" />
-            Catálogo
-          </div>
-          <h1 className="mt-1 text-2xl font-bold text-foreground">Productos</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {counts.pending + counts.failed > 0 && (
-            <Button
-              onClick={handleTrainAll}
-              disabled={training?.running}
-              variant="outline"
-              className="h-9 border-border bg-card text-foreground hover:bg-muted"
-            >
-              {training?.running ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  {training.done}/{training.total} entrenando…
-                </>
-              ) : (
-                <>
-                  <Wand2 className="size-4" />
-                  Entrenar pendientes ({counts.pending + counts.failed})
-                </>
-              )}
-            </Button>
-          )}
-          <Button
-            onClick={() => setCreateOpen(true)}
-            variant="outline"
-            className="h-9 border-border bg-card text-foreground hover:bg-muted"
-          >
-            <Plus className="size-4" />
-            Crear producto
-          </Button>
+    <div className="space-y-6">
+      {/* Header — solo el título + sincronizar (sutil) */}
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Productos</h1>
+        {shopifyConnected && (
           <Button
             onClick={handleSync}
-            disabled={syncing || shopifyConnected === false}
-            title={
-              shopifyConnected === false
-                ? 'Conecta Shopify primero desde Integraciones'
-                : undefined
-            }
-            className="h-9 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
+            disabled={syncing}
+            variant="outline"
+            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
           >
             {syncing ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <RefreshCw className="size-4" />
             )}
-            {syncing ? 'Sincronizando…' : 'Sincronizar desde Shopify'}
+            Sincronizar
           </Button>
-        </div>
+        )}
       </div>
 
-      {/* Crear producto desde cero */}
+      {/* Crear producto desde cero — solo el nombre */}
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
-        <DialogContent className="bg-card text-foreground sm:max-w-lg">
+        <DialogContent className="bg-card text-foreground sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Crear producto desde cero</DialogTitle>
+            <DialogTitle>Nuevo producto</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Nombre del producto</Label>
-              <Input
-                autoFocus
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="Sérum facial 30ml"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Descripción</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="Qué es, para qué sirve, beneficios clave."
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Precio</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                  placeholder="59900"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Moneda</Label>
-                <Input
-                  value={form.currency}
-                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                  placeholder="COP"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Imagen (URL)</Label>
-              <Input
-                value={form.image_url}
-                onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
-                placeholder="https://…/foto.jpg"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notas para la IA (opcional)</Label>
-              <Textarea
-                value={form.custom_notes}
-                onChange={(e) => setForm((f) => ({ ...f, custom_notes: e.target.value }))}
-                placeholder="Envíos, garantía, preguntas frecuentes… lo que el asistente debe saber."
-                rows={3}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Nombre del producto</Label>
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              placeholder="Ej: Sérum facial 30ml"
+            />
+            <p className="text-xs text-muted-foreground">
+              Lo demás (fotos, precios, beneficios, sitios) lo completas en el editor.
+            </p>
           </div>
           <DialogFooter>
             <Button
@@ -404,15 +181,13 @@ export default function ProductosPage() {
             </Button>
             <Button onClick={handleCreate} disabled={creating}>
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Crear producto
+              Crear y editar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Banner cuando Shopify no está conectado y ya hay productos (de
-          una conexión vieja desconectada o de un seed) — guía hacia
-          /integraciones. */}
+      {/* Banner cuando Shopify quedó desconectado pero hay productos viejos. */}
       {shopifyConnected === false && products.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-500/5 px-3.5 py-2.5">
           <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -421,106 +196,45 @@ export default function ProductosPage() {
               Shopify no está conectado
             </p>
             <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300/80">
-              Estos productos quedaron de una conexión vieja. Para
-              sincronizar el catálogo actual, reconecta Shopify.
+              Para sincronizar tu catálogo actual, reconecta Shopify.
             </p>
           </div>
           <Link
             href="/integraciones"
             className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-600/30 bg-card px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-500/10 dark:text-amber-200"
           >
-            Conectar Shopify
+            Conectar
             <ExternalLink className="size-3" />
           </Link>
         </div>
       )}
 
-      {/* Métricas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        <Metric label="Total" value={counts.total} emphasis />
-        <Metric label="Entrenados" value={counts.done} />
-        <Metric label="Sin entrenar" value={counts.pending} />
-        <Metric label="Con error" value={counts.failed} />
-        <Metric label="Bundles" value={counts.bundles} />
-        <Metric label="Con agente" value={counts.assigned} />
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-md">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, marca o tag…"
-            className="h-9 pl-8"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                filter === f
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-border bg-card text-muted-foreground hover:bg-muted',
-              )}
-            >
-              {FILTER_LABEL[f]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Lista */}
+      {/* Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
-      ) : products.length === 0 ? (
-        <EmptyState onSync={handleSync} syncing={syncing} onCreate={() => setCreateOpen(true)} />
-      ) : filtered.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-border bg-card">
-          <p className="text-sm text-muted-foreground">
-            Ningún producto coincide con el filtro.
-          </p>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {products.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
+          {/* Tile "Nuevo producto" — al estilo de la referencia */}
+          <button
+            type="button"
+            onClick={() => {
+              setName('');
+              setCreateOpen(true);
+            }}
+            className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+          >
+            <span className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <Plus className="size-5" />
+            </span>
+            <span className="text-sm font-medium">Nuevo producto</span>
+          </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  emphasis = false,
-}: {
-  label: string;
-  value: number;
-  emphasis?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        'rounded-lg border bg-card p-3',
-        emphasis ? 'border-border' : 'border-border/60',
-      )}
-    >
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-        {value.toLocaleString('es-ES')}
-      </p>
     </div>
   );
 }
@@ -537,10 +251,9 @@ function ProductCard({ product }: { product: ProductRow }) {
   return (
     <Link
       href={`/productos/${product.id}`}
-      className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-foreground/30"
+      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30"
     >
-      {/* Imagen */}
-      <div className="relative aspect-[16/10] w-full bg-muted">
+      <div className="relative aspect-square w-full bg-white">
         {product.image_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -549,7 +262,7 @@ function ProductCard({ product }: { product: ProductRow }) {
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground/40">
+          <div className="flex h-full items-center justify-center bg-muted text-muted-foreground/40">
             <ShoppingBag className="size-8" />
           </div>
         )}
@@ -560,18 +273,14 @@ function ProductCard({ product }: { product: ProductRow }) {
           </span>
         )}
       </div>
-      {/* Body */}
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-medium text-foreground">
-            {product.title}
-          </h3>
+          <h3 className="truncate text-sm font-medium text-foreground">{product.title}</h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {product.vendor ?? product.product_type ?? '—'}
             {price ? ` · ${price}` : ''}
           </p>
         </div>
-        {/* Completeness — qué tan listo está para que el agente venda bien. */}
         <div className="flex items-center gap-2">
           <div
             className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
@@ -580,9 +289,7 @@ function ProductCard({ product }: { product: ProductRow }) {
             <div
               className={cn(
                 'h-full rounded-full transition-all',
-                completeness.done === completeness.total
-                  ? 'bg-emerald-500'
-                  : 'bg-foreground',
+                completeness.done === completeness.total ? 'bg-emerald-500' : 'bg-foreground',
               )}
               style={{ width: `${(completeness.done / completeness.total) * 100}%` }}
             />
@@ -625,7 +332,7 @@ function StatusChips({
     <div className="flex items-center gap-1">
       {scrape === 'done' && research === 'done' ? (
         <span
-          className="inline-flex items-center gap-0.5 rounded-full border border-emerald-600/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
+          className="inline-flex items-center rounded-full border border-emerald-600/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
           title="Entrenado"
         >
           <CheckCircle2 className="size-3" />
@@ -637,18 +344,11 @@ function StatusChips({
         >
           <AlertCircle className="size-3" />
         </span>
-      ) : scrape === 'scraping' || research === 'running' ? (
-        <span
-          className="inline-flex items-center rounded-full border border-amber-600/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300"
-          title="Entrenando…"
-        >
-          <Loader2 className="size-3 animate-spin" />
-        </span>
       ) : null}
       {assignedCount > 0 && (
         <span
           className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground"
-          title={`${assignedCount} agente${assignedCount === 1 ? '' : 's'} asignado${assignedCount === 1 ? '' : 's'}`}
+          title={`${assignedCount} agente(s) asignado(s)`}
         >
           <Sparkles className="size-3" />
           {assignedCount}
@@ -657,63 +357,3 @@ function StatusChips({
     </div>
   );
 }
-
-function EmptyState({
-  onSync,
-  syncing,
-  onCreate,
-}: {
-  onSync: () => void;
-  syncing: boolean;
-  onCreate: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
-      <ShoppingBag className="mx-auto size-8 text-muted-foreground" />
-      <h2 className="mt-3 text-base font-medium text-foreground">
-        Agrega tus productos
-      </h2>
-      <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-        Sincroniza tu catálogo de Shopify o crea un producto desde cero.
-      </p>
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        <Button
-          onClick={onSync}
-          disabled={syncing}
-          className="bg-foreground text-background hover:bg-foreground/90"
-        >
-          {syncing ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="size-4" />
-          )}
-          {syncing ? 'Sincronizando…' : 'Sincronizar Shopify'}
-        </Button>
-        <Button
-          onClick={onCreate}
-          variant="outline"
-          className="border-border bg-card text-foreground hover:bg-muted"
-        >
-          <Plus className="size-4" />
-          Crear producto
-        </Button>
-        <Link
-          href="/integraciones"
-          className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <ExternalLink className="size-3.5" />
-          Integraciones
-        </Link>
-      </div>
-      <p className="mx-auto mt-6 flex max-w-md items-start gap-1.5 rounded-md border border-border bg-card/60 px-3 py-2 text-left text-[11px] text-muted-foreground">
-        <Info className="mt-0.5 size-3 shrink-0" />
-        <span>
-          Si tu tienda tiene Kaching Bundles, ReConvert, Bold Bundles, FBT o
-          Rebuy, los detectamos automáticamente y marcamos esos productos como
-          bundles.
-        </span>
-      </p>
-    </div>
-  );
-}
-
