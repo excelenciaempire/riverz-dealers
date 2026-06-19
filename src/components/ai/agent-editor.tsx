@@ -16,11 +16,8 @@ import {
   Briefcase,
   Radio,
   Settings as SettingsIcon,
-  Globe,
-  RefreshCw,
   ChevronDown,
   ChevronRight,
-  Wand2,
   CheckCheck,
   RotateCcw,
 } from 'lucide-react';
@@ -214,7 +211,6 @@ export function AgentEditor({
   agent,
   onClose,
   onSaved,
-  onAgentUpserted,
 }: AgentEditorProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const router = useRouter();
@@ -237,12 +233,6 @@ export function AgentEditor({
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
   const [persona, setPersona] = useState(agent?.persona ?? DEFAULT_PERSONA);
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
-  const [knowledgeUrl, setKnowledgeUrl] = useState(agent?.knowledge_url ?? '');
-  const [knowledgeSyncedAt, setKnowledgeSyncedAt] = useState<string | null>(
-    agent?.knowledge_synced_at ?? null,
-  );
-  const [syncingKnowledge, setSyncingKnowledge] = useState(false);
-  const [showKnowledgePreview, setShowKnowledgePreview] = useState(false);
   const [language, setLanguage] = useState(agent?.language ?? 'es');
   const [tone, setTone] = useState<AiTone>(agent?.tone ?? 'friendly');
   // max_response_chars y reply_delay_seconds dejan de ser editables
@@ -311,16 +301,9 @@ export function AgentEditor({
   const [testing, setTesting] = useState(false);
   const testScrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-generación con IA desde la URL del sitio. Lo concentramos en
-  // la pestaña "Mi negocio" para que el primer paso de un usuario nuevo
-  // sea "pegá tu URL → te armo el agente". El timer va rotando las
-  // pistas de progreso así no se ve congelado durante el crawl + LLM.
-  const [generating, setGenerating] = useState(false);
-  const [genHint, setGenHint] = useState<string>('');
   const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
-  // Single URL across the tab: `knowledgeUrl` is the one source of truth
-  // (generate + sync use it). The "Probar" panel is closed by default so
-  // the form has the full width; the header button opens it on demand.
+  // El panel "Probar" arranca cerrado para que el form tenga el ancho
+  // completo; el botón del header lo abre on-demand.
   const [showTest, setShowTest] = useState(false);
 
   type TabKey = 'business' | 'reach' | 'advanced';
@@ -330,80 +313,6 @@ export function AgentEditor({
     { key: 'reach', label: 'Alcance', icon: Radio },
     { key: 'advanced', label: 'Avanzado', icon: SettingsIcon },
   ];
-
-  // Rotación cosmetica de las pistas de "estamos haciendo X" mientras
-  // dura la llamada al endpoint generate-from-url. No bloquea nada,
-  // solo le da vida al loader que de otra forma se ve eterno.
-  useEffect(() => {
-    if (!generating) return;
-    const hints = [
-      'Indizando tu home…',
-      'Leyendo políticas y FAQ…',
-      'Escribiendo el tono del asistente…',
-      'Ajustando reglas de escalamiento…',
-      'Casi listo…',
-    ];
-    let i = 0;
-    setGenHint(hints[0]);
-    const t = setInterval(() => {
-      i = (i + 1) % hints.length;
-      setGenHint(hints[i]);
-    }, 3500);
-    return () => clearInterval(t);
-  }, [generating]);
-
-  async function generateFromUrl() {
-    const url = knowledgeUrl.trim();
-    if (!url) {
-      toast.error('Pega la URL de tu tienda.');
-      return;
-    }
-    if (!/^https?:\/\//i.test(url)) {
-      toast.error('La URL debe empezar con https://');
-      return;
-    }
-    setGenerating(true);
-    try {
-      const res = await fetchWithCsrf('/api/ai/agents/generate-from-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, workspace_id: workspaceId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo generar el asistente.');
-        return;
-      }
-      const a = json.agent as AgentSummary;
-      // Volcamos todo lo generado en el formulario; el usuario igual
-      // puede tocar antes de guardar (o salir del editor y verlo en la
-      // lista, ya quedó persistido).
-      setName(a.name ?? '');
-      setPersona(a.persona ?? '');
-      setKnowledge(a.knowledge ?? '');
-      setKnowledgeUrl(a.knowledge_url ?? url);
-      setKnowledgeSyncedAt(a.knowledge_synced_at ?? new Date().toISOString());
-      setTone((a.tone as AiTone) ?? 'friendly');
-      setResponseMode((a.response_mode as AiResponseMode) ?? 'dynamic');
-      setInboundDebounce(a.inbound_debounce_seconds ?? 15);
-      setLanguage(a.language ?? 'es');
-      setIsActive(Boolean(a.is_active));
-      setCurrentAgentId(a.id);
-      toast.success('Asistente generado. Elige el producto y guarda.');
-      // Notificamos al padre para que aparezca en la lista ya como
-      // creado — el editor sigue abierto en modo "edición" del nuevo.
-      // Usamos onAgentUpserted (no onSaved) porque onSaved cierra el
-      // editor y queremos que el usuario revise lo generado.
-      if (onAgentUpserted) {
-        await onAgentUpserted(a);
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar.');
-    } finally {
-      setGenerating(false);
-      setGenHint('');
-    }
-  }
 
   function toggleEscalate(kw: string) {
     setEscalateKeywords((prev) => prev.filter((k) => k !== kw));
@@ -562,7 +471,9 @@ export function AgentEditor({
       is_active: isActive,
       persona: persona.trim(),
       knowledge: knowledge.trim() || null,
-      knowledge_url: knowledgeUrl.trim() || null,
+      // Ya no editamos la URL de conocimiento a nivel agente (el producto es
+      // la fuente); preservamos la que tuviera el agente para no borrarla.
+      knowledge_url: agent?.knowledge_url ?? null,
       language,
       tone,
       max_response_chars: maxChars,
@@ -616,74 +527,6 @@ export function AgentEditor({
       await onSaved(saved);
     } else if (agent) {
       await onSaved(agent);
-    }
-  }
-
-  async function syncKnowledge() {
-    if (!currentAgentId) {
-      toast.error('Guarda el asistente antes de sincronizar.');
-      return;
-    }
-    const url = knowledgeUrl.trim();
-    if (!url) {
-      toast.error('Pega la URL de tu tienda.');
-      return;
-    }
-    if (!/^https?:\/\//i.test(url)) {
-      toast.error('La URL debe empezar con https://');
-      return;
-    }
-    setSyncingKnowledge(true);
-    try {
-      const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/sync-knowledge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok && res.status !== 202) {
-        toast.error(json.error ?? 'No se pudo sincronizar');
-        return;
-      }
-      const pages = Number(json.pages_scraped ?? 0);
-      const chars = Number(json.knowledge_chars ?? 0);
-      if (json.agent?.knowledge != null) setKnowledge(json.agent.knowledge);
-      if (json.agent?.knowledge_url) setKnowledgeUrl(json.agent.knowledge_url);
-      if (json.knowledge_synced_at) setKnowledgeSyncedAt(json.knowledge_synced_at);
-      if (pages > 0) {
-        toast.success(
-          `Sincronizado. ${pages} página${pages === 1 ? '' : 's'} indexada${pages === 1 ? '' : 's'} (${chars} caracteres).`,
-        );
-      } else {
-        toast.message('Sincronización iniciada. Vuelve a intentar en un minuto.');
-      }
-      if (json.agent) {
-        // En sync-knowledge no cerramos el editor (el usuario sigue
-        // afinando). Usamos el callback de upsert para refrescar la
-        // lista sin perder el contexto de edición.
-        if (onAgentUpserted) {
-          await onAgentUpserted(json.agent as AgentSummary);
-        }
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al sincronizar');
-    } finally {
-      setSyncingKnowledge(false);
-    }
-  }
-
-  function formatSyncedAt(iso: string | null): string {
-    if (!iso) return '';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString('es', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return iso;
     }
   }
 
@@ -826,240 +669,9 @@ export function AgentEditor({
           <div className="space-y-6 overflow-y-auto p-6">
             {tab === 'business' && (
               <>
-                {/* Card de generación automática con IA. Es el primer
-                    contacto del usuario nuevo con el editor: pegás tu URL
-                    y la IA arma identidad + conocimiento + tono en un paso. */}
-                <div className="relative overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                      <Wand2 className="size-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        Generar con IA desde mi web
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Pega la URL de tu tienda. Leemos tu sitio y armamos
-                        identidad, tono y conocimiento en menos de un minuto.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <div className="relative flex-1">
-                      <Globe className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        type="url"
-                        autoFocus={!editing}
-                        value={knowledgeUrl}
-                        onChange={(e) => setKnowledgeUrl(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !generating) {
-                            e.preventDefault();
-                            void generateFromUrl();
-                          }
-                        }}
-                        placeholder="https://tutienda.com"
-                        className="bg-background pl-8"
-                        disabled={generating}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={generateFromUrl}
-                      disabled={generating || !knowledgeUrl.trim()}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      {generating ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Wand2 className="size-4" />
-                      )}
-                      {generating ? 'Generando…' : 'Generar asistente'}
-                    </Button>
-                  </div>
-                  {generating && genHint && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">{genHint}</p>
-                  )}
-                  {!generating && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      Vamos a leer tu home, políticas, FAQ y páginas de productos
-                      (hasta 30 páginas). El proceso tarda unos 30 a 60 segundos.
-                    </p>
-                  )}
-                </div>
-
-                {/* Identidad: nombre + tono + idioma. El modelo lo
-                    elegimos nosotros (Haiku) para no abrumar al usuario
-                    con decisiones técnicas. */}
-                <SectionCard
-                  title="Identidad del asistente"
-                  hint="Cómo se llama y qué tono usa. Edítalo si quieres."
-                >
-                  <Field label="Nombre del asistente">
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Pili"
-                      className="bg-background"
-                    />
-                  </Field>
-                  <Field label="Tono">
-                    <div className="grid gap-2 sm:grid-cols-4">
-                      {TONES.map((t) => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          onClick={() => setTone(t.value)}
-                          title={t.hint}
-                          className={cn(
-                            'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                            tone === t.value
-                              ? 'border-primary/60 bg-primary/10 text-foreground'
-                              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                          )}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Ajusta sutilmente el estilo. El detalle de la personalidad
-                      va en &quot;Cómo se presenta y actúa&quot;.
-                    </p>
-                  </Field>
-                  <Field label="Idioma">
-                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue labels={LANGUAGE_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LANGUAGES.map((l) => (
-                          <SelectItem key={l.code} value={l.code}>
-                            {l.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </SectionCard>
-
-                {/* Persona como acordeón: la mayoría confía en la IA. El
-                    botón "Editar avanzado" expone el textarea para quien
-                    quiera reescribir el system prompt entero. */}
-                <SectionCard
-                  title="Cómo se presenta y actúa"
-                  hint="System prompt del asistente. Edítalo solo para afinar reglas o tono."
-                  right={
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvancedPersona((v) => !v)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      {showAdvancedPersona ? (
-                        <ChevronDown className="size-3.5" />
-                      ) : (
-                        <ChevronRight className="size-3.5" />
-                      )}
-                      Editar avanzado
-                    </button>
-                  }
-                >
-                  {showAdvancedPersona ? (
-                    <Textarea
-                      value={persona}
-                      rows={10}
-                      onChange={(e) => setPersona(e.target.value)}
-                      placeholder="Eres Pili, asesora de Vitalú. Atiendes con calidez, una pregunta por turno, nunca admites ser IA."
-                      className="resize-y bg-background font-mono text-xs leading-relaxed"
-                    />
-                  ) : (
-                    <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
-                      {persona.trim() || 'Sin definir. Genera con IA o toca "Editar avanzado".'}
-                    </p>
-                  )}
-                </SectionCard>
-
-                {/* Base de conocimiento. Sigue igual: URL + sincronizar
-                    + preview, ahora dentro de "Mi negocio". */}
-                <SectionCard
-                  title="Base de conocimiento"
-                  hint="Indexamos tu home, políticas, FAQ y productos desde la URL de tu tienda (la de arriba)."
-                >
-                  {knowledgeUrl.trim() ? (
-                    <p className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-foreground">
-                      <Globe className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{knowledgeUrl.trim()}</span>
-                    </p>
-                  ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                      Pega la URL de tu tienda en &quot;Generar con IA&quot; (arriba) para
-                      poder sincronizar tu contenido.
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      onClick={syncKnowledge}
-                      disabled={syncingKnowledge || !editing || !knowledgeUrl.trim()}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      {syncingKnowledge ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-4" />
-                      )}
-                      Sincronizar desde mi web
-                    </Button>
-                    {knowledgeSyncedAt && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Última sincronización: {formatSyncedAt(knowledgeSyncedAt)}
-                      </p>
-                    )}
-                  </div>
-                  {!editing && (
-                    <p className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-                      Guarda el asistente para sincronizar.
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowKnowledgePreview((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {showKnowledgePreview ? (
-                      <ChevronDown className="size-3.5" />
-                    ) : (
-                      <ChevronRight className="size-3.5" />
-                    )}
-                    Vista previa del conocimiento ({knowledge.length} caracteres)
-                  </button>
-                  {showKnowledgePreview && (
-                    <div className="max-h-[260px] overflow-y-auto rounded-lg border border-border bg-background p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-                      {knowledge.trim() ? (
-                        <pre className="whitespace-pre-wrap break-words">
-                          {knowledge.slice(0, 2000)}
-                          {knowledge.length > 2000 && '\n\n…'}
-                        </pre>
-                      ) : (
-                        <p className="italic">Sin contenido. Sincroniza tu web o pega info abajo.</p>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">
-                    Vuelve a sincronizar cuando cambies productos o precios.
-                  </p>
-                </SectionCard>
-
-                <Field label="Información del negocio">
-                  <Textarea
-                value={knowledge}
-                onChange={(e) => setKnowledge(e.target.value)}
-                rows={6}
-                placeholder={'Productos:\n- Crema antiarrugas $50.000\n- Sérum vitamina C $80.000\n\nPolíticas:\n- Envíos en 2 días hábiles\n- Devolución en 15 días'}
-                className="resize-y bg-background font-mono text-xs leading-relaxed"
-                  />
-                </Field>
-
+                {/* Producto PRIMERO: elegirlo dispara la investigación y
+                    puebla identidad, persona y conocimiento. Es el paso 1 del
+                    flujo product-first. */}
                 <Field
                   label={
                     isNew
@@ -1075,8 +687,8 @@ export function AgentEditor({
                       </p>
                     ) : (
                       <p className="text-[11px] text-muted-foreground">
-                        Elige al menos uno. El asistente se entrena con su
-                        información al instante. Puedes asignar varios.
+                        Elígelo y armamos solos el resto (nombre, tono, persona y
+                        conocimiento). Puedes asignar varios.
                       </p>
                     )
                   ) : (
@@ -1206,6 +818,108 @@ export function AgentEditor({
                     </div>
                   )}
                 </Field>
+
+                {/* Identidad: nombre + tono + idioma. El modelo lo
+                    elegimos nosotros (Haiku) para no abrumar al usuario
+                    con decisiones técnicas. */}
+                <SectionCard
+                  title="Identidad del asistente"
+                  hint="Cómo se llama y qué tono usa. Edítalo si quieres."
+                >
+                  <Field label="Nombre del asistente">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Pili"
+                      className="bg-background"
+                    />
+                  </Field>
+                  <Field label="Tono">
+                    <div className="grid gap-2 sm:grid-cols-4">
+                      {TONES.map((t) => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => setTone(t.value)}
+                          title={t.hint}
+                          className={cn(
+                            'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                            tone === t.value
+                              ? 'border-primary/60 bg-primary/10 text-foreground'
+                              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ajusta sutilmente el estilo. El detalle de la personalidad
+                      va en &quot;Cómo se presenta y actúa&quot;.
+                    </p>
+                  </Field>
+                  <Field label="Idioma">
+                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={LANGUAGE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGES.map((l) => (
+                          <SelectItem key={l.code} value={l.code}>
+                            {l.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </SectionCard>
+
+                {/* Persona como acordeón: la mayoría confía en la IA. El
+                    botón "Editar avanzado" expone el textarea para quien
+                    quiera reescribir el system prompt entero. */}
+                <SectionCard
+                  title="Cómo se presenta y actúa"
+                  hint="System prompt del asistente. Edítalo solo para afinar reglas o tono."
+                  right={
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedPersona((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {showAdvancedPersona ? (
+                        <ChevronDown className="size-3.5" />
+                      ) : (
+                        <ChevronRight className="size-3.5" />
+                      )}
+                      Editar avanzado
+                    </button>
+                  }
+                >
+                  {showAdvancedPersona ? (
+                    <Textarea
+                      value={persona}
+                      rows={10}
+                      onChange={(e) => setPersona(e.target.value)}
+                      placeholder="Eres Pili, asesora de Vitalú. Atiendes con calidez, una pregunta por turno, nunca admites ser IA."
+                      className="resize-y bg-background font-mono text-xs leading-relaxed"
+                    />
+                  ) : (
+                    <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+                      {persona.trim() || 'Se completa al elegir tu producto. O toca "Editar avanzado".'}
+                    </p>
+                  )}
+                </SectionCard>
+
+                <Field label="Información del negocio">
+                  <Textarea
+                value={knowledge}
+                onChange={(e) => setKnowledge(e.target.value)}
+                rows={6}
+                placeholder={'Productos:\n- Crema antiarrugas $50.000\n- Sérum vitamina C $80.000\n\nPolíticas:\n- Envíos en 2 días hábiles\n- Devolución en 15 días'}
+                className="resize-y bg-background font-mono text-xs leading-relaxed"
+                  />
+                </Field>
+
               </>
             )}
 
