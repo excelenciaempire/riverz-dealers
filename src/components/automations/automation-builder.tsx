@@ -28,7 +28,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Layers,
   X as XIcon,
 } from "lucide-react"
 
@@ -227,54 +226,6 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
  * whole automation to a saved segment — the engine will skip firing
  * for contacts that don't currently match.
  */
-function AudienceStrip({
-  segments,
-  value,
-  onChange,
-}: {
-  segments: ContactSegment[]
-  value: string | null
-  onChange: (v: string | null) => void
-}) {
-  const selected = value ? segments.find((s) => s.id === value) : null
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2 text-xs">
-      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-      <span className="text-muted-foreground">Audiencia:</span>
-      {segments.length === 0 ? (
-        <a href="/contactos?tab=segments" className="text-muted-foreground underline hover:text-foreground">
-          Crear segmento
-        </a>
-      ) : (
-        <>
-          <select
-            value={value ?? ""}
-            onChange={(e) => onChange(e.target.value || null)}
-            className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="">Todos los contactos</option>
-            {segments.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          {selected && (
-            <button
-              type="button"
-              onClick={() => onChange(null)}
-              title="Quitar filtro"
-              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <XIcon className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 /**
  * Condition step body. Lives in its own component so it can pull the
  * saved-segment list from SegmentsContext (the `in_segment` subject
@@ -566,7 +517,6 @@ export function AutomationBuilder({
   // Automations send only through WhatsApp; surface which number runs them
   // and warn right in the canvas when none is connected.
   const whatsappConnected = connections.channels.has("whatsapp")
-  const whatsappLabel = connections.labels.get("whatsapp")
   const isEditing = !!initial.id
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
@@ -746,36 +696,23 @@ export function AutomationBuilder({
         </div>
       )}
 
-      {/* WhatsApp channel strip — automations run only through the connected
-          WhatsApp, so name it here (and warn loudly when there's none). */}
-      {!connections.loading &&
-        (whatsappConnected ? (
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2 text-xs text-muted-foreground">
-            <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
-            <span>
-              Se ejecuta por tu WhatsApp conectado
-              {whatsappLabel ? (
-                <span className="font-medium text-foreground"> · {whatsappLabel}</span>
-              ) : null}
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <span className="text-foreground">
-              No hay un WhatsApp conectado — no podrá enviar mensajes.
-            </span>
-            <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
-              Conectar WhatsApp
-            </Link>
-          </div>
-        ))}
-
-      <AudienceStrip
-        segments={segments}
-        value={state.audience_segment_id ?? null}
-        onChange={(v) => patchTop("audience_segment_id", v)}
-      />
+      {/* Only surface the channel as a warning when there's NO connected
+          WhatsApp — automations can only send through it. When one IS
+          connected we don't restate the obvious. There's no audience field:
+          an automation fires on its trigger, not on a segment. Per-segment
+          scoping, when needed, lives in a "condición → si está en un
+          segmento" step. */}
+      {!connections.loading && !whatsappConnected && (
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="text-foreground">
+            No hay un WhatsApp conectado — no podrá enviar mensajes.
+          </span>
+          <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
+            Conectar WhatsApp
+          </Link>
+        </div>
+      )}
 
       {/* Body: canvas + live phone preview rail (like the template builder). */}
       <div className="relative flex min-h-0 flex-1">
