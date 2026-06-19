@@ -67,6 +67,9 @@ const TONES: { value: AiTone; label: string; hint: string }[] = [
 // queremos exponerlo, vuelve a ser una constante con varios valores.
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
+const DEFAULT_PERSONA =
+  'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.';
+
 const CHANNELS: { value: Channel; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'instagram', label: 'Instagram' },
@@ -232,10 +235,7 @@ export function AgentEditor({
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
-  const [persona, setPersona] = useState(
-    agent?.persona ??
-      'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.',
-  );
+  const [persona, setPersona] = useState(agent?.persona ?? DEFAULT_PERSONA);
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
   const [knowledgeUrl, setKnowledgeUrl] = useState(agent?.knowledge_url ?? '');
   const [knowledgeSyncedAt, setKnowledgeSyncedAt] = useState<string | null>(
@@ -295,6 +295,9 @@ export function AgentEditor({
   const [catalog, setCatalog] = useState<ShopifyProductSummary[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  // Al elegir el primer producto de un asistente nuevo, preparamos una
+  // plantilla (persona + conocimiento) desde su info e investigación.
+  const [applyingProduct, setApplyingProduct] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
 
@@ -425,9 +428,61 @@ export function AgentEditor({
   }
 
   function toggleProduct(id: string) {
-    setSelectedProducts((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    setSelectedProducts((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      const next = [...prev, id];
+      // Primer producto de un asistente nuevo → preparar la plantilla y
+      // disparar la investigación del producto (lo que antes era manual).
+      if (isNew && prev.length === 0) void prefillFromProduct(id);
+      return next;
+    });
+  }
+
+  /**
+   * Construye persona + conocimiento del asistente a partir de un producto.
+   * Sólo pisa campos que el usuario no tocó (persona en su valor por defecto,
+   * conocimiento vacío) para no borrar ediciones.
+   */
+  function applyProductTemplate(p: ProductDetail) {
+    setName((cur) => cur.trim() || `Asesor de ${p.title}`.slice(0, 60));
+    setPersona((cur) =>
+      cur.trim() === '' || cur.trim() === DEFAULT_PERSONA
+        ? `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
+          `con calidez: resuelves dudas con la información del producto, manejas ` +
+          `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
+          `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`
+        : cur,
     );
+    setKnowledge((cur) => (cur.trim() ? cur : buildProductKnowledge(p)));
+  }
+
+  async function prefillFromProduct(productId: string) {
+    setApplyingProduct(true);
+    try {
+      let p = await fetchProductDetail(productId);
+      // Dispara la investigación si el producto aún no la tiene (el botón
+      // "Generar investigación" del editor de productos, pero automático).
+      if (p && p.ai_research_status !== 'done') {
+        try {
+          const r = await fetchWithCsrf(`/api/products/${productId}/ai-research`, {
+            method: 'POST',
+          });
+          if (r.ok) {
+            const fresh = await fetchProductDetail(productId);
+            if (fresh) p = fresh;
+          }
+        } catch {
+          /* la investigación es best-effort; seguimos con lo que haya */
+        }
+      }
+      if (!p) return;
+      applyProductTemplate(p);
+      toast.success('Asistente preparado con la información de tu producto.');
+    } catch {
+      /* prefill best-effort: si falla, el usuario igual puede editar a mano */
+    } finally {
+      setApplyingProduct(false);
+    }
   }
 
   // Load the synced Shopify catalog the first time the user expands
@@ -1013,10 +1068,17 @@ export function AgentEditor({
                   }
                 >
                   {isNew ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Elige al menos uno. El asistente se entrena con su
-                      información al instante. Puedes asignar varios.
-                    </p>
+                    applyingProduct ? (
+                      <p className="flex items-center gap-2 text-[11px] text-primary">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        Investigando tu producto y preparando el asistente…
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">
+                        Elige al menos uno. El asistente se entrena con su
+                        información al instante. Puedes asignar varios.
+                      </p>
+                    )
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <ScopeCard
@@ -1588,6 +1650,71 @@ export function AgentEditor({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Subconjunto del producto que usamos para armar la plantilla del agente. */
+interface ProductDetail {
+  id: string;
+  title: string;
+  description: string | null;
+  training_material?: string | null;
+  ai_research?: string | null;
+  ai_research_status?: string | null;
+  structured_research?: { differentiators?: unknown[] } | null;
+  custom_faqs?: Array<{ q: string; a: string }> | null;
+  ai_generated_faqs?: Array<{ q: string; a: string }> | null;
+  allowed_offers?: Array<string | { label?: string; total?: number | string }> | null;
+}
+
+async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
+  try {
+    const res = await fetch(`/api/products/${id}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json.product ?? null) as ProductDetail | null;
+  } catch {
+    return null;
+  }
+}
+
+/** Texto de conocimiento del asistente derivado de un producto. Prefiere el
+ *  training_material ya compilado; si no existe, lo arma desde los campos. */
+function buildProductKnowledge(p: ProductDetail): string {
+  if (p.training_material && p.training_material.trim()) {
+    return p.training_material.trim();
+  }
+  const parts: string[] = [`# ${p.title}`];
+  if (p.description?.trim()) parts.push(p.description.trim());
+
+  const diff = Array.isArray(p.structured_research?.differentiators)
+    ? p.structured_research!.differentiators!.filter(
+        (d): d is string => typeof d === 'string' && !!d.trim(),
+      )
+    : [];
+  if (diff.length) parts.push('Beneficios:\n' + diff.map((d) => `- ${d}`).join('\n'));
+
+  const offerLines = (Array.isArray(p.allowed_offers) ? p.allowed_offers : [])
+    .map((o) =>
+      o && typeof o === 'object'
+        ? `- ${o.label ?? ''}${o.total != null ? `: ${o.total}` : ''}`.trim()
+        : typeof o === 'string'
+          ? `- ${o}`
+          : '',
+    )
+    .filter((l) => l && l !== '-');
+  if (offerLines.length) parts.push('Precios:\n' + offerLines.join('\n'));
+
+  if (p.ai_research?.trim()) parts.push('Investigación:\n' + p.ai_research.trim());
+
+  const faqs = [...(p.custom_faqs ?? []), ...(p.ai_generated_faqs ?? [])].filter(
+    (f) => f?.q?.trim() && f?.a?.trim(),
+  );
+  if (faqs.length) {
+    parts.push(
+      'Preguntas frecuentes:\n' + faqs.map((f) => `- ${f.q}\n  ${f.a}`).join('\n'),
+    );
+  }
+  return parts.join('\n\n');
 }
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
