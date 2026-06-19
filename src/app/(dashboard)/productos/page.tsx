@@ -31,6 +31,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 interface ProductRow {
   id: string;
+  handle: string | null;
   title: string;
   description: string | null;
   product_type: string | null;
@@ -250,7 +251,7 @@ function ProductCard({ product }: { product: ProductRow }) {
 
   return (
     <Link
-      href={`/productos/${product.id}`}
+      href={`/productos/${product.handle || product.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30"
     >
       <div className="relative aspect-square w-full bg-white">

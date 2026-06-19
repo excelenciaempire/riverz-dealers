@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { slugifyTitle, handleSuffix, isUuid } from '@/lib/products/slug';
 
 /**
  * GET /api/products/[id]
@@ -28,10 +29,12 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // El segmento de URL puede ser el id real (UUID) o el handle legible
+  // (/productos/serum-pilar). Resolvemos por la columna que corresponda.
   const { data: product, error } = await supabase
     .from('shopify_products')
     .select('*')
-    .eq('id', id)
+    .eq(isUuid(id) ? 'id' : 'handle', id)
     .maybeSingle();
   if (error) {
     return serverError(error);
@@ -40,11 +43,12 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  // Trae los agentes asignados.
+  // Trae los agentes asignados (product.id es el UUID real aunque la URL
+  // venga por handle).
   const { data: assignments } = await supabase
     .from('ai_agent_products')
     .select('agent_id, ai_agents(id, name, persona, tone, is_active, model)')
-    .eq('product_id', id);
+    .eq('product_id', product.id);
 
   return NextResponse.json({
     product,
@@ -191,7 +195,7 @@ export async function PATCH(
   const { data: current, error: readErr } = await supabase
     .from('shopify_products')
     .select('*')
-    .eq('id', id)
+    .eq(isUuid(id) ? 'id' : 'handle', id)
     .maybeSingle();
   if (readErr) {
     return serverError(readErr);
@@ -200,13 +204,28 @@ export async function PATCH(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // El handle es el segmento legible de la URL del editor. Para productos
+  // MANUALES lo regeneramos cuando cambia el nombre (conservando el sufijo
+  // estable) para que /productos/<handle> siga al nombre. Los de Shopify NO
+  // se tocan: su handle es el slug real de la tienda y el routing de IA lo
+  // usa para emparejar links que el cliente pega.
+  if (
+    patch.title &&
+    current.shop_domain === 'manual' &&
+    patch.title !== current.title
+  ) {
+    patch.handle = `${slugifyTitle(patch.title as string)}-${handleSuffix(
+      current.external_id as number,
+    )}`;
+  }
+
   const merged = { ...current, ...patch };
   const training = buildTrainingMaterial(merged);
 
   const { data: updated, error } = await supabase
     .from('shopify_products')
     .update({ ...patch, training_material: training })
-    .eq('id', id)
+    .eq('id', current.id)
     .select('*')
     .maybeSingle();
   if (error) {

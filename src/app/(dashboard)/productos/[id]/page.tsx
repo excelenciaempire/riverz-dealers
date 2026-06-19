@@ -204,6 +204,17 @@ export default function ProductDetailPage() {
     void load();
   }, [load]);
 
+  // La URL del editor lleva el nombre legible (/productos/serum-pilar). Cuando
+  // el producto carga —o cambia el nombre y se regenera el handle— reescribimos
+  // la barra de direcciones sin recargar. El route resuelve por handle o id.
+  useEffect(() => {
+    if (!product?.handle) return;
+    const desired = `/productos/${product.handle}`;
+    if (window.location.pathname !== desired) {
+      window.history.replaceState(null, '', desired);
+    }
+  }, [product?.handle]);
+
   const buildPatch = useCallback(
     () => ({
       title: title.trim() || undefined,
@@ -436,29 +447,26 @@ export default function ProductDetailPage() {
 
       <div className="space-y-7">
         {/* Nombre */}
-        <Field label="Nombre del producto">
+        <Field label="Nombre">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ej: Serum facial regenerador"
             className="h-11 bg-card text-base"
           />
         </Field>
 
         {/* Descripción */}
-        <Field label="Descripción" hint="Qué es, para qué sirve y sus beneficios principales.">
+        <Field label="Descripción">
           <Textarea
             value={descriptionText}
             onChange={(e) => setDescriptionText(e.target.value)}
-            placeholder="Describe el producto como se lo contarías a un cliente."
             className="min-h-[96px] bg-card"
           />
         </Field>
 
         {/* Precios de venta */}
         <Field
-          label="Precios de venta"
-          hint="Agrega una o varias ofertas (nombre y precio). Útil si manejas packs o promos por cantidad."
+          label="Precios"
           action={
             <select
               value={currency}
@@ -484,7 +492,6 @@ export default function ProductDetailPage() {
                       cur.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)),
                     )
                   }
-                  placeholder="Oferta (ej. 1 unidad)"
                   className="h-10 flex-1 bg-card"
                 />
                 <div className="relative w-40">
@@ -499,7 +506,6 @@ export default function ProductDetailPage() {
                       )
                     }
                     inputMode="decimal"
-                    placeholder="0"
                     className="h-10 bg-card pl-7 tabular-nums"
                   />
                 </div>
@@ -526,14 +532,10 @@ export default function ProductDetailPage() {
         </Field>
 
         {/* Beneficios */}
-        <Field
-          label="Beneficios"
-          hint="Por qué comprarlo — uno por línea. El agente los usa para vender mejor."
-        >
+        <Field label="Beneficios" hint="Uno por línea.">
           <Textarea
             value={benefits}
             onChange={(e) => setBenefits(e.target.value)}
-            placeholder={'Sin alcohol, no reseca\nVegano y libre de crueldad\nResultados visibles en 2 semanas'}
             className="min-h-[96px] bg-card"
           />
         </Field>
@@ -541,7 +543,7 @@ export default function ProductDetailPage() {
         {/* Sitios web */}
         <Field
           label="Sitios web"
-          hint="Hasta 5 páginas. El agente aprende del contenido para responder con precisión."
+          hint="Hasta 5. El agente aprende de su contenido."
           action={
             <span className="text-[11px] text-muted-foreground">{websites.length}/5</span>
           }
@@ -558,7 +560,6 @@ export default function ProductDetailPage() {
                         cur.map((x, i) => (i === idx ? e.target.value : x)),
                       )
                     }
-                    placeholder="https://tutienda.com/producto"
                     className="h-10 bg-card pl-9"
                   />
                 </div>
@@ -637,7 +638,6 @@ export default function ProductDetailPage() {
               <Textarea
                 value={objections}
                 onChange={(e) => setObjections(e.target.value)}
-                placeholder={'es caro | rinde 3 meses, sale a ~1.000 por día\n¿funciona en piel grasa? | sí, está formulado para piel grasa'}
                 className="min-h-[64px] bg-card"
               />
             </Field>
@@ -645,7 +645,6 @@ export default function ProductDetailPage() {
               <Textarea
                 value={sayGuidelines}
                 onChange={(e) => setSayGuidelines(e.target.value)}
-                placeholder="Ej: Resalta el envío gratis y la garantía de 30 días."
                 className="min-h-[56px] bg-card"
               />
             </Field>
@@ -653,7 +652,6 @@ export default function ProductDetailPage() {
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ej: Solo enviamos dentro de Bogotá. Fuera, envío por DHL con cargo."
                 className="min-h-[56px] bg-card"
               />
             </Field>
@@ -662,7 +660,6 @@ export default function ProductDetailPage() {
                 <Textarea
                   value={neverSay}
                   onChange={(e) => setNeverSay(e.target.value)}
-                  placeholder={'Cura el acné\nResultados garantizados'}
                   className="min-h-[56px] bg-card"
                 />
               </Field>
@@ -670,7 +667,6 @@ export default function ProductDetailPage() {
                 <Textarea
                   value={escalation}
                   onChange={(e) => setEscalation(e.target.value)}
-                  placeholder={'reembolso\nestá vencido\nreacción alérgica'}
                   className="min-h-[56px] bg-card"
                 />
               </Field>
@@ -721,7 +717,6 @@ export default function ProductDetailPage() {
                           cur.map((x, i) => (i === idx ? { ...x, q: e.target.value } : x)),
                         )
                       }
-                      placeholder="Pregunta…"
                       className="h-8 bg-background"
                     />
                     <button
@@ -740,7 +735,6 @@ export default function ProductDetailPage() {
                         cur.map((x, i) => (i === idx ? { ...x, a: e.target.value } : x)),
                       )
                     }
-                    placeholder="Respuesta…"
                     className="min-h-[56px] bg-background text-sm"
                   />
                 </div>
@@ -834,18 +828,6 @@ export default function ProductDetailPage() {
           )}
         </Collapsible>
 
-        {/* ---- Contenido leído ---- */}
-        {product.scraped_content && (
-          <Collapsible
-            title="Contenido leído de la página"
-            subtitle={`${product.scraped_content.length} caracteres`}
-            icon={<Globe className="size-4" />}
-          >
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-card p-3 text-xs text-foreground">
-              {product.scraped_content}
-            </pre>
-          </Collapsible>
-        )}
       </div>
 
       {/* Sticky save bar */}

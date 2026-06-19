@@ -5,6 +5,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
+import { slugifyTitle, handleSuffix } from '@/lib/products/slug';
 
 /**
  * GET /api/products
@@ -157,15 +158,7 @@ export async function POST(request: Request) {
   // real Shopify id (always positive) or another manual one. The unique key
   // is (shop_domain, external_id) and shop_domain is 'manual' here.
   const externalId = -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
-  const slug =
-    title
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 72) || 'producto';
-  const handle = `${slug}-${Math.abs(externalId).toString(36).slice(-6)}`;
+  const handle = `${slugifyTitle(title)}-${handleSuffix(externalId)}`;
   const priceMin = num(body?.price_min);
   const priceMax = num(body?.price_max) ?? priceMin;
 
