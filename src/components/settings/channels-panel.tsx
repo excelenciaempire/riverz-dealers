@@ -156,35 +156,50 @@ export function ChannelsPanel() {
     [workspace],
   );
 
+  // A Facebook / Instagram card maps to two member connections (DMs +
+  // comments) that share one account, so these take an array of ids and
+  // mutate them in a single batched query. We also update local state
+  // optimistically so the row vanishes immediately; the earlier
+  // per-id forEach fired N parallel refetches that raced and could leave a
+  // just-deleted row on screen until a manual reload.
   const handleDisconnect = useCallback(
-    async (id: string) => {
-      if (!confirm("¿Desconectar este canal?")) return;
+    async (ids: string[]) => {
+      if (!ids.length || !confirm("¿Desconectar este canal?")) return;
       const supabase = createClient();
       const { error } = await supabase
         .from("channel_connections")
         .update({ status: "disconnected" })
-        .eq("id", id);
+        .in("id", ids);
       if (error) {
         toast.error(error.message);
         return;
       }
+      setConnections((prev) =>
+        prev.map((c) =>
+          ids.includes(c.id) ? { ...c, status: "disconnected" } : c,
+        ),
+      );
       toast.success("Canal desconectado");
-      await fetchConnections();
+      void fetchConnections();
     },
     [fetchConnections],
   );
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      if (!confirm("¿Eliminar esta conexión?")) return;
+    async (ids: string[]) => {
+      if (!ids.length || !confirm("¿Eliminar esta conexión?")) return;
       const supabase = createClient();
-      const { error } = await supabase.from("channel_connections").delete().eq("id", id);
+      const { error } = await supabase
+        .from("channel_connections")
+        .delete()
+        .in("id", ids);
       if (error) {
         toast.error(error.message);
         return;
       }
+      setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
       toast.success("Conexión eliminada");
-      await fetchConnections();
+      void fetchConnections();
     },
     [fetchConnections],
   );
@@ -378,7 +393,7 @@ export function ChannelsPanel() {
                             <>
                               {primary.status === "connected" && (
                                 <button
-                                  onClick={() => ids.forEach((id) => handleDisconnect(id))}
+                                  onClick={() => handleDisconnect(ids)}
                                   title="Desconectar"
                                   className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
                                 >
@@ -386,7 +401,7 @@ export function ChannelsPanel() {
                                 </button>
                               )}
                               <button
-                                onClick={() => ids.forEach((id) => handleDelete(id))}
+                                onClick={() => handleDelete(ids)}
                                 title="Eliminar"
                                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
                               >
