@@ -204,20 +204,33 @@ export function TemplatePicker({
                 </p>
               )}
             </div>
-            {variables.map((v, i) => (
-              <div key={v} className="space-y-1">
-                <Label className="text-xs text-foreground">{`Variable {{${v}}}`}</Label>
-                <Input
-                  value={params[i] ?? ""}
-                  onChange={(e) => {
-                    const next = [...params];
-                    next[i] = e.target.value;
-                    setParams(next);
-                  }}
-                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
-                />
-              </div>
-            ))}
+            {variables.map((v, i) => {
+              const sample = Array.isArray(selected.variable_samples)
+                ? selected.variable_samples[v - 1]
+                : null;
+              return (
+                <div key={v} className="space-y-1">
+                  <Label className="text-xs text-foreground">
+                    {`Variable {{${v}}}`}
+                    {sample ? (
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        · ej. {sample}
+                      </span>
+                    ) : null}
+                  </Label>
+                  <Input
+                    value={params[i] ?? ""}
+                    placeholder={sample || ""}
+                    onChange={(e) => {
+                      const next = [...params];
+                      next[i] = e.target.value;
+                      setParams(next);
+                    }}
+                    className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
 

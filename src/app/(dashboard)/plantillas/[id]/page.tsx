@@ -140,9 +140,39 @@ export default function TemplateDetailPage() {
     );
   }
 
-  const variables = Array.from(
-    (template.body_text ?? '').matchAll(/{{(\d+)}}/g),
-  ).map((m) => `{{${m[1]}}}`);
+  // Example value stored for each {{n}} (index 0 = {{1}}). It's the only
+  // per-variable hint the template carries, so we use it to show what each
+  // variable represents instead of an opaque {{1}} token.
+  const samples = Array.isArray(template.variable_samples)
+    ? (template.variable_samples as (string | null)[])
+    : [];
+  // Unique variable numbers, sorted, so the legend lists each once in order.
+  const varNums = Array.from(
+    new Set(
+      Array.from((template.body_text ?? '').matchAll(/{{(\d+)}}/g)).map((m) =>
+        Number(m[1]),
+      ),
+    ),
+  ).sort((a, b) => a - b);
+
+  // Render the body with each {{n}} swapped for its example value, lightly
+  // highlighted — so the message reads naturally AND the variable slots are
+  // visible. Falls back to the {{n}} token when no example exists.
+  const renderBody = (text: string) =>
+    (text ?? '').split(/(\{\{\d+\}\})/g).map((part, i) => {
+      const m = part.match(/^\{\{(\d+)\}\}$/);
+      if (!m) return <span key={i}>{part}</span>;
+      const sample = samples[Number(m[1]) - 1];
+      return (
+        <span
+          key={i}
+          className="rounded bg-emerald-100 px-1 font-medium text-emerald-900"
+          title={`Variable {{${m[1]}}}`}
+        >
+          {sample || `{{${m[1]}}}`}
+        </span>
+      );
+    });
 
   return (
     <div className="space-y-5">
@@ -198,7 +228,9 @@ export default function TemplateDetailPage() {
             Vista previa
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Los {`{{n}}`} se reemplazan al enviar.
+            {samples.length > 0
+              ? 'Los valores resaltados son ejemplos; se reemplazan al enviar.'
+              : `Los {{n}} se reemplazan al enviar.`}
           </p>
 
           <div
@@ -217,7 +249,7 @@ export default function TemplateDetailPage() {
                 </p>
               )}
               <p className="whitespace-pre-wrap text-sm leading-snug text-[#111b21]">
-                {template.body_text}
+                {samples.length > 0 ? renderBody(template.body_text) : template.body_text}
               </p>
               {template.footer_text && (
                 <p className="text-[11px] italic text-[#667781]">
@@ -228,20 +260,28 @@ export default function TemplateDetailPage() {
             </div>
           </div>
 
-          {variables.length > 0 && (
+          {varNums.length > 0 && (
             <div className="mt-4">
               <p className="text-xs text-muted-foreground">
-                Variables en el cuerpo:
+                Qué reemplaza cada variable:
               </p>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {variables.map((v) => (
-                  <span
-                    key={v}
-                    className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-foreground"
-                  >
-                    {v}
-                  </span>
-                ))}
+              <div className="mt-1.5 space-y-1">
+                {varNums.map((n) => {
+                  const sample = samples[n - 1];
+                  return (
+                    <div key={n} className="flex items-center gap-2 text-[12px]">
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-medium tabular-nums text-foreground">
+                        {`{{${n}}}`}
+                      </span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="text-foreground">
+                        {sample
+                          ? sample
+                          : 'valor dinámico (define un ejemplo al crearla)'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

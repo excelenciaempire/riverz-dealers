@@ -345,6 +345,10 @@ export interface MessageTemplate {
   footer_text?: string;
   buttons?: Record<string, unknown>[];
   status?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
+  /** Example value for each {{n}} variable (index 0 = {{1}}). Shown in
+   *  previews so the user knows what each variable represents. */
+  variable_samples?: (string | null)[];
+  meta_template_id?: string;
   created_at: string;
 }
 
