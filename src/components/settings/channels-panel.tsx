@@ -21,6 +21,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
+import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
 import { ShopifyCard } from "@/components/settings/shopify-card";
 import { cn } from "@/lib/utils";
 
@@ -448,6 +449,30 @@ export function ChannelsPanel() {
                       />
                       <button
                         onClick={() => setManualOpen("whatsapp")}
+                        className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <KeyRound className="mr-1 inline-block size-2.5" />
+                        o conectar pegando un token manualmente
+                      </button>
+                    </>
+                  ) : /* Facebook / Instagram: Facebook Login for Business via
+                      the JS SDK (FB.login with config_id). Facebook rejects
+                      config_id on the bare server redirect, so the SDK is the
+                      working path. Manual token paste stays as a fallback. */
+                  isMeta &&
+                    g.connectChannel !== "whatsapp" &&
+                    ready &&
+                    process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID ? (
+                    <>
+                      <MetaBusinessLogin
+                        workspaceId={workspace.id}
+                        channel={g.connectChannel as "messenger" | "instagram"}
+                        anyConnected={anyConnected}
+                        logoChannel={g.logoChannel as "messenger" | "instagram"}
+                        onConnected={() => void fetchConnections()}
+                      />
+                      <button
+                        onClick={() => setManualOpen(g.connectChannel as ManualChannel)}
                         className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
                       >
                         <KeyRound className="mr-1 inline-block size-2.5" />
