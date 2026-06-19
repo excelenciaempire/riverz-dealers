@@ -261,7 +261,7 @@ export default function FlowsPage() {
             step === "choose"
               ? "sm:max-w-md"
               : step === "preview"
-                ? "sm:max-w-2xl"
+                ? "sm:max-w-4xl"
                 : "sm:max-w-lg",
           )}
         >
@@ -535,23 +535,46 @@ function TemplatePreview({
         </div>
       </div>
 
-      <div className="max-h-[46vh] space-y-2 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3">
-        {template.nodes.map((node) => {
-          const NodeIcon = NODE_ICONS[node.node_type] ?? MessageSquare;
-          return (
-            <div key={node.node_key} className="flex items-start gap-2.5">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
-                <NodeIcon className="h-3 w-3" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {NODE_LABELS[node.node_type] ?? node.node_type}
-                </span>
-                <p className="text-xs text-foreground">{summarizeNode(node)}</p>
+      {/* Canvas-style preview: disparador → pasos de izquierda a derecha,
+          igual que el lienzo real, para que se vea el flujo antes de usarlo. */}
+      <div
+        className="max-h-[52vh] overflow-auto rounded-lg border border-border p-4"
+        style={{
+          backgroundImage:
+            'radial-gradient(rgba(128,128,128,0.18) 1px, transparent 1px)',
+          backgroundSize: '16px 16px',
+        }}
+      >
+        <div className="flex min-w-max items-center gap-2">
+          {/* Disparador */}
+          <div className="flex w-44 shrink-0 flex-col rounded-lg border border-primary/50 bg-primary/10 p-2.5">
+            <span className="text-[10px] uppercase tracking-wide text-accent-ink">
+              Disparador
+            </span>
+            <p className="mt-0.5 text-xs font-medium text-foreground">
+              Inicio del flujo
+            </p>
+          </div>
+          {template.nodes.map((node) => {
+            const NodeIcon = NODE_ICONS[node.node_type] ?? MessageSquare;
+            return (
+              <div key={node.node_key} className="flex shrink-0 items-center gap-2">
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="flex w-44 shrink-0 flex-col rounded-lg border border-border bg-card p-2.5 shadow-sm">
+                  <div className="flex items-center gap-1.5">
+                    <NodeIcon className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {NODE_LABELS[node.node_type] ?? node.node_type}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-4 text-xs text-foreground">
+                    {summarizeNode(node)}
+                  </p>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <DialogFooter>
