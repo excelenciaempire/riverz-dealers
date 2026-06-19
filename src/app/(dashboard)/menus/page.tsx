@@ -345,8 +345,11 @@ export default function FlowsPage() {
                     key={tpl.slug}
                     template={tpl}
                     onSelect={() => {
-                      setSelectedTemplate(tpl);
-                      setStep("preview");
+                      // "Ver" abre el LIENZO real con la plantilla cargada
+                      // (preview sin guardar); ahí el botón "Usar plantilla"
+                      // la crea. Reemplaza el viejo preview en modal.
+                      closeCreate();
+                      router.push(`/menus/nueva?template=${encodeURIComponent(tpl.slug)}`);
                     }}
                   />
                 ))

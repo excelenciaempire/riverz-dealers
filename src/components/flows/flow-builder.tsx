@@ -120,6 +120,13 @@ import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
 interface FlowBuilderProps {
   initialFlow: FlowRow;
   initialNodes: FlowNodeRow[];
+  /** Unsaved template preview: render the full canvas read-from-state, but
+   *  the primary CTA becomes "Usar plantilla" (creates the flow from
+   *  templateSlug and redirects to the real editor). All saved-id-dependent
+   *  features (save/activate/delete/analytics/AI/command-palette/versions)
+   *  are gated off so nothing hits /api/flows/<no-id>. */
+  templatePreview?: boolean;
+  templateSlug?: string;
 }
 
 /**
@@ -594,7 +601,12 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
 // Root component
 // ============================================================
 
-export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
+export function FlowBuilder({
+  initialFlow,
+  initialNodes,
+  templatePreview = false,
+  templateSlug,
+}: FlowBuilderProps) {
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
 
@@ -855,7 +867,9 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   // client-side route changes. That's a follow-up; this catches the
   // accidental refresh / closed-window class of data loss.
   useEffect(() => {
-    if (!dirty) return;
+    // No data-loss prompt in template preview — nothing is persisted until
+    // "Usar plantilla", so closing the tab loses nothing.
+    if (!dirty || templatePreview) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       // Modern browsers ignore the return value but require something
@@ -864,7 +878,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+  }, [dirty, templatePreview]);
 
   // ---- Validation ----
   const issues = useMemo<ValidationIssue[]>(
@@ -940,7 +954,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
   const [analyticsOn, setAnalyticsOn] = useState(false);
   const [analytics, setAnalytics] = useState<Record<string, number>>({});
   useEffect(() => {
-    if (!analyticsOn) return;
+    if (!analyticsOn || templatePreview) return;
     let cancelled = false;
     fetch(`/api/flows/${initialFlow.id}/node-analytics?days=7`)
       .then((r) => (r.ok ? r.json() : null))
@@ -951,7 +965,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     return () => {
       cancelled = true;
     };
-  }, [analyticsOn, initialFlow.id]);
+  }, [analyticsOn, initialFlow.id, templatePreview]);
   const visibleIssues: ValidationIssue[] = showValidation ? issues : [];
 
   // ---- Save (PUT) ----
@@ -961,6 +975,27 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     // estado terminó sin errores, ocultamos el panel de nuevo al final.
     setShowValidation(true);
     try {
+      // Template preview: the CTA is "Usar plantilla" — create the real flow
+      // from the template slug, then land in the live editor. Never PUTs to a
+      // non-existent id.
+      if (templatePreview) {
+        if (!templateSlug) {
+          toast.error("Falta la plantilla.");
+          return;
+        }
+        const res = await fetchWithCsrf("/api/flows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template_slug: templateSlug }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.flow?.id) {
+          throw new Error(json.error ?? `No se pudo usar la plantilla (${res.status})`);
+        }
+        toast.success("Plantilla agregada.");
+        router.push(`/menus/${json.flow.id}`);
+        return;
+      }
       const res = await fetchWithCsrf(`/api/flows/${initialFlow.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -996,11 +1031,12 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state, canActivate, fetchWithCsrf]);
+  }, [initialFlow.id, state, canActivate, fetchWithCsrf, templatePreview, templateSlug, router]);
 
   // ---- Activate / Pause / Archive ----
   const handleStatus = useCallback(
     async (next: BuilderState["status"]) => {
+      if (templatePreview) return; // no status changes in preview
       if (next === "active" && !canActivate) {
         toast.error("Corrige los errores antes de activar.");
         return;
@@ -1037,11 +1073,12 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         setActivating(false);
       }
     },
-    [canActivate, handleSave, initialFlow.id, fetchWithCsrf],
+    [templatePreview, canActivate, handleSave, initialFlow.id, fetchWithCsrf],
   );
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
+    if (templatePreview) return;
     const yes = window.confirm(`¿Eliminar "${state.name}"?`);
     if (!yes) return;
     try {
@@ -1054,7 +1091,7 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
       const msg = err instanceof Error ? err.message : "No se pudo eliminar";
       toast.error(msg);
     }
-  }, [initialFlow.id, router, state.name, fetchWithCsrf]);
+  }, [templatePreview, initialFlow.id, router, state.name, fetchWithCsrf]);
 
   // ---- Node helpers ----
   // `silenced` set + `unsilence` están declarados más abajo; las
@@ -2273,17 +2310,29 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
           onDelete={handleDelete}
           canActivate={canActivate}
           onBack={() => router.push("/menus")}
-          onViewRuns={() => router.push(`/menus/${initialFlow.id}/usos`)}
+          onViewRuns={() => !templatePreview && router.push(`/menus/${initialFlow.id}/usos`)}
           onOpenVersions={() => setVersionsOpen(true)}
           showAnalytics={analyticsOn}
-          onToggleAnalytics={() => setAnalyticsOn((v) => !v)}
+          onToggleAnalytics={() => !templatePreview && setAnalyticsOn((v) => !v)}
           onOpenSimulator={() => setSimulatorOpen(true)}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={handleUndo}
           onRedo={handleRedo}
+          templatePreview={templatePreview}
         />
       </div>
+
+      {templatePreview && (
+        <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
+          <span>
+            Vista previa de la plantilla. Toca{" "}
+            <span className="font-medium text-foreground">Usar plantilla</span>{" "}
+            para crearla y editarla.
+          </span>
+        </div>
+      )}
 
       {/* Canvas libre: cada nodo posicionado en (position_x, position_y),
           conectados por líneas SVG curvas que se re-calculan en cada
@@ -2356,27 +2405,29 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
         {/* Constructor IA — chat embebido en la esquina superior derecha
             del lienzo. Recibe getSnapshot (no el state directo) para
             mandar siempre la versión más reciente al endpoint. */}
-        <AiBuilderPanel
-          flowId={initialFlow.id}
-          getSnapshot={() => ({
-            name: stateRef.current.name,
-            trigger_type: stateRef.current.trigger_type,
-            trigger_config: stateRef.current.trigger_config,
-            trigger_position: {
-              x: stateRef.current.trigger_position_x,
-              y: stateRef.current.trigger_position_y,
-            },
-            entry_node_id: stateRef.current.entry_node_id,
-            nodes: stateRef.current.nodes.map((n) => ({
-              node_key: n.node_key,
-              node_type: n.node_type,
-              config: n.config,
-              position_x: n.position_x,
-              position_y: n.position_y,
-            })),
-          })}
-          onApplyPatches={applyAiPatches}
-        />
+        {!templatePreview && (
+          <AiBuilderPanel
+            flowId={initialFlow.id}
+            getSnapshot={() => ({
+              name: stateRef.current.name,
+              trigger_type: stateRef.current.trigger_type,
+              trigger_config: stateRef.current.trigger_config,
+              trigger_position: {
+                x: stateRef.current.trigger_position_x,
+                y: stateRef.current.trigger_position_y,
+              },
+              entry_node_id: stateRef.current.entry_node_id,
+              nodes: stateRef.current.nodes.map((n) => ({
+                node_key: n.node_key,
+                node_type: n.node_type,
+                config: n.config,
+                position_x: n.position_x,
+                position_y: n.position_y,
+              })),
+            })}
+            onApplyPatches={applyAiPatches}
+          />
+        )}
       </div>
 
       {/* Validation panel — solo aparece después de que el usuario
@@ -2414,26 +2465,30 @@ export function FlowBuilder({ initialFlow, initialNodes }: FlowBuilderProps) {
 
       {/* Command palette: Cmd/Ctrl+K para todo. Saltar a nodo,
           insertar tipo, guardar, auto-organizar, centrar, abrir IA. */}
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        items={buildCommandItems({
-          nodes: state.nodes,
-          jumpToNode,
-          addNode,
-          handleSave,
-          handleAutoLayout,
-          fitToView: () =>
-            canvasViewportRef.current?.zoomToRect(computeContentBounds(), 0.7),
-        })}
-      />
+      {!templatePreview && (
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          items={buildCommandItems({
+            nodes: state.nodes,
+            jumpToNode,
+            addNode,
+            handleSave,
+            handleAutoLayout,
+            fitToView: () =>
+              canvasViewportRef.current?.zoomToRect(computeContentBounds(), 0.7),
+          })}
+        />
+      )}
 
-      <FlowVersionsDialog
-        flowId={initialFlow.id}
-        open={versionsOpen}
-        onClose={() => setVersionsOpen(false)}
-        onRestored={() => router.refresh()}
-      />
+      {!templatePreview && (
+        <FlowVersionsDialog
+          flowId={initialFlow.id}
+          open={versionsOpen}
+          onClose={() => setVersionsOpen(false)}
+          onRestored={() => router.refresh()}
+        />
+      )}
 
       {simulatorOpen && (
         <SimulatorPanel
@@ -2580,6 +2635,7 @@ function Header({
   canRedo,
   onUndo,
   onRedo,
+  templatePreview = false,
 }: {
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
@@ -2600,6 +2656,7 @@ function Header({
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  templatePreview?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -2619,8 +2676,8 @@ function Header({
         placeholder="Nombre del flujo"
         className="min-w-0 max-w-xs flex-1 border-transparent bg-transparent px-2 text-base font-semibold focus-visible:border-border focus-visible:bg-card"
       />
-      <StatusBadge status={state.status} />
-      {dirty && (
+      {!templatePreview && <StatusBadge status={state.status} />}
+      {dirty && !templatePreview && (
         <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title="Cambios sin guardar" />
       )}
       <div className="ml-auto flex items-center gap-1.5">
@@ -2655,39 +2712,41 @@ function Header({
             switch refleja el estado actual ("Activo" / "Pausado") para
             que el merchant entienda en qué modo está sin tener que
             adivinar por el color. */}
-        <label
-          className="flex items-center gap-2 px-1"
-          title={
-            state.status === "active"
-              ? "El flujo está activo. Toca para pausar."
-              : canActivate
-                ? "El flujo está pausado. Toca para activar."
-                : "Corrige los errores antes de activar"
-          }
-        >
-          <Switch
-            checked={state.status === "active"}
-            disabled={
-              activating || (state.status !== "active" && !canActivate)
-            }
-            onCheckedChange={(v) => onStatus(v ? "active" : "draft")}
-            aria-label={state.status === "active" ? "Pausar" : "Activar"}
-          />
-          <span
-            className={cn(
-              "text-xs font-medium",
+        {!templatePreview && (
+          <label
+            className="flex items-center gap-2 px-1"
+            title={
               state.status === "active"
-                ? "text-foreground"
-                : "text-muted-foreground",
-            )}
+                ? "El flujo está activo. Toca para pausar."
+                : canActivate
+                  ? "El flujo está pausado. Toca para activar."
+                  : "Corrige los errores antes de activar"
+            }
           >
-            {activating
-              ? "Cambiando…"
-              : state.status === "active"
-                ? "Activo"
-                : "Pausado"}
-          </span>
-        </label>
+            <Switch
+              checked={state.status === "active"}
+              disabled={
+                activating || (state.status !== "active" && !canActivate)
+              }
+              onCheckedChange={(v) => onStatus(v ? "active" : "draft")}
+              aria-label={state.status === "active" ? "Pausar" : "Activar"}
+            />
+            <span
+              className={cn(
+                "text-xs font-medium",
+                state.status === "active"
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              {activating
+                ? "Cambiando…"
+                : state.status === "active"
+                  ? "Activo"
+                  : "Pausado"}
+            </span>
+          </label>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -2700,11 +2759,14 @@ function Header({
         <Button onClick={onSave} disabled={saving} size="sm">
           {saving ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : templatePreview ? (
+            <Sparkles className="h-3.5 w-3.5" />
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
-          Guardar
+          {templatePreview ? "Usar plantilla" : "Guardar"}
         </Button>
+        {!templatePreview && (
         <DropdownMenu>
           <DropdownMenuTrigger
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -2734,6 +2796,7 @@ function Header({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
     </div>
   );
