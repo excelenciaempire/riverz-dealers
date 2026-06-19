@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { buildTrainingMaterial } from '@/lib/products/training-material';
+import { firecrawlScrape } from '@/lib/firecrawl/client';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -40,7 +42,7 @@ export async function POST(
   const { data: product, error } = await supabase
     .from('shopify_products')
     .select(
-      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app',
+      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, say_guidelines, never_say, escalation_triggers, websites, url',
     )
     .eq('id', id)
     .maybeSingle();
@@ -56,6 +58,46 @@ export async function POST(
     .update({ ai_research_status: 'running', ai_research_error: null })
     .eq('id', id);
 
+  // Si hay URLs y todavía no leímos su contenido, las scrapeamos ahora para
+  // que alimenten la investigación — así "las URLs llenan todo" sin que el
+  // merchant tenga que pulsar "Re-leer" antes. Best-effort: si Firecrawl
+  // falla, seguimos con lo que haya. Si ya hay scraped_content, lo reusamos.
+  let scrapedContent = (product.scraped_content as string | null) ?? null;
+  if (!scrapedContent?.trim()) {
+    const sites = [
+      ...(Array.isArray(product.websites) ? (product.websites as unknown[]) : []),
+      product.url,
+    ]
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean);
+    const valid = [...new Set(sites)].filter((u) => isPublicHttpsUrl(u)).slice(0, 5);
+    if (valid.length) {
+      const perUrl = Math.max(2_000, Math.floor(14_000 / valid.length));
+      const chunks: string[] = [];
+      for (const site of valid) {
+        try {
+          const s = await firecrawlScrape(site, { maxChars: perUrl });
+          if (s.markdown.trim()) {
+            chunks.push(valid.length > 1 ? `## ${site}\n\n${s.markdown}` : s.markdown);
+          }
+        } catch {
+          /* una URL que falla no hunde el resto */
+        }
+      }
+      if (chunks.length) {
+        scrapedContent = chunks.join('\n\n---\n\n');
+        await supabase
+          .from('shopify_products')
+          .update({
+            scraped_content: scrapedContent,
+            scrape_status: 'done',
+            scraped_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      }
+    }
+  }
+
   // Construimos el prompt con todo el material que tenemos sobre el
   // producto. Pedimos JSON estructurado así parseamos directo.
   const productContext = [
@@ -67,8 +109,8 @@ export async function POST(
       : null,
     product.description ? `\nDescripción del catálogo:\n${product.description}` : null,
     product.custom_notes ? `\nNotas del merchant:\n${product.custom_notes}` : null,
-    product.scraped_content
-      ? `\nContenido de la página del producto:\n${(product.scraped_content as string).slice(0, 8000)}`
+    scrapedContent
+      ? `\nContenido de la página del producto:\n${scrapedContent.slice(0, 8000)}`
       : null,
   ]
     .filter(Boolean)
@@ -81,6 +123,7 @@ ${productContext}
 
 Devuélveme un JSON con esta forma exacta (sin markdown, sin texto adicional):
 {
+  "description": "descripción de venta clara de 2 a 4 frases: qué es, para qué sirve y su beneficio principal, en español neutro sin voseo.",
   "faqs": [
     {"q": "pregunta concisa que un cliente real haría", "a": "respuesta breve, máximo 3 líneas, en español neutro sin voseo"},
     ...
@@ -90,10 +133,13 @@ Devuélveme un JSON con esta forma exacta (sin markdown, sin texto adicional):
   "objections": [
     {"objection": "duda u objeción real del cliente (ej: 'es caro')", "rebuttal": "cómo responderla, breve y honesto"},
     ...
-  ]
+  ],
+  "say_guidelines": "1 a 2 líneas: qué conviene enfatizar al venderlo (lo más persuasivo y honesto).",
+  "never_say": ["afirmación riesgosa que el asistente NUNCA debe hacer (promesas médicas, garantías absolutas, datos inventados)"],
+  "escalation": ["tema que debe pasar a un humano (reembolsos, quejas serias, reacciones adversas)"]
 }
 
-Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. Genera entre 3 y 6 "differentiators" (por qué comprarlo) y entre 3 y 5 "objections" con su respuesta. NO repitas la descripción literal. NO inventes datos: si no sabes un detalle, no lo incluyas.`;
+Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. Genera entre 3 y 6 "differentiators" (por qué comprarlo) y entre 3 y 5 "objections" con su respuesta. Para "never_say" da entre 0 y 4 ítems (si no aplica, []). Para "escalation" da entre 0 y 4 ítems. NO repitas la descripción literal en las FAQs. NO inventes datos: si no sabes un detalle, no lo incluyas.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,11 +166,29 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
       throw new Error('Respuesta de Anthropic sin JSON parseable');
     }
     const parsed = JSON.parse(match[0]) as {
+      description?: unknown;
       faqs?: Array<{ q: string; a: string }>;
       research?: string;
       differentiators?: unknown;
       objections?: unknown;
+      say_guidelines?: unknown;
+      never_say?: unknown;
+      escalation?: unknown;
     };
+
+    const toLines = (v: unknown, max: number): string[] =>
+      Array.isArray(v)
+        ? v
+            .map((s) => (typeof s === 'string' ? s.trim() : ''))
+            .filter(Boolean)
+            .slice(0, max)
+        : [];
+    const genDescription =
+      typeof parsed.description === 'string' ? parsed.description.trim() : '';
+    const genSayGuidelines =
+      typeof parsed.say_guidelines === 'string' ? parsed.say_guidelines.trim() : '';
+    const genNeverSay = toLines(parsed.never_say, 6);
+    const genEscalation = toLines(parsed.escalation, 6);
 
     const faqs = Array.isArray(parsed.faqs)
       ? parsed.faqs
@@ -167,28 +231,40 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         : {};
     const structured_research = { ...prevSR, differentiators, objections };
 
-    // Recompilamos training_material con lo recién investigado para que las
-    // FAQs y el párrafo de investigación lleguen al prompt del agente (el
-    // runner inyecta training_material verbatim). Sin esto, ai_research y
-    // ai_generated_faqs quedaban guardados pero nunca se usaban.
-    const training = buildTrainingMaterial({
+    const update: Record<string, unknown> = {
+      ai_generated_faqs: faqs,
+      ai_research: research,
+      structured_research,
+      ai_research_generated_at: new Date().toISOString(),
+      ai_research_status: 'done',
+      ai_research_error: null,
+    };
+
+    // Rellenamos los campos de texto que el merchant deja vacíos —sin pisar
+    // lo que ya haya escrito— para que "la investigación llene todo". Los
+    // arrays AI (differentiators/objections/faqs) sí se refrescan siempre.
+    const curDesc = ((product.description as string | null) ?? '').trim();
+    if (!curDesc && genDescription) update.description = genDescription;
+    const curSay = ((product.say_guidelines as string | null) ?? '').trim();
+    if (!curSay && genSayGuidelines) update.say_guidelines = genSayGuidelines;
+    const curNever = Array.isArray(product.never_say) ? product.never_say : [];
+    if (curNever.length === 0 && genNeverSay.length) update.never_say = genNeverSay;
+    const curEsc = Array.isArray(product.escalation_triggers)
+      ? product.escalation_triggers
+      : [];
+    if (curEsc.length === 0 && genEscalation.length) update.escalation_triggers = genEscalation;
+
+    // training_material con la descripción final (la generada si la rellenamos)
+    // y el contenido scrapeado, para que el runner lo inyecte completo.
+    update.training_material = buildTrainingMaterial({
       ...product,
+      description: (update.description as string | undefined) ?? product.description,
+      scraped_content: scrapedContent,
       ai_generated_faqs: faqs,
       ai_research: research,
     });
 
-    await supabase
-      .from('shopify_products')
-      .update({
-        ai_generated_faqs: faqs,
-        ai_research: research,
-        structured_research,
-        training_material: training,
-        ai_research_generated_at: new Date().toISOString(),
-        ai_research_status: 'done',
-        ai_research_error: null,
-      })
-      .eq('id', id);
+    await supabase.from('shopify_products').update(update).eq('id', id);
 
     return NextResponse.json({ ok: true, faqs_count: faqs.length });
   } catch (err) {

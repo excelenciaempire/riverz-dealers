@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -12,8 +11,6 @@ import {
   Sparkles,
   Plus,
   X,
-  CheckCircle2,
-  Bot,
   MessageSquareQuote,
   Wand2,
   Globe,
@@ -69,15 +66,6 @@ interface Product {
   health_sensitive: boolean | null;
 }
 
-interface AgentSummary {
-  id: string;
-  name: string;
-  persona: string | null;
-  tone: string | null;
-  is_active: boolean;
-  model: string | null;
-}
-
 /** Una oferta de "Precios de venta" tal como se edita en el form. */
 interface Offer {
   label: string;
@@ -109,8 +97,6 @@ export default function ProductDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [allAgents, setAllAgents] = useState<AgentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scraping, setScraping] = useState(false);
@@ -139,15 +125,11 @@ export default function ProductDetailPage() {
     if (!params.id) return;
     setLoading(true);
     try {
-      const [prodRes, agentsRes] = await Promise.all([
-        fetch(`/api/products/${params.id}`),
-        fetch('/api/ai/agents'),
-      ]);
+      const prodRes = await fetch(`/api/products/${params.id}`);
       if (!prodRes.ok) throw new Error('Producto no encontrado');
       const prodJson = await prodRes.json();
       const pr = prodJson.product as Product;
       setProduct(pr);
-      setAgents(prodJson.agents ?? []);
 
       setTitle(pr.title ?? '');
       setImages(
@@ -187,11 +169,6 @@ export default function ProductDetailPage() {
       setNeverSay((pr.never_say ?? []).join('\n'));
       setEscalation((pr.escalation_triggers ?? []).join('\n'));
       setHealthSensitive(!!pr.health_sensitive);
-
-      if (agentsRes.ok) {
-        const aj = await agentsRes.json();
-        setAllAgents(aj.agents ?? []);
-      }
     } catch (err) {
       console.error(err);
       toast.error('No se pudo cargar el producto.');
@@ -335,32 +312,6 @@ export default function ProductDetailPage() {
       toast.error(err instanceof Error ? err.message : 'Error al generar investigación.');
     } finally {
       setResearching(false);
-    }
-  }
-
-  async function toggleAgent(agentId: string) {
-    if (!product) return;
-    const assigned = agents.some((a) => a.id === agentId);
-    try {
-      if (assigned) {
-        const res = await fetchWithCsrf(
-          `/api/products/${product.id}/agents?agent_id=${agentId}`,
-          { method: 'DELETE' },
-        );
-        if (!res.ok) throw new Error('No se pudo quitar el agente');
-        setAgents((cur) => cur.filter((a) => a.id !== agentId));
-      } else {
-        const res = await fetchWithCsrf(`/api/products/${product.id}/agents`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_id: agentId }),
-        });
-        if (!res.ok) throw new Error('No se pudo asignar el agente');
-        const newAgent = allAgents.find((a) => a.id === agentId);
-        if (newAgent) setAgents((cur) => [...cur, newAgent]);
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error.');
     }
   }
 
@@ -775,59 +726,6 @@ export default function ProductDetailPage() {
             </div>
           )}
         </Collapsible>
-
-        {/* ---- Asistentes ---- */}
-        <Collapsible
-          title="Asistentes que conocen este producto"
-          icon={<Bot className="size-4" />}
-          action={<span className="text-[11px] text-muted-foreground">{agents.length}</span>}
-        >
-          {allAgents.length === 0 ? (
-            <p className="text-xs italic text-muted-foreground">
-              Todavía no tienes asistentes.{' '}
-              <Link href="/asistente" className="text-foreground underline hover:text-accent-ink">
-                Crea uno en Servicio al cliente.
-              </Link>
-            </p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {allAgents.map((a) => {
-                const assigned = agents.some((x) => x.id === a.id);
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => toggleAgent(a.id)}
-                    className={cn(
-                      'flex items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
-                      assigned
-                        ? 'border-emerald-600/30 bg-emerald-500/5'
-                        : 'border-border bg-card hover:bg-muted/60',
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
-                        assigned
-                          ? 'border-emerald-600 bg-emerald-600 text-white'
-                          : 'border-border bg-background',
-                      )}
-                    >
-                      {assigned && <CheckCircle2 className="size-3" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {a.tone ?? '—'} · {a.is_active ? 'Activo' : 'Inactivo'}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Collapsible>
-
       </div>
 
       {/* Sticky save bar */}
