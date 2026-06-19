@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -213,6 +214,7 @@ export function AgentEditor({
   onAgentUpserted,
 }: AgentEditorProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  const router = useRouter();
   // Persistimos el id del agente "en edición" en estado local porque
   // la generación con IA crea el row a medio camino. Inicialmente es
   // el agente que entró por props (null cuando es "Nuevo"), pero al
@@ -277,8 +279,11 @@ export function AgentEditor({
   const [channels, setChannels] = useState<Channel[]>(
     (agent?.ai_agent_channels ?? []).map((c) => c.channel as Channel),
   );
+  // Un asistente nuevo SIEMPRE arranca en "specific": se entrena a partir
+  // del producto que elijas, así que la selección es obligatoria. Los
+  // existentes conservan su scope guardado (incl. "all", por compatibilidad).
   const [productScope, setProductScope] = useState<AiProductScope>(
-    agent?.product_scope ?? 'all',
+    agent ? (agent.product_scope ?? 'all') : 'specific',
   );
   const [selectedProducts, setSelectedProducts] = useState<string[]>(
     (agent?.ai_agent_products ?? []).map((p) => p.product_id),
@@ -449,9 +454,22 @@ export function AgentEditor({
     return catalog.filter((p) => p.title.toLowerCase().includes(q));
   }, [catalog, productSearch]);
 
+  /** Redirige (misma pestaña) a crear un producto en la sección Productos. */
+  function goToCreateProduct() {
+    router.push('/productos?new=1');
+  }
+
   async function save() {
     if (!name.trim()) {
       toast.error('Falta el nombre');
+      return;
+    }
+    // Al crear, exigimos al menos un producto: el asistente se entrena con
+    // su información. (En edición respetamos el scope ya guardado.)
+    if (!currentAgentId && selectedProducts.length === 0) {
+      setTab('business');
+      setProductScope('specific');
+      toast.error('Elige al menos un producto para crear el asistente.');
       return;
     }
     if (inboundDebounce < 0 || inboundDebounce > 60) {
@@ -982,22 +1000,35 @@ export function AgentEditor({
                   />
                 </Field>
 
-                <Field label="¿Sobre qué productos puede hablar?">
-                  <div className="grid grid-cols-2 gap-2">
-                    <ScopeCard
-                      active={productScope === 'all'}
-                      onClick={() => setProductScope('all')}
-                      title="Todo el catálogo"
-                      hint="Todos los productos sincronizados de Shopify."
-                    />
-                    <ScopeCard
-                      active={productScope === 'specific'}
-                      onClick={() => setProductScope('specific')}
-                      title="Solo algunos"
-                      hint="Elige los productos abajo."
-                    />
-                  </div>
-                  {productScope === 'specific' && (
+                <Field
+                  label={
+                    editing
+                      ? '¿Sobre qué productos puede hablar?'
+                      : 'Producto que vende este asistente'
+                  }
+                >
+                  {editing ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <ScopeCard
+                        active={productScope === 'all'}
+                        onClick={() => setProductScope('all')}
+                        title="Todo el catálogo"
+                        hint="Todos los productos sincronizados de Shopify."
+                      />
+                      <ScopeCard
+                        active={productScope === 'specific'}
+                        onClick={() => setProductScope('specific')}
+                        title="Solo algunos"
+                        hint="Elige los productos abajo."
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Elige al menos uno. El asistente se entrena con su
+                      información al instante. Puedes asignar varios.
+                    </p>
+                  )}
+                  {(editing ? productScope === 'specific' : true) && (
                     <div className="mt-2 space-y-2">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1014,20 +1045,21 @@ export function AgentEditor({
                             <Loader2 className="size-4 animate-spin text-muted-foreground" />
                           </div>
                         ) : filteredCatalog.length === 0 ? (
-                          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                          <div className="space-y-3 px-3 py-6 text-center text-xs text-muted-foreground">
                             {catalog.length === 0 ? (
                               <>
-                                Todavía no tienes productos. Sincroniza tu catálogo
-                                de Shopify o{' '}
-                                <a
-                                  href="/productos"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-accent-ink underline hover:opacity-80"
+                                <p>
+                                  Todavía no tienes productos. Crea uno y el
+                                  asistente aprenderá de él.
+                                </p>
+                                <Button
+                                  type="button"
+                                  onClick={goToCreateProduct}
+                                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                                 >
-                                  crea uno desde cero
-                                </a>
-                                .
+                                  <Package className="size-4" />
+                                  Crear producto nuevo
+                                </Button>
                               </>
                             ) : (
                               'Sin resultados.'
@@ -1096,14 +1128,13 @@ export function AgentEditor({
                           {selectedProducts.length === 1 ? '' : 's'} asignado
                           {selectedProducts.length === 1 ? '' : 's'}.
                         </p>
-                        <a
-                          href="/productos"
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={goToCreateProduct}
                           className="text-[11px] text-accent-ink underline hover:opacity-80"
                         >
-                          ¿No está? Crear producto desde cero
-                        </a>
+                          ¿No está? Crear producto nuevo
+                        </button>
                       </div>
                     </div>
                   )}

@@ -82,6 +82,18 @@ export default function ProductosPage() {
     void fetchProducts();
   }, []);
 
+  // El editor de asistentes redirige aquí con ?new=1 cuando el usuario no
+  // tiene el producto que busca. Abrimos el diálogo de creación al instante
+  // y limpiamos el query param para que un refresh no lo reabra.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('new') === '1') {
+      setName('');
+      setCreateOpen(true);
+      window.history.replaceState(null, '', '/productos');
+    }
+  }, []);
+
   async function handleSync() {
     setSyncing(true);
     try {
