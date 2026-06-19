@@ -27,6 +27,33 @@ type DB = SupabaseClient
 
 const iso = (d: Date) => d.toISOString()
 
+/**
+ * Fetch ALL rows of a query, paging past PostgREST's hard 1000-row cap.
+ * Without this, any chart that reads message ROWS (series, channel mix,
+ * response time) silently truncates at 1000 and stops matching the KPI
+ * cards (which use exact head counts) — e.g. a 30-day range with 1.4k
+ * messages would chart only the first 1000. We page in 1000s until a short
+ * page signals the end. Safe at our scale (a few pages); heavy ranges would
+ * move to a SQL aggregate RPC.
+ */
+async function fetchAllRows<T>(
+  make: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>,
+): Promise<T[]> {
+  const PAGE = 1000
+  const out: T[] = []
+  for (let from = 0; from < 500_000; from += PAGE) {
+    const { data, error } = await make(from, from + PAGE - 1)
+    if (error) throw error as Error
+    const rows = data ?? []
+    out.push(...rows)
+    if (rows.length < PAGE) break
+  }
+  return out
+}
+
 // --- 1. Metric cards ---------------------------------------------------
 
 export async function loadMetrics(
@@ -50,7 +77,6 @@ export async function loadMetrics(
     messagesSentPrev,
     messagesRecvCur,
     messagesRecvPrev,
-    channelMixRows,
   ] = await Promise.all([
     // Active conversations = open RIGHT NOW (a live snapshot, not range-bound).
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
@@ -67,13 +93,23 @@ export async function loadMetrics(
     db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
     db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
     db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
-    // Channel mix — over the selected range.
-    db.from('messages').select('channel, sender_type').gte('created_at', s).lt('created_at', e),
   ])
 
-  const mix = new Map<string, { inbound: number; outbound: number }>()
+  // Channel mix — over the selected range. Paginated so it counts EVERY
+  // message, not just the first 1000 (otherwise the mix disagrees with the
+  // sent/received KPI totals on wide ranges).
   type MixRow = { channel?: string | null; sender_type?: string | null }
-  for (const r of (channelMixRows.data as MixRow[] | null) ?? []) {
+  const channelMixRows = await fetchAllRows<MixRow>((from, to) =>
+    db
+      .from('messages')
+      .select('channel, sender_type')
+      .gte('created_at', s)
+      .lt('created_at', e)
+      .range(from, to),
+  )
+
+  const mix = new Map<string, { inbound: number; outbound: number }>()
+  for (const r of channelMixRows) {
     const ch = r.channel ?? 'unknown'
     const m = mix.get(ch) ?? { inbound: 0, outbound: 0 }
     if (r.sender_type === 'customer') m.inbound++
@@ -106,13 +142,18 @@ export async function loadConversationsSeries(
   tz: string,
   range: DateRange,
 ): Promise<ConversationsSeriesPoint[]> {
-  const { data, error } = await db
-    .from('messages')
-    .select('created_at, sender_type')
-    .gte('created_at', iso(range.start))
-    .lt('created_at', iso(range.end))
-    .order('created_at', { ascending: true })
-  if (error) throw error
+  // Paginated: a 30-day range can exceed PostgREST's 1000-row cap, which
+  // would chart only the first 1000 messages and undercount the curve.
+  const data = await fetchAllRows<{ created_at: string; sender_type: string }>(
+    (from, to) =>
+      db
+        .from('messages')
+        .select('created_at, sender_type')
+        .gte('created_at', iso(range.start))
+        .lt('created_at', iso(range.end))
+        .order('created_at', { ascending: true })
+        .range(from, to),
+  )
 
   // Hourly buckets for short ranges (Hoy/Ayer) so the curve is meaningful;
   // daily otherwise. Seed every bucket so empty ones render as 0.
@@ -146,20 +187,22 @@ export async function loadResponseTime(
   // CURRENT range only; prev feeds the comparison average.
   const fetchStart = iso(new Date(Math.min(range.start.getTime(), prev.start.getTime())))
   const fetchEnd = iso(new Date(Math.max(range.end.getTime(), prev.end.getTime())))
-  const { data, error } = await db
-    .from('messages')
-    .select('conversation_id, sender_type, created_at')
-    .gte('created_at', fetchStart)
-    .lt('created_at', fetchEnd)
-    .order('conversation_id', { ascending: true })
-    .order('created_at', { ascending: true })
-  if (error) throw error
-
-  const rows = (data ?? []) as {
+  // Paginated: ordered by (conversation_id, created_at) so the customer→reply
+  // pairing below sees complete conversations even past the 1000-row cap.
+  const rows = await fetchAllRows<{
     conversation_id: string
     sender_type: string
     created_at: string
-  }[]
+  }>((from, to) =>
+    db
+      .from('messages')
+      .select('conversation_id, sender_type, created_at')
+      .gte('created_at', fetchStart)
+      .lt('created_at', fetchEnd)
+      .order('conversation_id', { ascending: true })
+      .order('created_at', { ascending: true })
+      .range(from, to),
+  )
 
   // Pair each unreplied customer message with the next outbound from the
   // agent/bot. A customer message counts once (avoids inflating averages if
