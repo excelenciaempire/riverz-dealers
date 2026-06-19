@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -26,5 +27,20 @@ export const metadata: Metadata = {
 };
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      {/* Discoverable legal links (Meta App Review expects the privacy
+          policy reachable from the app). Subtle, fixed at the bottom. */}
+      <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 py-3 text-[11px] text-muted-foreground">
+        <Link href="/privacidad" className="pointer-events-auto hover:text-foreground">
+          Privacidad
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href="/eliminar-datos" className="pointer-events-auto hover:text-foreground">
+          Eliminar datos
+        </Link>
+      </footer>
+    </>
+  );
 }
