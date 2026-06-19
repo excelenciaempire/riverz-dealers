@@ -156,7 +156,7 @@ Devolvé ÚNICAMENTE un objeto JSON con esta forma exacta, sin texto antes ni de
   "name": "string — nombre corto del agente, tipo 'Pili' o 'Asistente <Marca>'",
   "persona": "string entre 700 y 1200 caracteres — system prompt operativo, instruye al agente sobre tono, cuándo hacer preguntas, qué nunca hacer, cuándo escalar a humano. Argentine Spanish neutral rioplatense, sin em-dashes, sin hashtags, sin emojis decorativos, una pregunta por turno, directo, nunca admite ser IA.",
   "tone": "friendly | formal | casual | concise",
-  "response_mode": "single | multi | dynamic — preferí multi para chat conversacional",
+  "response_mode": "single | multi | dynamic — preferí dynamic para chat conversacional",
   "inbound_debounce_seconds": 15,
   "language": "es"
 }
@@ -182,7 +182,7 @@ function safeParseConfig(text: string): AgentConfigSuggestion | null {
       : 'friendly';
     const mode = ['single', 'multi', 'dynamic'].includes(parsed.response_mode as string)
       ? (parsed.response_mode as AiResponseMode)
-      : 'multi';
+      : 'dynamic';
     const debounce = Number(parsed.inbound_debounce_seconds);
     return {
       name: String(parsed.name).slice(0, 60).trim(),
@@ -216,7 +216,7 @@ function fallbackConfig(url: string): AgentConfigSuggestion {
       'No inventes precios, promociones ni políticas que no estén en el contexto. Si no sabés algo, decilo y ofrecé pasarlo a un humano.',
     ].join('\n\n'),
     tone: 'friendly',
-    response_mode: 'multi',
+    response_mode: 'dynamic',
     inbound_debounce_seconds: 15,
     language: 'es',
   };
@@ -311,7 +311,7 @@ export async function POST(request: Request) {
     tone: config.tone,
     max_response_chars: 500,
     reply_delay_seconds: 0,
-    context_messages: 10,
+    context_messages: 100,
     response_mode: config.response_mode,
     inbound_debounce_seconds: config.inbound_debounce_seconds,
     reply_when_assigned: false,

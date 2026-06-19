@@ -246,19 +246,18 @@ export function AgentEditor({
   // no perderlos al guardar, pero ya no exponemos sliders.
   const maxChars = agent?.max_response_chars ?? 500;
   const delaySec = agent?.reply_delay_seconds ?? 0;
-  const [contextMessages, setContextMessages] = useState(agent?.context_messages ?? 10);
+  // Contexto = toda la conversación (ya no es configurable; el runner usa
+  // los últimos ~100 mensajes + el resumen). reply_outside_hours se deriva
+  // del toggle "Horario de atención" al guardar.
   const [replyWhenAssigned, setReplyWhenAssigned] = useState(
     agent?.reply_when_assigned ?? false,
-  );
-  const [replyOutsideHours, setReplyOutsideHours] = useState(
-    agent?.reply_outside_hours ?? true,
   );
   const [escalateKeywords, setEscalateKeywords] = useState<string[]>(
     agent?.escalate_keywords ?? ['humano', 'agente', 'reembolso'],
   );
   const [escalateInput, setEscalateInput] = useState('');
   const [responseMode, setResponseMode] = useState<AiResponseMode>(
-    agent?.response_mode ?? 'single',
+    agent?.response_mode ?? 'dynamic',
   );
   const [inboundDebounce, setInboundDebounce] = useState<number>(
     agent?.inbound_debounce_seconds ?? 15,
@@ -373,7 +372,7 @@ export function AgentEditor({
       setKnowledgeUrl(a.knowledge_url ?? url);
       setKnowledgeSyncedAt(a.knowledge_synced_at ?? new Date().toISOString());
       setTone((a.tone as AiTone) ?? 'friendly');
-      setResponseMode((a.response_mode as AiResponseMode) ?? 'multi');
+      setResponseMode((a.response_mode as AiResponseMode) ?? 'dynamic');
       setInboundDebounce(a.inbound_debounce_seconds ?? 15);
       setLanguage(a.language ?? 'es');
       setIsActive(Boolean(a.is_active));
@@ -490,11 +489,16 @@ export function AgentEditor({
       tone,
       max_response_chars: maxChars,
       reply_delay_seconds: delaySec,
-      context_messages: contextMessages,
+      // Contexto = toda la conversación (el runner toma los últimos ~100 +
+      // el resumen acumulado). Ya no es configurable; 100 es el tope que
+      // usa loadContext, así que cualquier valor >= ese equivale a "todo".
+      context_messages: 100,
       response_mode: responseMode,
       inbound_debounce_seconds: inboundDebounce,
       reply_when_assigned: replyWhenAssigned,
-      reply_outside_hours: replyOutsideHours,
+      // El horario es un único control: si está activado, sólo responde
+      // dentro de la ventana (reply_outside_hours = false). Si no, 24/7.
+      reply_outside_hours: !hoursEnabled,
       business_hours: buildBusinessHours(
         hoursEnabled,
         hoursStart,
@@ -1126,21 +1130,87 @@ export function AgentEditor({
 
                 {/* Rules toggles + escalation chips share the Alcance tab. */}
                 <Field label="Reglas de respuesta">
-                  <div className="space-y-2">
-                    <ToggleRow
-                      checked={replyWhenAssigned}
-                      onChange={setReplyWhenAssigned}
-                      title="Responder aunque haya agente asignado"
-                      hint="Por defecto, si un humano está atendiendo, la IA calla."
-                    />
-                    <ToggleRow
-                      checked={replyOutsideHours}
-                      onChange={setReplyOutsideHours}
-                      title="Responder fuera del horario"
-                      hint="Apágalo para que solo responda dentro del horario de oficina."
-                    />
-                  </div>
+                  <ToggleRow
+                    checked={replyWhenAssigned}
+                    onChange={setReplyWhenAssigned}
+                    title="Responder aunque haya agente asignado"
+                    hint="Si un humano está atendiendo, por defecto la IA calla."
+                  />
                 </Field>
+
+                {/* Horario de atención — único control (antes estaba
+                    partido entre este toggle y un bloque en "Avanzado").
+                    Activarlo restringe las respuestas a la ventana. */}
+                <SectionCard
+                  title="Horario de atención"
+                  hint="Si lo activas, solo responde dentro de la ventana. Si no, 24/7."
+                  right={
+                    <Switch checked={hoursEnabled} onCheckedChange={setHoursEnabled} />
+                  }
+                >
+                  {hoursEnabled && (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Inicio">
+                          <Input
+                            type="time"
+                            value={hoursStart}
+                            onChange={(e) => setHoursStart(e.target.value)}
+                            className="bg-background"
+                          />
+                        </Field>
+                        <Field label="Fin">
+                          <Input
+                            type="time"
+                            value={hoursEnd}
+                            onChange={(e) => setHoursEnd(e.target.value)}
+                            className="bg-background"
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Zona horaria">
+                        <Select
+                          value={hoursTimezone}
+                          onValueChange={(v) => setHoursTimezone(v ?? 'America/Bogota')}
+                        >
+                          <SelectTrigger className="w-full bg-background">
+                            <SelectValue labels={TIMEZONE_LABELS} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONES.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>
+                                {t.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label="Días">
+                        <div className="grid grid-cols-7 gap-1.5">
+                          {WEEK_DAYS.map((d) => {
+                            const on = hoursDays.includes(d.value);
+                            return (
+                              <button
+                                key={d.value}
+                                type="button"
+                                onClick={() => toggleHoursDay(d.value)}
+                                title={d.long}
+                                className={cn(
+                                  'rounded-lg border px-1 py-1.5 text-xs transition-colors',
+                                  on
+                                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                                    : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                                )}
+                              >
+                                {d.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </Field>
+                    </>
+                  )}
+                </SectionCard>
 
                 <Field label="Pasar a un humano si el mensaje contiene…">
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
@@ -1204,9 +1274,6 @@ export function AgentEditor({
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-[11px] text-muted-foreground">
-                      {RESPONSE_MODES.find((m) => m.value === responseMode)?.hint}
-                    </p>
                   </Field>
 
                   <Field label="Esperar antes de responder (segundos)">
@@ -1222,8 +1289,7 @@ export function AgentEditor({
                       className="bg-background"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Espera X segundos antes de responder por si la clienta sigue
-                      escribiendo otro mensaje. Recomendado: 15s para WhatsApp.
+                      Por si la clienta sigue escribiendo. Recomendado: 15s.
                     </p>
                   </Field>
                 </SectionCard>
@@ -1244,109 +1310,10 @@ export function AgentEditor({
                       className="bg-background"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Cuando el asistente lleve N intercambios sin resolver, asigna la
-                      conversación a un agente humano. 0 desactiva esta regla.
+                      0 desactiva la regla.
                     </p>
                   </Field>
                 </SectionCard>
-
-                <SectionCard
-                  title="Horario de atención"
-                  hint="Define cuándo está disponible para responder."
-                  right={
-                    <Switch checked={hoursEnabled} onCheckedChange={setHoursEnabled} />
-                  }
-                >
-                  {hoursEnabled && (
-                    <>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Inicio">
-                          <Input
-                            type="time"
-                            value={hoursStart}
-                            onChange={(e) => setHoursStart(e.target.value)}
-                            className="bg-background"
-                          />
-                        </Field>
-                        <Field label="Fin">
-                          <Input
-                            type="time"
-                            value={hoursEnd}
-                            onChange={(e) => setHoursEnd(e.target.value)}
-                            className="bg-background"
-                          />
-                        </Field>
-                      </div>
-
-                      <Field label="Zona horaria">
-                        <Select
-                          value={hoursTimezone}
-                          onValueChange={(v) => setHoursTimezone(v ?? 'America/Bogota')}
-                        >
-                          <SelectTrigger className="w-full bg-background">
-                            <SelectValue labels={TIMEZONE_LABELS} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TIMEZONES.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>
-                                {t.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-
-                      <Field label="Días">
-                        <div className="grid grid-cols-7 gap-1.5">
-                          {WEEK_DAYS.map((d) => {
-                            const on = hoursDays.includes(d.value);
-                            return (
-                              <button
-                                key={d.value}
-                                type="button"
-                                onClick={() => toggleHoursDay(d.value)}
-                                title={d.long}
-                                className={cn(
-                                  'rounded-lg border px-1 py-1.5 text-xs transition-colors',
-                                  on
-                                    ? 'border-primary/60 bg-primary/10 text-foreground'
-                                    : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                                )}
-                              >
-                                {d.short}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </Field>
-
-                      <p className="text-[11px] text-muted-foreground">
-                        Fuera de horario, el asistente responde con un mensaje de fuera
-                        de servicio en lugar de generar respuesta.
-                      </p>
-                    </>
-                  )}
-                  {!hoursEnabled && (
-                    <p className="text-[11px] text-muted-foreground">
-                      El asistente responde a toda hora. Activa para limitar a un
-                      horario.
-                    </p>
-                  )}
-                </SectionCard>
-
-                {/* Contexto: cuántos mensajes previos pasa al modelo. El
-                    largo de la respuesta lo controla la persona y la
-                    espera antes de responder ya se ajusta arriba con
-                    "Esperar antes de responder". */}
-                <SliderField
-                  label="Mensajes de contexto"
-                  value={contextMessages}
-                  min={1}
-                  max={30}
-                  step={1}
-                  suffix="últimos mensajes"
-                  onChange={setContextMessages}
-                />
 
                 <Field label="API key propia (opcional)">
                   <div className="relative">
@@ -1616,47 +1583,6 @@ function ToggleRow({
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
-  );
-}
-
-function SliderField({
-  label,
-  value,
-  min,
-  max,
-  step,
-  suffix,
-  hint,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  suffix?: string;
-  hint?: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-foreground">{label}</Label>
-        <span className="text-xs tabular-nums text-foreground">
-          {value} {suffix}
-        </span>
-      </div>
-      <input
-        type="range"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-primary"
-      />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
   );
 }
 

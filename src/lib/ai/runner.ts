@@ -176,7 +176,11 @@ export async function runAiAgent(
     // Notas del equipo en el contact (las 3 más recientes).
     const recentNotes = await loadRecentContactNotes(db, primaryContact.id);
 
-    const context = await loadContext(db, args.conversation, agent.context_messages);
+    // Contexto = toda la conversación. Ya no es configurable por agente:
+    // loadContext toma los últimos 100 mensajes (su tope) + el resumen
+    // acumulado cubre lo más viejo. Pasamos el tope explícito para que
+    // valga igual para agentes viejos con context_messages bajo.
+    const context = await loadContext(db, args.conversation, 100);
     const products = await loadProductCatalog(db, agent, args.workspaceId, productMatch);
     const shopify = await resolveShopifyContext(
       db,
