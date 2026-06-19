@@ -38,7 +38,9 @@ export async function POST(
 
   const { data: product, error } = await supabase
     .from('shopify_products')
-    .select('id, title, description, scraped_content, product_type, vendor, tags, custom_notes')
+    .select(
+      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, structured_research',
+    )
     .eq('id', id)
     .maybeSingle();
   if (error) {
@@ -82,10 +84,15 @@ Devuélveme un JSON con esta forma exacta (sin markdown, sin texto adicional):
     {"q": "pregunta concisa que un cliente real haría", "a": "respuesta breve, máximo 3 líneas, en español neutro sin voseo"},
     ...
   ],
-  "research": "un párrafo de máximo 4 oraciones que un asistente de WhatsApp debería tener en mente al hablar de este producto: para quién es, cuándo se compra típicamente, qué diferencia tiene vs alternativas, qué objeciones suelen aparecer."
+  "research": "un párrafo de máximo 4 oraciones que un asistente de WhatsApp debería tener en mente al hablar de este producto: para quién es, cuándo se compra típicamente, qué diferencia tiene vs alternativas, qué objeciones suelen aparecer.",
+  "differentiators": ["beneficio o diferenciador concreto y vendedor, en una línea", "..."],
+  "objections": [
+    {"objection": "duda u objeción real del cliente (ej: 'es caro')", "rebuttal": "cómo responderla, breve y honesto"},
+    ...
+  ]
 }
 
-Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. NO repitas la descripción literal. NO inventes datos: si no sabes un detalle, no lo incluyas.`;
+Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/componentes, modo de uso, tallas/medidas/variantes, compatibilidad, devoluciones específicas del producto, mantenimiento. Genera entre 3 y 6 "differentiators" (por qué comprarlo) y entre 3 y 5 "objections" con su respuesta. NO repitas la descripción literal. NO inventes datos: si no sabes un detalle, no lo incluyas.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -114,6 +121,8 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
     const parsed = JSON.parse(match[0]) as {
       faqs?: Array<{ q: string; a: string }>;
       research?: string;
+      differentiators?: unknown;
+      objections?: unknown;
     };
 
     const faqs = Array.isArray(parsed.faqs)
@@ -129,11 +138,40 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
       : [];
     const research = typeof parsed.research === 'string' ? parsed.research.trim() : '';
 
+    // Estructurado: alimenta los campos editables (Beneficios / Objeciones)
+    // que el runner inyecta para el producto detectado. El merchant después
+    // los revisa/edita. Merge con lo que ya hubiera para no pisar otras keys.
+    const differentiators = Array.isArray(parsed.differentiators)
+      ? parsed.differentiators
+          .map((d) => (typeof d === 'string' ? d.trim() : ''))
+          .filter(Boolean)
+          .slice(0, 6)
+      : [];
+    const objections = Array.isArray(parsed.objections)
+      ? parsed.objections
+          .map((o) =>
+            o && typeof o === 'object'
+              ? {
+                  objection: String((o as Record<string, unknown>).objection ?? '').trim(),
+                  rebuttal: String((o as Record<string, unknown>).rebuttal ?? '').trim(),
+                }
+              : null,
+          )
+          .filter((o): o is { objection: string; rebuttal: string } => !!o && !!o.objection)
+          .slice(0, 5)
+      : [];
+    const prevSR =
+      product.structured_research && typeof product.structured_research === 'object'
+        ? (product.structured_research as Record<string, unknown>)
+        : {};
+    const structured_research = { ...prevSR, differentiators, objections };
+
     await supabase
       .from('shopify_products')
       .update({
         ai_generated_faqs: faqs,
         ai_research: research,
+        structured_research,
         ai_research_generated_at: new Date().toISOString(),
         ai_research_status: 'done',
         ai_research_error: null,
