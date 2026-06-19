@@ -57,6 +57,13 @@ export async function GET(
 interface PatchBody {
   custom_notes?: string | null;
   custom_faqs?: Array<{ q: string; a: string }>;
+  // Rich per-product context (migration 073) — injected into the agent prompt.
+  say_guidelines?: string | null;
+  never_say?: string[];
+  escalation_triggers?: string[];
+  allowed_offers?: Array<{ label?: string; total?: number | string; conditions?: string }>;
+  structured_research?: Record<string, unknown> | null;
+  health_sensitive?: boolean;
 }
 
 export async function PATCH(
@@ -100,6 +107,19 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
   if (body.custom_notes !== undefined) patch.custom_notes = body.custom_notes;
   if (body.custom_faqs !== undefined) patch.custom_faqs = body.custom_faqs;
+  if (body.say_guidelines !== undefined) patch.say_guidelines = body.say_guidelines;
+  if (body.never_say !== undefined)
+    patch.never_say = Array.isArray(body.never_say) ? body.never_say : [];
+  if (body.escalation_triggers !== undefined)
+    patch.escalation_triggers = Array.isArray(body.escalation_triggers)
+      ? body.escalation_triggers
+      : [];
+  if (body.allowed_offers !== undefined)
+    patch.allowed_offers = Array.isArray(body.allowed_offers) ? body.allowed_offers : [];
+  if (body.structured_research !== undefined)
+    patch.structured_research = body.structured_research;
+  if (body.health_sensitive !== undefined)
+    patch.health_sensitive = !!body.health_sensitive;
 
   // Para evitar la race "patch + recompute training_material" en dos
   // updates separados (review adversarial), leemos el row actual y

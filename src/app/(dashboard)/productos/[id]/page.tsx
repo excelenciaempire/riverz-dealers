@@ -55,6 +55,12 @@ interface Product {
   ai_research_generated_at: string | null;
   ai_research_status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
   ai_research_error: string | null;
+  // Reglas/contexto que recibe el agente (migración 073).
+  say_guidelines: string | null;
+  never_say: string[] | null;
+  escalation_triggers: string[] | null;
+  allowed_offers: Array<string | { label?: string; total?: number | string; conditions?: string }> | null;
+  health_sensitive: boolean | null;
 }
 
 interface AgentSummary {
@@ -64,6 +70,14 @@ interface AgentSummary {
   tone: string | null;
   is_active: boolean;
   model: string | null;
+}
+
+/** Textarea (una entrada por línea) → array de strings sin vacíos. */
+function linesToArray(text: string): string[] {
+  return text
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export default function ProductDetailPage() {
@@ -82,6 +96,13 @@ export default function ProductDetailPage() {
   // Form state (mirror del producto pero editable).
   const [notes, setNotes] = useState('');
   const [faqs, setFaqs] = useState<Array<{ q: string; a: string }>>([]);
+  // Reglas/contexto para la IA (migración 073). Las listas se editan como
+  // texto, una por línea, y se guardan como arrays.
+  const [sayGuidelines, setSayGuidelines] = useState('');
+  const [neverSay, setNeverSay] = useState('');
+  const [allowedOffers, setAllowedOffers] = useState('');
+  const [escalation, setEscalation] = useState('');
+  const [healthSensitive, setHealthSensitive] = useState(false);
 
   const load = useCallback(async () => {
     if (!params.id) return;
@@ -97,6 +118,27 @@ export default function ProductDetailPage() {
       setAgents(prodJson.agents ?? []);
       setNotes(prodJson.product.custom_notes ?? '');
       setFaqs(prodJson.product.custom_faqs ?? []);
+      const pr = prodJson.product as Product;
+      setSayGuidelines(pr.say_guidelines ?? '');
+      setNeverSay((pr.never_say ?? []).join('\n'));
+      setEscalation((pr.escalation_triggers ?? []).join('\n'));
+      setAllowedOffers(
+        (pr.allowed_offers ?? [])
+          .map((o) =>
+            typeof o === 'string'
+              ? o
+              : [
+                  o.label ?? '',
+                  o.total != null ? `: ${o.total}` : '',
+                  o.conditions ? ` (${o.conditions})` : '',
+                ]
+                  .join('')
+                  .trim(),
+          )
+          .filter(Boolean)
+          .join('\n'),
+      );
+      setHealthSensitive(!!pr.health_sensitive);
       if (agentsRes.ok) {
         const aj = await agentsRes.json();
         setAllAgents(aj.agents ?? []);
@@ -123,6 +165,11 @@ export default function ProductDetailPage() {
         body: JSON.stringify({
           custom_notes: notes || null,
           custom_faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
+          say_guidelines: sayGuidelines.trim() || null,
+          never_say: linesToArray(neverSay),
+          escalation_triggers: linesToArray(escalation),
+          allowed_offers: linesToArray(allowedOffers),
+          health_sensitive: healthSensitive,
         }),
       });
       const json = await res.json();
@@ -387,6 +434,73 @@ export default function ProductDetailPage() {
           placeholder="Ej: Solo enviamos dentro de Bogotá. Fuera de la ciudad, envío por DHL con cargo adicional."
           className="mt-3 min-h-[120px] bg-muted/30"
         />
+      </div>
+
+      {/* Reglas que recibe el agente para ESTE producto (migración 073). */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Sparkles className="size-4" />
+          Reglas para la IA
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Le dan al asistente más contexto y límites cuando habla de este
+          producto. Una entrada por línea donde corresponda.
+        </p>
+        <div className="mt-3 space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Qué enfatizar</label>
+            <Textarea
+              value={sayGuidelines}
+              onChange={(e) => setSayGuidelines(e.target.value)}
+              placeholder="Ej: Resaltá el envío gratis y la garantía de 30 días."
+              className="min-h-[64px] bg-muted/30"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">
+              Ofertas / precios válidos <span className="text-muted-foreground">(una por línea)</span>
+            </label>
+            <Textarea
+              value={allowedOffers}
+              onChange={(e) => setAllowedOffers(e.target.value)}
+              placeholder={"1 unidad: 89.900\n2 unidades: 149.900 (envío gratis)"}
+              className="min-h-[64px] bg-muted/30"
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                Nunca digas <span className="text-muted-foreground">(una por línea)</span>
+              </label>
+              <Textarea
+                value={neverSay}
+                onChange={(e) => setNeverSay(e.target.value)}
+                placeholder={"Cura el acné\nResultados garantizados"}
+                className="min-h-[64px] bg-muted/30"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                Pasar a humano si menciona <span className="text-muted-foreground">(una por línea)</span>
+              </label>
+              <Textarea
+                value={escalation}
+                onChange={(e) => setEscalation(e.target.value)}
+                placeholder={"reembolso\nestá vencido\nreacción alérgica"}
+                className="min-h-[64px] bg-muted/30"
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={healthSensitive}
+              onChange={(e) => setHealthSensitive(e.target.checked)}
+              className="accent-primary"
+            />
+            Producto sensible a temas de salud (el bot evita afirmaciones médicas)
+          </label>
+        </div>
       </div>
 
       {/* FAQs editables */}
