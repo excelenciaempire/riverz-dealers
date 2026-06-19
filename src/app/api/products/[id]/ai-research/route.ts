@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { buildTrainingMaterial } from '@/lib/products/training-material';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -39,7 +40,7 @@ export async function POST(
   const { data: product, error } = await supabase
     .from('shopify_products')
     .select(
-      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, structured_research',
+      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app',
     )
     .eq('id', id)
     .maybeSingle();
@@ -166,12 +167,23 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
         : {};
     const structured_research = { ...prevSR, differentiators, objections };
 
+    // Recompilamos training_material con lo recién investigado para que las
+    // FAQs y el párrafo de investigación lleguen al prompt del agente (el
+    // runner inyecta training_material verbatim). Sin esto, ai_research y
+    // ai_generated_faqs quedaban guardados pero nunca se usaban.
+    const training = buildTrainingMaterial({
+      ...product,
+      ai_generated_faqs: faqs,
+      ai_research: research,
+    });
+
     await supabase
       .from('shopify_products')
       .update({
         ai_generated_faqs: faqs,
         ai_research: research,
         structured_research,
+        training_material: training,
         ai_research_generated_at: new Date().toISOString(),
         ai_research_status: 'done',
         ai_research_error: null,

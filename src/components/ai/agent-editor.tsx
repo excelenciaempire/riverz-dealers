@@ -348,9 +348,12 @@ export function AgentEditor({
   }
 
   /**
-   * Construye persona + conocimiento del asistente a partir de un producto.
-   * Sólo pisa campos que el usuario no tocó (persona en su valor por defecto,
-   * conocimiento vacío) para no borrar ediciones.
+   * Plantilla de identidad del asistente a partir de un producto. Sólo pisa
+   * lo que el usuario no tocó (nombre vacío, persona por defecto). NO copia el
+   * conocimiento del producto: el runner ya inyecta el producto asignado en
+   * pleno (training_material + research) en cada conversación, así que volcarlo
+   * acá lo duplicaría en el prompt. "Información del negocio" queda para datos
+   * transversales (envíos, políticas), no para el producto.
    */
   function applyProductTemplate(p: ProductDetail) {
     setName((cur) => cur.trim() || `Asesor de ${p.title}`.slice(0, 60));
@@ -362,7 +365,6 @@ export function AgentEditor({
           `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`
         : cur,
     );
-    setKnowledge((cur) => (cur.trim() ? cur : buildProductKnowledge(p)));
   }
 
   async function prefillFromProduct(productId: string) {
@@ -910,15 +912,18 @@ export function AgentEditor({
                   )}
                 </SectionCard>
 
-                <Field label="Información del negocio">
+                <SectionCard
+                  title="Información del negocio"
+                  hint="Datos transversales (envíos, políticas, horarios). Lo del producto ya lo aprende solo; esto es opcional."
+                >
                   <Textarea
-                value={knowledge}
-                onChange={(e) => setKnowledge(e.target.value)}
-                rows={6}
-                placeholder={'Productos:\n- Crema antiarrugas $50.000\n- Sérum vitamina C $80.000\n\nPolíticas:\n- Envíos en 2 días hábiles\n- Devolución en 15 días'}
-                className="resize-y bg-background font-mono text-xs leading-relaxed"
+                    value={knowledge}
+                    onChange={(e) => setKnowledge(e.target.value)}
+                    rows={5}
+                    placeholder={'Envíos en 2 días hábiles a todo el país.\nDevoluciones dentro de 15 días.\nPagos: tarjeta, PSE, contraentrega.'}
+                    className="resize-y bg-background font-mono text-xs leading-relaxed"
                   />
-                </Field>
+                </SectionCard>
 
               </>
             )}
@@ -1370,14 +1375,7 @@ export function AgentEditor({
 interface ProductDetail {
   id: string;
   title: string;
-  description: string | null;
-  training_material?: string | null;
-  ai_research?: string | null;
   ai_research_status?: string | null;
-  structured_research?: { differentiators?: unknown[] } | null;
-  custom_faqs?: Array<{ q: string; a: string }> | null;
-  ai_generated_faqs?: Array<{ q: string; a: string }> | null;
-  allowed_offers?: Array<string | { label?: string; total?: number | string }> | null;
 }
 
 async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
@@ -1389,46 +1387,6 @@ async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
   } catch {
     return null;
   }
-}
-
-/** Texto de conocimiento del asistente derivado de un producto. Prefiere el
- *  training_material ya compilado; si no existe, lo arma desde los campos. */
-function buildProductKnowledge(p: ProductDetail): string {
-  if (p.training_material && p.training_material.trim()) {
-    return p.training_material.trim();
-  }
-  const parts: string[] = [`# ${p.title}`];
-  if (p.description?.trim()) parts.push(p.description.trim());
-
-  const diff = Array.isArray(p.structured_research?.differentiators)
-    ? p.structured_research!.differentiators!.filter(
-        (d): d is string => typeof d === 'string' && !!d.trim(),
-      )
-    : [];
-  if (diff.length) parts.push('Beneficios:\n' + diff.map((d) => `- ${d}`).join('\n'));
-
-  const offerLines = (Array.isArray(p.allowed_offers) ? p.allowed_offers : [])
-    .map((o) =>
-      o && typeof o === 'object'
-        ? `- ${o.label ?? ''}${o.total != null ? `: ${o.total}` : ''}`.trim()
-        : typeof o === 'string'
-          ? `- ${o}`
-          : '',
-    )
-    .filter((l) => l && l !== '-');
-  if (offerLines.length) parts.push('Precios:\n' + offerLines.join('\n'));
-
-  if (p.ai_research?.trim()) parts.push('Investigación:\n' + p.ai_research.trim());
-
-  const faqs = [...(p.custom_faqs ?? []), ...(p.ai_generated_faqs ?? [])].filter(
-    (f) => f?.q?.trim() && f?.a?.trim(),
-  );
-  if (faqs.length) {
-    parts.push(
-      'Preguntas frecuentes:\n' + faqs.map((f) => `- ${f.q}\n  ${f.a}`).join('\n'),
-    );
-  }
-  return parts.join('\n\n');
 }
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
