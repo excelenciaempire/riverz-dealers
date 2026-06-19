@@ -15,9 +15,19 @@ import {
   Loader2,
   Info,
   Wand2,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -69,6 +79,54 @@ export default function ProductosPage() {
   } | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+
+  // Crear producto desde cero (sin Shopify). Se guarda en la misma tabla,
+  // así aparece en el catálogo y en "Productos asignados" del agente IA.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    price: '',
+    currency: 'COP',
+    image_url: '',
+    custom_notes: '',
+  });
+
+  async function handleCreate() {
+    if (!form.title.trim()) {
+      toast.error('Ponle un nombre al producto.');
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetchWithCsrf('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim() || undefined,
+          price_min: form.price.trim() ? Number(form.price) : undefined,
+          currency: form.currency.trim() || undefined,
+          image_url: form.image_url.trim() || undefined,
+          custom_notes: form.custom_notes.trim() || undefined,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error ?? 'No se pudo crear el producto.');
+        return;
+      }
+      toast.success('Producto creado.');
+      setCreateOpen(false);
+      setForm({ title: '', description: '', price: '', currency: 'COP', image_url: '', custom_notes: '' });
+      void fetchProducts();
+    } catch {
+      toast.error('No se pudo crear el producto.');
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function fetchProducts() {
     setLoading(true);
@@ -245,6 +303,14 @@ export default function ProductosPage() {
             </Button>
           )}
           <Button
+            onClick={() => setCreateOpen(true)}
+            variant="outline"
+            className="h-9 border-border bg-card text-foreground hover:bg-muted"
+          >
+            <Plus className="size-4" />
+            Crear producto
+          </Button>
+          <Button
             onClick={handleSync}
             disabled={syncing || shopifyConnected === false}
             title={
@@ -263,6 +329,86 @@ export default function ProductosPage() {
           </Button>
         </div>
       </div>
+
+      {/* Crear producto desde cero */}
+      <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
+        <DialogContent className="bg-card text-foreground sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear producto desde cero</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Nombre del producto</Label>
+              <Input
+                autoFocus
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Sérum facial 30ml"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Descripción</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Qué es, para qué sirve, beneficios clave."
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Precio</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.price}
+                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                  placeholder="59900"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Moneda</Label>
+                <Input
+                  value={form.currency}
+                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+                  placeholder="COP"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Imagen (URL)</Label>
+              <Input
+                value={form.image_url}
+                onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
+                placeholder="https://…/foto.jpg"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notas para la IA (opcional)</Label>
+              <Textarea
+                value={form.custom_notes}
+                onChange={(e) => setForm((f) => ({ ...f, custom_notes: e.target.value }))}
+                placeholder="Envíos, garantía, preguntas frecuentes… lo que el asistente debe saber."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+              disabled={creating}
+              className="border-border"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              Crear producto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Banner cuando Shopify no está conectado y ya hay productos (de
           una conexión vieja desconectada o de un seed) — guía hacia
@@ -335,7 +481,7 @@ export default function ProductosPage() {
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : products.length === 0 ? (
-        <EmptyState onSync={handleSync} syncing={syncing} />
+        <EmptyState onSync={handleSync} syncing={syncing} onCreate={() => setCreateOpen(true)} />
       ) : filtered.length === 0 ? (
         <div className="flex h-32 items-center justify-center rounded-lg border border-border bg-card">
           <p className="text-sm text-muted-foreground">
@@ -489,17 +635,22 @@ function StatusChips({
 function EmptyState({
   onSync,
   syncing,
+  onCreate,
 }: {
   onSync: () => void;
   syncing: boolean;
+  onCreate: () => void;
 }) {
   return (
     <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
       <ShoppingBag className="mx-auto size-8 text-muted-foreground" />
       <h2 className="mt-3 text-base font-medium text-foreground">
-        Conecta tu catálogo
+        Agrega tus productos
       </h2>
-      <div className="mt-4 flex items-center justify-center gap-2">
+      <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+        Sincroniza tu catálogo de Shopify o crea un producto desde cero.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <Button
           onClick={onSync}
           disabled={syncing}
@@ -511,6 +662,14 @@ function EmptyState({
             <RefreshCw className="size-4" />
           )}
           {syncing ? 'Sincronizando…' : 'Sincronizar Shopify'}
+        </Button>
+        <Button
+          onClick={onCreate}
+          variant="outline"
+          className="border-border bg-card text-foreground hover:bg-muted"
+        >
+          <Plus className="size-4" />
+          Crear producto
         </Button>
         <Link
           href="/integraciones"

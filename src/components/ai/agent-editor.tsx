@@ -307,9 +307,9 @@ export function AgentEditor({
   const [genHint, setGenHint] = useState<string>('');
   const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
   // Single URL across the tab: `knowledgeUrl` is the one source of truth
-  // (generate + sync use it). Toggle for the "Probar" panel so the form
-  // can use the full width when the user isn't testing.
-  const [showTest, setShowTest] = useState(true);
+  // (generate + sync use it). The "Probar" panel is closed by default so
+  // the form has the full width; the header button opens it on demand.
+  const [showTest, setShowTest] = useState(false);
 
   type TabKey = 'business' | 'reach' | 'advanced';
   const [tab, setTab] = useState<TabKey>('business');
