@@ -370,29 +370,37 @@ export function AgentEditor({
   async function prefillFromProduct(productId: string) {
     setApplyingProduct(true);
     try {
-      let p = await fetchProductDetail(productId);
-      // Dispara la investigación si el producto aún no la tiene (el botón
-      // "Generar investigación" del editor de productos, pero automático).
-      if (p && p.ai_research_status !== 'done') {
-        try {
-          const r = await fetchWithCsrf(`/api/products/${productId}/ai-research`, {
-            method: 'POST',
-          });
-          if (r.ok) {
-            const fresh = await fetchProductDetail(productId);
-            if (fresh) p = fresh;
-          }
-        } catch {
-          /* la investigación es best-effort; seguimos con lo que haya */
-        }
-      }
+      const p = await fetchProductDetail(productId);
       if (!p) return;
       applyProductTemplate(p);
-      toast.success('Asistente preparado con la información de tu producto.');
+      toast.success('Asistente preparado con tu producto.');
+      // La investigación corre en SEGUNDO PLANO (no bloquea la selección):
+      // enriquece el producto —FAQs, objeciones, research— para futuras
+      // conversaciones. El runner lee el producto en vivo, así que no hace
+      // falta esperarla aquí. Si falla (p. ej. sin crédito de IA), avisamos.
+      if (p.ai_research_status !== 'done') void researchProductInBackground(productId);
     } catch {
       /* prefill best-effort: si falla, el usuario igual puede editar a mano */
     } finally {
       setApplyingProduct(false);
+    }
+  }
+
+  /** Dispara la investigación del producto (lo que antes era manual) sin
+   *  bloquear. Surfacea el error en vez de tragárselo en silencio. */
+  async function researchProductInBackground(productId: string) {
+    try {
+      const r = await fetchWithCsrf(`/api/products/${productId}/ai-research`, {
+        method: 'POST',
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        toast.message('No se pudo investigar el producto ahora.', {
+          description: typeof j?.error === 'string' ? j.error : undefined,
+        });
+      }
+    } catch {
+      toast.message('No se pudo investigar el producto ahora.');
     }
   }
 
@@ -685,7 +693,7 @@ export function AgentEditor({
                     applyingProduct ? (
                       <p className="flex items-center gap-2 text-[11px] text-primary">
                         <Loader2 className="size-3.5 animate-spin" />
-                        Investigando tu producto y preparando el asistente…
+                        Preparando el asistente con tu producto…
                       </p>
                     ) : (
                       <p className="text-[11px] text-muted-foreground">
