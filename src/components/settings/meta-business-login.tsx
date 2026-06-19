@@ -56,8 +56,19 @@ export function MetaBusinessLogin({
       setSdkReady(true);
       return;
     }
+    // Chain (don't clobber) fbAsyncInit so multiple instances on the page
+    // (Facebook + Instagram cards) each init. Then POLL window.FB as a
+    // fallback: whichever instance's fbAsyncInit was last set wins the
+    // callback, so without this the other instance's button would stay
+    // permanently disabled.
+    const prev = window.fbAsyncInit;
     window.fbAsyncInit = () => {
-      window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v22.0" });
+      prev?.();
+      try {
+        window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v22.0" });
+      } catch {
+        /* init is idempotent; ignore double-init */
+      }
       setSdkReady(true);
     };
     const id = "facebook-jssdk";
@@ -69,6 +80,13 @@ export function MetaBusinessLogin({
       js.defer = true;
       document.body.appendChild(js);
     }
+    const poll = setInterval(() => {
+      if (window.FB) {
+        setSdkReady(true);
+        clearInterval(poll);
+      }
+    }, 300);
+    return () => clearInterval(poll);
   }, []);
 
   const finish = useCallback(
