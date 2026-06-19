@@ -1014,11 +1014,25 @@ export function AgentEditor({
                             <Loader2 className="size-4 animate-spin text-muted-foreground" />
                           </div>
                         ) : filteredCatalog.length === 0 ? (
-                          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-                            {catalog.length === 0
-                              ? 'Sin productos sincronizados. Conecta Shopify primero.'
-                              : 'Sin resultados.'}
-                          </p>
+                          <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                            {catalog.length === 0 ? (
+                              <>
+                                Todavía no tienes productos. Sincroniza tu catálogo
+                                de Shopify o{' '}
+                                <a
+                                  href="/productos"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-accent-ink underline hover:opacity-80"
+                                >
+                                  crea uno desde cero
+                                </a>
+                                .
+                              </>
+                            ) : (
+                              'Sin resultados.'
+                            )}
+                          </div>
                         ) : (
                           <ul className="divide-y divide-border">
                             {filteredCatalog.map((p) => {
@@ -1076,11 +1090,21 @@ export function AgentEditor({
                           </ul>
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {selectedProducts.length} producto
-                        {selectedProducts.length === 1 ? '' : 's'} asignado
-                        {selectedProducts.length === 1 ? '' : 's'}.
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] text-muted-foreground">
+                          {selectedProducts.length} producto
+                          {selectedProducts.length === 1 ? '' : 's'} asignado
+                          {selectedProducts.length === 1 ? '' : 's'}.
+                        </p>
+                        <a
+                          href="/productos"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-accent-ink underline hover:opacity-80"
+                        >
+                          ¿No está? Crear producto desde cero
+                        </a>
+                      </div>
                     </div>
                   )}
                 </Field>
