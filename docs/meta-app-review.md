@@ -8,7 +8,7 @@
 ---
 
 # Meta App Review — Paquete final listo para enviar
-## App: "Bandeja Unificada CRM" · App ID `1021515967221344` · Producto: riverz · https://app.riverz.app
+## App: "Bandeja Unificada CRM" · App ID `1021515967221344` · Producto: riverz · https://riverz.co
 
 ---
 
@@ -41,8 +41,8 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 ### 0.2 Privacy Policy y Data Deletion — YA EXISTEN, solo configurar en Meta
 
 > Estos archivos ya están en el repo y son públicos (no están en `protectedPaths`):
-> - `src/app/privacidad/page.tsx` → `https://app.riverz.app/privacidad`
-> - `src/app/eliminar-datos/page.tsx` → `https://app.riverz.app/eliminar-datos`
+> - `src/app/privacidad/page.tsx` → `https://riverz.co/privacidad`
+> - `src/app/eliminar-datos/page.tsx` → `https://riverz.co/eliminar-datos`
 > - `src/app/api/meta/data-deletion/route.ts` (callback firmado, verifica HMAC, borra contactos, devuelve `{url, confirmation_code}`)
 > - `src/app/api/meta/deauthorize/route.ts` (deauthorize callback)
 
@@ -52,16 +52,16 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 | Ajuste | Valor exacto | Dónde |
 |--------|--------------|-------|
-| App Domains | `app.riverz.app` | Settings → Basic |
-| Privacy Policy URL | `https://app.riverz.app/privacidad` | Settings → Basic |
-| Data Deletion Request URL | `https://app.riverz.app/api/meta/data-deletion` | Settings → Basic / FB Login |
-| Deauthorize Callback URL | `https://app.riverz.app/api/meta/deauthorize` | FB Login → Settings |
-| Valid OAuth Redirect URIs | `https://app.riverz.app/api/connections/meta/oauth/callback` | FB Login → Settings |
+| App Domains | `riverz.co` | Settings → Basic |
+| Privacy Policy URL | `https://riverz.co/privacidad` | Settings → Basic |
+| Data Deletion Request URL | `https://riverz.co/api/meta/data-deletion` | Settings → Basic / FB Login |
+| Deauthorize Callback URL | `https://riverz.co/api/meta/deauthorize` | FB Login → Settings |
+| Valid OAuth Redirect URIs | `https://riverz.co/api/connections/meta/oauth/callback` | FB Login → Settings |
 | App Icon | 1024×1024, sin marcas de Meta | Settings → Basic |
 | App Category | Business / Messaging | Settings → Basic |
 | App Purpose | **Clients / other businesses** | App Review / Basic |
 | Primary Contact email | email real monitoreado | Settings → Basic |
-| Render env | `NEXT_PUBLIC_SITE_URL=https://app.riverz.app` (sin barra final) | Render → Environment |
+| Render env | `NEXT_PUBLIC_SITE_URL=https://riverz.co` (sin barra final) | Render → Environment |
 
 ### 0.4 Checklist de prerequisitos
 
@@ -89,18 +89,18 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 **Use case (paste):**
 
-> Bandeja Unificada CRM ("riverz", https://app.riverz.app) is an omnichannel customer-support inbox for small and medium businesses and online stores. We use `pages_messaging` to let a business agent read the Messenger conversations that customers send to the business's own Facebook Page, and reply to those customers, all from a single unified inbox alongside the business's WhatsApp, Instagram, and email. When a customer messages the connected Page, our app receives the message via Page-subscribed webhooks (messages, messaging_postbacks, message_reactions, message_deliveries, message_reads), displays it to the agent in the inbox, and the agent — or, optionally, an AI assistant the business turns on — sends the reply through the Send API within Meta's 24-hour messaging window (messaging_type: RESPONSE). The message content and the customer's basic profile (name, profile picture) are shown to the agent only so they can respond; this data is never sold and never used for advertising.
+> Bandeja Unificada CRM ("riverz", https://riverz.co) is an omnichannel customer-support inbox for small and medium businesses and online stores. We use `pages_messaging` to let a business agent read the Messenger conversations that customers send to the business's own Facebook Page, and reply to those customers, all from a single unified inbox alongside the business's WhatsApp, Instagram, and email. When a customer messages the connected Page, our app receives the message via Page-subscribed webhooks (messages, messaging_postbacks, message_reactions, message_deliveries, message_reads), displays it to the agent in the inbox, and the agent — or, optionally, an AI assistant the business turns on — sends the reply through the Send API within Meta's 24-hour messaging window (messaging_type: RESPONSE). The message content and the customer's basic profile (name, profile picture) are shown to the agent only so they can respond; this data is never sold and never used for advertising.
 >
 > The permission is necessary because, without it, the business could not receive or answer its Page DMs from our inbox and would have to switch back to Messenger separately, defeating the purpose of a unified CRM. We only ever message on behalf of the business that explicitly connects its own Facebook Page through our Facebook Login flow — each merchant/workspace connects only their own Page (and the linked Instagram Professional account). The app never accesses or messages Pages or accounts the connecting business does not own and administer.
 
 **Step-by-step for the reviewer (paste):**
 
-> 1. Open https://app.riverz.app and sign in with the test credentials provided in the submission notes (email + password). The form is in Spanish: "Correo" = email, "Contraseña" = password.
-> 2. In the left navigation open "Integraciones" (Integrations) — direct URL https://app.riverz.app/integraciones.
+> 1. Open https://riverz.co and sign in with the test credentials provided in the submission notes (email + password). The form is in Spanish: "Correo" = email, "Contraseña" = password.
+> 2. In the left navigation open "Integraciones" (Integrations) — direct URL https://riverz.co/integraciones.
 > 3. On the "Facebook" card click "Conectar" (Connect). You are redirected to the Facebook business-login dialog.
-> 4. Select the test Facebook Page you administer and approve the requested permissions (the consent screen lists `pages_messaging` among others). You are redirected back to https://app.riverz.app/api/connections/meta/oauth/callback and then to Integraciones, where the connected Page appears as linked.
+> 4. Select the test Facebook Page you administer and approve the requested permissions (the consent screen lists `pages_messaging` among others). You are redirected back to https://riverz.co/api/connections/meta/oauth/callback and then to Integraciones, where the connected Page appears as linked.
 > 5. From a second, separate Facebook account (not the connected business account), open Messenger and send a message to the connected Page (e.g. "Hola, ¿precio?").
-> 6. Back in riverz open "Bandeja" (Inbox) — direct URL https://app.riverz.app/bandeja. The incoming Messenger message appears in the conversation list, tagged as the Messenger channel.
+> 6. Back in riverz open "Bandeja" (Inbox) — direct URL https://riverz.co/bandeja. The incoming Messenger message appears in the conversation list, tagged as the Messenger channel.
 > 7. Open the conversation, type a reply, and send it. This sends the reply through the Page using `pages_messaging`.
 > 8. Switch to the second account's Messenger and confirm the reply was delivered in the native thread.
 >
@@ -116,18 +116,18 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 **Use case (paste):**
 
-> riverz (https://app.riverz.app) is a unified inbox/CRM that lets a small business manage all of its customer conversations from one screen. We use `instagram_manage_messages` so a business can read and reply to the Instagram Direct messages that its own customers send to its own Instagram Professional account, without leaving our app. When a customer sends a DM, our app receives the `messages` webhook on the connected Page, displays the incoming message in the unified inbox ("Bandeja"), and lets a human agent — or, optionally, an AI assistant the business enables — compose and send a reply via the Send API. The data we access (the customer's Instagram-scoped sender ID, username, message text and attachments) is used solely to render the conversation and deliver the agent's reply. It is not used for advertising and is not sold.
+> riverz (https://riverz.co) is a unified inbox/CRM that lets a small business manage all of its customer conversations from one screen. We use `instagram_manage_messages` so a business can read and reply to the Instagram Direct messages that its own customers send to its own Instagram Professional account, without leaving our app. When a customer sends a DM, our app receives the `messages` webhook on the connected Page, displays the incoming message in the unified inbox ("Bandeja"), and lets a human agent — or, optionally, an AI assistant the business enables — compose and send a reply via the Send API. The data we access (the customer's Instagram-scoped sender ID, username, message text and attachments) is used solely to render the conversation and deliver the agent's reply. It is not used for advertising and is not sold.
 >
 > The permission is necessary because, without it, the business cannot receive or answer Instagram DMs inside riverz and would have to switch back to the Instagram app, defeating the purpose of a single inbox alongside WhatsApp, Messenger and email. We only ever read and send messages on the Instagram Professional account the business itself connected (it must be linked to the Facebook Page the business owns and selects). Each merchant/workspace connects their own Page and Instagram account; we never access or message third-party accounts. Replies are sent with messaging_type: RESPONSE within Instagram's standard messaging window, in response to customer-initiated messages.
 
 **Step-by-step for the reviewer (paste):**
 
-> 1. Open https://app.riverz.app and sign in with the test credentials provided (email + password).
-> 2. Open "Integraciones" — https://app.riverz.app/integraciones.
+> 1. Open https://riverz.co and sign in with the test credentials provided (email + password).
+> 2. Open "Integraciones" — https://riverz.co/integraciones.
 > 3. On the "Instagram" card click "Conectar". You are redirected to the Facebook business-login dialog.
 > 4. Approve the requested permissions, then select the Facebook Page and its linked Instagram Professional account. You return to Integraciones, where the Instagram card shows the connected account as "Conectado".
 > 5. From a second, separate Instagram account, send a Direct Message to the connected Instagram Professional account.
-> 6. Back in riverz open "Bandeja" — https://app.riverz.app/bandeja. The incoming DM appears, attributed to the sender's @username.
+> 6. Back in riverz open "Bandeja" — https://riverz.co/bandeja. The incoming DM appears, attributed to the sender's @username.
 > 7. Open the conversation, type a reply, and click send ("Enviar").
 > 8. Open Instagram on the sender account and confirm the reply arrived in the DM thread.
 
@@ -141,18 +141,18 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 **Use case (paste):**
 
-> riverz (https://app.riverz.app) is an omnichannel inbox that lets small and medium businesses manage WhatsApp, Instagram, Messenger and email conversations from one place. We use `instagram_manage_comments` so a business can read and reply to the comments left on its own Instagram posts and reels directly from our inbox, instead of opening the Instagram app. When a customer comments on the merchant's post, the comment is delivered to our webhook (Instagram `comments` field) and shown in the inbox alongside that merchant's DMs and other channels; the agent then writes a reply that we publish via `POST /{comment-id}/replies`. An optional AI assistant can draft or auto-send replies on the merchant's behalf. Without this permission the business cannot see or answer Instagram post comments from our CRM, breaking the "all customer messages in one inbox" value our users rely on.
+> riverz (https://riverz.co) is an omnichannel inbox that lets small and medium businesses manage WhatsApp, Instagram, Messenger and email conversations from one place. We use `instagram_manage_comments` so a business can read and reply to the comments left on its own Instagram posts and reels directly from our inbox, instead of opening the Instagram app. When a customer comments on the merchant's post, the comment is delivered to our webhook (Instagram `comments` field) and shown in the inbox alongside that merchant's DMs and other channels; the agent then writes a reply that we publish via `POST /{comment-id}/replies`. An optional AI assistant can draft or auto-send replies on the merchant's behalf. Without this permission the business cannot see or answer Instagram post comments from our CRM, breaking the "all customer messages in one inbox" value our users rely on.
 >
 > We only ever read and reply to comments on Instagram Professional accounts the business itself explicitly connects, and only for the account whose Page access token was granted during that connection. We never access comments on third-party accounts. Comments authored by the connected business itself are filtered out and never treated as incoming customer messages. Comment data (text, the commenter's handle and id, the post id) is used solely to display the conversation and send the reply; it is not sold and not used for advertising.
 
 **Step-by-step for the reviewer (paste):**
 
-> 1. Open https://app.riverz.app and sign in with the test credentials provided.
-> 2. Open "Integraciones" — https://app.riverz.app/integraciones.
+> 1. Open https://riverz.co and sign in with the test credentials provided.
+> 2. Open "Integraciones" — https://riverz.co/integraciones.
 > 3. On the "Instagram" card click "Conectar". The Facebook business-login dialog opens.
 > 4. Select the Page and linked Instagram Professional account and grant the permissions (including `instagram_manage_comments`). You return to Integraciones with the account shown as "Conectado".
 > 5. From a second Instagram account, post a comment on one of the connected account's posts or reels.
-> 6. In riverz open "Bandeja" — https://app.riverz.app/bandeja. The comment appears as a conversation labeled as an Instagram comment, with the commenter's @username and text.
+> 6. In riverz open "Bandeja" — https://riverz.co/bandeja. The comment appears as a conversation labeled as an Instagram comment, with the commenter's @username and text.
 > 7. Open it, type a reply, and send it ("Enviar").
 > 8. Open the post on instagram.com and confirm the reply published by riverz is visible under the original comment.
 
@@ -166,18 +166,18 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 **Use case (paste):**
 
-> riverz (https://app.riverz.app) is an omnichannel customer-support inbox that lets a small or medium business manage all of its customer conversations in one place (WhatsApp, Instagram, Messenger, email, and public comments). Each business signs into riverz, opens Integrations, and connects its own Facebook Page (and linked Instagram Professional account) through Facebook Login, explicitly granting the requested permissions. We never act on Pages the business does not own or administer.
+> riverz (https://riverz.co) is an omnichannel customer-support inbox that lets a small or medium business manage all of its customer conversations in one place (WhatsApp, Instagram, Messenger, email, and public comments). Each business signs into riverz, opens Integrations, and connects its own Facebook Page (and linked Instagram Professional account) through Facebook Login, explicitly granting the requested permissions. We never act on Pages the business does not own or administer.
 >
 > We use `pages_manage_engagement` so a business agent can reply to the comments customers leave on the business's own Facebook Page posts, directly from the riverz inbox, as part of customer service. New comments are delivered through the Page's `feed` webhook and shown in the unified inbox; when the agent types a reply, we publish it via `POST /{comment-id}/comments` using the Page access token the business granted. Without this permission the agent could see incoming comments but could not respond, forcing the business to leave riverz and answer each comment manually in Facebook — defeating the unified-inbox purpose. The comment data is shown only to that business's own agents to answer their customers; it is not sold, shared, or used for advertising.
 
 **Step-by-step for the reviewer (paste):**
 
-> 1. Open https://app.riverz.app and sign in with the test credentials provided.
-> 2. Open "Integraciones" — https://app.riverz.app/integraciones.
+> 1. Open https://riverz.co and sign in with the test credentials provided.
+> 2. Open "Integraciones" — https://riverz.co/integraciones.
 > 3. On the "Facebook" card click "Conectar". The Facebook business-login dialog opens.
 > 4. Select the test Page you administer and approve the permissions (the consent screen lists `pages_manage_engagement`). You return to riverz with the Page connected.
 > 5. From a second, separate Facebook account, go to a post on the connected Page and leave a comment (e.g. "Hi, is this in stock?").
-> 6. In riverz open "Bandeja" — https://app.riverz.app/bandeja. The Facebook comment appears as a conversation.
+> 6. In riverz open "Bandeja" — https://riverz.co/bandeja. The Facebook comment appears as a conversation.
 > 7. Open it, type a reply, and click "Enviar".
 > 8. Switch to Facebook (the post) and confirm riverz's reply appears under the original comment on the Page post.
 
@@ -193,7 +193,7 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 
 | Tiempo | En pantalla (acción) | Caption / narración (inglés) |
 |--------|----------------------|------------------------------|
-| 0:00-0:12 | Navegador limpio, barra de direcciones visible → `https://app.riverz.app`. Página de login (logged-out). | "riverz — a unified inbox CRM. Starting fully logged out." |
+| 0:00-0:12 | Navegador limpio, barra de direcciones visible → `https://riverz.co`. Página de login (logged-out). | "riverz — a unified inbox CRM. Starting fully logged out." |
 | 0:12-0:30 | Escribir email + password de prueba → "Iniciar sesión". Carga `/panel`. | "Signing in with the reviewer test account." |
 | 0:30-0:45 | Sidebar → "Integraciones". Cards: WhatsApp, Facebook, Instagram, Gmail, Outlook. | "Each merchant connects their OWN Facebook Page and Instagram account. We never message third-party accounts." |
 | 0:45-1:10 | Card "Facebook" → "Conectar". Redirige a facebook.com → diálogo de business login → selección de Página → pantalla de consentimiento (zoom en la lista de permisos). | "Connecting Facebook. Granting pages_messaging and pages_manage_engagement." |
@@ -210,7 +210,7 @@ Este documento contiene **todo el texto en inglés listo para pegar** en el App 
 | 4:55-5:10 | (Opcional) Mostrar link a Privacy Policy en el footer y la página `/eliminar-datos`. | "Privacy policy and data deletion available to every user." |
 
 **Consejos de grabación:**
-- Mantén la **barra de direcciones visible** todo el tiempo (las URLs `app.riverz.app` y `facebook.com/...dialog/oauth` son evidencia).
+- Mantén la **barra de direcciones visible** todo el tiempo (las URLs `riverz.co` y `facebook.com/...dialog/oauth` son evidencia).
 - **Una sola toma continua**, sin cortes ni saltos (un salto entre "enviado" y "recibido" parece falsificado; si el webhook tarda, espera en cámara).
 - **Empieza logged-out** (incógnito o cookies borradas).
 - Graba con la **cuenta de prueba/test user** que entregas al revisor, no admin.
@@ -258,12 +258,12 @@ Crea y verifica esto antes de grabar y de enviar:
 - [ ] Diálogo de consentimiento verificado en navegador limpio
 
 **Meta App Dashboard:**
-- [ ] Privacy Policy URL = `https://app.riverz.app/privacidad` (nombra datos de Meta)
-- [ ] Data Deletion Request URL = `https://app.riverz.app/api/meta/data-deletion` (+ "Send sample" OK)
-- [ ] Deauthorize Callback URL = `https://app.riverz.app/api/meta/deauthorize`
-- [ ] Valid OAuth Redirect URI = `https://app.riverz.app/api/connections/meta/oauth/callback` (exacta)
-- [ ] App Icon 1024×1024, Category, App Domains = `app.riverz.app`, App Purpose = Clients, Contact email
-- [ ] `NEXT_PUBLIC_SITE_URL=https://app.riverz.app` en Render (sin barra final)
+- [ ] Privacy Policy URL = `https://riverz.co/privacidad` (nombra datos de Meta)
+- [ ] Data Deletion Request URL = `https://riverz.co/api/meta/data-deletion` (+ "Send sample" OK)
+- [ ] Deauthorize Callback URL = `https://riverz.co/api/meta/deauthorize`
+- [ ] Valid OAuth Redirect URI = `https://riverz.co/api/connections/meta/oauth/callback` (exacta)
+- [ ] App Icon 1024×1024, Category, App Domains = `riverz.co`, App Purpose = Clients, Contact email
+- [ ] `NEXT_PUBLIC_SITE_URL=https://riverz.co` en Render (sin barra final)
 
 **Permisos / token / tráfico:**
 - [ ] ≥1 llamada API real por cada uno de los 4 permisos en los últimos ~30 días

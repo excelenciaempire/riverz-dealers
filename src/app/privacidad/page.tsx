@@ -31,8 +31,8 @@ export default function PrivacidadPage() {
             comercios y empresas centralizar y responder, desde una sola bandeja,
             las conversaciones de sus clientes en WhatsApp, Instagram, Messenger y
             correo electrónico. El servicio se presta a través de{" "}
-            <a href="https://app.riverz.app" className="underline">
-              app.riverz.app
+            <a href="https://riverz.co" className="underline">
+              riverz.co
             </a>
             . Para cualquier consulta sobre privacidad escríbenos a{" "}
             <a href={`mailto:${CONTACT}`} className="underline">
@@ -117,7 +117,7 @@ export default function PrivacidadPage() {
           <p className="mt-2">
             Consulta cómo en{" "}
             <Link href="/eliminar-datos" className="underline">
-              app.riverz.app/eliminar-datos
+              riverz.co/eliminar-datos
             </Link>
             . Las solicitudes automáticas de Meta (al eliminar la app) se
             procesan a través de nuestro callback de eliminación de datos.
@@ -156,8 +156,8 @@ export default function PrivacidadPage() {
           Eliminar mis datos
         </Link>
         <span className="mx-2">·</span>
-        <a href="https://app.riverz.app" className="underline">
-          app.riverz.app
+        <a href="https://riverz.co" className="underline">
+          riverz.co
         </a>
       </footer>
     </main>

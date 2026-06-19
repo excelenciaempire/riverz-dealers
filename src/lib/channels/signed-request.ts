@@ -56,7 +56,7 @@ export function requestOrigin(req: Request): string {
   const host =
     req.headers.get("x-forwarded-host") ??
     req.headers.get("host") ??
-    "app.riverz.app";
+    "riverz.co";
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
 }

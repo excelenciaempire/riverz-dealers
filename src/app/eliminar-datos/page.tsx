@@ -94,8 +94,8 @@ export default async function EliminarDatosPage({
           Política de privacidad
         </Link>
         <span className="mx-2">·</span>
-        <a href="https://app.riverz.app" className="underline">
-          app.riverz.app
+        <a href="https://riverz.co" className="underline">
+          riverz.co
         </a>
       </footer>
     </main>
