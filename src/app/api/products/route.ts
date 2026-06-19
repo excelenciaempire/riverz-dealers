@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
@@ -153,15 +152,20 @@ export async function POST(request: Request) {
     return s ? s : null;
   };
 
-  const externalId = `manual_${randomUUID()}`;
-  const handle =
+  // external_id is a bigint (Shopify's numeric product id). For manual
+  // products we use a NEGATIVE timestamp-based id so it never collides with a
+  // real Shopify id (always positive) or another manual one. The unique key
+  // is (shop_domain, external_id) and shop_domain is 'manual' here.
+  const externalId = -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+  const slug =
     title
       .toLowerCase()
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
-      .slice(0, 80) || 'producto';
+      .slice(0, 72) || 'producto';
+  const handle = `${slug}-${Math.abs(externalId).toString(36).slice(-6)}`;
   const priceMin = num(body?.price_min);
   const priceMax = num(body?.price_max) ?? priceMin;
 
@@ -172,7 +176,7 @@ export async function POST(request: Request) {
       workspace_id: workspaceId,
       shop_domain: 'manual',
       external_id: externalId,
-      handle: `${handle}-${externalId.slice(-6)}`,
+      handle,
       title,
       description: str(body?.description),
       product_type: str(body?.product_type),
