@@ -34,9 +34,13 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  // Incluimos ai_agent_products(product_id): el editor pre-selecciona los
+  // productos asignados al abrir un agente existente. Sin esto el modal
+  // arrancaba en cero y, al guardar, el PATCH borraba la asignación
+  // (manda product_ids=[] con scope 'specific'). Pérdida de datos silenciosa.
   const { data, error } = await admin
     .from('ai_agents')
-    .select('*, ai_agent_channels(channel)')
+    .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
     .eq('workspace_id', workspaceId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
