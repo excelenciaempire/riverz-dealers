@@ -304,10 +304,13 @@ export function AgentEditor({
   // la pestaña "Mi negocio" para que el primer paso de un usuario nuevo
   // sea "pegá tu URL → te armo el agente". El timer va rotando las
   // pistas de progreso así no se ve congelado durante el crawl + LLM.
-  const [genUrl, setGenUrl] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genHint, setGenHint] = useState<string>('');
   const [showAdvancedPersona, setShowAdvancedPersona] = useState(false);
+  // Single URL across the tab: `knowledgeUrl` is the one source of truth
+  // (generate + sync use it). Toggle for the "Probar" panel so the form
+  // can use the full width when the user isn't testing.
+  const [showTest, setShowTest] = useState(true);
 
   type TabKey = 'business' | 'reach' | 'advanced';
   const [tab, setTab] = useState<TabKey>('business');
@@ -339,7 +342,7 @@ export function AgentEditor({
   }, [generating]);
 
   async function generateFromUrl() {
-    const url = genUrl.trim();
+    const url = knowledgeUrl.trim();
     if (!url) {
       toast.error('Pega la URL de tu tienda.');
       return;
@@ -681,6 +684,15 @@ export function AgentEditor({
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowTest((v) => !v)}
+              className="hidden items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:inline-flex"
+              title={showTest ? 'Ocultar el panel de prueba' : 'Mostrar el panel de prueba'}
+            >
+              {showTest ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {showTest ? 'Ocultar prueba' : 'Probar'}
+            </button>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
               {isActive ? 'Activo' : 'Pausado'}
@@ -696,7 +708,14 @@ export function AgentEditor({
           </div>
         </div>
 
-        <div className="grid min-h-0 gap-0 overflow-hidden sm:grid-cols-[180px_minmax(0,1fr)_320px]">
+        <div
+          className={cn(
+            'grid min-h-0 gap-0 overflow-hidden',
+            showTest
+              ? 'sm:grid-cols-[180px_minmax(0,1fr)_340px]'
+              : 'sm:grid-cols-[180px_minmax(0,1fr)]',
+          )}
+        >
           {/* Section nav rail */}
           <nav className="border-r border-border bg-card/40 p-2 sm:py-4">
             {TABS.map((t) => {
@@ -749,8 +768,8 @@ export function AgentEditor({
                       <Input
                         type="url"
                         autoFocus={!editing}
-                        value={genUrl}
-                        onChange={(e) => setGenUrl(e.target.value)}
+                        value={knowledgeUrl}
+                        onChange={(e) => setKnowledgeUrl(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !generating) {
                             e.preventDefault();
@@ -765,7 +784,7 @@ export function AgentEditor({
                     <Button
                       type="button"
                       onClick={generateFromUrl}
-                      disabled={generating || !genUrl.trim()}
+                      disabled={generating || !knowledgeUrl.trim()}
                       className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       {generating ? (
@@ -882,25 +901,24 @@ export function AgentEditor({
                     + preview, ahora dentro de "Mi negocio". */}
                 <SectionCard
                   title="Base de conocimiento"
-                  hint="Pega la URL de tu sitio y sincroniza. Indexamos tu home, políticas, FAQ y productos."
+                  hint="Indexamos tu home, políticas, FAQ y productos desde la URL de tu tienda (la de arriba)."
                 >
-                  <Field label="URL de tu tienda">
-                    <div className="relative">
-                      <Globe className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        type="url"
-                        value={knowledgeUrl}
-                        onChange={(e) => setKnowledgeUrl(e.target.value)}
-                        placeholder="https://tutienda.com"
-                        className="bg-background pl-8"
-                      />
-                    </div>
-                  </Field>
+                  {knowledgeUrl.trim() ? (
+                    <p className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-foreground">
+                      <Globe className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{knowledgeUrl.trim()}</span>
+                    </p>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                      Pega la URL de tu tienda en &quot;Generar con IA&quot; (arriba) para
+                      poder sincronizar tu contenido.
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button
                       type="button"
                       onClick={syncKnowledge}
-                      disabled={syncingKnowledge || !editing}
+                      disabled={syncingKnowledge || !editing || !knowledgeUrl.trim()}
                       className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       {syncingKnowledge ? (
@@ -1364,7 +1382,9 @@ export function AgentEditor({
           {/* Test column — conversación multi-turno tipo WhatsApp.
               El usuario tipea como cliente; el bot del editor responde
               y se ve igual que en producción (left bubbles blancas para
-              asistente, right verdes para usuario, fondo beige con dots). */}
+              asistente, right verdes para usuario, fondo beige con dots).
+              Se puede ocultar con el botón "Ocultar prueba" del header. */}
+          {showTest && (
           <aside className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-muted/30 sm:border-l sm:border-t-0">
             <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
               <div className="min-w-0">
@@ -1413,6 +1433,16 @@ export function AgentEditor({
                     turn.role === 'user' ? 'items-end' : 'items-start',
                   )}
                 >
+                  {/* Sender label so it's unmistakable who is who: the
+                      tester ("Tú", green) vs the assistant (its name, blue). */}
+                  <span
+                    className={cn(
+                      'px-1 text-[10px] font-semibold',
+                      turn.role === 'user' ? 'text-[#1d7a45]' : 'text-[#0a6ebd]',
+                    )}
+                  >
+                    {turn.role === 'user' ? 'Tú' : name.trim() || 'Asistente'}
+                  </span>
                   {turn.chunks.length === 0 ? (
                     <div
                       className={cn(
@@ -1508,6 +1538,7 @@ export function AgentEditor({
               </div>
             </div>
           </aside>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
