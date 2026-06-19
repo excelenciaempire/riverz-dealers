@@ -224,6 +224,10 @@ export function AgentEditor({
     agent?.id ?? null,
   );
   const editing = Boolean(currentAgentId);
+  // `isNew` = el editor se abrió en modo "crear" (sin agente previo). Se
+  // mantiene aunque la generación con IA persista el row a medio camino
+  // —por eso NO usamos currentAgentId—, para seguir exigiendo producto.
+  const isNew = !agent;
   const hasApiKey = agent?.has_api_key ?? false;
 
   const [name, setName] = useState(agent?.name ?? '');
@@ -382,7 +386,7 @@ export function AgentEditor({
       setLanguage(a.language ?? 'es');
       setIsActive(Boolean(a.is_active));
       setCurrentAgentId(a.id);
-      toast.success('Asistente generado. Revísalo y guarda los cambios.');
+      toast.success('Asistente generado. Elige el producto y guarda.');
       // Notificamos al padre para que aparezca en la lista ya como
       // creado — el editor sigue abierto en modo "edición" del nuevo.
       // Usamos onAgentUpserted (no onSaved) porque onSaved cierra el
@@ -464,9 +468,10 @@ export function AgentEditor({
       toast.error('Falta el nombre');
       return;
     }
-    // Al crear, exigimos al menos un producto: el asistente se entrena con
-    // su información. (En edición respetamos el scope ya guardado.)
-    if (!currentAgentId && selectedProducts.length === 0) {
+    // Al crear (incl. cuando se generó con IA desde la web), exigimos al
+    // menos un producto: el asistente se entrena con su información. En
+    // edición respetamos el scope ya guardado.
+    if (isNew && selectedProducts.length === 0) {
       setTab('business');
       setProductScope('specific');
       toast.error('Elige al menos un producto para crear el asistente.');
@@ -1002,12 +1007,17 @@ export function AgentEditor({
 
                 <Field
                   label={
-                    editing
-                      ? '¿Sobre qué productos puede hablar?'
-                      : 'Producto que vende este asistente'
+                    isNew
+                      ? 'Producto que vende este asistente'
+                      : '¿Sobre qué productos puede hablar?'
                   }
                 >
-                  {editing ? (
+                  {isNew ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Elige al menos uno. El asistente se entrena con su
+                      información al instante. Puedes asignar varios.
+                    </p>
+                  ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <ScopeCard
                         active={productScope === 'all'}
@@ -1022,13 +1032,8 @@ export function AgentEditor({
                         hint="Elige los productos abajo."
                       />
                     </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground">
-                      Elige al menos uno. El asistente se entrena con su
-                      información al instante. Puedes asignar varios.
-                    </p>
                   )}
-                  {(editing ? productScope === 'specific' : true) && (
+                  {(isNew || productScope === 'specific') && (
                     <div className="mt-2 space-y-2">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
