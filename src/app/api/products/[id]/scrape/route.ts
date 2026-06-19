@@ -36,7 +36,7 @@ export async function POST(
 
   const { data: product, error } = await supabase
     .from('shopify_products')
-    .select('id, url')
+    .select('id, url, websites')
     .eq('id', id)
     .maybeSingle();
   if (error) {
@@ -45,17 +45,21 @@ export async function POST(
   if (!product) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  if (!product.url) {
+
+  // Sources to read: the `websites` list (premium editor, up to 5), falling
+  // back to the legacy single `url`. Dedup, keep only public https (SSRF
+  // defense, same as the AI-agent routes).
+  const rawSites = [
+    ...(Array.isArray(product.websites) ? (product.websites as unknown[]) : []),
+    product.url,
+  ]
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean);
+  const sites = [...new Set(rawSites)].filter((u) => isPublicHttpsUrl(u)).slice(0, 5);
+
+  if (sites.length === 0) {
     return NextResponse.json(
-      { error: 'El producto no tiene URL pública' },
-      { status: 400 },
-    );
-  }
-  // Defensa SSRF homogénea con las rutas de AI agents: solo https a hosts
-  // públicos (no loopback/privadas/metadata), aunque la URL venga del sync.
-  if (!isPublicHttpsUrl(product.url)) {
-    return NextResponse.json(
-      { error: 'URL de producto no válida' },
+      { error: 'El producto no tiene una URL pública válida' },
       { status: 400 },
     );
   }
@@ -71,19 +75,43 @@ export async function POST(
     .eq('id', id);
 
   try {
-    const scraped = await firecrawlScrape(product.url, {
-      maxChars: 12_000,
-    });
+    // Read every source; share the char budget across them so the combined
+    // markdown stays bounded. A single failing URL doesn't sink the rest.
+    const perUrl = Math.max(2_000, Math.floor(14_000 / sites.length));
+    const chunks: string[] = [];
+    const failures: string[] = [];
+    for (const site of sites) {
+      try {
+        const scraped = await firecrawlScrape(site, { maxChars: perUrl });
+        if (scraped.markdown.trim()) {
+          chunks.push(
+            sites.length > 1 ? `## ${site}\n\n${scraped.markdown}` : scraped.markdown,
+          );
+        }
+      } catch (e) {
+        failures.push(`${site}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (chunks.length === 0) {
+      throw new Error(failures.join(' · ') || 'Sin contenido');
+    }
+    const markdown = chunks.join('\n\n---\n\n');
     await supabase
       .from('shopify_products')
       .update({
         scrape_status: 'done',
-        scraped_content: scraped.markdown,
+        scraped_content: markdown,
         scraped_at: new Date().toISOString(),
-        scrape_error: null,
+        // Surface partial failures without failing the whole read.
+        scrape_error: failures.length ? `Algunas URLs fallaron — ${failures.join(' · ')}` : null,
       })
       .eq('id', id);
-    return NextResponse.json({ ok: true, chars: scraped.markdown.length });
+    return NextResponse.json({
+      ok: true,
+      chars: markdown.length,
+      sites: chunks.length,
+      failed: failures.length,
+    });
   } catch (err) {
     const msg =
       err instanceof FirecrawlError

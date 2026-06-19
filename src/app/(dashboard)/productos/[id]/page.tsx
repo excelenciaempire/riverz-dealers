@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -10,22 +10,20 @@ import {
   Loader2,
   RefreshCw,
   Sparkles,
-  Save,
   Plus,
   X,
-  AlertCircle,
   CheckCircle2,
-  Boxes,
-  Wand2,
-  FileText,
-  MessageSquareQuote,
   Bot,
+  MessageSquareQuote,
+  Wand2,
+  Globe,
+  ImagePlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { formatBundleApp, formatPrice } from '@/lib/products/format';
+import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 interface Product {
@@ -40,10 +38,12 @@ interface Product {
   price_max: number | null;
   currency: string | null;
   image_url: string | null;
+  images: string[] | null;
   url: string | null;
+  websites: string[] | null;
   is_bundle: boolean;
   bundle_app: string | null;
-  bundle_metadata: Record<string, unknown> | null;
+  shop_domain: string | null;
   scrape_status: 'idle' | 'queued' | 'scraping' | 'done' | 'failed';
   scraped_content: string | null;
   scraped_at: string | null;
@@ -55,7 +55,6 @@ interface Product {
   ai_research_generated_at: string | null;
   ai_research_status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
   ai_research_error: string | null;
-  // Reglas/contexto que recibe el agente (migración 073).
   structured_research: {
     differentiators?: string[];
     objections?: Array<{ objection?: string; rebuttal?: string }>;
@@ -64,7 +63,9 @@ interface Product {
   say_guidelines: string | null;
   never_say: string[] | null;
   escalation_triggers: string[] | null;
-  allowed_offers: Array<string | { label?: string; total?: number | string; conditions?: string }> | null;
+  allowed_offers:
+    | Array<string | { label?: string; total?: number | string; conditions?: string }>
+    | null;
   health_sensitive: boolean | null;
 }
 
@@ -76,6 +77,14 @@ interface AgentSummary {
   is_active: boolean;
   model: string | null;
 }
+
+/** Una oferta de "Precios de venta" tal como se edita en el form. */
+interface Offer {
+  label: string;
+  total: string;
+}
+
+const CURRENCIES = ['COP', 'USD', 'ARS', 'MXN', 'CLP', 'PEN', 'EUR', 'BRL'];
 
 /** Textarea (una entrada por línea) → array de strings sin vacíos. */
 function linesToArray(text: string): string[] {
@@ -97,6 +106,7 @@ export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
@@ -105,21 +115,23 @@ export default function ProductDetailPage() {
   const [saving, setSaving] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [researching, setResearching] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // Form state (mirror del producto pero editable).
+  // --- Core (siempre visible) ---
+  const [title, setTitle] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [descriptionText, setDescriptionText] = useState('');
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [currency, setCurrency] = useState('COP');
+  const [benefits, setBenefits] = useState('');
+  const [websites, setWebsites] = useState<string[]>([]);
+
+  // --- Contexto avanzado (colapsado) ---
   const [notes, setNotes] = useState('');
   const [faqs, setFaqs] = useState<Array<{ q: string; a: string }>>([]);
-  // Descripción editable (clave para el copy del agente).
-  const [descriptionText, setDescriptionText] = useState('');
-  // Contexto para vender (lo más útil para el copywriting del agente):
-  // beneficios y objeciones+respuesta. Se guardan en structured_research.
-  const [benefits, setBenefits] = useState('');
   const [objections, setObjections] = useState('');
-  // Reglas/contexto para la IA (migración 073). Las listas se editan como
-  // texto, una por línea, y se guardan como arrays.
   const [sayGuidelines, setSayGuidelines] = useState('');
   const [neverSay, setNeverSay] = useState('');
-  const [allowedOffers, setAllowedOffers] = useState('');
   const [escalation, setEscalation] = useState('');
   const [healthSensitive, setHealthSensitive] = useState(false);
 
@@ -133,41 +145,49 @@ export default function ProductDetailPage() {
       ]);
       if (!prodRes.ok) throw new Error('Producto no encontrado');
       const prodJson = await prodRes.json();
-      setProduct(prodJson.product);
-      setAgents(prodJson.agents ?? []);
-      setNotes(prodJson.product.custom_notes ?? '');
-      setFaqs(prodJson.product.custom_faqs ?? []);
       const pr = prodJson.product as Product;
+      setProduct(pr);
+      setAgents(prodJson.agents ?? []);
+
+      setTitle(pr.title ?? '');
+      setImages(
+        Array.isArray(pr.images) && pr.images.length
+          ? pr.images
+          : pr.image_url
+            ? [pr.image_url]
+            : [],
+      );
       setDescriptionText(pr.description ?? '');
+      setCurrency(pr.currency ?? 'COP');
+      setOffers(
+        (pr.allowed_offers ?? []).map((o) =>
+          typeof o === 'string'
+            ? { label: o, total: '' }
+            : { label: o.label ?? '', total: o.total != null ? String(o.total) : '' },
+        ),
+      );
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
+      setWebsites(
+        Array.isArray(pr.websites) && pr.websites.length
+          ? pr.websites
+          : pr.url
+            ? [pr.url]
+            : [],
+      );
+
+      setNotes(pr.custom_notes ?? '');
+      setFaqs(pr.custom_faqs ?? []);
       setObjections(
         (pr.structured_research?.objections ?? [])
-          .map((o) =>
-            `${o.objection ?? ''}${o.rebuttal ? ` | ${o.rebuttal}` : ''}`.trim(),
-          )
+          .map((o) => `${o.objection ?? ''}${o.rebuttal ? ` | ${o.rebuttal}` : ''}`.trim())
           .filter(Boolean)
           .join('\n'),
       );
       setSayGuidelines(pr.say_guidelines ?? '');
       setNeverSay((pr.never_say ?? []).join('\n'));
       setEscalation((pr.escalation_triggers ?? []).join('\n'));
-      setAllowedOffers(
-        (pr.allowed_offers ?? [])
-          .map((o) =>
-            typeof o === 'string'
-              ? o
-              : [
-                  o.label ?? '',
-                  o.total != null ? `: ${o.total}` : '',
-                  o.conditions ? ` (${o.conditions})` : '',
-                ]
-                  .join('')
-                  .trim(),
-          )
-          .filter(Boolean)
-          .join('\n'),
-      );
       setHealthSensitive(!!pr.health_sensitive);
+
       if (agentsRes.ok) {
         const aj = await agentsRes.json();
         setAllAgents(aj.agents ?? []);
@@ -184,32 +204,52 @@ export default function ProductDetailPage() {
     void load();
   }, [load]);
 
+  const buildPatch = useCallback(
+    () => ({
+      title: title.trim() || undefined,
+      images,
+      description: descriptionText.trim() || null,
+      currency,
+      allowed_offers: offers
+        .map((o) => ({ label: o.label.trim(), total: o.total.trim() }))
+        .filter((o) => o.label || o.total),
+      websites,
+      structured_research: {
+        ...(product?.structured_research ?? {}),
+        differentiators: linesToArray(benefits),
+        objections: parseObjections(objections),
+      },
+      custom_notes: notes || null,
+      custom_faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
+      say_guidelines: sayGuidelines.trim() || null,
+      never_say: linesToArray(neverSay),
+      escalation_triggers: linesToArray(escalation),
+      health_sensitive: healthSensitive,
+    }),
+    [
+      title, images, descriptionText, currency, offers, websites, benefits,
+      objections, notes, faqs, sayGuidelines, neverSay, escalation,
+      healthSensitive, product,
+    ],
+  );
+
+  const saveProduct = useCallback(async () => {
+    if (!product) return false;
+    const res = await fetchWithCsrf(`/api/products/${product.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPatch()),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? 'No se pudo guardar');
+    setProduct(json.product);
+    return true;
+  }, [product, fetchWithCsrf, buildPatch]);
+
   async function handleSave() {
-    if (!product) return;
     setSaving(true);
     try {
-      const res = await fetchWithCsrf(`/api/products/${product.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: descriptionText.trim() || null,
-          structured_research: {
-            ...(product.structured_research ?? {}),
-            differentiators: linesToArray(benefits),
-            objections: parseObjections(objections),
-          },
-          custom_notes: notes || null,
-          custom_faqs: faqs.filter((f) => f.q.trim() && f.a.trim()),
-          say_guidelines: sayGuidelines.trim() || null,
-          never_say: linesToArray(neverSay),
-          escalation_triggers: linesToArray(escalation),
-          allowed_offers: linesToArray(allowedOffers),
-          health_sensitive: healthSensitive,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'No se pudo guardar');
-      setProduct(json.product);
+      await saveProduct();
       toast.success('Cambios guardados.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar.');
@@ -218,19 +258,51 @@ export default function ProductDetailPage() {
     }
   }
 
-  async function handleScrape() {
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sesión expirada');
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage
+        .from('product-media')
+        .upload(path, file, { cacheControl: '3600', upsert: false });
+      if (error) throw new Error(error.message);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('product-media').getPublicUrl(path);
+      setImages((cur) => [...cur, publicUrl]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo subir la imagen.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRescrape() {
     if (!product) return;
     setScraping(true);
     try {
+      // Guardamos primero para que el servidor lea las URLs actuales.
+      await saveProduct();
       const res = await fetchWithCsrf(`/api/products/${product.id}/scrape`, {
         method: 'POST',
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Error al scrapear');
-      toast.success(`Página leída (${json.chars} caracteres).`);
+      if (!res.ok) throw new Error(json.error ?? 'Error al leer las páginas');
+      toast.success(
+        `Leídas ${json.sites ?? 1} página(s)${json.failed ? `, ${json.failed} fallaron` : ''}.`,
+      );
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al scrapear.');
+      toast.error(err instanceof Error ? err.message : 'Error al leer las páginas.');
     } finally {
       setScraping(false);
     }
@@ -240,18 +312,16 @@ export default function ProductDetailPage() {
     if (!product) return;
     setResearching(true);
     try {
+      await saveProduct();
       const res = await fetchWithCsrf(`/api/products/${product.id}/ai-research`, {
         method: 'POST',
       });
       const json = await res.json();
-      if (!res.ok)
-        throw new Error(json.error ?? 'Error al generar investigación');
+      if (!res.ok) throw new Error(json.error ?? 'Error al generar investigación');
       toast.success(`Investigación lista (${json.faqs_count} FAQs).`);
       await load();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Error al generar investigación.',
-      );
+      toast.error(err instanceof Error ? err.message : 'Error al generar investigación.');
     } finally {
       setResearching(false);
     }
@@ -301,547 +371,576 @@ export default function ProductDetailPage() {
     );
   }
 
+  const isShopify = product.shop_domain && product.shop_domain !== 'manual';
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => router.push('/productos')}
-            className="h-8 w-8 border-border"
-            aria-label="Volver"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">
-              {product.vendor ?? product.product_type ?? 'Producto'}
-            </p>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {product.title}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {product.url && (
-                <a
-                  href={product.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 hover:text-foreground"
-                >
-                  Ver en la tienda
-                  <ExternalLink className="size-3" />
-                </a>
-              )}
-              {product.is_bundle && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5">
-                  <Boxes className="size-3" />
-                  {formatBundleApp(product.bundle_app)}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleScrape}
-            disabled={scraping}
-            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
-          >
-            {scraping ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-            Leer página
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleResearch}
-            disabled={researching}
-            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
-          >
-            {researching ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Wand2 className="size-4" />
-            )}
-            Generar investigación
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="h-9 bg-foreground text-background hover:bg-foreground/90"
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            Guardar
-          </Button>
-        </div>
-      </div>
-
-      {/* Top metrics + image */}
-      <div className="grid gap-3 lg:grid-cols-[280px_1fr]">
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
-          {product.image_url ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={product.image_url}
-              alt={product.title}
-              className="aspect-square w-full object-cover"
-            />
-          ) : (
-            <div className="flex aspect-square items-center justify-center bg-muted text-muted-foreground/40">
-              <FileText className="size-12" />
-            </div>
-          )}
-          <div className="space-y-2 p-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                Precio
-              </span>
-              <span className="text-sm tabular-nums text-foreground">
-                {product.price_min == null
-                  ? '—'
-                  : product.price_min === product.price_max
-                    ? formatPrice(product.price_min, product.currency)
-                    : `${formatPrice(product.price_min, product.currency)} – ${formatPrice(product.price_max ?? 0, product.currency)}`}
-              </span>
-            </div>
-            {product.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {product.tags.slice(0, 8).map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Estado del entrenamiento */}
-        <div className="space-y-3">
-          <TrainingStatusBlock
-            scrapeStatus={product.scrape_status}
-            scrapedAt={product.scraped_at}
-            scrapeError={product.scrape_error}
-            researchStatus={product.ai_research_status}
-            researchAt={product.ai_research_generated_at}
-            researchError={product.ai_research_error}
-          />
-
-          {/* Descripción editable — es lo primero que el agente usa para hablar
-              del producto. En productos de Shopify, una nueva sincronización la
-              reescribe con la de la tienda. */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <h3 className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-              Descripción
-            </h3>
-            <Textarea
-              value={descriptionText}
-              onChange={(e) => setDescriptionText(e.target.value)}
-              placeholder="Qué es, para qué sirve y sus beneficios principales."
-              className="min-h-[100px] bg-muted/30 text-sm"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Notas del merchant */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <FileText className="size-4" />
-          Notas para el asistente
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Información que no está en la página del producto pero el bot debería
-          saber: política de envío específica, restricciones, datos de uso.
+    <div className="mx-auto max-w-3xl pb-24">
+      {/* Slim header */}
+      <div className="mb-6 flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push('/productos')}
+          className="h-8 w-8 border-border"
+          aria-label="Volver"
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          {product.vendor ?? product.product_type ?? 'Producto'}
         </p>
-        <Textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ej: Solo enviamos dentro de Bogotá. Fuera de la ciudad, envío por DHL con cargo adicional."
-          className="mt-3 min-h-[120px] bg-muted/30"
-        />
       </div>
 
-      {/* Reglas que recibe el agente para ESTE producto (migración 073). */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Sparkles className="size-4" />
-          Contexto para vender
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Mientras más completes, más preciso es el copy del agente cuando habla
-          de este producto. Una entrada por línea donde corresponda.
-        </p>
-        <div className="mt-3 space-y-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
-              Beneficios / por qué comprarlo <span className="text-muted-foreground">(uno por línea)</span>
-            </label>
-            <Textarea
-              value={benefits}
-              onChange={(e) => setBenefits(e.target.value)}
-              placeholder={"Sin alcohol, no reseca\nVegano y libre de crueldad\nResultados visibles en 2 semanas"}
-              className="min-h-[64px] bg-muted/30"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
-              Objeciones y respuesta{' '}
-              <span className="text-muted-foreground">(una por línea: objeción | respuesta)</span>
-            </label>
-            <Textarea
-              value={objections}
-              onChange={(e) => setObjections(e.target.value)}
-              placeholder={"es caro | rinde 3 meses, sale a ~1.000 por día\n¿funciona en piel grasa? | sí, está formulado justo para piel grasa"}
-              className="min-h-[64px] bg-muted/30"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Qué enfatizar</label>
-            <Textarea
-              value={sayGuidelines}
-              onChange={(e) => setSayGuidelines(e.target.value)}
-              placeholder="Ej: Resaltá el envío gratis y la garantía de 30 días."
-              className="min-h-[64px] bg-muted/30"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
-              Ofertas / precios válidos <span className="text-muted-foreground">(una por línea)</span>
-            </label>
-            <Textarea
-              value={allowedOffers}
-              onChange={(e) => setAllowedOffers(e.target.value)}
-              placeholder={"1 unidad: 89.900\n2 unidades: 149.900 (envío gratis)"}
-              className="min-h-[64px] bg-muted/30"
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground">
-                Nunca digas <span className="text-muted-foreground">(una por línea)</span>
-              </label>
-              <Textarea
-                value={neverSay}
-                onChange={(e) => setNeverSay(e.target.value)}
-                placeholder={"Cura el acné\nResultados garantizados"}
-                className="min-h-[64px] bg-muted/30"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground">
-                Pasar a humano si menciona <span className="text-muted-foreground">(una por línea)</span>
-              </label>
-              <Textarea
-                value={escalation}
-                onChange={(e) => setEscalation(e.target.value)}
-                placeholder={"reembolso\nestá vencido\nreacción alérgica"}
-                className="min-h-[64px] bg-muted/30"
-              />
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-xs text-foreground">
-            <input
-              type="checkbox"
-              checked={healthSensitive}
-              onChange={(e) => setHealthSensitive(e.target.checked)}
-              className="accent-primary"
-            />
-            Producto sensible a temas de salud (el bot evita afirmaciones médicas)
-          </label>
-        </div>
-      </div>
-
-      {/* FAQs editables */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <MessageSquareQuote className="size-4" />
-            Preguntas frecuentes
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFaqs((f) => [...f, { q: '', a: '' }])}
-            className="h-7 border-border bg-transparent text-foreground hover:bg-muted"
-          >
-            <Plus className="size-3.5" />
-            Agregar
-          </Button>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Las tuyas tienen prioridad sobre las generadas por la IA.
-        </p>
-
-        {faqs.length === 0 && product.ai_generated_faqs.length === 0 && (
-          <p className="mt-3 text-xs italic text-muted-foreground">
-            Todavía no hay FAQs. Genera investigación o agrega una a mano.
-          </p>
-        )}
-
-        {/* Custom FAQs (editable) */}
-        {faqs.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {faqs.map((f, idx) => (
-              <div
-                key={idx}
-                className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5"
+      {/* Media gallery */}
+      <section className="mb-7">
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {images.map((src, idx) => (
+            <div
+              key={`${src}-${idx}`}
+              className="group relative size-44 shrink-0 overflow-hidden rounded-xl border border-border bg-card"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="" className="size-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setImages((cur) => cur.filter((_, i) => i !== idx))}
+                className="absolute right-1.5 top-1.5 rounded-full bg-background/80 p-1 text-foreground opacity-0 backdrop-blur transition-opacity hover:bg-background group-hover:opacity-100"
+                aria-label="Quitar imagen"
               >
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={f.q}
-                    onChange={(e) =>
-                      setFaqs((cur) =>
-                        cur.map((x, i) => (i === idx ? { ...x, q: e.target.value } : x)),
-                      )
-                    }
-                    placeholder="Pregunta…"
-                    className="h-8 bg-card"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFaqs((cur) => cur.filter((_, i) => i !== idx))
-                    }
-                    className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                    aria-label="Quitar FAQ"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-                <Textarea
-                  value={f.a}
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex size-44 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+          >
+            {uploading ? (
+              <Loader2 className="size-5 animate-spin" />
+            ) : (
+              <ImagePlus className="size-5" />
+            )}
+            <span className="text-xs">Agregar</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+      </section>
+
+      <div className="space-y-7">
+        {/* Nombre */}
+        <Field label="Nombre del producto">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ej: Serum facial regenerador"
+            className="h-11 bg-card text-base"
+          />
+        </Field>
+
+        {/* Descripción */}
+        <Field label="Descripción" hint="Qué es, para qué sirve y sus beneficios principales.">
+          <Textarea
+            value={descriptionText}
+            onChange={(e) => setDescriptionText(e.target.value)}
+            placeholder="Describe el producto como se lo contarías a un cliente."
+            className="min-h-[96px] bg-card"
+          />
+        </Field>
+
+        {/* Precios de venta */}
+        <Field
+          label="Precios de venta"
+          hint="Agrega una o varias ofertas (nombre y precio). Útil si manejas packs o promos por cantidad."
+          action={
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Moneda"
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          }
+        >
+          <div className="space-y-2">
+            {offers.map((o, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input
+                  value={o.label}
                   onChange={(e) =>
-                    setFaqs((cur) =>
-                      cur.map((x, i) => (i === idx ? { ...x, a: e.target.value } : x)),
+                    setOffers((cur) =>
+                      cur.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)),
                     )
                   }
-                  placeholder="Respuesta…"
-                  className="min-h-[60px] bg-card text-sm"
+                  placeholder="Oferta (ej. 1 unidad)"
+                  className="h-10 flex-1 bg-card"
                 />
+                <div className="relative w-40">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    value={o.total}
+                    onChange={(e) =>
+                      setOffers((cur) =>
+                        cur.map((x, i) => (i === idx ? { ...x, total: e.target.value } : x)),
+                      )
+                    }
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-10 bg-card pl-7 tabular-nums"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOffers((cur) => cur.filter((_, i) => i !== idx))}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Quitar oferta"
+                >
+                  <X className="size-4" />
+                </button>
               </div>
             ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOffers((cur) => [...cur, { label: '', total: '' }])}
+              className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              <Plus className="size-3.5" />
+              Agregar oferta
+            </Button>
           </div>
-        )}
+        </Field>
 
-        {/* AI-generated FAQs (read-only, ofrecemos botón para copiar a las custom) */}
-        {product.ai_generated_faqs.length > 0 && (
-          <div className="mt-4 space-y-2 border-t border-border pt-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Generadas por IA
-            </p>
-            {product.ai_generated_faqs.map((f, idx) => {
-              const alreadyAdopted = faqs.some(
-                (x) => x.q.trim() === f.q.trim() && x.a.trim() === f.a.trim(),
-              );
-              return (
-                <div
-                  key={idx}
-                  className="rounded-md border border-border bg-muted/20 p-2.5"
+        {/* Beneficios */}
+        <Field
+          label="Beneficios"
+          hint="Por qué comprarlo — uno por línea. El agente los usa para vender mejor."
+        >
+          <Textarea
+            value={benefits}
+            onChange={(e) => setBenefits(e.target.value)}
+            placeholder={'Sin alcohol, no reseca\nVegano y libre de crueldad\nResultados visibles en 2 semanas'}
+            className="min-h-[96px] bg-card"
+          />
+        </Field>
+
+        {/* Sitios web */}
+        <Field
+          label="Sitios web"
+          hint="Hasta 5 páginas. El agente aprende del contenido para responder con precisión."
+          action={
+            <span className="text-[11px] text-muted-foreground">{websites.length}/5</span>
+          }
+        >
+          <div className="space-y-2">
+            {websites.map((w, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Globe className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={w}
+                    onChange={(e) =>
+                      setWebsites((cur) =>
+                        cur.map((x, i) => (i === idx ? e.target.value : x)),
+                      )
+                    }
+                    placeholder="https://tutienda.com/producto"
+                    className="h-10 bg-card pl-9"
+                  />
+                </div>
+                {/^https?:\/\//.test(w) && (
+                  <a
+                    href={w}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Abrir"
+                  >
+                    <ExternalLink className="size-4" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setWebsites((cur) => cur.filter((_, i) => i !== idx))}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Quitar sitio"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-foreground">{f.q}</p>
+                  <X className="size-4" />
+                </button>
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={websites.length >= 5}
+                onClick={() => setWebsites((cur) => [...cur, ''])}
+                className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+              >
+                <Plus className="size-3.5" />
+                Agregar otro sitio
+              </Button>
+              {websites.some((w) => w.trim()) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRescrape}
+                  disabled={scraping}
+                  className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+                >
+                  {scraping ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3.5" />
+                  )}
+                  Re-leer todos
+                </Button>
+              )}
+            </div>
+            {product.scraped_at && (
+              <p className="text-[11px] text-muted-foreground">
+                Última lectura:{' '}
+                {new Date(product.scraped_at).toLocaleString('es-ES', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                {product.scrape_error ? ` · ${product.scrape_error}` : ''}
+              </p>
+            )}
+          </div>
+        </Field>
+
+        {/* ---- Contexto avanzado para la IA (colapsado) ---- */}
+        <Collapsible
+          title="Contexto para vender"
+          subtitle="Reglas y matices que afinan el copy del agente. Opcional."
+          icon={<Sparkles className="size-4" />}
+        >
+          <div className="space-y-3">
+            <Field label="Objeciones y respuesta" hint="Una por línea: objeción | respuesta" compact>
+              <Textarea
+                value={objections}
+                onChange={(e) => setObjections(e.target.value)}
+                placeholder={'es caro | rinde 3 meses, sale a ~1.000 por día\n¿funciona en piel grasa? | sí, está formulado para piel grasa'}
+                className="min-h-[64px] bg-card"
+              />
+            </Field>
+            <Field label="Qué enfatizar" compact>
+              <Textarea
+                value={sayGuidelines}
+                onChange={(e) => setSayGuidelines(e.target.value)}
+                placeholder="Ej: Resalta el envío gratis y la garantía de 30 días."
+                className="min-h-[56px] bg-card"
+              />
+            </Field>
+            <Field label="Notas para el asistente" hint="Lo que no está en la página pero debe saber." compact>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ej: Solo enviamos dentro de Bogotá. Fuera, envío por DHL con cargo."
+                className="min-h-[56px] bg-card"
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Nunca digas" hint="Una por línea" compact>
+                <Textarea
+                  value={neverSay}
+                  onChange={(e) => setNeverSay(e.target.value)}
+                  placeholder={'Cura el acné\nResultados garantizados'}
+                  className="min-h-[56px] bg-card"
+                />
+              </Field>
+              <Field label="Pasar a humano si menciona" hint="Una por línea" compact>
+                <Textarea
+                  value={escalation}
+                  onChange={(e) => setEscalation(e.target.value)}
+                  placeholder={'reembolso\nestá vencido\nreacción alérgica'}
+                  className="min-h-[56px] bg-card"
+                />
+              </Field>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={healthSensitive}
+                onChange={(e) => setHealthSensitive(e.target.checked)}
+                className="accent-primary"
+              />
+              Producto sensible a temas de salud (el bot evita afirmaciones médicas)
+            </label>
+          </div>
+        </Collapsible>
+
+        {/* ---- FAQs ---- */}
+        <Collapsible
+          title="Preguntas frecuentes"
+          subtitle="Las tuyas tienen prioridad sobre las de la IA."
+          icon={<MessageSquareQuote className="size-4" />}
+          action={
+            <span className="text-[11px] text-muted-foreground">
+              {faqs.length + product.ai_generated_faqs.length || 0}
+            </span>
+          }
+        >
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFaqs((f) => [...f, { q: '', a: '' }])}
+              className="h-7 border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              <Plus className="size-3.5" />
+              Agregar
+            </Button>
+          </div>
+          {faqs.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {faqs.map((f, idx) => (
+                <div key={idx} className="space-y-1.5 rounded-md border border-border bg-card p-2.5">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={f.q}
+                      onChange={(e) =>
+                        setFaqs((cur) =>
+                          cur.map((x, i) => (i === idx ? { ...x, q: e.target.value } : x)),
+                        )
+                      }
+                      placeholder="Pregunta…"
+                      className="h-8 bg-background"
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (alreadyAdopted) return;
-                        setFaqs((cur) => [...cur, { q: f.q, a: f.a }]);
-                      }}
-                      disabled={alreadyAdopted}
-                      className={cn(
-                        'text-[10px] transition-colors',
-                        alreadyAdopted
-                          ? 'cursor-default text-emerald-600 dark:text-emerald-400'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
+                      onClick={() => setFaqs((cur) => cur.filter((_, i) => i !== idx))}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                      aria-label="Quitar FAQ"
                     >
-                      {alreadyAdopted ? 'Adoptada ✓' : 'Adoptar'}
+                      <X className="size-3.5" />
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
+                  <Textarea
+                    value={f.a}
+                    onChange={(e) =>
+                      setFaqs((cur) =>
+                        cur.map((x, i) => (i === idx ? { ...x, a: e.target.value } : x)),
+                      )
+                    }
+                    placeholder="Respuesta…"
+                    className="min-h-[56px] bg-background text-sm"
+                  />
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+          {product.ai_generated_faqs.length > 0 && (
+            <div className="mt-4 space-y-2 border-t border-border pt-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Generadas por IA
+              </p>
+              {product.ai_generated_faqs.map((f, idx) => {
+                const adopted = faqs.some(
+                  (x) => x.q.trim() === f.q.trim() && x.a.trim() === f.a.trim(),
+                );
+                return (
+                  <div key={idx} className="rounded-md border border-border bg-card/60 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">{f.q}</p>
+                      <button
+                        type="button"
+                        onClick={() => !adopted && setFaqs((cur) => [...cur, { q: f.q, a: f.a }])}
+                        disabled={adopted}
+                        className={cn(
+                          'text-[10px] transition-colors',
+                          adopted
+                            ? 'cursor-default text-emerald-600 dark:text-emerald-400'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {adopted ? 'Adoptada ✓' : 'Adoptar'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Collapsible>
 
-      {/* Asignación de agentes */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Bot className="size-4" />
-          Asistentes que conocen este producto
-        </h2>
-
-        {allAgents.length === 0 ? (
-          <p className="mt-3 text-xs italic text-muted-foreground">
-            Todavía no tienes asistentes.{' '}
-            <Link
-              href="/asistente"
-              className="text-foreground underline hover:text-accent-ink"
-            >
-              Crea uno en Servicio al cliente.
-            </Link>
-          </p>
-        ) : (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {allAgents.map((a) => {
-              const assigned = agents.some((x) => x.id === a.id);
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => toggleAgent(a.id)}
-                  className={cn(
-                    'flex items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
-                    assigned
-                      ? 'border-emerald-600/30 bg-emerald-500/5'
-                      : 'border-border bg-muted/30 hover:bg-muted/60',
-                  )}
-                >
-                  <div
+        {/* ---- Asistentes ---- */}
+        <Collapsible
+          title="Asistentes que conocen este producto"
+          icon={<Bot className="size-4" />}
+          action={<span className="text-[11px] text-muted-foreground">{agents.length}</span>}
+        >
+          {allAgents.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground">
+              Todavía no tienes asistentes.{' '}
+              <Link href="/asistente" className="text-foreground underline hover:text-accent-ink">
+                Crea uno en Servicio al cliente.
+              </Link>
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {allAgents.map((a) => {
+                const assigned = agents.some((x) => x.id === a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => toggleAgent(a.id)}
                     className={cn(
-                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
+                      'flex items-start gap-2 rounded-md border p-2.5 text-left transition-colors',
                       assigned
-                        ? 'border-emerald-600 bg-emerald-600 text-white'
-                        : 'border-border bg-card',
+                        ? 'border-emerald-600/30 bg-emerald-500/5'
+                        : 'border-border bg-card hover:bg-muted/60',
                     )}
                   >
-                    {assigned && <CheckCircle2 className="size-3" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {a.name}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {a.tone ?? '—'} · {a.is_active ? 'Activo' : 'Inactivo'}
-                    </p>
-                  </div>
-                  <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
-                </button>
-              );
-            })}
-          </div>
+                    <div
+                      className={cn(
+                        'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
+                        assigned
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-border bg-background',
+                      )}
+                    >
+                      {assigned && <CheckCircle2 className="size-3" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{a.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {a.tone ?? '—'} · {a.is_active ? 'Activo' : 'Inactivo'}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Collapsible>
+
+        {/* ---- Contenido leído ---- */}
+        {product.scraped_content && (
+          <Collapsible
+            title="Contenido leído de la página"
+            subtitle={`${product.scraped_content.length} caracteres`}
+            icon={<Globe className="size-4" />}
+          >
+            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-card p-3 text-xs text-foreground">
+              {product.scraped_content}
+            </pre>
+          </Collapsible>
         )}
       </div>
 
-      {/* Contenido scrapeado (read-only, para que el merchant vea qué encontró Firecrawl) */}
-      {product.scraped_content && (
-        <details className="rounded-lg border border-border bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium text-foreground">
-            Contenido leído de la página ({product.scraped_content.length} caracteres)
-          </summary>
-          <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-3 text-xs text-foreground">
-            {product.scraped_content}
-          </pre>
-        </details>
-      )}
-    </div>
-  );
-}
-
-function TrainingStatusBlock({
-  scrapeStatus,
-  scrapedAt,
-  scrapeError,
-  researchStatus,
-  researchAt,
-  researchError,
-}: {
-  scrapeStatus: Product['scrape_status'];
-  scrapedAt: string | null;
-  scrapeError: string | null;
-  researchStatus: Product['ai_research_status'];
-  researchAt: string | null;
-  researchError: string | null;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
-        Entrenamiento del asistente
-      </h3>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Step
-          icon={RefreshCw}
-          label="Lectura de la página"
-          status={scrapeStatus}
-          at={scrapedAt}
-          error={scrapeError}
-        />
-        <Step
-          icon={Wand2}
-          label="Investigación + FAQs"
-          status={researchStatus}
-          at={researchAt}
-          error={researchError}
-        />
+      {/* Sticky save bar */}
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/85 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+          <span className="truncate text-xs text-muted-foreground">
+            {isShopify ? 'Sincronizado desde Shopify' : 'Producto manual'}
+            {' · '}
+            {product.title}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleResearch}
+              disabled={researching || saving}
+              className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              {researching ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+              Generar investigación
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="h-9 bg-foreground text-background hover:bg-foreground/90"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Guardar cambios
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Step({
-  icon: Icon,
+/** Campo con label, hint y acción opcional a la derecha. */
+function Field({
   label,
-  status,
-  at,
-  error,
+  hint,
+  action,
+  compact,
+  children,
 }: {
-  icon: typeof RefreshCw;
   label: string;
-  status: string;
-  at: string | null;
-  error: string | null;
+  hint?: string;
+  action?: React.ReactNode;
+  compact?: boolean;
+  children: React.ReactNode;
 }) {
-  const tone =
-    status === 'done'
-      ? 'border-emerald-600/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
-      : status === 'failed'
-        ? 'border-red-600/30 bg-red-500/5 text-red-700 dark:text-red-400'
-        : status === 'scraping' || status === 'running'
-          ? 'border-amber-600/25 bg-amber-500/5 text-amber-700 dark:text-amber-300'
-          : 'border-border bg-muted/30 text-muted-foreground';
-  const labelStatus =
-    status === 'done'
-      ? 'Listo'
-      : status === 'failed'
-        ? 'Falló'
-        : status === 'scraping' || status === 'running'
-          ? 'En curso…'
-          : 'Pendiente';
   return (
-    <div className={cn('rounded-md border p-2.5', tone)}>
-      <div className="flex items-center gap-2">
-        <Icon className="size-3.5 shrink-0" />
-        <span className="text-xs font-medium">{label}</span>
-        {status === 'done' && <CheckCircle2 className="ml-auto size-3.5" />}
-        {status === 'failed' && <AlertCircle className="ml-auto size-3.5" />}
+    <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-sm font-medium text-foreground">{label}</label>
+        {action}
       </div>
-      <p className="mt-1 text-[11px]">{labelStatus}</p>
-      {at && (
-        <p className="text-[10px] opacity-75">
-          {new Date(at).toLocaleString('es-ES', {
-            day: '2-digit',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </p>
-      )}
-      {error && <p className="mt-1 text-[10px] opacity-90">{error}</p>}
+      {hint && <p className="-mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      {children}
     </div>
   );
 }
 
+/** Sección colapsable minimalista (default cerrado). */
+function Collapsible({
+  title,
+  subtitle,
+  icon,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group rounded-xl border border-border bg-card/40">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3">
+        <span className="text-muted-foreground">{icon}</span>
+        <span className="flex-1">
+          <span className="text-sm font-medium text-foreground">{title}</span>
+          {subtitle && <span className="ml-2 text-xs text-muted-foreground">{subtitle}</span>}
+        </span>
+        {action}
+        <svg
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="border-t border-border px-4 py-3">{children}</div>
+    </details>
+  );
+}

@@ -55,9 +55,15 @@ export async function GET(
 }
 
 interface PatchBody {
+  title?: string;
   description?: string | null;
   custom_notes?: string | null;
   custom_faqs?: Array<{ q: string; a: string }>;
+  // Premium editor (migration 074): editable name, gallery, source URLs,
+  // multi-offer pricing (reuses allowed_offers) + currency.
+  images?: string[];
+  websites?: string[];
+  currency?: string | null;
   // Rich per-product context (migration 073) — injected into the agent prompt.
   say_guidelines?: string | null;
   never_say?: string[];
@@ -65,6 +71,27 @@ interface PatchBody {
   allowed_offers?: Array<{ label?: string; total?: number | string; conditions?: string }>;
   structured_research?: Record<string, unknown> | null;
   health_sensitive?: boolean;
+}
+
+/** Numeric price from an offer's `total` ("39.900", "$ 1,299", 39900…). */
+function offerPrice(total: unknown): number | null {
+  if (typeof total === 'number' && Number.isFinite(total)) return total;
+  if (typeof total !== 'string') return null;
+  // Strip everything but digits/.,- then normalise thousands/decimals.
+  const cleaned = total.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+  // If both separators exist, the last one is the decimal sep.
+  let norm = cleaned;
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    norm = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')
+      ? cleaned.replace(/\./g, '').replace(',', '.')
+      : cleaned.replace(/,/g, '');
+  } else if (cleaned.includes(',')) {
+    // Lone comma → treat as thousands unless it looks like decimals (,dd).
+    norm = /,\d{1,2}$/.test(cleaned) ? cleaned.replace(',', '.') : cleaned.replace(/,/g, '');
+  }
+  const n = Number(norm);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function PATCH(
@@ -106,9 +133,32 @@ export async function PATCH(
   }
 
   const patch: Record<string, unknown> = {};
+  if (body.title !== undefined && body.title.trim()) patch.title = body.title.trim();
   if (body.description !== undefined) patch.description = body.description;
   if (body.custom_notes !== undefined) patch.custom_notes = body.custom_notes;
   if (body.custom_faqs !== undefined) patch.custom_faqs = body.custom_faqs;
+  if (body.currency !== undefined) patch.currency = body.currency || null;
+
+  // Gallery — keep only non-empty strings; mirror first into image_url so the
+  // catalog/list thumbnail stays in sync.
+  if (body.images !== undefined) {
+    const imgs = (Array.isArray(body.images) ? body.images : [])
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 12);
+    patch.images = imgs;
+    patch.image_url = imgs[0] ?? null;
+  }
+
+  // Source URLs (max 5) — mirror first into url (existing scrape code path).
+  if (body.websites !== undefined) {
+    const sites = (Array.isArray(body.websites) ? body.websites : [])
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 5);
+    patch.websites = sites;
+    patch.url = sites[0] ?? null;
+  }
   if (body.say_guidelines !== undefined) patch.say_guidelines = body.say_guidelines;
   if (body.never_say !== undefined)
     patch.never_say = Array.isArray(body.never_say) ? body.never_say : [];
@@ -116,8 +166,19 @@ export async function PATCH(
     patch.escalation_triggers = Array.isArray(body.escalation_triggers)
       ? body.escalation_triggers
       : [];
-  if (body.allowed_offers !== undefined)
-    patch.allowed_offers = Array.isArray(body.allowed_offers) ? body.allowed_offers : [];
+  if (body.allowed_offers !== undefined) {
+    const offers = Array.isArray(body.allowed_offers) ? body.allowed_offers : [];
+    patch.allowed_offers = offers;
+    // "Precios de venta" lives here now — derive price_min/max for the
+    // catalog + runner from the offer totals.
+    const prices = offers
+      .map((o) => (o && typeof o === 'object' ? offerPrice(o.total) : null))
+      .filter((n): n is number => n != null);
+    if (prices.length > 0) {
+      patch.price_min = Math.min(...prices);
+      patch.price_max = Math.max(...prices);
+    }
+  }
   if (body.structured_research !== undefined)
     patch.structured_research = body.structured_research;
   if (body.health_sensitive !== undefined)

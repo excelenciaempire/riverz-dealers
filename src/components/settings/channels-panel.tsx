@@ -12,8 +12,10 @@ import {
   Copy,
   KeyRound,
   X,
+  CreditCard,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { whatsappPaymentUrl } from "@/lib/whatsapp/billing";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, ChannelConnection } from "@/types";
@@ -397,6 +399,25 @@ export function ChannelsPanel() {
                             {errText}
                           </p>
                         )}
+                        {/* WhatsApp business-initiated sends (plantillas) need a
+                            valid payment method on the WABA, or Meta blocks them
+                            (error 141006). Surface a direct link so the merchant
+                            can add/fix it in WhatsApp Manager. */}
+                        {g.connectChannel === "whatsapp" &&
+                          primary.status === "connected" && (
+                            <a
+                              href={whatsappPaymentUrl(
+                                primary.config?.waba_id as string | undefined,
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="WhatsApp Manager → Configuración → Métodos de pago"
+                              className="mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+                            >
+                              <CreditCard className="size-3" />
+                              Configurar medio de pago
+                            </a>
+                          )}
                       </li>
                     );
                   })}

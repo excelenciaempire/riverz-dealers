@@ -526,6 +526,7 @@ function Metric({
 }
 
 function ProductCard({ product }: { product: ProductRow }) {
+  const completeness = productCompleteness(product);
   const price =
     product.price_min == null
       ? null
@@ -567,14 +568,28 @@ function ProductCard({ product }: { product: ProductRow }) {
           </h3>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {product.vendor ?? product.product_type ?? '—'}
+            {price ? ` · ${price}` : ''}
           </p>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          {price ? (
-            <span className="tabular-nums text-foreground">{price}</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
+        {/* Completeness — qué tan listo está para que el agente venda bien. */}
+        <div className="flex items-center gap-2">
+          <div
+            className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
+            title={`${completeness.done} de ${completeness.total} campos clave completos`}
+          >
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                completeness.done === completeness.total
+                  ? 'bg-emerald-500'
+                  : 'bg-foreground',
+              )}
+              style={{ width: `${(completeness.done / completeness.total) * 100}%` }}
+            />
+          </div>
+          <span className="text-[11px] tabular-nums text-muted-foreground">
+            {completeness.done}/{completeness.total}
+          </span>
           <StatusChips
             scrape={product.scrape_status}
             research={product.ai_research_status}
@@ -584,6 +599,17 @@ function ProductCard({ product }: { product: ProductRow }) {
       </div>
     </Link>
   );
+}
+
+/** Cuántos campos clave (de 4) tiene un producto, para la barra de progreso. */
+function productCompleteness(p: ProductRow): { done: number; total: number } {
+  const fields = [
+    !!p.image_url,
+    p.price_min != null,
+    !!(p.description && p.description.trim()),
+    !!p.url || p.scrape_status === 'done',
+  ];
+  return { done: fields.filter(Boolean).length, total: fields.length };
 }
 
 function StatusChips({
