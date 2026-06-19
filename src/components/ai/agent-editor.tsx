@@ -18,6 +18,7 @@ import {
   Settings as SettingsIcon,
   ChevronDown,
   ChevronRight,
+  Check,
   CheckCheck,
   RotateCcw,
 } from 'lucide-react';
@@ -373,34 +374,22 @@ export function AgentEditor({
       const p = await fetchProductDetail(productId);
       if (!p) return;
       applyProductTemplate(p);
-      toast.success('Asistente preparado con tu producto.');
-      // La investigación corre en SEGUNDO PLANO (no bloquea la selección):
-      // enriquece el producto —FAQs, objeciones, research— para futuras
-      // conversaciones. El runner lee el producto en vivo, así que no hace
-      // falta esperarla aquí. Si falla (p. ej. sin crédito de IA), avisamos.
-      if (p.ai_research_status !== 'done') void researchProductInBackground(productId);
+      // La investigación NO se dispara desde aquí: vive en el apartado de
+      // Producto ("Generar investigación", que además lee las URLs y rellena
+      // todo). El agente solo elige un producto ya enriquecido. Si todavía no
+      // tiene investigación, lo sugerimos sin bloquear.
+      if (p.ai_research_status === 'done') {
+        toast.success('Asistente preparado con tu producto.');
+      } else {
+        toast.message('Producto asignado.', {
+          description:
+            'Para mejores respuestas, genera su investigación en Productos.',
+        });
+      }
     } catch {
       /* prefill best-effort: si falla, el usuario igual puede editar a mano */
     } finally {
       setApplyingProduct(false);
-    }
-  }
-
-  /** Dispara la investigación del producto (lo que antes era manual) sin
-   *  bloquear. Surfacea el error en vez de tragárselo en silencio. */
-  async function researchProductInBackground(productId: string) {
-    try {
-      const r = await fetchWithCsrf(`/api/products/${productId}/ai-research`, {
-        method: 'POST',
-      });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        toast.message('No se pudo investigar el producto ahora.', {
-          description: typeof j?.error === 'string' ? j.error : undefined,
-        });
-      }
-    } catch {
-      toast.message('No se pudo investigar el producto ahora.');
     }
   }
 
@@ -759,52 +748,66 @@ export function AgentEditor({
                             {filteredCatalog.map((p) => {
                               const on = selectedProducts.includes(p.id);
                               return (
-                                <li key={p.id}>
-                                  <button
+                                <li
+                                  key={p.id}
+                                  className={cn(
+                                    'flex items-center gap-3 px-3 py-2',
+                                    on && 'bg-primary/10',
+                                  )}
+                                >
+                                  {p.image_url ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img
+                                      src={p.image_url}
+                                      alt=""
+                                      className="size-8 shrink-0 rounded object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                                      <Package className="size-3.5" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm text-foreground">
+                                      {p.title}
+                                    </p>
+                                    <p className="truncate text-[11px] text-muted-foreground">
+                                      {[
+                                        p.product_type,
+                                        p.vendor,
+                                        p.price_min != null
+                                          ? p.price_min === p.price_max
+                                            ? `$${p.price_min}`
+                                            : `$${p.price_min}-${p.price_max}`
+                                          : null,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                    </p>
+                                  </div>
+                                  {/* Botón explícito de asignación: la fila ya no
+                                      togglea entera, así la selección es precisa. */}
+                                  <Button
                                     type="button"
+                                    size="sm"
+                                    variant={on ? 'default' : 'outline'}
                                     onClick={() => toggleProduct(p.id)}
                                     className={cn(
-                                      'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/40',
-                                      on && 'bg-primary/10',
+                                      'h-7 shrink-0 gap-1 px-2.5 text-xs',
+                                      on
+                                        ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                                        : 'border-border bg-transparent text-foreground hover:bg-muted',
                                     )}
                                   >
-                                    <input
-                                      type="checkbox"
-                                      checked={on}
-                                      readOnly
-                                      className="accent-primary"
-                                    />
-                                    {p.image_url ? (
-                                      /* eslint-disable-next-line @next/next/no-img-element */
-                                      <img
-                                        src={p.image_url}
-                                        alt=""
-                                        className="size-8 shrink-0 rounded object-cover"
-                                      />
+                                    {on ? (
+                                      <>
+                                        <Check className="size-3.5" />
+                                        Asignado
+                                      </>
                                     ) : (
-                                      <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-                                        <Package className="size-3.5" />
-                                      </div>
+                                      'Asignar'
                                     )}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate text-sm text-foreground">
-                                        {p.title}
-                                      </p>
-                                      <p className="truncate text-[11px] text-muted-foreground">
-                                        {[
-                                          p.product_type,
-                                          p.vendor,
-                                          p.price_min != null
-                                            ? p.price_min === p.price_max
-                                              ? `$${p.price_min}`
-                                              : `$${p.price_min}-${p.price_max}`
-                                            : null,
-                                        ]
-                                          .filter(Boolean)
-                                          .join(' · ')}
-                                      </p>
-                                    </div>
-                                  </button>
+                                  </Button>
                                 </li>
                               );
                             })}
