@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Inbox,
   Sparkles,
@@ -18,6 +19,10 @@ import {
   Send,
   MessageSquare,
   TrendingUp,
+  Boxes,
+  Tag,
+  Truck,
+  Star,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 
@@ -59,7 +64,7 @@ const CHANNELS: { id: Ch; label: string }[] = [
 
 const THREADS: Record<Ch, { name: string; them: string; you: string }> = {
   whatsapp: { name: "Laura M.", them: "¿Hacen envíos a Cali?", you: "Sí, llega en 2 días 📦" },
-  instagram: { name: "andres.q", them: "Me encantó el serum 💛", you: "¡Gracias! Te paso el link 👇" },
+  instagram: { name: "andres.q", them: "Me encantó mi compra 💛", you: "¡Gracias! Te paso el link 👇" },
   messenger: { name: "Sofía R.", them: "¿Sigue disponible?", you: "Sí, quedan pocas 🙌" },
   gmail: { name: "Pedido #1042", them: "¿Estado de mi pedido?", you: "Va en camino, llega mañana ✉️" },
 };
@@ -162,7 +167,7 @@ const SECTIONS: {
     title: "Un vendedor con IA",
     titleMuted: "que conoce tus productos.",
     body: "Aprende tu catálogo, tus precios y tus envíos, y responde como tu mejor vendedor: recomienda, resuelve objeciones y cierra la compra. De día y de noche.",
-    Preview: BrainPreview,
+    Preview: AgentPanel,
   },
   {
     n: "02",
@@ -171,7 +176,7 @@ const SECTIONS: {
     title: "Recupera cada",
     titleMuted: "carrito abandonado.",
     body: "Cuando alguien deja la compra a medias, el agente le escribe solo, resuelve la duda y recupera la venta antes de que se enfríe.",
-    Preview: CartRecoveryChat,
+    Preview: CartRecoveryPanel,
   },
   {
     n: "03",
@@ -276,7 +281,7 @@ export function Landing() {
             </div>
 
             <div className="animate-in fade-in duration-1000 sm:mx-auto sm:max-w-sm lg:mx-0 lg:max-w-none">
-              <SaleChat />
+              <HeroInbox />
             </div>
           </div>
         </div>
@@ -407,41 +412,108 @@ function PreviewFrame({
   );
 }
 
+// Official Shopify brand mark (asset shared with the app's Shopify settings).
+function ShopifyLogo({ size = 13 }: { size?: number }) {
+  return (
+    <Image
+      src="/channels/shopify.svg"
+      alt="Shopify"
+      width={size}
+      height={size}
+      className="inline-block"
+    />
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────
-// HERO + AI: the sale animation (AI attends customer → sale closes), looping.
-// Mobile-first: the frame is fluid (max-w-440) and the chat body uses
-// justify-end so older bubbles roll up out of view as new ones arrive.
+// HERO: the agent attends customers across EVERY inbox and closes the sale.
+// The channel tab cycles (WhatsApp → Instagram → Messenger → Correo) so the
+// whole unified inbox is on display; each loop ends on a confirmed sale that
+// holds a beat longer. Mobile-first: fluid frame, justify-end roll-up.
 // ─────────────────────────────────────────────────────────────────────────
 
 type Step =
   | { kind: "them"; text: string }
   | { kind: "you"; text: string }
   | { kind: "typing" }
-  | { kind: "note"; text: string }
-  | { kind: "sale"; label?: string; recovered?: boolean };
+  | { kind: "sale" };
 
-// Inbound: customer asks, the agent attends and closes the sale.
-const HERO_SCRIPT: Step[] = [
-  { kind: "them", text: "Hola 👋 ¿el Serum Pilar sigue disponible?" },
-  { kind: "typing" },
-  { kind: "you", text: "¡Hola Laura! Sí 🙌 nos quedan 8 unidades." },
-  { kind: "you", text: "Hoy tiene 15% off y envío gratis a Cali. ¿Te lo aparto?" },
-  { kind: "them", text: "Uy sí, lo quiero 💛" },
-  { kind: "typing" },
-  { kind: "you", text: "Listo, te dejo el pago seguro aquí 👇" },
-  { kind: "sale" },
-];
+// Generic, varied products — the landing never hard-codes a single SKU.
+type Product = { emoji: string; name: string; price: string };
 
-// Outbound: an abandoned cart triggers the agent to reach out and recover it.
-const CART_SCRIPT: Step[] = [
-  { kind: "note", text: "🛒 Carrito abandonado · Serum Pilar" },
-  { kind: "typing" },
-  { kind: "you", text: "Hola Andrés 👋 vi que dejaste el Serum Pilar en tu carrito." },
-  { kind: "you", text: "Te guardo el 15% off y envío gratis. ¿Lo terminamos? 💛" },
-  { kind: "them", text: "Uy sí, se me fue 🙈 dale" },
-  { kind: "typing" },
-  { kind: "you", text: "Listo, aquí tu pago seguro 👇" },
-  { kind: "sale", label: "Venta recuperada", recovered: true },
+type HeroConvo = {
+  channel: Ch;
+  name: string;
+  product: Product;
+  order: string;
+  steps: Step[];
+};
+
+const HERO_CONVOS: HeroConvo[] = [
+  {
+    channel: "whatsapp",
+    name: "Laura M.",
+    product: { emoji: "👟", name: "Tenis Aura", price: "$239.000" },
+    order: "#1042",
+    steps: [
+      { kind: "them", text: "Hola 👋 ¿los Tenis Aura vienen en talla 39?" },
+      { kind: "typing" },
+      { kind: "you", text: "¡Hola Laura! Sí 🙌 quedan 6 pares en talla 39." },
+      { kind: "you", text: "Hoy con 15% off y envío gratis. ¿Te los aparto?" },
+      { kind: "them", text: "Sí, los quiero 💛" },
+      { kind: "typing" },
+      { kind: "you", text: "Listo, te dejo el pago seguro aquí 👇" },
+      { kind: "sale" },
+    ],
+  },
+  {
+    channel: "instagram",
+    name: "andres.q",
+    product: { emoji: "🌸", name: "Perfume Solé", price: "$185.000" },
+    order: "#1043",
+    steps: [
+      { kind: "them", text: "vi el Perfume Solé en tu historia, ¿aún hay? 👀" },
+      { kind: "typing" },
+      { kind: "you", text: "¡Hola Andrés! Sí, quedan pocas unidades 🙌" },
+      { kind: "you", text: "Te incluyo muestra de regalo. ¿Lo pedimos?" },
+      { kind: "them", text: "dale, lo quiero 🔥" },
+      { kind: "typing" },
+      { kind: "you", text: "Perfecto, aquí tu link de pago 👇" },
+      { kind: "sale" },
+    ],
+  },
+  {
+    channel: "messenger",
+    name: "Sofía R.",
+    product: { emoji: "🎒", name: "Mochila Drift", price: "$129.000" },
+    order: "#1044",
+    steps: [
+      { kind: "them", text: "¿La Mochila Drift es resistente al agua?" },
+      { kind: "typing" },
+      { kind: "you", text: "¡Hola Sofía! Sí, es impermeable y trae garantía 🙌" },
+      { kind: "you", text: "Hoy con envío gratis. ¿Te la despacho?" },
+      { kind: "them", text: "Sí porfa 🙌" },
+      { kind: "typing" },
+      { kind: "you", text: "Listo, te paso el pago seguro 👇" },
+      { kind: "sale" },
+    ],
+  },
+  {
+    channel: "gmail",
+    name: "Camilo R.",
+    product: { emoji: "⌚", name: "Reloj Nórdico", price: "$320.000" },
+    order: "#1045",
+    steps: [
+      { kind: "them", text: "¿El Reloj Nórdico tiene cuotas sin interés?" },
+      { kind: "typing" },
+      { kind: "you", text: "¡Hola Camilo! Sí, hasta 3 cuotas sin interés ✉️" },
+      { kind: "you", text: "¿Quieres que te genere el pedido?" },
+      { kind: "them", text: "Sí, gracias" },
+      { kind: "typing" },
+      { kind: "you", text: "Listo, aquí tu pago seguro 👇" },
+      { kind: "sale" },
+    ],
+  },
 ];
 
 function delayFor(step: Step): number {
@@ -449,8 +521,6 @@ function delayFor(step: Step): number {
     case "typing":
       return 700;
     case "sale":
-      return 1200;
-    case "note":
       return 1100;
     case "them":
       return 1500;
@@ -459,67 +529,83 @@ function delayFor(step: Step): number {
   }
 }
 
-function ChatPlayer({
-  script,
-  name,
-  status,
-  channel,
-}: {
-  script: Step[];
-  name: string;
-  status: string;
-  channel: Ch;
-}) {
+function HeroInbox() {
   const reduced = useReducedMotion();
+  const [ci, setCi] = useState(0);
   const [n, setN] = useState(1);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (reduced) {
-      const raf = requestAnimationFrame(() => setN(script.length));
+      const raf = requestAnimationFrame(() => setN(HERO_CONVOS[0].steps.length));
       return () => cancelAnimationFrame(raf);
     }
     let id: ReturnType<typeof setTimeout>;
-    let cur = 1;
+    let curCi = 0;
+    let curN = 1;
     const loop = () => {
+      const steps = HERO_CONVOS[curCi].steps;
       let delay: number;
-      let next: number;
-      if (cur >= script.length) {
-        next = 1; // restart the loop
-        delay = 800;
+      let nextCi = curCi;
+      let nextN: number;
+      if (curN >= steps.length) {
+        // Full conversation (incl. the confirmed sale) is on screen — hold it
+        // so the sale lands, then move to the next channel.
+        nextCi = (curCi + 1) % HERO_CONVOS.length;
+        nextN = 1;
+        delay = 2800;
       } else {
-        next = cur + 1;
-        delay = delayFor(script[cur]); // delay before revealing the next step
+        nextN = curN + 1;
+        delay = delayFor(steps[curN]); // delay before revealing the next step
       }
       id = setTimeout(() => {
-        cur = next;
-        setN(next);
+        curCi = nextCi;
+        curN = nextN;
+        setCi(curCi);
+        setN(curN);
         loop();
       }, delay);
     };
     loop();
     return () => clearTimeout(id);
-  }, [reduced, script]);
+  }, [reduced]);
 
   // Keep newest message in view.
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [n]);
+  }, [n, ci]);
 
+  const convo = HERO_CONVOS[ci];
   // A `typing` step is transient: hide it once a later step has appeared.
-  const steps = script
+  const steps = convo.steps
     .slice(0, n)
     .filter((s, i) => !(s.kind === "typing" && i !== n - 1));
 
   return (
     <PreviewFrame>
+      {/* channel tabs — the whole unified inbox on display */}
+      <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5">
+        {CHANNELS.map((c) => (
+          <span
+            key={c.id}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              c.id === convo.channel
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <ChannelLogo channel={c.id} size={15} /> {c.label}
+          </span>
+        ))}
+      </div>
+
       {/* conversation header */}
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-2.5">
-        <ChannelLogo channel={channel} size={20} />
+        <ChannelLogo channel={convo.channel} size={20} />
         <div className="leading-tight">
-          <div className="text-sm font-medium">{name}</div>
-          <div className="text-[11px] text-accent-ink">{status}</div>
+          <div className="text-sm font-medium">{convo.name}</div>
+          <div className="text-[11px] text-accent-ink">atiende la IA · responde en 4s</div>
         </div>
         <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
           <Sparkles className="size-3" /> Agente activo
@@ -530,33 +616,15 @@ function ChatPlayer({
         ref={bodyRef}
         className="flex h-[300px] flex-col justify-end gap-2.5 overflow-hidden p-4 sm:h-[340px]"
       >
-        {steps.map((s, i) => (
-          <Bubble key={i} step={s} />
-        ))}
+        {steps.map((s, i) =>
+          s.kind === "sale" ? (
+            <SaleCard key={i} product={convo.product} order={convo.order} />
+          ) : (
+            <Bubble key={i} step={s} />
+          ),
+        )}
       </div>
     </PreviewFrame>
-  );
-}
-
-function SaleChat() {
-  return (
-    <ChatPlayer
-      script={HERO_SCRIPT}
-      name="Laura M."
-      status="en línea · atiende la IA"
-      channel="whatsapp"
-    />
-  );
-}
-
-function CartRecoveryChat() {
-  return (
-    <ChatPlayer
-      script={CART_SCRIPT}
-      name="Andrés Q."
-      status="recuperando carrito"
-      channel="whatsapp"
-    />
   );
 }
 
@@ -571,33 +639,8 @@ function Bubble({ step }: { step: Step }) {
     );
   }
 
-  if (step.kind === "note") {
-    return (
-      <div className="mx-auto rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] text-muted-foreground duration-300 animate-in fade-in">
-        {step.text}
-      </div>
-    );
-  }
-
-  if (step.kind === "sale") {
-    return (
-      <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            {step.recovered ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
-          </span>
-          <span className="text-sm font-semibold">{step.label ?? "Venta confirmada"}</span>
-          <span className="ml-auto text-sm font-semibold text-accent-ink">$89.000</span>
-        </div>
-        <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Serum Pilar · 1 ud.</span>
-          <span className="inline-flex items-center gap-1">
-            <ShoppingBag className="size-3" /> Pedido #1042 · Shopify
-          </span>
-        </div>
-      </div>
-    );
-  }
+  // Sale steps are rendered by <SaleCard/>, never here.
+  if (step.kind === "sale") return null;
 
   const mine = step.kind === "you";
   return (
@@ -609,6 +652,30 @@ function Bubble({ step }: { step: Step }) {
       }`}
     >
       {step.text}
+    </div>
+  );
+}
+
+// Confirmed-sale card (closes every hero conversation). Carries the Shopify
+// brand mark so the source of truth for the order is unmistakable.
+function SaleCard({ product, order }: { product: Product; order: string }) {
+  return (
+    <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
+      <div className="flex items-center gap-2">
+        <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Check className="size-4" />
+        </span>
+        <span className="text-sm font-semibold">Venta confirmada</span>
+        <span className="ml-auto text-sm font-semibold text-accent-ink">{product.price}</span>
+      </div>
+      <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {product.emoji} {product.name} · 1 ud.
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <ShopifyLogo size={12} /> Pedido {order}
+        </span>
+      </div>
     </div>
   );
 }
@@ -676,49 +743,171 @@ function InboxPreview() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 02 · Asistente de IA — grounds a reply in the product knowledge base
+// 01 · Agente de ventas — what the agent has learned (non-chat knowledge panel)
 // ─────────────────────────────────────────────────────────────────────────
 
-const KNOWLEDGE = ["Catálogo", "Stock", "Precios", "Envíos", "Reseñas"];
+const AGENT_LEARNS: { icon: typeof Inbox; label: string; meta: string }[] = [
+  { icon: Boxes, label: "Catálogo", meta: "142 productos" },
+  { icon: Tag, label: "Precios y stock", meta: "al día" },
+  { icon: Truck, label: "Envíos y pagos", meta: "configurado" },
+  { icon: Star, label: "Reseñas", meta: "328 opiniones" },
+];
 
-function BrainPreview() {
+function AgentPanel() {
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setLit((i) => (i + 1) % KNOWLEDGE.length), 850);
+    const t = setInterval(
+      () => setLit((i) => (i + 1) % (AGENT_LEARNS.length + 1)),
+      850,
+    );
     return () => clearInterval(t);
   }, [reduced]);
 
   return (
     <PreviewFrame>
-      <div className="flex flex-col gap-3 p-5">
-        <div className="max-w-[80%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">
-          ¿Cuál me recomiendas para piel grasa?
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Sparkles className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Tu agente de ventas</div>
+            <div className="text-[11px] text-accent-ink">aprendiendo tu negocio…</div>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> activo
+          </span>
         </div>
 
-        <div className="rounded-xl border border-border bg-background/60 p-3">
-          <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-accent-ink">
-            <Sparkles className="size-3" /> Consultando tu conocimiento
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {KNOWLEDGE.map((k, i) => (
-              <span
-                key={k}
-                className={`rounded-full border px-2.5 py-1 text-[11px] transition-all duration-300 ${
-                  i === lit
-                    ? "border-primary/50 bg-primary/15 text-accent-ink"
-                    : "border-border text-muted-foreground"
+        <div className="flex flex-col gap-2">
+          {AGENT_LEARNS.map((s, i) => {
+            const done = reduced || lit > i;
+            const active = !reduced && lit === i;
+            return (
+              <div
+                key={s.label}
+                className={`flex items-center gap-3 rounded-xl border p-2.5 transition-all duration-300 ${
+                  active ? "border-primary/50 bg-primary/10" : "border-border bg-background/60"
                 }`}
               >
-                {k}
-              </span>
-            ))}
-          </div>
+                <span
+                  className={`flex size-8 items-center justify-center rounded-lg transition-colors ${
+                    done || active ? "bg-primary/15 text-accent-ink" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <s.icon className="size-4" />
+                </span>
+                <div className="leading-tight">
+                  <div className="text-sm font-medium">{s.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{s.meta}</div>
+                </div>
+                <span className="ml-auto flex size-4 items-center justify-center">
+                  {done ? <Check className="size-4 text-accent-ink" /> : null}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="max-w-[88%] self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
-          Para piel grasa te recomiendo el <strong>Serum Pilar</strong>: control de grasa sin resecar. Quedan 8 y hoy tiene 15% off 💛
+        <div className="flex items-center justify-between rounded-xl bg-primary/10 px-3 py-2.5 text-xs">
+          <span className="font-medium">Listo para vender</span>
+          <span className="text-muted-foreground">Responde en ~4s · 24/7</span>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 02 · Carritos abandonados — recovery funnel (non-chat): abandoned → recovered
+// ─────────────────────────────────────────────────────────────────────────
+
+const CART_PHASES: { icon: typeof Inbox; label: string }[] = [
+  { icon: ShoppingCart, label: "Carrito abandonado" },
+  { icon: Send, label: "La IA escribió al cliente" },
+  { icon: Check, label: "Compra recuperada" },
+];
+
+function CartRecoveryPanel() {
+  const reduced = useReducedMotion();
+  // 4 states: 0 abandoned, 1 writing, 2 recovered, 3 recovered-hold → loop.
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setPhase((p) => (p + 1) % (CART_PHASES.length + 1)), 1300);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  const recovered = reduced || phase >= 2;
+  const product: Product = { emoji: "🎧", name: "Audífonos Pulse", price: "$210.000" };
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        {/* cart card — flips from Abandonado to Recuperado */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
+          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-xl">
+            {product.emoji}
+          </div>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="text-sm font-semibold">{product.name}</div>
+            <div className="text-[11px] text-muted-foreground">1 unidad · {product.price}</div>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium transition-colors ${
+              recovered ? "bg-primary/15 text-accent-ink" : "border border-border text-muted-foreground"
+            }`}
+          >
+            {recovered ? (
+              <>
+                <RotateCcw className="size-3" /> Recuperado
+              </>
+            ) : (
+              "Abandonado · 1 h"
+            )}
+          </span>
+        </div>
+
+        {/* horizontal recovery funnel */}
+        <div className="flex items-center">
+          {CART_PHASES.map((p, i) => {
+            const active = !reduced && phase === i;
+            const done = reduced || phase > i;
+            return (
+              <div key={p.label} className="flex flex-1 items-center last:flex-none">
+                <span
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+                    done || active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {done ? <Check className="size-3.5" /> : <p.icon className="size-3.5" />}
+                </span>
+                {i < CART_PHASES.length - 1 && (
+                  <span className={`h-px flex-1 transition-colors ${phase > i ? "bg-primary" : "bg-border"}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="-mt-1 text-[11px] text-muted-foreground">
+          {CART_PHASES[reduced ? CART_PHASES.length - 1 : Math.min(phase, CART_PHASES.length - 1)].label}
+        </div>
+
+        {/* result */}
+        <div
+          className={`flex items-center gap-2 rounded-xl border p-3 transition-all duration-500 ${
+            recovered ? "border-primary/45 bg-primary/10 opacity-100" : "border-dashed border-border opacity-50"
+          }`}
+        >
+          <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-4" />
+          </span>
+          <span className="text-sm font-semibold">Venta recuperada</span>
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ShopifyLogo size={12} /> {product.price}
+          </span>
         </div>
       </div>
     </PreviewFrame>
@@ -815,7 +1004,7 @@ function CampaignPreview() {
             <Megaphone className="size-4" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Lanzamiento Serum 💛</div>
+            <div className="text-sm font-semibold">Nueva colección 👟</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ChannelLogo channel="whatsapp" size={12} />
               <ChannelLogo channel="instagram" size={12} />
@@ -864,15 +1053,15 @@ function ProductPreview() {
       <div className="flex flex-col gap-4 p-5">
         <div className="flex gap-3.5">
           <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-primary/30 via-primary/10 to-transparent">
-            <span className="absolute inset-0 grid place-items-center text-2xl">🧴</span>
+            <span className="absolute inset-0 grid place-items-center text-2xl">👟</span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold">Serum Pilar</div>
-                <div className="text-[11px] text-muted-foreground">Cuidado facial · 30 ml</div>
+                <div className="text-sm font-semibold">Tenis Aura</div>
+                <div className="text-[11px] text-muted-foreground">Calzado · unisex</div>
               </div>
-              <div className="text-sm font-semibold text-accent-ink">$89.000</div>
+              <div className="text-sm font-semibold text-accent-ink">$239.000</div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-accent-ink">
@@ -887,7 +1076,7 @@ function ProductPreview() {
 
         <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2.5">
           <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <ChannelLogo channel="whatsapp" size={14} />
+            <ShopifyLogo size={15} />
             <span className="font-medium text-foreground">Sincronizado con Shopify</span>
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
