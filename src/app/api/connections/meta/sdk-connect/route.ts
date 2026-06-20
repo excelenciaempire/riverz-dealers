@@ -5,7 +5,9 @@ import { csrfGuard } from "@/lib/csrf";
 import { persistMetaConnections, MetaConnectError } from "@/lib/channels/meta-connect";
 import type { Channel } from "@/types";
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+// v22.0 para que coincida con la versión del SDK que emitió el code
+// (FB.login usa v22.0); un code emitido en v22 fallaba al canjearlo en v21.
+const GRAPH = "https://graph.facebook.com/v22.0";
 const VALID_CHANNELS = ["messenger", "instagram", "fb_comment", "ig_comment"];
 
 /**
@@ -68,7 +70,14 @@ export async function POST(req: Request): Promise<Response> {
       `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${encodeURIComponent(body.code)}`,
     );
     if (!tokRes.ok) {
-      throw new MetaConnectError(`token exchange failed (${tokRes.status})`);
+      // Surface Facebook's actual reason: el body trae el error_subcode /
+      // message exacto (redirect_uri, code usado, appsecret, etc.), que es
+      // lo único que permite arreglar un 400 sin adivinar.
+      const detail = await tokRes.text().catch(() => "");
+      console.error("[meta/sdk-connect] token exchange failed:", tokRes.status, detail);
+      throw new MetaConnectError(
+        `token exchange failed (${tokRes.status}): ${detail.slice(0, 400)}`,
+      );
     }
     const tok = (await tokRes.json()) as { access_token?: string };
     let accessToken = tok.access_token;
