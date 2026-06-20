@@ -280,6 +280,11 @@ export async function createCheckoutLink(
   // cart-attributes para que el backoffice vea el flag y aplique el
   // descuento al confirmar.
   const params = new URLSearchParams()
+  // Marca de origen: la orden resultante lleva este note_attribute para que
+  // el webhook orders/create sepa que vino de un link del asistente y haga
+  // la confirmación por atribución (sin chocar con la automatización
+  // "Nuevo pedido"). Ver src/app/api/shopify/webhooks/orders/route.ts.
+  params.set('attributes[riverz_origin]', 'ai')
   if (hasTransferDiscount) {
     params.set('attributes[pago]', transferLabel)
     params.set('attributes[descuento_pendiente_ars]', String(transferAmount))

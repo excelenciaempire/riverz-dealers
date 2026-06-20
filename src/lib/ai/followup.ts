@@ -104,6 +104,62 @@ export async function runFollowUp(
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
   try {
+    // 0. Recuperación de pago: si el asistente envió un link de checkout y
+    //    el cliente no pagó, este "seguimiento" se convierte en un mensaje
+    //    de recuperación con el link (migraciones 081/082). Reusa el timing
+    //    y los límites del cron de seguimientos. Se salta si ya hay un
+    //    checkout abandonado de Shopify para el contacto (de eso se encarga
+    //    el cron shopify-cart-recovery, para no pisarse).
+    const pendingUrl = conversation.pending_checkout_url;
+    if (conversation.pending_checkout_at && pendingUrl) {
+      const orParts = [
+        contact.phone ? `customer_phone.eq.${contact.phone}` : '',
+        contact.email ? `customer_email.eq.${contact.email}` : '',
+      ].filter(Boolean);
+      if (orParts.length) {
+        const { data: openCheckout } = await db
+          .from('shopify_checkouts')
+          .select('id')
+          .eq('status', 'open')
+          .or(orParts.join(','))
+          .limit(1)
+          .maybeSingle();
+        if (openCheckout) return { sent: false, reason: 'cart_recovery_owns' };
+      }
+      const first = (contact.name || '').trim().split(/\s+/)[0];
+      const text =
+        `Hola${first ? ' ' + first : ''} 🙂 ¿Pudiste completar tu compra? ` +
+        `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`;
+      const adapter = getAdapter(conversation.channel);
+      const sendResult = await adapter.sendText({
+        channel: conversation.channel,
+        connection,
+        conversation,
+        contact,
+        text,
+      });
+      const now = new Date().toISOString();
+      await db.from('messages').insert({
+        conversation_id: conversation.id,
+        channel: conversation.channel,
+        sender_type: 'bot',
+        content_type: 'text',
+        content_text: text,
+        message_id: sendResult.externalMessageId,
+        status: sendResult.status ?? 'sent',
+      });
+      await db
+        .from('conversations')
+        .update({
+          last_message_text: text.slice(0, 200),
+          last_message_at: now,
+          last_sender_type: 'bot',
+          updated_at: now,
+        })
+        .eq('id', conversation.id);
+      return { sent: true };
+    }
+
     // 1. Historial reciente (cronológico).
     const limit = Math.min(Math.max(agent.context_messages || 20, 6), 40);
     const { data: rows } = await db

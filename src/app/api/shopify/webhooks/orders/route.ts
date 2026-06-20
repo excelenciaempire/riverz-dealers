@@ -12,7 +12,15 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
 import { captureWebhookFailure } from '@/lib/webhooks/capture'
-import type { AutomationTriggerType } from '@/types'
+import { getAdapter } from '@/lib/channels/registry'
+import { fmtMoney } from '@/lib/shopify/create-checkout'
+import type {
+  AutomationTriggerType,
+  Channel,
+  ChannelConnection,
+  Contact,
+  Conversation,
+} from '@/types'
 
 /**
  * Shopify orders webhook receiver. Handles two topics on the same route:
@@ -199,6 +207,24 @@ export async function POST(request: Request) {
         .eq('order_id', orderId)
     }
 
+    // Atribución por pedido: si el pedido vino del asistente (link con
+    // riverz_origin=ai, o pedido creado por la tool create_order con tag
+    // riverz-ia), el ASISTENTE confirma el pago y NOS SALTAMOS la
+    // automatización "Nuevo pedido" para no duplicar el mensaje. Solo en
+    // orders/create (la confirmación de pago); el flujo de fulfilled sigue
+    // usando la automatización normal.
+    if (triggerType === 'shopify_order_created' && isAiAttributedOrder(order)) {
+      await sendAiOrderConfirmation(admin, {
+        workspaceId,
+        contactId,
+        order,
+        name,
+      }).catch((err) =>
+        console.error('[shopify] ai order confirmation failed:', err),
+      )
+      return NextResponse.json({ ok: true, ai_confirmed: true })
+    }
+
     const vars = buildVarsForOrder(triggerType, order, name)
 
     runAutomationsForTrigger({
@@ -268,6 +294,125 @@ async function reconcileRiverzOrder(
     .update(update)
     .eq('shop_domain', shopDomain)
     .eq('shopify_order_id', String(orderId))
+}
+
+/** ¿El pedido lo originó el asistente? Link con riverz_origin=ai
+ *  (note_attributes) o pedido creado por la tool create_order (tag
+ *  riverz-ia). */
+function isAiAttributedOrder(order: Record<string, unknown>): boolean {
+  const attrs = Array.isArray(order.note_attributes)
+    ? (order.note_attributes as Array<{ name?: string; value?: string }>)
+    : []
+  if (attrs.some((a) => a?.name === 'riverz_origin' && a?.value === 'ai')) {
+    return true
+  }
+  return String(order.tags ?? '')
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .includes('riverz-ia')
+}
+
+function formatOrderTotal(order: Record<string, unknown>): string {
+  const n = parseFloat(String(order.total_price ?? ''))
+  if (Number.isNaN(n)) return ''
+  return fmtMoney(n, String(order.currency ?? 'ARS'))
+}
+
+/**
+ * Confirmación de pago por el asistente (atribución por pedido). Busca la
+ * conversación del contacto (prefiere la que tiene checkout pendiente),
+ * manda un mensaje templado por el canal, lo persiste y limpia el
+ * pending_checkout. Best-effort: cualquier fallo se loguea sin romper.
+ */
+async function sendAiOrderConfirmation(
+  admin: ReturnType<typeof supabaseAdmin>,
+  args: {
+    workspaceId: string
+    contactId: string
+    order: Record<string, unknown>
+    name: string | undefined
+  },
+): Promise<void> {
+  const { workspaceId, contactId, order, name } = args
+  const { data: convsRaw } = await admin
+    .from('conversations')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('contact_id', contactId)
+    .in('channel', ['whatsapp', 'instagram', 'messenger'])
+    .order('last_message_at', { ascending: false })
+    .limit(5)
+  const convs = (convsRaw ?? []) as Conversation[]
+  const conv = convs.find((c) => c.pending_checkout_at) ?? convs[0]
+  if (!conv) return
+
+  let connection: ChannelConnection | null = null
+  if (conv.connection_id) {
+    const { data } = await admin
+      .from('channel_connections')
+      .select('*')
+      .eq('id', conv.connection_id)
+      .maybeSingle()
+    connection = (data as ChannelConnection | null) ?? null
+  }
+  if (!connection) {
+    const { data } = await admin
+      .from('channel_connections')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('channel', conv.channel)
+      .neq('status', 'disconnected')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    connection = (data as ChannelConnection | null) ?? null
+  }
+  if (!connection) return
+
+  const { data: contactRow } = await admin
+    .from('contacts')
+    .select('*')
+    .eq('id', contactId)
+    .maybeSingle()
+  if (!contactRow) return
+  const contact = contactRow as Contact
+
+  const first = (name || contact.name || '').trim().split(/\s+/)[0]
+  const orderName = String(order.name ?? '#' + (order.order_number ?? ''))
+  const total = formatOrderTotal(order)
+  const text =
+    `¡Listo${first ? ' ' + first : ''}! 🎉 Confirmamos el pago de tu pedido ${orderName}` +
+    `${total ? ' por ' + total : ''}. ¡Gracias por tu compra! Cualquier cosa, escribime por acá.`
+
+  const adapter = getAdapter(conv.channel as Channel)
+  const sendResult = await adapter.sendText({
+    channel: conv.channel as Channel,
+    connection,
+    conversation: conv,
+    contact,
+    text,
+  })
+  const now = new Date().toISOString()
+  await admin.from('messages').insert({
+    conversation_id: conv.id,
+    channel: conv.channel,
+    sender_type: 'bot',
+    content_type: 'text',
+    content_text: text,
+    message_id: sendResult.externalMessageId,
+    status: sendResult.status ?? 'sent',
+  })
+  await admin
+    .from('conversations')
+    .update({
+      last_message_text: text.slice(0, 200),
+      last_message_at: now,
+      last_sender_type: 'bot',
+      updated_at: now,
+      pending_checkout_at: null,
+      pending_checkout_url: null,
+    })
+    .eq('id', conv.id)
 }
 
 function buildVarsForOrder(

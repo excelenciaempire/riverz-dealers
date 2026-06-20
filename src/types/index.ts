@@ -218,6 +218,12 @@ export interface Conversation {
   /** Toggle manual del asistente IA en este chat. Migration 082. Default
    *  true; si está en false, la IA no responde en esta conversación. */
   ai_enabled?: boolean;
+  /** Cuándo el asistente envió un link de checkout (pago pendiente).
+   *  Migration 081. NULL = sin checkout pendiente / ya pagado. */
+  pending_checkout_at?: string | null;
+  /** Link de checkout enviado, para reenviarlo en la recuperación de pago.
+   *  Migration 081. */
+  pending_checkout_url?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;

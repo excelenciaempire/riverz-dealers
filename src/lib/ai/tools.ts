@@ -366,6 +366,27 @@ export async function runTool(
         config,
       },
     )
+    // Registrar "pago pendiente" en la conversación: hace al asistente
+    // consciente de que mandó el link y habilita el follow-up de
+    // recuperación si el cliente no paga. Fail-soft. No en dry-run.
+    if (
+      !shopify.dryRun &&
+      shopify.conversationId &&
+      !('error' in result) &&
+      result.checkout_url
+    ) {
+      try {
+        await supabaseAdmin()
+          .from('conversations')
+          .update({
+            pending_checkout_at: new Date().toISOString(),
+            pending_checkout_url: result.checkout_url,
+          })
+          .eq('id', shopify.conversationId)
+      } catch (err) {
+        console.error('[ai] no pude marcar pending_checkout:', err)
+      }
+    }
     return JSON.stringify(result)
   }
   if (toolName === 'create_order') {
