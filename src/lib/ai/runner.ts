@@ -588,6 +588,11 @@ function shouldSkip(
   agent: AiAgent,
   args: { conversation: Conversation; inboundMessage: Message },
 ): string | null {
+  // Toggle manual por conversación (migración 082). Si el chat apagó la
+  // IA explícitamente, no respondemos pase lo que pase.
+  if ((args.conversation as { ai_enabled?: boolean }).ai_enabled === false) {
+    return 'ai_disabled_for_conversation';
+  }
   if (!agent.reply_when_assigned && args.conversation.assigned_agent_id) {
     return 'conversation_assigned';
   }

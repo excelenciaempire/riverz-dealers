@@ -24,6 +24,7 @@ import {
   RefreshCw,
   ChevronUp,
   PanelRight,
+  Bot,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -169,6 +170,32 @@ export function MessageThread({
   const fetchWithCsrf = useFetchWithCsrf();
   const tz = useTimezone();
   const [loading, setLoading] = useState(false);
+  // Toggle de IA por conversación (migración 082). Se sincroniza con la
+  // conversación; en false el asistente no responde en este chat (se suma
+  // a la regla de "responder aunque haya agente asignado" del runner).
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiToggling, setAiToggling] = useState(false);
+  useEffect(() => {
+    setAiEnabled(conversation?.ai_enabled !== false);
+  }, [conversation?.id, conversation?.ai_enabled]);
+  const toggleAi = useCallback(async () => {
+    if (!conversation || aiToggling) return;
+    const next = !aiEnabled;
+    setAiToggling(true);
+    setAiEnabled(next); // optimista
+    try {
+      const res = await fetchWithCsrf(`/api/conversations/${conversation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ai_enabled: next }),
+      });
+      if (!res.ok) throw new Error("failed");
+    } catch {
+      setAiEnabled(!next); // revertir si falla
+    } finally {
+      setAiToggling(false);
+    }
+  }, [conversation, aiEnabled, aiToggling, fetchWithCsrf]);
   // Pagination cursor — created_at of the oldest message currently loaded.
   // The "Cargar más antiguos" button reads from this to fetch the next
   // page (created_at < oldestLoadedAt). Reset whenever the conversation
@@ -977,6 +1004,32 @@ export function MessageThread({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Toggle de IA por chat — prende/apaga al asistente en esta
+              conversación. Verde cuando responde, gris cuando está en
+              pausa (un humano toma el control). */}
+          <button
+            type="button"
+            onClick={toggleAi}
+            disabled={aiToggling}
+            title={
+              aiEnabled
+                ? "IA activa en este chat — toca para pausarla"
+                : "IA en pausa en este chat — toca para reactivarla"
+            }
+            aria-pressed={aiEnabled}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-accent disabled:opacity-60",
+              aiEnabled
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground",
+            )}
+          >
+            <Bot className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {aiEnabled ? "IA activa" : "IA en pausa"}
+            </span>
+          </button>
 
           {/* Assign dropdown — only render when there's more than one
               workspace member (or someone already assigned that we'd

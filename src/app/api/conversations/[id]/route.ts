@@ -14,6 +14,56 @@ import { serverError } from "@/lib/api/errors";
  * conversation will be created the next time inbox-writer sees a
  * message from them.
  */
+/**
+ * PATCH /api/conversations/:id
+ *
+ * Actualiza flags de la conversación editables desde la bandeja. Hoy:
+ * `ai_enabled` (prender/apagar el asistente IA en este chat — migración 082).
+ */
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+
+  const body = (await req.json().catch(() => null)) as { ai_enabled?: unknown } | null;
+  if (!body || typeof body.ai_enabled !== "boolean") {
+    return NextResponse.json({ error: "ai_enabled boolean required" }, { status: 400 });
+  }
+
+  const admin = supabaseAdmin();
+  const { data: conv } = await admin
+    .from("conversations")
+    .select("id, workspace_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!conv) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const { data: membership } = await admin
+    .from("workspace_members")
+    .select("id")
+    .eq("workspace_id", conv.workspace_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { error } = await admin
+    .from("conversations")
+    .update({ ai_enabled: body.ai_enabled, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return serverError(error);
+  return NextResponse.json({ ok: true, ai_enabled: body.ai_enabled });
+}
+
 export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ id: string }> },

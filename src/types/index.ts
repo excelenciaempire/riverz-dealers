@@ -215,6 +215,9 @@ export interface Conversation {
   followup_count?: number;
   /** Timestamp del último follow-up enviado. Migration 079. */
   followup_last_at?: string | null;
+  /** Toggle manual del asistente IA en este chat. Migration 082. Default
+   *  true; si está en false, la IA no responde en esta conversación. */
+  ai_enabled?: boolean;
   created_at: string;
   updated_at: string;
   contact?: Contact;
