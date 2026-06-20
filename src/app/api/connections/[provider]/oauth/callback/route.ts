@@ -3,7 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { baseUrl, decodeState, loadProvider, type ProviderName } from "@/lib/channels/oauth";
 import { encrypt } from "@/lib/channels/encryption";
-import { discoverMetaAccounts, subscribePageToWebhooks } from "@/lib/channels/meta-graph";
+import {
+  discoverMetaAccounts,
+  subscribePageToWebhooks,
+  withAppsecretProof,
+} from "@/lib/channels/meta-graph";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { startOutlookWatch } from "@/lib/channels/outlook/watch";
 import type { Channel, ChannelConnection } from "@/types";
@@ -153,7 +157,10 @@ export async function GET(
       // We persist a generic label here; the wizard (Phase 9+) will
       // surface a page/account picker that fills in the rest.
       const r = await fetch(
-        `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`,
+        withAppsecretProof(
+          `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`,
+          accessToken,
+        ),
       );
       if (r.ok) {
         const j = (await r.json()) as { id?: string; name?: string };

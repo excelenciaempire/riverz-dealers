@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { encrypt } from "@/lib/channels/encryption";
-import { subscribePageToWebhooks } from "@/lib/channels/meta-graph";
+import { subscribePageToWebhooks, withAppsecretProof } from "@/lib/channels/meta-graph";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import {
   upsertSingleWhatsAppConnection,
@@ -147,7 +147,10 @@ async function connectPageChannel(
   // page fields we need. Page tokens reply with { id, name } where id
   // is the page id.
   const probe = await fetch(
-    `${GRAPH}/me?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(args.token)}`,
+    withAppsecretProof(
+      `${GRAPH}/me?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(args.token)}`,
+      args.token,
+    ),
   );
   if (!probe.ok) {
     throw new Error(`token probe failed (${probe.status}): ${await probe.text()}`);
@@ -264,7 +267,10 @@ async function connectWhatsApp(
   // deliver inbound, that surfaces as a connection warning rather than a
   // hard block here.
   const probe = await fetch(
-    `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(args.token)}`,
+    withAppsecretProof(
+      `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(args.token)}`,
+      args.token,
+    ),
   );
   if (!probe.ok) {
     throw new Error(`phone probe failed (${probe.status}): ${await probe.text()}`);

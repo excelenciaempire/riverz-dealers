@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { withAppsecretProof } from '@/lib/channels/meta-graph'
 
 /**
  * Sync message templates from Meta → local message_templates table.
@@ -153,7 +154,9 @@ export async function POST(req: Request) {
 
     while (nextUrl && pageCount < PAGE_CAP) {
       pageCount++
-      const metaRes: Response = await fetch(nextUrl, {
+      // `paging.next` carries no appsecret_proof — re-attach each page so
+      // "Require App Secret" doesn't 400 page 2+.
+      const metaRes: Response = await fetch(withAppsecretProof(nextUrl, accessToken), {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
 

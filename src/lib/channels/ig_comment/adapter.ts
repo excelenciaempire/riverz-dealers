@@ -10,6 +10,7 @@ import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { handleMetaGraphError } from "../meta-auth";
+import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -48,7 +49,12 @@ export const igCommentAdapter: ChannelAdapter = {
     const res = await fetch(`https://graph.facebook.com/v21.0/${targetId}/replies`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: input.text, access_token: accessToken }),
+      body: JSON.stringify(
+        withAppsecretProofBody(
+          { message: input.text, access_token: accessToken },
+          accessToken,
+        ),
+      ),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

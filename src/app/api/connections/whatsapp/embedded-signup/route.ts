@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import {
   upsertSingleWhatsAppConnection,
   syncLegacyWhatsAppConfig,
@@ -79,7 +80,10 @@ export async function POST(req: Request): Promise<Response> {
 
     // 2. Read the phone number details (label + coexistence flag).
     const phoneRes = await fetch(
-      `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(token)}`,
+      withAppsecretProof(
+        `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(token)}`,
+        token,
+      ),
     );
     const phone = phoneRes.ok
       ? ((await phoneRes.json()) as {
@@ -91,7 +95,7 @@ export async function POST(req: Request): Promise<Response> {
 
     // 3. Subscribe the WABA to our app so webhooks fire.
     try {
-      await fetch(`${GRAPH}/${body.waba_id}/subscribed_apps`, {
+      await fetch(withAppsecretProof(`${GRAPH}/${body.waba_id}/subscribed_apps`, token), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -103,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
     //    coexistence (is_on_biz_app) Meta handles activation, so a 4xx
     //    here is non-fatal.
     try {
-      await fetch(`${GRAPH}/${body.phone_number_id}/register`, {
+      await fetch(withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
         body: JSON.stringify({ messaging_product: "whatsapp", pin: "000000" }),

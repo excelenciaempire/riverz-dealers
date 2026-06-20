@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { assertCronAuth } from "@/lib/auth/cron";
+import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Contact } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -122,6 +123,8 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
   convUrl.searchParams.set("platform", args.platform);
   convUrl.searchParams.set("user_id", externalId);
   convUrl.searchParams.set("access_token", args.token);
+  const proof = appsecretProof(args.token);
+  if (proof) convUrl.searchParams.set("appsecret_proof", proof);
   const convRes = await fetch(convUrl.toString());
   if (!convRes.ok) return 0;
   const convJson = (await convRes.json()) as { data?: { id?: string }[] };
@@ -136,7 +139,8 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
   let ingested = 0;
   const admin = supabaseAdmin();
   while (url && pages < 4) {
-    const r: Response = await fetch(url);
+    // `paging.next` carries no proof — re-attach each page.
+    const r: Response = await fetch(withAppsecretProof(url, args.token));
     if (!r.ok) break;
     const j = (await r.json()) as {
       data?: {

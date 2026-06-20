@@ -1,41 +1,62 @@
+import type { Instrumentation } from 'next'
+
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('instrumentation')
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
-
-  // Validar la clave maestra de cifrado al arranque: si está mal configurada
-  // (truncada, con prefijo, distinta entre entornos) Buffer.from(_, 'hex') la
-  // aceptaría silenciosamente y degradaría el cifrado de tokens y la firma del
-  // state OAuth. Mejor fallar fuerte al boot que tarde y por request.
-  const { assertEncryptionKey } = await import('@/lib/whatsapp/encryption')
-  if (!assertEncryptionKey()) {
-    const msg =
-      'ENCRYPTION_KEY inválida o ausente: debe ser 64 hex chars (32 bytes para AES-256).'
-    if (process.env.NODE_ENV === 'production') {
-      log.error(msg)
-      throw new Error(msg)
-    }
-    log.warn(`${msg} (permitido fuera de producción)`)
-  }
-
   const dsn = process.env.SENTRY_DSN
-  if (!dsn) {
-    log.info('Sentry disabled')
+
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Validar la clave maestra de cifrado al arranque: si está mal configurada
+    // (truncada, con prefijo, distinta entre entornos) Buffer.from(_, 'hex') la
+    // aceptaría silenciosamente y degradaría el cifrado de tokens y la firma del
+    // state OAuth. Mejor fallar fuerte al boot que tarde y por request.
+    const { assertEncryptionKey } = await import('@/lib/whatsapp/encryption')
+    if (!assertEncryptionKey()) {
+      const msg =
+        'ENCRYPTION_KEY inválida o ausente: debe ser 64 hex chars (32 bytes para AES-256).'
+      if (process.env.NODE_ENV === 'production') {
+        log.error(msg)
+        throw new Error(msg)
+      }
+      log.warn(`${msg} (permitido fuera de producción)`)
+    }
+
+    if (dsn) {
+      // Carga @sentry/node y ejecuta Sentry.init (ver sentry.server.config.ts).
+      // El import es dinámico para no cargar el paquete sin SENTRY_DSN.
+      // Usamos @sentry/node (no @sentry/nextjs) porque la SDK de Next aún no
+      // soporta Next 16 (peer conflict); el runtime edge no usa @sentry/node.
+      await import('../sentry.server.config')
+      log.info('Sentry initialised', { runtime: 'nodejs' })
+    } else {
+      log.info('Sentry disabled (no SENTRY_DSN)')
+    }
     return
   }
+}
 
+// Reenvía a Sentry los errores que Next.js captura al servir requests
+// (Server Components, route handlers, server actions). Sin DSN es un no-op.
+// Solo runtime Node (@sentry/node no corre en edge).
+export const onRequestError: Instrumentation.onRequestError = async (
+  err,
+  request,
+) => {
+  if (!process.env.SENTRY_DSN) return
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
   try {
-    const name = '@sentry/nextjs'
-    const Sentry = (await import(/* webpackIgnore: true */ name)) as unknown as {
-      init: (opts: { dsn: string }) => void
-    }
-    Sentry.init({ dsn })
-    log.info('Sentry initialised')
-  } catch (err) {
-    log.warn('Sentry init skipped (package not installed)', {
-      error: err instanceof Error ? err.message : String(err),
+    const Sentry = await import('@sentry/node')
+    Sentry.captureException(err, {
+      data: {
+        path: (request as { path?: string } | undefined)?.path,
+        method: (request as { method?: string } | undefined)?.method,
+      },
+    })
+  } catch (e) {
+    log.warn('Sentry onRequestError forwarding failed', {
+      error: e instanceof Error ? e.message : String(e),
     })
   }
 }

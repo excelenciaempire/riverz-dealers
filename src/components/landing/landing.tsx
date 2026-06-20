@@ -181,6 +181,7 @@ export function Landing() {
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             <a href="#funciones" className="hover:text-foreground">Funciones</a>
             <Link href="/ingresar" className="hover:text-foreground">Iniciar sesión</Link>
+            <Link href="/terminos" className="hover:text-foreground">Términos</Link>
             <Link href="/privacidad" className="hover:text-foreground">Privacidad</Link>
             <Link href="/eliminar-datos" className="hover:text-foreground">Eliminar datos</Link>
           </div>

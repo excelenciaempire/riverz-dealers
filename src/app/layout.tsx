@@ -23,14 +23,45 @@ const interTight = Inter_Tight({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://riverz.co"),
   title: {
-    default: "Riverz",
+    default: "Riverz — CRM con IA para WhatsApp e Instagram",
     template: "%s · Riverz",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description:
+    "Riverz es el CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más. Bandeja unificada, automatizaciones y campañas en un solo lugar.",
+  applicationName: "Riverz",
+  // The public marketing surface (landing + legal + auth) must be
+  // indexable; per-route metadata still wins, so the private dashboard
+  // can opt out of indexing on its own segments if needed.
   robots: {
-    index: false,
-    follow: false,
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Riverz",
+    title: "Riverz — CRM con IA para WhatsApp e Instagram",
+    description:
+      "El CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más.",
+    url: "/",
+    locale: "es_ES",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Riverz — CRM con IA para WhatsApp e Instagram",
+    description:
+      "El CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más.",
+  },
+  alternates: {
+    canonical: "/",
   },
   icons: {
     icon: [{ url: "/icon" }],

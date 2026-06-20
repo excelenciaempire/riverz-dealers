@@ -9,6 +9,8 @@
  * instead of a runtime rejection from Meta.
  */
 
+import { withAppsecretProof } from '@/lib/channels/meta-graph'
+
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
 
@@ -80,7 +82,10 @@ export async function verifyPhoneNumber(
   args: VerifyPhoneNumberArgs
 ): Promise<MetaPhoneInfo> {
   const { phoneNumberId, accessToken } = args
-  const url = `${META_API_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating`,
+    accessToken,
+  )
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -260,7 +265,10 @@ export async function createMessageTemplate(
   args: CreateMessageTemplateArgs
 ): Promise<CreateMessageTemplateResult> {
   const { wabaId, accessToken, name, language, category, components } = args
-  const url = `${META_API_BASE}/${wabaId}/message_templates`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${wabaId}/message_templates`,
+    accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -291,9 +299,10 @@ export async function deleteMessageTemplate(
   args: DeleteMessageTemplateArgs
 ): Promise<void> {
   const { wabaId, accessToken, name } = args
-  const url = `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(
-    name
-  )}`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(name)}`,
+    accessToken,
+  )
   const response = await fetch(url, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -325,7 +334,10 @@ export async function sendReactionMessage(
   args: SendReactionMessageArgs
 ): Promise<MetaSendResult> {
   const { phoneNumberId, accessToken, to, targetMessageId, emoji } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${phoneNumberId}/messages`,
+    accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -453,7 +465,10 @@ export async function sendInteractiveButtons(
   }
   if (contextMessageId) body.context = { message_id: contextMessageId }
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${phoneNumberId}/messages`,
+    accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -585,7 +600,10 @@ export async function sendInteractiveList(
   }
   if (contextMessageId) body.context = { message_id: contextMessageId }
 
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${phoneNumberId}/messages`,
+    accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -650,9 +668,12 @@ export async function getMediaUrl(
   if (!/^\d{5,}$/.test(mediaId)) {
     throw new Error('Invalid media id')
   }
-  const response = await fetch(`${META_API_BASE}/${encodeURIComponent(mediaId)}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const response = await fetch(
+    withAppsecretProof(`${META_API_BASE}/${encodeURIComponent(mediaId)}`, accessToken),
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  )
   if (!response.ok) {
     await throwMetaError(response, `Media fetch failed: ${response.status}`)
   }
@@ -722,7 +743,10 @@ async function sendMedia(
   }
   if (args.contextMessageId) body.context = { message_id: args.contextMessageId }
 
-  const url = `${META_API_BASE}/${args.phoneNumberId}/messages`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${args.phoneNumberId}/messages`,
+    args.accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -803,7 +827,10 @@ export async function sendInteractiveCtaUrl(
   }
   if (args.contextMessageId) body.context = { message_id: args.contextMessageId }
 
-  const url = `${META_API_BASE}/${args.phoneNumberId}/messages`
+  const url = withAppsecretProof(
+    `${META_API_BASE}/${args.phoneNumberId}/messages`,
+    args.accessToken,
+  )
   const response = await fetch(url, {
     method: 'POST',
     headers: {

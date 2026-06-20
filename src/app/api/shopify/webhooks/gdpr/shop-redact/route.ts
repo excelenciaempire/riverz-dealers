@@ -1,31 +1,10 @@
-import { NextResponse } from 'next/server'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
-import { getLogger } from '@/lib/log/logger'
-
-const log = getLogger('shopify.gdpr.shop-redact')
-
 /**
- * GDPR shop/redact. Fires 48h after the merchant uninstalls. Verify HMAC,
- * log, ack 200. The actual connection wipe happens on app/uninstalled +
- * the legacy /shop-redact route (still active); this stub satisfies the
- * partner dashboard endpoint requirement.
+ * Legacy alias. The fail-OPEN stub that used to live here (it acked 200
+ * without verifying when SHOPIFY_API_SECRET was unset and did NOT wipe
+ * anything) is gone — this path now re-exports the CANONICAL, fail-CLOSED
+ * handler at /api/shopify/webhooks/shop-redact, which HMAC-verifies and
+ * performs the real shop-scoped data wipe.
+ *
+ * Prefer the canonical (non-/gdpr) URL in the Partner Dashboard.
  */
-export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) return NextResponse.json({ ok: true })
-  const rawBody = await request.text()
-  if (
-    !verifyWebhookHmac(
-      rawBody,
-      request.headers.get('x-shopify-hmac-sha256'),
-      apiSecret,
-    )
-  ) {
-    return new NextResponse('Invalid HMAC', { status: 401 })
-  }
-  log.info('received', {
-    shop: request.headers.get('x-shopify-shop-domain') ?? null,
-    bytes: rawBody.length,
-  })
-  return NextResponse.json({ ok: true })
-}
+export { POST } from '../../shop-redact/route'

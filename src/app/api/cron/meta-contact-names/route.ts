@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { buildParticipantMap } from "@/lib/channels/meta-participants";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Contact } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -106,7 +107,10 @@ async function resolveName(
   const fields = wantsUsername ? "username,name" : "name";
   try {
     const r = await fetch(
-      `${GRAPH}/${externalId}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
+      withAppsecretProof(
+        `${GRAPH}/${externalId}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
+        token,
+      ),
     );
     if (!r.ok) return undefined;
     const j = (await r.json()) as { username?: string; name?: string };

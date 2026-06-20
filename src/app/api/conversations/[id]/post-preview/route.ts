@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Conversation } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -76,7 +77,10 @@ export async function GET(
   try {
     if (conversation.channel === "ig_comment") {
       const r = await fetch(
-        `${GRAPH}/${postId}?fields=permalink,caption,media_url,thumbnail_url,media_type&access_token=${encodeURIComponent(token)}`,
+        withAppsecretProof(
+          `${GRAPH}/${postId}?fields=permalink,caption,media_url,thumbnail_url,media_type&access_token=${encodeURIComponent(token)}`,
+          token,
+        ),
       );
       if (!r.ok) return NextResponse.json({ adId: meta?.ad_id, isAd: meta?.is_ad });
       const m = (await r.json()) as {
@@ -96,7 +100,10 @@ export async function GET(
     }
     // fb_comment
     const r = await fetch(
-      `${GRAPH}/${postId}?fields=permalink_url,message,full_picture&access_token=${encodeURIComponent(token)}`,
+      withAppsecretProof(
+        `${GRAPH}/${postId}?fields=permalink_url,message,full_picture&access_token=${encodeURIComponent(token)}`,
+        token,
+      ),
     );
     if (!r.ok) {
       return NextResponse.json({

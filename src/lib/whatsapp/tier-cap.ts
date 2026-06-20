@@ -30,6 +30,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { withAppsecretProof } from '@/lib/channels/meta-graph'
 
 export type MessagingTier =
   | 'TIER_50'
@@ -216,7 +217,10 @@ export async function refreshMessagingLimitTier(
 ): Promise<MessagingTier | null> {
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/${args.wabaId}?fields=messaging_limit_tier`,
+      withAppsecretProof(
+        `https://graph.facebook.com/v21.0/${args.wabaId}?fields=messaging_limit_tier`,
+        args.accessToken,
+      ),
       { headers: { Authorization: `Bearer ${args.accessToken}` } },
     )
     if (!res.ok) return null

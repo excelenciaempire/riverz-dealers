@@ -1,4 +1,5 @@
 import type { ChannelConnection } from "@/types";
+import { withAppsecretProof } from "./meta-graph";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -48,7 +49,9 @@ export async function buildParticipantMap(
   let pages = 0;
   while (url && pages < maxPages) {
     pages++;
-    const r = await fetch(url);
+    // Meta's `paging.next` URL embeds the access_token but NOT the proof,
+    // so re-attach it on every page or "Require App Secret" 400s page 2+.
+    const r = await fetch(withAppsecretProof(url, token));
     if (!r.ok) break;
     const j = (await r.json()) as {
       data?: GraphConversation[];

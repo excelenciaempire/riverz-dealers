@@ -5,11 +5,66 @@
  * have to wire webhooks manually in developers.facebook.com.
  */
 
+import crypto from "crypto";
 import type { Channel } from "@/types";
 import { getLogger } from "@/lib/log/logger";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const log = getLogger("channels.meta-graph");
+
+// ── appsecret_proof ──────────────────────────────────────────────
+//
+// Meta lets an app owner flip on "Require App Secret" (App Dashboard →
+// Settings → Advanced → Security). With it on, EVERY Graph call made with
+// an access token must also carry `appsecret_proof` — the HMAC-SHA256 of
+// the access token keyed by the app secret — or Graph rejects the request
+// (error 100, "API calls from the server require an appsecret_proof
+// argument"). Without these helpers, turning that switch on would silently
+// break every send, discovery and profile lookup across WhatsApp /
+// Messenger / Instagram / comments.
+//
+// Attaching the proof when the switch is OFF is harmless — Graph accepts a
+// valid proof either way — so we always send it whenever an access token is
+// present and META_APP_SECRET is configured.
+
+/**
+ * HMAC-SHA256 (hex) of `accessToken` keyed by META_APP_SECRET, the value
+ * Meta expects as `appsecret_proof`. Returns null when META_APP_SECRET is
+ * unset (local/dev) or no token is supplied, so callers degrade gracefully
+ * to a proof-less request instead of throwing.
+ */
+export function appsecretProof(accessToken: string | undefined | null): string | null {
+  const secret = process.env.META_APP_SECRET;
+  if (!secret || !accessToken) return null;
+  return crypto.createHmac("sha256", secret).update(accessToken).digest("hex");
+}
+
+/**
+ * Append `&appsecret_proof=…` to a Graph URL that authenticates via an
+ * `access_token` query param (or a Bearer header — the proof is the same
+ * either way). No-op when the proof can't be computed. Use for GET/DELETE
+ * and any call whose token rides in the URL.
+ */
+export function withAppsecretProof(url: string, accessToken: string | undefined | null): string {
+  const proof = appsecretProof(accessToken);
+  if (!proof) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}appsecret_proof=${proof}`;
+}
+
+/**
+ * Merge `appsecret_proof` into a JSON request body that already carries
+ * `access_token` (the Messenger / Instagram / comment Send API shape).
+ * Returns the body unchanged when the proof can't be computed.
+ */
+export function withAppsecretProofBody<T extends Record<string, unknown>>(
+  body: T,
+  accessToken: string | undefined | null,
+): T & { appsecret_proof?: string } {
+  const proof = appsecretProof(accessToken);
+  if (!proof) return body;
+  return { ...body, appsecret_proof: proof };
+}
 
 export interface MetaPage {
   id: string;
@@ -38,7 +93,10 @@ export interface DiscoveredAccount {
  * account id attached to each (if any).
  */
 export async function listUserPages(userAccessToken: string): Promise<MetaPage[]> {
-  const url = `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id}&access_token=${encodeURIComponent(userAccessToken)}`;
+  const url = withAppsecretProof(
+    `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id}&access_token=${encodeURIComponent(userAccessToken)}`,
+    userAccessToken,
+  );
   const r = await fetch(url);
   if (!r.ok) {
     throw new Error(`[meta] /me/accounts failed (${r.status}): ${await r.text()}`);
@@ -105,19 +163,28 @@ export async function discoverMetaAccounts(
 
 async function discoverWhatsAppAccounts(userAccessToken: string): Promise<DiscoveredAccount[]> {
   // List WABAs the user owns/manages.
-  const bizUrl = `${GRAPH}/me/businesses?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`;
+  const bizUrl = withAppsecretProof(
+    `${GRAPH}/me/businesses?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`,
+    userAccessToken,
+  );
   const bizRes = await fetch(bizUrl);
   if (!bizRes.ok) return [];
   const bizJson = (await bizRes.json()) as { data?: Array<{ id: string; name: string }> };
 
   const accounts: DiscoveredAccount[] = [];
   for (const b of bizJson.data ?? []) {
-    const wabaUrl = `${GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`;
+    const wabaUrl = withAppsecretProof(
+      `${GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`,
+      userAccessToken,
+    );
     const wabaRes = await fetch(wabaUrl);
     if (!wabaRes.ok) continue;
     const wabaJson = (await wabaRes.json()) as { data?: Array<{ id: string; name: string }> };
     for (const w of wabaJson.data ?? []) {
-      const phoneUrl = `${GRAPH}/${w.id}/phone_numbers?access_token=${encodeURIComponent(userAccessToken)}`;
+      const phoneUrl = withAppsecretProof(
+        `${GRAPH}/${w.id}/phone_numbers?access_token=${encodeURIComponent(userAccessToken)}`,
+        userAccessToken,
+      );
       const phoneRes = await fetch(phoneUrl);
       if (!phoneRes.ok) continue;
       const phoneJson = (await phoneRes.json()) as {
@@ -184,7 +251,10 @@ export async function subscribePageToWebhooks(args: {
   }
   const pageFields = Array.from(new Set([...(currentPage ?? []), ...familyFields]));
   const r = await fetch(
-    `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${pageFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+    withAppsecretProof(
+      `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${pageFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+      args.pageAccessToken,
+    ),
     { method: "POST" },
   );
   if (!r.ok) {
@@ -198,7 +268,10 @@ export async function subscribePageToWebhooks(args: {
     const currentUser = (await getSubscribedFields(args.igUserId, args.pageAccessToken)) ?? [];
     const userFields = Array.from(new Set([...currentUser, ...IG_USER_FIELDS]));
     const ur = await fetch(
-      `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=${userFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+      withAppsecretProof(
+        `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=${userFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+        args.pageAccessToken,
+      ),
       { method: "POST" },
     );
     // Best-effort (the page subscription above is the critical one), but a
@@ -227,7 +300,10 @@ export async function getSubscribedFields(
 ): Promise<string[] | null> {
   try {
     const r = await fetch(
-      `${GRAPH}/${objectId}/subscribed_apps?access_token=${encodeURIComponent(pageAccessToken)}`,
+      withAppsecretProof(
+        `${GRAPH}/${objectId}/subscribed_apps?access_token=${encodeURIComponent(pageAccessToken)}`,
+        pageAccessToken,
+      ),
     );
     if (!r.ok) return null;
     const j = (await r.json()) as {

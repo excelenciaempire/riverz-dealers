@@ -14,6 +14,7 @@ import {
   parseMetaErrorBody,
   clearMetaConnectionError,
 } from "../meta-auth";
+import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 
 /** After a successful Meta call, restore a connection that was
@@ -58,20 +59,23 @@ export const whatsappAdapter: ChannelAdapter = {
     const to = input.contact.phone || input.contact.external_id;
     if (!to) throw new Error("[whatsapp] contact missing phone/wa_id");
 
-    const res = await fetch(`${GRAPH}/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "content-type": "application/json",
+    const res = await fetch(
+      withAppsecretProof(`${GRAPH}/${phoneNumberId}/messages`, accessToken),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to,
+          type: "text",
+          text: { body: input.text },
+        }),
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "text",
-        text: { body: input.text },
-      }),
-    });
+    );
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       // On 401 / OAuthException / code 190 / 102 / 463, flip the
@@ -104,30 +108,33 @@ export const whatsappAdapter: ChannelAdapter = {
     const to = input.contact.phone || input.contact.external_id;
     if (!to) throw new Error("[whatsapp] contact missing phone/wa_id");
 
-    const res = await fetch(`${GRAPH}/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "template",
-        template: {
-          name: input.templateName,
-          language: { code: input.language ?? "es" },
-          components: input.params?.length
-            ? [
-                {
-                  type: "body",
-                  parameters: input.params.map((text) => ({ type: "text", text })),
-                },
-              ]
-            : undefined,
+    const res = await fetch(
+      withAppsecretProof(`${GRAPH}/${phoneNumberId}/messages`, accessToken),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to,
+          type: "template",
+          template: {
+            name: input.templateName,
+            language: { code: input.language ?? "es" },
+            components: input.params?.length
+              ? [
+                  {
+                    type: "body",
+                    parameters: input.params.map((text) => ({ type: "text", text })),
+                  },
+                ]
+              : undefined,
+          },
+        }),
+      },
+    );
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       await handleMetaGraphError(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -25,13 +25,10 @@ function SignupForm() {
   const [emailLocked] = useState(Boolean(inviteToken && prefillEmail));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    if (prefillEmail) setEmail(prefillEmail);
-  }, [prefillEmail]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +41,11 @@ function SignupForm() {
 
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (!accepted) {
+      setError("Debes aceptar los Términos y la Política de privacidad");
       return;
     }
 
@@ -197,9 +199,42 @@ function SignupForm() {
               />
             </div>
 
+            <label
+              htmlFor="accept"
+              className="flex items-start gap-2.5 text-sm text-muted-foreground"
+            >
+              <input
+                id="accept"
+                type="checkbox"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+              />
+              <span>
+                Acepto los{" "}
+                <Link
+                  href="/terminos"
+                  target="_blank"
+                  className="text-accent-ink hover:text-accent-ink/80"
+                >
+                  Términos y condiciones
+                </Link>{" "}
+                y la{" "}
+                <Link
+                  href="/privacidad"
+                  target="_blank"
+                  className="text-accent-ink hover:text-accent-ink/80"
+                >
+                  Política de privacidad
+                </Link>
+                .
+              </span>
+            </label>
+
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || !accepted}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {loading ? "Creando cuenta..." : "Crear cuenta"}

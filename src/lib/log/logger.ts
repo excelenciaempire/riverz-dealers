@@ -73,8 +73,9 @@ async function loadSentry() {
   if (!sentryPromise) {
     sentryPromise = (async () => {
       try {
-        const name = '@sentry/nextjs'
-        const mod = (await import(/* webpackIgnore: true */ name)) as unknown as {
+        // Import dinámico de @sentry/node. Si no está instalado (self-host
+        // sin observabilidad) el import falla y caemos a null sin romper nada.
+        const mod = (await import('@sentry/node')) as unknown as {
           captureException: (e: unknown, hint?: unknown) => void
         }
         return mod

@@ -101,6 +101,18 @@ services:
         sync: false
       - key: PILAR_REENGAGEMENT_AUTOMATION_ID
         sync: false
+      # Meta (Facebook Login for Business) — IDs públicos para el connect
+      # in-app vía JS SDK + token de verificación de webhooks. Sin estos, el
+      # connect de FB/IG cae al pegado manual de token (que App Review rechaza)
+      # y el handshake de webhooks falla.
+      - key: NEXT_PUBLIC_META_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_META_ES_CONFIG_ID
+        sync: false
+      - key: NEXT_PUBLIC_META_LOGIN_CONFIG_ID
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
 
 # ============================================================
 # Cron jobs — Render Cron Services declared in the blueprint so the
@@ -151,6 +163,39 @@ services:
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/reengagement
     schedule: "0 14 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  # Refresca el token largo (~60d) de Facebook Login antes de que muera, así
+  # las conexiones FB/IG/Messenger no se caen solas. Diario (ventana de ~5d).
+  - type: cron
+    name: cron-meta-token-refresh
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/meta-token-refresh
+    schedule: "0 6 * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  # Purga real de PII de workspaces eliminados (N días tras soft-delete).
+  - type: cron
+    name: cron-pii-purge
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/pii-purge
+    schedule: "0 3 * * *"
     envVars:
       - key: BASE_URL
         sync: false

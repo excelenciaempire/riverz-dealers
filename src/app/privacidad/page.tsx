@@ -152,6 +152,10 @@ export default function PrivacidadPage() {
       </div>
 
       <footer className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
+        <Link href="/terminos" className="underline">
+          Términos y condiciones
+        </Link>
+        <span className="mx-2">·</span>
         <Link href="/eliminar-datos" className="underline">
           Eliminar mis datos
         </Link>

@@ -23,6 +23,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/channels/encryption";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -66,7 +67,9 @@ export async function syncAdPostsForConnection(
     `${GRAPH}/${pageId}/ads_posts?fields=id,permalink_url,created_time,message&limit=25&access_token=${encodeURIComponent(token)}`;
   let pages = 0;
   while (nextUrl && pages < 5) {
-    const res = await fetch(nextUrl);
+    // `paging.next` carries the access_token but not the proof — re-attach
+    // on each page so "Require App Secret" doesn't 400 page 2+.
+    const res = await fetch(withAppsecretProof(nextUrl, token));
     if (!res.ok) {
       console.warn(`[ads-sync] ${pageId}/ads_posts failed: ${await res.text()}`);
       break;

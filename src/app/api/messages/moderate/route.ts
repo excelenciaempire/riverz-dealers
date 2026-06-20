@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { decrypt } from "@/lib/channels/encryption";
+import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Conversation, Message } from "@/types";
 
 type Action = "hide" | "unhide" | "delete" | "like" | "unlike";
@@ -97,9 +98,13 @@ async function applyGraphAction(
   const GRAPH = "https://graph.facebook.com/v21.0";
   try {
     if (action === "delete") {
-      const r = await fetch(`${GRAPH}/${commentId}?access_token=${encodeURIComponent(accessToken)}`, {
-        method: "DELETE",
-      });
+      const r = await fetch(
+        withAppsecretProof(
+          `${GRAPH}/${commentId}?access_token=${encodeURIComponent(accessToken)}`,
+          accessToken,
+        ),
+        { method: "DELETE" },
+      );
       if (!r.ok) return { ok: false, detail: await r.text() };
       return { ok: true };
     }
@@ -108,13 +113,18 @@ async function applyGraphAction(
         is_hidden: action === "hide" ? "true" : "false",
         access_token: accessToken,
       });
+      const proof = appsecretProof(accessToken);
+      if (proof) body.set("appsecret_proof", proof);
       const r = await fetch(`${GRAPH}/${commentId}`, { method: "POST", body });
       if (!r.ok) return { ok: false, detail: await r.text() };
       return { ok: true };
     }
     if (action === "like") {
       const r = await fetch(
-        `${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(accessToken)}`,
+        withAppsecretProof(
+          `${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(accessToken)}`,
+          accessToken,
+        ),
         { method: "POST" },
       );
       if (!r.ok) return { ok: false, detail: await r.text() };
@@ -122,7 +132,10 @@ async function applyGraphAction(
     }
     if (action === "unlike") {
       const r = await fetch(
-        `${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(accessToken)}`,
+        withAppsecretProof(
+          `${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(accessToken)}`,
+          accessToken,
+        ),
         { method: "DELETE" },
       );
       if (!r.ok) return { ok: false, detail: await r.text() };

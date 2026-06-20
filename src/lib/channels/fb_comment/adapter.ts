@@ -11,6 +11,7 @@ import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { handleMetaGraphError } from "../meta-auth";
+import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -53,7 +54,12 @@ export const fbCommentAdapter: ChannelAdapter = {
     const res = await fetch(`https://graph.facebook.com/v21.0/${targetId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: input.text, access_token: accessToken }),
+      body: JSON.stringify(
+        withAppsecretProofBody(
+          { message: input.text, access_token: accessToken },
+          accessToken,
+        ),
+      ),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

@@ -12,6 +12,7 @@ import { ingestMetaAttachment } from "../media-ingest";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { buildParticipantMap } from "../meta-participants";
+import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 
 /**
@@ -64,12 +65,17 @@ export const instagramAdapter: ChannelAdapter = {
     const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        recipient,
-        messaging_type: "RESPONSE",
-        message: { text: input.text },
-        access_token: accessToken,
-      }),
+      body: JSON.stringify(
+        withAppsecretProofBody(
+          {
+            recipient,
+            messaging_type: "RESPONSE",
+            message: { text: input.text },
+            access_token: accessToken,
+          },
+          accessToken,
+        ),
+      ),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
@@ -243,7 +249,10 @@ async function fetchInstagramName(
   if (!token) return undefined;
   try {
     const r = await fetch(
-      `https://graph.facebook.com/v22.0/${igsid}?fields=username,name&access_token=${encodeURIComponent(token)}`,
+      withAppsecretProof(
+        `https://graph.facebook.com/v22.0/${igsid}?fields=username,name&access_token=${encodeURIComponent(token)}`,
+        token,
+      ),
     );
     if (!r.ok) return undefined;
     const j = (await r.json()) as { username?: string; name?: string };
