@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   financial_status   TEXT NOT NULL DEFAULT 'pending',
   fulfillment_status TEXT,
   status             TEXT NOT NULL DEFAULT 'created'
-    CHECK (status IN ('created', 'paid', 'fulfilled', 'cancelled', 'failed')),
+    CHECK (status IN ('created', 'paid', 'fulfilled', 'refunded', 'cancelled', 'failed')),
 
   created_by         TEXT NOT NULL DEFAULT 'ai',
   note               TEXT,

@@ -257,6 +257,9 @@ async function reconcileRiverzOrder(
     if (!Number.isNaN(t)) update.total_price = t
   }
   if (cancelled) update.status = 'cancelled'
+  else if (financial === 'refunded' || financial === 'partially_refunded')
+    update.status = 'refunded'
+  else if (financial === 'voided') update.status = 'cancelled'
   else if (fulfillment === 'fulfilled') update.status = 'fulfilled'
   else if (financial === 'paid') update.status = 'paid'
 

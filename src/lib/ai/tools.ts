@@ -393,7 +393,10 @@ export async function runTool(
       note?: string
       confirmed?: boolean
     }
-    if (input.confirmed !== true) {
+    // En modo simulación (panel de prueba) NO exigimos confirmed para que
+    // el tester pueda ver el comportamiento del modelo; en producción
+    // (dryRun=false) el gate sí aplica.
+    if (input.confirmed !== true && !shopify.dryRun) {
       return JSON.stringify({
         error: 'not_confirmed',
         message:

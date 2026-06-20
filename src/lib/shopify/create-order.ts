@@ -165,9 +165,22 @@ export async function createShopifyOrder(
     if (vRes.ok) {
       const { variant } = (await vRes.json()) as { variant?: ShopifyVariantInfo }
       variantInfo = variant ?? null
+    } else {
+      console.warn('[shopify] variant fetch non-ok (stock check skipped):', {
+        variantId,
+        status: vRes.status,
+        domain: ctx.shopDomain,
+      })
     }
-  } catch {
-    /* fail-open: si no pudimos leer el variant, igual intentamos crear */
+  } catch (err) {
+    // fail-open: si no pudimos leer el variant, igual intentamos crear.
+    // Shopify igual aplica su política de inventario al crear el pedido
+    // (inventory_behaviour). Logueamos para no perder visibilidad.
+    console.warn('[shopify] variant fetch failed (stock check skipped):', {
+      variantId,
+      domain: ctx.shopDomain,
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 
   if (
@@ -183,19 +196,24 @@ export async function createShopifyOrder(
   }
 
   // ── Precio de línea ────────────────────────────────────────────────
-  // BUNDLE MODE: precio = total/qty para que el total del pedido coincida
+  // BUNDLE MODE: override = total/qty para que el total del pedido coincida
   // con la oferta curada (la Cart Function de bundles no corre en pedidos
-  // de Admin API). AUTO MODE: sin override (Shopify usa el precio real).
-  let linePrice: number | null = null
+  // de Admin API). AUTO MODE: NO mandamos precio — Shopify usa el precio
+  // real y vivo del variant (y respeta cualquier descuento automático);
+  // sólo leemos el precio del variant para mostrarlo/totalizar.
+  let linePriceOverride: number | null = null
   if (bundleMode && matchedOffer) {
-    linePrice = round2(matchedOffer.total / qty)
-  } else if (variantInfo?.price != null) {
+    linePriceOverride = round2(matchedOffer.total / qty)
+  }
+  let autoUnitPrice: number | null = null
+  if (!bundleMode && variantInfo?.price != null) {
     const p =
       typeof variantInfo.price === 'number'
         ? variantInfo.price
         : parseFloat(variantInfo.price)
-    if (!Number.isNaN(p)) linePrice = p
+    if (!Number.isNaN(p)) autoUnitPrice = p
   }
+  const unitPrice = linePriceOverride ?? autoUnitPrice
 
   const currency = config?.currency || 'ARS'
   const paymentHint: PaymentHint = input.payment_hint ?? 'card_or_mp'
@@ -233,11 +251,16 @@ export async function createShopifyOrder(
   if (hasTransferDiscount) tags.push(transferLabel)
 
   // ── Payload del pedido ─────────────────────────────────────────────
+  // variant_id va como STRING: los ids de Shopify son enteros de 64 bits
+  // que pueden exceder Number.MAX_SAFE_INTEGER (2^53-1), y Number()
+  // perdería precisión → pediríamos el variant equivocado. La Admin API
+  // acepta el id como string.
   const lineItem: Record<string, unknown> = {
-    variant_id: Number(variantId),
+    variant_id: variantId,
     quantity: qty,
   }
-  if (linePrice != null) lineItem.price = String(linePrice)
+  // Sólo forzamos precio en BUNDLE MODE; en AUTO lo decide Shopify.
+  if (linePriceOverride != null) lineItem.price = String(linePriceOverride)
 
   const orderPayload: Record<string, unknown> = {
     line_items: [lineItem],
@@ -311,23 +334,30 @@ export async function createShopifyOrder(
       ? typeof created.total_price === 'number'
         ? created.total_price
         : parseFloat(created.total_price)
-      : linePrice != null
-        ? round2(linePrice * qty)
+      : unitPrice != null
+        ? round2(unitPrice * qty)
         : null
 
   const title = (variantInfo?.title && variantInfo.title.trim()) || offerLabel
+  // Shopify casi siempre devuelve `name` (#1042) u `order_number`; si por
+  // algún borde llegaran vacíos, caemos al id interno (garantizado) para
+  // que la clienta siempre tenga una referencia.
+  const orderNumber =
+    (created.name ||
+      (created.order_number != null ? String(created.order_number) : '')).trim() ||
+    String(created.id)
   const nextStep = hasTransferDiscount
-    ? `Pedido ${created.name ?? '#' + created.order_number} creado. Avisale que el total se confirma al validar la ${transferLabel} (crédito de ${transferAmount} ${currency}).`
-    : `Pedido ${created.name ?? '#' + created.order_number} creado. Confirmale el número y los próximos pasos de pago/entrega.`
+    ? `Pedido ${orderNumber} creado. Avisale que el total se confirma al validar la ${transferLabel} (crédito de ${transferAmount} ${currency}).`
+    : `Pedido ${orderNumber} creado. Confirmale el número y los próximos pasos de pago/entrega.`
 
   return {
     shopify_order_id: String(created.id),
-    order_number: created.name ?? String(created.order_number ?? ''),
+    order_number: orderNumber,
     order_status_url: created.order_status_url ?? null,
     currency: created.currency || currency,
     total_price: total != null && !Number.isNaN(total) ? total : null,
     offer_label: offerLabel,
-    line_items: [{ title, quantity: qty, price: linePrice }],
+    line_items: [{ title, quantity: qty, price: unitPrice }],
     customer_name: name || null,
     customer_phone: phone ?? null,
     customer_email: email ?? null,
