@@ -189,18 +189,91 @@ export async function runAiAgent(
       args.contact,
       productMatch,
     );
-    const reply = await generateReply(
-      agent,
-      args.contact,
-      primaryContact,
-      shopifySnapshot,
-      recentNotes,
-      context,
-      products,
-      productMatch,
-      shopify,
-      db,
-    );
+    let reply: Awaited<ReturnType<typeof generateReply>>;
+    try {
+      reply = await generateReply(
+        agent,
+        args.contact,
+        primaryContact,
+        shopifySnapshot,
+        recentNotes,
+        context,
+        products,
+        productMatch,
+        shopify,
+        db,
+      );
+    } catch (genErr) {
+      // El modelo falló (p. ej. Anthropic 401/402 sin crédito, 429, o 5xx).
+      // No dejamos al cliente en silencio: le enviamos un mensaje de cortesía
+      // con handoff a un humano y logueamos categorizado. 401/402 NO es
+      // transitorio (sin crédito / auth) — el SDK no lo reintenta y nosotros
+      // tampoco; lo distinguimos para alertas/diagnóstico.
+      const httpStatus =
+        genErr && typeof genErr === 'object' && 'status' in genErr
+          ? Number((genErr as { status?: number }).status)
+          : undefined;
+      const category =
+        httpStatus === 401 || httpStatus === 402
+          ? 'ai_no_credit'
+          : httpStatus === 429
+            ? 'ai_rate_limited'
+            : httpStatus && httpStatus >= 500
+              ? 'ai_upstream'
+              : 'ai_error';
+      console.error(
+        `[ai] generateReply failed (${category}, http=${httpStatus ?? 'n/a'}):`,
+        genErr,
+      );
+      const lang = (agent.language || 'es').toLowerCase().slice(0, 2);
+      const courtesy: Record<string, string> = {
+        es: 'Gracias por tu mensaje 🙌 En un momento te responde una persona de nuestro equipo.',
+        en: 'Thanks for your message 🙌 Someone from our team will get back to you shortly.',
+        pt: 'Obrigado pela sua mensagem 🙌 Em instantes uma pessoa da nossa equipe vai te responder.',
+      };
+      const text = courtesy[lang] ?? courtesy.es;
+      try {
+        const adapter = getAdapter(args.channel);
+        const sendResult = await adapter.sendText({
+          channel: args.channel,
+          connection: args.connection,
+          conversation: args.conversation,
+          contact: args.contact,
+          text,
+        });
+        await db.from('messages').insert({
+          conversation_id: args.conversation.id,
+          channel: args.channel,
+          sender_type: 'bot',
+          content_type:
+            args.channel === 'gmail' || args.channel === 'outlook'
+              ? 'email'
+              : args.channel === 'fb_comment' || args.channel === 'ig_comment'
+                ? 'comment'
+                : 'text',
+          content_text: text,
+          message_id: sendResult.externalMessageId,
+          status: sendResult.status ?? 'sent',
+        });
+        await db
+          .from('conversations')
+          .update({
+            last_message_text: text.slice(0, 200),
+            last_message_at: new Date().toISOString(),
+            last_sender_type: 'bot',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', args.conversation.id);
+      } catch (sendErr) {
+        console.error('[ai] courtesy send failed:', sendErr);
+      }
+      await logReply(db, agent, args, {
+        status: 'failed',
+        skip_reason: category,
+        error: genErr instanceof Error ? genErr.message : String(genErr),
+      });
+      return;
+    }
     // Fallback for the tool-loop tail case: if we burned through all
     // AGENTIC_LOOP_MAX_ITERS and ended with empty text, the customer
     // would otherwise see nothing. Send a Spanish nudge to humans so

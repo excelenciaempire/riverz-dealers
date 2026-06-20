@@ -19,7 +19,8 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10'
 const DEFAULT_SCOPES =
-  process.env.SHOPIFY_SCOPES || 'read_orders,read_checkouts,read_customers'
+  process.env.SHOPIFY_SCOPES ||
+  'read_orders,read_checkouts,read_customers,read_products'
 
 export function shopifyApiVersion(): string {
   return API_VERSION
