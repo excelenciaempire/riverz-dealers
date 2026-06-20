@@ -371,6 +371,24 @@ function FeatureSection({
   s: (typeof SECTIONS)[number];
   flip: boolean;
 }) {
+  // Replay the preview's animation each time it scrolls into view (on every
+  // device) by remounting it via a changing key — so the visitor always sees
+  // it play from the start the moment it appears, never mid-loop or finished.
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [playKey, setPlayKey] = useState(0);
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setPlayKey((k) => k + 1);
+      },
+      { threshold: 0.3, rootMargin: "0px 0px -12% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <section className={SECTION}>
       <div className="mx-auto max-w-6xl px-5">
@@ -382,8 +400,8 @@ function FeatureSection({
             </h2>
             <p className={`mt-5 max-w-[420px] ${BODY}`}>{s.body}</p>
           </div>
-          <div className={flip ? "md:order-1" : undefined}>
-            <s.Preview />
+          <div ref={previewRef} className={flip ? "md:order-1" : undefined}>
+            <s.Preview key={playKey} />
           </div>
         </div>
       </div>
@@ -1345,21 +1363,18 @@ function FlowPreview() {
 
 function CampaignPreview() {
   const reduced = useReducedMotion();
-  const [cycle, setCycle] = useState(0);
+  // FeatureSection remounts this preview when it enters view, so a single
+  // start-on-mount is enough — the counters replay every time it appears.
+  const [run, setRun] = useState(false);
   useEffect(() => {
-    const start = setTimeout(() => setCycle(1), 60);
-    const loop = setInterval(() => setCycle((c) => c + 1), 5200);
-    return () => {
-      clearTimeout(start);
-      clearInterval(loop);
-    };
+    const id = setTimeout(() => setRun(true), 60);
+    return () => clearTimeout(id);
   }, []);
-  const run = cycle > 0;
 
-  const sent = useCountUp(1240, run, 1100, cycle);
-  const delivered = useCountUp(1198, run, 1100, cycle);
-  const read = useCountUp(932, run, 1100, cycle);
-  const replied = useCountUp(214, run, 1100, cycle);
+  const sent = useCountUp(1240, run);
+  const delivered = useCountUp(1198, run);
+  const read = useCountUp(932, run);
+  const replied = useCountUp(214, run);
   const pct = reduced ? 96 : Math.min(96, Math.round((delivered / 1240) * 100));
 
   const fmt = (v: number) => Math.round(v).toLocaleString("es-CO");
@@ -1468,22 +1483,18 @@ function ProductPreview() {
 const BARS = [38, 52, 44, 70, 60, 84, 96];
 
 function MetricsPreview() {
-  // setInterval-driven so the counters reliably start and re-animate (a one-shot
-  // requestAnimationFrame can be dropped if the tab mounts in the background).
-  const [cycle, setCycle] = useState(0);
+  // setTimeout (not a one-shot rAF, which can be dropped off-screen) so the
+  // counters reliably start. FeatureSection remounts the preview on view, so
+  // they replay from zero every time the section appears.
+  const [run, setRun] = useState(false);
   useEffect(() => {
-    const start = setTimeout(() => setCycle(1), 60);
-    const loop = setInterval(() => setCycle((c) => c + 1), 5200);
-    return () => {
-      clearTimeout(start);
-      clearInterval(loop);
-    };
+    const id = setTimeout(() => setRun(true), 60);
+    return () => clearTimeout(id);
   }, []);
-  const run = cycle > 0;
 
-  const roas = useCountUp(4.2, run, 1100, cycle);
-  const ingresos = useCountUp(1.84, run, 1100, cycle);
-  const recup = useCountUp(420, run, 1100, cycle);
+  const roas = useCountUp(4.2, run, 1100);
+  const ingresos = useCountUp(1.84, run);
+  const recup = useCountUp(420, run);
 
   return (
     <PreviewFrame>
