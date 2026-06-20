@@ -131,6 +131,12 @@ export function ConversationList({
         .from("conversations")
         .select("*, contact:contacts(*)")
         .eq("workspace_id", workspaceId)
+        // Ocultar conversaciones vacías: las automatizaciones de Shopify
+        // (recuperación de carrito / pedidos) crean la conversación ANTES
+        // de enviar, y si el envío falla (p.ej. bloqueo de pago de WhatsApp)
+        // queda una conversación "Sin mensajes" que ensucia la bandeja.
+        // Sin último mensaje no es una conversación real.
+        .not("last_message_at", "is", null)
         .order("last_message_at", { ascending: false });
       // Show all non-email conversations (RLS already limits to the
       // workspace) plus email conversations from this user's mailboxes.
@@ -156,7 +162,7 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(data ?? []);
+      onConversationsLoadedRef.current((data ?? []) as unknown as Conversation[]);
       setLoading(false);
     })();
 
