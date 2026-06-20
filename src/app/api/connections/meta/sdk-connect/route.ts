@@ -36,11 +36,11 @@ export async function POST(req: Request): Promise<Response> {
   if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as
-    | { code?: string; channel?: string; workspace_id?: string }
+    | { code?: string; access_token?: string; channel?: string; workspace_id?: string }
     | null;
-  if (!body?.code || !body.channel || !body.workspace_id) {
+  if (!body || !body.channel || !body.workspace_id || !(body.code || body.access_token)) {
     return NextResponse.json(
-      { error: "code, channel, workspace_id required" },
+      { error: "channel, workspace_id and (code or access_token) required" },
       { status: 400 },
     );
   }
@@ -65,28 +65,31 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    // 1. Exchange the FB.login code for a user token.
-    //    El code viene del JS SDK (FB.login), cuyo diálogo registra
-    //    redirect_uri = "" (vacío). El canje DEBE mandar redirect_uri vacío
-    //    e IDÉNTICO, si no Facebook responde 400 error_subcode 36008
-    //    ("redirect_uri ... identical"). Omitirlo no basta: hay que enviar
-    //    el parámetro presente y vacío (`&redirect_uri=`).
-    const tokRes = await fetch(
-      `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=&code=${encodeURIComponent(body.code)}`,
-    );
-    if (!tokRes.ok) {
-      // Surface Facebook's actual reason: el body trae el error_subcode /
-      // message exacto (redirect_uri, code usado, appsecret, etc.), que es
-      // lo único que permite arreglar un 400 sin adivinar.
-      const detail = await tokRes.text().catch(() => "");
-      console.error("[meta/sdk-connect] token exchange failed:", tokRes.status, detail);
-      throw new MetaConnectError(
-        `token exchange failed (${tokRes.status}): ${detail.slice(0, 400)}`,
+    // 1. Conseguir el user token.
+    //    Config de identificador de USUARIO: FB.login ya devuelve el
+    //    accessToken en el cliente, así que lo recibimos directo y nos
+    //    saltamos el code-exchange (que daba 400 error_subcode 36008 porque
+    //    el code del SDK exige cuadrar el redirect_uri interno del
+    //    xd_arbiter, imposible de reconstruir en el server).
+    //    Fallback: si en cambio llega un `code` (configs que devuelven
+    //    code), lo canjeamos con redirect_uri vacío y exponemos el error
+    //    real de Facebook si falla.
+    let accessToken: string | undefined = body.access_token;
+    if (!accessToken && body.code) {
+      const tokRes = await fetch(
+        `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=&code=${encodeURIComponent(body.code)}`,
       );
+      if (!tokRes.ok) {
+        const detail = await tokRes.text().catch(() => "");
+        console.error("[meta/sdk-connect] token exchange failed:", tokRes.status, detail);
+        throw new MetaConnectError(
+          `token exchange failed (${tokRes.status}): ${detail.slice(0, 400)}`,
+        );
+      }
+      const tok = (await tokRes.json()) as { access_token?: string };
+      accessToken = tok.access_token;
     }
-    const tok = (await tokRes.json()) as { access_token?: string };
-    let accessToken = tok.access_token;
-    if (!accessToken) throw new MetaConnectError("no access_token in exchange response");
+    if (!accessToken) throw new MetaConnectError("no access_token");
 
     // 2. Swap for a long-lived token (~60d) so the derived page tokens
     //    don't expire. Non-fatal.

@@ -90,13 +90,13 @@ export function MetaBusinessLogin({
   }, []);
 
   const finish = useCallback(
-    async (code: string) => {
+    async (payload: { access_token?: string; code?: string }) => {
       setBusy(true);
       try {
         const r = await fetchWithCsrf("/api/connections/meta/sdk-connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, channel, workspace_id: workspaceId }),
+          body: JSON.stringify({ ...payload, channel, workspace_id: workspaceId }),
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
@@ -116,17 +116,25 @@ export function MetaBusinessLogin({
 
   const launch = useCallback(() => {
     if (!window.FB || !CONFIG_ID) return;
+    // Config de identificador de USUARIO → FB.login devuelve el token de
+    // acceso directo en authResponse.accessToken (sin code-exchange, así no
+    // hay redirect_uri que cuadrar — el code-exchange del SDK daba 400
+    // error_subcode 36008). Si por config llegara un `code`, lo mandamos
+    // igual y el server hace el canje como fallback.
     window.FB.login(
       (resp) => {
-        const code = resp.authResponse?.code;
-        if (code) void finish(code);
+        // El tipo global de FB.login (compartido con WhatsApp ES) solo
+        // declara `code`; en el flujo de token también viene accessToken.
+        const ar = resp.authResponse as
+          | { code?: string; accessToken?: string }
+          | undefined;
+        const token = ar?.accessToken;
+        const code = ar?.code;
+        if (token) void finish({ access_token: token });
+        else if (code) void finish({ code });
         else toast.error("Conexión cancelada");
       },
-      {
-        config_id: CONFIG_ID,
-        response_type: "code",
-        override_default_response_type: true,
-      },
+      { config_id: CONFIG_ID },
     );
   }, [finish]);
 
