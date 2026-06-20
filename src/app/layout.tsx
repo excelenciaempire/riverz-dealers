@@ -25,7 +25,7 @@ const interTight = Inter_Tight({
 export const metadata: Metadata = {
   metadataBase: new URL("https://riverz.co"),
   title: {
-    default: "riverz — CRM con IA para WhatsApp e Instagram",
+    default: "riverz",
     template: "%s · riverz",
   },
   description:
