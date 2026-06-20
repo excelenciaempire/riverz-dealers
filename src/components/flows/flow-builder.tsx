@@ -96,6 +96,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 import {
   reachableFromEntry,
   validateFlowForActivation,
@@ -233,109 +235,109 @@ const NODE_META: Record<
   { label: string; icon: typeof Workflow; color: string; bg: string }
 > = {
   start: {
-    label: "Inicio",
+    label: "flows.metaStart",
     icon: PlayCircle,
     color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-500/15",
   },
   send_message: {
-    label: "Enviar mensaje",
+    label: "flows.metaSendMessage",
     icon: MessageCircle,
     color: "text-emerald-500",
     bg: "bg-white",
   },
   send_buttons: {
-    label: "Enviar botones",
+    label: "flows.metaSendButtons",
     icon: ListChecks,
     color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/15",
   },
   send_list: {
-    label: "Enviar lista",
+    label: "flows.metaSendList",
     icon: ListPlus,
     color: "text-indigo-400",
     bg: "bg-indigo-500/15",
   },
   collect_input: {
-    label: "Pedir un dato al cliente",
+    label: "flows.metaCollectInput",
     icon: Inbox,
     color: "text-teal-700 dark:text-teal-400",
     bg: "bg-teal-500/15",
   },
   condition: {
-    label: "Si / Si no",
+    label: "flows.metaCondition",
     icon: GitFork,
     color: "text-fuchsia-400",
     bg: "bg-fuchsia-500/15",
   },
   set_tag: {
-    label: "Etiquetar al cliente",
+    label: "flows.metaSetTag",
     icon: Tag,
     color: "text-pink-600 dark:text-pink-400",
     bg: "bg-pink-500/15",
   },
   handoff: {
-    label: "Pasar a un humano",
+    label: "flows.metaHandoff",
     icon: UserPlus,
     color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/15",
   },
   send_image: {
-    label: "Enviar imagen",
+    label: "flows.metaSendImage",
     icon: ImageIcon,
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_video: {
-    label: "Enviar video",
+    label: "flows.metaSendVideo",
     icon: Video,
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_document: {
-    label: "Enviar documento",
+    label: "flows.metaSendDocument",
     icon: FileText,
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   send_cta_url: {
-    label: "Botón con enlace",
+    label: "flows.metaSendCtaUrl",
     icon: ExternalLink,
     color: "text-indigo-400",
     bg: "bg-indigo-500/15",
   },
   wait: {
-    label: "Esperar",
+    label: "flows.metaWait",
     icon: Hourglass,
     color: "text-slate-300",
     bg: "bg-slate-500/15",
   },
   ai_intent: {
-    label: "Entender con IA",
+    label: "flows.metaAiIntent",
     icon: Sparkles,
     color: "text-fuchsia-400",
     bg: "bg-fuchsia-500/15",
   },
   shopify_lookup: {
-    label: "Buscar en Shopify",
+    label: "flows.metaShopifyLookup",
     icon: ShoppingBag,
     color: "text-emerald-700 dark:text-emerald-400",
     bg: "bg-emerald-500/15",
   },
   customer_reply: {
-    label: "Cliente responde",
+    label: "flows.metaCustomerReply",
     icon: MessageSquareReply,
     color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/15",
   },
   subflow: {
-    label: "Subflujo",
+    label: "flows.metaSubflow",
     icon: Workflow,
     color: "text-indigo-600 dark:text-indigo-400",
     bg: "bg-indigo-500/15",
   },
   end: {
-    label: "Fin",
+    label: "flows.metaEnd",
     icon: Flag,
     color: "text-muted-foreground",
     bg: "bg-muted",
@@ -372,7 +374,7 @@ function truncate(s: string, max = 80): string {
   return clean.slice(0, max - 1) + "…";
 }
 
-function summarizeNode(node: BuilderNode): string | null {
+function summarizeNode(node: BuilderNode, t: TFn): string | null {
   const cfg = node.config;
   switch (node.node_type) {
     case "start":
@@ -405,13 +407,24 @@ function summarizeNode(node: BuilderNode): string | null {
         const rows = Array.isArray(s.rows) ? s.rows : [];
         return sum + rows.length;
       }, 0);
+      const optionsLabel =
+        rowCount === 1 ? t("flows.sumOptionsOne") : t("flows.sumOptionsMany");
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${rowCount} opción${rowCount === 1 ? "" : "es"}`
+          ? `${truncate(text, 50)} · ${rowCount} ${optionsLabel}`
           : truncate(text);
       }
+      const sectionsLabel =
+        sections.length === 1
+          ? t("flows.sumSectionsOne")
+          : t("flows.sumSectionsMany");
       return rowCount > 0
-        ? `${rowCount} opción${rowCount === 1 ? "" : "es"} en ${sections.length} sección${sections.length === 1 ? "" : "es"}`
+        ? t("flows.sumOptionsInSections", {
+            rows: rowCount,
+            optionsLabel,
+            sections: sections.length,
+            sectionsLabel,
+          })
         : null;
     }
     case "collect_input": {
@@ -433,20 +446,22 @@ function summarizeNode(node: BuilderNode): string | null {
             ? "field"
             : "var";
       const subjectStr =
-        subject === "tag" ? `tiene etiqueta ${truncate(subjectKey, 24)}` : `${subject}.${subjectKey}`;
+        subject === "tag"
+          ? t("flows.sumHasTag", { tag: truncate(subjectKey, 24) })
+          : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === "equals"
           ? "=="
           : cfg.operator === "contains"
-            ? "contiene"
+            ? t("flows.sumOpContains")
             : cfg.operator === "not_contains"
-              ? "no contiene"
+              ? t("flows.sumOpNotContains")
               : cfg.operator === "regex_match"
-                ? "regex"
+                ? t("flows.sumOpRegex")
                 : cfg.operator === "present"
-                  ? "existe"
+                  ? t("flows.sumOpPresent")
                   : cfg.operator === "absent"
-                    ? "no existe"
+                    ? t("flows.sumOpAbsent")
                     : "";
       const value = typeof cfg.value === "string" ? cfg.value : "";
       const valStr =
@@ -460,12 +475,15 @@ function summarizeNode(node: BuilderNode): string | null {
       return subject === "tag" ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
     case "set_tag": {
-      const mode = cfg.mode === "remove" ? "Quitar" : "Añadir";
+      const mode =
+        cfg.mode === "remove" ? t("flows.sumTagRemove") : t("flows.sumTagAdd");
       const tagId = typeof cfg.tag_id === "string" ? cfg.tag_id : "";
       // No tag name available without an async lookup here; show a
       // short prefix of the UUID so users can disambiguate between
       // multiple set_tag nodes at a glance.
-      return tagId ? `${mode} etiqueta ${tagId.slice(0, 8)}…` : `${mode} etiqueta (ninguna elegida)`;
+      return tagId
+        ? t("flows.sumTagWithId", { mode, id: tagId.slice(0, 8) })
+        : t("flows.sumTagNone", { mode });
     }
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
@@ -492,29 +510,33 @@ function summarizeNode(node: BuilderNode): string | null {
     case "ai_intent": {
       const list = Array.isArray(cfg.intents) ? cfg.intents : [];
       return list.length > 0
-        ? `${list.length} intenc${list.length === 1 ? "ión" : "iones"}`
+        ? list.length === 1
+          ? t("flows.sumIntentsOne")
+          : t("flows.sumIntentsMany", { n: list.length })
         : null;
     }
     case "shopify_lookup": {
       const kind = String(cfg.kind ?? "");
-      const KIND_LABEL: Record<string, string> = {
-        order_by_number: "Pedido por número",
-        order_by_email: "Pedido por correo",
-        last_order: "Último pedido del contacto",
-        product_by_handle: "Producto por handle",
+      const KIND_LABEL_KEYS: Record<string, string> = {
+        order_by_number: "flows.shopifyOrderByNumber",
+        order_by_email: "flows.shopifyOrderByEmail",
+        last_order: "flows.shopifyLastOrder",
+        product_by_handle: "flows.shopifyProductByHandle",
       };
-      return KIND_LABEL[kind] ?? null;
+      return KIND_LABEL_KEYS[kind] ? t(KIND_LABEL_KEYS[kind]) : null;
     }
     case "customer_reply":
-      return "Esperando respuesta del cliente";
+      return t("flows.sumCustomerReply");
     case "subflow": {
       const id = String(cfg.sub_flow_id ?? "");
-      return id ? `Subflujo ${id.slice(0, 8)}…` : "Sin flujo elegido";
+      return id
+        ? t("flows.sumSubflowWithId", { id: id.slice(0, 8) })
+        : t("flows.sumSubflowNone");
     }
   }
 }
 
-function defaultConfigFor(type: NodeType): Record<string, unknown> {
+function defaultConfigFor(type: NodeType, t: TFn): Record<string, unknown> {
   switch (type) {
     case "start":
       return { next_node_key: "" };
@@ -523,17 +545,17 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
     case "send_buttons":
       return {
         text: "",
-        buttons: [{ reply_id: "yes", title: "Sí", next_node_key: "" }],
+        buttons: [{ reply_id: "yes", title: t("flows.defaultButtonYes"), next_node_key: "" }],
       };
     case "send_list":
       return {
         text: "",
-        button_label: "Ver opciones",
+        button_label: t("flows.defaultListButton"),
         sections: [
           {
             title: "",
             rows: [
-              { reply_id: "row_1", title: "Opción 1", next_node_key: "" },
+              { reply_id: "row_1", title: t("flows.defaultOptionOne"), next_node_key: "" },
             ],
           },
         ],
@@ -565,7 +587,7 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
     case "send_cta_url":
       return {
         text: "",
-        button_title: "Ver más",
+        button_title: t("flows.defaultCtaButton"),
         url: "https://",
         next_node_key: "",
       };
@@ -575,8 +597,8 @@ function defaultConfigFor(type: NodeType): Record<string, unknown> {
       return {
         prompt_text: "",
         intents: [
-          { intent_key: "yes", description: "El cliente acepta", next_node_key: "" },
-          { intent_key: "no", description: "El cliente rechaza", next_node_key: "" },
+          { intent_key: "yes", description: t("flows.defaultIntentYesDesc"), next_node_key: "" },
+          { intent_key: "no", description: t("flows.defaultIntentNoDesc"), next_node_key: "" },
         ],
         fallback_next_key: "",
       };
@@ -608,6 +630,7 @@ export function FlowBuilder({
   templateSlug,
 }: FlowBuilderProps) {
   const router = useRouter();
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [state, setState] = useState<BuilderState>(() => ({
@@ -980,7 +1003,7 @@ export function FlowBuilder({
       // non-existent id.
       if (templatePreview) {
         if (!templateSlug) {
-          toast.error("Falta la plantilla.");
+          toast.error(t("flows.missingTemplate"));
           return;
         }
         const res = await fetchWithCsrf("/api/flows", {
@@ -990,9 +1013,9 @@ export function FlowBuilder({
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.flow?.id) {
-          throw new Error(json.error ?? `No se pudo usar la plantilla (${res.status})`);
+          throw new Error(json.error ?? t("flows.useTemplateFailedShort", { status: res.status }));
         }
-        toast.success("Plantilla agregada.");
+        toast.success(t("flows.templateAdded"));
         router.push(`/menus/${json.flow.id}`);
         return;
       }
@@ -1024,21 +1047,21 @@ export function FlowBuilder({
       // Si después del save no quedan errores, ocultamos el panel
       // de nuevo — el flujo está limpio, no hace falta el ruido.
       if (canActivate) setShowValidation(false);
-      toast.success("Guardado.");
+      toast.success(t("flows.saved"));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo guardar";
+      const msg = err instanceof Error ? err.message : t("flows.couldNotSave");
       toast.error(msg);
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state, canActivate, fetchWithCsrf, templatePreview, templateSlug, router]);
+  }, [initialFlow.id, state, canActivate, fetchWithCsrf, templatePreview, templateSlug, router, t]);
 
   // ---- Activate / Pause / Archive ----
   const handleStatus = useCallback(
     async (next: BuilderState["status"]) => {
       if (templatePreview) return; // no status changes in preview
       if (next === "active" && !canActivate) {
-        toast.error("Corrige los errores antes de activar.");
+        toast.error(t("flows.fixErrorsBeforeActivating"));
         return;
       }
       setActivating(true);
@@ -1061,25 +1084,25 @@ export function FlowBuilder({
         setState((s) => ({ ...s, status: next }));
         toast.success(
           next === "active"
-            ? "Activado."
+            ? t("flows.activatedToast")
             : next === "archived"
-              ? "Archivado."
-              : "Borrador.",
+              ? t("flows.archivedToast")
+              : t("flows.draftToast"),
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "No se pudo actualizar el estado";
+        const msg = err instanceof Error ? err.message : t("flows.couldNotUpdateStatus");
         toast.error(msg);
       } finally {
         setActivating(false);
       }
     },
-    [templatePreview, canActivate, handleSave, initialFlow.id, fetchWithCsrf],
+    [templatePreview, canActivate, handleSave, initialFlow.id, fetchWithCsrf, t],
   );
 
   // ---- Delete ----
   const handleDelete = useCallback(async () => {
     if (templatePreview) return;
-    const yes = window.confirm(`¿Eliminar "${state.name}"?`);
+    const yes = window.confirm(t("flows.confirmDelete", { name: state.name }));
     if (!yes) return;
     try {
       const res = await fetchWithCsrf(`/api/flows/${initialFlow.id}`, {
@@ -1088,10 +1111,10 @@ export function FlowBuilder({
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       router.push("/menus");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo eliminar";
+      const msg = err instanceof Error ? err.message : t("flows.couldNotDelete");
       toast.error(msg);
     }
-  }, [templatePreview, initialFlow.id, router, state.name, fetchWithCsrf]);
+  }, [templatePreview, initialFlow.id, router, state.name, fetchWithCsrf, t]);
 
   // ---- Node helpers ----
   // `silenced` set + `unsilence` están declarados más abajo; las
@@ -1192,8 +1215,7 @@ export function FlowBuilder({
         idx: number;
       },
     ) => {
-      const meta = NODE_META[type];
-      const base = slugify(meta.label, type);
+      const base = slugify(type, type);
       setStateDirty((s) => {
         const node_key = uniqueNodeKey(base, s.nodes);
         // Si viene de un quick-add, posicionar a la derecha del padre
@@ -1211,7 +1233,7 @@ export function FlowBuilder({
         const next: BuilderNode = {
           node_key,
           node_type: type,
-          config: defaultConfigFor(type),
+          config: defaultConfigFor(type, t),
           position_x: baseX + CARD_GAP_X,
           position_y: baseY,
         };
@@ -1305,7 +1327,7 @@ export function FlowBuilder({
         };
       });
     },
-    [setStateDirty],
+    [setStateDirty, t],
   );
 
   /**
@@ -1639,8 +1661,8 @@ export function FlowBuilder({
         }),
       };
     });
-    toast.success("Nodos reordenados");
-  }, [setStateDirty]);
+    toast.success(t("flows.nodesReordered"));
+  }, [setStateDirty, t]);
 
   /**
    * Wire una conexión: el usuario soltó el drag del port (kind, idx) en
@@ -1813,10 +1835,10 @@ export function FlowBuilder({
     clearNodeSelection();
     toast.success(
       keysToRemove.size === 1
-        ? "Paso eliminado"
-        : `${keysToRemove.size} pasos eliminados`,
+        ? t("flows.stepDeleted")
+        : t("flows.stepsDeleted", { n: keysToRemove.size }),
     );
-  }, [selectedNodeKeys, setStateDirty, clearNodeSelection]);
+  }, [selectedNodeKeys, setStateDirty, clearNodeSelection, t]);
 
   /**
    * Copia los nodos seleccionados al clipboard interno (un ref, no el
@@ -1834,9 +1856,9 @@ export function FlowBuilder({
       config: JSON.parse(JSON.stringify(n.config)),
     }));
     toast.success(
-      copied.length === 1 ? "Paso copiado" : `${copied.length} pasos copiados`,
+      copied.length === 1 ? t("flows.stepCopied") : t("flows.stepsCopied", { n: copied.length }),
     );
-  }, [selectedNodeKeys]);
+  }, [selectedNodeKeys, t]);
 
   const pasteCopiedNodes = useCallback(() => {
     const copied = clipboardRef.current;
@@ -1884,9 +1906,9 @@ export function FlowBuilder({
       return { ...s, nodes: [...s.nodes, ...newNodes] };
     });
     toast.success(
-      copied.length === 1 ? "Paso pegado" : `${copied.length} pasos pegados`,
+      copied.length === 1 ? t("flows.stepPasted") : t("flows.stepsPasted", { n: copied.length }),
     );
-  }, [setStateDirty]);
+  }, [setStateDirty, t]);
 
   // Atajos de teclado a nivel del editor: Delete borra la selección
   // múltiple cuando hay 2+ nodos; Cmd/Ctrl+C copia; Cmd/Ctrl+V pega.
@@ -2327,9 +2349,18 @@ export function FlowBuilder({
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
           <span>
-            Vista previa de la plantilla. Toca{" "}
-            <span className="font-medium text-foreground">Usar plantilla</span>{" "}
-            para crearla y editarla.
+            {t("flows.templatePreviewBanner")
+              .split("{action}")
+              .flatMap((part, i) =>
+                i === 0
+                  ? [part]
+                  : [
+                      <span key={i} className="font-medium text-foreground">
+                        {t("flows.useTemplate")}
+                      </span>,
+                      part,
+                    ],
+              )}
           </span>
         </div>
       )}
@@ -2477,6 +2508,7 @@ export function FlowBuilder({
             handleAutoLayout,
             fitToView: () =>
               canvasViewportRef.current?.zoomToRect(computeContentBounds(), 0.7),
+            t,
           })}
         />
       )}
@@ -2518,28 +2550,30 @@ function buildCommandItems(args: {
   handleSave: () => void;
   handleAutoLayout: () => void;
   fitToView: () => void;
+  t: TFn;
 }): CommandItem[] {
+  const { t } = args;
   const items: CommandItem[] = [];
 
   // Acciones globales primero — son lo que el merchant más busca.
   items.push(
     {
-      group: "Acción",
-      label: "Guardar",
-      hint: "Aplica los cambios y revisa la validación.",
+      group: t("flows.cmdGroupAction"),
+      label: t("flows.cmdSave"),
+      hint: t("flows.cmdSaveHint"),
       run: args.handleSave,
       shortcut: "Cmd+S",
     },
     {
-      group: "Acción",
-      label: "Auto-organizar nodos",
-      hint: "Reordena el grafo en columnas según el flujo.",
+      group: t("flows.cmdGroupAction"),
+      label: t("flows.cmdAutoLayout"),
+      hint: t("flows.cmdAutoLayoutHint"),
       run: args.handleAutoLayout,
     },
     {
-      group: "Acción",
-      label: "Centrar todo el flujo",
-      hint: "Encuadra todos los pasos en pantalla.",
+      group: t("flows.cmdGroupAction"),
+      label: t("flows.cmdFitToView"),
+      hint: t("flows.cmdFitToViewHint"),
       run: args.fitToView,
     },
   );
@@ -2550,21 +2584,22 @@ function buildCommandItems(args: {
     const meta = NODE_META[n.node_type];
     const inline = inlineNodeTitle(n);
     items.push({
-      group: "Saltar a paso",
-      label: meta.label,
-      hint: inline || `Paso ${n.node_key}`,
+      group: t("flows.cmdGroupJump"),
+      label: t(meta.label),
+      hint: inline || t("flows.cmdStepFallback", { key: n.node_key }),
       run: () => args.jumpToNode(n.node_key),
     });
   }
 
   // Agregar paso: un comando por tipo agregable.
-  for (const t of ADDABLE_NODE_TYPES) {
-    const meta = NODE_META[t];
+  for (const nodeType of ADDABLE_NODE_TYPES) {
+    const meta = NODE_META[nodeType];
+    const label = t(meta.label);
     items.push({
-      group: "Agregar paso",
-      label: meta.label,
-      hint: `Crea un nuevo ${meta.label.toLowerCase()}.`,
-      run: () => args.addNode(t),
+      group: t("flows.cmdGroupAdd"),
+      label,
+      hint: t("flows.cmdAddHint", { label: label.toLowerCase() }),
+      run: () => args.addNode(nodeType),
     });
   }
 
@@ -2658,12 +2693,13 @@ function Header({
   onRedo: () => void;
   templatePreview?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={onBack}
-        aria-label="Volver a flujos"
+        aria-label={t("flows.backToFlowsAria")}
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -2673,12 +2709,12 @@ function Header({
         onChange={(e) =>
           setState((s) => ({ ...s, name: e.target.value }))
         }
-        placeholder="Nombre del flujo"
+        placeholder={t("flows.flowNamePlaceholder")}
         className="min-w-0 max-w-xs flex-1 border-transparent bg-transparent px-2 text-base font-semibold focus-visible:border-border focus-visible:bg-card"
       />
       {!templatePreview && <StatusBadge status={state.status} />}
       {dirty && !templatePreview && (
-        <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title="Cambios sin guardar" />
+        <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title={t("flows.unsavedChanges")} />
       )}
       <div className="ml-auto flex items-center gap-1.5">
         {/* Undo / Redo — atajo Ctrl/Cmd+Z + Shift. Botones se
@@ -2688,8 +2724,8 @@ function Header({
             type="button"
             onClick={onUndo}
             disabled={!canUndo}
-            title="Deshacer (Ctrl+Z)"
-            aria-label="Deshacer"
+            title={t("flows.undoTitle")}
+            aria-label={t("flows.undo")}
             className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
           >
             <Undo2 className="h-3.5 w-3.5" />
@@ -2698,8 +2734,8 @@ function Header({
             type="button"
             onClick={onRedo}
             disabled={!canRedo}
-            title="Rehacer (Ctrl+Shift+Z)"
-            aria-label="Rehacer"
+            title={t("flows.redoTitle")}
+            aria-label={t("flows.redo")}
             className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
           >
             <Redo2 className="h-3.5 w-3.5" />
@@ -2717,10 +2753,10 @@ function Header({
             className="flex items-center gap-2 px-1"
             title={
               state.status === "active"
-                ? "El flujo está activo. Toca para pausar."
+                ? t("flows.flowActiveTooltip")
                 : canActivate
-                  ? "El flujo está pausado. Toca para activar."
-                  : "Corrige los errores antes de activar"
+                  ? t("flows.flowPausedTooltip")
+                  : t("flows.fixErrorsTooltip")
             }
           >
             <Switch
@@ -2729,7 +2765,7 @@ function Header({
                 activating || (state.status !== "active" && !canActivate)
               }
               onCheckedChange={(v) => onStatus(v ? "active" : "draft")}
-              aria-label={state.status === "active" ? "Pausar" : "Activar"}
+              aria-label={state.status === "active" ? t("flows.pause") : t("flows.activate")}
             />
             <span
               className={cn(
@@ -2740,10 +2776,10 @@ function Header({
               )}
             >
               {activating
-                ? "Cambiando…"
+                ? t("flows.changing")
                 : state.status === "active"
-                  ? "Activo"
-                  : "Pausado"}
+                  ? t("flows.headerActive")
+                  : t("flows.headerPaused")}
             </span>
           </label>
         )}
@@ -2751,10 +2787,10 @@ function Header({
           variant="outline"
           size="sm"
           onClick={onOpenSimulator}
-          title="Probar el flujo como cliente"
+          title={t("flows.testAsCustomer")}
         >
           <PlayCircle className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Probar</span>
+          <span className="hidden sm:inline">{t("flows.test")}</span>
         </Button>
         <Button onClick={onSave} disabled={saving} size="sm">
           {saving ? (
@@ -2765,36 +2801,36 @@ function Header({
             <Save className="h-3.5 w-3.5" />
           )}
           <span className="hidden sm:inline">
-            {templatePreview ? "Usar plantilla" : "Guardar"}
+            {templatePreview ? t("flows.useTemplate") : t("flows.save")}
           </span>
         </Button>
         {!templatePreview && (
         <DropdownMenu>
           <DropdownMenuTrigger
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Más opciones"
+            aria-label={t("flows.moreOptions")}
           >
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="border-border bg-card">
             <DropdownMenuItem onClick={() => onViewRuns()}>
               <History className="h-3.5 w-3.5" />
-              Ejecuciones
+              {t("flows.runs")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onOpenVersions()}>
               <History className="h-3.5 w-3.5" />
-              Versiones
+              {t("flows.versions")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onToggleAnalytics()}>
               <GitBranch className="h-3.5 w-3.5" />
-              {showAnalytics ? "Ocultar analítica" : "Mostrar analítica por nodo"}
+              {showAnalytics ? t("flows.hideAnalytics") : t("flows.showAnalytics")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDelete}
               className="text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Eliminar flujo
+              {t("flows.deleteFlow")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -2805,15 +2841,16 @@ function Header({
 }
 
 function StatusBadge({ status }: { status: BuilderState["status"] }) {
+  const t = useT();
   const cls = {
     draft: "border-border bg-muted text-foreground",
     active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     archived: "border-border bg-muted/50 text-muted-foreground",
   }[status];
   const label = {
-    draft: "Borrador",
-    active: "Activo",
-    archived: "Archivado",
+    draft: t("flows.statusDraft"),
+    active: t("flows.statusActive"),
+    archived: t("flows.statusArchived"),
   }[status];
   return (
     <Badge variant="outline" className={cn("shrink-0", cls)}>
@@ -2940,6 +2977,7 @@ function NoteEditorPopover({
   onSave: (v: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState(initial);
   return (
     <div
@@ -2949,7 +2987,7 @@ function NoteEditorPopover({
       <div className="mb-1.5 flex items-center gap-1.5 px-1">
         <StickyNote className="size-3 text-amber-600" />
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          Nota del nodo
+          {t("flows.nodeNote")}
         </span>
       </div>
       <textarea
@@ -2965,14 +3003,14 @@ function NoteEditorPopover({
             onSave(value);
           }
         }}
-        placeholder="Nota interna. No se envía al cliente. Sirve para coordinar con tu equipo."
+        placeholder={t("flows.notePlaceholder")}
         rows={4}
         autoFocus
         className="w-full resize-none rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-foreground/30"
       />
       <div className="mt-1.5 flex items-center justify-between gap-1">
         <span className="text-[10px] text-muted-foreground">
-          Cmd+Enter guarda
+          {t("flows.cmdEnterSaves")}
         </span>
         <div className="flex items-center gap-1">
           <button
@@ -2980,14 +3018,14 @@ function NoteEditorPopover({
             onClick={onClose}
             className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            Cancelar
+            {t("flows.cancel")}
           </button>
           <button
             type="button"
             onClick={() => onSave(value)}
             className="rounded bg-foreground px-2 py-0.5 text-[11px] text-background hover:opacity-90"
           >
-            Guardar
+            {t("flows.save")}
           </button>
         </div>
       </div>
@@ -3006,6 +3044,7 @@ function NodeHoverToolbar({
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className="absolute -right-1 -top-2 z-10 flex items-center gap-0.5 rounded-full border border-border bg-card px-1 py-0.5 shadow-sm opacity-0 transition-opacity group-hover/card:opacity-100"
@@ -3020,8 +3059,8 @@ function NodeHoverToolbar({
             ? "text-amber-600 hover:bg-amber-500/10"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
-        aria-label={hasNote ? "Editar nota" : "Agregar nota"}
-        title={hasNote ? "Editar nota" : "Agregar nota"}
+        aria-label={hasNote ? t("flows.editNote") : t("flows.addNote")}
+        title={hasNote ? t("flows.editNote") : t("flows.addNote")}
       >
         <StickyNote className="h-3 w-3" />
       </button>
@@ -3029,8 +3068,8 @@ function NodeHoverToolbar({
         type="button"
         onClick={onDuplicate}
         className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Duplicar nodo"
-        title="Duplicar"
+        aria-label={t("flows.duplicateNode")}
+        title={t("flows.duplicate")}
       >
         <Copy className="h-3 w-3" />
       </button>
@@ -3038,8 +3077,8 @@ function NodeHoverToolbar({
         type="button"
         onClick={onRemove}
         className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
-        aria-label="Eliminar nodo"
-        title="Eliminar"
+        aria-label={t("flows.deleteNode")}
+        title={t("flows.delete")}
       >
         <Trash2 className="h-3 w-3" />
       </button>
@@ -3082,6 +3121,7 @@ function EditableNodeBubble({
     e: React.MouseEvent,
   ) => void;
 }) {
+  const t = useT();
   const cfg = node.config as Record<string, unknown>;
   // Acciones de confirmación expuestas por el FlowBuilder root. Para
   // borrar un botón/fila con downstream, usamos requestRemove* en vez
@@ -3183,14 +3223,14 @@ function EditableNodeBubble({
       ) => {
         if (sections.length === 0) {
           onUpdateConfig({
-            sections: [{ title: "Opciones", rows: nextFlat }],
+            sections: [{ title: t("flows.listSectionDefault"), rows: nextFlat }],
           });
           return;
         }
         if (sections.length === 1) {
           onUpdateConfig({
             sections: [
-              { title: sections[0].title ?? "Opciones", rows: nextFlat },
+              { title: sections[0].title ?? t("flows.listSectionDefault"), rows: nextFlat },
             ],
           });
           return;
@@ -3372,11 +3412,12 @@ function LogicNodeBody({
     e: React.MouseEvent,
   ) => void;
 }) {
+  const t = useT();
   const meta = NODE_META[node.node_type];
   const cfg = node.config as Record<string, unknown>;
   // Cuántas salidas tiene el nodo + si están conectadas o no. Determina
   // cuántos ports renderizamos en el body lógico y con qué etiquetas.
-  const outputs = logicOutputs(node);
+  const outputs = logicOutputs(node, t);
   return (
     <div className="space-y-2 p-3">
       <div className="flex items-center gap-2">
@@ -3389,21 +3430,21 @@ function LogicNodeBody({
           <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
         </div>
         <span className="text-sm font-medium text-foreground">
-          {meta.label}
+          {t(meta.label)}
         </span>
       </div>
 
       {node.node_type === "condition" && (
         <CompactInput
-          label="Valor"
+          label={t("flows.labelValue")}
           value={(cfg.value as string) ?? ""}
-          placeholder="Texto a comparar…"
+          placeholder={t("flows.comparePlaceholder")}
           onChange={(v) => onUpdateConfig({ value: v })}
         />
       )}
       {node.node_type === "wait" && (
         <CompactInput
-          label="Tiempo"
+          label={t("flows.labelTime")}
           value={String((cfg.amount as number) ?? "")}
           placeholder="5"
           onChange={(v) => onUpdateConfig({ amount: Number(v) || 0 })}
@@ -3411,9 +3452,9 @@ function LogicNodeBody({
       )}
       {node.node_type === "handoff" && (
         <CompactInput
-          label="Nota interna"
+          label={t("flows.labelInternalNote")}
           value={(cfg.note as string) ?? ""}
-          placeholder="Por qué se pasa a un humano…"
+          placeholder={t("flows.handoffNotePlaceholder")}
           onChange={(v) => onUpdateConfig({ note: v })}
         />
       )}
@@ -3428,24 +3469,23 @@ function LogicNodeBody({
       {node.node_type === "set_tag" && (
         <p className="text-[11px] italic text-muted-foreground">
           {(cfg.mode as string) === "remove"
-            ? "Quita la etiqueta."
-            : "Agrega la etiqueta."}
+            ? t("flows.setTagRemoveDesc")
+            : t("flows.setTagAddDesc")}
         </p>
       )}
       {node.node_type === "end" && (
         <p className="text-[11px] italic text-muted-foreground">
-          Fin del flujo. El cliente sale acá.
+          {t("flows.endNodeDesc")}
         </p>
       )}
       {node.node_type === "start" && (
         <p className="text-[11px] italic text-muted-foreground">
-          Punto de inicio.
+          {t("flows.startNodeDesc")}
         </p>
       )}
       {node.node_type === "customer_reply" && (
         <p className="text-[11px] italic text-muted-foreground">
-          El flujo se pausa hasta que el cliente envíe un mensaje.
-          No se guarda nada — solo se espera.
+          {t("flows.customerReplyDesc")}
         </p>
       )}
       {node.node_type === "subflow" && (
@@ -3484,7 +3524,7 @@ function LogicNodeBody({
                     : "border-[#9aa6ad] bg-white hover:scale-125 hover:border-[#00a5f4] hover:shadow-[0_0_0_3px_rgba(0,165,244,0.22)]",
                 )}
                 role="button"
-                aria-label={o.connected ? "Conexión existente" : "Conectar a otro paso"}
+                aria-label={o.connected ? t("flows.portConnected") : t("flows.portConnect")}
               />
               {/* Tail visual: línea + "⊕" cuando el port no está
                   conectado. Sale por fuera del card a la derecha y
@@ -3522,18 +3562,19 @@ function QuickAddPortButton({
   kind: "text" | "button" | "list_row" | "cta";
   idx: number;
 }) {
+  const t = useT();
   const actions = useFlowBubbleActions();
   if (!actions) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="ml-1 inline-flex h-5 items-center gap-1 rounded-full border border-border bg-card px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Agregar el siguiente paso"
+        aria-label={t("flows.addNext")}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         <Plus className="size-3" />
-        Agregar
+        {t("flows.add")}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -3541,17 +3582,17 @@ function QuickAddPortButton({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Siguiente paso
+          {t("flows.nextStep")}
         </div>
-        {ADDABLE_NODE_TYPES.map((t) => {
-          const meta = NODE_META[t];
+        {ADDABLE_NODE_TYPES.map((nodeType) => {
+          const meta = NODE_META[nodeType];
           return (
             <DropdownMenuItem
-              key={t}
-              onClick={() => actions.quickAdd(parentKey, kind, idx, t)}
+              key={nodeType}
+              onClick={() => actions.quickAdd(parentKey, kind, idx, nodeType)}
             >
               <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
+              {t(meta.label)}
             </DropdownMenuItem>
           );
         })}
@@ -3584,12 +3625,13 @@ function QuickAddTail({
   kind: "text" | "button" | "list_row" | "cta";
   idx: number;
 }) {
+  const t = useT();
   const actions = useFlowBubbleActions();
   if (!actions) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="Agregar el siguiente paso"
+        aria-label={t("flows.addNext")}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className={cn(
@@ -3621,17 +3663,17 @@ function QuickAddTail({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Siguiente paso
+          {t("flows.nextStep")}
         </div>
-        {ADDABLE_NODE_TYPES.map((t) => {
-          const meta = NODE_META[t];
+        {ADDABLE_NODE_TYPES.map((nodeType) => {
+          const meta = NODE_META[nodeType];
           return (
             <DropdownMenuItem
-              key={t}
-              onClick={() => actions.quickAdd(parentKey, kind, idx, t)}
+              key={nodeType}
+              onClick={() => actions.quickAdd(parentKey, kind, idx, nodeType)}
             >
               <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
+              {t(meta.label)}
             </DropdownMenuItem>
           );
         })}
@@ -3647,19 +3689,20 @@ function QuickAddTail({
  */
 function logicOutputs(
   node: BuilderNode,
+  t: TFn,
 ): Array<{ label: string; connected: boolean }> {
   const cfg = node.config as Record<string, unknown>;
   switch (node.node_type) {
     case "condition":
       return [
-        { label: "Sí", connected: !!(cfg.true_next as string) },
-        { label: "No", connected: !!(cfg.false_next as string) },
+        { label: t("flows.outYes"), connected: !!(cfg.true_next as string) },
+        { label: t("flows.outNo"), connected: !!(cfg.false_next as string) },
       ];
     case "shopify_lookup":
       return [
-        { label: "Encontrado", connected: !!(cfg.found_next_key as string) },
+        { label: t("flows.outFound"), connected: !!(cfg.found_next_key as string) },
         {
-          label: "No encontrado",
+          label: t("flows.outNotFound"),
           connected: !!(cfg.not_found_next_key as string),
         },
       ];
@@ -3669,7 +3712,7 @@ function logicOutputs(
     case "customer_reply":
     case "subflow":
       return [
-        { label: "Avanza a", connected: !!(cfg.next_node_key as string) },
+        { label: t("flows.outNext"), connected: !!(cfg.next_node_key as string) },
       ];
     case "handoff":
     case "end":
@@ -3728,6 +3771,7 @@ function ShopifyLookupForm({
   outputPrefix: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   // UI radicalmente simplificada: lo único que el merchant edita es
   // QUÉ BUSCAR. El resto (variable de entrada, prefijo del resultado,
   // lista de variables disponibles) lo resuelve el backend con
@@ -3745,41 +3789,39 @@ function ShopifyLookupForm({
     <div className="space-y-2">
       <label className="block">
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          Qué buscar
+          {t("flows.whatToLookUp")}
         </span>
         <Select
           value={kind}
           onValueChange={(v) => onUpdateConfig({ kind: v })}
         >
           <SelectTrigger className="mt-0.5 bg-muted/30 text-sm">
-            <span>{KIND_LABEL[kind] ?? kind}</span>
+            <span>{KIND_LABEL[kind] ? t(KIND_LABEL[kind]) : kind}</span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="order_by_number">Pedido por número</SelectItem>
-            <SelectItem value="order_by_email">Pedido por correo</SelectItem>
+            <SelectItem value="order_by_number">{t("flows.shopifyOrderByNumber")}</SelectItem>
+            <SelectItem value="order_by_email">{t("flows.shopifyOrderByEmail")}</SelectItem>
             <SelectItem value="last_order">
-              Último pedido del contacto
+              {t("flows.shopifyLastOrder")}
             </SelectItem>
             <SelectItem value="product_by_handle">
-              Producto por handle
+              {t("flows.shopifyProductByHandle")}
             </SelectItem>
           </SelectContent>
         </Select>
       </label>
       <p className="text-[10px] italic text-muted-foreground">
-        El número, correo o handle se toma automáticamente del último
-        dato que el cliente compartió en el chat. Las variables del
-        resultado (total, tracking, etc.) están en el panel Variables.
+        {t("flows.shopifyAutoInput")}
       </p>
     </div>
   );
 }
 
 const KIND_LABEL: Record<string, string> = {
-  order_by_number: "Pedido por número",
-  order_by_email: "Pedido por correo",
-  last_order: "Último pedido del contacto",
-  product_by_handle: "Producto por handle",
+  order_by_number: "flows.shopifyOrderByNumber",
+  order_by_email: "flows.shopifyOrderByEmail",
+  last_order: "flows.shopifyLastOrder",
+  product_by_handle: "flows.shopifyProductByHandle",
 };
 
 /**
@@ -3800,6 +3842,7 @@ function SubflowPicker({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const [flows, setFlows] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -3822,14 +3865,14 @@ function SubflowPicker({
   return (
     <div className="space-y-1">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        Flujo a ejecutar
+        {t("flows.flowToRun")}
       </p>
       <Select value={value} onValueChange={(v) => onChange(v ?? "")} disabled={loading}>
         <SelectTrigger className="bg-muted/30 text-sm">
           <span>
             {loading
-              ? "Cargando…"
-              : flows.find((f) => f.id === value)?.name ?? "Elegir un flujo"}
+              ? t("flows.loadingEllipsis")
+              : flows.find((f) => f.id === value)?.name ?? t("flows.chooseAFlow")}
           </span>
         </SelectTrigger>
         <SelectContent>
@@ -3841,9 +3884,7 @@ function SubflowPicker({
         </SelectContent>
       </Select>
       <p className="text-[10px] italic text-muted-foreground">
-        Hoy el subflujo se registra como evento y pasa al siguiente paso
-        directamente. La ejecución completa del subflujo llega en una
-        actualización aparte.
+        {t("flows.subflowNote")}
       </p>
     </div>
   );
@@ -3864,6 +3905,7 @@ function NodeConfigForm({
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const cfg = node.config;
   // Internal identifiers (node_key, reply_id columns on buttons/list rows)
   // are auto-generated and the runner is the only consumer. Hide them by
@@ -3879,14 +3921,14 @@ function NodeConfigForm({
           allNodes={allNodes}
           currentKey={node.node_key}
           onChange={(v) => onUpdateConfig({ next_node_key: v })}
-          label="Avanza a"
+          label={t("flows.goesTo")}
         />
       )}
 
       {node.node_type === "send_message" && (
         <>
           <TextRow
-            label="Texto enviado al cliente"
+            label={t("flows.textSentToCustomer")}
             value={(cfg as { text?: string }).text ?? ""}
             onChange={(v) => onUpdateConfig({ text: v })}
           />
@@ -3895,7 +3937,7 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Avanza a"
+            label={t("flows.goesTo")}
           />
         </>
       )}
@@ -3923,14 +3965,14 @@ function NodeConfigForm({
       {node.node_type === "collect_input" && (
         <>
           <TextRow
-            label="Mensaje que se envía al cliente"
+            label={t("flows.messageSentToCustomer")}
             value={(cfg as { prompt_text?: string }).prompt_text ?? ""}
             onChange={(v) => onUpdateConfig({ prompt_text: v })}
             rows={2}
           />
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
-              Clave de variable
+              {t("flows.variableKey")}
             </label>
             <Input
               value={(cfg as { var_key?: string }).var_key ?? ""}
@@ -3939,7 +3981,7 @@ function NodeConfigForm({
                   var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
                 })
               }
-              placeholder="nombre"
+              placeholder={t("flows.varKeyPlaceholder")}
               className="bg-muted font-mono text-xs"
             />
           </div>
@@ -3948,7 +3990,7 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Tras capturar, avanza a"
+            label={t("flows.afterCaptureGoesTo")}
           />
         </>
       )}
@@ -3973,7 +4015,7 @@ function NodeConfigForm({
 
       {node.node_type === "handoff" && (
         <TextRow
-          label="Nota interna (para el agente que retome la conversación)"
+          label={t("flows.handoffNoteLabel")}
           value={(cfg as { note?: string }).note ?? ""}
           onChange={(v) => onUpdateConfig({ note: v })}
           rows={2}
@@ -3985,19 +4027,19 @@ function NodeConfigForm({
         node.node_type === "send_document") && (
         <>
           <TextRow
-            label="URL del archivo (https)"
+            label={t("flows.fileUrlLabel")}
             value={(cfg as { url?: string }).url ?? ""}
             onChange={(v) => onUpdateConfig({ url: v })}
           />
           {node.node_type === "send_document" && (
             <TextRow
-              label="Nombre que ve el cliente"
+              label={t("flows.filenameSeenLabel")}
               value={(cfg as { filename?: string }).filename ?? ""}
               onChange={(v) => onUpdateConfig({ filename: v })}
             />
           )}
           <TextRow
-            label="Pie / descripción (opcional)"
+            label={t("flows.captionLabel")}
             value={(cfg as { caption?: string }).caption ?? ""}
             onChange={(v) => onUpdateConfig({ caption: v })}
             rows={2}
@@ -4007,7 +4049,7 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Avanza a"
+            label={t("flows.goesTo")}
           />
         </>
       )}
@@ -4015,18 +4057,18 @@ function NodeConfigForm({
       {node.node_type === "send_cta_url" && (
         <>
           <TextRow
-            label="Texto del mensaje"
+            label={t("flows.ctaMessageText")}
             value={(cfg as { text?: string }).text ?? ""}
             onChange={(v) => onUpdateConfig({ text: v })}
             rows={2}
           />
           <TextRow
-            label="Texto del botón (≤ 20 caracteres)"
+            label={t("flows.ctaButtonLabel")}
             value={(cfg as { button_title?: string }).button_title ?? ""}
             onChange={(v) => onUpdateConfig({ button_title: v })}
           />
           <TextRow
-            label="URL a abrir (https)"
+            label={t("flows.ctaUrlLabel")}
             value={(cfg as { url?: string }).url ?? ""}
             onChange={(v) => onUpdateConfig({ url: v })}
           />
@@ -4035,7 +4077,7 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Avanza a"
+            label={t("flows.goesTo")}
           />
         </>
       )}
@@ -4045,7 +4087,7 @@ function NodeConfigForm({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Cantidad
+                {t("flows.amount")}
               </label>
               <Input
                 type="number"
@@ -4059,16 +4101,16 @@ function NodeConfigForm({
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Unidad
+                {t("flows.unit")}
               </label>
               <select
                 value={String((cfg as { unit?: string }).unit ?? "hours")}
                 onChange={(e) => onUpdateConfig({ unit: e.target.value })}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
               >
-                <option value="minutes">Minutos</option>
-                <option value="hours">Horas</option>
-                <option value="days">Días</option>
+                <option value="minutes">{t("flows.unitMinutes")}</option>
+                <option value="hours">{t("flows.unitHours")}</option>
+                <option value="days">{t("flows.unitDays")}</option>
               </select>
             </div>
           </div>
@@ -4077,7 +4119,7 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label="Después de la espera, avanza a"
+            label={t("flows.afterWaitGoesTo")}
           />
         </>
       )}
@@ -4095,31 +4137,29 @@ function NodeConfigForm({
         <>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
-              Qué buscar
+              {t("flows.whatToLookUp")}
             </label>
             <select
               value={String((cfg as { kind?: string }).kind ?? "order_by_number")}
               onChange={(e) => onUpdateConfig({ kind: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="order_by_number">Pedido por número</option>
-              <option value="order_by_email">Pedido por correo</option>
-              <option value="last_order">Último pedido del contacto</option>
-              <option value="product_by_handle">Producto por handle</option>
+              <option value="order_by_number">{t("flows.shopifyOrderByNumber")}</option>
+              <option value="order_by_email">{t("flows.shopifyOrderByEmail")}</option>
+              <option value="last_order">{t("flows.shopifyLastOrder")}</option>
+              <option value="product_by_handle">{t("flows.shopifyProductByHandle")}</option>
             </select>
           </div>
           {((cfg as { kind?: string }).kind ?? "order_by_number") !==
             "last_order" && (
             <TextRow
-              label={
-                "Variable de entrada (de un nodo \"Capturar entrada\" previo)"
-              }
+              label={t("flows.inputVarLabel")}
               value={(cfg as { input_var?: string }).input_var ?? ""}
               onChange={(v) => onUpdateConfig({ input_var: v })}
             />
           )}
           <TextRow
-            label="Prefijo donde guardar el resultado"
+            label={t("flows.outputPrefixLabel")}
             value={(cfg as { output_prefix?: string }).output_prefix ?? "order"}
             onChange={(v) => onUpdateConfig({ output_prefix: v })}
           />
@@ -4128,14 +4168,14 @@ function NodeConfigForm({
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ found_next_key: v })}
-            label="Si encuentra → avanza a"
+            label={t("flows.ifFoundGoesTo")}
           />
           <NextNodeRow
             value={(cfg as { not_found_next_key?: string }).not_found_next_key ?? ""}
             allNodes={allNodes}
             currentKey={node.node_key}
             onChange={(v) => onUpdateConfig({ not_found_next_key: v })}
-            label="Si no encuentra → avanza a"
+            label={t("flows.ifNotFoundGoesTo")}
           />
         </>
       )}
@@ -4151,13 +4191,13 @@ function NodeConfigForm({
           ) : (
             <ChevronDown className="h-3 w-3" />
           )}
-          {showAdvanced ? "Ocultar" : "Mostrar"} opciones avanzadas
+          {showAdvanced ? t("flows.hide") : t("flows.show")} {t("flows.advancedOptions")}
         </button>
         {showAdvanced && (
           <div className="mt-3 flex flex-col gap-3">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Clave del nodo
+                {t("flows.nodeKey")}
               </label>
               <Input
                 value={node.node_key}
@@ -4195,6 +4235,7 @@ function SendButtonsForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
   showAdvanced: boolean;
 }) {
+  const t = useT();
   const buttons = cfg.buttons ?? [];
   const updateButton = (
     idx: number,
@@ -4221,20 +4262,20 @@ function SendButtonsForm({
   return (
     <>
       <TextRow
-        label="Texto del cuerpo"
+        label={t("flows.bodyText")}
         value={cfg.text ?? ""}
         onChange={(v) => onUpdateConfig({ text: v })}
         rows={3}
       />
       <TextRow
-        label="Pie de página"
+        label={t("flows.footerText")}
         value={cfg.footer_text ?? ""}
         onChange={(v) => onUpdateConfig({ footer_text: v })}
       />
       <div>
         <div className="mb-2 flex items-center justify-between">
           <label className="text-xs text-muted-foreground">
-            Botones (1–3)
+            {t("flows.buttonsRange")}
           </label>
         </div>
         <div className="flex flex-col gap-3">
@@ -4263,7 +4304,7 @@ function SendButtonsForm({
               <Input
                 value={b.title}
                 onChange={(e) => updateButton(i, { title: e.target.value })}
-                placeholder="Título visible"
+                placeholder={t("flows.visibleTitlePlaceholder")}
                 className="bg-muted"
                 maxLength={20}
               />
@@ -4279,7 +4320,7 @@ function SendButtonsForm({
                 size="sm"
                 onClick={() => removeButton(i)}
                 className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                aria-label="Eliminar botón"
+                aria-label={t("flows.deleteButton")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -4294,12 +4335,12 @@ function SendButtonsForm({
             className="mt-2"
           >
             <Plus className="h-3.5 w-3.5" />
-            Añadir botón
+            {t("flows.addButtonForm")}
           </Button>
         ) : (
           <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
             <CircleAlert className="h-3 w-3" />
-            WhatsApp permite máximo 3 botones de respuesta. Usa una lista para más opciones.
+            {t("flows.maxThreeButtonsList")}
           </p>
         )}
       </div>
@@ -4337,6 +4378,7 @@ function SendListForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
   showAdvanced: boolean;
 }) {
+  const t = useT();
   const sections = cfg.sections ?? [];
   const totalRows = sections.reduce((sum, s) => sum + s.rows.length, 0);
 
@@ -4414,19 +4456,19 @@ function SendListForm({
   return (
     <>
       <TextRow
-        label="Texto del cuerpo"
+        label={t("flows.bodyText")}
         value={cfg.text ?? ""}
         onChange={(v) => onUpdateConfig({ text: v })}
         rows={3}
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <TextRow
-          label="Texto del botón que despliega la lista"
+          label={t("flows.listButtonLabel")}
           value={cfg.button_label ?? ""}
           onChange={(v) => onUpdateConfig({ button_label: v })}
         />
         <TextRow
-          label="Pie de página"
+          label={t("flows.footerText")}
           value={cfg.footer_text ?? ""}
           onChange={(v) => onUpdateConfig({ footer_text: v })}
         />
@@ -4435,7 +4477,7 @@ function SendListForm({
       <div className="mt-2">
         <div className="mb-2 flex items-center justify-between">
           <label className="text-xs text-muted-foreground">
-            Filas (máximo 10 en total)
+            {t("flows.rowsMaxTotal")}
           </label>
           <span
             className={cn(
@@ -4457,7 +4499,7 @@ function SendListForm({
                 onChange={(e) =>
                   updateSection(sIdx, { title: e.target.value })
                 }
-                placeholder={`Título de la sección ${sIdx + 1}`}
+                placeholder={t("flows.sectionTitlePlaceholder", { n: sIdx + 1 })}
                 className="bg-muted text-xs"
               />
               {sections.length > 1 && (
@@ -4466,7 +4508,7 @@ function SendListForm({
                   size="sm"
                   onClick={() => removeSection(sIdx)}
                   className="shrink-0 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                  aria-label="Eliminar sección"
+                  aria-label={t("flows.deleteSection")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -4502,7 +4544,7 @@ function SendListForm({
                   onChange={(e) =>
                     updateRow(sIdx, rIdx, { title: e.target.value })
                   }
-                  placeholder="Título de la fila"
+                  placeholder={t("flows.rowTitlePlaceholder")}
                   className="bg-muted"
                   maxLength={24}
                 />
@@ -4520,7 +4562,7 @@ function SendListForm({
                   size="sm"
                   onClick={() => removeRow(sIdx, rIdx)}
                   className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                  aria-label="Eliminar fila"
+                  aria-label={t("flows.deleteRow")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -4534,12 +4576,12 @@ function SendListForm({
                 className="mt-1"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Añadir fila
+                {t("flows.addRowForm")}
               </Button>
             ) : (
               <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
                 <CircleAlert className="h-3 w-3" />
-                Límite WhatsApp: 10 filas por mensaje. Encadená otro nodo de lista.
+                {t("flows.whatsappRowLimit")}
               </p>
             )}
           </div>
@@ -4554,7 +4596,7 @@ function SendListForm({
             onClick={addSection}
           >
             <Plus className="h-3.5 w-3.5" />
-            Añadir sección
+            {t("flows.addSection")}
           </Button>
         )}
       </div>
@@ -4596,6 +4638,7 @@ function ConditionForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [tags, setTags] = useState<UserTag[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -4627,7 +4670,7 @@ function ConditionForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Si</label>
+          <label className="mb-1 block text-xs text-muted-foreground">{t("flows.condIf")}</label>
           <Select
             value={subject}
             onValueChange={(v) =>
@@ -4638,19 +4681,19 @@ function ConditionForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="var">Variable capturada</SelectItem>
-              <SelectItem value="tag">El contacto tiene la etiqueta</SelectItem>
-              <SelectItem value="contact_field">Campo del contacto</SelectItem>
+              <SelectItem value="var">{t("flows.condSubjectVar")}</SelectItem>
+              <SelectItem value="tag">{t("flows.condSubjectTag")}</SelectItem>
+              <SelectItem value="contact_field">{t("flows.condSubjectField")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs text-muted-foreground">
             {subject === "var"
-              ? "nombre de variable"
+              ? t("flows.condVarName")
               : subject === "tag"
-                ? "Etiqueta"
-                : "Campo"}
+                ? t("flows.condTag")
+                : t("flows.condField")}
           </label>
           {subject === "tag" && tags.length > 0 ? (
             <Select
@@ -4677,17 +4720,17 @@ function ConditionForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name">nombre</SelectItem>
-                <SelectItem value="email">correo</SelectItem>
-                <SelectItem value="phone">teléfono</SelectItem>
-                <SelectItem value="company">empresa</SelectItem>
+                <SelectItem value="name">{t("flows.fieldName")}</SelectItem>
+                <SelectItem value="email">{t("flows.fieldEmail")}</SelectItem>
+                <SelectItem value="phone">{t("flows.fieldPhone")}</SelectItem>
+                <SelectItem value="company">{t("flows.fieldCompany")}</SelectItem>
               </SelectContent>
             </Select>
           ) : (
             <Input
               value={cfg.subject_key ?? ""}
               onChange={(e) => onUpdateConfig({ subject_key: e.target.value })}
-              placeholder={subject === "var" ? "correo" : "UUID de la etiqueta"}
+              placeholder={subject === "var" ? t("flows.condVarPlaceholder") : t("flows.condTagPlaceholder")}
               className="bg-muted font-mono text-xs"
             />
           )}
@@ -4701,7 +4744,7 @@ function ConditionForm({
         )}
       >
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Operador</label>
+          <label className="mb-1 block text-xs text-muted-foreground">{t("flows.operator")}</label>
           <Select
             value={operator}
             onValueChange={(v) =>
@@ -4712,18 +4755,18 @@ function ConditionForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="present">existe</SelectItem>
-              <SelectItem value="absent">no existe</SelectItem>
-              <SelectItem value="equals">es igual a</SelectItem>
-              <SelectItem value="contains">contiene</SelectItem>
-              <SelectItem value="not_contains">no contiene</SelectItem>
-              <SelectItem value="regex_match">coincide con (regex)</SelectItem>
+              <SelectItem value="present">{t("flows.opPresent")}</SelectItem>
+              <SelectItem value="absent">{t("flows.opAbsent")}</SelectItem>
+              <SelectItem value="equals">{t("flows.opEquals")}</SelectItem>
+              <SelectItem value="contains">{t("flows.opContains")}</SelectItem>
+              <SelectItem value="not_contains">{t("flows.opNotContains")}</SelectItem>
+              <SelectItem value="regex_match">{t("flows.opRegex")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {showValue && (
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Valor</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("flows.labelValue")}</label>
             <Input
               value={cfg.value ?? ""}
               onChange={(e) => onUpdateConfig({ value: e.target.value })}
@@ -4739,14 +4782,14 @@ function ConditionForm({
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ true_next: v })}
-          label="Si es verdadero → avanza a"
+          label={t("flows.ifTrueGoesTo")}
         />
         <NextNodeRow
           value={cfg.false_next ?? ""}
           allNodes={allNodes}
           currentKey={currentKey}
           onChange={(v) => onUpdateConfig({ false_next: v })}
-          label="Si es falso → avanza a"
+          label={t("flows.ifFalseGoesTo")}
         />
       </div>
     </>
@@ -4772,6 +4815,7 @@ function SetTagForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const [tags, setTags] = useState<UserTag[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -4794,7 +4838,7 @@ function SetTagForm({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Acción</label>
+          <label className="mb-1 block text-xs text-muted-foreground">{t("flows.action")}</label>
           <Select
             value={cfg.mode ?? "add"}
             onValueChange={(v) =>
@@ -4805,13 +4849,13 @@ function SetTagForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="add">Añadir etiqueta</SelectItem>
-              <SelectItem value="remove">Quitar etiqueta</SelectItem>
+              <SelectItem value="add">{t("flows.addTag")}</SelectItem>
+              <SelectItem value="remove">{t("flows.removeTag")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Etiqueta</label>
+          <label className="mb-1 block text-xs text-muted-foreground">{t("flows.tag")}</label>
           {tags.length > 0 ? (
             <Select
               value={cfg.tag_id ?? ""}
@@ -4832,7 +4876,7 @@ function SetTagForm({
             <Input
               value={cfg.tag_id ?? ""}
               onChange={(e) => onUpdateConfig({ tag_id: e.target.value })}
-              placeholder="UUID de la etiqueta"
+              placeholder={t("flows.condTagPlaceholder")}
               className="bg-muted font-mono text-xs"
             />
           )}
@@ -4843,7 +4887,7 @@ function SetTagForm({
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
-        label="Luego avanza a"
+        label={t("flows.thenGoesTo")}
       />
     </>
   );
@@ -4925,6 +4969,7 @@ function NodeKeySelect({
   placeholder?: string;
   className?: string;
 }) {
+  const t = useT();
   const options = nodes.filter((n) => n.node_key !== excludeKey);
   return (
     <Select
@@ -4932,10 +4977,10 @@ function NodeKeySelect({
       onValueChange={(v) => onChange(v === "__none__" ? null : v)}
     >
       <SelectTrigger className={cn("bg-muted", className)}>
-        <SelectValue placeholder={placeholder ?? "Elegir"} />
+        <SelectValue placeholder={placeholder ?? t("flows.choose")} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="__none__">Sin conexión</SelectItem>
+        <SelectItem value="__none__">{t("flows.noConnection")}</SelectItem>
         {options.map((n) => {
           const Icon = NODE_META[n.node_type].icon;
           return (
@@ -4992,6 +5037,7 @@ function ValidationPanel({
   onJump: (key: string) => void;
   nodes: BuilderNode[];
 }) {
+  const t = useT();
   if (issues.length === 0) {
     return null;
   }
@@ -5003,7 +5049,7 @@ function ValidationPanel({
   // entre varios pasos.
   const labelByKey = new Map<string, string>();
   for (const n of nodes) {
-    const typeLabel = NODE_META[n.node_type].label;
+    const typeLabel = t(NODE_META[n.node_type].label);
     const inlineTitle = nodeInlineTitle(n);
     labelByKey.set(
       n.node_key,
@@ -5024,11 +5070,15 @@ function ValidationPanel({
           <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         )}
         <span>
-          {errors.length} error{errors.length === 1 ? "" : "es"},{" "}
-          {warnings.length} advertencia{warnings.length === 1 ? "" : "s"}
+          {t("flows.errorsAndWarnings", {
+            errors: errors.length,
+            errorsLabel: errors.length === 1 ? t("flows.errorOne") : t("flows.errorMany"),
+            warnings: warnings.length,
+            warningsLabel: warnings.length === 1 ? t("flows.warningOne") : t("flows.warningMany"),
+          })}
         </span>
         <span className="ml-1 text-[10px] text-muted-foreground/80">
-          Toca &quot;Ver error&quot; para ir al paso
+          {t("flows.tapViewError")}
         </span>
       </div>
       <div className="flex flex-col gap-1">
@@ -5072,6 +5122,7 @@ function IssueLine({
   onJump?: (key: string) => void;
   nodeLabel?: string;
 }) {
+  const t = useT();
   const tone =
     issue.severity === "error" ? "text-red-600 dark:text-red-300" : "text-amber-700 dark:text-amber-300";
   const iconTone =
@@ -5100,9 +5151,9 @@ function IssueLine({
               "mt-1 inline-flex items-center gap-1 rounded-sm text-[11px] font-medium underline-offset-2 hover:underline",
               tone,
             )}
-            aria-label={nodeLabel ? `Ver error en ${nodeLabel}` : "Ver error"}
+            aria-label={nodeLabel ? t("flows.viewErrorAt", { label: nodeLabel }) : t("flows.viewError")}
           >
-            Ver error
+            {t("flows.viewError")}
             <span aria-hidden>→</span>
           </button>
         )}
@@ -5128,6 +5179,7 @@ function AiIntentForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useT();
   const intents = cfg.intents ?? [];
   const updateIntent = (
     idx: number,
@@ -5150,14 +5202,14 @@ function AiIntentForm({
   return (
     <>
       <TextRow
-        label="Mensaje al cliente antes de esperar su respuesta (opcional)"
+        label={t("flows.aiPromptBeforeReply")}
         value={cfg.prompt_text ?? ''}
         onChange={(v) => onUpdateConfig({ prompt_text: v })}
         rows={2}
       />
       <div>
         <label className="mb-1 block text-xs text-muted-foreground">
-          Intenciones a clasificar
+          {t("flows.intentsToClassify")}
         </label>
         <div className="space-y-2">
           {intents.map((it, idx) => (
@@ -5176,7 +5228,7 @@ function AiIntentForm({
                   type="button"
                   onClick={() => removeIntent(idx)}
                   className="self-start justify-self-end rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
-                  aria-label="Quitar intención"
+                  aria-label={t("flows.removeIntent")}
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -5184,7 +5236,7 @@ function AiIntentForm({
               <Input
                 value={it.description}
                 onChange={(e) => updateIntent(idx, { description: e.target.value })}
-                placeholder="Cuándo aplica (ej: 'cliente pregunta por envíos')"
+                placeholder={t("flows.intentWhenPlaceholder")}
                 className="mb-2 bg-background text-sm"
               />
               <NextNodeRow
@@ -5192,7 +5244,7 @@ function AiIntentForm({
                 allNodes={allNodes}
                 currentKey={currentKey}
                 onChange={(v) => updateIntent(idx, { next_node_key: v })}
-                label="Si coincide → avanza a"
+                label={t("flows.ifMatchesGoesTo")}
               />
             </div>
           ))}
@@ -5202,7 +5254,7 @@ function AiIntentForm({
             className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
           >
             <Plus className="h-3 w-3" />
-            Añadir intención
+            {t("flows.addIntent")}
           </button>
         </div>
       </div>
@@ -5211,7 +5263,7 @@ function AiIntentForm({
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ fallback_next_key: v })}
-        label="Si ninguna intención coincide → avanza a"
+        label={t("flows.ifNoIntentGoesTo")}
       />
     </>
   );
@@ -6029,6 +6081,7 @@ interface DraggableNodeProps {
 }
 
 function DraggableNode(props: DraggableNodeProps) {
+  const t = useT()
   const { scale } = useCanvasTransform()
   const [dragging, setDragging] = useState(false)
   const startRef = useRef<{
@@ -6120,7 +6173,7 @@ function DraggableNode(props: DraggableNodeProps) {
           vivo. No reemplaza el panel inferior — es solo un avisador. */}
       {props.hasLiveError && (
         <span
-          aria-label="Tiene errores"
+          aria-label={t("flows.hasErrors")}
           className="absolute -left-1 -top-1 z-20 size-2.5 rounded-full bg-red-500 ring-2 ring-background"
         />
       )}
@@ -6134,7 +6187,7 @@ function DraggableNode(props: DraggableNodeProps) {
               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
               : "bg-muted text-muted-foreground",
           )}
-          title={`${props.analyticsCount} entradas en 7 días`}
+          title={t("flows.analyticsEntriesTitle", { n: props.analyticsCount })}
         >
           {props.analyticsCount}
         </span>
@@ -6429,40 +6482,33 @@ function CascadeDeleteDialog({
   onConfirmButtonOnly: () => void;
   onConfirmWithDownstream: () => void;
 }) {
-  const noun = kind === "button" ? "botón" : "opción";
+  const t = useT();
+  const noun = kind === "button" ? t("flows.cascadeNounButton") : t("flows.cascadeNounRow");
   const stepsLabel =
-    downstreamCount === 1 ? "1 paso" : `${downstreamCount} pasos`;
+    downstreamCount === 1
+      ? t("flows.cascadeStepsOne")
+      : t("flows.cascadeStepsMany", { n: downstreamCount });
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>¿Borrar también los pasos siguientes?</DialogTitle>
+          <DialogTitle>{t("flows.cascadeTitle")}</DialogTitle>
           <DialogDescription>
-            {downstreamCount > 0 ? (
-              <>
-                Este {noun} conecta con {stepsLabel} que sólo se usan
-                desde acá. Si lo borras solo, esos pasos van a quedar
-                desconectados (y te van a aparecer como pasos sueltos).
-              </>
-            ) : (
-              <>
-                Este {noun} apunta a un paso que también usan otras ramas,
-                así que solo borraremos el {noun} — los pasos siguientes
-                quedan intactos.
-              </>
-            )}
+            {downstreamCount > 0
+              ? t("flows.cascadeDescWith", { noun, steps: stepsLabel })
+              : t("flows.cascadeDescWithout", { noun })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t("flows.cancel")}
           </Button>
           <Button variant="outline" onClick={onConfirmButtonOnly}>
-            Sólo el {noun}
+            {t("flows.cascadeOnly", { noun })}
           </Button>
           {downstreamCount > 0 && (
             <Button variant="destructive" onClick={onConfirmWithDownstream}>
-              Borrar el {noun} y los {stepsLabel}
+              {t("flows.cascadeDeleteWith", { noun, steps: stepsLabel })}
             </Button>
           )}
         </DialogFooter>
@@ -6472,6 +6518,7 @@ function CascadeDeleteDialog({
 }
 
 function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  const t = useT()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -6479,24 +6526,24 @@ function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
           "inline-flex h-10 items-center gap-2 rounded-full border border-border bg-foreground px-4 text-sm font-medium text-background shadow-lg shadow-black/30 transition-all",
           "hover:opacity-90",
         )}
-        aria-label="Agregar un paso al menú"
+        aria-label={t("flows.addStepToMenu")}
       >
         <Plus className="h-4 w-4" />
-        Agregar paso
+        {t("flows.addStep")}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         className="max-h-96 min-w-72 overflow-y-auto border-border bg-card"
       >
         <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          ¿Qué tipo de paso?
+          {t("flows.whichStepType")}
         </div>
-        {ADDABLE_NODE_TYPES.map((t) => {
-          const meta = NODE_META[t]
+        {ADDABLE_NODE_TYPES.map((nodeType) => {
+          const meta = NODE_META[nodeType]
           return (
-            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+            <DropdownMenuItem key={nodeType} onClick={() => onAdd(nodeType)}>
               <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
+              {t(meta.label)}
             </DropdownMenuItem>
           )
         })}
@@ -6515,9 +6562,9 @@ function FloatingAddPalette({ onAdd }: { onAdd: (type: NodeType) => void }) {
 // flow.trigger_type / flow.trigger_config via the onChange prop.
 
 const TRIGGER_TYPE_LABEL: Record<BuilderState["trigger_type"], string> = {
-  keyword: "Contiene una palabra clave",
-  first_inbound_message: "Primer mensaje del cliente",
-  manual: "Solo manual",
+  keyword: "flows.triggerTypeKeyword",
+  first_inbound_message: "flows.triggerTypeFirstMessage",
+  manual: "flows.triggerTypeManual",
 }
 
 function CanvasTriggerCard({
@@ -6534,6 +6581,7 @@ function CanvasTriggerCard({
     config: Record<string, unknown>,
   ) => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const hasError = triggerIssues.some((i) => i.severity === "error")
   const summary =
@@ -6562,14 +6610,14 @@ function CanvasTriggerCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="truncate text-sm font-medium text-foreground">
-              Cuándo dispara
+              {t("flows.whenItTriggers")}
             </span>
             {hasError && (
               <CircleAlert className="h-3 w-3 shrink-0 text-red-600 dark:text-red-400" />
             )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-            {TRIGGER_TYPE_LABEL[triggerType]}
+            {t(TRIGGER_TYPE_LABEL[triggerType])}
             {summary ? ` · ${summary}` : ""}
           </p>
         </div>
@@ -6578,7 +6626,7 @@ function CanvasTriggerCard({
         <div className="space-y-3 border-t border-border px-3 py-3">
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
-              Cuándo
+              {t("flows.when")}
             </label>
             <Select
               value={triggerType}
@@ -6594,23 +6642,23 @@ function CanvasTriggerCard({
                     sometimes falls through to the raw `value` ("first_
                     inbound_message") in initial paint, which leaks tech
                     jargon into the UI. */}
-                <span>{TRIGGER_TYPE_LABEL[triggerType]}</span>
+                <span>{t(TRIGGER_TYPE_LABEL[triggerType])}</span>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="keyword">
-                  Contiene una palabra clave
+                  {t("flows.triggerTypeKeyword")}
                 </SelectItem>
                 <SelectItem value="first_inbound_message">
-                  Primer mensaje del cliente
+                  {t("flows.triggerTypeFirstMessage")}
                 </SelectItem>
-                <SelectItem value="manual">Solo manual</SelectItem>
+                <SelectItem value="manual">{t("flows.triggerTypeManual")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {triggerType === "keyword" && (
             <div>
               <label className="mb-1 block text-[11px] text-muted-foreground">
-                Palabras clave (separadas por coma)
+                {t("flows.keywordsLabel")}
               </label>
               <Input
                 value={
@@ -6627,7 +6675,7 @@ function CanvasTriggerCard({
                       .filter(Boolean),
                   })
                 }
-                placeholder="soporte, ayuda, hola"
+                placeholder={t("flows.keywordsPlaceholder")}
                 className="bg-muted text-sm"
               />
             </div>

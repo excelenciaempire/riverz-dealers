@@ -3,6 +3,8 @@
 import { Clock } from 'lucide-react'
 import { DOW_SHORT_MON_FIRST } from '@/lib/dashboard/date-utils'
 import type { ResponseTimeSummary } from '@/lib/dashboard/types'
+import { useT } from '@/hooks/use-locale'
+import type { TFn } from '@/lib/i18n/translate'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 
@@ -22,6 +24,7 @@ export function ResponseTimeChart({
   loading,
   thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
+  const t = useT()
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
   return (
@@ -29,19 +32,19 @@ export function ResponseTimeChart({
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            Tiempo medio de primera respuesta
+            {t('dashboard.avgFirstResponseTime')}
           </h2>
         </div>
         {data && (data.thisPeriodAvg != null || data.prevPeriodAvg != null) && (
           <div className="text-right text-xs">
             <div className="text-muted-foreground">
-              Promedio:{' '}
+              {t('dashboard.average')}:{' '}
               <span className="font-medium text-foreground tabular-nums">
                 {fmt(data.thisPeriodAvg)}
               </span>
             </div>
             <div className="text-muted-foreground">
-              Período anterior:{' '}
+              {t('dashboard.previousPeriod')}:{' '}
               <span className="tabular-nums">{fmt(data.prevPeriodAvg)}</span>
             </div>
           </div>
@@ -54,10 +57,10 @@ export function ResponseTimeChart({
         ) : !hasData ? (
           <EmptyState
             icon={Clock}
-            title="Sin respuestas registradas"
+            title={t('dashboard.noResponsesRecorded')}
           />
         ) : (
-          <Bars data={data} thresholdMinutes={thresholdMinutes} />
+          <Bars data={data} thresholdMinutes={thresholdMinutes} t={t} />
         )}
       </div>
     </section>
@@ -67,9 +70,11 @@ export function ResponseTimeChart({
 function Bars({
   data,
   thresholdMinutes,
+  t,
 }: {
   data: ResponseTimeSummary
   thresholdMinutes: number
+  t: TFn
 }) {
   const chartW = VB_W - PADDING.left - PADDING.right
   const chartH = VB_H - PADDING.top - PADDING.bottom
@@ -135,7 +140,7 @@ function Bars({
             textAnchor="start"
             className="fill-rose-300 text-[10px]"
           >
-            objetivo {fmt(thresholdMinutes)}
+            {t('dashboard.target', { value: fmt(thresholdMinutes) })}
           </text>
         </g>
       )}
@@ -160,8 +165,16 @@ function Bars({
             >
               <title>
                 {DOW_SHORT_MON_FIRST[i]}:{' '}
-                {b.avgMinutes == null ? 'sin muestras' : `${fmt(b.avgMinutes)} promedio`}
-                {b.samples > 0 ? ` (${b.samples} muestra${b.samples === 1 ? '' : 's'})` : ''}
+                {b.avgMinutes == null
+                  ? t('dashboard.noSamples')
+                  : t('dashboard.averageValue', { value: fmt(b.avgMinutes) })}
+                {b.samples > 0
+                  ? ` (${
+                      b.samples === 1
+                        ? t('dashboard.sampleCountOne', { n: b.samples })
+                        : t('dashboard.sampleCountOther', { n: b.samples })
+                    })`
+                  : ''}
               </title>
             </rect>
             <text

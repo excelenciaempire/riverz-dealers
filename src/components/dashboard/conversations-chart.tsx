@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
+import { useT } from '@/hooks/use-locale'
+import type { TFn } from '@/lib/i18n/translate'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 
@@ -23,6 +25,7 @@ const VB_H = 240
 const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
 export function ConversationsChart({ data, loading }: ConversationsChartProps) {
+  const t = useT()
   // Memoise the max so per-point hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
     const arr = data ?? []
@@ -42,7 +45,7 @@ export function ConversationsChart({ data, loading }: ConversationsChartProps) {
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Conversaciones en el tiempo</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('dashboard.conversationsOverTime')}</h2>
         </div>
       </header>
 
@@ -52,16 +55,16 @@ export function ConversationsChart({ data, loading }: ConversationsChartProps) {
         ) : data.every((p) => p.incoming === 0 && p.outgoing === 0) ? (
           <EmptyState
             icon={MessageSquare}
-            title="Sin actividad en este rango"
+            title={t('dashboard.noActivityInRange')}
           />
         ) : (
-          <LineSvg data={data} maxY={maxY} ticks={niceTicks} />
+          <LineSvg data={data} maxY={maxY} ticks={niceTicks} t={t} />
         )}
       </div>
 
       <footer className="flex items-center gap-4 border-t border-border px-5 py-3 text-xs text-muted-foreground">
-        <LegendDot color="#3b82f6" label="Entrantes" />
-        <LegendDot color="#7c3aed" label="Salientes" />
+        <LegendDot color="#3b82f6" label={t('dashboard.incoming')} />
+        <LegendDot color="#7c3aed" label={t('dashboard.outgoing')} />
       </footer>
     </section>
   )
@@ -75,10 +78,12 @@ function LineSvg({
   data,
   maxY,
   ticks,
+  t,
 }: {
   data: ConversationsSeriesPoint[]
   maxY: number
   ticks: number[]
+  t: TFn
 }) {
   // Hover state: both the snapped index AND the tooltip's pixel
   // offset inside the wrapper div. They're stored together so the
@@ -169,7 +174,7 @@ function LineSvg({
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         className="h-[240px] w-full"
         role="img"
-        aria-label="Conversaciones por día"
+        aria-label={t('dashboard.conversationsPerDay')}
       >
         {/* Y-axis gridlines + labels */}
         {ticks.map((t) => {
@@ -261,11 +266,11 @@ function LineSvg({
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-              {hovered.incoming} entrantes
+              {t('dashboard.incomingCount', { n: hovered.incoming })}
             </span>
             <span className="flex items-center gap-1.5 text-accent-ink">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              {hovered.outgoing} salientes
+              {t('dashboard.outgoingCount', { n: hovered.outgoing })}
             </span>
           </div>
         </div>

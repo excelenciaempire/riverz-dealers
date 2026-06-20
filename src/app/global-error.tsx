@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { captureException } from "@/lib/log/logger";
+import { useT } from "@/hooks/use-locale";
 import "./globals.css";
 
 export default function GlobalError({
@@ -11,6 +12,8 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useT();
+
   useEffect(() => {
     captureException(error, { scope: "app.global-error", digest: error.digest });
   }, [error]);
@@ -24,29 +27,28 @@ export default function GlobalError({
               riverz
             </span>
             <h1 className="mb-3 text-2xl font-semibold tracking-tight text-foreground">
-              Se interrumpió la aplicación
+              {t("system.globalErrorTitle")}
             </h1>
             <p className="mb-8 text-sm text-muted-foreground">
-              Encontramos un error inesperado. Reintenta o vuelve al panel para
-              continuar tu trabajo.
+              {t("system.globalErrorDescription")}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button
                 onClick={() => reset()}
                 className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Reintentar
+                {t("system.retry")}
               </button>
               <a
                 href="/panel"
                 className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               >
-                Volver al inicio
+                {t("system.backHome")}
               </a>
             </div>
             {error.digest ? (
               <p className="mt-6 font-mono text-xs text-muted-foreground">
-                ref {error.digest}
+                {t("system.refPrefix")} {error.digest}
               </p>
             ) : null}
           </div>

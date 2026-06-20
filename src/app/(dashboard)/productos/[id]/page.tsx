@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 
 interface Product {
   id: string;
@@ -91,6 +92,7 @@ function parseObjections(text: string): Array<{ objection: string; rebuttal: str
 }
 
 export default function ProductDetailPage() {
+  const t = useT();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -171,11 +173,11 @@ export default function ProductDetailPage() {
       setHealthSensitive(!!pr.health_sensitive);
     } catch (err) {
       console.error(err);
-      toast.error('No se pudo cargar el producto.');
+      toast.error(t('products.loadProductError'));
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, t]);
 
   useEffect(() => {
     void load();
@@ -229,18 +231,18 @@ export default function ProductDetailPage() {
       body: JSON.stringify(buildPatch()),
     });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.error ?? 'No se pudo guardar');
+    if (!res.ok) throw new Error(json.error ?? t('products.saveFailed'));
     setProduct(json.product);
     return true;
-  }, [product, fetchWithCsrf, buildPatch]);
+  }, [product, fetchWithCsrf, buildPatch, t]);
 
   async function handleSave() {
     setSaving(true);
     try {
       await saveProduct();
-      toast.success('Cambios guardados.');
+      toast.success(t('products.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar.');
+      toast.error(err instanceof Error ? err.message : t('products.saveError'));
     } finally {
       setSaving(false);
     }
@@ -256,7 +258,7 @@ export default function ProductDetailPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sesión expirada');
+      if (!user) throw new Error(t('products.sessionExpired'));
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await supabase.storage
@@ -268,7 +270,7 @@ export default function ProductDetailPage() {
       } = supabase.storage.from('product-media').getPublicUrl(path);
       setImages((cur) => [...cur, publicUrl]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo subir la imagen.');
+      toast.error(err instanceof Error ? err.message : t('products.uploadImageError'));
     } finally {
       setUploading(false);
     }
@@ -284,13 +286,15 @@ export default function ProductDetailPage() {
         method: 'POST',
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Error al leer las páginas');
+      if (!res.ok) throw new Error(json.error ?? t('products.readPagesError'));
       toast.success(
-        `Leídas ${json.sites ?? 1} página(s)${json.failed ? `, ${json.failed} fallaron` : ''}.`,
+        json.failed
+          ? t('products.pagesReadWithFailures', { sites: json.sites ?? 1, failed: json.failed })
+          : t('products.pagesRead', { sites: json.sites ?? 1 }),
       );
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al leer las páginas.');
+      toast.error(err instanceof Error ? err.message : t('products.readPagesErrorDot'));
     } finally {
       setScraping(false);
     }
@@ -305,11 +309,11 @@ export default function ProductDetailPage() {
         method: 'POST',
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Error al generar investigación');
-      toast.success(`Investigación lista (${json.faqs_count} FAQs).`);
+      if (!res.ok) throw new Error(json.error ?? t('products.researchError'));
+      toast.success(t('products.researchReady', { count: json.faqs_count }));
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar investigación.');
+      toast.error(err instanceof Error ? err.message : t('products.researchErrorDot'));
     } finally {
       setResearching(false);
     }
@@ -325,9 +329,9 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-muted-foreground">Producto no encontrado.</p>
+        <p className="text-sm text-muted-foreground">{t('products.productNotFoundDot')}</p>
         <Button variant="outline" onClick={() => router.push('/productos')}>
-          Volver
+          {t('products.back')}
         </Button>
       </div>
     );
@@ -344,12 +348,12 @@ export default function ProductDetailPage() {
           size="icon"
           onClick={() => router.push('/productos')}
           className="h-8 w-8 border-border"
-          aria-label="Volver"
+          aria-label={t('products.back')}
         >
           <ArrowLeft className="size-4" />
         </Button>
         <p className="text-xs text-muted-foreground">
-          {product.vendor ?? product.product_type ?? 'Producto'}
+          {product.vendor ?? product.product_type ?? t('products.product')}
         </p>
       </div>
 
@@ -367,7 +371,7 @@ export default function ProductDetailPage() {
                 type="button"
                 onClick={() => setImages((cur) => cur.filter((_, i) => i !== idx))}
                 className="absolute right-1.5 top-1.5 rounded-full bg-background/80 p-1 text-foreground opacity-0 backdrop-blur transition-opacity hover:bg-background group-hover:opacity-100"
-                aria-label="Quitar imagen"
+                aria-label={t('products.removeImage')}
               >
                 <X className="size-3.5" />
               </button>
@@ -384,7 +388,7 @@ export default function ProductDetailPage() {
             ) : (
               <ImagePlus className="size-5" />
             )}
-            <span className="text-xs">Agregar</span>
+            <span className="text-xs">{t('products.add')}</span>
           </button>
           <input
             ref={fileInputRef}
@@ -398,7 +402,7 @@ export default function ProductDetailPage() {
 
       <div className="space-y-7">
         {/* Nombre */}
-        <Field label="Nombre">
+        <Field label={t('products.name')}>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -407,7 +411,7 @@ export default function ProductDetailPage() {
         </Field>
 
         {/* Descripción */}
-        <Field label="Descripción">
+        <Field label={t('products.description')}>
           <Textarea
             value={descriptionText}
             onChange={(e) => setDescriptionText(e.target.value)}
@@ -417,13 +421,13 @@ export default function ProductDetailPage() {
 
         {/* Precios de venta */}
         <Field
-          label="Precios"
+          label={t('products.prices')}
           action={
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
               className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              aria-label="Moneda"
+              aria-label={t('products.currency')}
             >
               {CURRENCIES.map((c) => (
                 <option key={c} value={c}>
@@ -464,7 +468,7 @@ export default function ProductDetailPage() {
                   type="button"
                   onClick={() => setOffers((cur) => cur.filter((_, i) => i !== idx))}
                   className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Quitar oferta"
+                  aria-label={t('products.removeOffer')}
                 >
                   <X className="size-4" />
                 </button>
@@ -477,13 +481,13 @@ export default function ProductDetailPage() {
               className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
             >
               <Plus className="size-3.5" />
-              Agregar oferta
+              {t('products.addOffer')}
             </Button>
           </div>
         </Field>
 
         {/* Beneficios */}
-        <Field label="Beneficios" hint="Uno por línea.">
+        <Field label={t('products.benefits')} hint={t('products.onePerLine')}>
           <Textarea
             value={benefits}
             onChange={(e) => setBenefits(e.target.value)}
@@ -493,8 +497,8 @@ export default function ProductDetailPage() {
 
         {/* Sitios web */}
         <Field
-          label="Sitios web"
-          hint="Hasta 5. El agente aprende de su contenido."
+          label={t('products.websites')}
+          hint={t('products.websitesHint')}
           action={
             <span className="text-[11px] text-muted-foreground">{websites.length}/5</span>
           }
@@ -520,7 +524,7 @@ export default function ProductDetailPage() {
                     target="_blank"
                     rel="noreferrer"
                     className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    aria-label="Abrir"
+                    aria-label={t('products.open')}
                   >
                     <ExternalLink className="size-4" />
                   </a>
@@ -529,7 +533,7 @@ export default function ProductDetailPage() {
                   type="button"
                   onClick={() => setWebsites((cur) => cur.filter((_, i) => i !== idx))}
                   className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Quitar sitio"
+                  aria-label={t('products.removeSite')}
                 >
                   <X className="size-4" />
                 </button>
@@ -544,7 +548,7 @@ export default function ProductDetailPage() {
                 className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
               >
                 <Plus className="size-3.5" />
-                Agregar otro sitio
+                {t('products.addAnotherSite')}
               </Button>
               {websites.some((w) => w.trim()) && (
                 <Button
@@ -559,13 +563,13 @@ export default function ProductDetailPage() {
                   ) : (
                     <RefreshCw className="size-3.5" />
                   )}
-                  Re-leer todos
+                  {t('products.rereadAll')}
                 </Button>
               )}
             </div>
             {product.scraped_at && (
               <p className="text-[11px] text-muted-foreground">
-                Última lectura:{' '}
+                {t('products.lastRead')}{' '}
                 {new Date(product.scraped_at).toLocaleString('es-ES', {
                   day: '2-digit',
                   month: 'short',
@@ -580,26 +584,26 @@ export default function ProductDetailPage() {
 
         {/* ---- Contexto avanzado para la IA (colapsado) ---- */}
         <Collapsible
-          title="Contexto para vender"
-          subtitle="Reglas y matices que afinan el copy del agente. Opcional."
+          title={t('products.sellingContext')}
+          subtitle={t('products.sellingContextSubtitle')}
           icon={<Sparkles className="size-4" />}
         >
           <div className="space-y-3">
-            <Field label="Objeciones y respuesta" hint="Una por línea: objeción | respuesta" compact>
+            <Field label={t('products.objections')} hint={t('products.objectionsHint')} compact>
               <Textarea
                 value={objections}
                 onChange={(e) => setObjections(e.target.value)}
                 className="min-h-[64px] bg-card"
               />
             </Field>
-            <Field label="Qué enfatizar" compact>
+            <Field label={t('products.whatToEmphasize')} compact>
               <Textarea
                 value={sayGuidelines}
                 onChange={(e) => setSayGuidelines(e.target.value)}
                 className="min-h-[56px] bg-card"
               />
             </Field>
-            <Field label="Notas para el asistente" hint="Lo que no está en la página pero debe saber." compact>
+            <Field label={t('products.assistantNotes')} hint={t('products.assistantNotesHint')} compact>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -607,14 +611,14 @@ export default function ProductDetailPage() {
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Nunca digas" hint="Una por línea" compact>
+              <Field label={t('products.neverSay')} hint={t('products.onePerLineShort')} compact>
                 <Textarea
                   value={neverSay}
                   onChange={(e) => setNeverSay(e.target.value)}
                   className="min-h-[56px] bg-card"
                 />
               </Field>
-              <Field label="Pasar a humano si menciona" hint="Una por línea" compact>
+              <Field label={t('products.escalateIfMentions')} hint={t('products.onePerLineShort')} compact>
                 <Textarea
                   value={escalation}
                   onChange={(e) => setEscalation(e.target.value)}
@@ -629,15 +633,15 @@ export default function ProductDetailPage() {
                 onChange={(e) => setHealthSensitive(e.target.checked)}
                 className="accent-primary"
               />
-              Producto sensible a temas de salud (el bot evita afirmaciones médicas)
+              {t('products.healthSensitive')}
             </label>
           </div>
         </Collapsible>
 
         {/* ---- FAQs ---- */}
         <Collapsible
-          title="Preguntas frecuentes"
-          subtitle="Las tuyas tienen prioridad sobre las de la IA."
+          title={t('products.faqs')}
+          subtitle={t('products.faqsSubtitle')}
           icon={<MessageSquareQuote className="size-4" />}
           action={
             <span className="text-[11px] text-muted-foreground">
@@ -653,7 +657,7 @@ export default function ProductDetailPage() {
               className="h-7 border-border bg-transparent text-foreground hover:bg-muted"
             >
               <Plus className="size-3.5" />
-              Agregar
+              {t('products.add')}
             </Button>
           </div>
           {faqs.length > 0 && (
@@ -674,7 +678,7 @@ export default function ProductDetailPage() {
                       type="button"
                       onClick={() => setFaqs((cur) => cur.filter((_, i) => i !== idx))}
                       className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                      aria-label="Quitar FAQ"
+                      aria-label={t('products.removeFaq')}
                     >
                       <X className="size-3.5" />
                     </button>
@@ -695,7 +699,7 @@ export default function ProductDetailPage() {
           {product.ai_generated_faqs.length > 0 && (
             <div className="mt-4 space-y-2 border-t border-border pt-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Generadas por IA
+                {t('products.aiGenerated')}
               </p>
               {product.ai_generated_faqs.map((f, idx) => {
                 const adopted = faqs.some(
@@ -716,7 +720,7 @@ export default function ProductDetailPage() {
                             : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        {adopted ? 'Adoptada ✓' : 'Adoptar'}
+                        {adopted ? t('products.adopted') : t('products.adopt')}
                       </button>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
@@ -732,7 +736,7 @@ export default function ProductDetailPage() {
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
           <span className="truncate text-xs text-muted-foreground">
-            {isShopify ? 'Sincronizado desde Shopify' : 'Producto manual'}
+            {isShopify ? t('products.syncedFromShopify') : t('products.manualProduct')}
             {' · '}
             {product.title}
           </span>
@@ -744,7 +748,7 @@ export default function ProductDetailPage() {
               className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
             >
               {researching ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-              Generar investigación
+              {t('products.generateResearch')}
             </Button>
             <Button
               onClick={handleSave}
@@ -752,7 +756,7 @@ export default function ProductDetailPage() {
               className="h-9 bg-foreground text-background hover:bg-foreground/90"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Guardar cambios
+              {t('products.saveChanges')}
             </Button>
           </div>
         </div>

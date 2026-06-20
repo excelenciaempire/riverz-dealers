@@ -38,22 +38,24 @@ import {
 } from '@/lib/broadcast-status';
 import { ActiveHoursChart } from '@/components/broadcasts/active-hours-chart';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 
 /** Human label for a broadcast's audience filter (the "Segmentación"). */
-function segmentationLabel(filter: unknown): string {
-  if (!filter || typeof filter !== 'object') return 'Personalizada';
+function segmentationLabel(filter: unknown, t: TFn): string {
+  if (!filter || typeof filter !== 'object') return t('broadcasts.segCustom');
   const f = filter as { type?: string; tagIds?: unknown[] };
   switch (f.type) {
     case 'all':
-      return 'Todos los contactos';
+      return t('broadcasts.audienceAllLabel');
     case 'tags':
-      return `Etiquetas (${f.tagIds?.length ?? 0})`;
+      return t('broadcasts.segTagsCount', { n: f.tagIds?.length ?? 0 });
     case 'custom_field':
-      return 'Campo personalizado';
+      return t('broadcasts.segCustomField');
     case 'csv':
-      return 'Lista CSV';
+      return t('broadcasts.segCsvList');
     default:
-      return 'Personalizada';
+      return t('broadcasts.segCustom');
   }
 }
 
@@ -83,6 +85,7 @@ function MetricCard({
   /** El primer card (Total) lleva borde más marcado para anclar la lectura. */
   emphasis?: boolean;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -98,7 +101,7 @@ function MetricCard({
       </p>
       {pct !== null && (
         <p className="mt-0.5 text-xs text-muted-foreground">
-          <span className="tabular-nums">{pct}%</span> del total
+          <span className="tabular-nums">{pct}%</span> {t('broadcasts.ofTotal')}
         </p>
       )}
     </div>
@@ -116,11 +119,12 @@ interface FunnelStep {
  * lectura de la "caída" más clara que 4 colores compitiendo.
  */
 function FunnelChart({ steps }: { steps: FunnelStep[] }) {
+  const t = useT();
   const max = Math.max(...steps.map((s) => s.value), 1);
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-4 text-sm font-medium text-foreground">
-        Embudo de entrega
+        {t('broadcasts.deliveryFunnel')}
       </h3>
       <div className="space-y-2.5">
         {steps.map((step, idx) => {
@@ -180,6 +184,7 @@ function downloadBlob(filename: string, content: string) {
 export default function BroadcastDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const t = useT();
   const broadcastId = params.id as string;
 
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
@@ -216,7 +221,7 @@ export default function BroadcastDetailPage() {
         if (recsError) throw recsError;
         setRecipients(recs ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se cargó la campaña');
+        setError(err instanceof Error ? err.message : t('broadcasts.detailLoadError'));
       } finally {
         setLoading(false);
       }
@@ -244,14 +249,14 @@ export default function BroadcastDetailPage() {
   function handleExport() {
     if (!broadcast) return;
     const header = [
-      'Contacto',
-      'Teléfono',
-      'Estado',
-      'Enviado en',
-      'Entregado en',
-      'Leído en',
-      'Respondido en',
-      'Error',
+      t('broadcasts.csvContact'),
+      t('broadcasts.csvPhone'),
+      t('broadcasts.csvStatus'),
+      t('broadcasts.csvSentAt'),
+      t('broadcasts.csvDeliveredAt'),
+      t('broadcasts.csvReadAt'),
+      t('broadcasts.csvRepliedAt'),
+      t('broadcasts.csvError'),
     ];
     const rows = recipients.map((r) => [
       r.contact?.name ?? '',
@@ -277,10 +282,10 @@ export default function BroadcastDetailPage() {
       .eq('id', broadcastId);
     setDeleting(false);
     if (delErr) {
-      toast.error(`No se pudo eliminar: ${delErr.message}`);
+      toast.error(t('broadcasts.deleteError', { error: delErr.message }));
       return;
     }
-    toast.success('Campaña eliminada');
+    toast.success(t('broadcasts.deleteSuccess'));
     router.push('/campanas');
   }
 
@@ -295,9 +300,9 @@ export default function BroadcastDetailPage() {
   if (error || !broadcast) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-500">{error ?? 'Campaña no encontrada'}</p>
+        <p className="text-sm text-red-500">{error ?? t('broadcasts.campaignNotFound')}</p>
         <Button variant="outline" onClick={() => router.push('/campanas')}>
-          Volver
+          {t('broadcasts.goBack')}
         </Button>
       </div>
     );
@@ -308,10 +313,10 @@ export default function BroadcastDetailPage() {
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
   const funnelSteps: FunnelStep[] = [
-    { label: 'Enviado', value: broadcast.sent_count },
-    { label: 'Entregado', value: broadcast.delivered_count },
-    { label: 'Leído', value: broadcast.read_count },
-    { label: 'Respondido', value: broadcast.replied_count },
+    { label: t('broadcasts.funnelSent'), value: broadcast.sent_count },
+    { label: t('broadcasts.funnelDelivered'), value: broadcast.delivered_count },
+    { label: t('broadcasts.funnelRead'), value: broadcast.read_count },
+    { label: t('broadcasts.funnelReplied'), value: broadcast.replied_count },
   ];
 
   const showFailedBanner =
@@ -327,7 +332,7 @@ export default function BroadcastDetailPage() {
             size="icon"
             onClick={() => router.push('/campanas')}
             className="h-9 w-9 border-border md:h-8 md:w-8"
-            aria-label="Volver a campañas"
+            aria-label={t('broadcasts.backToCampaigns')}
           >
             <ArrowLeft className="size-4" />
           </Button>
@@ -346,15 +351,19 @@ export default function BroadcastDetailPage() {
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Plantilla{' '}
+              {t('broadcasts.templateLabel')}{' '}
               <span className="text-foreground">{broadcast.template_name}</span>
               {' · '}
-              <span>{segmentationLabel(broadcast.audience_filter)}</span>
+              <span>{segmentationLabel(broadcast.audience_filter, t)}</span>
               {' · '}
               <span>
                 {broadcast.scheduled_at && broadcast.status === 'scheduled'
-                  ? `Programada para ${new Date(broadcast.scheduled_at).toLocaleString('es-ES')}`
-                  : `Creada el ${new Date(broadcast.created_at).toLocaleDateString('es-ES')}`}
+                  ? t('broadcasts.scheduledFor', {
+                      date: new Date(broadcast.scheduled_at).toLocaleString('es-ES'),
+                    })
+                  : t('broadcasts.createdOn', {
+                      date: new Date(broadcast.created_at).toLocaleDateString('es-ES'),
+                    })}
               </span>
             </p>
           </div>
@@ -363,7 +372,7 @@ export default function BroadcastDetailPage() {
         {/* Eliminar — confirm inline */}
         {confirmDelete ? (
           <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-sm">
-            <span className="text-red-600 dark:text-red-400">¿Eliminar?</span>
+            <span className="text-red-600 dark:text-red-400">{t('broadcasts.deletePrompt')}</span>
             <Button
               variant="outline"
               size="sm"
@@ -371,7 +380,7 @@ export default function BroadcastDetailPage() {
               disabled={deleting}
               className="h-7 border-border bg-transparent text-foreground hover:bg-muted"
             >
-              Cancelar
+              {t('broadcasts.cancel')}
             </Button>
             <Button
               size="sm"
@@ -379,7 +388,7 @@ export default function BroadcastDetailPage() {
               disabled={deleting}
               className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {deleting ? 'Eliminando…' : 'Eliminar'}
+              {deleting ? t('broadcasts.deleting') : t('broadcasts.delete')}
             </Button>
           </div>
         ) : (
@@ -390,13 +399,13 @@ export default function BroadcastDetailPage() {
             onClick={() => setConfirmDelete(true)}
             title={
               broadcast.status === 'sending'
-                ? 'No se puede eliminar mientras se envía'
+                ? t('broadcasts.cannotDeleteWhileSending')
                 : undefined
             }
             className="h-8 border-border bg-transparent text-foreground hover:bg-muted disabled:opacity-40"
           >
             <Trash2 className="size-3.5" />
-            Eliminar
+            {t('broadcasts.delete')}
           </Button>
         )}
       </div>
@@ -405,28 +414,28 @@ export default function BroadcastDetailPage() {
             coloreadas, solo jerarquía tipográfica ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
-          label="Destinatarios"
+          label={t('broadcasts.metricRecipients')}
           value={total}
           pct={null}
           emphasis
         />
         <MetricCard
-          label="Entregados"
+          label={t('broadcasts.metricDelivered')}
           value={broadcast.delivered_count}
           pct={pct(broadcast.delivered_count)}
         />
         <MetricCard
-          label="Leídos"
+          label={t('broadcasts.metricRead')}
           value={broadcast.read_count}
           pct={pct(broadcast.read_count)}
         />
         <MetricCard
-          label="Respondidos"
+          label={t('broadcasts.metricReplied')}
           value={broadcast.replied_count}
           pct={pct(broadcast.replied_count)}
         />
         <MetricCard
-          label="Fallidos"
+          label={t('broadcasts.metricFailed')}
           value={broadcast.failed_count}
           pct={pct(broadcast.failed_count)}
         />
@@ -437,9 +446,7 @@ export default function BroadcastDetailPage() {
           el mensaje puede haberse leído sin que el visto llegue. La
           entrega y las respuestas no dependen de ese ajuste. */}
       <p className="text-[11px] text-muted-foreground">
-        &ldquo;Leídos&rdquo; cuenta solo a quienes tienen activados los vistos
-        en WhatsApp. Si están desactivados, pueden haber leído sin sumar aquí —
-        &ldquo;Entregados&rdquo; y &ldquo;Respondidos&rdquo; no se ven afectados.
+        {t('broadcasts.readReceiptsNote')}
       </p>
 
       {/* ── Embudo + actividad por hora ── */}
@@ -454,10 +461,10 @@ export default function BroadcastDetailPage() {
           <Info className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-              Por qué pueden fallar los mensajes
+              {t('broadcasts.whyMessagesFail')}
             </p>
             <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-300">
-              Meta puede rechazar un mensaje si la cuenta del cliente no acepta WhatsApp Business, si su número está bloqueado o si pasó la ventana de 24 horas sin una plantilla aprobada.
+              {t('broadcasts.whyMessagesFailDesc')}
             </p>
           </div>
           <a
@@ -466,7 +473,7 @@ export default function BroadcastDetailPage() {
             rel="noreferrer"
             className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100"
           >
-            Saber más
+            {t('broadcasts.learnMore')}
             <ExternalLink className="size-3" />
           </a>
         </div>
@@ -476,11 +483,11 @@ export default function BroadcastDetailPage() {
       <div className="rounded-lg border border-border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h2 className="text-sm font-medium text-foreground">
-            Destinatarios{' '}
+            {t('broadcasts.recipients')}{' '}
             <span className="tabular-nums text-muted-foreground">
               ({filteredRecipients.length}
               {statusFilter !== 'all' || query
-                ? ` de ${recipients.length}`
+                ? t('broadcasts.ofCount', { total: recipients.length })
                 : ''}
               )
             </span>
@@ -491,7 +498,7 @@ export default function BroadcastDetailPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar contacto…"
+                placeholder={t('broadcasts.searchContact')}
                 className="h-8 w-full sm:w-56 pl-8"
               />
             </div>
@@ -508,7 +515,7 @@ export default function BroadcastDetailPage() {
               >
                 <Filter className="size-3.5" />
                 {statusFilter === 'all'
-                  ? 'Todos'
+                  ? t('broadcasts.all')
                   : getRecipientStatus(statusFilter).label}
                 <ChevronDown className="size-3" />
               </DropdownMenuTrigger>
@@ -519,7 +526,7 @@ export default function BroadcastDetailPage() {
                     statusFilter === 'all' ? 'text-foreground' : 'text-foreground'
                   }
                 >
-                  Todos los estados
+                  {t('broadcasts.allStatuses')}
                 </DropdownMenuItem>
                 {RECIPIENT_STATUSES.map((s) => (
                   <DropdownMenuItem
@@ -541,7 +548,7 @@ export default function BroadcastDetailPage() {
               className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
             >
               <Download className="size-3.5" />
-              Exportar
+              {t('broadcasts.export')}
             </Button>
           </div>
         </div>
@@ -550,8 +557,8 @@ export default function BroadcastDetailPage() {
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm text-muted-foreground">
               {recipients.length === 0
-                ? 'Sin destinatarios.'
-                : 'Ningún destinatario coincide con el filtro.'}
+                ? t('broadcasts.noRecipients')
+                : t('broadcasts.noRecipientsMatch')}
             </p>
           </div>
         ) : (
@@ -560,26 +567,26 @@ export default function BroadcastDetailPage() {
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="text-xs font-medium text-muted-foreground">
-                    Contacto
+                    {t('broadcasts.colContact')}
                   </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">
-                    Teléfono
+                    {t('broadcasts.colPhone')}
                   </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">
-                    Estado
+                    {t('broadcasts.colStatus')}
                   </TableHead>
                   <TableHead className="hidden text-xs font-medium text-muted-foreground md:table-cell">
-                    Enviado
+                    {t('broadcasts.colSent')}
                   </TableHead>
                   <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
-                    Entregado
+                    {t('broadcasts.colDelivered')}
                   </TableHead>
                   <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
-                    Leído
+                    {t('broadcasts.colReadHeader')}
                   </TableHead>
                   {statusFilter === 'failed' && (
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Motivo
+                      {t('broadcasts.colReason')}
                     </TableHead>
                   )}
                 </TableRow>
@@ -593,7 +600,7 @@ export default function BroadcastDetailPage() {
                       className="border-border hover:bg-muted/40"
                     >
                       <TableCell className="font-medium text-foreground">
-                        {recipient.contact?.name ?? 'Desconocido'}
+                        {recipient.contact?.name ?? t('broadcasts.unknown')}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {recipient.contact?.phone ?? '—'}
@@ -643,7 +650,7 @@ export default function BroadcastDetailPage() {
                       </TableCell>
                       {statusFilter === 'failed' && (
                         <TableCell className="max-w-xs truncate text-xs italic text-muted-foreground">
-                          {recipient.error_message ?? 'Sin detalle de Meta'}
+                          {recipient.error_message ?? t('broadcasts.noMetaDetail')}
                         </TableCell>
                       )}
                     </TableRow>

@@ -41,6 +41,8 @@ import { Switch } from "@/components/ui/switch";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
 
 /**
@@ -81,6 +83,7 @@ type CreateStep = "choose" | "name" | "template" | "preview";
 
 export default function FlowsPage() {
   const router = useRouter();
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +107,7 @@ export default function FlowsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudieron cargar los flujos.");
+          toast.error(t("flows.loadFailed"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -113,6 +116,7 @@ export default function FlowsPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function openCreate() {
@@ -143,7 +147,7 @@ export default function FlowsPage() {
       router.push(`/menus/${json.flow.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo crear el flujo.");
+      toast.error(t("flows.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -163,23 +167,23 @@ export default function FlowsPage() {
       router.push(`/menus/${json.flow.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo usar la plantilla.");
+      toast.error(t("flows.useTemplateFailed"));
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(flow: FlowRow) {
-    const yes = window.confirm(`¿Eliminar "${flow.name}"?`);
+    const yes = window.confirm(t("flows.confirmDelete", { name: flow.name }));
     if (!yes) return;
     try {
       const res = await fetchWithCsrf(`/api/flows/${flow.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
-      toast.success("Eliminado.");
+      toast.success(t("flows.deleted"));
     } catch (err) {
       console.error(err);
-      toast.error("No se pudo eliminar.");
+      toast.error(t("flows.deleteRowFailed"));
     }
   }
 
@@ -203,7 +207,7 @@ export default function FlowsPage() {
         <div className="flex justify-end">
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            Nuevo flujo
+            {t("flows.newFlow")}
           </Button>
         </div>
       )}
@@ -236,7 +240,7 @@ export default function FlowsPage() {
                     }),
                   });
                   if (!res.ok) throw new Error("activate failed");
-                  toast.success(next ? "Flujo activado" : "Flujo pausado");
+                  toast.success(next ? t("flows.flowActivated") : t("flows.flowPaused"));
                 } catch {
                   // Rollback en error.
                   setFlows((prev) =>
@@ -246,7 +250,7 @@ export default function FlowsPage() {
                         : f,
                     ),
                   );
-                  toast.error("No se pudo cambiar el estado");
+                  toast.error(t("flows.statusChangeFailed"));
                 }
               }}
             />
@@ -272,15 +276,15 @@ export default function FlowsPage() {
                   onClick={() => setStep(step === "preview" ? "template" : "choose")}
                   disabled={creating}
                   className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                  aria-label="Volver"
+                  aria-label={t("flows.back")}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               )}
-              {step === "choose" && "¿Cómo quieres empezar?"}
-              {step === "name" && "Nombre del flujo"}
-              {step === "template" && "Elige una plantilla"}
-              {step === "preview" && (selectedTemplate?.name ?? "Vista previa")}
+              {step === "choose" && t("flows.createTitleChoose")}
+              {step === "name" && t("flows.createTitleName")}
+              {step === "template" && t("flows.createTitleTemplate")}
+              {step === "preview" && (selectedTemplate?.name ?? t("flows.createTitlePreview"))}
             </DialogTitle>
           </DialogHeader>
 
@@ -288,15 +292,15 @@ export default function FlowsPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ChoiceCard
                 icon={<Sparkles className="h-5 w-5 text-accent-ink" />}
-                title="Usar una plantilla"
-                description="Empiezas con un flujo de ejemplo y lo editas."
-                badge="Recomendado"
+                title={t("flows.choiceTemplateTitle")}
+                description={t("flows.choiceTemplateDesc")}
+                badge={t("flows.recommended")}
                 onClick={() => setStep("template")}
               />
               <ChoiceCard
                 icon={<FilePlus2 className="h-5 w-5 text-muted-foreground" />}
-                title="Empezar en blanco"
-                description="Lienzo en blanco. Tú armas cada paso desde cero."
+                title={t("flows.choiceBlankTitle")}
+                description={t("flows.choiceBlankDesc")}
                 onClick={() => setStep("name")}
               />
             </div>
@@ -307,7 +311,7 @@ export default function FlowsPage() {
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ej: Flujo de bienvenida"
+                placeholder={t("flows.namePlaceholder")}
                 className="bg-muted"
                 autoFocus
                 onKeyDown={(e) => {
@@ -320,14 +324,14 @@ export default function FlowsPage() {
                   onClick={() => setStep("choose")}
                   disabled={creating}
                 >
-                  Volver
+                  {t("flows.back")}
                 </Button>
                 <Button
                   onClick={handleCreateBlank}
                   disabled={!newName.trim() || creating}
                 >
                   {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Crear flujo vacío
+                  {t("flows.createBlankFlow")}
                 </Button>
               </DialogFooter>
             </>
@@ -337,7 +341,7 @@ export default function FlowsPage() {
             <div className="space-y-2">
               {templates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Todavía no hay plantillas disponibles.
+                  {t("flows.noTemplates")}
                 </p>
               ) : (
                 templates.map((tpl) => (
@@ -429,19 +433,19 @@ const NODE_ICONS: Record<string, typeof MessageSquare> = {
 };
 
 const NODE_LABELS: Record<string, string> = {
-  send_message: "Mensaje",
-  send_buttons: "Botones",
-  send_list: "Lista",
-  send_cta_url: "Botón con enlace",
-  collect_input: "Pregunta",
-  shopify_lookup: "Shopify",
-  ai_intent: "IA",
-  handoff: "A un humano",
-  end: "Fin",
+  send_message: "flows.nodeMessage",
+  send_buttons: "flows.nodeButtons",
+  send_list: "flows.nodeList",
+  send_cta_url: "flows.nodeCtaUrl",
+  collect_input: "flows.nodeQuestion",
+  shopify_lookup: "flows.nodeShopify",
+  ai_intent: "flows.nodeAi",
+  handoff: "flows.nodeHandoffToHuman",
+  end: "flows.nodeEnd",
 };
 
 /** One readable line per node for the preview outline. */
-function summarizeNode(node: { node_type: string; config: object }): string {
+function summarizeNode(node: { node_type: string; config: object }, t: TFn): string {
   const c = node.config as Record<string, unknown>;
   switch (node.node_type) {
     case "send_message":
@@ -457,17 +461,17 @@ function summarizeNode(node: { node_type: string; config: object }): string {
       return [String(c.text ?? ""), rows && `›  ${rows}`].filter(Boolean).join("  ");
     }
     case "send_cta_url":
-      return `${String(c.text ?? "")}  ›  [${String(c.button_title ?? "Abrir")}]`;
+      return `${String(c.text ?? "")}  ›  [${String(c.button_title ?? t("flows.summaryOpen"))}]`;
     case "collect_input":
       return String(c.prompt_text ?? "");
     case "shopify_lookup":
-      return "Busca el pedido en Shopify.";
+      return t("flows.summaryShopifyLookup");
     case "ai_intent":
-      return `${String(c.prompt_text ?? "")} (la IA enruta la respuesta)`;
+      return `${String(c.prompt_text ?? "")} ${t("flows.summaryAiRoute")}`;
     case "handoff":
-      return "Pasa la conversación a una persona.";
+      return t("flows.summaryHandoff");
     case "end":
-      return "Fin del flujo.";
+      return t("flows.summaryEnd");
     default:
       return "";
   }
@@ -480,6 +484,7 @@ function TemplateCard({
   template: FlowTemplate;
   onSelect: () => void;
 }) {
+  const t = useT();
   const Icon = TEMPLATE_ICONS[template.icon] ?? MessageSquare;
   return (
     <button
@@ -494,7 +499,7 @@ function TemplateCard({
             {template.name}
           </h4>
           <Badge variant="outline" className="border-border text-[10px]">
-            {template.nodes.length} pasos
+            {t("flows.stepsCount", { n: template.nodes.length })}
           </Badge>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -502,7 +507,7 @@ function TemplateCard({
         </p>
       </div>
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity group-hover:opacity-100">
-        Ver
+        {t("flows.view")}
         <ArrowRight className="h-3.5 w-3.5" />
       </span>
     </button>
@@ -518,6 +523,7 @@ function TemplatePreview({
   creating: boolean;
   onUse: () => void;
 }) {
+  const t = useT();
   const Icon = TEMPLATE_ICONS[template.icon] ?? MessageSquare;
   return (
     <div className="space-y-4">
@@ -529,7 +535,7 @@ function TemplatePreview({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">{template.name}</h3>
             <Badge variant="outline" className="border-border text-[10px]">
-              {template.nodes.length} pasos
+              {t("flows.stepsCount", { n: template.nodes.length })}
             </Badge>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -552,10 +558,10 @@ function TemplatePreview({
           {/* Disparador */}
           <div className="flex w-44 shrink-0 flex-col rounded-lg border border-primary/50 bg-primary/10 p-2.5">
             <span className="text-[10px] uppercase tracking-wide text-accent-ink">
-              Disparador
+              {t("flows.trigger")}
             </span>
             <p className="mt-0.5 text-xs font-medium text-foreground">
-              Inicio del flujo
+              {t("flows.flowStart")}
             </p>
           </div>
           {template.nodes.map((node) => {
@@ -567,11 +573,11 @@ function TemplatePreview({
                   <div className="flex items-center gap-1.5">
                     <NodeIcon className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {NODE_LABELS[node.node_type] ?? node.node_type}
+                      {NODE_LABELS[node.node_type] ? t(NODE_LABELS[node.node_type]) : node.node_type}
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-4 text-xs text-foreground">
-                    {summarizeNode(node)}
+                    {summarizeNode(node, t)}
                   </p>
                 </div>
               </div>
@@ -587,7 +593,7 @@ function TemplatePreview({
           ) : (
             <Check className="h-4 w-4" />
           )}
-          Usar plantilla
+          {t("flows.useTemplate")}
         </Button>
       </DialogFooter>
     </div>
@@ -595,21 +601,21 @@ function TemplatePreview({
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-16 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <Workflow className="h-6 w-6 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-base font-medium text-foreground">
-        Sin flujos todavía
+        {t("flows.emptyTitle")}
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Un flujo guía al cliente con botones: toca una opción y avanza al
-        siguiente paso, sin IA. Empieza con una plantilla o créalo desde cero.
+        {t("flows.emptyDescription")}
       </p>
       <Button onClick={onCreate} className="mt-5">
         <Plus className="h-4 w-4" />
-        Crear mi primer flujo
+        {t("flows.createFirstFlow")}
       </Button>
     </div>
   );
@@ -626,7 +632,8 @@ function FlowCard({
   onDelete: () => void;
   onToggle: (next: boolean) => void | Promise<void>;
 }) {
-  const triggerSummary = describeTrigger(flow);
+  const t = useT();
+  const triggerSummary = describeTrigger(flow, t);
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-foreground/30">
       <div className="flex items-start justify-between gap-2">
@@ -645,12 +652,12 @@ function FlowCard({
             checked={flow.status === "active"}
             onCheckedChange={(v) => onToggle(!!v)}
             aria-label={
-              flow.status === "active" ? "Pausar flujo" : "Activar flujo"
+              flow.status === "active" ? t("flows.pauseFlow") : t("flows.activateFlow")
             }
           />
         ) : (
           <Badge variant="outline" className="shrink-0 gap-1 text-[10px]">
-            Archivado
+            {t("flows.archived")}
           </Badge>
         )}
       </div>
@@ -663,14 +670,14 @@ function FlowCard({
         <span className="inline-flex items-center gap-1">
           <MessageSquare className="h-3 w-3" />
           {flow.execution_count}{" "}
-          {flow.execution_count === 1 ? "vez usado" : "veces usado"}
+          {flow.execution_count === 1 ? t("flows.timesUsedOne") : t("flows.timesUsedMany")}
         </span>
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-2 border-t border-border pt-3">
         <Button variant="ghost" size="sm" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />
-          Editar
+          {t("flows.edit")}
         </Button>
         <Button
           variant="ghost"
@@ -679,24 +686,24 @@ function FlowCard({
           className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          Eliminar
+          {t("flows.delete")}
         </Button>
       </div>
     </div>
   );
 }
 
-function describeTrigger(flow: FlowRow): string {
+function describeTrigger(flow: FlowRow, t: TFn): string {
   if (flow.trigger_type === "keyword") {
     const keywords = Array.isArray(flow.trigger_config.keywords)
       ? (flow.trigger_config.keywords as string[])
       : [];
     if (keywords.length === 0)
-      return "Se activa cuando el cliente escribe una palabra clave (ninguna definida)";
-    return `Se activa con: ${keywords.join(", ")}`;
+      return t("flows.triggerKeywordNone");
+    return t("flows.triggerKeywordWith", { keywords: keywords.join(", ") });
   }
   if (flow.trigger_type === "first_inbound_message") {
-    return "Se activa con el primer mensaje del cliente";
+    return t("flows.triggerFirstMessage");
   }
-  return "Lo activas tú a mano";
+  return t("flows.triggerManual");
 }

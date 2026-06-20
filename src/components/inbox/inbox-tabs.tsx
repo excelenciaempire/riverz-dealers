@@ -3,6 +3,7 @@
 import type { Channel } from "@/types";
 import { cn } from "@/lib/utils";
 import { MessageSquare, MessageSquareReply } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 
 export type InboxTab = "messages" | "comments";
 
@@ -35,19 +36,20 @@ interface InboxTabsProps {
  * Counts shown next to each tab are unread counts within that slice.
  */
 export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
+  const t = useT();
   return (
     <div className="flex border-b border-border bg-background/40">
       <Tab
         active={value === "messages"}
         onClick={() => onChange("messages")}
-        label="Mensajes"
+        label={t("inbox.tabMessages")}
         icon={<MessageSquare className="h-3.5 w-3.5" />}
         count={counts.messages}
       />
       <Tab
         active={value === "comments"}
         onClick={() => onChange("comments")}
-        label="Comentarios"
+        label={t("inbox.tabComments")}
         icon={<MessageSquareReply className="h-3.5 w-3.5" />}
         count={counts.comments}
       />

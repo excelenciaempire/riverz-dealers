@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/hooks/use-locale";
 
 const ENV_TIMEOUT = process.env.NEXT_PUBLIC_SESSION_IDLE_TIMEOUT_MINUTES;
 const IDLE_MINUTES = Number(ENV_TIMEOUT) > 0 ? Number(ENV_TIMEOUT) : 30;
@@ -19,6 +20,7 @@ const ACTIVITY_EVENTS = ["mousemove", "keydown", "touchstart", "scroll"] as cons
  */
 export function IdleGuard() {
   const pathname = usePathname();
+  const t = useT();
   const [warningOpen, setWarningOpen] = useState(false);
   const [remaining, setRemaining] = useState(WARN_SECONDS);
   const lastActiveRef = useRef<number>(Date.now());
@@ -85,11 +87,10 @@ export function IdleGuard() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
         <h2 className="text-lg font-semibold text-foreground">
-          Tu sesión expirará en {remaining} segundos
+          {t("auth.sessionExpiringIn", { remaining })}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Por seguridad, cerraremos tu sesión por inactividad. Toca cualquier
-          tecla o haz clic para continuar.
+          {t("auth.sessionExpiringBody")}
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <Button
@@ -101,7 +102,7 @@ export function IdleGuard() {
             }}
             className="border-border text-foreground hover:bg-accent hover:text-foreground"
           >
-            Cerrar sesión
+            {t("auth.signOut")}
           </Button>
           <Button
             onClick={() => {
@@ -110,7 +111,7 @@ export function IdleGuard() {
             }}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            Seguir conectado
+            {t("auth.stayConnected")}
           </Button>
         </div>
       </div>

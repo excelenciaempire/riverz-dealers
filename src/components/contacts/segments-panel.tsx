@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,70 +60,104 @@ type EditableSegment = {
   rules: SegmentRule[];
 };
 
-const CHANNEL_LABELS: Record<Channel, string> = {
+// Channel display labels. Brand names stay literal; the comment channels
+// carry an i18n key resolved with t() at the render site (sidebar pattern).
+const CHANNEL_LABEL_KEYS: Record<Channel, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   messenger: 'Messenger',
   gmail: 'Gmail',
   outlook: 'Outlook',
-  fb_comment: 'Comentarios de Facebook',
-  ig_comment: 'Comentarios de Instagram',
+  fb_comment: 'contacts.channelFbComment',
+  ig_comment: 'contacts.channelIgComment',
 };
 
-const FIELD_LABELS: Record<string, string> = {
-  name: 'Nombre',
-  email: 'Correo',
-  phone: 'Teléfono',
-  company: 'Empresa',
+/** Resolve channel labels for the current locale (brand names pass through). */
+function channelLabels(t: TFn): Record<Channel, string> {
+  const out = {} as Record<Channel, string>;
+  for (const [channel, key] of Object.entries(CHANNEL_LABEL_KEYS) as [Channel, string][]) {
+    out[channel] = key.startsWith('contacts.') ? t(key) : key;
+  }
+  return out;
+}
+
+// Field labels keyed by i18n key, resolved with t() at the render site.
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  name: 'contacts.segFieldName',
+  email: 'contacts.segFieldEmail',
+  phone: 'contacts.segFieldPhone',
+  company: 'contacts.segFieldCompany',
 };
+
+function fieldLabels(t: TFn): Record<string, string> {
+  return {
+    name: t(FIELD_LABEL_KEYS.name),
+    email: t(FIELD_LABEL_KEYS.email),
+    phone: t(FIELD_LABEL_KEYS.phone),
+    company: t(FIELD_LABEL_KEYS.company),
+  };
+}
 
 const FIELD_OPTIONS = [
-  { value: 'name', label: 'Nombre' },
-  { value: 'email', label: 'Correo' },
-  { value: 'phone', label: 'Teléfono' },
-  { value: 'company', label: 'Empresa' },
+  { value: 'name', labelKey: 'contacts.segFieldName' },
+  { value: 'email', labelKey: 'contacts.segFieldEmail' },
+  { value: 'phone', labelKey: 'contacts.segFieldPhone' },
+  { value: 'company', labelKey: 'contacts.segFieldCompany' },
 ] as const;
 
+// Rule type metadata: label + description carry i18n keys, resolved at the
+// render site. Icon is a component, untranslated.
 const RULE_TYPES: {
   type: SegmentRule['type'];
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   Icon: typeof TagIcon;
 }[] = [
-  { type: 'tag', label: 'Etiqueta', description: 'Tiene o no tiene una etiqueta.', Icon: TagIcon },
-  { type: 'channel', label: 'Canal', description: 'El contacto llegó por WhatsApp, Instagram, etc.', Icon: MessageCircle },
-  { type: 'created', label: 'Fecha de creación', description: 'Cuándo se creó el contacto.', Icon: CalendarClock },
-  { type: 'text', label: 'Texto del contacto', description: 'El nombre, correo, teléfono o empresa contiene algo.', Icon: TypeIcon },
-  { type: 'has_field', label: 'Tiene dato', description: 'Si el contacto tiene cargado un campo.', Icon: CircleSlash },
-  { type: 'custom_field', label: 'Campo personalizado', description: 'Filtra por un campo que tú creaste.', Icon: Database },
+  { type: 'tag', labelKey: 'contacts.ruleTagLabel', descriptionKey: 'contacts.ruleTagDesc', Icon: TagIcon },
+  { type: 'channel', labelKey: 'contacts.ruleChannelLabel', descriptionKey: 'contacts.ruleChannelDesc', Icon: MessageCircle },
+  { type: 'created', labelKey: 'contacts.ruleCreatedLabel', descriptionKey: 'contacts.ruleCreatedDesc', Icon: CalendarClock },
+  { type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
+  { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', descriptionKey: 'contacts.ruleHasFieldDesc', Icon: CircleSlash },
+  { type: 'custom_field', labelKey: 'contacts.ruleCustomFieldLabel', descriptionKey: 'contacts.ruleCustomFieldDesc', Icon: Database },
 ];
 
-// Operator labels used by SelectValue.labels — shown human-readable on the
-// trigger but stored as compact codes in the segment rules JSON.
-const OP_LABELS = {
-  tag: { has: 'tiene', not_has: 'no tiene' },
-  channel: { is: 'es', is_not: 'no es' },
+// Operator label i18n keys used by SelectValue.labels — shown human-readable
+// on the trigger but stored as compact codes in the segment rules JSON.
+const OP_LABEL_KEYS = {
+  tag: { has: 'contacts.opTagHas', not_has: 'contacts.opTagNotHas' },
+  channel: { is: 'contacts.opChannelIs', is_not: 'contacts.opChannelIsNot' },
   created: {
-    last_n_days: 'hace menos de (días)',
-    after: 'después de',
-    before: 'antes de',
+    last_n_days: 'contacts.opCreatedLastNDays',
+    after: 'contacts.opCreatedAfter',
+    before: 'contacts.opCreatedBefore',
   },
-  has_field: { present: 'está cargado', missing: 'está vacío' },
+  has_field: { present: 'contacts.opHasFieldPresent', missing: 'contacts.opHasFieldMissing' },
   text: {
-    contains: 'contiene',
-    equals: 'es exactamente',
-    starts_with: 'empieza con',
+    contains: 'contacts.opTextContains',
+    equals: 'contacts.opTextEquals',
+    starts_with: 'contacts.opTextStartsWith',
   },
   custom_field: {
-    equals: 'es',
-    not_equals: 'no es',
-    contains: 'contiene',
+    equals: 'contacts.opCustomEquals',
+    not_equals: 'contacts.opCustomNotEquals',
+    contains: 'contacts.opCustomContains',
   },
 } as const;
+
+/** Resolve a record of `{ code: i18nKey }` to `{ code: label }`. */
+function resolveOpLabels(
+  group: Record<string, string>,
+  t: TFn,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [code, key] of Object.entries(group)) out[code] = t(key);
+  return out;
+}
 
 export function SegmentsPanel() {
   const supabase = useMemo(() => createClient(), []);
   const { workspace } = useWorkspace();
+  const t = useT();
   const [segments, setSegments] = useState<ContactSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditableSegment | null>(null);
@@ -215,15 +251,15 @@ export function SegmentsPanel() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este segmento?')) return;
+    if (!confirm(t('contacts.deleteSegmentConfirm'))) return;
     setDeletingId(id);
     const { error } = await supabase.from('contact_segments').delete().eq('id', id);
     setDeletingId(null);
     if (error) {
-      toast.error(`No se pudo eliminar: ${error.message}`);
+      toast.error(t('contacts.deleteSegmentError', { error: error.message }));
       return;
     }
-    toast.success('Segmento eliminado');
+    toast.success(t('contacts.segmentDeleted'));
     await reload();
   }
 
@@ -239,14 +275,14 @@ export function SegmentsPanel() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Segmentos guardados</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('contacts.savedSegments')}</h2>
         </div>
         <Button
           onClick={startNew}
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="size-4" />
-          Nuevo segmento
+          {t('contacts.newSegment')}
         </Button>
       </div>
 
@@ -259,7 +295,7 @@ export function SegmentsPanel() {
           <div className="flex flex-col items-center gap-2 p-10 text-center">
             <Layers className="size-8 text-muted-foreground" />
             <p className="max-w-sm text-sm text-muted-foreground">
-              No hay segmentos.
+              {t('contacts.noSegments')}
             </p>
           </div>
         ) : (
@@ -283,11 +319,13 @@ export function SegmentsPanel() {
                         {s.name}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {(s.rules?.length ?? 0)} regla
-                        {(s.rules?.length ?? 0) === 1 ? '' : 's'}
+                        {(s.rules?.length ?? 0) === 1
+                          ? t('contacts.ruleCountSingular', { count: s.rules?.length ?? 0 })
+                          : t('contacts.ruleCountPlural', { count: s.rules?.length ?? 0 })}
                         {' · '}
-                        coincide{' '}
-                        {s.match_mode === 'all' ? 'con todas' : 'con alguna'}
+                        {s.match_mode === 'all'
+                          ? t('contacts.matchesAll')
+                          : t('contacts.matchesAny')}
                         {s.description ? ` · ${s.description}` : ''}
                       </p>
                     </div>
@@ -299,7 +337,7 @@ export function SegmentsPanel() {
                     </span>
                     <button
                       onClick={() => startEdit(s)}
-                      title="Editar"
+                      title={t('contacts.edit')}
                       className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       <Pencil className="size-4" />
@@ -307,7 +345,7 @@ export function SegmentsPanel() {
                     <button
                       onClick={() => handleDelete(s.id)}
                       disabled={deletingId === s.id}
-                      title="Eliminar"
+                      title={t('contacts.delete')}
                       className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
                     >
                       {deletingId === s.id ? (
@@ -359,6 +397,8 @@ function SegmentEditor({
   onSaved,
 }: EditorProps) {
   const supabase = useMemo(() => createClient(), []);
+  const t = useT();
+  const chLabels = useMemo(() => channelLabels(t), [t]);
   const [name, setName] = useState(segment.name);
   const [description, setDescription] = useState(segment.description);
   const [matchMode, setMatchMode] = useState<SegmentMatchMode>(segment.match_mode);
@@ -400,8 +440,8 @@ function SegmentEditor({
     if (!stub) {
       toast.error(
         type === 'tag'
-          ? 'No hay etiquetas.'
-          : 'No hay campos personalizados.',
+          ? t('contacts.noTagsRule')
+          : t('contacts.noCustomFieldsRule'),
       );
       return;
     }
@@ -418,7 +458,7 @@ function SegmentEditor({
 
   async function save() {
     if (!name.trim()) {
-      toast.error('Falta el nombre.');
+      toast.error(t('contacts.missingName'));
       return;
     }
     setSaving(true);
@@ -437,10 +477,10 @@ function SegmentEditor({
       : await supabase.from('contact_segments').insert(payload);
     setSaving(false);
     if (error) {
-      toast.error(`No se pudo guardar: ${error.message}`);
+      toast.error(t('contacts.saveSegmentError', { error: error.message }));
       return;
     }
-    toast.success(segment.id ? 'Segmento actualizado' : 'Segmento creado');
+    toast.success(segment.id ? t('contacts.segmentUpdated') : t('contacts.segmentCreated'));
     await onSaved();
   }
 
@@ -453,13 +493,13 @@ function SegmentEditor({
         <div className="flex items-start justify-between border-b border-border px-6 py-4">
           <div>
             <DialogTitle className="text-base font-semibold text-foreground">
-              {segment.id ? 'Editar segmento' : 'Nuevo segmento'}
+              {segment.id ? t('contacts.editSegment') : t('contacts.newSegment')}
             </DialogTitle>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Cerrar"
+            aria-label={t('contacts.close')}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <X className="size-4" />
@@ -470,20 +510,20 @@ function SegmentEditor({
           <div className="space-y-5 overflow-y-auto p-6">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-foreground">Nombre</Label>
+                <Label className="text-foreground">{t('contacts.fieldName')}</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="VIPs · Última semana · Bogotá"
+                  placeholder={t('contacts.segmentNamePlaceholder')}
                   className="bg-background"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-foreground">Descripción</Label>
+                <Label className="text-foreground">{t('contacts.fieldDescription')}</Label>
                 <Input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Clientes que compraron en los últimos 30 días"
+                  placeholder={t('contacts.segmentDescriptionPlaceholder')}
                   className="bg-background"
                 />
               </div>
@@ -491,19 +531,19 @@ function SegmentEditor({
 
             {/* Match mode as a segmented control */}
             <div className="space-y-1.5">
-              <Label className="text-foreground">Coincidencia</Label>
+              <Label className="text-foreground">{t('contacts.matchLabel')}</Label>
               <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
                 <MatchModeButton
                   active={matchMode === 'all'}
                   onClick={() => setMatchMode('all')}
-                  title="Cumple todas"
-                  subtitle="Estilo Y: aplica solo si todas las reglas pasan."
+                  title={t('contacts.matchAllTitle')}
+                  subtitle={t('contacts.matchAllSubtitle')}
                 />
                 <MatchModeButton
                   active={matchMode === 'any'}
                   onClick={() => setMatchMode('any')}
-                  title="Cumple alguna"
-                  subtitle="Estilo O: basta con una regla."
+                  title={t('contacts.matchAnyTitle')}
+                  subtitle={t('contacts.matchAnySubtitle')}
                 />
               </div>
             </div>
@@ -511,7 +551,7 @@ function SegmentEditor({
             {/* Rules block */}
             <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">Reglas</p>
+                <p className="text-sm font-semibold text-foreground">{t('contacts.rules')}</p>
                 <AddRuleMenu onAdd={addRule} hasCustomFields={customFields.length > 0} />
               </div>
 
@@ -535,14 +575,14 @@ function SegmentEditor({
           {/* Preview side panel */}
           <aside className="overflow-y-auto border-t border-border bg-muted/30 p-4 sm:border-l sm:border-t-0">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Vista previa</span>
+              <span>{t('contacts.preview')}</span>
               {previewing && <Loader2 className="size-3 animate-spin" />}
             </div>
             <p className="mt-1 text-3xl font-semibold tabular-nums text-foreground">
               {preview.length}
             </p>
             <p className="text-xs text-muted-foreground">
-              de {total} contactos de tu equipo
+              {t('contacts.previewOf', { total })}
             </p>
 
             <div className="mt-4 max-h-[360px] space-y-1 overflow-y-auto pr-1">
@@ -556,24 +596,24 @@ function SegmentEditor({
                       c.email ||
                       c.phone ||
                       c.external_id ||
-                      'Sin nombre'}
+                      t('contacts.segmentNoName')}
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
                     {c.email ||
                       c.phone ||
-                      CHANNEL_LABELS[c.channel as Channel] ||
+                      chLabels[c.channel as Channel] ||
                       c.channel}
                   </p>
                 </div>
               ))}
               {preview.length > 50 && (
                 <p className="px-2 text-[10px] text-muted-foreground">
-                  +{preview.length - 50} más…
+                  {t('contacts.morePreview', { count: preview.length - 50 })}
                 </p>
               )}
               {preview.length === 0 && !previewing && (
                 <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-[11px] text-muted-foreground">
-                  Ningún contacto coincide.
+                  {t('contacts.noContactMatches')}
                 </p>
               )}
             </div>
@@ -586,7 +626,7 @@ function SegmentEditor({
             onClick={onClose}
             className="border-border text-foreground hover:bg-accent"
           >
-            Cancelar
+            {t('contacts.cancel')}
           </Button>
           <Button
             onClick={save}
@@ -594,7 +634,7 @@ function SegmentEditor({
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving && <Loader2 className="size-4 animate-spin" />}
-            Guardar
+            {t('contacts.save')}
           </Button>
         </div>
       </DialogContent>
@@ -637,6 +677,7 @@ function AddRuleMenu({
   onAdd: (type: SegmentRule['type']) => void;
   hasCustomFields: boolean;
 }) {
+  const t = useT();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -649,7 +690,7 @@ function AddRuleMenu({
         }
       >
         <Plus className="size-3.5" />
-        Añadir regla
+        {t('contacts.addRule')}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
@@ -666,10 +707,10 @@ function AddRuleMenu({
             >
               <r.Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{r.label}</p>
+                <p className="text-sm font-medium text-foreground">{t(r.labelKey)}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {r.description}
-                  {disabled ? ' (no tienes campos personalizados)' : ''}
+                  {t(r.descriptionKey)}
+                  {disabled ? t('contacts.noCustomFieldsHint') : ''}
                 </p>
               </div>
             </DropdownMenuItem>
@@ -693,6 +734,7 @@ function RuleRow({
   onChange: (next: SegmentRule) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -705,7 +747,7 @@ function RuleRow({
         />
         <button
           onClick={onRemove}
-          title="Quitar regla"
+          title={t('contacts.removeRule')}
           className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
         >
           <X className="size-3.5" />
@@ -716,12 +758,13 @@ function RuleRow({
 }
 
 function RuleHeader({ rule }: { rule: SegmentRule }) {
+  const t = useT();
   const meta = RULE_TYPES.find((r) => r.type === rule.type);
   if (!meta) return null;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
       <meta.Icon className="size-3" />
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   );
 }
@@ -737,52 +780,64 @@ function RuleControls({
   customFields: CustomField[];
   onChange: (next: SegmentRule) => void;
 }) {
+  const t = useT();
+  const fLabels = fieldLabels(t);
+  const fOptions = FIELD_OPTIONS.map((f) => ({
+    value: f.value,
+    label: t(f.labelKey).toLowerCase(),
+  }));
   switch (rule.type) {
-    case 'tag':
+    case 'tag': {
+      const opTag = resolveOpLabels(OP_LABEL_KEYS.tag, t);
       return (
         <>
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.tag}
-            options={Object.entries(OP_LABELS.tag).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opTag}
+            options={Object.entries(opTag).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) => onChange({ ...rule, op: v as 'has' | 'not_has' })}
           />
           <MiniSelect
             value={rule.tagId}
-            labels={Object.fromEntries(tags.map((t) => [t.id, t.name]))}
-            options={tags.map((t) => ({ value: t.id, label: t.name }))}
+            labels={Object.fromEntries(tags.map((tg) => [tg.id, tg.name]))}
+            options={tags.map((tg) => ({ value: tg.id, label: tg.name }))}
             onChange={(v) => onChange({ ...rule, tagId: v })}
-            placeholder="Etiqueta…"
+            placeholder={t('contacts.tagPlaceholder')}
           />
         </>
       );
-    case 'channel':
+    }
+    case 'channel': {
+      const opChannel = resolveOpLabels(OP_LABEL_KEYS.channel, t);
+      const chLabels = channelLabels(t);
       return (
         <>
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.channel}
-            options={Object.entries(OP_LABELS.channel).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opChannel}
+            options={Object.entries(opChannel).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) => onChange({ ...rule, op: v as 'is' | 'is_not' })}
           />
           <MiniSelect
             value={rule.channel}
-            labels={CHANNEL_LABELS}
-            options={(Object.keys(CHANNEL_LABELS) as Channel[]).map((c) => ({
+            labels={chLabels}
+            options={(Object.keys(chLabels) as Channel[]).map((c) => ({
               value: c,
-              label: CHANNEL_LABELS[c],
+              label: chLabels[c],
             }))}
             onChange={(v) => onChange({ ...rule, channel: v as Channel })}
           />
         </>
       );
-    case 'created':
+    }
+    case 'created': {
+      const opCreated = resolveOpLabels(OP_LABEL_KEYS.created, t);
       return (
         <>
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.created}
-            options={Object.entries(OP_LABELS.created).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opCreated}
+            options={Object.entries(opCreated).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) =>
               onChange({
                 ...rule,
@@ -801,7 +856,7 @@ function RuleControls({
                 onChange={(e) => onChange({ ...rule, value: e.target.value })}
                 className="h-8 w-20 bg-background text-xs"
               />
-              <span className="text-xs text-muted-foreground">días</span>
+              <span className="text-xs text-muted-foreground">{t('contacts.daysWord')}</span>
             </div>
           ) : (
             <Input
@@ -813,17 +868,16 @@ function RuleControls({
           )}
         </>
       );
-    case 'has_field':
+    }
+    case 'has_field': {
+      const opHasField = resolveOpLabels(OP_LABEL_KEYS.has_field, t);
       return (
         <>
-          <span className="text-xs text-muted-foreground">El</span>
+          <span className="text-xs text-muted-foreground">{t('contacts.theWord')}</span>
           <MiniSelect
             value={rule.field}
-            labels={FIELD_LABELS}
-            options={FIELD_OPTIONS.map((f) => ({
-              value: f.value,
-              label: f.label.toLowerCase(),
-            }))}
+            labels={fLabels}
+            options={fOptions}
             onChange={(v) =>
               onChange({
                 ...rule,
@@ -833,22 +887,21 @@ function RuleControls({
           />
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.has_field}
-            options={Object.entries(OP_LABELS.has_field).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opHasField}
+            options={Object.entries(opHasField).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) => onChange({ ...rule, op: v as 'present' | 'missing' })}
           />
         </>
       );
-    case 'text':
+    }
+    case 'text': {
+      const opText = resolveOpLabels(OP_LABEL_KEYS.text, t);
       return (
         <>
           <MiniSelect
             value={rule.field}
-            labels={FIELD_LABELS}
-            options={FIELD_OPTIONS.map((f) => ({
-              value: f.value,
-              label: f.label.toLowerCase(),
-            }))}
+            labels={fLabels}
+            options={fOptions}
             onChange={(v) =>
               onChange({
                 ...rule,
@@ -858,8 +911,8 @@ function RuleControls({
           />
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.text}
-            options={Object.entries(OP_LABELS.text).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opText}
+            options={Object.entries(opText).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) =>
               onChange({ ...rule, op: v as 'contains' | 'equals' | 'starts_with' })
             }
@@ -867,15 +920,17 @@ function RuleControls({
           <Input
             value={rule.value}
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
-            placeholder="texto"
+            placeholder={t('contacts.textPlaceholder')}
             className="h-8 w-full sm:w-44 bg-background text-xs"
           />
         </>
       );
+    }
     case 'custom_field': {
       const cfLabels = Object.fromEntries(
         customFields.map((f) => [f.id, f.field_name]),
       );
+      const opCustom = resolveOpLabels(OP_LABEL_KEYS.custom_field, t);
       return (
         <>
           <MiniSelect
@@ -886,12 +941,12 @@ function RuleControls({
               label: f.field_name,
             }))}
             onChange={(v) => onChange({ ...rule, fieldId: v })}
-            placeholder="Campo…"
+            placeholder={t('contacts.fieldPlaceholder')}
           />
           <MiniSelect
             value={rule.op}
-            labels={OP_LABELS.custom_field}
-            options={Object.entries(OP_LABELS.custom_field).map(([v, l]) => ({ value: v, label: l }))}
+            labels={opCustom}
+            options={Object.entries(opCustom).map(([v, l]) => ({ value: v, label: l }))}
             onChange={(v) =>
               onChange({ ...rule, op: v as 'equals' | 'not_equals' | 'contains' })
             }
@@ -899,7 +954,7 @@ function RuleControls({
           <Input
             value={rule.value}
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
-            placeholder="valor"
+            placeholder={t('contacts.valuePlaceholder')}
             className="h-8 w-full sm:w-44 bg-background text-xs"
           />
         </>

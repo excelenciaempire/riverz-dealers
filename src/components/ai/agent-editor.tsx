@@ -42,6 +42,8 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 import type {
   AiAgent,
   AiProductScope,
@@ -54,11 +56,12 @@ import type {
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
 
+// label/hint son claves i18n resueltas con t() en el render.
 const TONES: { value: AiTone; label: string; hint: string }[] = [
-  { value: 'friendly', label: 'Cercano', hint: 'Cálido, conversacional, frases cortas.' },
-  { value: 'formal', label: 'Formal', hint: 'Profesional, distancia respetuosa.' },
-  { value: 'casual', label: 'Coloquial', hint: 'Directo, modismos suaves.' },
-  { value: 'concise', label: 'Breve', hint: 'Una o dos frases, sin rodeos.' },
+  { value: 'friendly', label: 'assistant.toneFriendly', hint: 'assistant.toneFriendlyHint' },
+  { value: 'formal', label: 'assistant.toneFormal', hint: 'assistant.toneFormalHint' },
+  { value: 'casual', label: 'assistant.toneCasual', hint: 'assistant.toneCasualHint' },
+  { value: 'concise', label: 'assistant.toneConcise', hint: 'assistant.toneConciseHint' },
 ];
 
 // Modelo fijo: Haiku es la mejor relación calidad/costo y la decisión
@@ -77,70 +80,67 @@ const CHANNELS: { value: Channel; label: string; icon: string }[] = [
   { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
 ];
 
+// label es una clave i18n resuelta con t() en el render.
 const LANGUAGES: { code: string; label: string }[] = [
-  { code: 'es', label: 'Español' },
-  { code: 'en', label: 'Inglés' },
-  { code: 'pt', label: 'Portugués' },
-  { code: 'fr', label: 'Francés' },
+  { code: 'es', label: 'assistant.languageSpanish' },
+  { code: 'en', label: 'assistant.languageEnglish' },
+  { code: 'pt', label: 'assistant.languagePortuguese' },
+  { code: 'fr', label: 'assistant.languageFrench' },
 ];
 
-const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.label]));
-
+// label/hint son claves i18n resueltas con t() en el render.
 const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] = [
   {
     value: 'single',
-    label: 'Un solo mensaje',
-    hint: 'Una respuesta completa por turno.',
+    label: 'assistant.responseModeSingle',
+    hint: 'assistant.responseModeSingleHint',
   },
   {
     value: 'multi',
-    label: 'Varios mensajes cortos',
-    hint: 'Parte la respuesta en mensajes naturales.',
+    label: 'assistant.responseModeMulti',
+    hint: 'assistant.responseModeMultiHint',
   },
   {
     value: 'dynamic',
-    label: 'Dinámico',
-    hint: 'El asistente decide según el contenido.',
+    label: 'assistant.responseModeDynamic',
+    hint: 'assistant.responseModeDynamicHint',
   },
 ];
 
-const RESPONSE_MODE_LABELS = Object.fromEntries(
-  RESPONSE_MODES.map((m) => [m.value, m.label]),
-);
-
+// label es una clave i18n resuelta con t() en el render. El offset UTC va
+// en la traducción porque la ciudad cambia entre idiomas.
 const TIMEZONES: { value: string; label: string }[] = [
-  { value: 'America/Bogota', label: 'Bogotá (UTC-5)' },
-  { value: 'America/Mexico_City', label: 'Ciudad de México (UTC-6)' },
-  { value: 'America/Lima', label: 'Lima (UTC-5)' },
-  { value: 'America/Santiago', label: 'Santiago (UTC-4)' },
-  { value: 'America/Buenos_Aires', label: 'Buenos Aires (UTC-3)' },
-  { value: 'America/Caracas', label: 'Caracas (UTC-4)' },
-  { value: 'America/Guayaquil', label: 'Quito (UTC-5)' },
-  { value: 'America/La_Paz', label: 'La Paz (UTC-4)' },
-  { value: 'America/Asuncion', label: 'Asunción (UTC-3)' },
-  { value: 'America/Montevideo', label: 'Montevideo (UTC-3)' },
-  { value: 'America/Sao_Paulo', label: 'São Paulo (UTC-3)' },
-  { value: 'America/Panama', label: 'Panamá (UTC-5)' },
-  { value: 'America/Costa_Rica', label: 'San José (UTC-6)' },
-  { value: 'America/Guatemala', label: 'Guatemala (UTC-6)' },
-  { value: 'America/El_Salvador', label: 'San Salvador (UTC-6)' },
-  { value: 'America/Tegucigalpa', label: 'Tegucigalpa (UTC-6)' },
-  { value: 'America/Managua', label: 'Managua (UTC-6)' },
-  { value: 'America/Santo_Domingo', label: 'Santo Domingo (UTC-4)' },
-  { value: 'America/Havana', label: 'La Habana (UTC-5)' },
-  { value: 'America/Puerto_Rico', label: 'San Juan (UTC-4)' },
+  { value: 'America/Bogota', label: 'assistant.tzBogota' },
+  { value: 'America/Mexico_City', label: 'assistant.tzMexicoCity' },
+  { value: 'America/Lima', label: 'assistant.tzLima' },
+  { value: 'America/Santiago', label: 'assistant.tzSantiago' },
+  { value: 'America/Buenos_Aires', label: 'assistant.tzBuenosAires' },
+  { value: 'America/Caracas', label: 'assistant.tzCaracas' },
+  { value: 'America/Guayaquil', label: 'assistant.tzQuito' },
+  { value: 'America/La_Paz', label: 'assistant.tzLaPaz' },
+  { value: 'America/Asuncion', label: 'assistant.tzAsuncion' },
+  { value: 'America/Montevideo', label: 'assistant.tzMontevideo' },
+  { value: 'America/Sao_Paulo', label: 'assistant.tzSaoPaulo' },
+  { value: 'America/Panama', label: 'assistant.tzPanama' },
+  { value: 'America/Costa_Rica', label: 'assistant.tzSanJose' },
+  { value: 'America/Guatemala', label: 'assistant.tzGuatemala' },
+  { value: 'America/El_Salvador', label: 'assistant.tzSanSalvador' },
+  { value: 'America/Tegucigalpa', label: 'assistant.tzTegucigalpa' },
+  { value: 'America/Managua', label: 'assistant.tzManagua' },
+  { value: 'America/Santo_Domingo', label: 'assistant.tzSantoDomingo' },
+  { value: 'America/Havana', label: 'assistant.tzHavana' },
+  { value: 'America/Puerto_Rico', label: 'assistant.tzSanJuan' },
 ];
 
-const TIMEZONE_LABELS = Object.fromEntries(TIMEZONES.map((t) => [t.value, t.label]));
-
+// short/long son claves i18n resueltas con t() en el render.
 const WEEK_DAYS: { value: 0 | 1 | 2 | 3 | 4 | 5 | 6; short: string; long: string }[] = [
-  { value: 1, short: 'Lun', long: 'Lunes' },
-  { value: 2, short: 'Mar', long: 'Martes' },
-  { value: 3, short: 'Mié', long: 'Miércoles' },
-  { value: 4, short: 'Jue', long: 'Jueves' },
-  { value: 5, short: 'Vie', long: 'Viernes' },
-  { value: 6, short: 'Sáb', long: 'Sábado' },
-  { value: 0, short: 'Dom', long: 'Domingo' },
+  { value: 1, short: 'assistant.dayMonShort', long: 'assistant.dayMonLong' },
+  { value: 2, short: 'assistant.dayTueShort', long: 'assistant.dayTueLong' },
+  { value: 3, short: 'assistant.dayWedShort', long: 'assistant.dayWedLong' },
+  { value: 4, short: 'assistant.dayThuShort', long: 'assistant.dayThuLong' },
+  { value: 5, short: 'assistant.dayFriShort', long: 'assistant.dayFriLong' },
+  { value: 6, short: 'assistant.daySatShort', long: 'assistant.daySatLong' },
+  { value: 0, short: 'assistant.daySunShort', long: 'assistant.daySunLong' },
 ];
 
 function readBusinessHours(bh: BusinessHours | null | undefined): {
@@ -214,6 +214,7 @@ export function AgentEditor({
   onClose,
   onSaved,
 }: AgentEditorProps) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const router = useRouter();
   // Persistimos el id del agente "en edición" en estado local porque
@@ -338,10 +339,22 @@ export function AgentEditor({
   type TabKey = 'business' | 'reach' | 'advanced';
   const [tab, setTab] = useState<TabKey>('business');
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
-    { key: 'business', label: 'Mi negocio', icon: Briefcase },
-    { key: 'reach', label: 'Alcance', icon: Radio },
-    { key: 'advanced', label: 'Avanzado', icon: SettingsIcon },
+    { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
+    { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
+    { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
   ];
+
+  // Mapas valor→etiqueta para <SelectValue labels={...}>, resueltos con t()
+  // porque las etiquetas base ahora son claves i18n.
+  const LANGUAGE_LABELS = Object.fromEntries(
+    LANGUAGES.map((l) => [l.code, t(l.label)]),
+  );
+  const RESPONSE_MODE_LABELS = Object.fromEntries(
+    RESPONSE_MODES.map((m) => [m.value, t(m.label)]),
+  );
+  const TIMEZONE_LABELS = Object.fromEntries(
+    TIMEZONES.map((tz) => [tz.value, t(tz.label)]),
+  );
 
   function toggleEscalate(kw: string) {
     setEscalateKeywords((prev) => prev.filter((k) => k !== kw));
@@ -385,7 +398,7 @@ export function AgentEditor({
    * merchant vea el agente pre-armado sin duplicar la investigación completa.
    */
   function applyProductTemplate(p: ProductDetail) {
-    setName((cur) => cur.trim() || `Asesor de ${p.title}`.slice(0, 60));
+    setName((cur) => cur.trim() || t('assistant.defaultAgentName', { title: p.title }).slice(0, 60));
     setPersona((cur) =>
       cur.trim() === '' || cur.trim() === DEFAULT_PERSONA
         ? `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
@@ -398,7 +411,7 @@ export function AgentEditor({
     // (cliente ideal + beneficios o descripción) SOLO si está vacía, para
     // que el agente quede pre-armado al elegir el producto. No pisa lo que
     // el usuario haya escrito.
-    setKnowledge((cur) => (cur.trim() ? cur : buildBusinessInfoFromProduct(p) || cur));
+    setKnowledge((cur) => (cur.trim() ? cur : buildBusinessInfoFromProduct(p, t) || cur));
   }
 
   async function prefillFromProduct(productId: string) {
@@ -412,11 +425,10 @@ export function AgentEditor({
       // todo). El agente solo elige un producto ya enriquecido. Si todavía no
       // tiene investigación, lo sugerimos sin bloquear.
       if (p.ai_research_status === 'done') {
-        toast.success('Asistente preparado con tu producto.');
+        toast.success(t('assistant.assistantReady'));
       } else {
-        toast.message('Producto asignado.', {
-          description:
-            'Para mejores respuestas, genera su investigación en Productos.',
+        toast.message(t('assistant.productAssigned'), {
+          description: t('assistant.productAssignedHint'),
         });
       }
     } catch {
@@ -470,7 +482,7 @@ export function AgentEditor({
   function linkShopify() {
     const shop = linkShop.trim();
     if (!shop) {
-      toast.error('Escribe el dominio de tu tienda (tu-tienda.myshopify.com).');
+      toast.error(t('assistant.shopDomainRequired'));
       return;
     }
     setLinking(true);
@@ -495,7 +507,7 @@ export function AgentEditor({
           } catch {
             /* ignore */
           }
-          toast.success('Shopify conectado. Ya puedes activar el cierre de ventas.');
+          toast.success(t('assistant.shopifyConnectedToast'));
           return;
         }
       } catch {
@@ -530,7 +542,7 @@ export function AgentEditor({
 
   async function save() {
     if (!name.trim()) {
-      toast.error('Falta el nombre');
+      toast.error(t('assistant.nameRequired'));
       return;
     }
     // Al crear (incl. cuando se generó con IA desde la web), exigimos al
@@ -539,34 +551,34 @@ export function AgentEditor({
     if (isNew && selectedProducts.length === 0) {
       setTab('business');
       setProductScope('specific');
-      toast.error('Elige al menos un producto para crear el asistente.');
+      toast.error(t('assistant.productRequired'));
       return;
     }
     if (inboundDebounce < 0 || inboundDebounce > 60) {
-      toast.error('La espera debe estar entre 0 y 60 segundos');
+      toast.error(t('assistant.debounceRange'));
       return;
     }
     if (escalateAfterMessages < 0) {
-      toast.error('El escalamiento no puede ser negativo');
+      toast.error(t('assistant.escalateNegative'));
       return;
     }
     if (followupEnabled) {
       if (!(followupDelayHours > 0)) {
-        toast.error('Las horas de espera del seguimiento deben ser mayores a 0');
+        toast.error(t('assistant.followupDelayInvalid'));
         return;
       }
       if (followupMaxCount < 1) {
-        toast.error('El seguimiento necesita al menos 1 mensaje');
+        toast.error(t('assistant.followupCountInvalid'));
         return;
       }
     }
     if (hoursEnabled) {
       if (hoursStart >= hoursEnd) {
-        toast.error('La hora de inicio debe ser menor que la de fin');
+        toast.error(t('assistant.hoursStartBeforeEnd'));
         return;
       }
       if (hoursDays.length === 0) {
-        toast.error('Elige al menos un día del horario');
+        toast.error(t('assistant.hoursDayRequired'));
         return;
       }
     }
@@ -632,10 +644,10 @@ export function AgentEditor({
     setSaving(false);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      toast.error(json.error ?? 'No se pudo guardar');
+      toast.error(json.error ?? t('assistant.saveError'));
       return;
     }
-    toast.success(editing ? 'Guardado' : 'Asistente creado');
+    toast.success(editing ? t('assistant.savedToast') : t('assistant.createdToast'));
     if (json.agent) {
       const saved = json.agent as AgentSummary;
       setCurrentAgentId(saved.id);
@@ -654,7 +666,7 @@ export function AgentEditor({
     const text = testMessage.trim();
     if (!text) return;
     if (!currentAgentId) {
-      toast.error('Guarda primero para probar.');
+      toast.error(t('assistant.saveBeforeTest'));
       return;
     }
     // Bubble del usuario inmediato — UX de chat real.
@@ -671,7 +683,7 @@ export function AgentEditor({
         body: JSON.stringify({ message: text }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Falló');
+      if (!res.ok) throw new Error(json.error ?? t('assistant.testFailed'));
       const reply: string = json.reply ?? '';
       const chunks: string[] = Array.isArray(json.chunks) && json.chunks.length > 0
         ? json.chunks
@@ -683,7 +695,7 @@ export function AgentEditor({
         { role: 'assistant', chunks, stamp: nowStamp() },
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error');
+      toast.error(err instanceof Error ? err.message : t('assistant.genericError'));
     } finally {
       setTesting(false);
     }
@@ -716,10 +728,10 @@ export function AgentEditor({
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-foreground">
-                {editing ? name || 'Asistente' : 'Nuevo asistente'}
+                {editing ? name || t('assistant.assistant') : t('assistant.newAgent')}
               </DialogTitle>
               <p className="text-xs text-muted-foreground">
-                Responde automáticamente con el contexto completo de cada chat.
+                {t('assistant.editorSubtitle')}
               </p>
             </div>
           </div>
@@ -728,19 +740,19 @@ export function AgentEditor({
               type="button"
               onClick={() => setShowTest((v) => !v)}
               className="hidden items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:inline-flex"
-              title={showTest ? 'Ocultar el panel de prueba' : 'Mostrar el panel de prueba'}
+              title={showTest ? t('assistant.hideTestPanel') : t('assistant.showTestPanel')}
             >
               {showTest ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              {showTest ? 'Ocultar prueba' : 'Probar'}
+              {showTest ? t('assistant.hideTest') : t('assistant.test')}
             </button>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
-              {isActive ? 'Activo' : 'Pausado'}
+              {isActive ? t('assistant.active') : t('assistant.paused')}
             </label>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Cerrar"
+              aria-label={t('assistant.close')}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <X className="size-4" />
@@ -758,14 +770,14 @@ export function AgentEditor({
         >
           {/* Section nav rail */}
           <nav className="border-r border-border bg-card/40 p-2 sm:py-4">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.key;
+            {TABS.map((tabItem) => {
+              const Icon = tabItem.icon;
+              const active = tab === tabItem.key;
               return (
                 <button
-                  key={t.key}
+                  key={tabItem.key}
                   type="button"
-                  onClick={() => setTab(t.key)}
+                  onClick={() => setTab(tabItem.key)}
                   className={cn(
                     'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
                     active
@@ -774,7 +786,7 @@ export function AgentEditor({
                   )}
                 >
                   <Icon className="size-4" />
-                  {t.label}
+                  {tabItem.label}
                 </button>
               );
             })}
@@ -790,20 +802,19 @@ export function AgentEditor({
                 <Field
                   label={
                     isNew
-                      ? 'Producto que vende este asistente'
-                      : '¿Sobre qué productos puede hablar?'
+                      ? t('assistant.productFieldNew')
+                      : t('assistant.productFieldEdit')
                   }
                 >
                   {isNew ? (
                     applyingProduct ? (
                       <p className="flex items-center gap-2 text-[11px] text-primary">
                         <Loader2 className="size-3.5 animate-spin" />
-                        Preparando el asistente con tu producto…
+                        {t('assistant.preparingWithProduct')}
                       </p>
                     ) : (
                       <p className="text-[11px] text-muted-foreground">
-                        Elígelo y armamos solos el resto (nombre, tono, persona y
-                        conocimiento). Puedes asignar varios.
+                        {t('assistant.productNewHint')}
                       </p>
                     )
                   ) : (
@@ -811,14 +822,14 @@ export function AgentEditor({
                       <ScopeCard
                         active={productScope === 'all'}
                         onClick={() => setProductScope('all')}
-                        title="Todo el catálogo"
-                        hint="Todos los productos sincronizados de Shopify."
+                        title={t('assistant.wholeCatalog')}
+                        hint={t('assistant.wholeCatalogHint')}
                       />
                       <ScopeCard
                         active={productScope === 'specific'}
                         onClick={() => setProductScope('specific')}
-                        title="Solo algunos"
-                        hint="Elige los productos abajo."
+                        title={t('assistant.someProducts')}
+                        hint={t('assistant.someProductsHint')}
                       />
                     </div>
                   )}
@@ -829,7 +840,7 @@ export function AgentEditor({
                         <Input
                           value={productSearch}
                           onChange={(e) => setProductSearch(e.target.value)}
-                          placeholder="Buscar producto…"
+                          placeholder={t('assistant.searchProduct')}
                           className="bg-background pl-8 text-sm"
                         />
                       </div>
@@ -843,8 +854,7 @@ export function AgentEditor({
                             {catalog.length === 0 ? (
                               <>
                                 <p>
-                                  Todavía no tienes productos. Crea uno y el
-                                  asistente aprenderá de él.
+                                  {t('assistant.noProductsYet')}
                                 </p>
                                 <Button
                                   type="button"
@@ -852,11 +862,11 @@ export function AgentEditor({
                                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                                 >
                                   <Package className="size-4" />
-                                  Crear producto nuevo
+                                  {t('assistant.createNewProduct')}
                                 </Button>
                               </>
                             ) : (
-                              'Sin resultados.'
+                              t('assistant.noResults')
                             )}
                           </div>
                         ) : (
@@ -918,10 +928,10 @@ export function AgentEditor({
                                     {on ? (
                                       <>
                                         <Check className="size-3.5" />
-                                        Asignado
+                                        {t('assistant.assigned')}
                                       </>
                                     ) : (
-                                      'Asignar'
+                                      t('assistant.assign')
                                     )}
                                   </Button>
                                 </li>
@@ -932,16 +942,20 @@ export function AgentEditor({
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[11px] text-muted-foreground">
-                          {selectedProducts.length} producto
-                          {selectedProducts.length === 1 ? '' : 's'} asignado
-                          {selectedProducts.length === 1 ? '' : 's'}.
+                          {selectedProducts.length === 1
+                            ? t('assistant.productsAssignedOne', {
+                                count: selectedProducts.length,
+                              })
+                            : t('assistant.productsAssignedOther', {
+                                count: selectedProducts.length,
+                              })}
                         </p>
                         <button
                           type="button"
                           onClick={goToCreateProduct}
                           className="text-[11px] text-accent-ink underline hover:opacity-80"
                         >
-                          ¿No está? Crear producto nuevo
+                          {t('assistant.notListedCreate')}
                         </button>
                       </div>
                     </div>
@@ -952,10 +966,10 @@ export function AgentEditor({
                     elegimos nosotros (Haiku) para no abrumar al usuario
                     con decisiones técnicas. */}
                 <SectionCard
-                  title="Identidad del asistente"
-                  hint="Cómo se llama y qué tono usa. Edítalo si quieres."
+                  title={t('assistant.identityTitle')}
+                  hint={t('assistant.identityHint')}
                 >
-                  <Field label="Nombre del asistente">
+                  <Field label={t('assistant.agentNameLabel')}>
                     <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -963,31 +977,30 @@ export function AgentEditor({
                       className="bg-background"
                     />
                   </Field>
-                  <Field label="Tono">
+                  <Field label={t('assistant.toneLabel')}>
                     <div className="grid gap-2 sm:grid-cols-4">
-                      {TONES.map((t) => (
+                      {TONES.map((toneOption) => (
                         <button
-                          key={t.value}
+                          key={toneOption.value}
                           type="button"
-                          onClick={() => setTone(t.value)}
-                          title={t.hint}
+                          onClick={() => setTone(toneOption.value)}
+                          title={t(toneOption.hint)}
                           className={cn(
                             'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                            tone === t.value
+                            tone === toneOption.value
                               ? 'border-primary/60 bg-primary/10 text-foreground'
                               : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
                           )}
                         >
-                          {t.label}
+                          {t(toneOption.label)}
                         </button>
                       ))}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Ajusta sutilmente el estilo. El detalle de la personalidad
-                      va en &quot;Cómo se presenta y actúa&quot;.
+                      {t('assistant.toneHelp')}
                     </p>
                   </Field>
-                  <Field label="Idioma">
+                  <Field label={t('assistant.languageLabel')}>
                     <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
                       <SelectTrigger className="w-full bg-background">
                         <SelectValue labels={LANGUAGE_LABELS} />
@@ -995,7 +1008,7 @@ export function AgentEditor({
                       <SelectContent>
                         {LANGUAGES.map((l) => (
                           <SelectItem key={l.code} value={l.code}>
-                            {l.label}
+                            {t(l.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1007,8 +1020,8 @@ export function AgentEditor({
                     botón "Editar avanzado" expone el textarea para quien
                     quiera reescribir el system prompt entero. */}
                 <SectionCard
-                  title="Cómo se presenta y actúa"
-                  hint="System prompt del asistente. Edítalo solo para afinar reglas o tono."
+                  title={t('assistant.personaTitle')}
+                  hint={t('assistant.personaHint')}
                   right={
                     <button
                       type="button"
@@ -1020,7 +1033,7 @@ export function AgentEditor({
                       ) : (
                         <ChevronRight className="size-3.5" />
                       )}
-                      Editar avanzado
+                      {t('assistant.editAdvanced')}
                     </button>
                   }
                 >
@@ -1034,20 +1047,20 @@ export function AgentEditor({
                     />
                   ) : (
                     <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
-                      {persona.trim() || 'Se completa al elegir tu producto. O toca "Editar avanzado".'}
+                      {persona.trim() || t('assistant.personaEmpty')}
                     </p>
                   )}
                 </SectionCard>
 
                 <SectionCard
-                  title="Información del negocio"
-                  hint="Datos transversales (envíos, políticas, horarios). Lo del producto ya lo aprende solo; esto es opcional."
+                  title={t('assistant.businessInfoTitle')}
+                  hint={t('assistant.businessInfoHint')}
                 >
                   <Textarea
                     value={knowledge}
                     onChange={(e) => setKnowledge(e.target.value)}
                     rows={5}
-                    placeholder={'Envíos en 2 días hábiles a todo el país.\nDevoluciones dentro de 15 días.\nPagos: tarjeta, PSE, contraentrega.'}
+                    placeholder={t('assistant.businessInfoPlaceholder')}
                     className="resize-y bg-background font-mono text-xs leading-relaxed"
                   />
                 </SectionCard>
@@ -1057,19 +1070,19 @@ export function AgentEditor({
 
             {tab === 'reach' && (
               <>
-                <Field label="¿En qué canales responde?">
+                <Field label={t('assistant.channelsFieldLabel')}>
               <div className="grid grid-cols-2 gap-2">
                 <ScopeCard
                   active={scope === 'workspace'}
                   onClick={() => setScope('workspace')}
-                  title="Todos los canales"
-                  hint="Vale para todos los canales conectados."
+                  title={t('assistant.allChannels')}
+                  hint={t('assistant.allChannelsHint')}
                 />
                 <ScopeCard
                   active={scope === 'channels'}
                   onClick={() => setScope('channels')}
-                  title="Solo algunos"
-                  hint="Elige los canales abajo."
+                  title={t('assistant.someChannels')}
+                  hint={t('assistant.someChannelsHint')}
                 />
               </div>
               {scope === 'channels' && (
@@ -1104,12 +1117,12 @@ export function AgentEditor({
                 </Field>
 
                 {/* Rules toggles + escalation chips share the Alcance tab. */}
-                <Field label="Reglas de respuesta">
+                <Field label={t('assistant.responseRulesLabel')}>
                   <ToggleRow
                     checked={replyWhenAssigned}
                     onChange={setReplyWhenAssigned}
-                    title="Responder aunque haya agente asignado"
-                    hint="Si un humano está atendiendo, por defecto la IA calla."
+                    title={t('assistant.replyWhenAssignedTitle')}
+                    hint={t('assistant.replyWhenAssignedHint')}
                   />
                 </Field>
 
@@ -1117,8 +1130,8 @@ export function AgentEditor({
                     partido entre este toggle y un bloque en "Avanzado").
                     Activarlo restringe las respuestas a la ventana. */}
                 <SectionCard
-                  title="Horario de atención"
-                  hint="Si lo activas, solo responde dentro de la ventana. Si no, 24/7."
+                  title={t('assistant.businessHoursTitle')}
+                  hint={t('assistant.businessHoursHint')}
                   right={
                     <Switch checked={hoursEnabled} onCheckedChange={setHoursEnabled} />
                   }
@@ -1126,7 +1139,7 @@ export function AgentEditor({
                   {hoursEnabled && (
                     <>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Inicio">
+                        <Field label={t('assistant.startLabel')}>
                           <Input
                             type="time"
                             value={hoursStart}
@@ -1134,7 +1147,7 @@ export function AgentEditor({
                             className="bg-background"
                           />
                         </Field>
-                        <Field label="Fin">
+                        <Field label={t('assistant.endLabel')}>
                           <Input
                             type="time"
                             value={hoursEnd}
@@ -1143,7 +1156,7 @@ export function AgentEditor({
                           />
                         </Field>
                       </div>
-                      <Field label="Zona horaria">
+                      <Field label={t('assistant.timezoneLabel')}>
                         <Select
                           value={hoursTimezone}
                           onValueChange={(v) => setHoursTimezone(v ?? 'America/Bogota')}
@@ -1152,15 +1165,15 @@ export function AgentEditor({
                             <SelectValue labels={TIMEZONE_LABELS} />
                           </SelectTrigger>
                           <SelectContent>
-                            {TIMEZONES.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>
-                                {t.label}
+                            {TIMEZONES.map((tz) => (
+                              <SelectItem key={tz.value} value={tz.value}>
+                                {t(tz.label)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </Field>
-                      <Field label="Días">
+                      <Field label={t('assistant.daysLabel')}>
                         <div className="grid grid-cols-7 gap-1.5">
                           {WEEK_DAYS.map((d) => {
                             const on = hoursDays.includes(d.value);
@@ -1169,7 +1182,7 @@ export function AgentEditor({
                                 key={d.value}
                                 type="button"
                                 onClick={() => toggleHoursDay(d.value)}
-                                title={d.long}
+                                title={t(d.long)}
                                 className={cn(
                                   'rounded-lg border px-1 py-1.5 text-xs transition-colors',
                                   on
@@ -1177,7 +1190,7 @@ export function AgentEditor({
                                     : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
                                 )}
                               >
-                                {d.short}
+                                {t(d.short)}
                               </button>
                             );
                           })}
@@ -1187,7 +1200,7 @@ export function AgentEditor({
                   )}
                 </SectionCard>
 
-                <Field label="Pasar a un humano si el mensaje contiene…">
+                <Field label={t('assistant.escalateKeywordsLabel')}>
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
                     {escalateKeywords.map((kw) => (
                       <span
@@ -1214,7 +1227,7 @@ export function AgentEditor({
                         }
                       }}
                       onBlur={addEscalate}
-                      placeholder="humano, reembolso…"
+                      placeholder={t('assistant.escalateKeywordsPlaceholder')}
                       className="min-w-[140px] flex-1 bg-transparent px-1 text-xs text-foreground focus:outline-none"
                     />
                   </div>
@@ -1225,10 +1238,10 @@ export function AgentEditor({
             {tab === 'advanced' && (
               <>
                 <SectionCard
-                  title="Comportamiento de respuesta"
-                  hint="Cómo entrega la respuesta el asistente y cuánto espera antes de hablar."
+                  title={t('assistant.responseBehaviorTitle')}
+                  hint={t('assistant.responseBehaviorHint')}
                 >
-                  <Field label="Modo de respuesta">
+                  <Field label={t('assistant.responseModeLabel')}>
                     <Select
                       value={responseMode}
                       onValueChange={(v) => setResponseMode((v as AiResponseMode) ?? 'single')}
@@ -1240,9 +1253,9 @@ export function AgentEditor({
                         {RESPONSE_MODES.map((m) => (
                           <SelectItem key={m.value} value={m.value}>
                             <div className="flex flex-col">
-                              <span className="text-sm text-foreground">{m.label}</span>
+                              <span className="text-sm text-foreground">{t(m.label)}</span>
                               <span className="text-[11px] text-muted-foreground">
-                                {m.hint}
+                                {t(m.hint)}
                               </span>
                             </div>
                           </SelectItem>
@@ -1251,7 +1264,7 @@ export function AgentEditor({
                     </Select>
                   </Field>
 
-                  <Field label="Esperar antes de responder (segundos)">
+                  <Field label={t('assistant.debounceLabel')}>
                     <Input
                       type="number"
                       min={0}
@@ -1264,16 +1277,16 @@ export function AgentEditor({
                       className="bg-background"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Por si la clienta sigue escribiendo. Recomendado: 15s.
+                      {t('assistant.debounceHelp')}
                     </p>
                   </Field>
                 </SectionCard>
 
                 <SectionCard
-                  title="Escalamiento"
-                  hint="Cuándo pasar la conversación a un agente humano."
+                  title={t('assistant.escalationTitle')}
+                  hint={t('assistant.escalationHint')}
                 >
-                  <Field label="Escalar a humano después de N mensajes">
+                  <Field label={t('assistant.escalateAfterLabel')}>
                     <Input
                       type="number"
                       min={0}
@@ -1285,14 +1298,14 @@ export function AgentEditor({
                       className="bg-background"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      0 desactiva la regla.
+                      {t('assistant.escalateAfterHelp')}
                     </p>
                   </Field>
                 </SectionCard>
 
                 <SectionCard
-                  title="Seguimiento automático"
-                  hint="Si el cliente deja de responder, el asistente le escribe un seguimiento contextual según la conversación."
+                  title={t('assistant.followupTitle')}
+                  hint={t('assistant.followupHint')}
                   right={
                     <Switch
                       checked={followupEnabled}
@@ -1303,7 +1316,7 @@ export function AgentEditor({
                   {followupEnabled && (
                     <>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Horas de espera">
+                        <Field label={t('assistant.followupDelayLabel')}>
                           <Input
                             type="number"
                             min={1}
@@ -1317,10 +1330,10 @@ export function AgentEditor({
                             className="bg-background"
                           />
                           <p className="text-[11px] text-muted-foreground">
-                            Silencio del cliente antes del primer seguimiento.
+                            {t('assistant.followupDelayHelp')}
                           </p>
                         </Field>
-                        <Field label="Máximo de seguimientos">
+                        <Field label={t('assistant.followupMaxLabel')}>
                           <Input
                             type="number"
                             min={1}
@@ -1335,22 +1348,20 @@ export function AgentEditor({
                             className="bg-background"
                           />
                           <p className="text-[11px] text-muted-foreground">
-                            Por racha de silencio. Se reinicia cuando responde.
+                            {t('assistant.followupMaxHelp')}
                           </p>
                         </Field>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Respeta el horario de atención y &quot;no responder con
-                        agente asignado&quot;. Solo aplica a WhatsApp, Instagram y
-                        Messenger.
+                        {t('assistant.followupFootnote')}
                       </p>
                     </>
                   )}
                 </SectionCard>
 
                 <SectionCard
-                  title="Cierre de ventas"
-                  hint="Si está activo, el asistente arma el pedido con el cliente, confirma los datos y lo crea en Shopify. Si no, deja el cierre a una persona del equipo."
+                  title={t('assistant.salesCloseTitle')}
+                  hint={t('assistant.salesCloseHint')}
                   right={
                     <Switch
                       checked={puedeCrearPedidos}
@@ -1359,7 +1370,7 @@ export function AgentEditor({
                       disabled={!shopifyConnected && !puedeCrearPedidos}
                       onCheckedChange={(v) => {
                         if (v && !shopifyConnected) {
-                          toast.error('Primero conecta Shopify para activar el cierre de ventas.');
+                          toast.error(t('assistant.connectShopifyFirst'));
                           return;
                         }
                         setPuedeCrearPedidos(v);
@@ -1370,8 +1381,7 @@ export function AgentEditor({
                   {shopifyConnected === false && !puedeCrearPedidos ? (
                     <div className="space-y-2">
                       <p className="text-[11px] text-muted-foreground">
-                        Para que el asistente cree pedidos necesitas conectar
-                        Shopify. Hazlo aquí mismo sin salir de esta pantalla.
+                        {t('assistant.salesCloseConnectPrompt')}
                       </p>
                       {showLinkInput ? (
                         <div className="flex flex-col gap-2 sm:flex-row">
@@ -1393,7 +1403,7 @@ export function AgentEditor({
                               {linking ? (
                                 <Loader2 className="size-4 animate-spin" />
                               ) : (
-                                'Conectar'
+                                t('assistant.connect')
                               )}
                             </Button>
                             <Button
@@ -1404,7 +1414,7 @@ export function AgentEditor({
                               disabled={linking}
                               className="border-border"
                             >
-                              Cancelar
+                              {t('assistant.cancel')}
                             </Button>
                           </div>
                         </div>
@@ -1421,27 +1431,25 @@ export function AgentEditor({
                             width={16}
                             height={16}
                           />
-                          Vincular Shopify
+                          {t('assistant.linkShopify')}
                         </Button>
                       )}
                       {linking && (
                         <p className="text-[11px] text-muted-foreground">
-                          Completa la conexión en la ventana emergente… se activa
-                          solo al terminar.
+                          {t('assistant.linkingHint')}
                         </p>
                       )}
                     </div>
                   ) : (
                     puedeCrearPedidos && (
                       <p className="text-[11px] text-muted-foreground">
-                        El asistente pregunta lo que falte (datos de envío, método
-                        de pago) y solo crea el pedido cuando el cliente confirma.
+                        {t('assistant.salesCloseActiveHint')}
                       </p>
                     )
                   )}
                 </SectionCard>
 
-                <Field label="API key propia (opcional)">
+                <Field label={t('assistant.apiKeyLabel')}>
                   <div className="relative">
                     <KeyRound className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -1450,7 +1458,7 @@ export function AgentEditor({
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder={
                         hasApiKey
-                          ? '••••••••  (ya hay una key guardada)'
+                          ? t('assistant.apiKeyPlaceholderSaved')
                           : 'sk-ant-...'
                       }
                       className="bg-background pl-8 pr-9 font-mono text-xs"
@@ -1464,8 +1472,7 @@ export function AgentEditor({
                     </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Usa tu cuenta de Anthropic en vez de la del servidor.
-                    Se guarda cifrada.
+                    {t('assistant.apiKeyHelp')}
                   </p>
                 </Field>
               </>
@@ -1482,10 +1489,10 @@ export function AgentEditor({
             <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-foreground">
-                  Probar el asistente
+                  {t('assistant.testPanelTitle')}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Conversa con el bot como si fueras un cliente.
+                  {t('assistant.testPanelSubtitle')}
                 </p>
               </div>
               {testHistory.length > 0 && (
@@ -1493,10 +1500,10 @@ export function AgentEditor({
                   type="button"
                   onClick={resetTestConversation}
                   className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  title="Reiniciar conversación"
+                  title={t('assistant.resetConversation')}
                 >
                   <RotateCcw className="size-3" />
-                  Reiniciar
+                  {t('assistant.reset')}
                 </button>
               )}
             </div>
@@ -1514,7 +1521,7 @@ export function AgentEditor({
                 <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
                   <Sparkles className="size-6" />
                   <p className="text-xs leading-snug">
-                    Escribe un mensaje para empezar.
+                    {t('assistant.testEmptyPrompt')}
                   </p>
                 </div>
               )}
@@ -1534,7 +1541,7 @@ export function AgentEditor({
                       turn.role === 'user' ? 'text-[#1d7a45]' : 'text-[#0a6ebd]',
                     )}
                   >
-                    {turn.role === 'user' ? 'Tú' : name.trim() || 'Asistente'}
+                    {turn.role === 'user' ? t('assistant.you') : name.trim() || t('assistant.assistant')}
                   </span>
                   {turn.chunks.length === 0 ? (
                     <div
@@ -1545,7 +1552,7 @@ export function AgentEditor({
                           : 'rounded-bl-none border border-border bg-white text-[#111b21]',
                       )}
                     >
-                      <span className="italic text-[#6b7280]">Sin respuesta.</span>
+                      <span className="italic text-[#6b7280]">{t('assistant.noReply')}</span>
                     </div>
                   ) : (
                     turn.chunks.map((chunk, ci) => {
@@ -1600,7 +1607,7 @@ export function AgentEditor({
               )}
               {!editing && (
                 <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
-                  Guarda el asistente antes de probarlo.
+                  {t('assistant.saveBeforeTestHint')}
                 </p>
               )}
             </div>
@@ -1616,7 +1623,7 @@ export function AgentEditor({
                     }
                   }}
                   rows={2}
-                  placeholder="Hola, ¿tienen envío a Bogotá?"
+                  placeholder={t('assistant.testInputPlaceholder')}
                   className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21]"
                   disabled={testing || !editing}
                 />
@@ -1624,7 +1631,7 @@ export function AgentEditor({
                   onClick={runTest}
                   disabled={testing || !editing || !testMessage.trim()}
                   className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a]"
-                  aria-label="Enviar"
+                  aria-label={t('assistant.send')}
                 >
                   <Send className="size-4" />
                 </Button>
@@ -1640,7 +1647,7 @@ export function AgentEditor({
             onClick={onClose}
             className="border-border text-foreground hover:bg-accent"
           >
-            Cancelar
+            {t('assistant.cancel')}
           </Button>
           <Button
             onClick={save}
@@ -1648,7 +1655,7 @@ export function AgentEditor({
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving && <Loader2 className="size-4 animate-spin" />}
-            Guardar
+            {t('assistant.save')}
           </Button>
         </div>
       </DialogContent>
@@ -1672,7 +1679,7 @@ interface ProductDetail {
  * Se mantiene breve a propósito: el runner ya inyecta el producto completo
  * en cada conversación, esto es solo para que el merchant lo vea pre-armado.
  */
-function buildBusinessInfoFromProduct(p: ProductDetail): string {
+function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
   const arr = (v: unknown): string[] =>
     Array.isArray(v)
       ? v.map((x) => String(x).trim()).filter(Boolean)
@@ -1684,9 +1691,11 @@ function buildBusinessInfoFromProduct(p: ProductDetail): string {
   const lines: string[] = [];
   if (sr) {
     const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
-    if (audience) lines.push(`Cliente ideal: ${audience}`);
+    if (audience) lines.push(t('assistant.idealCustomer', { value: audience }));
     const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
-    if (benefits.length) lines.push(`Beneficios clave: ${benefits.join('; ')}`);
+    if (benefits.length) {
+      lines.push(t('assistant.keyBenefits', { value: benefits.join('; ') }));
+    }
   }
   if (lines.length === 0 && p.description) {
     const d = p.description.replace(/\s+/g, ' ').trim().slice(0, 400);

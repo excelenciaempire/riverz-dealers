@@ -1,10 +1,12 @@
 import { RequiresConnection } from "@/components/common/requires-connection";
+import { getT } from "@/lib/i18n/server";
 
-export default function BroadcastsLayout({ children }: { children: React.ReactNode }) {
+export default async function BroadcastsLayout({ children }: { children: React.ReactNode }) {
+  const t = await getT();
   return (
     <RequiresConnection
-      title="Conecta un canal antes de difundir"
-      description="Necesitas al menos un canal oficial conectado para enviar."
+      title={t("broadcasts.requiresConnectionTitle")}
+      description={t("broadcasts.requiresConnectionDescription")}
     >
       {children}
     </RequiresConnection>

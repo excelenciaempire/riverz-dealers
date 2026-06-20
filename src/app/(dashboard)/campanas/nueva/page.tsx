@@ -25,29 +25,33 @@ import type {
 import type { ContactSegment } from '@/lib/segments/types';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 
 type AudienceType = 'all' | 'tags' | 'segment';
 
+// Labels are i18n keys resolved with t() at render time.
 const AUDIENCE_LABELS: Record<AudienceType, string> = {
-  all: 'Todos los contactos',
-  tags: 'Por etiquetas',
-  segment: 'Por segmento guardado',
+  all: 'broadcasts.audienceAllLabel',
+  tags: 'broadcasts.audienceByTags',
+  segment: 'broadcasts.audienceBySegment',
 };
 
+// `label` is an i18n key resolved with t() at render time.
 const BUILTIN_FIELD_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Valor fijo' },
-  { value: 'name', label: 'Nombre completo' },
-  { value: 'first_name', label: 'Primer nombre' },
-  { value: 'last_name', label: 'Apellido' },
-  { value: 'phone', label: 'Teléfono' },
-  { value: 'email', label: 'Correo' },
-  { value: 'company', label: 'Empresa' },
+  { value: '', label: 'broadcasts.fieldFixedValue' },
+  { value: 'name', label: 'broadcasts.fieldFullName' },
+  { value: 'first_name', label: 'broadcasts.fieldFirstName' },
+  { value: 'last_name', label: 'broadcasts.fieldLastName' },
+  { value: 'phone', label: 'broadcasts.fieldPhone' },
+  { value: 'email', label: 'broadcasts.fieldEmailShort' },
+  { value: 'company', label: 'broadcasts.fieldCompany' },
   // Datos dinámicos de Shopify (de contacts.shopify_customer_data; se
   // resuelven por destinatario al momento del envío).
-  { value: 'shopify_orders_count', label: 'Shopify · N.º de pedidos' },
-  { value: 'shopify_total_spent', label: 'Shopify · Total gastado' },
-  { value: 'shopify_last_order', label: 'Shopify · Último pedido' },
-  { value: 'shopify_city', label: 'Shopify · Ciudad' },
+  { value: 'shopify_orders_count', label: 'broadcasts.fieldShopifyOrders' },
+  { value: 'shopify_total_spent', label: 'broadcasts.fieldShopifyTotalSpent' },
+  { value: 'shopify_last_order', label: 'broadcasts.fieldShopifyLastOrder' },
+  { value: 'shopify_city', label: 'broadcasts.fieldShopifyCity' },
 ];
 
 function parseUsdRate(): number {
@@ -61,12 +65,14 @@ function formatUsd(amount: number): string {
 }
 
 /** Quick chips above the manual datetime picker. Keeps the common case
- *  ("Programar para mañana 9 am") one click away. */
-const SCHEDULE_PRESETS: { label: string; minutesAhead: number }[] = [
-  { label: 'En 1 hora', minutesAhead: 60 },
-  { label: 'En 3 horas', minutesAhead: 180 },
-  { label: 'Mañana 9 a. m.', minutesAhead: -1 }, // sentinel; computed below
-  { label: 'En 1 semana', minutesAhead: 60 * 24 * 7 },
+ *  ("Programar para mañana 9 am") one click away. `label` is an i18n key
+ *  resolved with t() at render time; `id` is the stable sentinel used by
+ *  applyPreset (so the "tomorrow 9am" special-case survives translation). */
+const SCHEDULE_PRESETS: { id: string; label: string; minutesAhead: number }[] = [
+  { id: 'in1h', label: 'broadcasts.presetIn1Hour', minutesAhead: 60 },
+  { id: 'in3h', label: 'broadcasts.presetIn3Hours', minutesAhead: 180 },
+  { id: 'tomorrow9', label: 'broadcasts.presetTomorrow9am', minutesAhead: -1 }, // sentinel; computed below
+  { id: 'in1w', label: 'broadcasts.presetIn1Week', minutesAhead: 60 * 24 * 7 },
 ];
 
 function formatLocalDateTimeInput(d: Date) {
@@ -78,7 +84,7 @@ function formatLocalDateTimeInput(d: Date) {
 }
 
 function applyPreset(preset: (typeof SCHEDULE_PRESETS)[number], now: Date) {
-  if (preset.label === 'Mañana 9 a. m.') {
+  if (preset.id === 'tomorrow9') {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     d.setHours(9, 0, 0, 0);
@@ -89,23 +95,26 @@ function applyPreset(preset: (typeof SCHEDULE_PRESETS)[number], now: Date) {
   return d;
 }
 
-function describeScheduledAt(iso: string | null): string {
+function describeScheduledAt(iso: string | null, t: TFn): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
-  if (diffMs <= 0) return 'Ahora mismo';
+  if (diffMs <= 0) return t('broadcasts.rightNow');
   const mins = Math.round(diffMs / 60_000);
-  if (mins < 60) return `En ${mins} ${mins === 1 ? 'minuto' : 'minutos'}`;
+  if (mins < 60)
+    return t(mins === 1 ? 'broadcasts.inMinute' : 'broadcasts.inMinutes', { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `En ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+  if (hours < 24)
+    return t(hours === 1 ? 'broadcasts.inHour' : 'broadcasts.inHours', { n: hours });
   const days = Math.round(hours / 24);
-  return `En ${days} ${days === 1 ? 'día' : 'días'}`;
+  return t(days === 1 ? 'broadcasts.inDay' : 'broadcasts.inDays', { n: days });
 }
 
 export default function NewBroadcastPage() {
   const router = useRouter();
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
 
@@ -222,6 +231,16 @@ export default function NewBroadcastPage() {
     () => Object.fromEntries(segments.map((s) => [s.id, s.name])),
     [segments],
   );
+  const audienceLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        (Object.keys(AUDIENCE_LABELS) as AudienceType[]).map((k) => [
+          k,
+          t(AUDIENCE_LABELS[k]),
+        ]),
+      ),
+    [t],
+  );
 
   const templateVars = useMemo(() => {
     if (!template?.body_text) return [] as string[];
@@ -245,16 +264,16 @@ export default function NewBroadcastPage() {
   }
 
   function validate(): string | null {
-    if (!name.trim()) return 'Falta el nombre.';
-    if (!template) return 'Elige una plantilla.';
+    if (!name.trim()) return t('broadcasts.validationName');
+    if (!template) return t('broadcasts.validationTemplate');
     if (audienceType === 'tags' && selectedTagIds.length === 0)
-      return 'Elige una etiqueta.';
-    if (audienceType === 'segment' && !segmentId) return 'Elige un segmento.';
+      return t('broadcasts.validationTag');
+    if (audienceType === 'segment' && !segmentId) return t('broadcasts.validationSegment');
     if (sendMode === 'schedule') {
-      if (!scheduledAt) return 'Elige cuándo programarla.';
-      const t = new Date(scheduledAt).getTime();
-      if (Number.isNaN(t)) return 'Fecha no válida.';
-      if (t <= Date.now()) return 'La fecha debe ser futura.';
+      if (!scheduledAt) return t('broadcasts.validationSchedule');
+      const ts = new Date(scheduledAt).getTime();
+      if (Number.isNaN(ts)) return t('broadcasts.validationInvalidDate');
+      if (ts <= Date.now()) return t('broadcasts.validationFutureDate');
     }
     return null;
   }
@@ -300,17 +319,19 @@ export default function NewBroadcastPage() {
       }
 
       toast.success(
-        sendMode === 'schedule' ? 'Campaña programada' : 'Campaña enviada',
+        sendMode === 'schedule'
+          ? t('broadcasts.campaignScheduled')
+          : t('broadcasts.campaignSent'),
       );
       router.push(`/campanas/${broadcastId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se envió');
+      toast.error(e instanceof Error ? e.message : t('broadcasts.sendFailed'));
     }
   }
 
   async function handleSendTest() {
-    if (!template) return toast.error('Elige una plantilla.');
-    if (!testPhone.trim()) return toast.error('Falta el número de prueba.');
+    if (!template) return toast.error(t('broadcasts.validationTemplate'));
+    if (!testPhone.trim()) return toast.error(t('broadcasts.validationTestPhone'));
     setSendingTest(true);
     try {
       const res = await fetchWithCsrf('/api/broadcasts/test', {
@@ -324,12 +345,12 @@ export default function NewBroadcastPage() {
       });
       const data = await res.json();
       if (data?.sent) {
-        toast.success('Prueba enviada.');
+        toast.success(t('broadcasts.testSent'));
       } else {
-        toast.error(data?.error ?? 'No se envió la prueba.');
+        toast.error(data?.error ?? t('broadcasts.testFailed'));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se envió la prueba.');
+      toast.error(e instanceof Error ? e.message : t('broadcasts.testFailed'));
     } finally {
       setSendingTest(false);
     }
@@ -344,7 +365,7 @@ export default function NewBroadcastPage() {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return toast.error('Sin sesión.');
+    if (!user) return toast.error(t('broadcasts.noSession'));
     const cleanMapping = Object.fromEntries(
       Object.entries(variableMapping).filter(([, v]) => v),
     );
@@ -364,20 +385,20 @@ export default function NewBroadcastPage() {
       replied_count: 0,
       failed_count: 0,
     });
-    if (error) return toast.error(`No se pudo guardar: ${error.message}`);
-    toast.success('Borrador guardado');
+    if (error) return toast.error(t('broadcasts.saveDraftError', { error: error.message }));
+    toast.success(t('broadcasts.draftSaved'));
     router.push('/campanas');
   }
 
   const previewBody = useMemo(() => {
     if (!template?.body_text) {
-      return 'Elige una plantilla.';
+      return t('broadcasts.choosTemplatePreview');
     }
     return template.body_text.replace(/\{\{(\d+)\}\}/g, (_, n: string) => {
       const v = variables[n];
       return v && v.trim() ? v : `{{${n}}}`;
     });
-  }, [template, variables]);
+  }, [template, variables, t]);
 
   const previewHeaderType: TemplateHeaderType =
     (template?.header_type as TemplateHeaderType | undefined) ?? 'none';
@@ -395,34 +416,34 @@ export default function NewBroadcastPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Nueva campaña</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t('broadcasts.newCampaign')}</h1>
         </div>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="space-y-6 p-6">
-            <Field label="Nombre de la campaña">
+            <Field label={t('broadcasts.campaignNameField')}>
               <Input
-                placeholder="Reactivación oferta verano"
+                placeholder={t('broadcasts.campaignNamePlaceholder')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-background"
               />
             </Field>
 
-            <Field label="Destinatarios">
+            <Field label={t('broadcasts.recipientsField')}>
               <Select
                 value={audienceType}
                 onValueChange={(v) => setAudienceType(v as AudienceType)}
               >
                 <SelectTrigger className="w-full bg-background">
-                  <SelectValue labels={AUDIENCE_LABELS} />
+                  <SelectValue labels={audienceLabels} />
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(AUDIENCE_LABELS) as AudienceType[]).map((k) => (
                     <SelectItem key={k} value={k}>
-                      {AUDIENCE_LABELS[k]}
+                      {t(AUDIENCE_LABELS[k])}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -438,14 +459,14 @@ export default function NewBroadcastPage() {
                         <SelectValue
                           labels={segmentLabels}
                           placeholder={
-                            segments.length === 0 ? 'Todavía no hay segmentos' : ''
+                            segments.length === 0 ? t('broadcasts.noSegmentsYet') : ''
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
                         {segments.length === 0 && (
                           <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            Sin segmentos.
+                            {t('broadcasts.noSegments')}
                           </div>
                         )}
                         {segments.map((s) => (
@@ -462,7 +483,7 @@ export default function NewBroadcastPage() {
                       className="border-border text-foreground hover:bg-accent"
                     >
                       <Plus className="size-4" />
-                      Crear segmento
+                      {t('broadcasts.createSegment')}
                     </Button>
                   </div>
                 </div>
@@ -470,7 +491,7 @@ export default function NewBroadcastPage() {
               {audienceType === 'tags' && (
                 <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
                   {tags.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Sin etiquetas.</p>
+                    <p className="text-xs text-muted-foreground">{t('broadcasts.noTags')}</p>
                   )}
                   {tags.map((t) => {
                     const on = selectedTagIds.includes(t.id);
@@ -495,18 +516,18 @@ export default function NewBroadcastPage() {
             </Field>
 
             {/* Schedule */}
-            <Field label="Cuándo enviar">
+            <Field label={t('broadcasts.whenToSendField')}>
               <div className="grid grid-cols-2 gap-2">
                 <ModeOption
                   active={sendMode === 'now'}
                   onClick={() => setSendMode('now')}
-                  title="Ahora"
+                  title={t('broadcasts.modeNow')}
                   icon={<Send className="size-4" />}
                 />
                 <ModeOption
                   active={sendMode === 'schedule'}
                   onClick={() => setSendMode('schedule')}
-                  title="Programar"
+                  title={t('broadcasts.modeSchedule')}
                   icon={<CalendarClock className="size-4" />}
                 />
               </div>
@@ -515,7 +536,7 @@ export default function NewBroadcastPage() {
               )}
             </Field>
 
-            <Field label="Plantilla">
+            <Field label={t('broadcasts.templateField')}>
               <Select value={templateId} onValueChange={(v) => setTemplateId(v ?? '')}>
                 <SelectTrigger className="w-full bg-background">
                   <SelectValue labels={templateLabels} placeholder="" />
@@ -523,7 +544,7 @@ export default function NewBroadcastPage() {
                 <SelectContent>
                   {templates.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      Sin plantillas aprobadas.
+                      {t('broadcasts.noApprovedTemplates')}
                     </div>
                   )}
                   {templates.map((t) => (
@@ -538,7 +559,7 @@ export default function NewBroadcastPage() {
             {templateVars.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
                 <p className="mb-2 text-xs text-muted-foreground">
-                  Por cada variable, elige un campo del contacto o escribe un valor fijo.
+                  {t('broadcasts.variableMappingHint')}
                 </p>
                 <div className="space-y-2">
                   {templateVars.map((v) => {
@@ -564,11 +585,11 @@ export default function NewBroadcastPage() {
                         >
                           {BUILTIN_FIELD_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
-                              {opt.label}
+                              {t(opt.label)}
                             </option>
                           ))}
                           {customFields.length > 0 && (
-                            <optgroup label="Campos personalizados">
+                            <optgroup label={t('broadcasts.customFieldsGroup')}>
                               {customFields.map((f) => (
                                 <option key={f.id} value={f.id}>
                                   {f.field_name}
@@ -579,7 +600,7 @@ export default function NewBroadcastPage() {
                         </select>
                         {isFixed && (
                           <Input
-                            placeholder="Valor fijo"
+                            placeholder={t('broadcasts.fieldFixedValue')}
                             value={variables[v] ?? ''}
                             onChange={(e) =>
                               setVariables((prev) => ({ ...prev, [v]: e.target.value }))
@@ -597,15 +618,17 @@ export default function NewBroadcastPage() {
             <div className="rounded-xl border border-border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Resumen</p>
+                  <p className="text-sm font-medium text-foreground">{t('broadcasts.summary')}</p>
                   <p className="text-xs text-muted-foreground">
                     {recipientCount === null
-                      ? 'Calculando destinatarios…'
-                      : `${recipientCount.toLocaleString('es')} destinatarios`}
+                      ? t('broadcasts.calculatingRecipients')
+                      : t('broadcasts.recipientsCount', {
+                          count: recipientCount.toLocaleString('es'),
+                        })}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Costo estimado</p>
+                  <p className="text-xs text-muted-foreground">{t('broadcasts.estimatedCost')}</p>
                   <p className="text-sm font-semibold text-foreground">
                     {estimatedCost === null ? '—' : formatUsd(estimatedCost)}
                   </p>
@@ -614,9 +637,9 @@ export default function NewBroadcastPage() {
             </div>
 
             <div className="rounded-xl border border-border bg-muted/20 p-4">
-              <p className="text-sm font-medium text-foreground">Envío de prueba</p>
+              <p className="text-sm font-medium text-foreground">{t('broadcasts.testSend')}</p>
               <p className="mb-2 text-xs text-muted-foreground">
-                Envía la plantilla a un número antes de lanzar la campaña.
+                {t('broadcasts.testSendHint')}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Input
@@ -635,10 +658,10 @@ export default function NewBroadcastPage() {
                   {sendingTest ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Enviando…
+                      {t('broadcasts.sending')}
                     </>
                   ) : (
-                    'Enviar prueba'
+                    t('broadcasts.sendTest')
                   )}
                 </Button>
               </div>
@@ -651,7 +674,7 @@ export default function NewBroadcastPage() {
                 onChange={(e) => setCreateConversations(e.target.checked)}
                 className="mt-0.5 accent-primary"
               />
-              <span>Abrir una conversación en la bandeja por cada destinatario</span>
+              <span>{t('broadcasts.openConversationPerRecipient')}</span>
             </label>
           </div>
 
@@ -661,14 +684,14 @@ export default function NewBroadcastPage() {
               onClick={handleSaveDraft}
               className="text-sm font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
-              Guardar borrador
+              {t('broadcasts.saveDraft')}
             </button>
             <Button
               variant="outline"
               onClick={() => router.push('/campanas')}
               className="border-border text-foreground hover:bg-accent"
             >
-              Cancelar
+              {t('broadcasts.cancel')}
             </Button>
             <Button
               onClick={handleSend}
@@ -678,12 +701,12 @@ export default function NewBroadcastPage() {
               {isProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Enviando…
+                  {t('broadcasts.sending')}
                 </>
               ) : sendMode === 'schedule' ? (
-                'Programar'
+                t('broadcasts.modeSchedule')
               ) : (
-                'Enviar'
+                t('broadcasts.sendButton')
               )}
             </Button>
           </div>
@@ -767,7 +790,8 @@ function SchedulePicker({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const summary = describeScheduledAt(value);
+  const t = useT();
+  const summary = describeScheduledAt(value, t);
   const tz =
     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
   return (
@@ -780,7 +804,7 @@ function SchedulePicker({
             onClick={() => onChange(formatLocalDateTimeInput(applyPreset(p, new Date())))}
             className="rounded-full border border-border bg-background px-2.5 py-0.5 text-xs text-foreground transition-colors hover:bg-accent"
           >
-            {p.label}
+            {t(p.label)}
           </button>
         ))}
       </div>

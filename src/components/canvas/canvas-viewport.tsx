@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, AlignStartHorizontal } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 
 const MIN_SCALE = 0.25;
@@ -89,6 +90,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     { children, className, initialFit = 'top-left', onComputeContentBounds, onAutoLayout },
     ref,
   ) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -330,8 +332,8 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           type="button"
           onClick={() => zoomByButton(-0.1)}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Reducir (Ctrl + rueda)"
-          aria-label="Reducir"
+          title={t('metrics.zoomOutTitle')}
+          aria-label={t('metrics.zoomOut')}
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -339,7 +341,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           type="button"
           onClick={fitToView}
           className="min-w-[3.5rem] rounded px-1 py-1 text-center text-xs tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Centrar y ajustar"
+          title={t('metrics.fitTitle')}
         >
           {Math.round(scale * 100)}%
         </button>
@@ -347,8 +349,8 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           type="button"
           onClick={() => zoomByButton(0.1)}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Ampliar (Ctrl + rueda)"
-          aria-label="Ampliar"
+          title={t('metrics.zoomInTitle')}
+          aria-label={t('metrics.zoomIn')}
         >
           <ZoomIn className="h-4 w-4" />
         </button>
@@ -357,8 +359,8 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           type="button"
           onClick={fitToView}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Centrar todo el flujo"
-          aria-label="Centrar"
+          title={t('metrics.centerTitle')}
+          aria-label={t('metrics.center')}
         >
           <Maximize2 className="h-4 w-4" />
         </button>
@@ -367,8 +369,8 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
             type="button"
             onClick={onAutoLayout}
             className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-            title="Reordenar nodos automáticamente"
-            aria-label="Auto-organizar"
+            title={t('metrics.autoLayoutTitle')}
+            aria-label={t('metrics.autoLayout')}
           >
             <AlignStartHorizontal className="h-4 w-4" />
           </button>

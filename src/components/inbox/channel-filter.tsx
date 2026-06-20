@@ -5,6 +5,7 @@ import { CHANNEL_DISPLAY } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { cn } from "@/lib/utils";
 import { Inbox } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 
 interface ChannelFilterProps {
   /** Currently-selected channel, or null for "all channels". */
@@ -23,11 +24,12 @@ export function ChannelFilter({
   available,
   unread,
 }: ChannelFilterProps) {
+  const t = useT();
   const totalUnread = unread?.all ?? 0;
   return (
     <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-3 pt-1">
       <Chip
-        label="Todos"
+        label={t("inbox.allChannels")}
         icon={<Inbox className="h-3.5 w-3.5" />}
         active={value === null}
         onClick={() => onChange(null)}

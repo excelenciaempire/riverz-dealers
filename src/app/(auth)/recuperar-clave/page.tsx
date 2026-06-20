@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,7 @@ import {
 import { CheckCircle, ArrowLeft } from "lucide-react";
 
 export default function ForgotPasswordPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,9 +40,9 @@ export default function ForgotPasswordPage() {
     if (!res.ok) {
       if (res.status === 429) {
         const retry = res.headers.get("Retry-After") ?? "60";
-        setError(`Demasiados intentos. Vuelve a probar en ${retry} segundos.`);
+        setError(t("auth.tooManyAttempts", { retry }));
       } else {
-        setError(payload.error ?? "No se pudo enviar el enlace");
+        setError(payload.error ?? t("auth.forgotError"));
       }
       setLoading(false);
       return;
@@ -59,10 +61,10 @@ export default function ForgotPasswordPage() {
               <CheckCircle className="h-6 w-6 text-accent-ink" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              Revisa tu correo
+              {t("auth.checkYourEmail")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Enviamos un enlace de restablecimiento a{" "}
+              {t("auth.resetLinkSent")}{" "}
               <span className="text-foreground">{email}</span>.
             </CardDescription>
           </CardHeader>
@@ -72,7 +74,7 @@ export default function ForgotPasswordPage() {
                 variant="outline"
                 className="w-full border-border text-foreground hover:bg-accent hover:text-foreground"
               >
-                Volver al inicio de sesión
+                {t("auth.backToLogin")}
               </Button>
             </Link>
           </CardContent>
@@ -88,7 +90,7 @@ export default function ForgotPasswordPage() {
           <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
             riverz
           </span>
-          <CardTitle className="text-xl text-foreground">Restablecer contraseña</CardTitle>
+          <CardTitle className="text-xl text-foreground">{t("auth.forgotTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleReset} className="flex flex-col gap-4">
@@ -100,12 +102,12 @@ export default function ForgotPasswordPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-foreground">
-                Correo electrónico
+                {t("auth.emailLabel")}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@correo.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -118,7 +120,7 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Enviando..." : "Enviar enlace"}
+              {loading ? t("auth.sending") : t("auth.sendLink")}
             </Button>
           </form>
 
@@ -127,7 +129,7 @@ export default function ForgotPasswordPage() {
             className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver al inicio de sesión
+            {t("auth.backToLogin")}
           </Link>
         </CardContent>
       </Card>

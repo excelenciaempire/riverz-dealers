@@ -26,6 +26,8 @@ import { es } from "date-fns/locale";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { normalize } from "@/lib/text/normalize";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -55,11 +57,11 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-muted-foreground",
 };
 
-const FILTER_OPTIONS: { label: string; value: ConversationStatus | "all" }[] = [
-  { label: "Todas", value: "all" },
-  { label: "Abiertas", value: "open" },
-  { label: "Pendientes", value: "pending" },
-  { label: "Cerradas", value: "closed" },
+const FILTER_OPTIONS: { labelKey: string; value: ConversationStatus | "all" }[] = [
+  { labelKey: "inbox.filterAll", value: "all" },
+  { labelKey: "inbox.filterOpen", value: "open" },
+  { labelKey: "inbox.filterPending", value: "pending" },
+  { labelKey: "inbox.filterClosed", value: "closed" },
 ];
 
 export function ConversationList({
@@ -71,6 +73,7 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ConversationStatus | "all">("all");
   const [loading, setLoading] = useState(true);
@@ -252,7 +255,7 @@ export function ConversationList({
 
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`¿Eliminar ${selectedIds.size} conversación(es)?`))
+    if (!window.confirm(t("inbox.bulkDeleteConfirm", { n: selectedIds.size })))
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
@@ -274,9 +277,9 @@ export function ConversationList({
     setBulkDeleting(false);
     setSelectedIds(new Set());
     setSelectMode(false);
-    if (ok > 0) toast.success(`${ok} eliminada(s)`);
-    if (ok < ids.length) toast.error(`${ids.length - ok} no eliminada(s)`);
-  }, [selectedIds, onConversationDeleted, fetchWithCsrf]);
+    if (ok > 0) toast.success(t("inbox.bulkDeleteSuccess", { n: ok }));
+    if (ok < ids.length) toast.error(t("inbox.bulkDeleteFailed", { n: ids.length - ok }));
+  }, [selectedIds, onConversationDeleted, fetchWithCsrf, t]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
@@ -322,7 +325,7 @@ export function ConversationList({
           <Input
             value={search}
             onChange={handleSearchChange}
-            placeholder="Buscar"
+            placeholder={t("inbox.search")}
             className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
           />
         </div>
@@ -330,7 +333,7 @@ export function ConversationList({
         <div className="flex items-center justify-between">
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-accent">
-                {activeFilter?.label ?? "Todas"}
+                {activeFilter ? t(activeFilter.labelKey) : t("inbox.filterAll")}
                 <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -348,7 +351,7 @@ export function ConversationList({
                       : "text-foreground"
                   )}
                 >
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -360,7 +363,7 @@ export function ConversationList({
               className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
-              Cancelar
+              {t("inbox.cancel")}
             </button>
           ) : (
             <button
@@ -368,7 +371,7 @@ export function ConversationList({
               className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <CheckSquare className="h-3.5 w-3.5" />
-              Seleccionar
+              {t("inbox.select")}
             </button>
           )}
         </div>
@@ -432,7 +435,7 @@ export function ConversationList({
       {selectMode && (
         <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
           <span className="text-xs text-muted-foreground">
-            {selectedIds.size} seleccionada{selectedIds.size === 1 ? "" : "s"}
+            {t("inbox.selectedCount", { n: selectedIds.size })}
           </span>
           <button
             onClick={handleBulkDelete}
@@ -440,7 +443,7 @@ export function ConversationList({
             className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            {bulkDeleting ? "Eliminando…" : "Eliminar"}
+            {bulkDeleting ? t("inbox.deleting") : t("inbox.delete")}
           </button>
         </div>
       )}
@@ -474,6 +477,7 @@ const ConversationItem = memo(function ConversationItem({
   tz,
 }: ConversationItemProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = useCallback(
@@ -481,27 +485,27 @@ const ConversationItem = memo(function ConversationItem({
       e.preventDefault();
       e.stopPropagation();
       if (deleting) return;
-      if (!window.confirm("¿Eliminar conversación?")) return;
+      if (!window.confirm(t("inbox.deleteConversationConfirm"))) return;
       setDeleting(true);
       try {
         const r = await fetchWithCsrf(`/api/conversations/${conversation.id}`, { method: "DELETE" });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          toast.error(j.error || "No se pudo eliminar");
+          toast.error(j.error || t("inbox.deleteFailed"));
           return;
         }
         onDelete?.(conversation.id);
-        toast.success("Eliminada");
+        toast.success(t("inbox.deleted"));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error de red");
+        toast.error(err instanceof Error ? err.message : t("inbox.networkError"));
       } finally {
         setDeleting(false);
       }
     },
-    [conversation, deleting, onDelete, fetchWithCsrf],
+    [conversation, deleting, onDelete, fetchWithCsrf, t],
   );
   const contact = conversation.contact;
-  const displayName = resolveDisplayName(conversation.channel, contact);
+  const displayName = resolveDisplayName(conversation.channel, contact, t);
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -522,7 +526,7 @@ const ConversationItem = memo(function ConversationItem({
     const utc = new Date(conversation.last_message_at);
     const zoned = toZonedTime(utc, tz);
     if (isToday(zoned)) return formatInTimeZone(utc, tz, "HH:mm");
-    if (isYesterday(zoned)) return "Ayer";
+    if (isYesterday(zoned)) return t("inbox.yesterday");
     if (isThisWeek(zoned, { weekStartsOn: 1 }))
       return formatInTimeZone(utc, tz, "EEE", { locale: es });
     if (isThisYear(zoned))
@@ -552,7 +556,7 @@ const ConversationItem = memo(function ConversationItem({
       {onDelete && !selectMode && (
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label="Acciones"
+            aria-label={t("inbox.actions")}
             className="absolute right-1.5 top-2 hidden h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground group-hover:flex data-[popup-open]:flex"
             onClick={(e) => e.stopPropagation()}
           >
@@ -567,7 +571,7 @@ const ConversationItem = memo(function ConversationItem({
               className="text-sm text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Eliminar conversación
+              {t("inbox.deleteConversation")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -612,7 +616,7 @@ const ConversationItem = memo(function ConversationItem({
             {conversation.subject ? (
               <span className="font-medium text-foreground">{conversation.subject} · </span>
             ) : null}
-            {conversation.last_message_text || "Sin mensajes"}
+            {conversation.last_message_text || t("inbox.noMessages")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
@@ -623,7 +627,7 @@ const ConversationItem = memo(function ConversationItem({
             {needsReplyDot(conversation) && (
               <span
                 className={cn("h-2 w-2 rounded-full", STATUS_COLORS[conversation.status])}
-                title="Sin responder"
+                title={t("inbox.unreplied")}
               />
             )}
           </div>
@@ -659,18 +663,19 @@ const ConversationItem = memo(function ConversationItem({
 // genuinely empty (we point them at the integrations page so they can
 // connect a channel and start receiving messages).
 function InboxEmptyState({ hasFilters }: { hasFilters: boolean }) {
+  const t = useT();
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
       <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
         <InboxIcon className="size-7" />
       </div>
       <p className="mt-4 text-sm font-semibold text-foreground">
-        {hasFilters ? "Sin resultados" : "Tu bandeja está vacía"}
+        {hasFilters ? t("inbox.noResults") : t("inbox.emptyInbox")}
       </p>
       <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
         {hasFilters
-          ? "Prueba quitar el filtro o ampliar la búsqueda."
-          : "Conecta WhatsApp, Instagram, Messenger o tu correo para empezar a recibir mensajes."}
+          ? t("inbox.emptyFilteredHint")
+          : t("inbox.emptyInboxHint")}
       </p>
       {!hasFilters && (
         <Link
@@ -678,7 +683,7 @@ function InboxEmptyState({ hasFilters }: { hasFilters: boolean }) {
           className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         >
           <Plug2 className="size-3.5" />
-          Conectar un canal
+          {t("inbox.connectChannel")}
         </Link>
       )}
     </div>
@@ -708,15 +713,16 @@ function needsReplyDot(conversation: Conversation): boolean {
 function resolveDisplayName(
   channel: Conversation["channel"],
   contact: Conversation["contact"],
+  t: TFn,
 ): string {
   if (contact?.name) return contact.name;
   if (contact?.email) return contact.email;
   if (contact?.phone) return contact.phone;
   const ext = contact?.external_id;
   if (ext) {
-    if (channel === "instagram") return `Cliente Instagram · …${ext.slice(-5)}`;
-    if (channel === "messenger") return `Cliente Messenger · …${ext.slice(-5)}`;
+    if (channel === "instagram") return t("inbox.instagramCustomer", { id: ext.slice(-5) });
+    if (channel === "messenger") return t("inbox.messengerCustomer", { id: ext.slice(-5) });
     return ext;
   }
-  return "Sin nombre";
+  return t("inbox.noName");
 }

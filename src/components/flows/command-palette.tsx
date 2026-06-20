@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 export interface CommandItem {
   /** Categoría visible a la izquierda del ítem. */
@@ -37,6 +38,7 @@ export function CommandPalette({
   onClose: () => void;
   items: CommandItem[];
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -117,11 +119,11 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Buscar paso, agregar tipo o acción"
+            placeholder={t("flows.palettePlaceholder")}
             className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
           <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            Esc
+            {t("flows.esc")}
           </kbd>
         </div>
         <ul
@@ -130,7 +132,7 @@ export function CommandPalette({
         >
           {filtered.length === 0 && (
             <li className="px-4 py-3 text-sm text-muted-foreground">
-              Sin resultados para “{query}”.
+              {t("flows.paletteNoResults", { query })}
             </li>
           )}
           {filtered.map((it, i) => (
@@ -177,8 +179,8 @@ export function CommandPalette({
           ))}
         </ul>
         <div className="flex items-center justify-between border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] text-muted-foreground">
-          <span>↑↓ navega · Enter ejecuta</span>
-          <span>Cmd+K abre</span>
+          <span>{t("flows.paletteNavHint")}</span>
+          <span>{t("flows.paletteOpenHint")}</span>
         </div>
       </div>
     </div>

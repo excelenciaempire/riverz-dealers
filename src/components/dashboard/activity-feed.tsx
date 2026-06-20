@@ -12,6 +12,8 @@ import {
 import type { ComponentType } from 'react'
 import type { ActivityItem, ActivityKind } from '@/lib/dashboard/types'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-locale'
+import type { TFn } from '@/lib/i18n/translate'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 
@@ -37,6 +39,7 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
 }
 
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
+  const t = useT()
   // Start at 5 — a quick scan of the most recent events without
   // dominating vertical real estate. User expands explicitly via the
   // footer control when they want deeper history.
@@ -67,12 +70,12 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   return (
     <section className="rounded-xl border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Actividad reciente</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t('dashboard.recentActivity')}</h2>
         <Link
           href="/bandeja"
           className="text-xs font-medium text-accent-ink hover:text-accent-ink/80"
         >
-          Ver todo →
+          {t('dashboard.viewAll')} →
         </Link>
       </header>
 
@@ -86,7 +89,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
         <div className="p-5">
           <EmptyState
             icon={Inbox}
-            title="Sin actividad"
+            title={t('dashboard.noActivity')}
           />
         </div>
       ) : (
@@ -112,7 +115,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     {it.text}
                   </span>
                   <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {relativeTime(it.at)}
+                    {relativeTime(it.at, t)}
                   </span>
                 </div>
               )
@@ -131,8 +134,10 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
           </ul>
           <footer className="flex items-center justify-between border-t border-border px-5 py-3 text-xs">
             <span className="text-muted-foreground tabular-nums">
-              Mostrando {visible.length} de {totalLoaded}
-              {totalLoaded === 50 ? '+' : ''}
+              {t('dashboard.showingOf', {
+                shown: visible.length,
+                total: `${totalLoaded}${totalLoaded === 50 ? '+' : ''}`,
+              })}
             </span>
             <div className="flex items-center gap-1">
               {PAGE_SIZES.map((size, i) => {
@@ -163,13 +168,13 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   )
 }
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, t: TFn): string {
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return ''
   const diffSec = Math.round((Date.now() - then) / 1000)
-  if (diffSec < 60) return `hace ${Math.max(1, diffSec)}s`
-  if (diffSec < 3600) return `hace ${Math.floor(diffSec / 60)}m`
-  if (diffSec < 86400) return `hace ${Math.floor(diffSec / 3600)}h`
-  if (diffSec < 2_592_000) return `hace ${Math.floor(diffSec / 86400)}d`
+  if (diffSec < 60) return t('dashboard.agoSeconds', { n: Math.max(1, diffSec) })
+  if (diffSec < 3600) return t('dashboard.agoMinutes', { n: Math.floor(diffSec / 60) })
+  if (diffSec < 86400) return t('dashboard.agoHours', { n: Math.floor(diffSec / 3600) })
+  if (diffSec < 2_592_000) return t('dashboard.agoDays', { n: Math.floor(diffSec / 86400) })
   return new Date(iso).toLocaleDateString('es-ES')
 }

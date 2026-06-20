@@ -21,6 +21,7 @@ import {
   LayoutTemplate,
   Loader2,
 } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 
 interface TemplatePickerProps {
   open: boolean;
@@ -53,6 +54,7 @@ export function TemplatePicker({
   onOpenChange,
   onSelect,
 }: TemplatePickerProps) {
+  const t = useT();
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
@@ -138,10 +140,10 @@ export function TemplatePicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <LayoutTemplate className="h-4 w-4 text-accent-ink" />
-            {selected ? selected.name : "Enviar plantilla"}
+            {selected ? selected.name : t("inbox.sendTemplate")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {selected ? "Variables" : "Plantillas"}
+            {selected ? t("inbox.variables") : t("inbox.templates")}
           </DialogDescription>
         </DialogHeader>
 
@@ -153,9 +155,9 @@ export function TemplatePicker({
               </div>
             ) : templates.length === 0 ? (
               <div className="rounded-md border border-border bg-background/50 p-6 text-center">
-                <p className="text-sm text-foreground">No hay plantillas aprobadas</p>
+                <p className="text-sm text-foreground">{t("inbox.noApprovedTemplates")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Sincroniza desde Ajustes → Plantillas.
+                  {t("inbox.syncTemplatesHint")}
                 </p>
               </div>
             ) : (
@@ -194,7 +196,7 @@ export function TemplatePicker({
         ) : (
           <div className="max-h-[70svh] space-y-3 overflow-y-auto">
             <div className="rounded-md border border-border bg-background/50 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Vista previa</p>
+              <p className="mb-1 text-xs text-muted-foreground">{t("inbox.preview")}</p>
               <p className="whitespace-pre-wrap text-sm text-foreground">
                 {renderBodyPreview(selected.body_text, params)}
               </p>
@@ -211,10 +213,10 @@ export function TemplatePicker({
               return (
                 <div key={v} className="space-y-1">
                   <Label className="text-xs text-foreground">
-                    {`Variable {{${v}}}`}
+                    {t("inbox.variableLabel", { n: v })}
                     {sample ? (
                       <span className="ml-1 font-normal text-muted-foreground">
-                        · ej. {sample}
+                        {t("inbox.variableExample", { sample })}
                       </span>
                     ) : null}
                   </Label>
@@ -246,14 +248,14 @@ export function TemplatePicker({
                 className="border-border text-foreground hover:bg-accent"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Atrás
+                {t("inbox.back")}
               </Button>
               <Button
                 disabled={!canConfirm}
                 onClick={confirm}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Enviar
+                {t("inbox.send")}
               </Button>
             </>
           ) : (
@@ -262,7 +264,7 @@ export function TemplatePicker({
               onClick={() => handleOpenChange(false)}
               className="border-border text-foreground hover:bg-accent"
             >
-              Cancelar
+              {t("inbox.cancel")}
             </Button>
           )}
         </DialogFooter>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import type { Message } from "@/types";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -40,6 +41,7 @@ export function MessageActions({
   children,
 }: MessageActionsProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   // Touch devices have no hover. Long-press fires `contextmenu`; we capture
   // it, suppress the native menu, and pin the toolbar open until the user
   // interacts elsewhere.
@@ -60,14 +62,14 @@ export function MessageActions({
   const handleCopy = async () => {
     const text = message.content_text ?? "";
     if (!text) {
-      toast.error("Nada para copiar");
+      toast.error(t("inbox.nothingToCopy"));
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Copiado");
+      toast.success(t("inbox.copied"));
     } catch {
-      toast.error("No se pudo copiar");
+      toast.error(t("inbox.copyFailed"));
     }
     setTouchOpen(false);
   };
@@ -85,7 +87,7 @@ export function MessageActions({
 
   const handleDelete = async () => {
     if (!onDelete) return;
-    if (!confirm("¿Borrar mensaje?")) {
+    if (!confirm(t("inbox.deleteMessageConfirm"))) {
       setTouchOpen(false);
       return;
     }
@@ -94,13 +96,13 @@ export function MessageActions({
       const res = await fetchWithCsrf(`/api/messages/${message.id}`, { method: "DELETE" });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(j.error ?? "No se pudo borrar");
+        toast.error(j.error ?? t("inbox.deleteMessageFailed"));
         return;
       }
       onDelete(message.id);
-      toast.success("Borrado");
+      toast.success(t("inbox.messageDeleted"));
     } catch {
-      toast.error("Error de red");
+      toast.error(t("inbox.networkError"));
     }
   };
 
@@ -137,7 +139,7 @@ export function MessageActions({
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger
             className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Reaccionar"
+            aria-label={t("inbox.react")}
           >
             <SmilePlus className="h-3.5 w-3.5" />
           </PopoverTrigger>
@@ -151,7 +153,7 @@ export function MessageActions({
                 type="button"
                 onClick={() => handlePickEmoji(e)}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125 hover:bg-accent"
-                aria-label={`Reaccionar con ${e}`}
+                aria-label={t("inbox.reactWith", { emoji: e })}
               >
                 {e}
               </button>
@@ -162,7 +164,7 @@ export function MessageActions({
           type="button"
           onClick={handleReply}
           className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Responder"
+          aria-label={t("inbox.reply")}
         >
           <CornerUpLeft className="h-3.5 w-3.5" />
         </button>
@@ -170,7 +172,7 @@ export function MessageActions({
           type="button"
           onClick={handleCopy}
           className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Copiar"
+          aria-label={t("inbox.copy")}
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
@@ -179,7 +181,7 @@ export function MessageActions({
             type="button"
             onClick={handleDelete}
             className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-red-500/20 hover:text-red-400"
-            aria-label="Borrar"
+            aria-label={t("inbox.delete")}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

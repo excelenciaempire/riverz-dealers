@@ -29,6 +29,7 @@ import {
   Headset,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import { useT } from "@/hooks/use-locale";
 import type { Channel } from "@/types";
 
 /**
@@ -58,15 +59,20 @@ const SECTION = "py-[clamp(64px,8vw,128px)]";
 
 type Ch = "whatsapp" | "instagram" | "messenger" | "gmail";
 
+// `label` for branded channels is the brand name (rendered as-is); the email
+// channel uses an i18n key resolved with t() at the render site.
 const CHANNELS: { id: Ch; label: string }[] = [
   { id: "whatsapp", label: "WhatsApp" },
   { id: "instagram", label: "Instagram" },
   { id: "messenger", label: "Messenger" },
-  { id: "gmail", label: "Correo" },
+  { id: "gmail", label: "landing.channelEmail" },
 ];
 
 // Unified inbox preview rows — the four channels plus a public comment that
 // the agent answers and moves to a DM (so comments live in the same bandeja).
+// String fields hold i18n keys (or brand labels); they're resolved with t() at
+// the render site. `name` holds proper nouns left as-is, except the email and
+// comment rows whose names are translatable labels.
 const INBOX: {
   id: Channel;
   label: string;
@@ -75,11 +81,11 @@ const INBOX: {
   you: string;
   note: string;
 }[] = [
-  { id: "whatsapp", label: "WhatsApp", name: "Laura M.", them: "¿Hacen envíos a Cali?", you: "Sí, llega en 2 días 📦", note: "Respondido por la IA en 4s" },
-  { id: "instagram", label: "Instagram", name: "andres.q", them: "Me encantó mi compra 💛", you: "¡Gracias! Te paso el link 👇", note: "Respondido por la IA en 4s" },
-  { id: "messenger", label: "Messenger", name: "Sofía R.", them: "¿Sigue disponible?", you: "Sí, quedan pocas 🙌", note: "Respondido por la IA en 4s" },
-  { id: "gmail", label: "Correo", name: "Pedido #1042", them: "¿Estado de mi pedido?", you: "Va en camino, llega mañana ✉️", note: "Respondido por la IA en 4s" },
-  { id: "ig_comment", label: "Comentarios", name: "Comentario · Instagram", them: "¿Cuánto vale? 😍", you: "¡Te escribí por DM! 💛", note: "Comentario respondido y llevado al DM" },
+  { id: "whatsapp", label: "WhatsApp", name: "Laura M.", them: "landing.inboxWaThem", you: "landing.inboxWaYou", note: "landing.inboxNoteReplied" },
+  { id: "instagram", label: "Instagram", name: "andres.q", them: "landing.inboxIgThem", you: "landing.inboxIgYou", note: "landing.inboxNoteReplied" },
+  { id: "messenger", label: "Messenger", name: "Sofía R.", them: "landing.inboxMsgThem", you: "landing.inboxMsgYou", note: "landing.inboxNoteReplied" },
+  { id: "gmail", label: "landing.channelEmail", name: "landing.inboxMailName", them: "landing.inboxMailThem", you: "landing.inboxMailYou", note: "landing.inboxNoteReplied" },
+  { id: "ig_comment", label: "landing.inboxCommentLabel", name: "landing.inboxCommentName", them: "landing.inboxCommentThem", you: "landing.inboxCommentYou", note: "landing.inboxNoteComment" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -124,6 +130,9 @@ function useCountUp(target: number, run: boolean, duration = 1100, trigger = 0) 
 // Page
 // ─────────────────────────────────────────────────────────────────────────
 
+// title / titleMuted / body hold i18n keys resolved with t() at the render site
+// (FeatureSection), mirroring the navGroups pattern in sidebar.tsx. `eyebrow`
+// and `n` are inert data — not rendered — so they keep plain literals.
 const SECTIONS: {
   n: string;
   eyebrow: string;
@@ -137,108 +146,109 @@ const SECTIONS: {
     n: "01",
     eyebrow: "Agente de ventas",
     icon: Sparkles,
-    title: "Un vendedor con IA",
-    titleMuted: "que conoce tus productos.",
-    body: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, responde dudas y cierra la compra como tu mejor vendedor, también mientras duermes.",
+    title: "landing.sec01Title",
+    titleMuted: "landing.sec01TitleMuted",
+    body: "landing.sec01Body",
     Preview: AgentPanel,
   },
   {
     n: "02",
     eyebrow: "Carritos abandonados",
     icon: ShoppingCart,
-    title: "Recupera cada",
-    titleMuted: "carrito abandonado.",
-    body: "Cuando alguien deja la compra a medias, el agente le escribe solo, resuelve la duda y recupera la venta antes de que se enfríe.",
+    title: "landing.sec02Title",
+    titleMuted: "landing.sec02TitleMuted",
+    body: "landing.sec02Body",
     Preview: CartRecoveryPanel,
   },
   {
     n: "03",
     eyebrow: "Recompras",
     icon: RotateCcw,
-    title: "Recompras automáticas,",
-    titleMuted: "sin que muevas un dedo.",
-    body: "Seguimiento post-venta y recordatorios de recompra para tus clientes dormidos. Configuras las recompras una sola vez y el agente las envía cuando es más probable que vuelvan a comprar.",
+    title: "landing.sec03Title",
+    titleMuted: "landing.sec03TitleMuted",
+    body: "landing.sec03Body",
     Preview: FlowPreview,
   },
   {
     n: "04",
     eyebrow: "Soporte",
     icon: Headset,
-    title: "Atiende y avisa,",
-    titleMuted: "las 24 horas.",
-    body: "Confirma cada pedido, envía el número de guía y resuelve dudas al instante. Tus clientes siempre saben en qué va su compra, a cualquier hora.",
+    title: "landing.sec04Title",
+    titleMuted: "landing.sec04TitleMuted",
+    body: "landing.sec04Body",
     Preview: SupportPreview,
   },
   {
     n: "05",
     eyebrow: "Comentarios",
     icon: MessageSquare,
-    title: "También responde",
-    titleMuted: "los comentarios.",
-    body: "Responde al instante cada comentario en tus publicaciones y anuncios de Instagram y Facebook, y se lleva la conversación al DM para cerrar la venta.",
+    title: "landing.sec05Title",
+    titleMuted: "landing.sec05TitleMuted",
+    body: "landing.sec05Body",
     Preview: CommentsPreview,
   },
   {
     n: "06",
     eyebrow: "Campañas",
     icon: Megaphone,
-    title: "Campañas masivas en",
-    titleMuted: "WhatsApp e Instagram.",
-    body: "Lanza una promoción a miles de contactos por WhatsApp e Instagram y mira en vivo quién la recibió, quién la leyó, quién te respondió y quién te compró.",
+    title: "landing.sec06Title",
+    titleMuted: "landing.sec06TitleMuted",
+    body: "landing.sec06Body",
     Preview: CampaignPreview,
   },
   {
     n: "07",
     eyebrow: "Bandeja",
     icon: Inbox,
-    title: "Y todo, en una",
-    titleMuted: "sola bandeja.",
-    body: "WhatsApp, Instagram, Messenger y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
+    title: "landing.sec07Title",
+    titleMuted: "landing.sec07TitleMuted",
+    body: "landing.sec07Body",
     Preview: InboxPreview,
   },
   {
     n: "08",
     eyebrow: "Productos",
     icon: Package,
-    title: "Conecta Shopify",
-    titleMuted: "y vende con datos reales.",
-    body: "Inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
+    title: "landing.sec08Title",
+    titleMuted: "landing.sec08TitleMuted",
+    body: "landing.sec08Body",
     Preview: ProductPreview,
   },
   {
     n: "09",
     eyebrow: "Configuración",
     icon: MousePointerClick,
-    title: "Listo en minutos,",
-    titleMuted: "con unos cuantos clics.",
-    body: "Conectas tus canales y tu tienda, activas el agente y ya está vendiendo. Sin código y sin los dolores de cabeza de otras plataformas.",
+    title: "landing.sec09Title",
+    titleMuted: "landing.sec09TitleMuted",
+    body: "landing.sec09Body",
     Preview: SetupPreview,
   },
   {
     n: "10",
     eyebrow: "Resultados",
     icon: BarChart3,
-    title: "Un ROAS claro,",
-    titleMuted: "no corazonadas.",
-    body: "Cada venta queda atribuida al agente, así sabes cuánto te devuelve cada peso que inviertes. Y como contesta en segundos y atiende muchos chats a la vez, te rinde más que cualquier humano.",
+    title: "landing.sec10Title",
+    titleMuted: "landing.sec10TitleMuted",
+    body: "landing.sec10Body",
     Preview: MetricsPreview,
   },
 ];
 
 export function Landing() {
+  const t = useT();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
           <span className="text-[19px] font-semibold lowercase tracking-[0.04em] text-accent-ink">riverz</span>
           <div className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
-            <a href="#funciones" className="transition-colors hover:text-foreground">Funciones</a>
+            <a href="#funciones" className="transition-colors hover:text-foreground">{t("landing.navFeatures")}</a>
           </div>
           <a
             href="#lista"
             className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
           >
-            Lista de espera
+            {t("landing.navWaitlist")}
           </a>
         </nav>
       </header>
@@ -253,16 +263,16 @@ export function Landing() {
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             <div>
               <h1 className={`max-w-[15ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
-                Convierte cada chat{" "}
-                <span className="text-muted-foreground">en una venta.</span>
+                {t("landing.heroTitleLead")}{" "}
+                <span className="text-muted-foreground">{t("landing.heroTitleMuted")}</span>
               </h1>
               <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[46ch]">
-                Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, las 24 horas.
+                {t("landing.heroSubtitle")}
               </p>
               <div id="lista" className="mt-8 scroll-mt-24">
                 <WaitlistForm />
                 <p className="mt-2.5 text-xs text-muted-foreground">
-                  Estamos en pre-lanzamiento. Déjanos tu correo y te avisamos apenas abramos.
+                  {t("landing.heroWaitlistHint")}
                 </p>
               </div>
             </div>
@@ -279,7 +289,7 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-5 py-7">
           {CHANNELS.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <ChannelLogo channel={c.id} size={22} /> {c.label}
+              <ChannelLogo channel={c.id} size={22} /> {t(c.label)}
             </span>
           ))}
           <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -318,23 +328,23 @@ export function Landing() {
           />
           <div className="relative">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[12px] font-medium text-primary">
-              <Sparkles className="size-3.5" /> Pre-lanzamiento
+              <Sparkles className="size-3.5" /> {t("landing.ctaBadge")}
             </span>
             <h2 className="mx-auto mt-6 max-w-[18ch] text-balance text-[clamp(32px,4.6vw,58px)] font-medium leading-[1.02] tracking-[-0.04em] text-white">
-              Sé de los primeros en vender con IA.
+              {t("landing.ctaTitle")}
             </h2>
             <p className="mx-auto mt-5 max-w-md text-[15px] leading-relaxed text-white/55">
-              Estamos abriendo cupos poco a poco. Déjanos tu correo y te avisamos apenas puedas entrar.
+              {t("landing.ctaSubtitle")}
             </p>
             <div className="mt-9 flex justify-center">
               <WaitlistForm tone="dark" />
             </div>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] text-white/40">
-              <span>Sin compromiso</span>
+              <span>{t("landing.ctaNoCommitment")}</span>
               <span className="size-1 rounded-full bg-white/25" />
-              <span>Sin spam</span>
+              <span>{t("landing.ctaNoSpam")}</span>
               <span className="size-1 rounded-full bg-white/25" />
-              <span>Te avisamos primero</span>
+              <span>{t("landing.ctaFirstToKnow")}</span>
             </div>
           </div>
         </div>
@@ -350,14 +360,14 @@ export function Landing() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-            <a href="#funciones" className="hover:text-foreground">Funciones</a>
-            <Link href="/terminos" className="hover:text-foreground">Términos</Link>
-            <Link href="/privacidad" className="hover:text-foreground">Privacidad</Link>
-            <Link href="/eliminar-datos" className="hover:text-foreground">Eliminar datos</Link>
+            <a href="#funciones" className="hover:text-foreground">{t("landing.footerFeatures")}</a>
+            <Link href="/terminos" className="hover:text-foreground">{t("landing.footerTerms")}</Link>
+            <Link href="/privacidad" className="hover:text-foreground">{t("landing.footerPrivacy")}</Link>
+            <Link href="/eliminar-datos" className="hover:text-foreground">{t("landing.footerDeleteData")}</Link>
           </div>
         </div>
         <div className="border-t border-border/40 py-4 text-center text-[11px] text-muted-foreground">
-          © 2026 riverz
+          {t("landing.footerRights")}
         </div>
       </footer>
     </div>
@@ -371,6 +381,7 @@ function FeatureSection({
   s: (typeof SECTIONS)[number];
   flip: boolean;
 }) {
+  const t = useT();
   // Replay the preview's animation each time it scrolls into view (on every
   // device) by remounting it via a changing key — so the visitor always sees
   // it play from the start the moment it appears, never mid-loop or finished.
@@ -395,10 +406,10 @@ function FeatureSection({
         <div className="grid items-center gap-10 md:grid-cols-[0.85fr_1.15fr] md:gap-12 lg:gap-16">
           <div className={flip ? "md:order-2" : undefined}>
             <h2 className={H2}>
-              {s.title}{" "}
-              <span className="text-muted-foreground">{s.titleMuted}</span>
+              {t(s.title)}{" "}
+              <span className="text-muted-foreground">{t(s.titleMuted)}</span>
             </h2>
-            <p className={`mt-5 max-w-[420px] ${BODY}`}>{s.body}</p>
+            <p className={`mt-5 max-w-[420px] ${BODY}`}>{t(s.body)}</p>
           </div>
           <div ref={previewRef} className={flip ? "md:order-1" : undefined}>
             <s.Preview key={playKey} />
@@ -451,6 +462,7 @@ function MetaLogo({ size = 13 }: { size?: number }) {
 // Pre-launch waitlist signup. Posts to /api/waitlist, which stores the lead
 // and emails the owner. Works on light (hero) and dark (CTA) backgrounds.
 function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
+  const t = useT();
   const dark = tone === "dark";
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -479,7 +491,7 @@ function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
           dark ? "bg-white/10 text-white" : "bg-primary/15 text-accent-ink"
         }`}
       >
-        <Check className="size-4" /> ¡Listo! Te avisamos apenas abramos cupos.
+        <Check className="size-4" /> {t("landing.waitlistDone")}
       </div>
     );
   }
@@ -492,9 +504,9 @@ function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@correo.com"
+          placeholder={t("landing.emailPlaceholder")}
           autoComplete="email"
-          aria-label="Correo electrónico"
+          aria-label={t("landing.emailAriaLabel")}
           className={`min-w-0 flex-1 rounded-full border px-4 py-2.5 text-sm outline-none transition-colors ${
             dark
               ? "border-white/15 bg-white/5 text-white placeholder:text-white/40 focus:border-white/40"
@@ -515,7 +527,7 @@ function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
           disabled={status === "loading"}
           className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03] disabled:opacity-60"
         >
-          {status === "loading" ? "Enviando…" : "Unirse a la lista de espera"}
+          {status === "loading" ? t("landing.waitlistSending") : t("landing.waitlistSubmit")}
           {status !== "loading" && (
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           )}
@@ -523,7 +535,7 @@ function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
       </div>
       {status === "error" && (
         <p className={`mt-2 text-xs ${dark ? "text-white/60" : "text-muted-foreground"}`}>
-          Hubo un problema. Intenta de nuevo.
+          {t("landing.waitlistError")}
         </p>
       )}
     </form>
@@ -554,68 +566,70 @@ type HeroConvo = {
   steps: Step[];
 };
 
+// `name` holds proper nouns (left as-is); `product.name` and every step `text`
+// hold i18n keys resolved with t() at the render site.
 const HERO_CONVOS: HeroConvo[] = [
   {
     channel: "whatsapp",
     name: "Laura M.",
-    product: { emoji: "👟", name: "Tenis Aura", price: "$239.000" },
+    product: { emoji: "👟", name: "landing.prodSneakers", price: "$239.000" },
     order: "#1042",
     steps: [
-      { kind: "them", text: "Hola 👋 ¿los Tenis Aura vienen en talla 39?" },
+      { kind: "them", text: "landing.hero1Them1" },
       { kind: "typing" },
-      { kind: "you", text: "¡Hola Laura! Sí 🙌 quedan 6 pares en talla 39." },
-      { kind: "you", text: "Hoy con 15% off y envío gratis. ¿Te los aparto?" },
-      { kind: "them", text: "Sí, los quiero 💛" },
+      { kind: "you", text: "landing.hero1You1" },
+      { kind: "you", text: "landing.hero1You2" },
+      { kind: "them", text: "landing.hero1Them2" },
       { kind: "typing" },
-      { kind: "you", text: "Listo, te dejo el pago seguro aquí 👇" },
+      { kind: "you", text: "landing.hero1You3" },
       { kind: "sale" },
     ],
   },
   {
     channel: "instagram",
     name: "andres.q",
-    product: { emoji: "🌸", name: "Perfume Solé", price: "$185.000" },
+    product: { emoji: "🌸", name: "landing.prodPerfume", price: "$185.000" },
     order: "#1043",
     steps: [
-      { kind: "them", text: "vi el Perfume Solé en tu historia, ¿aún hay? 👀" },
+      { kind: "them", text: "landing.hero2Them1" },
       { kind: "typing" },
-      { kind: "you", text: "¡Hola Andrés! Sí, quedan pocas unidades 🙌" },
-      { kind: "you", text: "Te incluyo muestra de regalo. ¿Lo pedimos?" },
-      { kind: "them", text: "dale, lo quiero 🔥" },
+      { kind: "you", text: "landing.hero2You1" },
+      { kind: "you", text: "landing.hero2You2" },
+      { kind: "them", text: "landing.hero2Them2" },
       { kind: "typing" },
-      { kind: "you", text: "Perfecto, aquí tu link de pago 👇" },
+      { kind: "you", text: "landing.hero2You3" },
       { kind: "sale" },
     ],
   },
   {
     channel: "messenger",
     name: "Sofía R.",
-    product: { emoji: "🎒", name: "Mochila Drift", price: "$129.000" },
+    product: { emoji: "🎒", name: "landing.prodBackpack", price: "$129.000" },
     order: "#1044",
     steps: [
-      { kind: "them", text: "¿La Mochila Drift es resistente al agua?" },
+      { kind: "them", text: "landing.hero3Them1" },
       { kind: "typing" },
-      { kind: "you", text: "¡Hola Sofía! Sí, es impermeable y trae garantía 🙌" },
-      { kind: "you", text: "Hoy con envío gratis. ¿Te la despacho?" },
-      { kind: "them", text: "Sí porfa 🙌" },
+      { kind: "you", text: "landing.hero3You1" },
+      { kind: "you", text: "landing.hero3You2" },
+      { kind: "them", text: "landing.hero3Them2" },
       { kind: "typing" },
-      { kind: "you", text: "Listo, te paso el pago seguro 👇" },
+      { kind: "you", text: "landing.hero3You3" },
       { kind: "sale" },
     ],
   },
   {
     channel: "gmail",
     name: "Camilo R.",
-    product: { emoji: "⌚", name: "Reloj Nórdico", price: "$320.000" },
+    product: { emoji: "⌚", name: "landing.prodWatch", price: "$320.000" },
     order: "#1045",
     steps: [
-      { kind: "them", text: "¿El Reloj Nórdico tiene cuotas sin interés?" },
+      { kind: "them", text: "landing.hero4Them1" },
       { kind: "typing" },
-      { kind: "you", text: "¡Hola Camilo! Sí, hasta 3 cuotas sin interés ✉️" },
-      { kind: "you", text: "¿Quieres que te genere el pedido?" },
-      { kind: "them", text: "Sí, gracias" },
+      { kind: "you", text: "landing.hero4You1" },
+      { kind: "you", text: "landing.hero4You2" },
+      { kind: "them", text: "landing.hero4Them2" },
       { kind: "typing" },
-      { kind: "you", text: "Listo, aquí tu pago seguro 👇" },
+      { kind: "you", text: "landing.hero4You3" },
       { kind: "sale" },
     ],
   },
@@ -635,6 +649,7 @@ function delayFor(step: Step): number {
 }
 
 function HeroInbox() {
+  const t = useT();
   const reduced = useReducedMotion();
   // One state object so switching channels resets the step count atomically
   // (no synchronous setN in the effect, no stale-slice flash).
@@ -716,7 +731,7 @@ function HeroInbox() {
                 : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            <ChannelLogo channel={c.id} size={15} /> {c.label}
+            <ChannelLogo channel={c.id} size={15} /> {t(c.label)}
           </button>
         ))}
       </div>
@@ -726,10 +741,10 @@ function HeroInbox() {
         <ChannelLogo channel={convo.channel} size={20} />
         <div className="leading-tight">
           <div className="text-sm font-medium">{convo.name}</div>
-          <div className="text-[11px] text-accent-ink">atiende la IA · responde en 4s</div>
+          <div className="text-[11px] text-accent-ink">{t("landing.heroAgentStatus")}</div>
         </div>
         <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
-          <Sparkles className="size-3" /> Agente activo
+          <Sparkles className="size-3" /> {t("landing.agentActive")}
         </span>
       </div>
 
@@ -752,6 +767,7 @@ function HeroInbox() {
 }
 
 function Bubble({ step }: { step: Step }) {
+  const t = useT();
   if (step.kind === "typing") {
     return (
       <div className="flex max-w-[80%] items-center gap-1 self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-3 duration-300 animate-in fade-in slide-in-from-bottom-2">
@@ -774,7 +790,7 @@ function Bubble({ step }: { step: Step }) {
           : "self-start rounded-tl-sm bg-muted text-foreground"
       }`}
     >
-      {step.text}
+      {t(step.text)}
     </div>
   );
 }
@@ -782,21 +798,22 @@ function Bubble({ step }: { step: Step }) {
 // Confirmed-sale card (closes every hero conversation). Carries the Shopify
 // brand mark so the source of truth for the order is unmistakable.
 function SaleCard({ product, order }: { product: Product; order: string }) {
+  const t = useT();
   return (
     <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
       <div className="flex items-center gap-2">
         <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Check className="size-4" />
         </span>
-        <span className="text-sm font-semibold">Venta confirmada</span>
+        <span className="text-sm font-semibold">{t("landing.saleConfirmed")}</span>
         <span className="ml-auto text-sm font-semibold text-accent-ink">{product.price}</span>
       </div>
       <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          {product.emoji} {product.name} · 1 ud.
+          {product.emoji} {t(product.name)} · {t("landing.saleUnit")}
         </span>
         <span className="inline-flex items-center gap-1">
-          <ShopifyLogo size={15} /> Pedido {order}
+          <ShopifyLogo size={15} /> {t("landing.saleOrder", { order })}
         </span>
       </div>
     </div>
@@ -808,17 +825,18 @@ function SaleCard({ product, order }: { product: Product; order: string }) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function InboxPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
   const paused = useRef(false);
 
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => {
+    const id = setInterval(() => {
       if (paused.current) return;
       setActive((i) => (i + 1) % INBOX.length);
     }, 2600);
-    return () => clearInterval(t);
+    return () => clearInterval(id);
   }, [reduced]);
 
   const item = INBOX[active];
@@ -839,7 +857,7 @@ function InboxPreview() {
                 active === i ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              <ChannelLogo channel={c.id} size={15} /> {c.label}
+              <ChannelLogo channel={c.id} size={15} /> {t(c.label)}
             </button>
           ))}
         </div>
@@ -847,14 +865,14 @@ function InboxPreview() {
         {/* conversation */}
         <div key={active} className="flex min-h-[210px] flex-col gap-3 p-5 duration-300 animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <ChannelLogo channel={item.id} size={18} /> {item.name}
+            <ChannelLogo channel={item.id} size={18} /> {t(item.name)}
           </div>
-          <div className="max-w-[78%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">{item.them}</div>
+          <div className="max-w-[78%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">{t(item.them)}</div>
           <div className="max-w-[78%] self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
-            {item.you}
+            {t(item.you)}
           </div>
           <div className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
-            <Sparkles className="size-3 text-accent-ink" /> {item.note}
+            <Sparkles className="size-3 text-accent-ink" /> {t(item.note)}
           </div>
         </div>
       </div>
@@ -867,20 +885,22 @@ function InboxPreview() {
 // on the right through animated flowing lines. The agent reads "Entrenándose".
 // ─────────────────────────────────────────────────────────────────────────
 
+// `label` holds an i18n key resolved with t() at the render site.
 const AGENT_SOURCES: { icon: typeof Inbox; label: string; y: number }[] = [
-  { icon: Boxes, label: "Catálogo", y: 15 },
-  { icon: Tag, label: "Precios", y: 38 },
-  { icon: Truck, label: "Envíos", y: 62 },
-  { icon: Star, label: "Reseñas", y: 85 },
+  { icon: Boxes, label: "landing.agentSourceCatalog", y: 15 },
+  { icon: Tag, label: "landing.agentSourcePrices", y: 38 },
+  { icon: Truck, label: "landing.agentSourceShipping", y: 62 },
+  { icon: Star, label: "landing.agentSourceReviews", y: 85 },
 ];
 
 function AgentPanel() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setLit((i) => (i + 1) % (AGENT_SOURCES.length + 1)), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setLit((i) => (i + 1) % (AGENT_SOURCES.length + 1)), 1000);
+    return () => clearInterval(id);
   }, [reduced]);
 
   const integrated = (i: number) => reduced || lit > i;
@@ -934,7 +954,7 @@ function AgentPanel() {
             }`}
           >
             <s.icon className="size-4" />
-            {s.label}
+            {t(s.label)}
           </div>
         ))}
 
@@ -945,7 +965,7 @@ function AgentPanel() {
             <Sparkles className="relative size-5 sm:size-7" />
           </span>
           <span className="text-[13px] font-semibold text-accent-ink">
-            {ready ? "Agente listo" : "Entrenándose"}
+            {ready ? t("landing.agentReady") : t("landing.agentTraining")}
           </span>
           <span className="flex gap-1.5">
             {AGENT_SOURCES.map((s, i) => (
@@ -969,13 +989,14 @@ function AgentPanel() {
 const CART_ICONS: (typeof Inbox)[] = [ShoppingCart, Sparkles, Check];
 
 function CartRecoveryPanel() {
+  const t = useT();
   const reduced = useReducedMotion();
   // phases: 0 abandoned · 1 agent reaches out · 2 recovered · 3 hold → loop.
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setPhase((p) => (p + 1) % 4), 1500);
-    return () => clearInterval(t);
+    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 1500);
+    return () => clearInterval(id);
   }, [reduced]);
 
   const recovered = reduced || phase >= 2;
@@ -989,7 +1010,7 @@ function CartRecoveryPanel() {
           <span className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-[12px] font-semibold text-accent-ink">
             ML
           </span>
-          <span className="text-sm font-medium">Mariana L.</span>
+          <span className="text-sm font-medium">{t("landing.cartCustomer")}</span>
           <span
             className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
               recovered
@@ -998,7 +1019,7 @@ function CartRecoveryPanel() {
             }`}
           >
             <span className={`size-1.5 rounded-full ${recovered ? "bg-primary" : "animate-pulse bg-amber-500"}`} />
-            {recovered ? "Recuperado" : "Abandonado"}
+            {recovered ? t("landing.cartStatusRecovered") : t("landing.cartStatusAbandoned")}
           </span>
         </div>
 
@@ -1007,7 +1028,7 @@ function CartRecoveryPanel() {
           <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-lg">
             🎧
           </div>
-          <span className="flex-1 truncate text-sm font-medium">Audífonos Pulse</span>
+          <span className="flex-1 truncate text-sm font-medium">{t("landing.cartProduct")}</span>
           <span className="text-sm font-semibold">$210.000</span>
         </div>
 
@@ -1044,7 +1065,7 @@ function CartRecoveryPanel() {
             <Check className="relative size-5" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Venta recuperada</div>
+            <div className="text-sm font-semibold">{t("landing.cartSaleRecovered")}</div>
             <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShopifyLogo size={17} /> Shopify
             </div>
@@ -1062,19 +1083,21 @@ function CartRecoveryPanel() {
 // 04 · Comentarios — post + comments, each answered instantly by the AI
 // ─────────────────────────────────────────────────────────────────────────
 
+// `user` holds handles (left as-is); `text` holds i18n keys resolved at render.
 const COMMENTS: { user: string; text: string }[] = [
-  { user: "ana_p", text: "¿Cuánto vale? 😍" },
-  { user: "luis.gs", text: "¿Hacen envíos a todo el país?" },
-  { user: "cami.rr", text: "Lo quiero en negro 🔥" },
+  { user: "ana_p", text: "landing.comment1" },
+  { user: "luis.gs", text: "landing.comment2" },
+  { user: "cami.rr", text: "landing.comment3" },
 ];
 
 function CommentsPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setLit((i) => (i + 1) % COMMENTS.length), 1500);
-    return () => clearInterval(t);
+    const id = setInterval(() => setLit((i) => (i + 1) % COMMENTS.length), 1500);
+    return () => clearInterval(id);
   }, [reduced]);
 
   return (
@@ -1086,8 +1109,8 @@ function CommentsPreview() {
             🛍️
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-medium">tu.marca</div>
-            <div className="text-[11px] text-muted-foreground">Anuncio</div>
+            <div className="text-sm font-medium">{t("landing.commentsBrand")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("landing.commentsAd")}</div>
           </div>
           <ChannelLogo channel="instagram" size={18} className="ml-auto" />
         </div>
@@ -1116,11 +1139,11 @@ function CommentsPreview() {
             >
               <div className="flex items-baseline gap-2 text-xs">
                 <span className="font-semibold">{c.user}</span>
-                <span className="text-muted-foreground">{c.text}</span>
+                <span className="text-muted-foreground">{t(c.text)}</span>
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 pl-2 text-[11px] text-accent-ink">
                 <CornerDownRight className="size-3" />
-                <Sparkles className="size-3" /> Respondido por la IA · al DM
+                <Sparkles className="size-3" /> {t("landing.commentRepliedDm")}
               </div>
             </div>
           ))}
@@ -1136,13 +1159,16 @@ function CommentsPreview() {
 // other previews: notifications stack in from the top, one after another.
 // ─────────────────────────────────────────────────────────────────────────
 
+// `title` and `meta` hold i18n keys (or literal IDs/tracking codes) resolved
+// with t() at the render site — t() returns the literal unchanged for IDs.
 const SUPPORT_EVENTS: { icon: typeof Inbox; title: string; meta: string }[] = [
-  { icon: Check, title: "Pedido confirmado", meta: "#1042" },
-  { icon: Truck, title: "En camino · guía enviada", meta: "9400 1234" },
-  { icon: MessageSquare, title: "“¿Cuándo llega?” resuelto", meta: "ahora" },
+  { icon: Check, title: "landing.supportOrderConfirmed", meta: "#1042" },
+  { icon: Truck, title: "landing.supportOnTheWay", meta: "9400 1234" },
+  { icon: MessageSquare, title: "landing.supportQuestionResolved", meta: "landing.supportNow" },
 ];
 
 function SupportPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(1);
   useEffect(() => {
@@ -1150,11 +1176,11 @@ function SupportPreview() {
       const raf = requestAnimationFrame(() => setShown(SUPPORT_EVENTS.length));
       return () => cancelAnimationFrame(raf);
     }
-    const t = setInterval(
+    const id = setInterval(
       () => setShown((s) => (s >= SUPPORT_EVENTS.length ? 1 : s + 1)),
       1400,
     );
-    return () => clearInterval(t);
+    return () => clearInterval(id);
   }, [reduced]);
 
   return (
@@ -1164,9 +1190,9 @@ function SupportPreview() {
           <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
             <Headset className="size-4" />
           </span>
-          <span className="text-sm font-semibold">Soporte 24/7</span>
+          <span className="text-sm font-semibold">{t("landing.support247")}</span>
           <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-accent-ink">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> en línea
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> {t("landing.supportOnline")}
           </span>
         </div>
 
@@ -1187,8 +1213,8 @@ function SupportPreview() {
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                   <e.icon className="size-4" />
                 </span>
-                <span className="text-sm font-medium">{e.title}</span>
-                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{e.meta}</span>
+                <span className="text-sm font-medium">{t(e.title)}</span>
+                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{t(e.meta)}</span>
               </div>
             );
           })}
@@ -1215,12 +1241,13 @@ function SetupToggle({ on }: { on: boolean }) {
 }
 
 function SetupPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0); // 0..3 (3 = all done) → loop
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setStep((s) => (s + 1) % 4), 1100);
-    return () => clearInterval(t);
+    const id = setInterval(() => setStep((s) => (s + 1) % 4), 1100);
+    return () => clearInterval(id);
   }, [reduced]);
 
   const done = (i: number) => reduced || step > i;
@@ -1234,8 +1261,8 @@ function SetupPreview() {
             <MousePointerClick className="size-4" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Configura tu agente</div>
-            <div className="text-[11px] text-muted-foreground">3 pasos · ~2 minutos</div>
+            <div className="text-sm font-semibold">{t("landing.setupTitle")}</div>
+            <div className="text-[11px] text-muted-foreground">{t("landing.setupSteps")}</div>
           </div>
           <span className="ml-auto text-xs font-semibold text-accent-ink">{pct}%</span>
         </div>
@@ -1254,7 +1281,7 @@ function SetupPreview() {
             <ChannelLogo channel="instagram" size={18} />
             <ChannelLogo channel="messenger" size={18} />
           </span>
-          <span className="text-sm font-medium">Conecta tus canales</span>
+          <span className="text-sm font-medium">{t("landing.setupConnectChannels")}</span>
           <span className="ml-auto">
             <SetupToggle on={done(0)} />
           </span>
@@ -1263,7 +1290,7 @@ function SetupPreview() {
         {/* step 2 — connect store */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
           <ShopifyLogo size={20} />
-          <span className="text-sm font-medium">Conecta tu tienda</span>
+          <span className="text-sm font-medium">{t("landing.setupConnectStore")}</span>
           <span className="ml-auto">
             <SetupToggle on={done(1)} />
           </span>
@@ -1274,7 +1301,7 @@ function SetupPreview() {
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-accent-ink">
             <Sparkles className="size-4" />
           </span>
-          <span className="text-sm font-medium">Activa el agente</span>
+          <span className="text-sm font-medium">{t("landing.setupActivateAgent")}</span>
           <span
             className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
               done(2) ? "bg-primary/15 text-accent-ink" : "bg-primary text-primary-foreground"
@@ -1282,16 +1309,16 @@ function SetupPreview() {
           >
             {done(2) ? (
               <>
-                <Check className="size-3" /> Activo
+                <Check className="size-3" /> {t("landing.setupActive")}
               </>
             ) : (
-              "Activar"
+              t("landing.setupActivate")
             )}
           </span>
         </div>
 
         <div className="text-center text-[11px] text-muted-foreground">
-          Sin código · sin dolores de cabeza.
+          {t("landing.setupNoCode")}
         </div>
       </div>
     </PreviewFrame>
@@ -1302,19 +1329,21 @@ function SetupPreview() {
 // 03 · Automatizaciones — a flow with a pulsing active node
 // ─────────────────────────────────────────────────────────────────────────
 
+// `sub` holds an i18n key resolved with t() at the render site.
 const FLOW: { icon: typeof Inbox; sub: string }[] = [
-  { icon: ShoppingBag, sub: "Compró hace 30 días" },
-  { icon: Clock, sub: "Espera el momento ideal" },
-  { icon: Send, sub: "Envía la oferta de recompra" },
+  { icon: ShoppingBag, sub: "landing.flowBought" },
+  { icon: Clock, sub: "landing.flowWait" },
+  { icon: Send, sub: "landing.flowSend" },
 ];
 
 function FlowPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setStep((s) => (s + 1) % (FLOW.length + 1)), 1100);
-    return () => clearInterval(t);
+    const id = setInterval(() => setStep((s) => (s + 1) % (FLOW.length + 1)), 1100);
+    return () => clearInterval(id);
   }, [reduced]);
 
   return (
@@ -1341,7 +1370,7 @@ function FlowPreview() {
                 >
                   {done ? <Check className="size-4" /> : <node.icon className="size-4" />}
                 </span>
-                <div className="text-sm font-medium">{node.sub}</div>
+                <div className="text-sm font-medium">{t(node.sub)}</div>
                 {active && (
                   <span className="ml-auto size-2 animate-pulse rounded-full bg-primary" />
                 )}
@@ -1362,6 +1391,7 @@ function FlowPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function CampaignPreview() {
+  const t = useT();
   const reduced = useReducedMotion();
   // FeatureSection remounts this preview when it enters view, so a single
   // start-on-mount is enough — the counters replay every time it appears.
@@ -1387,15 +1417,15 @@ function CampaignPreview() {
             <Megaphone className="size-4" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Nueva colección 👟</div>
+            <div className="text-sm font-semibold">{t("landing.campaignTitle")}</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ChannelLogo channel="whatsapp" size={12} />
               <ChannelLogo channel="instagram" size={12} />
-              WhatsApp e Instagram
+              {t("landing.campaignChannels")}
             </div>
           </div>
           <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
-            Enviada
+            {t("landing.campaignSent")}
           </span>
         </div>
 
@@ -1408,14 +1438,14 @@ function CampaignPreview() {
 
         <div className="grid grid-cols-2 gap-2.5">
           {[
-            { label: "Enviados", value: fmt(sent), icon: Send },
-            { label: "Entregados", value: fmt(delivered), icon: Check },
-            { label: "Leídos", value: fmt(read), icon: CheckCheck },
-            { label: "Respondieron", value: fmt(replied), icon: MessageSquare },
+            { label: "landing.campaignStatSent", value: fmt(sent), icon: Send },
+            { label: "landing.campaignStatDelivered", value: fmt(delivered), icon: Check },
+            { label: "landing.campaignStatRead", value: fmt(read), icon: CheckCheck },
+            { label: "landing.campaignStatReplied", value: fmt(replied), icon: MessageSquare },
           ].map((m) => (
             <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
               <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <m.icon className="size-3" /> {m.label}
+                <m.icon className="size-3" /> {t(m.label)}
               </div>
               <div className="mt-1 text-lg font-semibold tracking-[-0.02em]">{m.value}</div>
             </div>
@@ -1431,6 +1461,7 @@ function CampaignPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function ProductPreview() {
+  const t = useT();
   return (
     <PreviewFrame>
       <div className="flex flex-col gap-4 p-5">
@@ -1441,17 +1472,17 @@ function ProductPreview() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold">Tenis Aura</div>
-                <div className="text-[11px] text-muted-foreground">Calzado · unisex</div>
+                <div className="text-sm font-semibold">{t("landing.productName")}</div>
+                <div className="text-[11px] text-muted-foreground">{t("landing.productCategory")}</div>
               </div>
               <div className="text-sm font-semibold text-accent-ink">$239.000</div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-accent-ink">
-                <Check className="size-3" /> En stock · 8
+                <Check className="size-3" /> {t("landing.productInStock")}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-                15% off
+                {t("landing.productDiscount")}
               </span>
             </div>
           </div>
@@ -1460,16 +1491,16 @@ function ProductPreview() {
         <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2.5">
           <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
             <ShopifyLogo size={18} />
-            <span className="font-medium text-foreground">Sincronizado con Shopify</span>
+            <span className="font-medium text-foreground">{t("landing.productSynced")}</span>
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> al día
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> {t("landing.productUpToDate")}
           </span>
         </div>
 
         <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-xs text-foreground duration-500 animate-in fade-in">
           <ShoppingBag className="size-3.5 text-accent-ink" />
-          Pedido <strong>#1042</strong> creado por la IA.
+          {t("landing.productOrderLead")} <strong>#1042</strong> {t("landing.productOrderCreated")}
         </div>
       </div>
     </PreviewFrame>
@@ -1483,6 +1514,7 @@ function ProductPreview() {
 const BARS = [38, 52, 44, 70, 60, 84, 96];
 
 function MetricsPreview() {
+  const t = useT();
   // setTimeout (not a one-shot rAF, which can be dropped off-screen) so the
   // counters reliably start. FeatureSection remounts the preview on view, so
   // they replay from zero every time the section appears.
@@ -1511,19 +1543,19 @@ function MetricsPreview() {
             <div className="inline-flex items-center gap-1 text-sm font-semibold text-accent-ink">
               <TrendingUp className="size-4" /> +32%
             </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">por cada $1 invertido</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">{t("landing.metricsPerDollar")}</div>
           </div>
         </div>
 
         {/* supporting stats */}
         <div className="grid grid-cols-3 gap-2.5">
           {[
-            { label: "Ingresos", value: `$${ingresos.toFixed(2)}M` },
-            { label: "Recuperado", value: `$${Math.round(recup)}K` },
-            { label: "Respuesta", value: "4s" },
+            { label: "landing.metricsRevenue", value: `$${ingresos.toFixed(2)}M` },
+            { label: "landing.metricsRecovered", value: `$${Math.round(recup)}K` },
+            { label: "landing.metricsResponse", value: "4s" },
           ].map((m) => (
             <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{m.label}</div>
+              <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{t(m.label)}</div>
               <div className="mt-1 text-lg font-semibold tracking-[-0.02em]">{m.value}</div>
             </div>
           ))}
@@ -1532,7 +1564,7 @@ function MetricsPreview() {
         {/* revenue attributed to the agent */}
         <div className="rounded-xl border border-border bg-background/60 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-medium">Ingresos del agente · 7 días</span>
+            <span className="text-xs font-medium">{t("landing.metricsAgentRevenue7d")}</span>
             <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
               <TrendingUp className="size-3" /> +32%
             </span>

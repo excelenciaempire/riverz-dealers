@@ -20,8 +20,10 @@ import { ResizablePane } from "@/components/inbox/resizable-pane";
 import Link from "next/link";
 import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 export default function InboxPage() {
+  const t = useT();
   const searchParams = useSearchParams();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
@@ -609,7 +611,7 @@ export default function InboxPage() {
           <Plug2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <p className="text-xs text-amber-800 dark:text-amber-200">
             <span className="font-semibold underline-offset-2 group-hover:underline">
-              Conectar un canal →
+              {t("inbox.connectChannelArrow")}
             </span>
           </p>
         </Link>
@@ -706,7 +708,7 @@ export default function InboxPage() {
             <div className="fixed inset-0 z-50 flex lg:hidden">
               <button
                 type="button"
-                aria-label="Cerrar panel de contacto"
+                aria-label={t("inbox.closeContactPanel")}
                 onClick={() => setContactPanelOpen(false)}
                 className="flex-1 bg-black/60 backdrop-blur-sm"
               />

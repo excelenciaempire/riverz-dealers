@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { getT } from "@/lib/i18n/server";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -26,7 +27,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({ children }: { children: ReactNode }) {
+  const t = await getT();
   return (
     <>
       {children}
@@ -34,11 +36,11 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           policy reachable from the app). Subtle, fixed at the bottom. */}
       <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-[11px] text-muted-foreground">
         <Link href="/privacidad" className="pointer-events-auto hover:text-foreground">
-          Privacidad
+          {t("auth.privacy")}
         </Link>
         <span aria-hidden>·</span>
         <Link href="/eliminar-datos" className="pointer-events-auto hover:text-foreground">
-          Eliminar datos
+          {t("auth.deleteData")}
         </Link>
       </footer>
     </>

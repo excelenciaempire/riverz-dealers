@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 
 interface ImportModalProps {
   open: boolean;
@@ -79,6 +80,7 @@ function parseCSV(text: string): ParsedRow[] {
 
 export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
   const supabase = createClient();
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -109,7 +111,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     const rows = parseCSV(text);
 
     if (rows.length === 0) {
-      toast.error('Sin filas válidas. Falta la columna "phone".');
+      toast.error(t('contacts.importNoValidRows'));
       setParsedRows([]);
       return;
     }
@@ -126,7 +128,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('No autenticado');
+      if (!user) throw new Error(t('contacts.notAuthenticated'));
 
       let imported = 0;
       let failed = 0;
@@ -165,14 +167,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
       setResult({ imported, failed });
       if (imported > 0) {
-        toast.success(`${imported} contacto${imported !== 1 ? 's' : ''} importado${imported !== 1 ? 's' : ''}`);
+        toast.success(t('contacts.importedToast', { count: imported }));
         onImported();
       }
       if (failed > 0) {
-        toast.error(`No se pudo importar ${failed} contacto${failed !== 1 ? 's' : ''}`);
+        toast.error(t('contacts.importFailedToast', { count: failed }));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Falló la importación';
+      const message = err instanceof Error ? err.message : t('contacts.importFailed');
       toast.error(message);
     } finally {
       setImporting(false);
@@ -185,9 +187,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-card border-border text-foreground sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Importar contactos</DialogTitle>
+          <DialogTitle className="text-foreground">{t('contacts.importContacts')}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            CSV con columna <code className="font-mono">phone</code>. Opcionales:{' '}
+            {t('contacts.importDescriptionPrefix')} <code className="font-mono">phone</code>{t('contacts.importDescriptionOptional')}{' '}
             <code className="font-mono">name</code>, <code className="font-mono">email</code>,{' '}
             <code className="font-mono">company</code>.
           </DialogDescription>
@@ -204,14 +206,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                 <FileText className="size-8 text-accent-ink" />
                 <p className="text-sm text-foreground">{file.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {parsedRows.length} fila{parsedRows.length !== 1 ? 's' : ''} detectada{parsedRows.length !== 1 ? 's' : ''}
+                  {t('contacts.importRowsDetected', { count: parsedRows.length })}
                 </p>
               </>
             ) : (
               <>
                 <Upload className="size-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  Haz clic para subir un CSV
+                  {t('contacts.uploadCsvPrompt')}
                 </p>
               </>
             )}
@@ -229,16 +231,16 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {preview.length > 0 && !result && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Vista previa
+                {t('contacts.preview')}
               </p>
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">Teléfono</th>
-                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">Nombre</th>
-                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">Correo</th>
-                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">Empresa</th>
+                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">{t('contacts.colPhone')}</th>
+                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">{t('contacts.colName')}</th>
+                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">{t('contacts.colEmail')}</th>
+                      <th className="px-3 py-1.5 text-left text-muted-foreground font-medium">{t('contacts.colCompany')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -255,7 +257,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               </div>
               {parsedRows.length > 5 && (
                 <p className="text-xs text-muted-foreground">
-                  ...y {parsedRows.length - 5} filas más
+                  {t('contacts.andMoreRows', { count: parsedRows.length - 5 })}
                 </p>
               )}
             </div>
@@ -268,13 +270,13 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                 {result.imported > 0 && (
                   <div className="flex items-center gap-1.5 text-accent-ink text-sm">
                     <CheckCircle className="size-4" />
-                    {result.imported} importado{result.imported !== 1 ? 's' : ''}
+                    {t('contacts.importedCount', { count: result.imported })}
                   </div>
                 )}
                 {result.failed > 0 && (
                   <div className="flex items-center gap-1.5 text-red-400 text-sm">
                     <XCircle className="size-4" />
-                    {result.failed} con error
+                    {t('contacts.failedCount', { count: result.failed })}
                   </div>
                 )}
               </div>
@@ -289,7 +291,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
             onClick={() => handleOpenChange(false)}
             className="border-border text-foreground hover:bg-accent"
           >
-            {result ? 'Cerrar' : 'Cancelar'}
+            {result ? t('contacts.close') : t('contacts.cancel')}
           </Button>
           {!result && (
             <Button
@@ -299,7 +301,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {importing && <Loader2 className="size-4 animate-spin" />}
-              Importar {parsedRows.length > 0 ? `${parsedRows.length} contacto${parsedRows.length !== 1 ? 's' : ''}` : ''}
+              {parsedRows.length > 0
+                ? t('contacts.importCount', { count: parsedRows.length })
+                : t('contacts.importEmpty')}
             </Button>
           )}
         </DialogFooter>

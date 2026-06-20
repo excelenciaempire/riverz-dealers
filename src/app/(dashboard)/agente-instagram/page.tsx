@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 import type { InstagramPlan, CampaignStatus } from '@/lib/instagram-agent/types';
 
@@ -45,20 +46,21 @@ interface CampaignRow {
 }
 
 const STATUS_LABEL: Record<CampaignStatus, string> = {
-  draft: 'Borrador',
-  active: 'Activa',
-  paused: 'Pausada',
-  done: 'Finalizada',
+  draft: 'igAgent.statusDraft',
+  active: 'igAgent.statusActive',
+  paused: 'igAgent.statusPaused',
+  done: 'igAgent.statusDone',
 };
 
 const EXAMPLES = [
-  'Escribe por DM a quienes comentaron mi último reel de la oferta de junio y ofrece 10% si dudan por precio.',
-  'Responde a quienes contestaron mis historias del lanzamiento y captura su email para la lista.',
-  'Reactiva por DM a seguidores que interactuaban antes y dejaron de comprar, con un código de bienvenida de vuelta.',
+  'igAgent.example1',
+  'igAgent.example2',
+  'igAgent.example3',
 ];
 
 export default function InstagramAgentPage() {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [goal, setGoal] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<InstagramPlan | null>(null);
@@ -109,13 +111,13 @@ export default function InstagramAgentPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo guardar la campaña');
+        toast.error(json.error ?? t('igAgent.errorSaveCampaign'));
         return;
       }
-      toast.success('Campaña guardada como borrador');
+      toast.success(t('igAgent.toastCampaignSaved'));
       loadCampaigns();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error de red');
+      toast.error(err instanceof Error ? err.message : t('igAgent.errorNetwork'));
     } finally {
       setSaving(false);
     }
@@ -128,19 +130,19 @@ export default function InstagramAgentPage() {
         { method: 'DELETE' },
       );
       if (!res.ok) {
-        toast.error('No se pudo eliminar');
+        toast.error(t('igAgent.errorDelete'));
         return;
       }
       setCampaigns((prev) => prev.filter((c) => c.id !== id));
     } catch {
-      toast.error('Error de red');
+      toast.error(t('igAgent.errorNetwork'));
     }
   }
 
   async function generate() {
     const trimmed = goal.trim();
     if (!trimmed) {
-      toast.error('Describe el objetivo de tu campaña.');
+      toast.error(t('igAgent.errorDescribeGoal'));
       return;
     }
     setLoading(true);
@@ -152,13 +154,13 @@ export default function InstagramAgentPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo generar el plan');
+        toast.error(json.error ?? t('igAgent.errorGeneratePlan'));
         return;
       }
       setPlan(json.plan as InstagramPlan);
       setContext(json.context as PlanContext);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error de red');
+      toast.error(err instanceof Error ? err.message : t('igAgent.errorNetwork'));
     } finally {
       setLoading(false);
     }
@@ -177,10 +179,10 @@ export default function InstagramAgentPage() {
       {/* Cabecera */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="app-eyebrow">IA · Instagram</p>
+          <p className="app-eyebrow">{t('igAgent.eyebrow')}</p>
           <h1 className="app-page-title mt-1.5 flex items-center gap-2">
             <InstagramIcon className="h-5 w-5" />
-            Agente de Instagram
+            {t('igAgent.title')}
           </h1>
         </div>
       </div>
@@ -192,7 +194,7 @@ export default function InstagramAgentPage() {
           className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground"
         >
           <Target className="h-4 w-4 text-accent-ink" />
-          ¿Cuál es tu objetivo?
+          {t('igAgent.goalLabel')}
         </label>
         <Textarea
           id="goal"
@@ -200,7 +202,7 @@ export default function InstagramAgentPage() {
           onChange={(e) => setGoal(e.target.value)}
           rows={3}
           maxLength={2000}
-          placeholder="Ej: Vende mi inventario de la oferta de junio. Enfócate en las pulseras y ofrece hasta 10% de descuento si dudan por precio."
+          placeholder={t('igAgent.goalPlaceholder')}
           className="resize-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -212,36 +214,39 @@ export default function InstagramAgentPage() {
 
         {/* Ejemplos rápidos */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {EXAMPLES.map((ex, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setGoal(ex)}
-              className="rounded-full border border-border bg-background px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
-            >
-              {ex.length > 56 ? ex.slice(0, 56) + '…' : ex}
-            </button>
-          ))}
+          {EXAMPLES.map((exKey, i) => {
+            const ex = t(exKey);
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setGoal(ex)}
+                className="rounded-full border border-border bg-background px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
+              >
+                {ex.length > 56 ? ex.slice(0, 56) + '…' : ex}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-[11px] text-muted-foreground">
             {context
-              ? `${context.total_contacts} personas alcanzables${
-                  context.has_catalog ? ' · catálogo conectado' : ''
+              ? `${context.total_contacts} ${t('igAgent.reachablePeople')}${
+                  context.has_catalog ? ` · ${t('igAgent.catalogConnected')}` : ''
                 }`
-              : 'Aterrizado en tu audiencia y catálogo reales.'}
+              : t('igAgent.groundedInAudience')}
           </p>
           <Button onClick={generate} disabled={loading}>
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Diseñando…
+                {t('igAgent.designing')}
               </>
             ) : (
               <>
                 <Wand2 className="h-4 w-4" />
-                {plan ? 'Regenerar plan' : 'Generar plan'}
+                {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
               </>
             )}
           </Button>
@@ -263,7 +268,7 @@ export default function InstagramAgentPage() {
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="app-eyebrow">Campaña propuesta</p>
+                <p className="app-eyebrow">{t('igAgent.proposedCampaign')}</p>
                 <h2 className="mt-1 text-lg font-semibold text-foreground">
                   {plan.campaign_name}
                 </h2>
@@ -275,7 +280,7 @@ export default function InstagramAgentPage() {
                   <Radio className="h-3.5 w-3.5 text-accent-ink" />
                   <span>
                     <span className="font-medium text-foreground">
-                      Engagement:
+                      {t('igAgent.engagementLabel')}
                     </span>{' '}
                     {plan.audience.source}
                   </span>
@@ -283,7 +288,9 @@ export default function InstagramAgentPage() {
               </div>
               <Badge variant="secondary" className="shrink-0">
                 <Users className="mr-1 h-3 w-3" />
-                {plan.audience.estimated_reach.toLocaleString()} contactos
+                {t('igAgent.contactsCount', {
+                  n: plan.audience.estimated_reach.toLocaleString(),
+                })}
               </Badge>
             </div>
 
@@ -291,29 +298,28 @@ export default function InstagramAgentPage() {
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <FunnelStat
                 icon={<MessageCircle className="h-3.5 w-3.5" />}
-                label="Contactados"
+                label={t('igAgent.funnelContacted')}
                 value={plan.funnel.contacted.toLocaleString()}
               />
               <FunnelStat
                 icon={<CornerDownRight className="h-3.5 w-3.5" />}
-                label="Respuestas"
+                label={t('igAgent.funnelReplies')}
                 value={plan.funnel.replies.toLocaleString()}
               />
               <FunnelStat
                 icon={<Tag className="h-3.5 w-3.5" />}
-                label="Conversiones"
+                label={t('igAgent.funnelConversions')}
                 value={plan.funnel.conversions.toLocaleString()}
               />
               <FunnelStat
                 icon={<TrendingUp className="h-3.5 w-3.5" />}
-                label="Ingresos est."
+                label={t('igAgent.funnelEstRevenue')}
                 value={plan.funnel.est_revenue}
                 highlight
               />
             </div>
             <p className="mt-2 text-[10px] text-muted-foreground">
-              Estimaciones generadas por IA para orientar la campaña, no cifras
-              garantizadas.
+              {t('igAgent.estimatesDisclaimer')}
             </p>
           </div>
 
@@ -322,7 +328,7 @@ export default function InstagramAgentPage() {
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
               <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <InstagramIcon className="h-4 w-4" />
-                DM de Instagram
+                {t('igAgent.instagramDm')}
               </p>
               <div className="rounded-xl bg-[#0b0b0f] p-3">
                 <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] leading-relaxed text-white whitespace-pre-wrap">
@@ -330,24 +336,21 @@ export default function InstagramAgentPage() {
                 </div>
                 {plan.offer && (
                   <div className="ml-auto mt-1.5 max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] text-white">
-                    🎁 Código{' '}
+                    🎁 {t('igAgent.offerCodeLabel')}{' '}
                     <span className="font-semibold">{plan.offer.code}</span> —{' '}
                     {plan.offer.discount}
                   </div>
                 )}
               </div>
               <p className="mt-2 text-[10px] text-muted-foreground">
-                Este es el DM base. Al enviarse, el agente lo reescribe 1:1
-                para cada persona en tu voz de marca, respondiendo a su
-                interacción y con su propio código de descuento. Vista previa
-                con “{plan.message.preview_name}”.
+                {t('igAgent.dmBaseNote', { name: plan.message.preview_name })}
               </p>
 
               {/* Follow-up */}
               <div className="mt-4">
                 <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
                   <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  Seguimiento si no responden
+                  {t('igAgent.followUpIfNoReply')}
                 </p>
                 <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
                   {plan.follow_up}
@@ -359,13 +362,13 @@ export default function InstagramAgentPage() {
                 <div className="mt-4">
                   <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
                     <MessageCircle className="h-3.5 w-3.5 text-[#E1306C]" />
-                    Respuesta a comentarios de alta intención
+                    {t('igAgent.highIntentCommentReply')}
                   </p>
                   <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
                     {plan.comment_reply}
                   </p>
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    Mueve la conversación del comentario público al DM privado.
+                    {t('igAgent.commentToDmNote')}
                   </p>
                 </div>
               )}
@@ -377,7 +380,7 @@ export default function InstagramAgentPage() {
                 <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <Tag className="h-4 w-4 text-accent-ink" />
-                    Oferta
+                    {t('igAgent.offer')}
                   </p>
                   <div className="flex items-baseline gap-2">
                     <span className="rounded-md border border-dashed border-accent-ink/40 bg-accent/40 px-2 py-1 font-mono text-sm font-semibold text-accent-ink">
@@ -397,7 +400,7 @@ export default function InstagramAgentPage() {
                 <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <ShoppingBag className="h-4 w-4 text-accent-ink" />
-                    Productos a destacar
+                    {t('igAgent.productsToFeature')}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {plan.recommended_products.map((p, i) => (
@@ -412,7 +415,7 @@ export default function InstagramAgentPage() {
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <Target className="h-4 w-4 text-accent-ink" />
-                  Próximos pasos
+                  {t('igAgent.nextSteps')}
                 </p>
                 <ol className="space-y-1.5">
                   {plan.next_steps.map((s, i) => (
@@ -434,12 +437,12 @@ export default function InstagramAgentPage() {
           {/* Acciones */}
           <div className="flex flex-wrap items-center justify-end gap-2">
             <label className="mr-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span>Control (holdout)</span>
+              <span>{t('igAgent.controlHoldout')}</span>
               <select
                 value={holdoutPct}
                 onChange={(e) => setHoldoutPct(Number(e.target.value))}
                 className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
-                title="% de la audiencia que NO recibe DM, para medir incrementalidad real"
+                title={t('igAgent.holdoutTitle')}
               >
                 {[0, 5, 10, 20].map((p) => (
                   <option key={p} value={p}>
@@ -450,7 +453,7 @@ export default function InstagramAgentPage() {
             </label>
             <Button variant="outline" onClick={generate} disabled={loading}>
               <RefreshCw className="h-4 w-4" />
-              Regenerar
+              {t('igAgent.regenerate')}
             </Button>
             <Button
               variant="secondary"
@@ -462,10 +465,10 @@ export default function InstagramAgentPage() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              Guardar campaña
+              {t('igAgent.saveCampaign')}
             </Button>
             <Button render={<Link href="/asistente" />}>
-              Activar agente en Instagram
+              {t('igAgent.activateAgentOnInstagram')}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -477,7 +480,7 @@ export default function InstagramAgentPage() {
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
             <Radio className="h-4 w-4 text-accent-ink" />
-            Mis campañas
+            {t('igAgent.myCampaigns')}
           </p>
           <ul className="divide-y divide-border">
             {campaigns.map((c) => (
@@ -493,7 +496,9 @@ export default function InstagramAgentPage() {
                     {c.name}
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    {c.offer_code ? `Código ${c.offer_code} · ` : ''}
+                    {c.offer_code
+                      ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
+                      : ''}
                     {new Date(c.updated_at).toLocaleDateString()}
                   </p>
                 </Link>
@@ -507,12 +512,12 @@ export default function InstagramAgentPage() {
                   }
                   className="shrink-0"
                 >
-                  {STATUS_LABEL[c.status]}
+                  {t(STATUS_LABEL[c.status])}
                 </Badge>
                 <button
                   type="button"
                   onClick={() => deleteCampaign(c.id)}
-                  aria-label="Eliminar campaña"
+                  aria-label={t('igAgent.deleteCampaign')}
                   className="shrink-0 inline-flex items-center justify-center min-h-9 min-w-9 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -526,23 +531,25 @@ export default function InstagramAgentPage() {
       {/* Estado vacío / cómo funciona */}
       {!plan && !loading && (
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-5">
-          <p className="text-sm font-medium text-foreground">¿Cómo funciona?</p>
+          <p className="text-sm font-medium text-foreground">
+            {t('igAgent.howItWorks')}
+          </p>
           <ol className="mt-3 grid gap-3 sm:grid-cols-3">
             {[
               {
                 icon: <Target className="h-4 w-4" />,
-                t: 'Describe un objetivo',
-                d: 'En lenguaje natural, como se lo dirías a un marketer.',
+                t: 'igAgent.howStep1Title',
+                d: 'igAgent.howStep1Desc',
               },
               {
                 icon: <Sparkles className="h-4 w-4" />,
-                t: 'El agente arma la campaña',
-                d: 'Detecta el engagement, redacta el DM 1:1 y propone la oferta.',
+                t: 'igAgent.howStep2Title',
+                d: 'igAgent.howStep2Desc',
               },
               {
                 icon: <TrendingUp className="h-4 w-4" />,
-                t: 'Revisa y lanza',
-                d: 'Ajusta lo que quieras y conviértelo en una campaña real.',
+                t: 'igAgent.howStep3Title',
+                d: 'igAgent.howStep3Desc',
               },
             ].map((step, i) => (
               <li
@@ -555,9 +562,11 @@ export default function InstagramAgentPage() {
                   {step.icon}
                 </span>
                 <p className="mt-2 text-sm font-medium text-foreground">
-                  {step.t}
+                  {t(step.t)}
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{step.d}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t(step.d)}
+                </p>
               </li>
             ))}
           </ol>
@@ -580,21 +589,24 @@ function AgentThinking({
   audience?: number;
   productCount?: number;
 }) {
+  const t = useT();
   const steps = useMemo(
     () => [
-      'Entendiendo tu objetivo…',
+      t('igAgent.thinkingUnderstandGoal'),
       productCount
-        ? `Revisando tu catálogo (${productCount} productos)…`
-        : 'Revisando tu catálogo…',
+        ? t('igAgent.thinkingReviewCatalogCount', { n: productCount })
+        : t('igAgent.thinkingReviewCatalog'),
       audience
-        ? `Escaneando tu audiencia de Instagram (${audience.toLocaleString()} personas)…`
-        : 'Escaneando tu audiencia de Instagram…',
-      'Detectando señales de intención…',
-      'Filtrando comentarios y respuestas a historias…',
-      'Redactando el DM 1:1 en tu voz de marca…',
-      'Calculando el embudo y la oferta…',
+        ? t('igAgent.thinkingScanAudienceCount', {
+            n: audience.toLocaleString(),
+          })
+        : t('igAgent.thinkingScanAudience'),
+      t('igAgent.thinkingDetectIntent'),
+      t('igAgent.thinkingFilterComments'),
+      t('igAgent.thinkingDraftDm'),
+      t('igAgent.thinkingComputeFunnel'),
     ],
-    [audience, productCount],
+    [audience, productCount, t],
   );
   const [active, setActive] = useState(0);
   useEffect(() => {
@@ -610,7 +622,7 @@ function AgentThinking({
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <p className="app-eyebrow flex items-center gap-1.5">
         <Radio className="h-3.5 w-3.5 text-accent-ink" />
-        El agente está trabajando
+        {t('igAgent.agentWorking')}
       </p>
       <ul className="mt-3 space-y-2">
         {steps.map((s, i) => (

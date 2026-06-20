@@ -6,6 +6,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/hooks/use-locale';
 import {
   Users,
   Tags,
@@ -45,6 +46,7 @@ interface Step2Props {
   onEstimatedCountChange?: (n: number | null) => void;
 }
 
+// Labels/descriptions are i18n keys resolved with t() at render time.
 const audienceOptions: {
   type: AudienceType;
   label: string;
@@ -53,34 +55,34 @@ const audienceOptions: {
 }[] = [
   {
     type: 'all',
-    label: 'Todos los contactos',
-    description: 'Envía a todos los contactos de tu base de datos',
+    label: 'broadcasts.audienceAllLabel',
+    description: 'broadcasts.audienceAllDesc',
     icon: Users,
   },
   {
     type: 'tags',
-    label: 'Filtrar por etiquetas',
-    description: 'Apunta a contactos con etiquetas específicas',
+    label: 'broadcasts.audienceTagsLabel',
+    description: 'broadcasts.audienceTagsDesc',
     icon: Tags,
   },
   {
     type: 'custom_field',
-    label: 'Campo personalizado',
-    description: 'Filtra por el valor de un campo personalizado',
+    label: 'broadcasts.audienceCustomFieldLabel',
+    description: 'broadcasts.audienceCustomFieldDesc',
     icon: Filter,
   },
   {
     type: 'csv',
-    label: 'Subir CSV',
-    description: 'Sube una lista de números de teléfono',
+    label: 'broadcasts.audienceCsvLabel',
+    description: 'broadcasts.audienceCsvDesc',
     icon: Upload,
   },
 ];
 
 const OPERATOR_OPTIONS: { value: CustomFieldOperator; label: string }[] = [
-  { value: 'is', label: 'es' },
-  { value: 'is_not', label: 'no es' },
-  { value: 'contains', label: 'contiene' },
+  { value: 'is', label: 'broadcasts.operatorIs' },
+  { value: 'is_not', label: 'broadcasts.operatorIsNot' },
+  { value: 'contains', label: 'broadcasts.operatorContains' },
 ];
 
 export function Step2SelectAudience({
@@ -90,6 +92,7 @@ export function Step2SelectAudience({
   onBack,
   onEstimatedCountChange,
 }: Step2Props) {
+  const t = useT();
   const { workspace } = useWorkspace();
   const workspaceId = workspace?.id ?? null;
   const [tags, setTags] = useState<Tag[]>([]);
@@ -287,9 +290,9 @@ export function Step2SelectAudience({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Selecciona la audiencia</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step2Title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Elige quién recibirá esta difusión.
+          {t('broadcasts.step2Subtitle')}
         </p>
       </div>
 
@@ -331,9 +334,9 @@ export function Step2SelectAudience({
                 <Icon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">{option.label}</p>
+                <p className="text-sm font-medium text-foreground">{t(option.label)}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {option.description}
+                  {t(option.description)}
                 </p>
               </div>
             </button>
@@ -343,12 +346,12 @@ export function Step2SelectAudience({
 
       {audience.type === 'tags' && (
         <div className="rounded-xl border border-border bg-card/50 p-4">
-          <p className="mb-3 text-sm font-medium text-foreground">Selecciona etiquetas</p>
+          <p className="mb-3 text-sm font-medium text-foreground">{t('broadcasts.selectTags')}</p>
           {loadingTags ? (
             <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
           ) : tags.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No se encontraron etiquetas. Créalas en Ajustes.
+              {t('broadcasts.noTagsFound')}
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -379,12 +382,12 @@ export function Step2SelectAudience({
 
       {audience.type === 'custom_field' && (
         <div className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
-          <p className="text-sm font-medium text-foreground">Filtro por campo personalizado</p>
+          <p className="text-sm font-medium text-foreground">{t('broadcasts.customFieldFilter')}</p>
           {loadingFields ? (
             <Loader2 className="h-5 w-5 animate-spin text-accent-ink" />
           ) : customFields.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No hay campos personalizados definidos. Crea uno en Ajustes → Campos personalizados.
+              {t('broadcasts.noCustomFields')}
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px_minmax(0,1fr)]">
@@ -393,7 +396,7 @@ export function Step2SelectAudience({
                 onChange={(e) => updateCustomField({ fieldId: e.target.value })}
                 className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
-                <option value="">Selecciona el campo…</option>
+                <option value="">{t('broadcasts.selectFieldPlaceholder')}</option>
                 {customFields.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.field_name}
@@ -411,7 +414,7 @@ export function Step2SelectAudience({
               >
                 {OPERATOR_OPTIONS.map((op) => (
                   <option key={op.value} value={op.value}>
-                    {op.label}
+                    {t(op.label)}
                   </option>
                 ))}
               </select>
@@ -419,7 +422,7 @@ export function Step2SelectAudience({
                 type="text"
                 value={audience.customField?.value ?? ''}
                 onChange={(e) => updateCustomField({ value: e.target.value })}
-                placeholder="Valor"
+                placeholder={t('broadcasts.valuePlaceholder')}
                 className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -432,12 +435,12 @@ export function Step2SelectAudience({
         <div className="mb-3 flex items-center gap-2">
           <X className="h-4 w-4 text-red-600 dark:text-red-400" />
           <p className="text-sm font-medium text-foreground">
-            Excluir contactos con estas etiquetas
+            {t('broadcasts.excludeTags')}
           </p>
-          <span className="text-xs text-muted-foreground">(opcional)</span>
+          <span className="text-xs text-muted-foreground">{t('broadcasts.optional')}</span>
         </div>
         {tags.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No hay etiquetas disponibles.</p>
+          <p className="text-xs text-muted-foreground">{t('broadcasts.noTagsAvailable')}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => {
@@ -466,11 +469,11 @@ export function Step2SelectAudience({
 
       {/* Audience Summary */}
       <div className="rounded-xl border border-border bg-card/50 p-4">
-        <p className="mb-2 text-sm font-medium text-foreground">Resumen de audiencia</p>
+        <p className="mb-2 text-sm font-medium text-foreground">{t('broadcasts.audienceSummary')}</p>
         {loadingCount ? (
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-accent-ink" />
-            <span className="text-xs text-muted-foreground">Calculando…</span>
+            <span className="text-xs text-muted-foreground">{t('broadcasts.calculating')}</span>
           </div>
         ) : estimatedCount !== null ? (
           <div className="flex items-center gap-2">
@@ -478,11 +481,11 @@ export function Step2SelectAudience({
             <span className="text-sm text-foreground">
               {estimatedCount.toLocaleString()}
             </span>
-            <span className="text-xs text-muted-foreground">destinatarios estimados</span>
+            <span className="text-xs text-muted-foreground">{t('broadcasts.estimatedRecipients')}</span>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Selecciona un tipo de audiencia para ver la estimación.
+            {t('broadcasts.selectAudienceTypeHint')}
           </p>
         )}
       </div>
@@ -501,14 +504,14 @@ export function Step2SelectAudience({
           className="border-border text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Atrás
+          {t('broadcasts.back')}
         </Button>
         <Button
           onClick={onNext}
           disabled={!isValid}
           className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Siguiente
+          {t('broadcasts.next')}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
@@ -523,6 +526,7 @@ export function Step2SelectAudience({
  * que la audiencia es la que esperaba antes de mandar.
  */
 function AudiencePreview({ audience }: { audience: AudienceConfig }) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [contacts, setContacts] = useState<Array<{
     id: string;
@@ -551,7 +555,7 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
   if (loading) {
     return (
       <div className="rounded-lg border border-border bg-muted/20 p-4">
-        <p className="text-xs text-muted-foreground">Cargando muestra…</p>
+        <p className="text-xs text-muted-foreground">{t('broadcasts.loadingSample')}</p>
       </div>
     );
   }
@@ -561,10 +565,10 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
     <div className="rounded-lg border border-border bg-muted/20 p-4">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-medium text-foreground">
-          Muestra de quienes van a recibir
+          {t('broadcasts.sampleRecipients')}
         </p>
         <span className="text-[10px] text-muted-foreground">
-          {contacts.length} primeros
+          {t('broadcasts.firstN', { n: contacts.length })}
         </span>
       </div>
       <ul className="divide-y divide-border rounded-md border border-border bg-card">
@@ -573,7 +577,7 @@ function AudiencePreview({ audience }: { audience: AudienceConfig }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-xs font-medium text-foreground">
-                  {c.name || 'Sin nombre'}
+                  {c.name || t('broadcasts.noName')}
                 </span>
                 {c.is_shopify_customer && (
                   <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">

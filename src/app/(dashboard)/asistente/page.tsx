@@ -11,6 +11,7 @@ import {
   Send,
 } from 'lucide-react';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -38,11 +39,12 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   messenger: 'Messenger',
   gmail: 'Gmail',
   outlook: 'Outlook',
-  fb_comment: 'Comentarios FB',
-  ig_comment: 'Comentarios IG',
+  fb_comment: 'assistant.channelFbComments',
+  ig_comment: 'assistant.channelIgComments',
 };
 
 export default function AiAgentsPage() {
+  const t = useT();
   const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
   const [agents, setAgents] = useState<AgentSummary[]>([]);
@@ -58,13 +60,13 @@ export default function AiAgentsPage() {
       });
       const json = await res.json();
       if (res.ok) setAgents((json.agents ?? []) as AgentSummary[]);
-      else toast.error(json.error ?? 'No se cargaron los agentes');
+      else toast.error(json.error ?? t('assistant.loadError'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error');
+      toast.error(err instanceof Error ? err.message : t('assistant.genericError'));
     } finally {
       setLoading(false);
     }
-  }, [workspace]);
+  }, [workspace, t]);
 
   useEffect(() => {
     void load();
@@ -84,7 +86,7 @@ export default function AiAgentsPage() {
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      toast.error(json.error ?? 'No se pudo actualizar');
+      toast.error(json.error ?? t('assistant.updateError'));
       setAgents((prev) =>
         prev.map((a) => (a.id === agent.id ? { ...a, is_active: !next } : a)),
       );
@@ -92,12 +94,12 @@ export default function AiAgentsPage() {
   }
 
   async function handleDelete(agent: AgentSummary) {
-    if (!confirm(`¿Eliminar "${agent.name}"?`)) return;
+    if (!confirm(t('assistant.deleteConfirm', { name: agent.name }))) return;
     const prev = agents;
     setAgents((p) => p.filter((a) => a.id !== agent.id));
     const res = await fetchWithCsrf(`/api/ai/agents/${agent.id}`, { method: 'DELETE' });
     if (!res.ok) {
-      toast.error('No se pudo eliminar');
+      toast.error(t('assistant.deleteError'));
       setAgents(prev);
     }
   }
@@ -115,7 +117,7 @@ export default function AiAgentsPage() {
       <SupportModeSwitcher current="ai" />
 
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Asistentes con IA</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('assistant.pageTitle')}</h1>
         {/* El botón solo cuando ya hay asistentes: en vacío manda el CTA del
             empty state, sin duplicar la acción. */}
         {agents.length > 0 && (
@@ -124,7 +126,7 @@ export default function AiAgentsPage() {
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="size-4" />
-            Nuevo asistente
+            {t('assistant.newAgent')}
           </Button>
         )}
       </header>
@@ -180,6 +182,7 @@ function AgentCard({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const channels = useMemo(
     () => (agent.ai_agent_channels ?? []).map((c) => c.channel as Channel),
     [agent.ai_agent_channels],
@@ -217,10 +220,17 @@ function AgentCard({
           <p className="truncate text-sm font-semibold text-foreground">{agent.name}</p>
           <p className="truncate text-xs text-muted-foreground">
             {agent.scope === 'workspace'
-              ? 'Todos los canales'
+              ? t('assistant.allChannels')
               : channels.length === 0
-                ? 'Sin canales asignados'
-                : channels.map((c) => CHANNEL_LABEL[c]).join(' · ')}
+                ? t('assistant.noChannelsAssigned')
+                : channels
+                    .map((c) => {
+                      const label = CHANNEL_LABEL[c];
+                      // Los canales con marca propia (WhatsApp, Instagram…) se
+                      // muestran tal cual; los de comentarios son claves i18n.
+                      return label.startsWith('assistant.') ? t(label) : label;
+                    })
+                    .join(' · ')}
           </p>
         </div>
         <span
@@ -237,7 +247,7 @@ function AgentCard({
               active ? 'animate-pulse bg-emerald-400' : 'bg-muted-foreground/60',
             )}
           />
-          {active ? 'En línea' : 'Pausado'}
+          {active ? t('assistant.statusOnline') : t('assistant.statusPaused')}
         </span>
       </div>
 
@@ -262,23 +272,23 @@ function AgentCard({
                   <Switch
                     checked={active}
                     onCheckedChange={onToggle}
-                    aria-label={active ? 'Desactivar' : 'Activar'}
+                    aria-label={active ? t('assistant.deactivate') : t('assistant.activate')}
                   />
                 }
               />
-              <TooltipContent>{active ? 'Activado' : 'Desactivado'}</TooltipContent>
+              <TooltipContent>{active ? t('assistant.activated') : t('assistant.deactivated')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <button
             onClick={onEdit}
-            title="Editar"
+            title={t('assistant.edit')}
             className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Pencil className="size-4" />
           </button>
           <button
             onClick={onDelete}
-            title="Eliminar"
+            title={t('assistant.delete')}
             className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
           >
             <Trash2 className="size-4" />
@@ -290,24 +300,24 @@ function AgentCard({
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const t = useT();
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/40 p-10 text-center">
       <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
         <Sparkles className="size-7" />
       </div>
       <p className="mt-4 text-base font-semibold text-foreground">
-        Tu asistente 24/7
+        {t('assistant.emptyTitle')}
       </p>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Configura un agente que responde en WhatsApp, Instagram, Messenger,
-        Gmail u Outlook con el contexto completo de cada conversación.
+        {t('assistant.emptyDescription')}
       </p>
       <Button
         onClick={onCreate}
         className="mt-5 bg-primary text-primary-foreground hover:bg-primary/90"
       >
         <Plus className="size-4" />
-        Crear asistente
+        {t('assistant.createAgent')}
       </Button>
     </div>
   );

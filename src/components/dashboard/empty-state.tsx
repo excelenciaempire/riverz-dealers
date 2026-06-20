@@ -1,6 +1,9 @@
+'use client'
+
 import { BarChart3 } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-locale'
 
 /**
  * Shared empty-state panel for charts that can't render meaningfully
@@ -9,7 +12,7 @@ import { cn } from '@/lib/utils'
  * different widget.
  */
 export function EmptyState({
-  title = 'Sin datos suficientes',
+  title,
   hint,
   icon: Icon = BarChart3,
   className,
@@ -19,6 +22,8 @@ export function EmptyState({
   icon?: ComponentType<{ className?: string }>
   className?: string
 }) {
+  const t = useT()
+  const resolvedTitle = title ?? t('dashboard.notEnoughData')
   return (
     <div
       className={cn(
@@ -29,7 +34,7 @@ export function EmptyState({
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-sm font-medium text-foreground">{resolvedTitle}</p>
       {hint && <p className="max-w-xs text-xs text-muted-foreground">{hint}</p>}
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/card";
 
 export default function LoginPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +35,9 @@ export default function LoginPage() {
     if (!res.ok) {
       if (res.status === 429) {
         const retry = res.headers.get("Retry-After") ?? "60";
-        setError(`Demasiados intentos. Vuelve a probar en ${retry} segundos.`);
+        setError(t("auth.tooManyAttempts", { retry }));
       } else {
-        setError(payload.error ?? "No se pudo iniciar sesión");
+        setError(payload.error ?? t("auth.loginError"));
       }
       setLoading(false);
       return;
@@ -53,7 +55,7 @@ export default function LoginPage() {
           <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
             riverz
           </span>
-          <CardTitle className="text-xl text-foreground">Iniciar sesión</CardTitle>
+          <CardTitle className="text-xl text-foreground">{t("auth.loginTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -65,12 +67,12 @@ export default function LoginPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-foreground">
-                Correo electrónico
+                {t("auth.emailLabel")}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@correo.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -81,13 +83,13 @@ export default function LoginPage() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-foreground">
-                  Contraseña
+                  {t("auth.passwordLabel")}
                 </Label>
                 <Link
                   href="/recuperar-clave"
                   className="text-sm text-accent-ink hover:text-accent-ink/80"
                 >
-                  ¿Olvidaste tu contraseña?
+                  {t("auth.forgotPassword")}
                 </Link>
               </div>
               <Input
@@ -106,17 +108,17 @@ export default function LoginPage() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Iniciando sesión..." : "Iniciar sesión"}
+              {loading ? t("auth.signingIn") : t("auth.signIn")}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            ¿No tienes cuenta?{" "}
+            {t("auth.noAccount")}{" "}
             <Link
               href="/registro"
               className="text-accent-ink hover:text-accent-ink/80"
             >
-              Crear cuenta
+              {t("auth.createAccount")}
             </Link>
           </p>
         </CardContent>

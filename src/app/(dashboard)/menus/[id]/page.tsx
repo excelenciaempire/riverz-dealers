@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FlowBuilder } from "@/components/flows/flow-builder";
+import { useT } from "@/hooks/use-locale";
 import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
 
 /**
@@ -22,6 +23,7 @@ import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
  */
 export default function FlowEditorPage() {
   const router = useRouter();
+  const t = useT();
   const params = useParams<{ id: string }>();
 
   const [flow, setFlow] = useState<FlowRow | null>(null);
@@ -51,7 +53,7 @@ export default function FlowEditorPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudo cargar el flujo.");
+          toast.error(t("flows.flowLoadFailed"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -60,6 +62,7 @@ export default function FlowEditorPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   if (loading) {
@@ -72,13 +75,13 @@ export default function FlowEditorPage() {
   if (notFound || !flow) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Flujo no encontrado.</p>
+        <p className="text-sm text-muted-foreground">{t("flows.flowNotFound")}</p>
         <button
           type="button"
           onClick={() => router.push("/menus")}
           className="text-sm text-accent-ink hover:opacity-80"
         >
-          ← Volver a flujos
+          {t("flows.backToFlowsArrow")}
         </button>
       </div>
     );

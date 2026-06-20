@@ -20,6 +20,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/automations/trigger-meta"
+import { useT } from "@/hooks/use-locale"
 
 export default function AutomationLogsPage({
   params,
@@ -28,6 +29,7 @@ export default function AutomationLogsPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  const t = useT()
 
   const [automation, setAutomation] = useState<Automation | null>(null)
   const [logs, setLogs] = useState<AutomationLog[] | null>(null)
@@ -56,18 +58,18 @@ export default function AutomationLogsPage({
         setAutomation(autRes.data as Automation | null)
         setLogs((logRes.data ?? []) as AutomationLog[])
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar los registros")
+        setError(err instanceof Error ? err.message : t("automations.logsLoadFailed"))
       }
     }
     load()
-  }, [id])
+  }, [id, t])
 
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3">
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         <Button variant="outline" onClick={() => router.push("/automatizaciones")}>
-          Atrás
+          {t("automations.back")}
         </Button>
       </div>
     )
@@ -88,7 +90,7 @@ export default function AutomationLogsPage({
           type="button"
           onClick={() => router.push("/automatizaciones")}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Atrás"
+          aria-label={t("automations.back")}
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -97,7 +99,7 @@ export default function AutomationLogsPage({
 
       {logs.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <p className="text-sm text-foreground">Sin ejecuciones</p>
+          <p className="text-sm text-foreground">{t("automations.noRuns")}</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -121,11 +123,13 @@ export default function AutomationLogsPage({
                   <StatusBadge status={log.status} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">
-                      {log.contact?.name ?? log.contact?.phone ?? "Contacto desconocido"}
+                      {log.contact?.name ?? log.contact?.phone ?? t("automations.unknownContact")}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
-                      {log.trigger_event} · {log.steps_executed?.length ?? 0} paso
-                      {log.steps_executed?.length === 1 ? "" : "s"}
+                      {log.trigger_event} ·{" "}
+                      {log.steps_executed?.length === 1
+                        ? t("automations.stepCountOne", { n: 1 })
+                        : t("automations.stepCountOther", { n: log.steps_executed?.length ?? 0 })}
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -144,7 +148,7 @@ export default function AutomationLogsPage({
                         <StepRow key={i} result={r} />
                       ))}
                       {(log.steps_executed ?? []).length === 0 && (
-                        <li className="text-xs text-muted-foreground">Sin pasos.</li>
+                        <li className="text-xs text-muted-foreground">{t("automations.noSteps")}</li>
                       )}
                     </ul>
                   </div>
@@ -159,6 +163,7 @@ export default function AutomationLogsPage({
 }
 
 function StatusBadge({ status }: { status: AutomationLog["status"] }) {
+  const t = useT()
   const classes =
     status === "success"
       ? "border-primary/30 bg-primary/10 text-accent-ink"
@@ -166,7 +171,11 @@ function StatusBadge({ status }: { status: AutomationLog["status"] }) {
       ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
       : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300"
   const label =
-    status === "success" ? "éxito" : status === "partial" ? "parcial" : "error"
+    status === "success"
+      ? t("automations.statusSuccessShort")
+      : status === "partial"
+      ? t("automations.statusPartialShort")
+      : t("automations.statusErrorShort")
   return (
     <span
       className={cn(

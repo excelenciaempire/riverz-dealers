@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Sparkles, Waypoints, ArrowRight } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 
 /**
@@ -11,20 +12,21 @@ import { cn } from '@/lib/utils';
  * subtle link.
  */
 export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
+  const t = useT();
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <ModeCard
         href="/asistente"
         icon={<Sparkles className="size-4" />}
-        title="Asistente con IA"
-        hint="Responde solo, 24/7, con el contexto de cada chat."
+        title={t('metrics.modeAiTitle')}
+        hint={t('metrics.modeAiHint')}
         active={current === 'ai'}
       />
       <ModeCard
         href="/menus"
         icon={<Waypoints className="size-4" />}
-        title="Flujos"
-        hint="Botones que tú defines; el cliente toca y avanza, sin IA."
+        title={t('metrics.modeFlowsTitle')}
+        hint={t('metrics.modeFlowsHint')}
         active={current === 'flows'}
       />
     </div>

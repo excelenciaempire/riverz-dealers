@@ -47,6 +47,7 @@ import { ImportModal } from '@/components/contacts/import-modal';
 import { SegmentsPanel } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
@@ -59,6 +60,7 @@ export default function ContactsPage() {
   const supabase = createClient();
   const { workspace } = useWorkspace();
   const workspaceId = workspace?.id ?? null;
+  const t = useT();
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +161,7 @@ export default function ContactsPage() {
     const { data, count, error } = await query;
 
     if (error) {
-      toast.error('No se cargaron los contactos');
+      toast.error(t('contacts.loadContactsError'));
       setLoading(false);
       return;
     }
@@ -194,7 +196,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap, selectedTagIds, workspaceId]);
+  }, [supabase, page, search, tagsMap, selectedTagIds, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -246,9 +248,9 @@ export default function ContactsPage() {
       .eq('id', deleteTarget.id);
 
     if (error) {
-      toast.error('No se pudo eliminar el contacto');
+      toast.error(t('contacts.deleteContactError'));
     } else {
-      toast.success('Contacto eliminado');
+      toast.success(t('contacts.contactDeleted'));
       fetchContacts();
     }
 
@@ -266,10 +268,10 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Contactos</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t('contacts.title')}</h1>
           {totalCount > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
-              {totalCount} en total
+              {t('contacts.totalCount', { count: totalCount })}
             </p>
           )}
         </div>
@@ -281,14 +283,14 @@ export default function ContactsPage() {
               className="border-border text-foreground hover:bg-accent"
             >
               <Upload className="size-4" />
-              Importar
+              {t('contacts.import')}
             </Button>
             <Button
               onClick={openAddForm}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               <Plus className="size-4" />
-              Añadir contacto
+              {t('contacts.addContact')}
             </Button>
           </div>
         )}
@@ -304,7 +306,7 @@ export default function ContactsPage() {
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          Contactos
+          {t('contacts.tabContacts')}
         </button>
         <button
           onClick={() => setTab('tags')}
@@ -315,7 +317,7 @@ export default function ContactsPage() {
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          Etiquetas
+          {t('contacts.tabTags')}
         </button>
         <button
           onClick={() => setTab('segments')}
@@ -326,7 +328,7 @@ export default function ContactsPage() {
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          Segmentos
+          {t('contacts.tabSegments')}
         </button>
       </div>
 
@@ -347,7 +349,7 @@ export default function ContactsPage() {
             // set shrinks/grows, page N may no longer be valid.
             setPage(0);
           }}
-          placeholder="Nombre, teléfono o correo"
+          placeholder={t('contacts.searchPlaceholder')}
           className="pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground"
         />
       </div>
@@ -394,7 +396,7 @@ export default function ContactsPage() {
               }}
               className="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
-              Limpiar
+              {t('contacts.clear')}
             </button>
           )}
         </div>
@@ -405,12 +407,12 @@ export default function ContactsPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Nombre</TableHead>
-              <TableHead className="text-muted-foreground">Teléfono</TableHead>
-              <TableHead className="text-muted-foreground hidden md:table-cell">Correo</TableHead>
-              <TableHead className="text-muted-foreground hidden lg:table-cell">Empresa</TableHead>
-              <TableHead className="text-muted-foreground hidden md:table-cell">Etiquetas</TableHead>
-              <TableHead className="text-muted-foreground hidden lg:table-cell">Creado</TableHead>
+              <TableHead className="text-muted-foreground">{t('contacts.colName')}</TableHead>
+              <TableHead className="text-muted-foreground">{t('contacts.colPhone')}</TableHead>
+              <TableHead className="text-muted-foreground hidden md:table-cell">{t('contacts.colEmail')}</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('contacts.colCompany')}</TableHead>
+              <TableHead className="text-muted-foreground hidden md:table-cell">{t('contacts.colTags')}</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('contacts.colCreated')}</TableHead>
               <TableHead className="text-muted-foreground w-12" />
             </TableRow>
           </TableHeader>
@@ -430,21 +432,21 @@ export default function ContactsPage() {
                     <div className="flex flex-col items-center gap-2">
                       <Users className="size-8 text-muted-foreground" />
                       <p className="max-w-sm text-sm text-muted-foreground">
-                        Sin resultados.
+                        {t('contacts.noResults')}
                       </p>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-3">
                       <Users className="size-8 text-muted-foreground" />
                       <p className="text-sm font-semibold text-foreground">
-                        Aún no tienes contactos
+                        {t('contacts.noContactsTitle')}
                       </p>
                       <Button
                         onClick={openAddForm}
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
                       >
                         <Plus className="size-4" />
-                        Añadir tu primer contacto
+                        {t('contacts.addFirstContact')}
                       </Button>
                     </div>
                   )}
@@ -460,12 +462,12 @@ export default function ContactsPage() {
                   <TableCell className="text-foreground font-medium">
                     <div className="flex items-center gap-2">
                       <span>
-                        {contact.name || <span className="text-muted-foreground italic">Sin nombre</span>}
+                        {contact.name || <span className="text-muted-foreground italic">{t('contacts.noName')}</span>}
                       </span>
                       {contact.is_shopify_customer && (
                         <span
-                          aria-label="Cliente Shopify"
-                          title="Cliente Shopify"
+                          aria-label={t('contacts.shopifyCustomer')}
+                          title={t('contacts.shopifyCustomer')}
                           className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
                         >
                           Shopify
@@ -540,7 +542,7 @@ export default function ContactsPage() {
                           className="text-foreground focus:bg-accent focus:text-foreground"
                         >
                           <Pencil className="size-4" />
-                          Editar
+                          {t('contacts.edit')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="bg-border" />
                         <DropdownMenuItem
@@ -551,7 +553,7 @@ export default function ContactsPage() {
                           }}
                         >
                           <Trash2 className="size-4" />
-                          Eliminar
+                          {t('contacts.delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -567,8 +569,11 @@ export default function ContactsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Mostrando {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} de{' '}
-            {totalCount}
+            {t('contacts.paginationRange', {
+              from: page * PAGE_SIZE + 1,
+              to: Math.min((page + 1) * PAGE_SIZE, totalCount),
+              total: totalCount,
+            })}
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -581,7 +586,7 @@ export default function ContactsPage() {
               <ChevronLeft className="size-4" />
             </Button>
             <span className="text-xs text-muted-foreground px-2">
-              Página {page + 1} de {totalPages}
+              {t('contacts.pageOf', { page: page + 1, total: totalPages })}
             </span>
             <Button
               variant="outline"
@@ -633,11 +638,9 @@ export default function ContactsPage() {
         <DialogContent className="bg-card border-border text-foreground sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-foreground">
-              ¿Eliminar a{' '}
-              <span className="font-medium">
-                {deleteTarget?.name || deleteTarget?.phone}
-              </span>
-              ?
+              {t('contacts.deleteContactQuestion', {
+                name: deleteTarget?.name || deleteTarget?.phone || '',
+              })}
             </DialogTitle>
           </DialogHeader>
           <DialogFooter className="bg-card border-border">
@@ -646,7 +649,7 @@ export default function ContactsPage() {
               onClick={() => setDeleteConfirmOpen(false)}
               className="border-border text-foreground hover:bg-accent"
             >
-              Cancelar
+              {t('contacts.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -654,7 +657,7 @@ export default function ContactsPage() {
               disabled={deleting}
             >
               {deleting && <Loader2 className="size-4 animate-spin" />}
-              Eliminar
+              {t('contacts.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

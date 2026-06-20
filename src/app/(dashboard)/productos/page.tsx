@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 
 interface ProductRow {
   id: string;
@@ -49,6 +50,7 @@ interface ProductRow {
 }
 
 export default function ProductosPage() {
+  const t = useT();
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -72,7 +74,7 @@ export default function ProductosPage() {
       setShopifyConnected(!!json.shopify_connected);
     } catch (err) {
       console.error(err);
-      toast.error('No se pudieron cargar los productos.');
+      toast.error(t('products.loadError'));
     } finally {
       setLoading(false);
     }
@@ -100,17 +102,17 @@ export default function ProductosPage() {
       const res = await fetchWithCsrf('/api/products/sync', { method: 'POST' });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo sincronizar');
+        toast.error(json.error ?? t('products.syncError'));
         return;
       }
       const parts: string[] = [];
-      if (json.synced > 0) parts.push(`${json.synced} sincronizados`);
-      if (json.deleted > 0) parts.push(`${json.deleted} eliminados`);
-      toast.success(parts.length ? parts.join(' · ') : 'Catálogo al día');
+      if (json.synced > 0) parts.push(t('products.syncedCount', { n: json.synced }));
+      if (json.deleted > 0) parts.push(t('products.deletedCount', { n: json.deleted }));
+      toast.success(parts.length ? parts.join(' · ') : t('products.catalogUpToDate'));
       await fetchProducts();
     } catch (err) {
       console.error(err);
-      toast.error('No se pudo sincronizar el catálogo.');
+      toast.error(t('products.syncCatalogError'));
     } finally {
       setSyncing(false);
     }
@@ -118,7 +120,7 @@ export default function ProductosPage() {
 
   async function handleCreate() {
     if (!name.trim()) {
-      toast.error('Ponle un nombre al producto.');
+      toast.error(t('products.nameRequired'));
       return;
     }
     setCreating(true);
@@ -130,13 +132,13 @@ export default function ProductosPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo crear el producto.');
+        toast.error(json.error ?? t('products.createError'));
         return;
       }
       // Vamos directo al editor a completar la info.
       router.push(`/productos/${json.id}`);
     } catch {
-      toast.error('No se pudo crear el producto.');
+      toast.error(t('products.createError'));
     } finally {
       setCreating(false);
     }
@@ -146,7 +148,7 @@ export default function ProductosPage() {
     <div className="space-y-6">
       {/* Header — solo el título + sincronizar (sutil) */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Productos</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('products.title')}</h1>
         {shopifyConnected && (
           <Button
             onClick={handleSync}
@@ -159,7 +161,7 @@ export default function ProductosPage() {
             ) : (
               <RefreshCw className="size-4" />
             )}
-            Sincronizar
+            {t('products.sync')}
           </Button>
         )}
       </div>
@@ -168,19 +170,19 @@ export default function ProductosPage() {
       <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
         <DialogContent className="bg-card text-foreground sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo producto</DialogTitle>
+            <DialogTitle>{t('products.newProduct')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label>Nombre del producto</Label>
+            <Label>{t('products.productName')}</Label>
             <Input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              placeholder="Ej: Sérum facial 30ml"
+              placeholder={t('products.productNamePlaceholder')}
             />
             <p className="text-xs text-muted-foreground">
-              Lo demás (fotos, precios, beneficios, sitios) lo completas en el editor.
+              {t('products.createHint')}
             </p>
           </div>
           <DialogFooter>
@@ -190,11 +192,11 @@ export default function ProductosPage() {
               disabled={creating}
               className="border-border"
             >
-              Cancelar
+              {t('products.cancel')}
             </Button>
             <Button onClick={handleCreate} disabled={creating}>
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Crear y editar
+              {t('products.createAndEdit')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -206,17 +208,17 @@ export default function ProductosPage() {
           <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-              Shopify no está conectado
+              {t('products.shopifyNotConnected')}
             </p>
             <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300/80">
-              Para sincronizar tu catálogo actual, reconecta Shopify.
+              {t('products.shopifyReconnectHint')}
             </p>
           </div>
           <Link
             href="/integraciones"
             className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-600/30 bg-card px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-500/10 dark:text-amber-200"
           >
-            Conectar
+            {t('products.connect')}
             <ExternalLink className="size-3" />
           </Link>
         </div>
@@ -244,7 +246,7 @@ export default function ProductosPage() {
             <span className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-primary">
               <Plus className="size-5" />
             </span>
-            <span className="text-sm font-medium">Nuevo producto</span>
+            <span className="text-sm font-medium">{t('products.newProduct')}</span>
           </button>
         </div>
       )}
@@ -253,6 +255,7 @@ export default function ProductosPage() {
 }
 
 function ProductCard({ product }: { product: ProductRow }) {
+  const t = useT();
   const completeness = productCompleteness(product);
   const price =
     product.price_min == null
@@ -297,7 +300,10 @@ function ProductCard({ product }: { product: ProductRow }) {
         <div className="flex items-center gap-2">
           <div
             className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
-            title={`${completeness.done} de ${completeness.total} campos clave completos`}
+            title={t('products.fieldsComplete', {
+              done: completeness.done,
+              total: completeness.total,
+            })}
           >
             <div
               className={cn(
@@ -341,19 +347,20 @@ function StatusChips({
   research: ProductRow['ai_research_status'];
   assignedCount: number;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-1">
       {scrape === 'done' && research === 'done' ? (
         <span
           className="inline-flex items-center rounded-full border border-emerald-600/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
-          title="Entrenado"
+          title={t('products.trained')}
         >
           <CheckCircle2 className="size-3" />
         </span>
       ) : scrape === 'failed' || research === 'failed' ? (
         <span
           className="inline-flex items-center rounded-full border border-red-600/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-400"
-          title="Error de entrenamiento"
+          title={t('products.trainingError')}
         >
           <AlertCircle className="size-3" />
         </span>
@@ -361,7 +368,7 @@ function StatusChips({
       {assignedCount > 0 && (
         <span
           className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground"
-          title={`${assignedCount} agente(s) asignado(s)`}
+          title={t('products.agentsAssigned', { n: assignedCount })}
         >
           <Sparkles className="size-3" />
           {assignedCount}

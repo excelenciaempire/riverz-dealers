@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { FlowBuilder } from "@/components/flows/flow-builder";
+import { useT } from "@/hooks/use-locale";
 import { getFlowTemplate } from "@/lib/flows/templates";
 import {
   DEFAULT_FALLBACK_POLICY,
@@ -23,6 +24,7 @@ import {
  */
 export default function NewFlowFromTemplatePage() {
   const router = useRouter();
+  const t = useT();
   const params = useSearchParams();
   const slug = params.get("template") ?? "";
   const template = useMemo(() => getFlowTemplate(slug), [slug]);
@@ -68,9 +70,9 @@ export default function NewFlowFromTemplatePage() {
   if (!template || !initialFlow) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Plantilla no encontrada.</p>
+        <p className="text-sm text-muted-foreground">{t("flows.templateNotFound")}</p>
         <Button variant="outline" onClick={() => router.push("/menus")}>
-          Volver a flujos
+          {t("flows.backToFlows")}
         </Button>
       </div>
     );

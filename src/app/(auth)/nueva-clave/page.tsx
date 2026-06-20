@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import {
 import { CheckCircle } from "lucide-react";
 
 export default function NewPasswordPage() {
+  const t = useT();
   const router = useRouter();
   const supabase = createClient();
   const [password, setPassword] = useState("");
@@ -37,22 +39,22 @@ export default function NewPasswordPage() {
         // PKCE flow exchange happens in /auth/callback, so by the time
         // the user lands here a session should already exist. If not,
         // the link probably expired.
-        setError("El enlace expiró o no es válido. Solicita uno nuevo.");
+        setError(t("auth.linkExpired"));
       }
       setReady(true);
     })();
-  }, [supabase]);
+  }, [supabase, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres");
+      setError(t("auth.passwordMin8"));
       return;
     }
     if (password !== confirm) {
-      setError("Las contraseñas no coinciden");
+      setError(t("auth.passwordsDontMatch"));
       return;
     }
 
@@ -77,10 +79,10 @@ export default function NewPasswordPage() {
               <CheckCircle className="h-6 w-6 text-accent-ink" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              Contraseña actualizada
+              {t("auth.passwordUpdated")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Te llevamos a tu panel.
+              {t("auth.redirectingToDashboard")}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -96,7 +98,7 @@ export default function NewPasswordPage() {
             riverz
           </span>
           <CardTitle className="text-xl text-foreground">
-            Crear nueva contraseña
+            {t("auth.newPasswordTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -109,7 +111,7 @@ export default function NewPasswordPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="password" className="text-foreground">
-                Nueva contraseña
+                {t("auth.newPasswordLabel")}
               </Label>
               <Input
                 id="password"
@@ -125,7 +127,7 @@ export default function NewPasswordPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirm" className="text-foreground">
-                Confirmar contraseña
+                {t("auth.confirmPasswordLabel")}
               </Label>
               <Input
                 id="confirm"
@@ -144,7 +146,7 @@ export default function NewPasswordPage() {
               disabled={loading || !ready}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Guardando..." : "Guardar contraseña"}
+              {loading ? t("auth.saving") : t("auth.savePassword")}
             </Button>
           </form>
 
@@ -153,7 +155,7 @@ export default function NewPasswordPage() {
               href="/ingresar"
               className="text-accent-ink hover:text-accent-ink/80"
             >
-              Volver al inicio de sesión
+              {t("auth.backToLogin")}
             </Link>
           </p>
         </CardContent>

@@ -23,6 +23,7 @@ import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
@@ -35,12 +36,13 @@ interface ContactSidebarProps {
 
 /** Small close button pinned to the panel's top-right corner. */
 function CloseButton({ onClose }: { onClose?: () => void }) {
+  const t = useT();
   if (!onClose) return null;
   return (
     <button
       type="button"
       onClick={onClose}
-      aria-label="Cerrar panel"
+      aria-label={t("inbox.closePanel")}
       className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <X className="h-4 w-4" />
@@ -49,6 +51,7 @@ function CloseButton({ onClose }: { onClose?: () => void }) {
 }
 
 export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
@@ -152,12 +155,12 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
     return (
       <div className="relative flex h-full w-70 items-center justify-center border-l border-border bg-card">
         <CloseButton onClose={onClose} />
-        <p className="text-sm text-muted-foreground">Selecciona una conversación</p>
+        <p className="text-sm text-muted-foreground">{t("inbox.selectConversation")}</p>
       </div>
     );
   }
 
-  const displayName = contact.name || contact.email || contact.phone || contact.external_id || 'Contacto';
+  const displayName = contact.name || contact.email || contact.phone || contact.external_id || t("inbox.contactFallback");
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -231,13 +234,13 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <Sparkles className="h-3 w-3 text-accent-ink" />
-                    Segmento IA
+                    {t("inbox.aiSegment")}
                   </div>
                   <button
                     type="button"
                     onClick={() => fetchSegment(true)}
                     disabled={segLoading}
-                    aria-label="Recalcular segmento"
+                    aria-label={t("inbox.recalculateSegment")}
                     className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
                   >
                     <RefreshCw className={cn("h-3 w-3", segLoading && "animate-spin")} />
@@ -265,7 +268,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
                     <div className="mt-3">
                       <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                         <Activity className="h-3 w-3" />
-                        Actividad reciente
+                        {t("inbox.recentActivity")}
                       </p>
                       <p className="mt-1 line-clamp-3 rounded-lg bg-muted px-2.5 py-1.5 text-xs text-foreground">
                         {recentActivity}
@@ -284,7 +287,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <TagIcon className="h-3 w-3" />
-              Etiquetas
+              {t("inbox.tags")}
             </div>
             <ContactTags contactId={contact.id} className="mt-2" />
           </div>
@@ -296,14 +299,14 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <StickyNote className="h-3 w-3" />
-              Notas
+              {t("inbox.notes")}
             </div>
             <div className="mt-2">
               <div className="flex gap-2">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Nota"
+                  placeholder={t("inbox.notePlaceholder")}
                   rows={2}
                   className="flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground placeholder-muted-foreground outline-none focus:border-primary/50"
                 />
@@ -312,7 +315,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
                   className="h-auto bg-primary px-2 hover:bg-primary/90"
                   onClick={handleAddNote}
                   disabled={!newNote.trim() || addingNote}
-                  aria-label="Agregar nota"
+                  aria-label={t("inbox.addNote")}
                 >
                   <Plus className="h-3 w-3" />
                 </Button>

@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Heart, Trash2, ExternalLink } from "lucide-react";
 import type { Channel, Message } from "@/types";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 
 interface CommentModerationBarProps {
   message: Message;
@@ -19,6 +21,7 @@ interface CommentModerationBarProps {
  */
 export function CommentModerationBar({ message, channel, permalink }: CommentModerationBarProps) {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -33,10 +36,10 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(payload.error ?? `No se pudo ${action}`);
+        toast.error(payload.error ?? t("inbox.moderationFailed"));
         return;
       }
-      toast.success(labelFor(action));
+      toast.success(labelFor(action, t));
       if (action === "hide") setHidden(true);
       if (action === "unhide") setHidden(false);
       if (action === "like") setLiked(true);
@@ -53,8 +56,8 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       <button
         onClick={() => act(liked ? "unlike" : "like")}
         disabled={busy !== null}
-        title={liked ? "Quitar me gusta" : "Me gusta como página"}
-        aria-label={liked ? "Quitar me gusta" : "Me gusta como página"}
+        title={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
+        aria-label={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
         className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
       >
         <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
@@ -62,19 +65,19 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       <button
         onClick={() => act(hidden ? "unhide" : "hide")}
         disabled={busy !== null}
-        title={hidden ? "Mostrar" : "Ocultar comentario"}
-        aria-label={hidden ? "Mostrar comentario" : "Ocultar comentario"}
+        title={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
+        aria-label={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
         className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
       >
         {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
       </button>
       <button
         onClick={() => {
-          if (confirm("¿Eliminar este comentario?")) act("delete");
+          if (confirm(t("inbox.deleteCommentConfirm"))) act("delete");
         }}
         disabled={busy !== null}
-        title="Eliminar"
-        aria-label="Eliminar comentario"
+        title={t("inbox.delete")}
+        aria-label={t("inbox.deleteComment")}
         className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
       >
         <Trash2 className="size-3" />
@@ -84,7 +87,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
           href={permalink}
           target="_blank"
           rel="noopener noreferrer"
-          title="Abrir en Facebook/Instagram"
+          title={t("inbox.openInFacebookInstagram")}
           className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <ExternalLink className="size-3" />
@@ -94,19 +97,19 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
   );
 }
 
-function labelFor(action: string): string {
+function labelFor(action: string, t: TFn): string {
   switch (action) {
     case "hide":
-      return "Ocultado";
+      return t("inbox.moderationHidden");
     case "unhide":
-      return "Visible";
+      return t("inbox.moderationVisible");
     case "like":
-      return "Me gusta";
+      return t("inbox.moderationLiked");
     case "unlike":
-      return "Quitado";
+      return t("inbox.moderationUnliked");
     case "delete":
-      return "Eliminado";
+      return t("inbox.moderationDeleted");
     default:
-      return "Hecho";
+      return t("inbox.moderationDone");
   }
 }

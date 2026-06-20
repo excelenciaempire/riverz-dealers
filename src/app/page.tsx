@@ -2,38 +2,45 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getT } from "@/lib/i18n/server";
 import { Landing } from "@/components/landing/landing";
 
 // Per-request: logged-in users go straight to the app; logged-out visitors
 // (and Meta's reviewer) see the public marketing landing.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: {
-    absolute: "riverz — Agente de IA que vende por WhatsApp e Instagram",
-  },
-  description:
-    "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, 24/7.",
-  robots: { index: true, follow: true },
-  alternates: { canonical: "/" },
-  // The share preview uses the brand hook (matches the landing hero); the
-  // image comes from the site-wide opengraph-image.tsx / twitter-image.tsx.
-  openGraph: {
-    type: "website",
-    siteName: "riverz",
-    url: "/",
-    locale: "es_ES",
-    title: "Convierte cada chat en una venta · riverz",
-    description:
-      "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos y vende 24/7.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Convierte cada chat en una venta · riverz",
-    description:
-      "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos y vende 24/7.",
-  },
-};
+// Locale-aware metadata: resolved per request via the server `t()` so the
+// browser tab, search snippets and share previews follow the visitor's
+// language. The locale cookie is the single source of truth (force-dynamic
+// makes cookies()/getT safe here).
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  const ogTitle = t("landing.ogTitle");
+  const ogDescription = t("landing.ogDescription");
+  return {
+    title: {
+      absolute: t("landing.metaTitle"),
+    },
+    description: t("landing.metaDescription"),
+    robots: { index: true, follow: true },
+    alternates: { canonical: "/" },
+    // The share preview uses the brand hook (matches the landing hero); the
+    // image comes from the site-wide opengraph-image.tsx / twitter-image.tsx.
+    openGraph: {
+      type: "website",
+      siteName: "riverz",
+      url: "/",
+      locale: "es_ES",
+      title: ogTitle,
+      description: ogDescription,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: ogTitle,
+      description: ogDescription,
+    },
+  };
+}
 
 // Structured data (schema.org) for rich results and entity understanding in
 // search. Emitted as a non-executable application/ld+json data block; it

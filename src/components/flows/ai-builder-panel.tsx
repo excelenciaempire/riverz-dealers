@@ -23,6 +23,8 @@ import { Sparkles, Send, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 import type { AiPatch, AssistResponse } from "@/lib/flows/ai-patches";
 
 interface ChatTurn {
@@ -67,6 +69,7 @@ export function AiBuilderPanel({
   getSnapshot,
   onApplyPatches,
 }: AiBuilderPanelProps) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -143,19 +146,19 @@ export function AiBuilderPanel({
         },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo conectar";
+      const msg = err instanceof Error ? err.message : t("flows.couldNotConnect");
       toast.error(msg);
       setTurns((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `No pude procesar eso: ${msg}`,
+          content: t("flows.couldNotProcess", { msg }),
         },
       ]);
     } finally {
       setSending(false);
     }
-  }, [flowId, getSnapshot, input, onApplyPatches, sending, turns, products, fetchWithCsrf]);
+  }, [flowId, getSnapshot, input, onApplyPatches, sending, turns, products, fetchWithCsrf, t]);
 
   // Enter para enviar, Shift+Enter para newline.
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -181,10 +184,10 @@ export function AiBuilderPanel({
             "text-sm font-medium text-background shadow-lg shadow-black/30",
             "transition-opacity hover:opacity-90",
           )}
-          aria-label="Abrir constructor IA"
+          aria-label={t("flows.openAiBuilder")}
         >
           <Sparkles className="size-4" />
-          Constructor IA
+          {t("flows.aiBuilder")}
         </button>
       )}
 
@@ -202,10 +205,10 @@ export function AiBuilderPanel({
               </div>
               <div>
                 <div className="text-sm font-semibold text-foreground">
-                  Constructor IA
+                  {t("flows.aiBuilder")}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  Edita el flujo en lenguaje natural
+                  {t("flows.aiBuilderSubtitle")}
                 </div>
               </div>
             </div>
@@ -213,7 +216,7 @@ export function AiBuilderPanel({
               type="button"
               onClick={() => setOpen(false)}
               className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Cerrar"
+              aria-label={t("flows.close")}
             >
               <X className="size-4" />
             </button>
@@ -237,7 +240,7 @@ export function AiBuilderPanel({
                 {sending && (
                   <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" />
-                    Pensando…
+                    {t("flows.thinking")}
                   </div>
                 )}
               </div>
@@ -250,7 +253,7 @@ export function AiBuilderPanel({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="¿Qué quieres armar?"
+                placeholder={t("flows.aiInputPlaceholder")}
                 rows={2}
                 className={cn(
                   "min-h-[44px] flex-1 resize-none rounded-md border border-border bg-muted/30 px-2.5 py-1.5",
@@ -268,7 +271,7 @@ export function AiBuilderPanel({
                   "bg-foreground text-background transition-opacity",
                   "hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40",
                 )}
-                aria-label="Enviar"
+                aria-label={t("flows.send")}
               >
                 {sending ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -285,6 +288,7 @@ export function AiBuilderPanel({
 }
 
 function TurnBubble({ turn }: { turn: ChatTurn }) {
+  const t = useT();
   const isUser = turn.role === "user";
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
@@ -300,8 +304,8 @@ function TurnBubble({ turn }: { turn: ChatTurn }) {
         {!isUser && typeof turn.patchCount === "number" && turn.patchCount > 0 && (
           <p className="mt-1 text-[10px] text-muted-foreground">
             {turn.patchCount === 1
-              ? "1 cambio aplicado"
-              : `${turn.patchCount} cambios aplicados`}
+              ? t("flows.oneChangeApplied")
+              : t("flows.changesApplied", { n: turn.patchCount })}
           </p>
         )}
       </div>
@@ -333,13 +337,14 @@ function ExamplePrompts({
   products: Array<{ title: string; handle: string }>;
   onPick: (text: string) => void;
 }) {
+  const t = useT();
   const examples = useMemo(
-    () => buildExampleSuggestions(snapshot, products),
-    [snapshot, products],
+    () => buildExampleSuggestions(snapshot, products, t),
+    [snapshot, products, t],
   );
   return (
     <div className="space-y-3 text-xs text-muted-foreground">
-      <p>Algunas ideas para tu flujo:</p>
+      <p>{t("flows.someIdeas")}</p>
       <ul className="space-y-2">
         {examples.map((ex) => (
           <li key={ex}>
@@ -354,8 +359,7 @@ function ExamplePrompts({
         ))}
       </ul>
       <p className="mt-3 text-[10px]">
-        Los cambios se aplican al lienzo, pero NO se guardan hasta que
-        pulses Guardar arriba. Ctrl+Z reverte el último turno.
+        {t("flows.aiBuilderFooter")}
       </p>
     </div>
   );
@@ -366,6 +370,7 @@ function buildExampleSuggestions(
     nodes: Array<{ node_key: string; node_type: string; config: Record<string, unknown> }>;
   },
   products: Array<{ title: string; handle: string }>,
+  t: TFn,
 ): string[] {
   const nodes = snapshot.nodes;
   const featured = products[0]?.title;
@@ -375,46 +380,40 @@ function buildExampleSuggestions(
   const out: string[] = [];
 
   if (nodes.length === 0) {
-    out.push(
-      "Arma un menú de bienvenida con tres botones: Comprar, Soporte, Estado de mi pedido.",
-    );
+    out.push(t("flows.suggestWelcomeMenu"));
     if (featured) {
-      out.push(
-        `Manda un mensaje que ofrezca ${featured} con un botón que abra el link de la tienda.`,
-      );
+      out.push(t("flows.suggestOfferFeatured", { product: featured }));
     } else {
-      out.push(
-        "Pregunta al cliente qué necesita y deriva según su respuesta con IA.",
-      );
+      out.push(t("flows.suggestAskAndRoute"));
     }
-    out.push("Configura un flujo para responder dudas de envío y devoluciones.");
+    out.push(t("flows.suggestShippingReturns"));
     return out;
   }
 
   if (nodes.length <= 3) {
     if (hasSendMessage) {
-      out.push("Después del primer mensaje, espera la respuesta del cliente y deriva con IA según lo que diga.");
+      out.push(t("flows.suggestWaitAndRoute"));
     }
     if (!hasButtons) {
-      out.push("Agrega un paso con botones para que el cliente elija entre Comprar o Soporte.");
+      out.push(t("flows.suggestAddButtons"));
     }
     if (featured) {
-      out.push(`Termina el flujo con un botón que mande el link de ${featured}.`);
+      out.push(t("flows.suggestEndWithLink", { product: featured }));
     } else {
-      out.push("Termina el flujo derivando a un humano cuando el cliente pida ayuda.");
+      out.push(t("flows.suggestEndWithHandoff"));
     }
     return out;
   }
 
   // Flujo más armado: sugerir ajustes
-  out.push("Revisa los pasos sueltos y conéctalos al flujo principal.");
+  out.push(t("flows.suggestConnectLoose"));
   if (!hasShopify) {
-    out.push("Agrega un paso de Buscar en Shopify para mostrar el estado del pedido cuando el cliente lo pida.");
+    out.push(t("flows.suggestAddShopify"));
   }
   if (featured) {
-    out.push(`Suma una rama que recomiende ${featured} cuando el cliente pregunte por novedades.`);
+    out.push(t("flows.suggestRecommendFeatured", { product: featured }));
   } else {
-    out.push("Ajusta los textos para que suenen más cercanos y naturales.");
+    out.push(t("flows.suggestPolishCopy"));
   }
   return out;
 }

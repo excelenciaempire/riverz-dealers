@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { getT } from "@/lib/i18n/server";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const t = await getT();
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center">
@@ -12,13 +15,13 @@ export default function NotFound() {
           404
         </p>
         <h1 className="mb-3 text-2xl font-semibold tracking-tight text-foreground">
-          No encontramos esta página
+          {t("system.notFoundTitle")}
         </h1>
         <p className="mb-8 text-sm text-muted-foreground">
-          El enlace puede estar roto o el contenido fue movido.
+          {t("system.notFoundDescription")}
         </p>
         <Link href="/panel" className={buttonVariants({ variant: "default" })}>
-          Volver al inicio
+          {t("system.backHome")}
         </Link>
       </div>
     </div>

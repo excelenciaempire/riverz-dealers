@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ interface PageProps {
 
 export default function AcceptInvitePage({ params }: PageProps) {
   const { token } = use(params);
+  const t = useT();
   const router = useRouter();
   const [state, setState] = useState<"loading" | "ready" | "accepted" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
@@ -33,22 +35,22 @@ export default function AcceptInvitePage({ params }: PageProps) {
         .maybeSingle();
       if (error || !invite) {
         setState("error");
-        setErrorMsg("Esta invitación no es válida o ya fue usada.");
+        setErrorMsg(t("auth.inviteInvalid"));
         return;
       }
       if (invite.accepted_at) {
         setState("error");
-        setErrorMsg("Esta invitación ya fue usada.");
+        setErrorMsg(t("auth.inviteAlreadyUsed"));
         return;
       }
       if (new Date(invite.expires_at).getTime() < Date.now()) {
         setState("error");
-        setErrorMsg("La invitación caducó. Pídele al administrador que te envíe una nueva.");
+        setErrorMsg(t("auth.inviteExpired"));
         return;
       }
 
       const ws = Array.isArray(invite.workspace) ? invite.workspace[0] : invite.workspace;
-      setWorkspaceName(ws?.name ?? "tu equipo");
+      setWorkspaceName(ws?.name ?? t("auth.yourTeamFallback"));
       setInviteEmail(invite.email ?? "");
 
       const {
@@ -67,7 +69,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
       }
       setState("ready");
     })();
-  }, [token, router]);
+  }, [token, router, t]);
 
   const accept = async () => {
     setAccepting(true);
@@ -93,13 +95,13 @@ export default function AcceptInvitePage({ params }: PageProps) {
     setAccepting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      const msg = payload.error ?? "No se pudo aceptar la invitación";
+      const msg = payload.error ?? t("auth.acceptInviteError");
       toast.error(msg);
       setState("error");
       setErrorMsg(msg);
       return;
     }
-    toast.success("Invitación aceptada");
+    toast.success(t("auth.inviteAccepted"));
     setState("accepted");
     setTimeout(() => router.replace("/bandeja"), 1200);
   };
@@ -110,17 +112,17 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "loading" && (
           <div className="flex flex-col items-center gap-3 py-6">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Cargando invitación…</p>
+            <p className="text-sm text-muted-foreground">{t("auth.loadingInvite")}</p>
           </div>
         )}
 
         {state === "ready" && (
           <div className="space-y-4 text-center">
             <Mail className="mx-auto h-8 w-8 text-accent-ink" />
-            <h1 className="text-lg font-semibold text-foreground">Unirte a “{workspaceName}”</h1>
+            <h1 className="text-lg font-semibold text-foreground">{t("auth.joinWorkspace", { name: workspaceName })}</h1>
             {inviteEmail && (
               <p className="text-sm text-muted-foreground">
-                Invitación para <span className="text-foreground">{inviteEmail}</span>.
+                {t("auth.inviteForPrefix")} <span className="text-foreground">{inviteEmail}</span>.
               </p>
             )}
             <Button
@@ -128,7 +130,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
               disabled={accepting}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {accepting ? <Loader2 className="size-4 animate-spin" /> : "Aceptar invitación"}
+              {accepting ? <Loader2 className="size-4 animate-spin" /> : t("auth.acceptInvite")}
             </Button>
           </div>
         )}
@@ -136,21 +138,21 @@ export default function AcceptInvitePage({ params }: PageProps) {
         {state === "accepted" && (
           <div className="space-y-3 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-700 dark:text-emerald-400" />
-            <h1 className="text-lg font-semibold text-foreground">¡Listo!</h1>
-            <p className="text-sm text-muted-foreground">Llevándote a la bandeja…</p>
+            <h1 className="text-lg font-semibold text-foreground">{t("auth.inviteAcceptedTitle")}</h1>
+            <p className="text-sm text-muted-foreground">{t("auth.takingYouToInbox")}</p>
           </div>
         )}
 
         {state === "error" && (
           <div className="space-y-3 text-center">
             <XCircle className="mx-auto h-8 w-8 text-red-600 dark:text-red-400" />
-            <h1 className="text-lg font-semibold text-foreground">Invitación no válida</h1>
+            <h1 className="text-lg font-semibold text-foreground">{t("auth.inviteInvalidTitle")}</h1>
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
             <Link
               href="/panel"
               className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
             >
-              Volver al panel
+              {t("auth.backToDashboard")}
             </Link>
           </div>
         )}

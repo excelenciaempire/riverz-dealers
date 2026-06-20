@@ -15,6 +15,7 @@ import {
 import type { RangePreset } from '@/lib/dashboard/date-utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-locale'
 
 export interface CustomRange {
   /** YYYY-MM-DD */
@@ -30,10 +31,10 @@ interface DateRangeFilterProps {
 }
 
 const PRESETS: { key: RangePreset; label: string }[] = [
-  { key: 'today', label: 'Hoy' },
-  { key: 'yesterday', label: 'Ayer' },
-  { key: '7d', label: '7 días' },
-  { key: '30d', label: '30 días' },
+  { key: 'today', label: 'dashboard.rangeToday' },
+  { key: 'yesterday', label: 'dashboard.rangeYesterday' },
+  { key: '7d', label: 'dashboard.range7d' },
+  { key: '30d', label: 'dashboard.range30d' },
 ]
 
 const ymd = (d: Date): string =>
@@ -46,13 +47,14 @@ const parseYmd = (s: string): Date => {
 
 /** Global date-range filter: preset chips + a custom calendar range picker. */
 export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
 
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1">
       {PRESETS.map((p) => (
         <Chip key={p.key} active={preset === p.key} onClick={() => onChange(p.key)}>
-          {p.label}
+          {t(p.label)}
         </Chip>
       ))}
       <Popover open={open} onOpenChange={setOpen}>
@@ -65,7 +67,7 @@ export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterPro
           )}
         >
           <CalendarIcon className="size-3.5" />
-          {preset === 'custom' && custom ? customLabel(custom) : 'Personalizado'}
+          {preset === 'custom' && custom ? customLabel(custom) : t('dashboard.custom')}
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto">
           <RangeCalendar
@@ -111,7 +113,15 @@ function customLabel(c: CustomRange): string {
   return c.start === c.end ? f(s) : `${f(s)} – ${f(e)}`
 }
 
-const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+const WEEKDAY_KEYS = [
+  'dashboard.weekdayMon',
+  'dashboard.weekdayTue',
+  'dashboard.weekdayWed',
+  'dashboard.weekdayThu',
+  'dashboard.weekdayFri',
+  'dashboard.weekdaySat',
+  'dashboard.weekdaySun',
+]
 
 function RangeCalendar({
   value,
@@ -120,6 +130,7 @@ function RangeCalendar({
   value: CustomRange | null
   onSelect: (r: CustomRange) => void
 }) {
+  const t = useT()
   const [month, setMonth] = useState<Date>(() => (value ? parseYmd(value.end) : new Date()))
   // First click sets the start and waits for the end click.
   const [pendingStart, setPendingStart] = useState<string | null>(null)
@@ -155,7 +166,7 @@ function RangeCalendar({
       <div className="flex items-center justify-between px-1 pb-2">
         <button
           type="button"
-          aria-label="Mes anterior"
+          aria-label={t('dashboard.prevMonth')}
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
@@ -166,7 +177,7 @@ function RangeCalendar({
         </span>
         <button
           type="button"
-          aria-label="Mes siguiente"
+          aria-label={t('dashboard.nextMonth')}
           onClick={() => setMonth(addMonths(month, 1))}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
@@ -175,8 +186,8 @@ function RangeCalendar({
       </div>
 
       <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] text-muted-foreground">
-        {WEEKDAYS.map((d, i) => (
-          <div key={i}>{d}</div>
+        {WEEKDAY_KEYS.map((key, i) => (
+          <div key={i}>{t(key)}</div>
         ))}
       </div>
 
@@ -210,7 +221,7 @@ function RangeCalendar({
       </div>
 
       <p className="px-1 pt-2 text-[10px] text-muted-foreground">
-        {pendingStart ? 'Elige la fecha final…' : 'Elige la fecha inicial'}
+        {pendingStart ? t('dashboard.pickEndDate') : t('dashboard.pickStartDate')}
       </p>
     </div>
   )

@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
 
 interface FlowVersion {
   id: string;
@@ -48,6 +49,7 @@ export function FlowVersionsDialog({
   /** Recargar el editor con el snapshot restaurado. */
   onRestored: () => void;
 }) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [loading, setLoading] = useState(false);
   const [versions, setVersions] = useState<FlowVersion[]>([]);
@@ -57,15 +59,15 @@ export function FlowVersionsDialog({
     setLoading(true);
     try {
       const res = await fetch(`/api/flows/${flowId}/versions`);
-      if (!res.ok) throw new Error("No se pudo cargar el historial");
+      if (!res.ok) throw new Error(t("flows.versionsLoadFailed"));
       const data = (await res.json()) as { versions: FlowVersion[] };
       setVersions(data.versions ?? []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(err instanceof Error ? err.message : t("flows.genericError"));
     } finally {
       setLoading(false);
     }
-  }, [flowId]);
+  }, [flowId, t]);
 
   useEffect(() => {
     if (open) void load();
@@ -80,13 +82,13 @@ export function FlowVersionsDialog({
       );
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? "No se pudo restaurar");
+        throw new Error(data.error ?? t("flows.restoreFailed"));
       }
-      toast.success("Versión restaurada");
+      toast.success(t("flows.versionRestored"));
       onRestored();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
+      toast.error(err instanceof Error ? err.message : t("flows.genericError"));
     } finally {
       setRestoringId(null);
     }
@@ -98,12 +100,10 @@ export function FlowVersionsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="size-4" />
-            Versiones del flujo
+            {t("flows.flowVersions")}
           </DialogTitle>
           <DialogDescription>
-            Cada vez que guardas se snapshotea un borrador, y cada vez que
-            activas el flujo se snapshotea la versión publicada. Puedes
-            restaurar a cualquier punto.
+            {t("flows.versionsDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,8 +113,7 @@ export function FlowVersionsDialog({
           </div>
         ) : versions.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            Todavía no hay historial. Guarda o activa el flujo para empezar
-            a generar versiones.
+            {t("flows.noVersionsYet")}
           </p>
         ) : (
           <ul className="max-h-96 divide-y divide-border overflow-y-auto rounded-md border border-border bg-card">
@@ -139,7 +138,7 @@ export function FlowVersionsDialog({
                             : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {v.kind === "published" ? "Publicado" : "Borrador"}
+                        {v.kind === "published" ? t("flows.versionPublished") : t("flows.versionDraft")}
                       </span>
                       <span className="text-xs text-foreground">
                         {new Date(v.created_at).toLocaleString("es", {
@@ -166,7 +165,7 @@ export function FlowVersionsDialog({
                   ) : (
                     <RotateCcw className="size-3.5" />
                   )}
-                  Restaurar
+                  {t("flows.restore")}
                 </Button>
               </li>
             ))}
@@ -175,7 +174,7 @@ export function FlowVersionsDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Cerrar
+            {t("flows.close")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, CheckCircle, Loader2 } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/card";
 
 export default function VerifyEmailPage() {
+  const t = useT();
   const router = useRouter();
   const supabase = createClient();
   const [email, setEmail] = useState<string | null>(null);
@@ -78,10 +80,10 @@ export default function VerifyEmailPage() {
               <CheckCircle className="h-6 w-6 text-accent-ink" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              Correo verificado
+              {t("auth.emailVerified")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Te llevamos a tu panel.
+              {t("auth.redirectingToDashboard")}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -97,11 +99,11 @@ export default function VerifyEmailPage() {
             <Mail className="h-6 w-6 text-accent-ink" />
           </div>
           <CardTitle className="text-xl text-foreground">
-            Verifica tu correo
+            {t("auth.verifyEmailTitle")}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Te enviamos un enlace de confirmación a{" "}
-            <span className="text-foreground">{email ?? "tu correo"}</span>.
+            {t("auth.verifyEmailDescription")}{" "}
+            <span className="text-foreground">{email ?? t("auth.yourEmailFallback")}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -112,7 +114,7 @@ export default function VerifyEmailPage() {
           )}
           {sent && (
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
-              Enlace reenviado. Revisa tu bandeja de entrada.
+              {t("auth.linkResent")}
             </div>
           )}
           <Button
@@ -123,7 +125,7 @@ export default function VerifyEmailPage() {
             {sending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              "Reenviar enlace"
+              t("auth.resendLink")
             )}
           </Button>
           <Button
@@ -131,7 +133,7 @@ export default function VerifyEmailPage() {
             variant="outline"
             className="h-10 w-full border-border text-foreground hover:bg-accent hover:text-foreground"
           >
-            Cerrar sesión
+            {t("auth.signOut")}
           </Button>
         </CardContent>
       </Card>

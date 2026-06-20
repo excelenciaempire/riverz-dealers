@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Plug2, Loader2 } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
 import { useActiveConnections } from "@/hooks/use-active-connections";
 
 interface RequiresConnectionProps {
@@ -20,6 +21,7 @@ interface RequiresConnectionProps {
  * content takes over.
  */
 export function RequiresConnection({ title, description, children }: RequiresConnectionProps) {
+  const t = useT();
   const { hasAny, loading } = useActiveConnections();
 
   if (loading) {
@@ -46,7 +48,7 @@ export function RequiresConnection({ title, description, children }: RequiresCon
               className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 lg:min-h-0"
             >
               <Plug2 className="size-4" />
-              Conectar un canal
+              {t("metrics.connectChannel")}
             </Link>
           </div>
         </div>

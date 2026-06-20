@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 /**
  * Vista de "Usos" de un menú: cuántas veces se ejecutó, cómo le fue
@@ -68,12 +69,12 @@ interface EventRow {
 }
 
 const STATUS_LABEL: Record<RunStatus, string> = {
-  active: "Activo",
-  completed: "Completado",
-  handed_off: "Transferido",
-  timed_out: "Expirado",
-  paused_by_agent: "Pausado",
-  failed: "Fallido",
+  active: "flows.runStatusActive",
+  completed: "flows.runStatusCompleted",
+  handed_off: "flows.runStatusHandedOff",
+  timed_out: "flows.runStatusTimedOut",
+  paused_by_agent: "flows.runStatusPaused",
+  failed: "flows.runStatusFailed",
 };
 
 const STATUS_TONE: Record<RunStatus, string> = {
@@ -147,6 +148,7 @@ function Sparkline({
   series: number[];
   labels: string[];
 }) {
+  const t = useT();
   if (series.length === 0) return null;
   const max = Math.max(...series, 1);
   const W = 600;
@@ -162,10 +164,10 @@ function Sparkline({
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-1 text-sm font-medium text-foreground">
-        Usos por día
+        {t("flows.usagePerDay")}
       </h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        Últimos {series.length} días.
+        {t("flows.lastNDays", { n: series.length })}
       </p>
       <svg
         viewBox={`0 0 ${W} ${H + 20}`}
@@ -203,13 +205,14 @@ function StatusBreakdown({
   counts: Record<RunStatus, number>;
   total: number;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-1 text-sm font-medium text-foreground">
-        Cómo terminaron
+        {t("flows.howTheyEnded")}
       </h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        Reparto por estado del último corte.
+        {t("flows.breakdownByStatus")}
       </p>
       <div className="space-y-1.5">
         {RUN_STATUSES.map((s) => {
@@ -218,7 +221,7 @@ function StatusBreakdown({
           return (
             <div key={s} className="flex items-center gap-3">
               <span className="w-28 shrink-0 text-xs text-muted-foreground">
-                {STATUS_LABEL[s]}
+                {t(STATUS_LABEL[s])}
               </span>
               <div className="relative h-5 flex-1 rounded-md bg-muted/60">
                 <div
@@ -242,6 +245,7 @@ function StatusBreakdown({
 
 export default function FlowRunsPage() {
   const router = useRouter();
+  const t = useT();
   const params = useParams<{ id: string }>();
 
   const [flow, setFlow] = useState<{ id: string; name: string } | null>(null);
@@ -277,7 +281,7 @@ export default function FlowRunsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("No se pudieron cargar los usos.");
+          toast.error(t("flows.runsLoadFailed"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -286,6 +290,7 @@ export default function FlowRunsPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   const sourceRuns = runs;
@@ -379,13 +384,13 @@ export default function FlowRunsPage() {
   if (notFound || !flow) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-muted-foreground">Menú no encontrado.</p>
+        <p className="text-sm text-muted-foreground">{t("flows.menuNotFound")}</p>
         <Button
           variant="outline"
           onClick={() => router.push("/menus")}
           className="text-sm"
         >
-          Volver
+          {t("flows.back")}
         </Button>
       </div>
     );
@@ -400,16 +405,16 @@ export default function FlowRunsPage() {
           size="icon"
           onClick={() => router.push(`/menus/${flow.id}`)}
           className="h-8 w-8 border-border"
-          aria-label="Volver al editor del menú"
+          aria-label={t("flows.backToEditor")}
         >
           <ArrowLeft className="size-4" />
         </Button>
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">
-            Menú · <span className="text-foreground">{flow.name}</span>
+            {t("flows.menuLabel")} · <span className="text-foreground">{flow.name}</span>
           </p>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Usos
+            {t("flows.usesTitle")}
           </h1>
         </div>
       </div>
@@ -420,22 +425,22 @@ export default function FlowRunsPage() {
             <PlayCircle className="size-6" />
           </div>
           <h2 className="text-base font-medium text-foreground">
-            Este menú aún no se ha usado
+            {t("flows.emptyRunsTitle")}
           </h2>
           <p className="max-w-xs text-sm text-muted-foreground">
-            Aquí verás cada conversación cuando un cliente lo ejecute.
+            {t("flows.emptyRunsDesc")}
           </p>
         </div>
       ) : (
         <>
           {/* Métricas top */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <MetricCard label="Usos totales" value={totalRuns} emphasis />
-        <MetricCard label="Activos" value={counts.active} />
-        <MetricCard label="Completados" value={`${completedPct}%`} />
-        <MetricCard label="Transferidos" value={counts.handed_off} />
+        <MetricCard label={t("flows.metricTotalRuns")} value={totalRuns} emphasis />
+        <MetricCard label={t("flows.metricActive")} value={counts.active} />
+        <MetricCard label={t("flows.metricCompleted")} value={`${completedPct}%`} />
+        <MetricCard label={t("flows.metricHandedOff")} value={counts.handed_off} />
         <MetricCard
-          label="Duración prom."
+          label={t("flows.metricAvgDuration")}
           value={
             avgDurationMs == null
               ? "—"
@@ -454,11 +459,11 @@ export default function FlowRunsPage() {
       <div className="rounded-lg border border-border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h2 className="text-sm font-medium text-foreground">
-            Conversaciones{" "}
+            {t("flows.conversations")}{" "}
             <span className="tabular-nums text-muted-foreground">
               ({filteredRuns.length}
               {statusFilter !== "all" || query
-                ? ` de ${sourceRuns.length}`
+                ? t("flows.ofTotal", { total: sourceRuns.length })
                 : ""}
               )
             </span>
@@ -469,7 +474,7 @@ export default function FlowRunsPage() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar contacto…"
+                placeholder={t("flows.searchContact")}
                 className="h-8 w-56 pl-8"
               />
             </div>
@@ -485,8 +490,8 @@ export default function FlowRunsPage() {
               >
                 <Filter className="size-3.5" />
                 {statusFilter === "all"
-                  ? "Todos"
-                  : STATUS_LABEL[statusFilter]}
+                  ? t("flows.allStatuses")
+                  : t(STATUS_LABEL[statusFilter])}
                 <ChevronDown className="size-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="border-border bg-card">
@@ -494,7 +499,7 @@ export default function FlowRunsPage() {
                   onClick={() => setStatusFilter("all")}
                   className="text-foreground"
                 >
-                  Todos los estados
+                  {t("flows.allStatusesItem")}
                 </DropdownMenuItem>
                 {RUN_STATUSES.map((s) => (
                   <DropdownMenuItem
@@ -502,7 +507,7 @@ export default function FlowRunsPage() {
                     onClick={() => setStatusFilter(s)}
                     className="text-foreground"
                   >
-                    {STATUS_LABEL[s]}
+                    {t(STATUS_LABEL[s])}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -513,7 +518,7 @@ export default function FlowRunsPage() {
         {filteredRuns.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm text-muted-foreground">
-              Sin resultados.
+              {t("flows.noResults")}
             </p>
           </div>
         ) : (
@@ -553,9 +558,10 @@ function RunCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   const StatusIcon = STATUS_ICON[run.status];
   const contactLabel =
-    run.contact?.name?.trim() || run.contact?.phone || "Contacto desconocido";
+    run.contact?.name?.trim() || run.contact?.phone || t("flows.unknownContact");
   const duration = run.ended_at
     ? formatDistanceToNow(new Date(run.started_at), {
         addSuffix: false,
@@ -585,7 +591,7 @@ function RunCard({
               )}
             >
               <StatusIcon className="size-3" />
-              {STATUS_LABEL[run.status]}
+              {t(STATUS_LABEL[run.status])}
             </span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -593,9 +599,9 @@ function RunCard({
               {format(new Date(run.started_at), "d MMM, HH:mm")}
             </span>
             {run.reprompt_count > 0 && (
-              <span>· {run.reprompt_count} reintentos</span>
+              <span>{t("flows.retriesCount", { n: run.reprompt_count })}</span>
             )}
-            {duration && <span>· duró {duration}</span>}
+            {duration && <span>{t("flows.lastedFor", { duration })}</span>}
           </div>
         </div>
       </button>
@@ -604,7 +610,7 @@ function RunCard({
           {Object.keys(run.vars).length > 0 && (
             <details className="mb-2">
               <summary className="cursor-pointer text-xs text-muted-foreground">
-                Datos capturados ({Object.keys(run.vars).length})
+                {t("flows.capturedData", { n: Object.keys(run.vars).length })}
               </summary>
               <pre className="mt-2 overflow-x-auto rounded-md border border-border bg-card p-2 text-[11px] text-foreground">
                 {JSON.stringify(run.vars, null, 2)}
@@ -614,7 +620,7 @@ function RunCard({
           <div className="flex flex-col gap-0.5">
             {events.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Sin eventos registrados.
+                {t("flows.noEventsLogged")}
               </p>
             ) : (
               events.map((ev, ix) => <EventLine key={ix} ev={ev} />)
@@ -633,19 +639,20 @@ function RunCard({
  * el log.
  */
 const EVENT_HUMAN: Record<string, string> = {
-  started: "Conversación iniciada",
-  node_entered: "Entró al paso",
-  message_sent: "Mensaje enviado",
-  reply_received: "Respuesta recibida",
-  fallback_fired: "Alternativa activada",
-  handoff: "Pasó a un humano",
-  timeout: "Sin actividad",
-  error: "Error",
-  completed: "Conversación terminada",
+  started: "flows.eventStarted",
+  node_entered: "flows.eventNodeEntered",
+  message_sent: "flows.eventMessageSent",
+  reply_received: "flows.eventReplyReceived",
+  fallback_fired: "flows.eventFallbackFired",
+  handoff: "flows.eventHandoff",
+  timeout: "flows.eventTimeout",
+  error: "flows.eventError",
+  completed: "flows.eventCompleted",
 };
 
 function EventLine({ ev }: { ev: EventRow }) {
-  const human = EVENT_HUMAN[ev.event_type] ?? ev.event_type;
+  const t = useT();
+  const human = EVENT_HUMAN[ev.event_type] ? t(EVENT_HUMAN[ev.event_type]) : ev.event_type;
   return (
     <div className="flex items-start gap-2 px-2 py-1 text-xs">
       <span className="w-16 shrink-0 text-[10px] tabular-nums text-muted-foreground">

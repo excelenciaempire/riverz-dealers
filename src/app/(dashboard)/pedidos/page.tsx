@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Receipt, ExternalLink } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 
 /**
  * /pedidos — pedidos que el asistente IA creó en Shopify (tabla `orders`,
@@ -36,6 +38,7 @@ interface OrderRow {
 }
 
 export default function PedidosPage() {
+  const t = useT();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,19 +50,20 @@ export default function PedidosPage() {
         if (!res.ok) throw new Error(json.error ?? 'Error');
         setOrders(json.orders ?? []);
       } catch {
-        toast.error('No se pudieron cargar los pedidos.');
+        toast.error(t('products.ordersLoadError'));
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Pedidos</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('products.ordersTitle')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pedidos que el asistente cerró con tus clientes en el chat.
+          {t('products.ordersSubtitle')}
         </p>
       </div>
 
@@ -73,10 +77,9 @@ export default function PedidosPage() {
             <Receipt className="size-5" />
           </span>
           <div>
-            <p className="text-sm font-medium text-foreground">Todavía no hay pedidos</p>
+            <p className="text-sm font-medium text-foreground">{t('products.ordersEmptyTitle')}</p>
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-              Cuando un asistente con &quot;Cierre de ventas&quot; activo cierre una
-              compra, el pedido aparecerá aquí y en Shopify.
+              {t('products.ordersEmptyBody')}
             </p>
           </div>
         </div>
@@ -85,13 +88,13 @@ export default function PedidosPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-4 py-2.5 font-medium">Pedido</th>
-                <th className="px-4 py-2.5 font-medium">Cliente</th>
-                <th className="px-4 py-2.5 font-medium">Productos</th>
-                <th className="px-4 py-2.5 font-medium">Total</th>
-                <th className="px-4 py-2.5 font-medium">Pago</th>
-                <th className="px-4 py-2.5 font-medium">Estado</th>
-                <th className="px-4 py-2.5 font-medium">Fecha</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colOrder')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colCustomer')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colProducts')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colTotal')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colPayment')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colStatus')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('products.colDate')}</th>
               </tr>
             </thead>
             <tbody>
@@ -130,7 +133,7 @@ export default function PedidosPage() {
                     {formatMoney(o.total_price, o.currency)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {formatPayment(o.payment_method)}
+                    {formatPayment(o.payment_method, t)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge order={o} />
@@ -170,9 +173,9 @@ function formatMoney(n: number | null, currency: string | null): string {
   }
 }
 
-function formatPayment(method: string | null): string {
-  if (method === 'transfer') return 'Transferencia';
-  if (method === 'card_or_mp') return 'Tarjeta / MP';
+function formatPayment(method: string | null, t: TFn): string {
+  if (method === 'transfer') return t('products.paymentTransfer');
+  if (method === 'card_or_mp') return t('products.paymentCardOrMp');
   return method ?? '—';
 }
 
@@ -190,6 +193,7 @@ function formatDate(iso: string): string {
 }
 
 function StatusBadge({ order }: { order: OrderRow }) {
+  const t = useT();
   // Preferimos el estado financiero de Shopify; si está pagado o cumplido
   // lo marcamos en verde, pendiente en ámbar, fallido/cancelado en rojo.
   const fin = (order.financial_status ?? '').toLowerCase();
@@ -197,16 +201,16 @@ function StatusBadge({ order }: { order: OrderRow }) {
   let label: string;
   let tone: 'green' | 'amber' | 'red' | 'gray';
   if (order.status === 'cancelled' || order.status === 'failed') {
-    label = order.status === 'cancelled' ? 'Cancelado' : 'Falló';
+    label = order.status === 'cancelled' ? t('products.statusCancelled') : t('products.statusFailed');
     tone = 'red';
   } else if (fulfilled) {
-    label = 'Enviado';
+    label = t('products.statusShipped');
     tone = 'green';
   } else if (fin === 'paid') {
-    label = 'Pagado';
+    label = t('products.statusPaid');
     tone = 'green';
   } else if (fin === 'pending' || !fin) {
-    label = 'Pendiente de pago';
+    label = t('products.statusPendingPayment');
     tone = 'amber';
   } else {
     label = fin;

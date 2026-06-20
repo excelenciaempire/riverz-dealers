@@ -1,10 +1,12 @@
 import { RequiresConnection } from "@/components/common/requires-connection";
+import { getT } from "@/lib/i18n/server";
 
-export default function FlowsLayout({ children }: { children: React.ReactNode }) {
+export default async function FlowsLayout({ children }: { children: React.ReactNode }) {
+  const t = await getT();
   return (
     <RequiresConnection
-      title="Conecta un canal antes de crear flujos"
-      description="Necesitas un canal oficial conectado para enviar mensajes."
+      title={t("flows.connectChannelTitle")}
+      description={t("flows.connectChannelDesc")}
     >
       {children}
     </RequiresConnection>

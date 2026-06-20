@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ import {
 import { CheckCircle } from "lucide-react";
 
 function SignupForm() {
+  const t = useT();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
   const prefillEmail = searchParams.get("email");
@@ -35,17 +37,17 @@ function SignupForm() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      setError(t("auth.passwordsDontMatch"));
       return;
     }
 
     if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+      setError(t("auth.passwordMin6"));
       return;
     }
 
     if (!accepted) {
-      setError("Debes aceptar los Términos y la Política de privacidad");
+      setError(t("auth.mustAcceptTerms"));
       return;
     }
 
@@ -72,9 +74,9 @@ function SignupForm() {
     if (!res.ok) {
       if (res.status === 429) {
         const retry = res.headers.get("Retry-After") ?? "60";
-        setError(`Demasiados intentos. Vuelve a probar en ${retry} segundos.`);
+        setError(t("auth.tooManyAttempts", { retry }));
       } else {
-        setError(payload.error ?? "No se pudo crear la cuenta");
+        setError(payload.error ?? t("auth.signupError"));
       }
       setLoading(false);
       return;
@@ -93,10 +95,10 @@ function SignupForm() {
               <CheckCircle className="h-6 w-6 text-accent-ink" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              Revisa tu correo
+              {t("auth.checkYourEmail")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Enviamos un enlace de confirmación a{" "}
+              {t("auth.confirmationLinkSent")}{" "}
               <span className="text-foreground">{email}</span>.
             </CardDescription>
           </CardHeader>
@@ -106,7 +108,7 @@ function SignupForm() {
                 variant="outline"
                 className="w-full border-border text-foreground hover:bg-accent hover:text-foreground"
               >
-                Volver al inicio de sesión
+                {t("auth.backToLogin")}
               </Button>
             </Link>
           </CardContent>
@@ -122,7 +124,7 @@ function SignupForm() {
           <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
             riverz
           </span>
-          <CardTitle className="text-xl text-foreground">Crear cuenta</CardTitle>
+          <CardTitle className="text-xl text-foreground">{t("auth.signupTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="flex flex-col gap-4">
@@ -134,7 +136,7 @@ function SignupForm() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="fullName" className="text-foreground">
-                Nombre completo
+                {t("auth.fullNameLabel")}
               </Label>
               <Input
                 id="fullName"
@@ -149,12 +151,12 @@ function SignupForm() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-foreground">
-                Correo electrónico
+                {t("auth.emailLabel")}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@correo.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -164,14 +166,14 @@ function SignupForm() {
               />
               {emailLocked && (
                 <p className="text-xs text-muted-foreground">
-                  Esta invitación es para esta dirección. Tu cuenta debe usarla.
+                  {t("auth.inviteEmailLocked")}
                 </p>
               )}
             </div>
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="password" className="text-foreground">
-                Contraseña
+                {t("auth.passwordLabel")}
               </Label>
               <Input
                 id="password"
@@ -186,7 +188,7 @@ function SignupForm() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirmPassword" className="text-foreground">
-                Confirmar contraseña
+                {t("auth.confirmPasswordLabel")}
               </Label>
               <Input
                 id="confirmPassword"
@@ -212,21 +214,21 @@ function SignupForm() {
                 className="mt-0.5 h-5 w-5 md:h-4 md:w-4 shrink-0 rounded border-border accent-primary"
               />
               <span>
-                Acepto los{" "}
+                {t("auth.acceptPrefix")}{" "}
                 <Link
                   href="/terminos"
                   target="_blank"
                   className="text-accent-ink hover:text-accent-ink/80"
                 >
-                  Términos y condiciones
+                  {t("auth.termsLink")}
                 </Link>{" "}
-                y la{" "}
+                {t("auth.acceptAnd")}{" "}
                 <Link
                   href="/privacidad"
                   target="_blank"
                   className="text-accent-ink hover:text-accent-ink/80"
                 >
-                  Política de privacidad
+                  {t("auth.privacyLink")}
                 </Link>
                 .
               </span>
@@ -237,17 +239,17 @@ function SignupForm() {
               disabled={loading || !accepted}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Creando cuenta..." : "Crear cuenta"}
+              {loading ? t("auth.creatingAccount") : t("auth.createAccount")}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            ¿Ya tienes una cuenta?{" "}
+            {t("auth.haveAccount")}{" "}
             <Link
               href="/ingresar"
               className="text-accent-ink hover:text-accent-ink/80"
             >
-              Inicia sesión
+              {t("auth.signInLink")}
             </Link>
           </p>
         </CardContent>

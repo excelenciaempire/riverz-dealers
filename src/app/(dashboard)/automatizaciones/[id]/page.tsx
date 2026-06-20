@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { Automation, AutomationLog } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Detail / visualizador de data de una automatización.
@@ -30,10 +31,11 @@ import { cn } from '@/lib/utils';
 
 type LogStatus = 'success' | 'partial' | 'failed';
 
+// i18n key strings, resolved with t() at render time.
 const STATUS_LABEL: Record<LogStatus, string> = {
-  success: 'Completada',
-  partial: 'Parcial',
-  failed: 'Fallida',
+  success: 'automations.runStatusCompleted',
+  partial: 'automations.runStatusPartial',
+  failed: 'automations.runStatusFailed',
 };
 const STATUS_TONE: Record<LogStatus, string> = {
   success:
@@ -81,6 +83,7 @@ function Sparkline({
   series: number[];
   labels: string[];
 }) {
+  const t = useT();
   const max = Math.max(...series, 1);
   const W = 600;
   const H = 120;
@@ -92,10 +95,10 @@ function Sparkline({
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-1 text-sm font-medium text-foreground">
-        Ejecuciones por día
+        {t("automations.runsPerDay")}
       </h3>
       <p className="mb-3 text-xs text-muted-foreground">
-        Últimos {series.length} días.
+        {t("automations.lastNDays", { n: series.length })}
       </p>
       <svg
         viewBox={`0 0 ${W} ${H + 20}`}
@@ -130,10 +133,11 @@ function StatusBreakdown({
   counts: Record<LogStatus, number>;
   total: number;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        Cómo terminaron
+        {t("automations.howTheyEnded")}
       </h3>
       <div className="space-y-1.5">
         {(['success', 'partial', 'failed'] as LogStatus[]).map((s) => {
@@ -142,7 +146,7 @@ function StatusBreakdown({
           return (
             <div key={s} className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                {STATUS_LABEL[s]}
+                {t(STATUS_LABEL[s])}
               </span>
               <div className="relative h-5 flex-1 rounded-md bg-muted/60">
                 <div
@@ -167,6 +171,7 @@ function StatusBreakdown({
 export default function AutomationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const t = useT();
   const automationId = params.id;
 
   const [automation, setAutomation] = useState<Automation | null>(null);
@@ -196,19 +201,19 @@ export default function AutomationDetailPage() {
         if (autRes.error) throw autRes.error;
         if (logRes.error) throw logRes.error;
         if (!autRes.data) {
-          setError('Automatización no encontrada');
+          setError(t('automations.notFound'));
           return;
         }
         setAutomation(autRes.data as Automation);
         setLogs((logRes.data ?? []) as AutomationLog[]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error');
+        setError(err instanceof Error ? err.message : t('automations.genericError'));
       } finally {
         setLoading(false);
       }
     }
     void load();
-  }, [automationId]);
+  }, [automationId, t]);
 
   const counts = useMemo(() => {
     const c: Record<LogStatus, number> = { success: 0, partial: 0, failed: 0 };
@@ -253,10 +258,12 @@ export default function AutomationDetailPage() {
       if (err) throw err;
       setAutomation({ ...automation, is_active: !automation.is_active });
       toast.success(
-        automation.is_active ? 'Automatización pausada' : 'Automatización activada',
+        automation.is_active
+          ? t('automations.automationPaused')
+          : t('automations.automationActivated'),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo actualizar');
+      toast.error(err instanceof Error ? err.message : t('automations.updateFailed'));
     } finally {
       setToggling(false);
     }
@@ -272,12 +279,12 @@ export default function AutomationDetailPage() {
   if (error || !automation) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-500">{error ?? 'No encontrada'}</p>
+        <p className="text-sm text-red-500">{error ?? t('automations.notFoundShort')}</p>
         <Button
           variant="outline"
           onClick={() => router.push('/automatizaciones')}
         >
-          Volver
+          {t('automations.goBack')}
         </Button>
       </div>
     );
@@ -295,12 +302,12 @@ export default function AutomationDetailPage() {
             size="icon"
             onClick={() => router.push('/automatizaciones')}
             className="h-8 w-8 border-border"
-            aria-label="Volver"
+            aria-label={t('automations.goBack')}
           >
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Automatización</p>
+            <p className="text-xs text-muted-foreground">{t('automations.eyebrow')}</p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
                 {automation.name}
@@ -313,7 +320,7 @@ export default function AutomationDetailPage() {
                     : 'border-border bg-muted text-muted-foreground',
                 )}
               >
-                {automation.is_active ? 'Activa' : 'Pausada'}
+                {automation.is_active ? t('automations.active') : t('automations.paused')}
               </span>
             </div>
             {automation.description && (
@@ -336,7 +343,7 @@ export default function AutomationDetailPage() {
             ) : (
               <Power className="size-3.5" />
             )}
-            {automation.is_active ? 'Pausar' : 'Activar'}
+            {automation.is_active ? t('automations.pause') : t('automations.activate')}
           </Button>
           <Button
             variant="outline"
@@ -345,7 +352,7 @@ export default function AutomationDetailPage() {
             className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
           >
             <Edit className="size-3.5" />
-            Editar
+            {t('automations.edit')}
           </Button>
         </div>
       </div>
@@ -353,15 +360,15 @@ export default function AutomationDetailPage() {
       {/* Métricas top */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         <MetricCard
-          label="Ejecuciones"
+          label={t('automations.metricRuns')}
           value={automation.execution_count ?? logs.length}
           emphasis
         />
-        <MetricCard label="Éxito" value={`${successPct}%`} />
-        <MetricCard label="Parciales" value={counts.partial} />
-        <MetricCard label="Fallidas" value={counts.failed} />
+        <MetricCard label={t('automations.metricSuccess')} value={`${successPct}%`} />
+        <MetricCard label={t('automations.metricPartial')} value={counts.partial} />
+        <MetricCard label={t('automations.metricFailed')} value={counts.failed} />
         <MetricCard
-          label="Última"
+          label={t('automations.metricLast')}
           value={lastRun ? format(new Date(lastRun), 'd MMM, HH:mm') : '—'}
         />
       </div>
@@ -376,7 +383,7 @@ export default function AutomationDetailPage() {
       <div className="rounded-lg border border-border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h2 className="text-sm font-medium text-foreground">
-            Últimos {logs.length} runs
+            {t('automations.lastNRuns', { n: logs.length })}
           </h2>
           <Button
             variant="outline"
@@ -386,13 +393,13 @@ export default function AutomationDetailPage() {
             }
             className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
           >
-            Ver todos
+            {t('automations.viewAll')}
           </Button>
         </div>
         {logs.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm text-muted-foreground">
-              Esta automatización todavía no ha corrido.
+              {t('automations.notRunYet')}
             </p>
           </div>
         ) : (
@@ -400,7 +407,7 @@ export default function AutomationDetailPage() {
             {logs.slice(0, 20).map((log) => {
               const Icon = STATUS_ICON[log.status as LogStatus];
               const contactName =
-                log.contact?.name?.trim() || log.contact?.phone || 'Sistema';
+                log.contact?.name?.trim() || log.contact?.phone || t('automations.system');
               return (
                 <li key={log.id} className="flex items-center gap-3 px-4 py-2.5">
                   <Icon
@@ -424,13 +431,13 @@ export default function AutomationDetailPage() {
                           STATUS_TONE[log.status as LogStatus],
                         )}
                       >
-                        {STATUS_LABEL[log.status as LogStatus]}
+                        {t(STATUS_LABEL[log.status as LogStatus])}
                       </span>
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {format(new Date(log.created_at), 'd MMM, HH:mm')}
                       {log.steps_executed?.length
-                        ? ` · ${log.steps_executed.length} pasos`
+                        ? ` · ${t('automations.stepsSuffix', { n: log.steps_executed.length })}`
                         : ''}
                       {log.error_message ? ` · ${log.error_message}` : ''}
                     </p>

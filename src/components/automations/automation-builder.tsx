@@ -53,6 +53,8 @@ import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
 import { useActiveConnections } from "@/hooks/use-active-connections"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
+import { useT } from "@/hooks/use-locale"
+import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
 import type {
@@ -105,6 +107,7 @@ export interface BuilderInitial {
 // ------------------------------------------------------------
 
 interface StepMeta {
+  /** i18n key (e.g. "automations.stepSendMessage") resolved with t() at render. */
   label: string
   icon: typeof Zap
   /** Left-border accent color (matches the icon hue). */
@@ -118,9 +121,10 @@ interface StepMeta {
   brand?: 'whatsapp' | 'shopify'
 }
 
+// `label` holds an i18n key, resolved with t() where the meta is rendered.
 const STEP_META: Record<AutomationStepType, StepMeta> = {
   send_message: {
-    label: "Enviar mensaje",
+    label: "automations.stepSendMessage",
     icon: MessageSquare,
     border: "border-l-emerald-500",
     iconBg: "bg-white",
@@ -128,7 +132,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     brand: "whatsapp",
   },
   send_template: {
-    label: "Enviar plantilla",
+    label: "automations.stepSendTemplate",
     icon: FileText,
     border: "border-l-emerald-500",
     iconBg: "bg-white",
@@ -136,56 +140,56 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     brand: "whatsapp",
   },
   add_tag: {
-    label: "Añadir etiqueta",
+    label: "automations.stepAddTag",
     icon: Tag,
     border: "border-l-pink-500",
     iconBg: "bg-pink-500/15",
     iconText: "text-pink-600 dark:text-pink-400",
   },
   remove_tag: {
-    label: "Quitar etiqueta",
+    label: "automations.stepRemoveTag",
     icon: TagIcon,
     border: "border-l-rose-500",
     iconBg: "bg-rose-500/15",
     iconText: "text-rose-600 dark:text-rose-400",
   },
   assign_conversation: {
-    label: "Asignar conversación",
+    label: "automations.stepAssignConversation",
     icon: UserCheck,
     border: "border-l-cyan-500",
     iconBg: "bg-cyan-500/15",
     iconText: "text-cyan-600 dark:text-cyan-400",
   },
   update_contact_field: {
-    label: "Actualizar campo del contacto",
+    label: "automations.stepUpdateContactField",
     icon: PencilLine,
     border: "border-l-violet-500",
     iconBg: "bg-violet-500/15",
     iconText: "text-violet-600 dark:text-violet-400",
   },
   wait: {
-    label: "Esperar",
+    label: "automations.stepWait",
     icon: Hourglass,
     border: "border-l-slate-500",
     iconBg: "bg-slate-500/15",
     iconText: "text-slate-300",
   },
   condition: {
-    label: "Condición (Si / Si no)",
+    label: "automations.stepCondition",
     icon: GitBranch,
     border: "border-l-amber-500",
     iconBg: "bg-amber-500/15",
     iconText: "text-amber-600 dark:text-amber-400",
   },
   send_webhook: {
-    label: "Enviar webhook",
+    label: "automations.stepSendWebhook",
     icon: Webhook,
     border: "border-l-indigo-500",
     iconBg: "bg-indigo-500/15",
     iconText: "text-indigo-400",
   },
   close_conversation: {
-    label: "Cerrar conversación",
+    label: "automations.stepCloseConversation",
     icon: CircleSlash,
     border: "border-l-red-500",
     iconBg: "bg-red-500/15",
@@ -214,11 +218,12 @@ const ADDABLE_STEPS: AutomationStepType[] = [
 // "tag added". The other trigger types still exist in the engine/types
 // (so any legacy automation keeps firing and renders its label via
 // TRIGGER_META), they're just not offered when building a new one.
+// `label` holds an i18n key, resolved with t() inside the trigger card.
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
-  { value: "tag_added", label: "Etiqueta añadida" },
-  { value: "shopify_order_created", label: "Nuevo pedido (Shopify)" },
-  { value: "shopify_order_fulfilled", label: "Pedido despachado (Shopify)" },
-  { value: "shopify_abandoned_checkout", label: "Carrito abandonado (Shopify)" },
+  { value: "tag_added", label: "automations.triggerTagAdded" },
+  { value: "shopify_order_created", label: "automations.triggerShopifyOrderCreated" },
+  { value: "shopify_order_fulfilled", label: "automations.triggerShopifyOrderFulfilled" },
+  { value: "shopify_abandoned_checkout", label: "automations.triggerShopifyAbandonedCheckout" },
 ]
 
 /**
@@ -234,14 +239,15 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
 // Common order data a merchant might branch on. The `key` is the real
 // context.vars name the Shopify webhook seeds (see buildVarsForOrder in
 // the orders webhook); the label is what the user sees.
+// `label` holds an i18n key, resolved with t() inside the condition fields.
 const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
-  { key: "is_repeat_customer", label: "¿Es cliente recurrente?" },
-  { key: "total_price", label: "Total del pedido" },
-  { key: "item_count", label: "Cantidad de productos" },
-  { key: "first_item", label: "Primer producto" },
-  { key: "currency", label: "Moneda" },
-  { key: "order_number", label: "Número de pedido" },
-  { key: "tracking_number", label: "Número de seguimiento" },
+  { key: "is_repeat_customer", label: "automations.orderDataRepeatCustomer" },
+  { key: "total_price", label: "automations.orderDataTotalPrice" },
+  { key: "item_count", label: "automations.orderDataItemCount" },
+  { key: "first_item", label: "automations.orderDataFirstItem" },
+  { key: "currency", label: "automations.orderDataCurrency" },
+  { key: "order_number", label: "automations.orderDataOrderNumber" },
+  { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
 ]
 
 function ConditionFields({
@@ -251,27 +257,28 @@ function ConditionFields({
   cfg: Record<string, unknown>
   set: (patch: Record<string, unknown>) => void
 }) {
+  const t = useT()
   const segments = useContext(SegmentsContext)
   const subject = (cfg.subject as string) ?? "tag_presence"
   return (
     <>
-      <FieldBlock label="¿Qué quieres revisar?">
+      <FieldBlock label={t("automations.conditionWhatToCheck")}>
         <select
           value={subject}
           onChange={(e) => set({ subject: e.target.value, operand: "", value: "" })}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
         >
-          <option value="tag_presence">Si el contacto tiene una etiqueta</option>
-          <option value="in_segment">Si está en un segmento</option>
-          <option value="contact_field">Un dato del contacto</option>
-          <option value="message_content">Lo que escribió el cliente</option>
-          <option value="time_of_day">La hora del día</option>
-          <option value="context_var">Un dato del pedido (Shopify)</option>
+          <option value="tag_presence">{t("automations.conditionSubjectTagPresence")}</option>
+          <option value="in_segment">{t("automations.conditionSubjectInSegment")}</option>
+          <option value="contact_field">{t("automations.conditionSubjectContactField")}</option>
+          <option value="message_content">{t("automations.conditionSubjectMessageContent")}</option>
+          <option value="time_of_day">{t("automations.conditionSubjectTimeOfDay")}</option>
+          <option value="context_var">{t("automations.conditionSubjectContextVar")}</option>
         </select>
       </FieldBlock>
 
       {subject === "tag_presence" && (
-        <FieldBlock label="Etiqueta">
+        <FieldBlock label={t("automations.tag")}>
           <TagSelect
             value={(cfg.operand as string) ?? ""}
             onChange={(v) => set({ operand: v })}
@@ -280,13 +287,13 @@ function ConditionFields({
       )}
 
       {subject === "in_segment" && (
-        <FieldBlock label="Segmento">
+        <FieldBlock label={t("automations.segment")}>
           <select
             value={(cfg.operand as string) ?? ""}
             onChange={(e) => set({ operand: e.target.value })}
             className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
           >
-            <option value="">Elige un segmento…</option>
+            <option value="">{t("automations.chooseSegment")}</option>
             {segments.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -298,18 +305,18 @@ function ConditionFields({
 
       {subject === "contact_field" && (
         <>
-          <FieldBlock label="Dato">
+          <FieldBlock label={t("automations.field")}>
             <select
               value={(cfg.operand as string) ?? "name"}
               onChange={(e) => set({ operand: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="name">Nombre</option>
-              <option value="email">Correo</option>
-              <option value="company">Empresa</option>
+              <option value="name">{t("automations.fieldName")}</option>
+              <option value="email">{t("automations.fieldEmail")}</option>
+              <option value="company">{t("automations.fieldCompany")}</option>
             </select>
           </FieldBlock>
-          <FieldBlock label="Es igual a">
+          <FieldBlock label={t("automations.equals")}>
             <Input
               value={(cfg.value as string) ?? ""}
               onChange={(e) => set({ value: e.target.value })}
@@ -320,21 +327,21 @@ function ConditionFields({
       )}
 
       {subject === "message_content" && (
-        <FieldBlock label="El mensaje contiene">
+        <FieldBlock label={t("automations.messageContains")}>
           {/* Engine matches on `value`; we mirror it into `operand` so the
               activation check (which requires a non-empty operand for every
               condition) passes without a second field. */}
           <Input
             value={(cfg.value as string) ?? ""}
             onChange={(e) => set({ value: e.target.value, operand: e.target.value })}
-            placeholder="Ej: factura, cambio, reembolso"
+            placeholder={t("automations.messageContainsPlaceholder")}
             className="bg-muted text-foreground"
           />
         </FieldBlock>
       )}
 
       {subject === "time_of_day" && (
-        <FieldBlock label="Entre estas horas">
+        <FieldBlock label={t("automations.betweenTheseHours")}>
           <Input
             value={(cfg.operand as string) ?? ""}
             onChange={(e) => set({ operand: e.target.value })}
@@ -342,40 +349,40 @@ function ConditionFields({
             className="bg-muted text-foreground"
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Desde-hasta, en formato 24 h.
+            {t("automations.timeRangeHint")}
           </p>
         </FieldBlock>
       )}
 
       {subject === "context_var" && (
         <>
-          <FieldBlock label="Dato del pedido">
+          <FieldBlock label={t("automations.orderData")}>
             <select
               value={(cfg.operand as string) ?? ""}
               onChange={(e) => set({ operand: e.target.value, value: "" })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="">Elige un dato…</option>
+              <option value="">{t("automations.chooseData")}</option>
               {ORDER_DATA_OPTIONS.map((o) => (
                 <option key={o.key} value={o.key}>
-                  {o.label}
+                  {t(o.label)}
                 </option>
               ))}
             </select>
           </FieldBlock>
           {cfg.operand === "is_repeat_customer" ? (
-            <FieldBlock label="Cuando sea">
+            <FieldBlock label={t("automations.whenItIs")}>
               <select
                 value={(cfg.value as string) ?? "true"}
                 onChange={(e) => set({ value: e.target.value })}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
               >
-                <option value="true">Sí, ya compró antes</option>
-                <option value="false">No, es su primera compra</option>
+                <option value="true">{t("automations.repeatCustomerYes")}</option>
+                <option value="false">{t("automations.repeatCustomerNo")}</option>
               </select>
             </FieldBlock>
           ) : cfg.operand ? (
-            <FieldBlock label="Es igual a">
+            <FieldBlock label={t("automations.equals")}>
               <Input
                 value={(cfg.value as string) ?? ""}
                 onChange={(e) => set({ value: e.target.value })}
@@ -399,13 +406,14 @@ function TagSelect({
   value: string
   onChange: (v: string) => void
 }) {
+  const t = useT()
   const tags = useContext(TagsContext)
   if (tags.length === 0) {
     return (
       <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        Aún no tienes etiquetas.{" "}
+        {t("automations.noTagsYet")}{" "}
         <Link href="/contactos?tab=tags" className="text-accent-ink underline hover:opacity-80">
-          Crear una
+          {t("automations.createOne")}
         </Link>
         .
       </p>
@@ -417,10 +425,10 @@ function TagSelect({
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
     >
-      <option value="">Elige una etiqueta…</option>
-      {tags.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
+      <option value="">{t("automations.chooseTag")}</option>
+      {tags.map((tag) => (
+        <option key={tag.id} value={tag.id}>
+          {tag.name}
         </option>
       ))}
     </select>
@@ -435,13 +443,14 @@ function AgentSelect({
   value: string
   onChange: (v: string) => void
 }) {
+  const t = useT()
   const agents = useContext(AgentsContext)
   if (agents.length === 0) {
     return (
       <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        Aún no hay nadie más en tu equipo.{" "}
+        {t("automations.noTeammatesYet")}{" "}
         <Link href="/ajustes" className="text-accent-ink underline hover:opacity-80">
-          Invitar a alguien
+          {t("automations.inviteSomeone")}
         </Link>
         .
       </p>
@@ -453,7 +462,7 @@ function AgentSelect({
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
     >
-      <option value="">Elige a alguien…</option>
+      <option value="">{t("automations.chooseSomeone")}</option>
       {agents.map((a) => (
         <option key={a.user_id} value={a.user_id}>
           {a.full_name || a.email}
@@ -511,6 +520,7 @@ export function AutomationBuilder({
    *  Swaps the primary CTA to "Usar plantilla" and shows a hint banner. */
   templatePreview?: boolean
 }) {
+  const t = useT()
   const router = useRouter()
   const fetchWithCsrf = useFetchWithCsrf()
   const connections = useActiveConnections()
@@ -595,7 +605,7 @@ export function AutomationBuilder({
     setSaving(true)
     try {
       const payload = {
-        name: state.name || "Automatización sin título",
+        name: state.name || t("automations.untitledAutomation"),
         description: state.description || null,
         trigger_type: state.trigger_type,
         trigger_config: state.trigger_config,
@@ -628,12 +638,16 @@ export function AutomationBuilder({
             description: firstIssue.path ? `en ${firstIssue.path}` : undefined,
           })
         } else {
-          toast.error(body?.error ?? "No se pudo guardar")
+          toast.error(body?.error ?? t("automations.saveFailed"))
         }
         return
       }
       toast.success(
-        isEditing ? "Guardada" : templatePreview ? "Plantilla agregada" : "Creada",
+        isEditing
+          ? t("automations.toastSaved")
+          : templatePreview
+            ? t("automations.toastTemplateAdded")
+            : t("automations.toastCreated"),
       )
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automatizaciones/${body.automation.id}/editar`)
@@ -657,25 +671,25 @@ export function AutomationBuilder({
           type="button"
           onClick={() => router.push("/automatizaciones")}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Atrás"
+          aria-label={t("automations.back")}
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <input
           value={state.name}
           onChange={(e) => patchTop("name", e.target.value)}
-          placeholder="Automatización sin título"
+          placeholder={t("automations.untitledAutomation")}
           className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:bg-accent focus:outline-none sm:text-base"
         />
         {/* Activation lives in the real editor — a template preview is
             unsaved and would fail the validate.ts gate, so hide it here. */}
         {!templatePreview && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="hidden sm:inline">Activa</span>
+            <span className="hidden sm:inline">{t("automations.active")}</span>
             <Switch
               checked={state.is_active}
               onCheckedChange={(v) => patchTop("is_active", !!v)}
-              aria-label="Activa"
+              aria-label={t("automations.active")}
             />
           </div>
         )}
@@ -685,14 +699,18 @@ export function AutomationBuilder({
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isEditing ? "Guardar" : templatePreview ? "Usar plantilla" : "Guardar borrador"}
+          {isEditing
+            ? t("automations.save")
+            : templatePreview
+              ? t("automations.useTemplate")
+              : t("automations.saveDraft")}
         </Button>
       </header>
 
       {templatePreview && (
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
           <Zap className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
-          <span>Vista previa de la plantilla.</span>
+          <span>{t("automations.templatePreviewBanner")}</span>
         </div>
       )}
 
@@ -706,10 +724,10 @@ export function AutomationBuilder({
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
           <span className="text-foreground">
-            No hay un WhatsApp conectado — no podrá enviar mensajes.
+            {t("automations.noWhatsappCantSend")}
           </span>
           <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
-            Conectar WhatsApp
+            {t("automations.connectWhatsapp")}
           </Link>
         </div>
       )}
@@ -749,12 +767,12 @@ export function AutomationBuilder({
         {previewOpen && (
           <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-medium text-foreground">Vista previa</p>
+              <p className="text-xs font-medium text-foreground">{t("automations.preview")}</p>
               <button
                 type="button"
                 onClick={() => setPreviewOpen(false)}
                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label="Cerrar vista previa"
+                aria-label={t("automations.closePreview")}
               >
                 <XIcon className="h-3.5 w-3.5" />
               </button>
@@ -769,7 +787,7 @@ export function AutomationBuilder({
             className="hidden absolute right-4 top-20 z-10 items-center gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-lg backdrop-blur transition-colors hover:bg-accent lg:inline-flex"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            Vista previa
+            {t("automations.preview")}
           </button>
         )}
       </div>
@@ -819,6 +837,7 @@ function MessagePreviewRail({
   steps: BuilderStep[]
   expandedId: string | null
 }) {
+  const t = useT()
   const templates = useContext(TemplatesContext)
 
   // Prefer the step being edited; otherwise show the first message step.
@@ -845,7 +864,9 @@ function MessagePreviewRail({
     if (!tpl) {
       return {
         headerType: "none" as TemplateHeaderType,
-        bodyText: name ? `Plantilla: ${name}` : "Selecciona una plantilla…",
+        bodyText: name
+          ? t("automations.templateLabel", { name })
+          : t("automations.selectTemplatePlaceholder"),
         footerText: undefined,
         buttons: undefined,
       }
@@ -857,7 +878,7 @@ function MessagePreviewRail({
       footerText: tpl.footer_text ?? undefined,
       buttons: undefined as TemplateButtonInput[] | undefined,
     }
-  }, [target, templates])
+  }, [target, templates, t])
 
   return (
     <div className="space-y-3">
@@ -873,7 +894,7 @@ function MessagePreviewRail({
         />
       ) : (
         <p className="text-xs text-muted-foreground">
-          Añade un paso de mensaje para ver la vista previa.
+          {t("automations.addMessageStepHint")}
         </p>
       )}
     </div>
@@ -895,6 +916,7 @@ function TriggerCard({
   onTypeChange: (t: AutomationTriggerType) => void
   onConfigChange: (c: Record<string, unknown>) => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
@@ -932,10 +954,15 @@ function TriggerCard({
                 type.startsWith("shopify_") ? "text-emerald-700 dark:text-emerald-300" : "text-blue-700 dark:text-blue-300",
               )}
             >
-              {type.startsWith("shopify_") ? "Activador · Shopify" : "Activador"}
+              {type.startsWith("shopify_")
+                ? t("automations.triggerEyebrowShopify")
+                : t("automations.triggerEyebrow")}
             </div>
             <div className="truncate text-sm font-medium text-foreground">
-              {TRIGGER_OPTIONS.find((o) => o.value === type)?.label ?? type}
+              {(() => {
+                const opt = TRIGGER_OPTIONS.find((o) => o.value === type)
+                return opt ? t(opt.label) : type
+              })()}
             </div>
           </div>
           <ChevronDown
@@ -952,7 +979,7 @@ function TriggerCard({
               >
                 {TRIGGER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label}
+                    {t(o.label)}
                   </option>
                 ))}
               </select>
@@ -971,7 +998,7 @@ function TriggerCard({
             )}
             {type === "time_based" && (
               <Input
-              placeholder="Expresión cron o HH:mm"
+              placeholder={t("automations.cronOrTimePlaceholder")}
                 value={(config.schedule as string) ?? ""}
                 onChange={(e) =>
                   onConfigChange({ ...config, schedule: e.target.value })
@@ -993,12 +1020,13 @@ function KeywordMatchConfig({
   config: KeywordMatchTriggerConfig
   onChange: (c: Record<string, unknown>) => void
 }) {
+  const t = useT()
   const keywords = config?.keywords ?? []
   return (
     <div className="space-y-2">
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          Palabras clave (separadas por comas)
+          {t("automations.keywordsLabel")}
         </label>
         <Input
           value={keywords.join(", ")}
@@ -1016,15 +1044,15 @@ function KeywordMatchConfig({
       </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          Tipo de coincidencia
+          {t("automations.matchTypeLabel")}
         </label>
         <select
           value={config?.match_type ?? "contains"}
           onChange={(e) => onChange({ ...config, match_type: e.target.value as "exact" | "contains" })}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
         >
-          <option value="contains">Contiene</option>
-          <option value="exact">Exacta</option>
+          <option value="contains">{t("automations.matchContains")}</option>
+          <option value="exact">{t("automations.matchExact")}</option>
         </select>
       </div>
     </div>
@@ -1101,6 +1129,7 @@ function StepRenderer({
   parentScope: ParentScope
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
+  const t = useT()
   const path: StepPath = [
     ...parentPath,
     parentScope.kind === "root"
@@ -1149,10 +1178,14 @@ function StepRenderer({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {isCondition ? "Condición" : step.step_type === "wait" ? "Espera" : "Acción"}
+                {isCondition
+                  ? t("automations.kindCondition")
+                  : step.step_type === "wait"
+                    ? t("automations.kindWait")
+                    : t("automations.kindAction")}
               </div>
-              <div className="truncate text-sm font-medium text-foreground">{meta.label}</div>
-              <div className="truncate text-[11px] text-muted-foreground">{previewFor(step)}</div>
+              <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
+              <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
             </div>
             <ChevronDown
               className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
@@ -1170,7 +1203,7 @@ function StepRenderer({
                     variant="ghost"
                     size="icon"
                     disabled={index === 0}
-                    aria-label="Mover antes"
+                    aria-label={t("automations.moveBefore")}
                     onClick={() => props.moveStepAt(path, -1)}
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -1179,7 +1212,7 @@ function StepRenderer({
                     variant="ghost"
                     size="icon"
                     disabled={index === total - 1}
-                    aria-label="Mover después"
+                    aria-label={t("automations.moveAfter")}
                     onClick={() => props.moveStepAt(path, 1)}
                   >
                     <ArrowRight className="h-4 w-4" />
@@ -1191,7 +1224,7 @@ function StepRenderer({
                   onClick={() => props.deleteStepAt(path)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  Eliminar
+                  {t("automations.delete")}
                 </Button>
               </div>
             </div>
@@ -1230,6 +1263,7 @@ function ConditionBranches({
   step: BuilderStep
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
+  const t = useT()
   const yes = step.branches?.yes ?? []
   const no = step.branches?.no ?? []
   // Build the child scope by appending a branch marker. The scope the
@@ -1248,10 +1282,10 @@ function ConditionBranches({
     // is a horizontal chain, so the branches read as the flow forking and
     // carrying on rightward. The dashed rail ties them back to the card.
     <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
-      <BranchLane label="Sí" color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink">
+      <BranchLane label={t("automations.branchYes")} color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink">
         <StepList {...props} steps={yes} parentPath={yesPath} />
       </BranchLane>
-      <BranchLane label="No" color="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400">
+      <BranchLane label={t("automations.branchNo")} color="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400">
         <StepList {...props} steps={no} parentPath={noPath} />
       </BranchLane>
     </div>
@@ -1291,6 +1325,7 @@ function AddButton({
   onPick: (t: AutomationStepType) => void
   orientation?: "h" | "v"
 }) {
+  const t = useT()
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
   return (
     <div
@@ -1310,23 +1345,23 @@ function AddButton({
             "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
             "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
           )}
-          aria-label="Añadir paso"
+          aria-label={t("automations.addStep")}
         >
           <Plus className="h-3.5 w-3.5" />
-          Añadir
+          {t("automations.add")}
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
           className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
         >
           <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Elige qué hacer
+            {t("automations.chooseWhatToDo")}
           </div>
-          {ADDABLE_STEPS.map((t) => {
-            const m = STEP_META[t]
+          {ADDABLE_STEPS.map((stepType) => {
+            const m = STEP_META[stepType]
             const Icon = m.icon
             return (
-              <DropdownMenuItem key={t} onClick={() => onPick(t)}>
+              <DropdownMenuItem key={stepType} onClick={() => onPick(stepType)}>
                 <span
                   className={cn(
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
@@ -1342,7 +1377,7 @@ function AddButton({
                     <Icon className="h-3.5 w-3.5" />
                   )}
                 </span>
-                {m.label}
+                {t(m.label)}
               </DropdownMenuItem>
             )
           })}
@@ -1364,6 +1399,7 @@ function StepEditor({
   step: BuilderStep
   onChange: (s: BuilderStep) => void
 }) {
+  const t = useT()
   const cfg = step.step_config
   const templates = useContext(TemplatesContext)
   const set = (patch: Record<string, unknown>) =>
@@ -1372,23 +1408,23 @@ function StepEditor({
   switch (step.step_type) {
     case "send_message":
       return (
-        <FieldBlock label="Texto del mensaje">
+        <FieldBlock label={t("automations.messageText")}>
           <Textarea
             value={(cfg.text as string) ?? ""}
             onChange={(e) => set({ text: e.target.value })}
-            placeholder="¡Hola! Gracias por escribirnos…"
+            placeholder={t("automations.messageTextPlaceholder")}
             className="min-h-24 bg-muted text-foreground"
           />
         </FieldBlock>
       )
     case "send_template":
       return (
-        <FieldBlock label="Plantilla de WhatsApp">
+        <FieldBlock label={t("automations.whatsappTemplate")}>
           {templates.length > 0 ? (
             <select
               value={(cfg.template_name as string) ?? ""}
               onChange={(e) => {
-                const tpl = templates.find((t) => t.name === e.target.value)
+                const tpl = templates.find((tp) => tp.name === e.target.value)
                 set({
                   template_name: e.target.value,
                   language: tpl?.language ?? "es",
@@ -1396,18 +1432,18 @@ function StepEditor({
               }}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
             >
-              <option value="">Elige una plantilla…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.name}>
-                  {t.name}
+              <option value="">{t("automations.chooseTemplate")}</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.name}>
+                  {tpl.name}
                 </option>
               ))}
             </select>
           ) : (
             <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              No hay plantillas aprobadas todavía.{" "}
+              {t("automations.noApprovedTemplates")}{" "}
               <Link href="/plantillas" className="text-accent-ink underline hover:opacity-80">
-                Crear una
+                {t("automations.createOne")}
               </Link>
               .
             </p>
@@ -1417,7 +1453,7 @@ function StepEditor({
     case "add_tag":
     case "remove_tag":
       return (
-        <FieldBlock label="Etiqueta">
+        <FieldBlock label={t("automations.tag")}>
           <TagSelect
             value={(cfg.tag_id as string) ?? ""}
             onChange={(v) => set({ tag_id: v })}
@@ -1427,18 +1463,18 @@ function StepEditor({
     case "assign_conversation":
       return (
         <>
-          <FieldBlock label="¿A quién se la paso?">
+          <FieldBlock label={t("automations.whoToAssign")}>
             <select
               value={(cfg.mode as string) ?? "round_robin"}
               onChange={(e) => set({ mode: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="round_robin">Repartir entre el equipo</option>
-              <option value="specific">Siempre a la misma persona</option>
+              <option value="round_robin">{t("automations.assignRoundRobin")}</option>
+              <option value="specific">{t("automations.assignSpecific")}</option>
             </select>
           </FieldBlock>
           {cfg.mode === "specific" && (
-            <FieldBlock label="Persona">
+            <FieldBlock label={t("automations.person")}>
               <AgentSelect
                 value={(cfg.agent_id as string) ?? ""}
                 onChange={(v) => set({ agent_id: v })}
@@ -1450,18 +1486,18 @@ function StepEditor({
     case "update_contact_field":
       return (
         <>
-          <FieldBlock label="¿Qué dato?">
+          <FieldBlock label={t("automations.whichField")}>
             <select
               value={(cfg.field as string) ?? "name"}
               onChange={(e) => set({ field: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="name">Nombre</option>
-              <option value="email">Correo</option>
-              <option value="company">Empresa</option>
+              <option value="name">{t("automations.fieldName")}</option>
+              <option value="email">{t("automations.fieldEmail")}</option>
+              <option value="company">{t("automations.fieldCompany")}</option>
             </select>
           </FieldBlock>
-          <FieldBlock label="Nuevo valor">
+          <FieldBlock label={t("automations.newValue")}>
             <Input
               value={(cfg.value as string) ?? ""}
               onChange={(e) => set({ value: e.target.value })}
@@ -1473,7 +1509,7 @@ function StepEditor({
     case "wait":
       return (
         <div className="grid grid-cols-2 gap-2">
-          <FieldBlock label="Cantidad">
+          <FieldBlock label={t("automations.amount")}>
             <Input
               type="number"
               min={1}
@@ -1482,15 +1518,15 @@ function StepEditor({
               className="bg-muted text-foreground"
             />
           </FieldBlock>
-          <FieldBlock label="Unidad">
+          <FieldBlock label={t("automations.unit")}>
             <select
               value={(cfg.unit as string) ?? "hours"}
               onChange={(e) => set({ unit: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="minutes">Minutos</option>
-              <option value="hours">Horas</option>
-              <option value="days">Días</option>
+              <option value="minutes">{t("automations.unitMinutes")}</option>
+              <option value="hours">{t("automations.unitHours")}</option>
+              <option value="days">{t("automations.unitDays")}</option>
             </select>
           </FieldBlock>
         </div>
@@ -1501,14 +1537,14 @@ function StepEditor({
     case "send_webhook":
       return (
         <>
-          <FieldBlock label="URL">
+          <FieldBlock label={t("automations.url")}>
             <Input
               value={(cfg.url as string) ?? ""}
               onChange={(e) => set({ url: e.target.value })}
               className="bg-muted text-foreground"
             />
           </FieldBlock>
-          <FieldBlock label="Plantilla del cuerpo (JSON)">
+          <FieldBlock label={t("automations.bodyTemplateJson")}>
             <Textarea
               value={(cfg.body_template as string) ?? ""}
               onChange={(e) => set({ body_template: e.target.value })}
@@ -1539,38 +1575,43 @@ function FieldBlock({
   )
 }
 
+// i18n key pairs [singular, plural] for the wait-step preview, resolved
+// with t() inside previewFor.
 const WAIT_UNIT_LABELS: Record<string, [string, string]> = {
-  minutes: ["minuto", "minutos"],
-  hours: ["hora", "horas"],
-  days: ["día", "días"],
+  minutes: ["automations.waitMinuteOne", "automations.waitMinuteOther"],
+  hours: ["automations.waitHourOne", "automations.waitHourOther"],
+  days: ["automations.waitDayOne", "automations.waitDayOther"],
 }
 
+// i18n keys for the condition-step preview line, resolved with t().
 const CONDITION_SUBJECT_PREVIEW: Record<string, string> = {
-  tag_presence: "según una etiqueta",
-  in_segment: "según el segmento",
-  contact_field: "según un dato del contacto",
-  message_content: "según lo que escribió",
-  time_of_day: "según la hora del día",
-  context_var: "según un dato del pedido",
+  tag_presence: "automations.conditionPreviewTagPresence",
+  in_segment: "automations.conditionPreviewInSegment",
+  contact_field: "automations.conditionPreviewContactField",
+  message_content: "automations.conditionPreviewMessageContent",
+  time_of_day: "automations.conditionPreviewTimeOfDay",
+  context_var: "automations.conditionPreviewContextVar",
 }
 
-function previewFor(step: BuilderStep): string {
+function previewFor(step: BuilderStep, t: TFn): string {
   switch (step.step_type) {
     case "send_message":
-      return (step.step_config.text as string) || "sin texto aún"
+      return (step.step_config.text as string) || t("automations.previewNoTextYet")
     case "send_template":
-      return (step.step_config.template_name as string) || "elige una plantilla"
+      return (step.step_config.template_name as string) || t("automations.previewChooseTemplate")
     case "wait": {
       const amount = Number(step.step_config.amount ?? 0)
       const unit = String(step.step_config.unit ?? "hours")
       const [one, many] = WAIT_UNIT_LABELS[unit] ?? ["", ""]
-      if (!amount) return "define cuánto esperar"
-      return `${amount} ${amount === 1 ? one : many}`
+      if (!amount) return t("automations.previewDefineWait")
+      return `${amount} ${amount === 1 ? (one ? t(one) : "") : many ? t(many) : ""}`
     }
-    case "condition":
-      return CONDITION_SUBJECT_PREVIEW[String(step.step_config.subject ?? "")] || "define la condición"
+    case "condition": {
+      const key = CONDITION_SUBJECT_PREVIEW[String(step.step_config.subject ?? "")]
+      return key ? t(key) : t("automations.previewDefineCondition")
+    }
     case "send_webhook":
-      return (step.step_config.url as string) || "sin URL"
+      return (step.step_config.url as string) || t("automations.previewNoUrl")
     default:
       return ""
   }
@@ -1793,6 +1834,7 @@ const INTERACTIVE_SELECTOR =
   'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"]'
 
 function CanvasViewport({ children }: { children: React.ReactNode }) {
+  const t = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -1996,8 +2038,8 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={() => zoomByButton(-0.1)}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Reducir (Ctrl + rueda)"
-          aria-label="Reducir"
+          title={t("automations.zoomOutTitle")}
+          aria-label={t("automations.zoomOut")}
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -2005,7 +2047,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={fitToView}
           className="min-w-[3.5rem] rounded px-1 py-1 text-center text-xs tabular-nums text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Centrar y ajustar"
+          title={t("automations.centerAndFit")}
         >
           {Math.round(scale * 100)}%
         </button>
@@ -2013,8 +2055,8 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={() => zoomByButton(0.1)}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Ampliar (Ctrl + rueda)"
-          aria-label="Ampliar"
+          title={t("automations.zoomInTitle")}
+          aria-label={t("automations.zoomIn")}
         >
           <ZoomIn className="h-4 w-4" />
         </button>
@@ -2023,8 +2065,8 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
           type="button"
           onClick={fitToView}
           className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
-          title="Centrar todo el flujo"
-          aria-label="Centrar"
+          title={t("automations.centerFlowTitle")}
+          aria-label={t("automations.center")}
         >
           <Maximize2 className="h-4 w-4" />
         </button>

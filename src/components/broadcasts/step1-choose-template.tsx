@@ -6,6 +6,7 @@ import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
@@ -13,11 +14,12 @@ const categoryColors: Record<string, string> = {
   Authentication: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  Draft: 'Borrador',
-  Pending: 'Pendiente',
-  Approved: 'Aprobada',
-  Rejected: 'Rechazada',
+/** Map a template status to its i18n key, resolved with t() at render. */
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  Draft: 'broadcasts.statusDraft',
+  Pending: 'broadcasts.statusPending',
+  Approved: 'broadcasts.statusApproved',
+  Rejected: 'broadcasts.statusRejected',
 };
 
 /**
@@ -26,6 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
  * self-contained for the v2 redesign.
  */
 function StatusPill({ status }: { status: string }) {
+  const t = useT();
   const tone =
     status === 'Approved'
       ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
@@ -41,7 +44,7 @@ function StatusPill({ status }: { status: string }) {
         tone,
       )}
     >
-      {STATUS_LABELS[status] ?? status}
+      {STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status}
     </span>
   );
 }
@@ -54,6 +57,7 @@ interface Step1Props {
 }
 
 export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack }: Step1Props) {
+  const t = useT();
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +74,7 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
         if (fetchError) throw fetchError;
         setTemplates(data ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudieron cargar las plantillas');
+        setError(err instanceof Error ? err.message : t('broadcasts.templatesLoadError'));
       } finally {
         setLoading(false);
       }
@@ -98,17 +102,17 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Elige una plantilla</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step1Title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Selecciona una plantilla de mensaje aprobada para tu difusión.
+          {t('broadcasts.step1Subtitle')}
         </p>
       </div>
 
       {templates.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-border bg-card/50">
           <FileText className="mb-2 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No hay plantillas disponibles.</p>
-          <p className="mt-1 text-xs text-muted-foreground">Primero crea una plantilla en Ajustes.</p>
+          <p className="text-sm text-muted-foreground">{t('broadcasts.noTemplates')}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('broadcasts.noTemplatesHint')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -167,14 +171,14 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
 
       <div className="flex items-center justify-between border-t border-border pt-4">
         <Button variant="outline" onClick={onBack} className="border-border text-foreground">
-          Atrás
+          {t('broadcasts.back')}
         </Button>
         <Button
           onClick={onNext}
           disabled={!selectedTemplate || selectedTemplate.status !== 'Approved'}
           className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Siguiente
+          {t('broadcasts.next')}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>

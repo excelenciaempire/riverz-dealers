@@ -24,6 +24,8 @@ import { useState } from "react";
 import { Variable, Copy, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useT } from "@/hooks/use-locale";
+import type { TFn } from "@/lib/i18n/translate";
 
 interface FlowNode {
   node_key: string;
@@ -38,18 +40,19 @@ interface VarRow {
 }
 
 export function VariablesPanel({ nodes }: { nodes: FlowNode[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [copiedExpr, setCopiedExpr] = useState<string | null>(null);
-  const vars = buildAvailableVariables(nodes);
+  const vars = buildAvailableVariables(nodes, t);
 
   const copy = async (expr: string) => {
     try {
       await navigator.clipboard.writeText(expr);
       setCopiedExpr(expr);
-      toast.success(`${expr} copiado`);
+      toast.success(t("flows.varCopied", { expr }));
       setTimeout(() => setCopiedExpr(null), 1500);
     } catch {
-      toast.error("No se pudo copiar");
+      toast.error(t("flows.copyFailed"));
     }
   };
 
@@ -69,10 +72,10 @@ export function VariablesPanel({ nodes }: { nodes: FlowNode[] }) {
           "bg-card px-3 text-sm font-medium text-foreground shadow-lg shadow-black/20",
           "transition-colors hover:bg-muted",
         )}
-        aria-label="Ver variables disponibles"
+        aria-label={t("flows.viewAvailableVariables")}
       >
         <Variable className="size-4" />
-        Variables
+        {t("flows.variables")}
         {open ? (
           <ChevronDown className="size-3.5" />
         ) : (
@@ -89,17 +92,15 @@ export function VariablesPanel({ nodes }: { nodes: FlowNode[] }) {
         >
           <div className="mb-2 border-b border-border pb-2">
             <p className="text-sm font-semibold text-foreground">
-              Variables del flujo
+              {t("flows.flowVariables")}
             </p>
             <p className="text-[10px] text-muted-foreground">
-              Toca una para copiarla al portapapeles. Pégala en cualquier
-              texto del nodo donde la necesites.
+              {t("flows.variablesHint")}
             </p>
           </div>
           {Object.keys(byCategory).length === 0 ? (
             <p className="px-1 py-2 text-xs text-muted-foreground">
-              Todavía no hay variables. Agrega un nodo de Recolectar
-              dato o de Buscar en Shopify para empezar.
+              {t("flows.noVariablesYet")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -167,22 +168,22 @@ const SHOPIFY_PRODUCT_SUFFIXES = [
   "image_url",
 ];
 
-function buildAvailableVariables(nodes: FlowNode[]): VarRow[] {
+function buildAvailableVariables(nodes: FlowNode[], t: TFn): VarRow[] {
   const rows: VarRow[] = [
     {
-      category: "Cliente",
+      category: t("flows.varCategoryCustomer"),
       expression: "{{customer.name}}",
-      source: "Nombre del contacto",
+      source: t("flows.varCustomerName"),
     },
     {
-      category: "Cliente",
+      category: t("flows.varCategoryCustomer"),
       expression: "{{customer.phone}}",
-      source: "Teléfono del contacto",
+      source: t("flows.varCustomerPhone"),
     },
     {
-      category: "Cliente",
+      category: t("flows.varCategoryCustomer"),
       expression: "{{customer.email}}",
-      source: "Correo del contacto",
+      source: t("flows.varCustomerEmail"),
     },
   ];
 
@@ -191,11 +192,11 @@ function buildAvailableVariables(nodes: FlowNode[]): VarRow[] {
       const cfg = n.config as { var_key?: string; prompt_text?: string };
       if (cfg.var_key) {
         rows.push({
-          category: "Datos recolectados",
+          category: t("flows.varCategoryCollected"),
           expression: `{{vars.${cfg.var_key}}}`,
           source: cfg.prompt_text
             ? truncate(cfg.prompt_text, 50)
-            : `Nodo ${n.node_key}`,
+            : t("flows.varNode", { key: n.node_key }),
         });
       }
     } else if (n.node_type === "shopify_lookup") {
@@ -209,11 +210,11 @@ function buildAvailableVariables(nodes: FlowNode[]): VarRow[] {
         ? SHOPIFY_PRODUCT_SUFFIXES
         : SHOPIFY_ORDER_SUFFIXES;
       const sourceLabel = isProduct
-        ? `Producto de ${n.node_key}`
-        : `Pedido de ${n.node_key}`;
+        ? t("flows.varProductOf", { key: n.node_key })
+        : t("flows.varOrderOf", { key: n.node_key });
       for (const s of suffixes) {
         rows.push({
-          category: "Resultados de Shopify",
+          category: t("flows.varCategoryShopify"),
           expression: `{{vars.${prefix}_${s}}}`,
           source: sourceLabel,
         });

@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSetupStatus } from '@/hooks/use-setup-status';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Stepper guiado de onboarding en /panel. Lleva al merchant nuevo por el
@@ -27,6 +28,7 @@ import { useSetupStatus } from '@/hooks/use-setup-status';
  */
 export function SetupChecklist() {
   const status = useSetupStatus();
+  const t = useT();
 
   if (status.loading) return null;
 
@@ -38,28 +40,25 @@ export function SetupChecklist() {
     cta: string;
   }> = [
     {
-      label: 'Conecta un canal',
-      description:
-        'WhatsApp, Instagram o Facebook. Es por donde recibes y respondes mensajes.',
+      label: t('dashboard.stepConnectChannel'),
+      description: t('dashboard.stepConnectChannelDesc'),
       done: status.any_channel_connected,
       href: '/integraciones',
-      cta: 'Conectar canal',
+      cta: t('dashboard.stepConnectChannelCta'),
     },
     {
-      label: 'Crea tu producto',
-      description:
-        'Funciona sin Shopify. Conectar Shopify es opcional y mejora al asistente.',
+      label: t('dashboard.stepCreateProduct'),
+      description: t('dashboard.stepCreateProductDesc'),
       done: status.has_product,
       href: '/productos?new=1',
-      cta: 'Crear producto',
+      cta: t('dashboard.stepCreateProductCta'),
     },
     {
-      label: 'Activa tu asistente de IA',
-      description:
-        'Responde con tu catálogo y tu marca, las 24 horas, en cada canal.',
+      label: t('dashboard.stepActivateAssistant'),
+      description: t('dashboard.stepActivateAssistantDesc'),
       done: status.has_agent,
       href: '/asistente',
-      cta: 'Activar asistente',
+      cta: t('dashboard.stepActivateAssistantCta'),
     },
   ];
 
@@ -77,23 +76,23 @@ export function SetupChecklist() {
               <CheckCircle2 className="size-5" aria-hidden />
             </span>
             <div>
-              <p className="app-eyebrow">Configuración completa</p>
+              <p className="app-eyebrow">{t('dashboard.setupComplete')}</p>
               <h2 className="mt-1 text-base font-semibold text-foreground">
-                Ya estás en vivo
+                {t('dashboard.youAreLive')}
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Tu canal, tu producto y tu asistente están listos para atender.
+                {t('dashboard.youAreLiveDesc')}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button render={<Link href="/bandeja" />} size="sm" variant="default">
               <Inbox className="size-3.5" aria-hidden />
-              Abrir bandeja
+              {t('dashboard.openInbox')}
             </Button>
             <Button render={<Link href="/metricas" />} size="sm" variant="outline">
               <LineChart className="size-3.5" aria-hidden />
-              Ver métricas
+              {t('dashboard.viewMetrics')}
             </Button>
           </div>
         </div>
@@ -108,14 +107,14 @@ export function SetupChecklist() {
     <section className="rounded-xl border border-border bg-card p-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="app-eyebrow">Pon en marcha tu cuenta</p>
+          <p className="app-eyebrow">{t('dashboard.getAccountRunning')}</p>
           <h2 className="mt-1 text-base font-semibold text-foreground">
             {completed === 0
-              ? 'Tres pasos para salir en vivo'
-              : `${completed} de ${steps.length} pasos listos`}
+              ? t('dashboard.threeStepsToLive')
+              : t('dashboard.stepsReady', { completed, total: steps.length })}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Sigue el orden. Cada paso te lleva directo a donde se completa.
+            {t('dashboard.followOrder')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -141,7 +140,7 @@ export function SetupChecklist() {
             className="text-muted-foreground"
           >
             <RefreshCw className="size-3" aria-hidden />
-            Actualizar estado
+            {t('dashboard.refreshStatus')}
           </Button>
         </div>
       </header>
@@ -195,7 +194,7 @@ export function SetupChecklist() {
                 {step.done ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
                     <Check className="size-3.5" aria-hidden />
-                    Listo
+                    {t('dashboard.done')}
                   </span>
                 ) : isCurrent ? (
                   <Button
@@ -208,7 +207,7 @@ export function SetupChecklist() {
                   </Button>
                 ) : (
                   <span className="text-[11px] text-muted-foreground/70">
-                    Más adelante
+                    {t('dashboard.later')}
                   </span>
                 )}
               </div>

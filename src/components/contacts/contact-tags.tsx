@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Check, Plus, X, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
 import {
   Popover,
   PopoverTrigger,
@@ -40,6 +41,7 @@ interface ContactTagsProps {
 export function ContactTags({ contactId, onChanged, className }: ContactTagsProps) {
   const supabase = createClient();
   const { workspace } = useWorkspace();
+  const t = useT();
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -76,7 +78,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
           .eq('contact_id', contactId)
           .eq('tag_id', tagId);
         if (error) {
-          toast.error('No se pudo quitar la etiqueta');
+          toast.error(t('contacts.removeTagError'));
         } else {
           setSelectedIds((prev) => prev.filter((id) => id !== tagId));
           onChanged?.();
@@ -86,7 +88,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
           .from('contact_tags')
           .insert({ contact_id: contactId, tag_id: tagId });
         if (error) {
-          toast.error('No se pudo asignar la etiqueta');
+          toast.error(t('contacts.assignTagError'));
         } else {
           setSelectedIds((prev) => [...prev, tagId]);
           onChanged?.();
@@ -94,17 +96,17 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
       }
       setBusyId(null);
     },
-    [supabase, contactId, selectedIds, onChanged],
+    [supabase, contactId, selectedIds, onChanged, t],
   );
 
   async function createAndAssign() {
     const name = newName.trim();
     if (!name) {
-      toast.error('Falta el nombre.');
+      toast.error(t('contacts.missingName'));
       return;
     }
     if (!workspace) {
-      toast.error('No se pudo identificar el espacio de trabajo.');
+      toast.error(t('contacts.workspaceNotIdentified'));
       return;
     }
     setSaving(true);
@@ -115,7 +117,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
       .single();
 
     if (error || !data) {
-      toast.error('No se pudo crear la etiqueta');
+      toast.error(t('contacts.createTagError'));
       setSaving(false);
       return;
     }
@@ -151,7 +153,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
             onClick={() => toggle(tag.id)}
             disabled={busyId === tag.id}
             className="-mr-1 rounded-full p-1.5 opacity-60 transition-opacity hover:opacity-100"
-            aria-label={`Quitar ${tag.name}`}
+            aria-label={t('contacts.removeTag', { name: tag.name })}
           >
             <X className="size-2.5" />
           </button>
@@ -174,7 +176,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
           }
         >
           <Plus className="size-3" />
-          Etiqueta
+          {t('contacts.tagButton')}
         </PopoverTrigger>
         <PopoverContent align="start" className="w-56 bg-card border-border p-1.5">
           {creating ? (
@@ -183,7 +185,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
                 autoFocus
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nombre"
+                placeholder={t('contacts.namePlaceholder')}
                 className="h-8 bg-muted border-border text-foreground text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') createAndAssign();
@@ -201,7 +203,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
                       outline: newColor === c ? `2px solid ${c}` : 'none',
                       outlineOffset: 2,
                     }}
-                    aria-label={`Color ${c}`}
+                    aria-label={t('contacts.colorLabel', { color: c })}
                   />
                 ))}
               </div>
@@ -211,7 +213,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
                   onClick={() => setCreating(false)}
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  Cancelar
+                  {t('contacts.cancel')}
                 </button>
                 <button
                   type="button"
@@ -220,7 +222,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
                   className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                 >
                   {saving && <Loader2 className="size-3 animate-spin" />}
-                  Crear
+                  {t('contacts.create')}
                 </button>
               </div>
             </div>
@@ -229,7 +231,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
               <div className="max-h-48 overflow-y-auto">
                 {allTags.length === 0 ? (
                   <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    Aún no hay etiquetas.
+                    {t('contacts.noTagsYet')}
                   </p>
                 ) : (
                   allTags.map((tag) => {
@@ -259,7 +261,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
                 className="mt-0.5 flex w-full items-center gap-2 rounded-md border-t border-border px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <Plus className="size-3.5" />
-                Nueva etiqueta
+                {t('contacts.newTag')}
               </button>
             </div>
           )}

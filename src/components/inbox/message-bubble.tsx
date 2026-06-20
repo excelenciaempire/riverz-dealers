@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
+import { useT } from "@/hooks/use-locale";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
@@ -51,15 +52,17 @@ function StatusIcon({ status }: { status: Message["status"] }) {
 }
 
 function MediaUnavailable({ label }: { label: string }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-foreground">
       <ImageOff className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span>{label} no disponible</span>
+      <span>{t("inbox.mediaUnavailable", { label })}</span>
     </div>
   );
 }
 
 function MediaImage({ url, alt }: { url: string; alt: string }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -148,7 +151,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         type="button"
         onClick={() => setOpen(true)}
         className="cursor-zoom-in"
-        aria-label="Ampliar imagen"
+        aria-label={t("inbox.expandImage")}
       >
         <img
           src={src ?? ""}
@@ -173,6 +176,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
 }
 
 function MediaVideo({ url }: { url: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -180,7 +184,7 @@ function MediaVideo({ url }: { url: string }) {
         type="button"
         onClick={() => setOpen(true)}
         className="cursor-zoom-in"
-        aria-label="Ampliar video"
+        aria-label={t("inbox.expandVideo")}
       >
         {/* preload="none" prevents the browser from fetching metadata
             for every video in the thread on mount. Without it, opening
@@ -240,6 +244,7 @@ function AttachmentList({
   attachments: MessageAttachment[];
   caption?: string;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1">
       {attachments.map((a, i) => {
@@ -248,12 +253,12 @@ function AttachmentList({
         if (!url) {
           return (
             <span key={i} className="text-sm text-muted-foreground">
-              {a.name || "Archivo"} (no disponible)
+              {t("inbox.attachmentUnavailable", { name: a.name || t("inbox.file") })}
             </span>
           );
         }
         if (kind === "image") {
-          return <MediaImage key={i} url={url} alt={a.name || "Imagen compartida"} />;
+          return <MediaImage key={i} url={url} alt={a.name || t("inbox.sharedImage")} />;
         }
         if (kind === "video") {
           return <MediaVideo key={i} url={url} />;
@@ -270,7 +275,7 @@ function AttachmentList({
             className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
           >
             <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{a.name || "Archivo"}</span>
+            <span className="truncate">{a.name || t("inbox.file")}</span>
           </a>
         );
       })}
@@ -282,6 +287,7 @@ function AttachmentList({
 }
 
 function MessageContent({ message }: { message: Message }) {
+  const t = useT();
   // Attachments first: IG / Messenger / WhatsApp media is re-hosted to
   // Storage at ingest and stored in `attachments`. Rendering from the
   // array (rather than only the derived media_url + content_type) means
@@ -313,9 +319,9 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div>
           {mediaUrl ? (
-            <MediaImage url={mediaUrl} alt="Imagen compartida" />
+            <MediaImage url={mediaUrl} alt={t("inbox.sharedImage")} />
           ) : (
-            <MediaUnavailable label="Imagen" />
+            <MediaUnavailable label={t("inbox.image")} />
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -331,7 +337,7 @@ function MessageContent({ message }: { message: Message }) {
           {mediaUrl ? (
             <MediaVideo url={mediaUrl} />
           ) : (
-            <MediaUnavailable label="Video" />
+            <MediaUnavailable label={t("inbox.video")} />
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -347,14 +353,14 @@ function MessageContent({ message }: { message: Message }) {
           {mediaUrl ? (
             <audio src={mediaUrl} controls className="max-w-60" />
           ) : (
-            <MediaUnavailable label="Audio" />
+            <MediaUnavailable label={t("inbox.audio")} />
           )}
         </div>
       );
 
     case "document":
       if (!mediaUrl) {
-        return <MediaUnavailable label={message.content_text || "Documento"} />;
+        return <MediaUnavailable label={message.content_text || t("inbox.document")} />;
       }
       return (
         <a
@@ -365,7 +371,7 @@ function MessageContent({ message }: { message: Message }) {
         >
           <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
           <span className="truncate">
-            {message.content_text || "Documento"}
+            {message.content_text || t("inbox.document")}
           </span>
         </a>
       );
@@ -375,7 +381,7 @@ function MessageContent({ message }: { message: Message }) {
         <div>
           <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-ink">
             <LayoutTemplate className="h-3 w-3" />
-            Plantilla
+            {t("inbox.template")}
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -389,7 +395,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span>{message.content_text || "Ubicación compartida"}</span>
+          <span>{message.content_text || t("inbox.sharedLocation")}</span>
         </div>
       );
 
@@ -403,10 +409,10 @@ function MessageContent({ message }: { message: Message }) {
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <CornerDownLeft className="h-3 w-3" />
-            Respuesta de botón
+            {t("inbox.buttonReply")}
           </span>
           <p className="whitespace-pre-wrap break-words text-sm">
-            {message.content_text || "[Respuesta interactiva]"}
+            {message.content_text || t("inbox.interactiveReply")}
           </p>
         </div>
       );
@@ -415,7 +421,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || "[No compatible]"}
+          {message.content_text || t("inbox.unsupported")}
         </p>
       );
   }
@@ -435,6 +441,7 @@ function MessageContent({ message }: { message: Message }) {
  *   - Anything without a usable HTML body falls back to plain text.
  */
 function EmailBody({ message }: { message: Message }) {
+  const t = useT();
   if (emailIsHtml(message)) {
     return <EmailHtmlBody html={(message.html_body as string).trim()} />;
   }
@@ -444,7 +451,7 @@ function EmailBody({ message }: { message: Message }) {
   const text = isReply
     ? primary
     : decodeHtmlEntities(rawText).replace(/\r\n/g, "\n").trim();
-  return <LinkifiedText text={text || "[sin contenido]"} />;
+  return <LinkifiedText text={text || t("inbox.noContent")} />;
 }
 
 /** True for emails built as designed HTML (marketing/transactional):
@@ -506,6 +513,7 @@ function LinkifiedText({ text }: { text: string }) {
  * (so it keeps up as remote images finish loading).
  */
 function EmailHtmlBody({ html }: { html: string }) {
+  const t = useT();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
 
@@ -583,7 +591,7 @@ function EmailHtmlBody({ html }: { html: string }) {
   return (
     <iframe
       ref={frameRef}
-      title="Correo"
+      title={t("inbox.email")}
       sandbox="allow-same-origin allow-popups"
       srcDoc={srcDoc}
       scrolling="no"
@@ -668,6 +676,7 @@ export function MessageBubble({
   senderName,
   onToggleReaction,
 }: MessageBubbleProps) {
+  const t = useT();
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const tz = useTimezone();
   const time = formatInTimeZone(new Date(message.created_at), tz, "HH:mm");
@@ -711,7 +720,7 @@ export function MessageBubble({
                   isAgent ? "bg-primary" : "bg-muted-foreground",
                 )}
               />
-              {isAgent ? (senderName ?? "Tú") : "Cliente"}
+              {isAgent ? (senderName ?? t("inbox.you")) : t("inbox.customer")}
             </span>
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
 import type { Tag } from '@/types';
 
 /**
@@ -38,6 +39,7 @@ interface TagWithCount extends Tag {
 
 export function TagsPanel() {
   const supabase = createClient();
+  const t = useT();
   const [tags, setTags] = useState<TagWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Tag | null>(null);
@@ -59,7 +61,7 @@ export function TagsPanel() {
       .select('*, contact_tags(count)')
       .order('name');
     if (error) {
-      toast.error('No se pudieron cargar las etiquetas');
+      toast.error(t('contacts.loadTagsError'));
       setLoading(false);
       return;
     }
@@ -72,7 +74,7 @@ export function TagsPanel() {
       })) as TagWithCount[],
     );
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, t]);
 
   useEffect(() => {
     void load();
@@ -87,10 +89,10 @@ export function TagsPanel() {
       .eq('id', deleteTarget.id);
     setDeleting(false);
     if (error) {
-      toast.error('No se pudo eliminar la etiqueta');
+      toast.error(t('contacts.deleteTagError'));
       return;
     }
-    toast.success('Etiqueta eliminada');
+    toast.success(t('contacts.tagDeleted'));
     setDeleteTarget(null);
     void load();
   }
@@ -108,11 +110,10 @@ export function TagsPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            Tus etiquetas
+            {t('contacts.yourTags')}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Sirven para segmentar contactos y mandar campañas a grupos
-            específicos.
+            {t('contacts.yourTagsSubtitle')}
           </p>
         </div>
         <Button
@@ -121,18 +122,17 @@ export function TagsPanel() {
           size="sm"
         >
           <Plus className="size-4" />
-          Nueva etiqueta
+          {t('contacts.newTagButton')}
         </Button>
       </div>
 
       {tags.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center">
           <p className="text-sm font-medium text-foreground">
-            Todavía no tienes etiquetas
+            {t('contacts.noTagsPanelTitle')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Empieza creando una. Después la puedes asignar a contactos
-            desde la lista o desde el chat.
+            {t('contacts.noTagsPanelBody')}
           </p>
           <Button
             onClick={() => setCreating(true)}
@@ -141,7 +141,7 @@ export function TagsPanel() {
             variant="outline"
           >
             <Plus className="size-4" />
-            Crear etiqueta
+            {t('contacts.createTag')}
           </Button>
         </div>
       ) : (
@@ -170,7 +170,7 @@ export function TagsPanel() {
                   variant="ghost"
                   className="size-9 sm:size-7"
                   onClick={() => setEditing(tag)}
-                  aria-label="Editar etiqueta"
+                  aria-label={t('contacts.editTagAria')}
                 >
                   <Pencil className="size-3.5" />
                 </Button>
@@ -179,7 +179,7 @@ export function TagsPanel() {
                   variant="ghost"
                   className="size-9 sm:size-7 text-red-500 hover:bg-red-500/10 hover:text-red-500"
                   onClick={() => setDeleteTarget(tag)}
-                  aria-label="Eliminar etiqueta"
+                  aria-label={t('contacts.deleteTagAria')}
                 >
                   <Trash2 className="size-3.5" />
                 </Button>
@@ -216,13 +216,13 @@ export function TagsPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              ¿Eliminar la etiqueta &quot;{deleteTarget?.name}&quot;?
+              {t('contacts.deleteTagQuestion', { name: deleteTarget?.name ?? '' })}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {deleteTarget?.contact_count
-              ? `Se quitará de los ${deleteTarget.contact_count} contactos que la tienen. Los contactos no se eliminan.`
-              : 'Ningún contacto la tiene asignada, así que es seguro borrarla.'}
+              ? t('contacts.deleteTagWithContacts', { count: deleteTarget.contact_count })
+              : t('contacts.deleteTagNoContacts')}
           </p>
           <DialogFooter>
             <Button
@@ -230,7 +230,7 @@ export function TagsPanel() {
               onClick={() => setDeleteTarget(null)}
               disabled={deleting}
             >
-              Cancelar
+              {t('contacts.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -242,7 +242,7 @@ export function TagsPanel() {
               ) : (
                 <Trash2 className="size-4" />
               )}
-              Eliminar
+              {t('contacts.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -262,17 +262,18 @@ function TagFormDialog({
 }) {
   const supabase = createClient();
   const { workspace } = useWorkspace();
+  const t = useT();
   const [name, setName] = useState(tag?.name ?? '');
   const [color, setColor] = useState(tag?.color ?? PRESET_COLORS[0]);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     if (!name.trim()) {
-      toast.error('Ponle un nombre a la etiqueta');
+      toast.error(t('contacts.tagNameRequired'));
       return;
     }
     if (!tag && !workspace) {
-      toast.error('Workspace no disponible');
+      toast.error(t('contacts.workspaceUnavailable'));
       return;
     }
     setSaving(true);
@@ -282,8 +283,8 @@ function TagFormDialog({
         .update({ name: name.trim(), color })
         .eq('id', tag.id);
       setSaving(false);
-      if (error) return toast.error('No se pudo guardar');
-      toast.success('Etiqueta actualizada');
+      if (error) return toast.error(t('contacts.saveError'));
+      toast.success(t('contacts.tagUpdated'));
       onSaved();
     } else {
       const { error } = await supabase.from('tags').insert({
@@ -292,8 +293,8 @@ function TagFormDialog({
         workspace_id: workspace!.id,
       });
       setSaving(false);
-      if (error) return toast.error('No se pudo crear');
-      toast.success('Etiqueta creada');
+      if (error) return toast.error(t('contacts.createError'));
+      toast.success(t('contacts.tagCreated'));
       onSaved();
     }
   }
@@ -303,22 +304,22 @@ function TagFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {tag ? 'Editar etiqueta' : 'Nueva etiqueta'}
+            {tag ? t('contacts.editTag') : t('contacts.newTagTitle')}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <label className="block">
-            <span className="text-xs text-muted-foreground">Nombre</span>
+            <span className="text-xs text-muted-foreground">{t('contacts.fieldName')}</span>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="VIP, Mayorista, Lima…"
+              placeholder={t('contacts.tagNamePlaceholder')}
               className="mt-1"
               autoFocus
             />
           </label>
           <div>
-            <span className="text-xs text-muted-foreground">Color</span>
+            <span className="text-xs text-muted-foreground">{t('contacts.colorWord')}</span>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {PRESET_COLORS.map((c) => (
                 <button
@@ -332,7 +333,7 @@ function TagFormDialog({
                       : 'border-transparent hover:scale-105',
                   )}
                   style={{ backgroundColor: c }}
-                  aria-label={`Color ${c}`}
+                  aria-label={t('contacts.colorLabel', { color: c })}
                 />
               ))}
             </div>
@@ -340,7 +341,7 @@ function TagFormDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancelar
+            {t('contacts.cancel')}
           </Button>
           <Button
             onClick={handleSave}
@@ -348,7 +349,7 @@ function TagFormDialog({
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-            {tag ? 'Guardar' : 'Crear'}
+            {tag ? t('contacts.save') : t('contacts.create')}
           </Button>
         </DialogFooter>
       </DialogContent>

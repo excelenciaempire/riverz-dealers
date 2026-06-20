@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 interface ResizablePaneProps {
   /** Pane content. */
@@ -38,6 +39,7 @@ export function ResizablePane({
   maxWidth = 600,
   className,
 }: ResizablePaneProps) {
+  const t = useT();
   const [width, setWidth] = useState(defaultWidth);
   const [dragging, setDragging] = useState(false);
   // Hydration guard: localStorage isn't available on the server and
@@ -138,7 +140,7 @@ export function ResizablePane({
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Cambiar ancho del panel"
+        aria-label={t("inbox.resizePanel")}
         onPointerDown={onPointerDown}
         onDoubleClick={onDoubleClick}
         className={cn(

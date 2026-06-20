@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, X, MessageSquare, Inbox as InboxIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 interface SearchResult {
   id: string;
@@ -28,6 +29,7 @@ export function InboxSearchBox({
 }: {
   onSelect: (conversationId: string, messageId?: string) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,7 +122,7 @@ export function InboxSearchBox({
               setOpen(false);
             }
           }}
-          placeholder="Buscar en mensajes y conversaciones"
+          placeholder={t("inbox.searchAll")}
           className="w-full rounded-md border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-foreground/30"
         />
         {query && (
@@ -131,7 +133,7 @@ export function InboxSearchBox({
               setResults([]);
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Limpiar"
+            aria-label={t("inbox.clear")}
           >
             <X className="size-3" />
           </button>
@@ -142,12 +144,12 @@ export function InboxSearchBox({
         <div className="absolute left-2 right-2 top-full z-30 mt-1 max-h-96 overflow-y-auto rounded-md border border-border bg-popover shadow-xl shadow-black/30">
           {loading && results.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">
-              Buscando…
+              {t("inbox.searching")}
             </div>
           )}
           {!loading && results.length === 0 && (
             <div className="px-3 py-3 text-xs text-muted-foreground">
-              Sin resultados.
+              {t("inbox.noResultsDot")}
             </div>
           )}
           {results.map((r, i) => (

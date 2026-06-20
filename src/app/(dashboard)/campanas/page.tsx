@@ -17,6 +17,7 @@ import {
 import { Plus, Loader2, Search, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -47,6 +48,7 @@ function RateCell({ value, total }: { value: number; total: number }) {
 
 export default function BroadcastsPage() {
   const router = useRouter();
+  const t = useT();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export default function BroadcastsPage() {
       if (fetchError) throw fetchError;
       setBroadcasts(data ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se cargaron las campañas');
+      setError(err instanceof Error ? err.message : t('broadcasts.listLoadError'));
     } finally {
       setLoading(false);
     }
@@ -140,7 +142,7 @@ export default function BroadcastsPage() {
       <div className="flex h-64 flex-col items-center justify-center gap-2">
         <p className="text-sm text-red-500">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Reintentar
+          {t('broadcasts.retry')}
         </Button>
       </div>
     );
@@ -153,7 +155,7 @@ export default function BroadcastsPage() {
       {anySending && (
         <div
           role="progressbar"
-          aria-label="Campaña en curso"
+          aria-label={t('broadcasts.campaignInProgress')}
           className="broadcast-indeterminate fixed inset-x-0 top-0 z-40 h-0.5 overflow-hidden bg-muted"
         >
           <div className="broadcast-indeterminate-bar h-0.5 bg-foreground" />
@@ -179,7 +181,7 @@ export default function BroadcastsPage() {
       {/* ── Header ── */}
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Campañas masivas
+          {t('broadcasts.pageTitle')}
         </h1>
       </div>
 
@@ -190,7 +192,7 @@ export default function BroadcastsPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar campaña…"
+            placeholder={t('broadcasts.searchCampaign')}
             className="h-9 pl-8"
           />
         </div>
@@ -199,7 +201,7 @@ export default function BroadcastsPage() {
           className="h-9 bg-foreground text-background hover:bg-foreground/90"
         >
           <Plus className="size-4" />
-          Nueva campaña
+          {t('broadcasts.newCampaign')}
         </Button>
       </div>
 
@@ -211,17 +213,17 @@ export default function BroadcastsPage() {
             <Send className="size-7" />
           </div>
           <p className="mt-4 text-base font-semibold text-foreground">
-            Tu primera campaña masiva
+            {t('broadcasts.emptyTitle')}
           </p>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Envía una plantilla aprobada a una lista de contactos.
+            {t('broadcasts.emptyDescription')}
           </p>
           <Button
             onClick={() => router.push('/campanas/nueva')}
             className="mt-5 bg-foreground text-background hover:bg-foreground/90"
           >
             <Plus className="size-4" />
-            Crear primera campaña
+            {t('broadcasts.createFirstCampaign')}
           </Button>
         </div>
       ) : (
@@ -231,25 +233,25 @@ export default function BroadcastsPage() {
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-xs font-medium text-muted-foreground">
-                Nombre
+                {t('broadcasts.colName')}
               </TableHead>
               <TableHead className="hidden text-xs font-medium text-muted-foreground md:table-cell">
-                Plantilla
+                {t('broadcasts.colTemplate')}
               </TableHead>
               <TableHead className="hidden text-right text-xs font-medium text-muted-foreground sm:table-cell">
-                Destinatarios
+                {t('broadcasts.colRecipients')}
               </TableHead>
               <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
-                Entrega
+                {t('broadcasts.colDelivery')}
               </TableHead>
               <TableHead className="hidden text-xs font-medium text-muted-foreground lg:table-cell">
-                Lectura
+                {t('broadcasts.colRead')}
               </TableHead>
               <TableHead className="text-xs font-medium text-muted-foreground">
-                Estado
+                {t('broadcasts.colStatus')}
               </TableHead>
               <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell">
-                Fecha
+                {t('broadcasts.colDate')}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -260,7 +262,7 @@ export default function BroadcastsPage() {
                   colSpan={7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
-                  No encontramos campañas que coincidan con “{query}”.
+                  {t('broadcasts.noMatchingCampaigns', { query })}
                 </TableCell>
               </TableRow>
             ) : (

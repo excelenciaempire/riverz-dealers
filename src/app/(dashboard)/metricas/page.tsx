@@ -11,6 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
+import { useT } from '@/hooks/use-locale';
 import { useTimezone } from '@/hooks/use-timezone';
 import { rangeForPreset, type RangePreset } from '@/lib/dashboard/date-utils';
 import {
@@ -39,6 +40,7 @@ interface AttributionResponse {
 }
 
 export default function MetricasPage() {
+  const t = useT();
   const tz = useTimezone();
   const [preset, setPreset] = useState<RangePreset>('30d');
   const [custom, setCustom] = useState<CustomRange | null>(null);
@@ -121,8 +123,8 @@ export default function MetricasPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="app-eyebrow">Análisis</p>
-          <h1 className="app-page-title mt-1.5">Métricas y atribución</h1>
+          <p className="app-eyebrow">{t('metrics.eyebrow')}</p>
+          <h1 className="app-page-title mt-1.5">{t('metrics.title')}</h1>
         </div>
         <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>
@@ -135,24 +137,23 @@ export default function MetricasPage() {
         <div className="rounded-xl border border-dashed border-border bg-card/40 p-6 sm:p-8 text-center">
           <ShoppingBag className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium text-foreground">
-            Conecta Shopify para ver atribución
+            {t('metrics.connectShopifyTitle')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Sin Shopify no podemos cruzar las órdenes con tus campañas y flujos.
+            {t('metrics.connectShopifyDescription')}
           </p>
           <Link
             href="/integraciones"
             className="mt-4 inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-xs font-medium text-accent-ink transition-colors hover:bg-accent/90"
           >
-            Conectar Shopify
+            {t('metrics.connectShopifyCta')}
           </Link>
         </div>
       ) : data?.error ? (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
           <AlertCircle className="mt-0.5 size-4 text-amber-600 dark:text-amber-400" />
           <p className="text-amber-700 dark:text-amber-300">
-            No se pudieron leer las órdenes de Shopify ahora. Intenta de
-            nuevo en un rato.
+            {t('metrics.shopifyReadError')}
           </p>
         </div>
       ) : (
@@ -160,59 +161,57 @@ export default function MetricasPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryCard
               icon={Megaphone}
-              label="Campañas"
+              label={t('metrics.cardCampaigns')}
               value={formatMoney(totalBroadcastRevenue, currency)}
-              sub={`${data?.by_broadcast?.length ?? 0} con ventas`}
+              sub={t('metrics.withSales', { n: data?.by_broadcast?.length ?? 0 })}
             />
             <SummaryCard
               icon={Workflow}
-              label="Flujos"
+              label={t('metrics.cardFlows')}
               value={formatMoney(totalFlowRevenue, currency)}
-              sub={`${data?.by_flow?.length ?? 0} con ventas`}
+              sub={t('metrics.withSales', { n: data?.by_flow?.length ?? 0 })}
             />
             <SummaryCard
               icon={InstagramIcon}
-              label="Agente de Instagram"
+              label={t('metrics.cardInstagramAgent')}
               value={formatMoney(totalInstagramRevenue, currency)}
-              sub={`${data?.by_instagram_agent?.length ?? 0} con ventas`}
+              sub={t('metrics.withSales', { n: data?.by_instagram_agent?.length ?? 0 })}
             />
             <SummaryCard
               icon={Zap}
-              label="Automatizaciones"
+              label={t('metrics.cardAutomations')}
               value={formatMoney(totalAutomationRevenue, currency)}
-              sub={`${data?.by_automation?.length ?? 0} con ventas`}
+              sub={t('metrics.withSales', { n: data?.by_automation?.length ?? 0 })}
             />
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Cada lente atribuye por separado (último toque, 24h antes de la
-            orden). Una misma venta puede contar en más de una, así que no las
-            sumes como total.
+            {t('metrics.attributionNote')}
           </p>
 
           <AttributionTable
-            title="Top campañas"
+            title={t('metrics.topCampaigns')}
             rows={data?.by_broadcast ?? []}
             icon={Megaphone}
-            emptyLabel="Sin campañas con revenue atribuible en este rango."
+            emptyLabel={t('metrics.emptyCampaigns')}
           />
           <AttributionTable
-            title="Top flujos"
+            title={t('metrics.topFlows')}
             rows={data?.by_flow ?? []}
             icon={Workflow}
-            emptyLabel="Sin flujos con revenue atribuible en este rango."
+            emptyLabel={t('metrics.emptyFlows')}
           />
           <AttributionTable
-            title="Top campañas de Instagram"
+            title={t('metrics.topInstagramCampaigns')}
             rows={data?.by_instagram_agent ?? []}
             icon={InstagramIcon}
-            emptyLabel="Sin ventas atribuidas al Agente de Instagram en este rango."
+            emptyLabel={t('metrics.emptyInstagram')}
           />
           <AttributionTable
-            title="Top automatizaciones"
+            title={t('metrics.topAutomations')}
             rows={data?.by_automation ?? []}
             icon={Zap}
-            emptyLabel="Sin automatizaciones con revenue atribuible en este rango."
+            emptyLabel={t('metrics.emptyAutomations')}
           />
         </>
       )}
@@ -256,6 +255,7 @@ function AttributionTable({
   icon: IconType;
   emptyLabel: string;
 }) {
+  const t = useT();
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -271,9 +271,9 @@ function AttributionTable({
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-2 text-left">Nombre</th>
-                <th className="px-4 py-2 text-right">Órdenes</th>
-                <th className="px-4 py-2 text-right">Revenue</th>
+                <th className="px-4 py-2 text-left">{t('metrics.colName')}</th>
+                <th className="px-4 py-2 text-right">{t('metrics.colOrders')}</th>
+                <th className="px-4 py-2 text-right">{t('metrics.colRevenue')}</th>
               </tr>
             </thead>
             <tbody>

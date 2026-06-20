@@ -37,6 +37,7 @@ import {
   CheckCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 interface FlowNode {
   node_key: string;
@@ -82,6 +83,7 @@ export function SimulatorPanel({
   triggerConfig: Record<string, unknown>;
   onClose: () => void;
 }) {
+  const t = useT();
   const nodesByKey = useMemo(() => {
     const m = new Map<string, FlowNode>();
     for (const n of nodes) m.set(n.node_key, n);
@@ -111,7 +113,7 @@ export function SimulatorPanel({
           {
             from: "system",
             kind: "note",
-            text: "El flujo no tiene un paso de entrada definido. Marca uno y vuelve a intentar.",
+            text: t("flows.simNoEntry"),
           },
         ],
       });
@@ -151,7 +153,7 @@ export function SimulatorPanel({
           {
             from: "system",
             kind: "note",
-            text: `Paso "${next.currentKey}" no encontrado. El flujo termina aquí.`,
+            text: t("flows.simStepNotFound", { key: next.currentKey }),
           },
         ];
         next.currentKey = null;
@@ -178,7 +180,7 @@ export function SimulatorPanel({
               kind: "buttons",
               text,
               buttons: btns.map((b) => ({
-                label: b.title || b.reply_id || "Botón",
+                label: b.title || b.reply_id || t("flows.simButtonFallback"),
                 replyId: b.reply_id || "",
                 nextKey: b.next_node_key,
               })),
@@ -198,7 +200,7 @@ export function SimulatorPanel({
               kind: "list",
               text,
               listRows: rows.map((r) => ({
-                label: r.title || r.reply_id || "Opción",
+                label: r.title || r.reply_id || t("flows.simOptionFallback"),
                 replyId: r.reply_id || "",
                 nextKey: r.next_node_key,
               })),
@@ -216,7 +218,7 @@ export function SimulatorPanel({
               kind: "cta",
               text,
               url: String(cfg.url ?? ""),
-              ctaLabel: String(cfg.button_title ?? "Ver más"),
+              ctaLabel: String(cfg.button_title ?? t("flows.simCtaFallback")),
             },
           ];
           next.currentKey = (cfg.next_node_key as string) || null;
@@ -231,7 +233,7 @@ export function SimulatorPanel({
             {
               from: "bot",
               kind: "media",
-              text: caption || "Adjunto",
+              text: caption || t("flows.simAttachment"),
               url: String(cfg.url ?? ""),
             },
           ];
@@ -256,7 +258,7 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: "Esperando respuesta del cliente.",
+              text: t("flows.simWaitingCustomer"),
             },
           ];
           next.awaiting = "text";
@@ -289,7 +291,12 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `Condición evaluada: ${subjectVal} ${c.operator} ${c.value ?? ""} → ${result ? "Sí" : "No"}`,
+              text: t("flows.simConditionEvaluated", {
+                subject: subjectVal,
+                operator: c.operator ?? "",
+                value: c.value ?? "",
+                result: result ? t("flows.simYes") : t("flows.simNo"),
+              }),
             },
           ];
           next.currentKey = result ? c.true_next ?? null : c.false_next ?? null;
@@ -302,7 +309,10 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `${c.mode === "remove" ? "Quita" : "Asigna"} etiqueta ${c.tag_id ?? ""}`,
+              text:
+                c.mode === "remove"
+                  ? t("flows.simTagRemove", { tag: c.tag_id ?? "" })
+                  : t("flows.simTagSet", { tag: c.tag_id ?? "" }),
             },
           ];
           next.currentKey = c.next_node_key ?? null;
@@ -315,7 +325,10 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `Espera ${c.amount ?? 0} ${c.unit ?? "minutos"} (simulado, sin pausa real).`,
+              text: t("flows.simWait", {
+                amount: c.amount ?? 0,
+                unit: c.unit ?? t("flows.simWaitDefaultUnit"),
+              }),
             },
           ];
           next.currentKey = c.next_node_key ?? null;
@@ -340,7 +353,10 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `Buscar en Shopify (${c.kind ?? "?"}) — simulado como encontrado. Vars: ${prefix}_*`,
+              text: t("flows.simShopifyLookup", {
+                kind: c.kind ?? "?",
+                prefix,
+              }),
             },
           ];
           next.currentKey = c.found_next_key ?? null;
@@ -356,7 +372,7 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `IA: se necesita una respuesta para clasificar. Sim usa fallback.`,
+              text: t("flows.simAiFallback"),
             },
           ];
           next.currentKey = c.fallback_next_key ?? c.intents?.[0]?.next_node_key ?? null;
@@ -375,7 +391,9 @@ export function SimulatorPanel({
             {
               from: "system",
               kind: "note",
-              text: `Subflujo invocado (${c.sub_flow_id ?? "sin id"}). El simulador no carga los nodos del subflujo todavía; se continúa al siguiente paso del padre.`,
+              text: t("flows.simSubflow", {
+                id: c.sub_flow_id ?? t("flows.simSubflowNoId"),
+              }),
             },
           ];
           next.currentKey = c.next_node_key ?? null;
@@ -391,13 +409,13 @@ export function SimulatorPanel({
               {
                 from: "system",
                 kind: "note",
-                text: "Se pasa al equipo humano. Fin de la simulación.",
+                text: t("flows.simHandoff"),
               },
             ];
           } else if (node.node_type === "end") {
             next.history = [
               ...next.history,
-              { from: "system", kind: "note", text: "Fin del flujo." },
+              { from: "system", kind: "note", text: t("flows.simEnd") },
             ];
           } else if (node.node_type === "start") {
             const c = cfg as { next_node_key?: string };
@@ -415,7 +433,7 @@ export function SimulatorPanel({
         {
           from: "system",
           kind: "note",
-          text: `Posible bucle: el flujo recorrió ${MAX_HOPS} pasos sin pausa. Revísalo.`,
+          text: t("flows.simLoop", { max: MAX_HOPS }),
         },
       ];
       next.currentKey = null;
@@ -482,19 +500,19 @@ export function SimulatorPanel({
             setTimeout(start, 0);
           }}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
-          title="Reiniciar simulación"
+          title={t("flows.restartSim")}
         >
           <RefreshCw className="size-3" />
-          Reiniciar
+          {t("flows.restart")}
         </button>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          Simulador
+          {t("flows.simulator")}
         </span>
         <button
           type="button"
           onClick={onClose}
           className="rounded-md border border-border bg-card p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Cerrar"
+          aria-label={t("flows.close")}
         >
           <X className="size-3.5" />
         </button>
@@ -531,8 +549,8 @@ export function SimulatorPanel({
               T
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium">Tu tienda</p>
-              <p className="text-[10px] opacity-80">en línea</p>
+              <p className="truncate text-[13px] font-medium">{t("flows.yourStore")}</p>
+              <p className="text-[10px] opacity-80">{t("flows.online")}</p>
             </div>
             <VideoIcon />
             <PhoneIcon />
@@ -555,7 +573,7 @@ export function SimulatorPanel({
               <div className="flex h-full flex-col items-center justify-center gap-3 text-[#7a8a91]">
                 <Bot className="size-8" />
                 <p className="text-xs">
-                  Toca &quot;Iniciar&quot; para correr el flujo desde el inicio.
+                  {t("flows.simStartPrompt")}
                 </p>
                 <button
                   type="button"
@@ -563,14 +581,15 @@ export function SimulatorPanel({
                   className="inline-flex items-center gap-1.5 rounded-full bg-[#25d366] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#1ebe5a]"
                 >
                   <Play className="size-3" />
-                  Iniciar
+                  {t("flows.start")}
                 </button>
                 {triggerType === "keyword" && (
                   <p className="text-[10px] text-[#7a8a91]">
-                    Disparador real: keyword{" "}
-                    {Array.isArray((triggerConfig as { keywords?: string[] }).keywords)
-                      ? `(${(triggerConfig as { keywords: string[] }).keywords.join(", ")})`
-                      : ""}
+                    {t("flows.simRealTriggerKeyword", {
+                      keywords: Array.isArray((triggerConfig as { keywords?: string[] }).keywords)
+                        ? `(${(triggerConfig as { keywords: string[] }).keywords.join(", ")})`
+                        : "",
+                    })}
                   </p>
                 )}
               </div>
@@ -599,7 +618,7 @@ export function SimulatorPanel({
                       handleTextSend(input);
                     }
                   }}
-                  placeholder="Mensaje"
+                  placeholder={t("flows.simMessagePlaceholder")}
                   className="flex-1 rounded-full border border-[#dcdcdc] bg-white px-3 py-1.5 text-sm text-[#111b21] outline-none"
                 />
                 <PaperclipIcon />
@@ -608,7 +627,7 @@ export function SimulatorPanel({
                   onClick={() => handleTextSend(input)}
                   disabled={!input.trim()}
                   className="inline-flex size-9 items-center justify-center rounded-full bg-[#25d366] text-white shadow-sm disabled:opacity-40"
-                  aria-label="Enviar"
+                  aria-label={t("flows.send")}
                 >
                   <Send className="size-4" />
                 </button>
@@ -619,7 +638,7 @@ export function SimulatorPanel({
                   className="flex-1 rounded-full border border-[#dcdcdc] bg-white px-3 py-1.5 text-sm text-[#9aa6ad]"
                   aria-hidden
                 >
-                  Esperando bot…
+                  {t("flows.waitingBot")}
                 </div>
                 <PaperclipIcon />
                 <span
@@ -638,7 +657,7 @@ export function SimulatorPanel({
       {Object.keys(state.vars).length > 0 && (
         <div className="mt-3 w-[360px] rounded-lg border border-border bg-card px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            Variables capturadas
+            {t("flows.capturedVariables")}
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {Object.entries(state.vars).map(([k, v]) => (

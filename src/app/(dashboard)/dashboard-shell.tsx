@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { IdleGuard } from "@/components/auth/idle-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
+import { useT } from "@/hooks/use-locale";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -17,6 +18,7 @@ const COLLAPSE_KEY = "ui.sidebar.collapsed";
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const t = useT();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible (in collapsed or full-width form) and this stays at
@@ -61,7 +63,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <div className="flex h-dvh items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Cargando…</p>
+          <p className="text-sm text-muted-foreground">{t("layout.loading")}</p>
         </div>
       </div>
     );

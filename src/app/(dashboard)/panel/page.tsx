@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/hooks/use-locale'
+import type { TFn } from '@/lib/i18n/translate'
 import {
   MessageSquare,
   UserPlus,
@@ -44,6 +46,7 @@ import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
 export default function DashboardPage() {
+  const t = useT()
   const tz = useTimezone()
 
   // One global date-range filter drives every card, chart and feed.
@@ -160,18 +163,18 @@ export default function DashboardPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refresh])
 
-  const suffix = deltaSuffix(preset)
+  const suffix = deltaSuffix(preset, t)
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="app-eyebrow">Inicio</p>
-          <h1 className="app-page-title mt-1.5">Resumen</h1>
+          <p className="app-eyebrow">{t('dashboard.home')}</p>
+          <h1 className="app-page-title mt-1.5">{t('dashboard.overview')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <LiveIndicator connected={isConnected} />
+          <LiveIndicator connected={isConnected} t={t} />
           <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
         </div>
       </div>
@@ -186,34 +189,34 @@ export default function DashboardPage() {
         ) : (
           <>
             <MetricCard
-              title="Conversaciones abiertas"
+              title={t('dashboard.openConversations')}
               value={metrics.activeConversations.current.toLocaleString()}
               icon={MessageSquare}
-              subtitle="En curso ahora"
+              subtitle={t('dashboard.inProgressNow')}
             />
             <MetricCard
-              title="Contactos nuevos"
+              title={t('dashboard.newContacts')}
               value={metrics.newContacts.current.toLocaleString()}
               icon={UserPlus}
-              delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix)}
+              delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix, t)}
             />
             <MetricCard
-              title="Resueltas"
+              title={t('dashboard.resolved')}
               value={metrics.resolved.current.toLocaleString()}
               icon={CheckCircle2}
-              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix)}
+              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix, t)}
             />
             <MetricCard
-              title="Mensajes recibidos"
+              title={t('dashboard.messagesReceived')}
               value={metrics.messagesReceived.current.toLocaleString()}
               icon={Inbox}
-              delta={deltaFor(metrics.messagesReceived.current, metrics.messagesReceived.previous, suffix)}
+              delta={deltaFor(metrics.messagesReceived.current, metrics.messagesReceived.previous, suffix, t)}
             />
             <MetricCard
-              title="Mensajes enviados"
+              title={t('dashboard.messagesSent')}
               value={metrics.messagesSent.current.toLocaleString()}
               icon={Send}
-              delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix)}
+              delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix, t)}
             />
           </>
         )}
@@ -240,11 +243,11 @@ export default function DashboardPage() {
 
 // Subtle live-sync badge. Green pulsing dot while the realtime channel is
 // subscribed; muted when the socket is down (data still loads, just not live).
-function LiveIndicator({ connected }: { connected: boolean }) {
+function LiveIndicator({ connected, t }: { connected: boolean; t: TFn }) {
   return (
     <span
       className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground"
-      title={connected ? 'Datos en tiempo real' : 'Sin conexión en vivo'}
+      title={connected ? t('dashboard.realtimeData') : t('dashboard.noLiveConnection')}
     >
       <span
         className={cn(
@@ -252,31 +255,34 @@ function LiveIndicator({ connected }: { connected: boolean }) {
           connected ? 'animate-pulse bg-emerald-500' : 'bg-muted-foreground/40',
         )}
       />
-      {connected ? 'En vivo' : 'Sin conexión'}
+      {connected ? t('dashboard.live') : t('dashboard.offline')}
     </span>
   )
 }
 
-function deltaSuffix(preset: RangePreset): string {
+function deltaSuffix(preset: RangePreset, t: TFn): string {
   switch (preset) {
     case 'today':
-      return 'vs ayer'
+      return t('dashboard.vsYesterday')
     case 'yesterday':
-      return 'vs día anterior'
+      return t('dashboard.vsPreviousDay')
     case '7d':
-      return 'vs 7 días previos'
+      return t('dashboard.vsPrevious7d')
     case '30d':
-      return 'vs 30 días previos'
+      return t('dashboard.vsPrevious30d')
     case 'custom':
-      return 'vs período anterior'
+      return t('dashboard.vsPreviousPeriod')
   }
 }
 
-function deltaFor(current: number, previous: number, suffix: string) {
+function deltaFor(current: number, previous: number, suffix: string, t: TFn) {
   const delta = current - previous
   const label =
     delta === 0
-      ? `Sin cambios ${suffix}`
-      : `${delta > 0 ? '+' : ''}${delta.toLocaleString()} ${suffix}`
+      ? t('dashboard.noChange', { suffix })
+      : t('dashboard.deltaChange', {
+          delta: `${delta > 0 ? '+' : ''}${delta.toLocaleString()}`,
+          suffix,
+        })
   return { sign: delta, label }
 }

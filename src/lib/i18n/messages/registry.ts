@@ -2,18 +2,46 @@ import type { MessageEntry, Namespace } from "./types";
 
 // === Namespace registry ====================================================
 // Each feature area's strings live in its own file (one namespace = one
-// file). Translation agents create a `messages/<ns>.ts` file and add a
-// single line here. The flat MESSAGES map is keyed "<namespace>.<key>".
-//
+// file). The flat MESSAGES map is keyed "<namespace>.<key>".
 // Keep this list alphabetized for easy merges.
+import { assistant } from "./assistant";
+import { auth } from "./auth";
+import { automations } from "./automations";
+import { broadcasts } from "./broadcasts";
 import { common } from "./common";
+import { contacts } from "./contacts";
+import { dashboard } from "./dashboard";
+import { flows } from "./flows";
+import { igAgent } from "./igAgent";
+import { inbox } from "./inbox";
+import { landing } from "./landing";
+import { layout } from "./layout";
+import { metrics } from "./metrics";
 import { nav } from "./nav";
+import { products } from "./products";
 import { settings } from "./settings";
+import { system } from "./system";
+import { templates } from "./templates";
 
 const NAMESPACES: Record<string, Namespace> = {
+  assistant,
+  auth,
+  automations,
+  broadcasts,
   common,
+  contacts,
+  dashboard,
+  flows,
+  igAgent,
+  inbox,
+  landing,
+  layout,
+  metrics,
   nav,
+  products,
   settings,
+  system,
+  templates,
 };
 
 /** Flat lookup: { "nav.inbox": { es, en }, ... } built once at module load. */

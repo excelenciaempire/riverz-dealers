@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ShoppingBag, ExternalLink, Package, Truck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Panel Shopify contextual a la derecha del chat. Llama a
@@ -44,20 +45,22 @@ interface ShopifyResponse {
   }>;
 }
 
-const FINANCIAL_LABEL: Record<string, string> = {
-  paid: 'Pagado',
-  pending: 'Pendiente',
-  refunded: 'Reembolsado',
-  partially_refunded: 'Reembolsado parcial',
-  voided: 'Anulado',
-  authorized: 'Autorizado',
+// Shopify status code → i18n key. Resolved with t() at the render site so the
+// raw Shopify codes stay stable while the label follows the UI language.
+const FINANCIAL_LABEL_KEY: Record<string, string> = {
+  paid: 'inbox.financialPaid',
+  pending: 'inbox.financialPending',
+  refunded: 'inbox.financialRefunded',
+  partially_refunded: 'inbox.financialPartiallyRefunded',
+  voided: 'inbox.financialVoided',
+  authorized: 'inbox.financialAuthorized',
 };
 
-const FULFILLMENT_LABEL: Record<string, string> = {
-  fulfilled: 'Enviado',
-  partial: 'Enviado parcial',
-  restocked: 'Repuesto',
-  '': 'Sin enviar',
+const FULFILLMENT_LABEL_KEY: Record<string, string> = {
+  fulfilled: 'inbox.fulfillmentFulfilled',
+  partial: 'inbox.fulfillmentPartial',
+  restocked: 'inbox.fulfillmentRestocked',
+  '': 'inbox.fulfillmentUnfulfilled',
 };
 
 export function ShopifyContactPanel({
@@ -67,6 +70,7 @@ export function ShopifyContactPanel({
   contactEmail: string | null;
   contactPhone: string | null;
 }) {
+  const t = useT();
   const [data, setData] = useState<ShopifyResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -103,7 +107,7 @@ export function ShopifyContactPanel({
 
   const c = data.customer;
   const fullName =
-    `${c.first_name} ${c.last_name}`.trim() || c.email || 'Cliente Shopify';
+    `${c.first_name} ${c.last_name}`.trim() || c.email || t('inbox.shopifyCustomer');
   const totalSpent = formatMoney(c.total_spent, c.currency);
   const orders = data.orders ?? [];
 
@@ -117,7 +121,7 @@ export function ShopifyContactPanel({
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                Cliente Shopify
+                {t('inbox.shopifyCustomer')}
               </p>
               <p className="text-sm font-medium text-foreground">{fullName}</p>
             </div>
@@ -128,8 +132,8 @@ export function ShopifyContactPanel({
               target="_blank"
               rel="noreferrer"
               className="text-muted-foreground hover:text-foreground"
-              title="Ver en Shopify"
-              aria-label="Ver en Shopify"
+              title={t('inbox.viewInShopify')}
+              aria-label={t('inbox.viewInShopify')}
             >
               <ExternalLink className="size-3.5" />
             </a>
@@ -138,7 +142,7 @@ export function ShopifyContactPanel({
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-md bg-card/60 p-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Total comprado
+              {t('inbox.totalSpent')}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">
               {totalSpent}
@@ -146,7 +150,7 @@ export function ShopifyContactPanel({
           </div>
           <div className="rounded-md bg-card/60 p-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Pedidos
+              {t('inbox.orders')}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">
               {c.orders_count}
@@ -176,7 +180,7 @@ export function ShopifyContactPanel({
         <div className="mt-3">
           <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <Package className="h-3 w-3" />
-            Últimos pedidos
+            {t('inbox.latestOrders')}
           </div>
           <ul className="mt-2 space-y-1.5">
             {orders.map((o) => {
@@ -215,17 +219,18 @@ export function ShopifyContactPanel({
                           {o.financial_status === 'paid' && (
                             <Check className="size-2.5" />
                           )}
-                          {FINANCIAL_LABEL[o.financial_status] ??
-                            o.financial_status}
+                          {FINANCIAL_LABEL_KEY[o.financial_status]
+                            ? t(FINANCIAL_LABEL_KEY[o.financial_status])
+                            : o.financial_status}
                         </span>
                         <span className="text-muted-foreground">·</span>
                         <span className={cn('inline-flex items-center gap-0.5', fulfillmentTone)}>
                           {o.fulfillment_status === 'fulfilled' && (
                             <Truck className="size-2.5" />
                           )}
-                          {FULFILLMENT_LABEL[o.fulfillment_status] ??
-                            o.fulfillment_status ??
-                            'Sin enviar'}
+                          {FULFILLMENT_LABEL_KEY[o.fulfillment_status ?? '']
+                            ? t(FULFILLMENT_LABEL_KEY[o.fulfillment_status ?? ''])
+                            : o.fulfillment_status ?? t('inbox.fulfillmentUnfulfilled')}
                         </span>
                       </div>
                     </div>
@@ -240,7 +245,7 @@ export function ShopifyContactPanel({
                           rel="noreferrer"
                           className="text-[10px] text-muted-foreground hover:text-foreground"
                         >
-                          Ver pedido
+                          {t('inbox.viewOrder')}
                         </a>
                       )}
                     </div>

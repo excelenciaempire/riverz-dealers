@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Mini WhatsApp message bubble — rendered como única vista de cada
@@ -100,6 +101,7 @@ const TITLE = '#111b21';
 const LINK = '#00a5f4';
 
 export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
+  const t = useT();
   const text = props.text ?? '';
   const editable = !!props.editable;
 
@@ -163,8 +165,8 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               props.kind === 'image' ||
               props.kind === 'video' ||
               props.kind === 'document'
-                ? 'Caption (opcional)…'
-                : 'Escribe el mensaje…'
+                ? t('flows.captionPlaceholder')
+                : t('flows.writeMessagePlaceholder')
             }
             onChange={(v) => props.onTextChange?.(v)}
           />
@@ -177,7 +179,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
           </p>
         ) : (
           <p className="text-[11px] italic" style={{ color: META }}>
-            (mensaje vacío)
+            {t('flows.emptyMessage')}
           </p>
         )}
 
@@ -185,7 +187,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
           (editable ? (
             <BubbleTextarea
               value={props.caption}
-              placeholder="Caption (opcional)…"
+              placeholder={t('flows.captionPlaceholder')}
               tiny
               onChange={(v) => props.onCaptionChange?.(v)}
             />
@@ -210,13 +212,13 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
             {editable ? (
               <InlineInput
                 value={props.listButtonLabel ?? ''}
-                placeholder="Ver opciones"
+                placeholder={t('flows.viewOptions')}
                 maxLength={20}
                 style={{ color: LINK }}
                 onChange={(v) => props.onListLabelChange?.(v)}
               />
             ) : (
-              (props.listButtonLabel ?? 'Ver opciones').slice(0, 20)
+              (props.listButtonLabel ?? t('flows.viewOptions')).slice(0, 20)
             )}
           </div>
         )}
@@ -256,7 +258,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               style={{ color: LINK, borderColor: '#cfd9df' }}
             >
               <Plus className="h-3 w-3" />
-              Agregar botón
+              {t('flows.addButton')}
             </button>
           )}
           {editable && (props.buttons ?? []).length === 3 && (
@@ -264,7 +266,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               className="px-1 text-[9px] italic"
               style={{ color: META }}
             >
-              WhatsApp permite máximo 3 botones.
+              {t('flows.maxThreeButtons')}
             </p>
           )}
         </div>
@@ -280,13 +282,13 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
           {editable ? (
             <InlineInput
               value={props.ctaTitle ?? ''}
-              placeholder="Botón…"
+              placeholder={t('flows.buttonPlaceholder')}
               maxLength={20}
               style={{ color: LINK }}
               onChange={(v) => props.onCtaTitleChange?.(v)}
             />
           ) : (
-            (props.ctaTitle ?? 'Botón').slice(0, 20)
+            (props.ctaTitle ?? t('flows.buttonFallback')).slice(0, 20)
           )}
           {props.connectablePorts && (
             <ConnectionPort
@@ -298,7 +300,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
       )}
       {props.kind === 'cta_url' && editable && (
         <div className="flex items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-[10px] shadow-sm">
-          <span style={{ color: META }}>URL:</span>
+          <span style={{ color: META }}>{t('flows.urlLabel')}</span>
           <InlineInput
             value={props.ctaUrl ?? ''}
             placeholder="https://…"
@@ -321,7 +323,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
                 {editable ? (
                   <InlineInput
                     value={r.title}
-                    placeholder={`Opción ${i + 1}`}
+                    placeholder={t('flows.optionPlaceholder', { n: i + 1 })}
                     maxLength={24}
                     className="font-medium"
                     style={{ color: TITLE, fontSize: 10 }}
@@ -334,13 +336,13 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
                     className="text-[10px] font-medium"
                     style={{ color: TITLE }}
                   >
-                    {(r.title || 'Opción').slice(0, 24)}
+                    {(r.title || t('flows.optionFallback')).slice(0, 24)}
                   </p>
                 )}
                 {editable ? (
                   <InlineInput
                     value={r.description ?? ''}
-                    placeholder="Descripción (opcional)"
+                    placeholder={t('flows.descriptionOptional')}
                     maxLength={72}
                     style={{ color: META, fontSize: 9 }}
                     onChange={(v) =>
@@ -361,7 +363,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
                   onClick={() => props.onRemoveListRow?.(i)}
                   className="mr-3 rounded p-0.5 opacity-0 transition-opacity group-hover/row:opacity-100"
                   style={{ color: META }}
-                  aria-label="Quitar fila"
+                  aria-label={t('flows.removeRow')}
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
@@ -384,7 +386,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               style={{ color: LINK, borderColor: '#cfd9df' }}
             >
               <Plus className="h-2.5 w-2.5" />
-              Agregar fila
+              {t('flows.addRow')}
             </button>
           )}
           {!editable && (props.listRows ?? []).length > 4 && (
@@ -392,7 +394,7 @@ export function WhatsappBubblePreview(props: WhatsappBubblePreviewProps) {
               className="px-0.5 py-0.5 text-[9px]"
               style={{ color: META }}
             >
-              + {(props.listRows ?? []).length - 4} más…
+              {t('flows.moreRows', { n: (props.listRows ?? []).length - 4 })}
             </p>
           )}
         </div>
@@ -516,6 +518,7 @@ function MediaPlaceholder({
   editable: boolean;
   onUrlChange?: (url: string) => void;
 }) {
+  const t = useT();
   const Icon = kind === 'image' ? ImageIcon : VideoIcon;
   return (
     <div className="mb-1 space-y-1">
@@ -533,7 +536,7 @@ function MediaPlaceholder({
       </div>
       {editable && (
         <div className="flex items-center gap-1 rounded bg-white/60 px-1.5 py-0.5 text-[10px]">
-          <span style={{ color: META }}>URL:</span>
+          <span style={{ color: META }}>{t('flows.urlLabel')}</span>
           <InlineInput
             value={url ?? ''}
             placeholder="https://…"
@@ -555,13 +558,14 @@ function DocumentRow({
   editable: boolean;
   onFilenameChange?: (v: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="mb-1 flex items-center gap-1.5 rounded bg-[#f0f2f5] px-1.5 py-1">
       <FileText className="h-3.5 w-3.5" style={{ color: META }} />
       {editable ? (
         <InlineInput
           value={filename ?? ''}
-          placeholder="archivo.pdf"
+          placeholder={t('flows.filenamePlaceholder')}
           style={{ color: TITLE, fontSize: 10 }}
           className="font-medium"
           onChange={(v) => onFilenameChange?.(v)}
@@ -571,7 +575,7 @@ function DocumentRow({
           className="truncate text-[10px] font-medium"
           style={{ color: TITLE }}
         >
-          {filename || 'archivo.pdf'}
+          {filename || t('flows.filenamePlaceholder')}
         </span>
       )}
     </div>
@@ -591,6 +595,7 @@ function ButtonChip({
   onRemove?: () => void;
   port?: { connected: boolean; onMouseDown: (e: React.MouseEvent) => void };
 }) {
+  const t = useT();
   return (
     <div
       className="group/btn relative flex items-center justify-center rounded-md bg-white px-2 py-1 text-[11px] font-medium shadow-sm"
@@ -600,14 +605,14 @@ function ButtonChip({
       {editable ? (
         <InlineInput
           value={title}
-          placeholder="Botón"
+          placeholder={t('flows.buttonFallback')}
           maxLength={20}
           className="text-center"
           style={{ color: LINK }}
           onChange={onChange}
         />
       ) : (
-        <span>{(title || 'Botón').slice(0, 20)}</span>
+        <span>{(title || t('flows.buttonFallback')).slice(0, 20)}</span>
       )}
       {editable && onRemove && (
         <button
@@ -615,7 +620,7 @@ function ButtonChip({
           onClick={onRemove}
           className="absolute right-5 rounded p-0.5 opacity-0 transition-opacity group-hover/btn:opacity-100"
           style={{ color: META }}
-          aria-label="Quitar botón"
+          aria-label={t('flows.removeButton')}
         >
           <X className="h-2.5 w-2.5" />
         </button>
@@ -637,6 +642,7 @@ function ConnectionPort({
   connected: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
 }) {
+  const t = useT();
   return (
     <span
       data-connection-port="true"
@@ -655,7 +661,7 @@ function ConnectionPort({
           ? 'border-[#00a5f4] bg-[#00a5f4] shadow-[0_0_0_2px_rgba(0,165,244,0.18)]'
           : 'border-[#9aa6ad] bg-white hover:border-[#00a5f4] hover:scale-125 hover:shadow-[0_0_0_3px_rgba(0,165,244,0.22)]',
       )}
-      aria-label={connected ? 'Conexión existente' : 'Conectar a otro paso'}
+      aria-label={connected ? t('flows.portConnected') : t('flows.portConnect')}
       role="button"
     />
   );

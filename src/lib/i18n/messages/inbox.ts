@@ -1,0 +1,313 @@
+import type { Namespace } from "./types";
+
+/**
+ * Unified inbox (/bandeja): conversation list, message thread, composer,
+ * reactions, moderation, contact + Shopify panels, templates and search.
+ */
+export const inbox = {
+  // Channel filter row
+  allChannels: { es: "Todos", en: "All" },
+
+  // Inbox tabs
+  tabMessages: { es: "Mensajes", en: "Messages" },
+  tabComments: { es: "Comentarios", en: "Comments" },
+
+  // Status filter (conversation list)
+  filterAll: { es: "Todas", en: "All" },
+  filterOpen: { es: "Abiertas", en: "Open" },
+  filterPending: { es: "Pendientes", en: "Pending" },
+  filterClosed: { es: "Cerradas", en: "Closed" },
+
+  // Conversation list — search, selection, bulk actions
+  search: { es: "Buscar", en: "Search" },
+  select: { es: "Seleccionar", en: "Select" },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  delete: { es: "Eliminar", en: "Delete" },
+  deleting: { es: "Eliminando…", en: "Deleting…" },
+  actions: { es: "Acciones", en: "Actions" },
+  selectedCount: { es: "{n} seleccionada(s)", en: "{n} selected" },
+  bulkDeleteConfirm: {
+    es: "¿Eliminar {n} conversación(es)?",
+    en: "Delete {n} conversation(s)?",
+  },
+  bulkDeleteSuccess: { es: "{n} eliminada(s)", en: "{n} deleted" },
+  bulkDeleteFailed: { es: "{n} no eliminada(s)", en: "{n} not deleted" },
+
+  // Conversation row
+  deleteConversation: { es: "Eliminar conversación", en: "Delete conversation" },
+  deleteConversationConfirm: {
+    es: "¿Eliminar conversación?",
+    en: "Delete this conversation?",
+  },
+  deleteFailed: { es: "No se pudo eliminar", en: "Couldn't delete" },
+  deleted: { es: "Eliminada", en: "Deleted" },
+  networkError: { es: "Error de red", en: "Network error" },
+  noMessages: { es: "Sin mensajes", en: "No messages" },
+  unreplied: { es: "Sin responder", en: "Unanswered" },
+  yesterday: { es: "Ayer", en: "Yesterday" },
+  today: { es: "Hoy", en: "Today" },
+  noName: { es: "Sin nombre", en: "No name" },
+  instagramCustomer: {
+    es: "Cliente Instagram · …{id}",
+    en: "Instagram customer · …{id}",
+  },
+  messengerCustomer: {
+    es: "Cliente Messenger · …{id}",
+    en: "Messenger customer · …{id}",
+  },
+
+  // Conversation list — empty states
+  noResults: { es: "Sin resultados", en: "No results" },
+  emptyInbox: { es: "Tu bandeja está vacía", en: "Your inbox is empty" },
+  emptyFilteredHint: {
+    es: "Prueba quitar el filtro o ampliar la búsqueda.",
+    en: "Try clearing the filter or broadening your search.",
+  },
+  emptyInboxHint: {
+    es: "Conecta WhatsApp, Instagram, Messenger o tu correo para empezar a recibir mensajes.",
+    en: "Connect WhatsApp, Instagram, Messenger or your email to start receiving messages.",
+  },
+  connectChannel: { es: "Conectar un canal", en: "Connect a channel" },
+  connectChannelArrow: { es: "Conectar un canal →", en: "Connect a channel →" },
+
+  // Contact sidebar
+  closePanel: { es: "Cerrar panel", en: "Close panel" },
+  closeContactPanel: { es: "Cerrar panel de contacto", en: "Close contact panel" },
+  selectConversation: {
+    es: "Selecciona una conversación",
+    en: "Select a conversation",
+  },
+  contactFallback: { es: "Contacto", en: "Contact" },
+  aiSegment: { es: "Segmento IA", en: "AI segment" },
+  recalculateSegment: { es: "Recalcular segmento", en: "Recalculate segment" },
+  recentActivity: { es: "Actividad reciente", en: "Recent activity" },
+  tags: { es: "Etiquetas", en: "Tags" },
+  notes: { es: "Notas", en: "Notes" },
+  notePlaceholder: { es: "Nota", en: "Note" },
+  addNote: { es: "Agregar nota", en: "Add note" },
+
+  // Comment moderation bar
+  removeLike: { es: "Quitar me gusta", en: "Remove like" },
+  likeAsPage: { es: "Me gusta como página", en: "Like as page" },
+  showComment: { es: "Mostrar comentario", en: "Show comment" },
+  hideComment: { es: "Ocultar comentario", en: "Hide comment" },
+  deleteComment: { es: "Eliminar comentario", en: "Delete comment" },
+  deleteCommentConfirm: {
+    es: "¿Eliminar este comentario?",
+    en: "Delete this comment?",
+  },
+  openInFacebookInstagram: {
+    es: "Abrir en Facebook/Instagram",
+    en: "Open in Facebook/Instagram",
+  },
+  moderationFailed: { es: "No se pudo completar la acción", en: "Action failed" },
+  moderationHidden: { es: "Ocultado", en: "Hidden" },
+  moderationVisible: { es: "Visible", en: "Visible" },
+  moderationLiked: { es: "Me gusta", en: "Liked" },
+  moderationUnliked: { es: "Quitado", en: "Like removed" },
+  moderationDeleted: { es: "Eliminado", en: "Deleted" },
+  moderationDone: { es: "Hecho", en: "Done" },
+
+  // Message actions toolbar
+  react: { es: "Reaccionar", en: "React" },
+  reactWith: { es: "Reaccionar con {emoji}", en: "React with {emoji}" },
+  reply: { es: "Responder", en: "Reply" },
+  copy: { es: "Copiar", en: "Copy" },
+  nothingToCopy: { es: "Nada para copiar", en: "Nothing to copy" },
+  copied: { es: "Copiado", en: "Copied" },
+  copyFailed: { es: "No se pudo copiar", en: "Couldn't copy" },
+  deleteMessageConfirm: { es: "¿Borrar mensaje?", en: "Delete message?" },
+  deleteMessageFailed: { es: "No se pudo borrar", en: "Couldn't delete" },
+  messageDeleted: { es: "Borrado", en: "Deleted" },
+
+  // Message bubble — media + content types
+  mediaUnavailable: { es: "{label} no disponible", en: "{label} unavailable" },
+  expandImage: { es: "Ampliar imagen", en: "Expand image" },
+  expandVideo: { es: "Ampliar video", en: "Expand video" },
+  attachmentUnavailable: {
+    es: "{name} (no disponible)",
+    en: "{name} (unavailable)",
+  },
+  file: { es: "Archivo", en: "File" },
+  sharedImage: { es: "Imagen compartida", en: "Shared image" },
+  image: { es: "Imagen", en: "Image" },
+  video: { es: "Video", en: "Video" },
+  audio: { es: "Audio", en: "Audio" },
+  document: { es: "Documento", en: "Document" },
+  template: { es: "Plantilla", en: "Template" },
+  sharedLocation: { es: "Ubicación compartida", en: "Shared location" },
+  buttonReply: { es: "Respuesta de botón", en: "Button reply" },
+  interactiveReply: { es: "[Respuesta interactiva]", en: "[Interactive reply]" },
+  unsupported: { es: "[No compatible]", en: "[Unsupported]" },
+  noContent: { es: "[sin contenido]", en: "[no content]" },
+  email: { es: "Correo", en: "Email" },
+  you: { es: "Tú", en: "You" },
+  customer: { es: "Cliente", en: "Customer" },
+
+  // Reply quote
+  cancelReply: { es: "Cancelar respuesta", en: "Cancel reply" },
+  previewImage: { es: "[Imagen]", en: "[Image]" },
+  previewVideo: { es: "[Video]", en: "[Video]" },
+  previewAudio: { es: "[Audio]", en: "[Audio]" },
+  previewDocument: { es: "[Documento]", en: "[Document]" },
+  previewLocation: { es: "[Ubicación]", en: "[Location]" },
+  previewTemplate: { es: "[Plantilla]", en: "[Template]" },
+  previewMessage: { es: "[Mensaje]", en: "[Message]" },
+
+  // Composer — snippets, session window
+  snippetGreetingLabel: { es: "Saludo de bienvenida", en: "Welcome greeting" },
+  snippetGreetingBody: {
+    es: "¡Hola! Gracias por escribirnos. ¿En qué te puedo ayudar?",
+    en: "Hi! Thanks for reaching out. How can I help you?",
+  },
+  snippetThanksLabel: { es: "Agradecimiento", en: "Thank you" },
+  snippetThanksBody: {
+    es: "Muchas gracias por tu compra. Te avisamos en cuanto tu pedido salga del almacén.",
+    en: "Thank you so much for your purchase. We'll let you know as soon as your order ships.",
+  },
+  sessionExpiredBanner: {
+    es: "Sesión de 24 horas expirada. Usa una plantilla.",
+    en: "The 24-hour session has expired. Use a template.",
+  },
+  templates: { es: "Plantillas", en: "Templates" },
+  quickSnippets: { es: "Atajos rápidos", en: "Quick snippets" },
+  snippetHints: {
+    es: "↑↓ navega · Enter inserta · Esc cierra",
+    en: "↑↓ navigate · Enter inserts · Esc closes",
+  },
+  sendTemplate: { es: "Enviar plantilla", en: "Send template" },
+  sendMessage: { es: "Enviar mensaje", en: "Send message" },
+  composerPlaceholder: {
+    es: "Mensaje. Tipea / para usar un atajo.",
+    en: "Message. Type / to use a snippet.",
+  },
+  composerExpiredPlaceholder: {
+    es: "Sesión expirada. Usa una plantilla.",
+    en: "Session expired. Use a template.",
+  },
+
+  // Message thread — session window
+  noCustomerMessages: {
+    es: "Sin mensajes del cliente",
+    en: "No messages from the customer",
+  },
+  sessionExpired: { es: "Expirada", en: "Expired" },
+  hoursRemaining: { es: "{n}h restantes", en: "{n}h left" },
+  minutesRemaining: { es: "{n}m restantes", en: "{n}m left" },
+
+  // Message thread — send / react / load
+  sendFailed: { es: "No se envió: {reason}", en: "Not sent: {reason}" },
+  networkErrorReason: { es: "error de red", en: "network error" },
+  reactFailed: { es: "No se reaccionó: {reason}", en: "Reaction failed: {reason}" },
+  waitForSend: { es: "Espera a que se envíe", en: "Wait until it's sent" },
+  loadOlder: { es: "Cargar más antiguos", en: "Load older" },
+  loading: { es: "Cargando…", en: "Loading…" },
+  loadOlderFailed: {
+    es: "No se cargaron mensajes anteriores",
+    en: "Couldn't load older messages",
+  },
+
+  // Message thread — author labels
+  aiAssistant: { es: "Asistente IA", en: "AI assistant" },
+  agent: { es: "Agente", en: "Agent" },
+
+  // Message thread — header, status, assignment
+  status: { es: "Estado", en: "Status" },
+  statusOpen: { es: "Abierta", en: "Open" },
+  statusPending: { es: "Pendiente", en: "Pending" },
+  statusClosed: { es: "Cerrada", en: "Closed" },
+  assign: { es: "Asignar", en: "Assign" },
+  assigned: { es: "Asignado", en: "Assigned" },
+  assignFailed: { es: "No se asignó", en: "Couldn't assign" },
+  noTeammates: { es: "Sin compañeros", en: "No teammates" },
+  youSuffix: { es: " (yo)", en: " (me)" },
+  removeAssignment: { es: "Quitar asignación", en: "Remove assignment" },
+  backToConversations: {
+    es: "Volver a conversaciones",
+    en: "Back to conversations",
+  },
+  viewContactInfo: {
+    es: "Ver información del contacto",
+    en: "View contact info",
+  },
+  hideContactInfo: {
+    es: "Ocultar información del contacto",
+    en: "Hide contact info",
+  },
+  showContactInfo: {
+    es: "Mostrar información del contacto",
+    en: "Show contact info",
+  },
+  refresh: { es: "Actualizar", en: "Refresh" },
+
+  // Message thread — AI toggle
+  aiActive: { es: "IA activa", en: "AI on" },
+  aiPaused: { es: "IA en pausa", en: "AI paused" },
+  aiActiveTooltip: {
+    es: "IA activa en este chat — toca para pausarla",
+    en: "AI is on in this chat — tap to pause it",
+  },
+  aiPausedTooltip: {
+    es: "IA en pausa en este chat — toca para reactivarla",
+    en: "AI is paused in this chat — tap to resume it",
+  },
+
+  // Message thread — comment post context banner
+  commentOnPost: {
+    es: "Comentario en una publicación",
+    en: "Comment on a post",
+  },
+  post: { es: "Publicación", en: "Post" },
+  postFb: { es: "Post FB", en: "FB post" },
+  postIg: { es: "Post IG", en: "IG post" },
+  viewPost: { es: "Ver publicación ↗", en: "View post ↗" },
+
+  // Resizable pane
+  resizePanel: { es: "Cambiar ancho del panel", en: "Resize panel" },
+
+  // Inbox search box
+  searchAll: {
+    es: "Buscar en mensajes y conversaciones",
+    en: "Search messages and conversations",
+  },
+  clear: { es: "Limpiar", en: "Clear" },
+  searching: { es: "Buscando…", en: "Searching…" },
+  noResultsDot: { es: "Sin resultados.", en: "No results." },
+
+  // Template picker
+  variables: { es: "Variables", en: "Variables" },
+  noApprovedTemplates: {
+    es: "No hay plantillas aprobadas",
+    en: "No approved templates",
+  },
+  syncTemplatesHint: {
+    es: "Sincroniza desde Ajustes → Plantillas.",
+    en: "Sync from Settings → Templates.",
+  },
+  preview: { es: "Vista previa", en: "Preview" },
+  variableLabel: { es: "Variable {{{n}}}", en: "Variable {{{n}}}" },
+  variableExample: { es: "· ej. {sample}", en: "· e.g. {sample}" },
+  back: { es: "Atrás", en: "Back" },
+  send: { es: "Enviar", en: "Send" },
+
+  // Shopify contact panel
+  shopifyCustomer: { es: "Cliente Shopify", en: "Shopify customer" },
+  viewInShopify: { es: "Ver en Shopify", en: "View in Shopify" },
+  totalSpent: { es: "Total comprado", en: "Total spent" },
+  orders: { es: "Pedidos", en: "Orders" },
+  latestOrders: { es: "Últimos pedidos", en: "Latest orders" },
+  viewOrder: { es: "Ver pedido", en: "View order" },
+  financialPaid: { es: "Pagado", en: "Paid" },
+  financialPending: { es: "Pendiente", en: "Pending" },
+  financialRefunded: { es: "Reembolsado", en: "Refunded" },
+  financialPartiallyRefunded: {
+    es: "Reembolsado parcial",
+    en: "Partially refunded",
+  },
+  financialVoided: { es: "Anulado", en: "Voided" },
+  financialAuthorized: { es: "Autorizado", en: "Authorized" },
+  fulfillmentFulfilled: { es: "Enviado", en: "Fulfilled" },
+  fulfillmentPartial: { es: "Enviado parcial", en: "Partially fulfilled" },
+  fulfillmentRestocked: { es: "Repuesto", en: "Restocked" },
+  fulfillmentUnfulfilled: { es: "Sin enviar", en: "Unfulfilled" },
+} satisfies Namespace;

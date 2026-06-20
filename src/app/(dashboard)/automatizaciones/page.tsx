@@ -53,6 +53,7 @@ import {
 import { formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
+import { useT } from "@/hooks/use-locale"
 
 // String → Lucide icon component. Keeping the catalog import-free of
 // react means this map lives in the page that renders the gallery.
@@ -66,6 +67,7 @@ const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
 
 export default function AutomationsPage() {
   const router = useRouter()
+  const t = useT()
   const fetchWithCsrf = useFetchWithCsrf()
   const { workspace, loading: wsLoading } = useWorkspace()
   const connections = useActiveConnections()
@@ -95,7 +97,7 @@ export default function AutomationsPage() {
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar las automatizaciones")
+      setError(err instanceof Error ? err.message : t("automations.loadFailed"))
     }
   }
 
@@ -119,20 +121,20 @@ export default function AutomationsPage() {
         prev?.map((x) => (x.id === a.id ? { ...x, is_active: !next } : x)) ?? prev,
       )
       const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? "No se pudo actualizar")
+      toast.error(body?.error ?? t("automations.updateFailed"))
       return
     }
-    toast.success(next ? "Activada" : "Pausada")
+    toast.success(next ? t("automations.toastActivated") : t("automations.toastPaused"))
   }
 
   async function duplicate(a: Automation) {
     const res = await fetchWithCsrf(`/api/automations/${a.id}/duplicate`, { method: "POST" })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? "No se pudo duplicar")
+      toast.error(body?.error ?? t("automations.duplicateFailed"))
       return
     }
-    toast.success("Duplicada")
+    toast.success(t("automations.toastDuplicated"))
     if (workspace?.id) load(workspace.id)
   }
 
@@ -143,10 +145,10 @@ export default function AutomationsPage() {
     setDeleting(false)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? "No se pudo eliminar")
+      toast.error(body?.error ?? t("automations.deleteFailed"))
       return
     }
-    toast.success("Eliminada")
+    toast.success(t("automations.toastDeleted"))
     setPendingDelete(null)
     if (workspace?.id) load(workspace.id)
   }
@@ -156,7 +158,7 @@ export default function AutomationsPage() {
       <div className="flex h-64 flex-col items-center justify-center gap-2">
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
-          Reintentar
+          {t("automations.retry")}
         </Button>
       </div>
     )
@@ -175,7 +177,7 @@ export default function AutomationsPage() {
       <header className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Automatizaciones
+            {t("automations.pageTitle")}
           </h1>
         </div>
         <Button
@@ -184,7 +186,7 @@ export default function AutomationsPage() {
           className="shrink-0"
         >
           <Plus className="h-4 w-4" />
-          Crear desde cero
+          {t("automations.createFromScratch")}
         </Button>
       </header>
 
@@ -195,7 +197,7 @@ export default function AutomationsPage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
             <span>
-              Tus automatizaciones se ejecutan por tu WhatsApp conectado
+              {t("automations.runsThroughWhatsapp")}
               {whatsappLabel ? (
                 <span className="font-medium text-foreground"> ({whatsappLabel})</span>
               ) : null}
@@ -207,12 +209,12 @@ export default function AutomationsPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0">
               <p className="font-medium text-foreground">
-                No hay un WhatsApp conectado
+                {t("automations.noWhatsappTitle")}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Las automatizaciones envían por WhatsApp.{" "}
+                {t("automations.automationsSendViaWhatsapp")}{" "}
                 <Link href="/integraciones" className="text-accent-ink underline hover:opacity-80">
-                  Conectar WhatsApp
+                  {t("automations.connectWhatsapp")}
                 </Link>
               </p>
             </div>
@@ -225,18 +227,18 @@ export default function AutomationsPage() {
             id="templates-heading"
             className="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
           >
-            Plantillas listas
+            {t("automations.readyTemplates")}
           </h2>
           <span className="text-xs text-muted-foreground">
-            {templates.length} disponibles
+            {t("automations.availableCount", { n: templates.length })}
           </span>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {templates.map((t) => (
+          {templates.map((tpl) => (
             <TemplateCard
-              key={t.slug}
-              template={t}
-              onView={() => router.push(`/automatizaciones/nueva?template=${t.slug}`)}
+              key={tpl.slug}
+              template={tpl}
+              onView={() => router.push(`/automatizaciones/nueva?template=${tpl.slug}`)}
             />
           ))}
         </div>
@@ -248,11 +250,13 @@ export default function AutomationsPage() {
             id="installed-heading"
             className="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
           >
-            Mis automatizaciones
+            {t("automations.myAutomations")}
           </h2>
           {automations.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              {automations.length} instalada{automations.length === 1 ? "" : "s"}
+              {automations.length === 1
+                ? t("automations.installedCountOne", { n: 1 })
+                : t("automations.installedCountOther", { n: automations.length })}
             </span>
           )}
         </div>
@@ -263,7 +267,7 @@ export default function AutomationsPage() {
               <Zap className="size-6" />
             </div>
             <p className="mt-3 text-sm font-semibold text-foreground">
-              Aún no tienes ninguna
+              {t("automations.emptyInstalled")}
             </p>
           </div>
         ) : (
@@ -288,10 +292,11 @@ export default function AutomationsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              ¿Eliminar <span className="text-foreground">{pendingDelete?.name}</span>?
+              {t("automations.deleteDialogTitlePrefix")}{" "}
+              <span className="text-foreground">{pendingDelete?.name}</span>?
             </DialogTitle>
             <DialogDescription>
-              Se eliminará también su historial de ejecuciones.
+              {t("automations.deleteDialogDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -300,7 +305,7 @@ export default function AutomationsPage() {
               onClick={() => setPendingDelete(null)}
               disabled={deleting}
             >
-              Cancelar
+              {t("automations.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -308,7 +313,7 @@ export default function AutomationsPage() {
               disabled={deleting}
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Eliminar
+              {t("automations.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -330,6 +335,7 @@ function TemplateCard({
   template: AutomationTemplateDefinition
   onView: () => void
 }) {
+  const t = useT()
   const Icon = ICON_BY_NAME[template.icon] ?? Sparkles
   return (
     <button
@@ -358,7 +364,7 @@ function TemplateCard({
             "opacity-80 transition-opacity group-hover:opacity-100",
           )}
         >
-          Ver plantilla
+          {t("automations.viewTemplate")}
           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
@@ -387,6 +393,7 @@ function AutomationCard({
   onLogs: () => void
   onDelete: () => void
 }) {
+  const t = useT()
   return (
     <li className="group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30">
       <div className="flex items-start justify-between gap-3">
@@ -403,7 +410,7 @@ function AutomationCard({
               {automation.name}
             </span>
             {automation.is_active && (
-              <span className="relative flex h-2 w-2" aria-label="activa">
+              <span className="relative flex h-2 w-2" aria-label={t("automations.active")}>
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
@@ -415,11 +422,11 @@ function AutomationCard({
           <Switch
             checked={automation.is_active}
             onCheckedChange={(v) => onToggle(!!v)}
-            aria-label={automation.is_active ? "Desactivar" : "Activar"}
+            aria-label={automation.is_active ? t("automations.deactivate") : t("automations.activate")}
           />
           <DropdownMenu>
             <DropdownMenuTrigger
-              aria-label="Abrir menú"
+              aria-label={t("automations.openMenu")}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[popup-open]:bg-accent"
             >
               <MoreVertical className="h-4 w-4" />
@@ -427,16 +434,16 @@ function AutomationCard({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
-                Editar
+                {t("automations.edit")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onDuplicate}>
                 <Copy className="h-4 w-4" />
-                Duplicar
+                {t("automations.duplicate")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onDelete}>
                 <Trash2 className="h-4 w-4" />
-                Eliminar
+                {t("automations.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -448,11 +455,12 @@ function AutomationCard({
       <div className="mt-4 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span className="truncate">
           <span className="tabular-nums">
-            {automation.execution_count} ejecución
-            {automation.execution_count === 1 ? "" : "es"}
+            {automation.execution_count === 1
+              ? t("automations.executionCountOne", { n: 1 })
+              : t("automations.executionCountOther", { n: automation.execution_count })}
           </span>
           {" · "}
-          <span>última {formatRelative(automation.last_executed_at)}</span>
+          <span>{t("automations.lastRun", { time: formatRelative(automation.last_executed_at) })}</span>
         </span>
         <button
           type="button"
@@ -460,7 +468,7 @@ function AutomationCard({
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity hover:opacity-100"
         >
           <BarChart3 className="h-3.5 w-3.5" />
-          Ver estadísticas
+          {t("automations.viewStats")}
         </button>
       </div>
     </li>

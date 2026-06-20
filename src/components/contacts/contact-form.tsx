@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 
 interface ContactFormProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function ContactForm({
   onSaved,
 }: ContactFormProps) {
   const supabase = createClient();
+  const t = useT();
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
@@ -79,7 +81,7 @@ export function ContactForm({
     e.preventDefault();
 
     if (!phone.trim()) {
-      toast.error('Falta el teléfono');
+      toast.error(t('contacts.missingPhone'));
       return;
     }
 
@@ -90,7 +92,7 @@ export function ContactForm({
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('No autenticado');
+      if (!user) throw new Error(t('contacts.notAuthenticated'));
 
       let contactId = contact?.id;
 
@@ -141,11 +143,11 @@ export function ContactForm({
         }
       }
 
-      toast.success(isEdit ? 'Contacto actualizado' : 'Contacto creado');
+      toast.success(isEdit ? t('contacts.contactUpdated') : t('contacts.contactCreated'));
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'No se pudo guardar el contacto';
+      const message = err instanceof Error ? err.message : t('contacts.saveContactError');
       toast.error(message);
     } finally {
       setSaving(false);
@@ -157,14 +159,14 @@ export function ContactForm({
       <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-foreground">
-            {isEdit ? 'Editar contacto' : 'Añadir contacto'}
+            {isEdit ? t('contacts.editContact') : t('contacts.newContact')}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cf-name" className="text-foreground">
-              Nombre
+              {t('contacts.fieldName')}
             </Label>
             <Input
               id="cf-name"
@@ -176,20 +178,20 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-foreground">
-              Teléfono <span className="text-red-400">*</span>
+              {t('contacts.fieldPhone')} <span className="text-red-400">*</span>
             </Label>
             <Input
               id="cf-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+57 300 123 4567"
+              placeholder={t('contacts.phonePlaceholder')}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="cf-email" className="text-foreground">
-              Correo
+              {t('contacts.fieldEmail')}
             </Label>
             <Input
               id="cf-email"
@@ -202,7 +204,7 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-company" className="text-foreground">
-              Empresa
+              {t('contacts.fieldCompany')}
             </Label>
             <Input
               id="cf-company"
@@ -213,17 +215,17 @@ export function ContactForm({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-foreground">Etiquetas</Label>
+            <Label className="text-foreground">{t('contacts.tagsLabel')}</Label>
             {loadingTags ? (
               <Loader2 className="size-3 animate-spin text-muted-foreground" />
             ) : tags.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No hay etiquetas. Créalas en{' '}
+                {t('contacts.noTagsCreatePrefix')}{' '}
                 <Link
                   href="/contactos?tab=tags"
                   className="underline hover:text-foreground"
                 >
-                  Contactos → Etiquetas
+                  {t('contacts.contactsTagsLink')}
                 </Link>
                 .
               </p>
@@ -262,7 +264,7 @@ export function ContactForm({
               onClick={() => onOpenChange(false)}
               className="border-border text-foreground hover:bg-accent"
             >
-              Cancelar
+              {t('contacts.cancel')}
             </Button>
             <Button
               type="submit"
@@ -270,7 +272,7 @@ export function ContactForm({
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
-              {isEdit ? 'Actualizar' : 'Crear'}
+              {isEdit ? t('contacts.update') : t('contacts.create')}
             </Button>
           </DialogFooter>
         </form>

@@ -5,6 +5,7 @@ import { Send, LayoutTemplate, Slash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
+import { useT } from "@/hooks/use-locale";
 
 interface ReplyDraft {
   /** Internal UUID of the message being replied to — sent back through onSend. */
@@ -23,19 +24,21 @@ interface ReplyDraft {
  */
 interface Snippet {
   trigger: string;
-  label: string;
-  body: string;
+  /** i18n key for the snippet's display label, resolved at render. */
+  labelKey: string;
+  /** i18n key for the snippet's inserted body text, resolved at insert. */
+  bodyKey: string;
 }
 const SNIPPETS: Snippet[] = [
   {
     trigger: "saludo",
-    label: "Saludo de bienvenida",
-    body: "¡Hola! Gracias por escribirnos. ¿En qué te puedo ayudar?",
+    labelKey: "inbox.snippetGreetingLabel",
+    bodyKey: "inbox.snippetGreetingBody",
   },
   {
     trigger: "gracias",
-    label: "Agradecimiento",
-    body: "Muchas gracias por tu compra. Te avisamos en cuanto tu pedido salga del almacén.",
+    labelKey: "inbox.snippetThanksLabel",
+    bodyKey: "inbox.snippetThanksBody",
   },
 ];
 
@@ -60,6 +63,7 @@ export function MessageComposer({
   replyTo,
   onClearReply,
 }: MessageComposerProps) {
+  const t = useT();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   // Ref-guard adicional: setState es async, así que si el agente
@@ -90,22 +94,23 @@ export function MessageComposer({
   const insertSnippet = useCallback(
     (snippet: Snippet) => {
       if (!snippetMenu) return;
+      const body = t(snippet.bodyKey);
       const before = text.slice(0, snippetMenu.start);
       const after = text.slice(snippetMenu.start + 1 + snippetMenu.query.length);
-      const next = `${before}${snippet.body}${after}`;
+      const next = `${before}${body}${after}`;
       setText(next);
       setSnippetMenu(null);
       requestAnimationFrame(() => {
         const el = textareaRef.current;
         if (!el) return;
-        const pos = before.length + snippet.body.length;
+        const pos = before.length + body.length;
         el.focus();
         el.setSelectionRange(pos, pos);
         el.style.height = "auto";
         el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
       });
     },
-    [snippetMenu, text],
+    [snippetMenu, text, t],
   );
 
   const adjustHeight = useCallback(() => {
@@ -208,7 +213,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            Sesión de 24 horas expirada. Usa una plantilla.
+            {t("inbox.sessionExpiredBanner")}
           </p>
           <Button
             variant="ghost"
@@ -217,7 +222,7 @@ export function MessageComposer({
             onClick={onOpenTemplates}
           >
             <LayoutTemplate className="mr-1 h-3 w-3" />
-            Plantillas
+            {t("inbox.templates")}
           </Button>
         </div>
       )}
@@ -226,7 +231,7 @@ export function MessageComposer({
       {snippetMenu && filteredSnippets.length > 0 && (
         <div className="mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg shadow-black/20">
           <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            Atajos rápidos
+            {t("inbox.quickSnippets")}
           </div>
           <ul className="max-h-60 overflow-y-auto py-1">
             {filteredSnippets.map((s, i) => (
@@ -250,11 +255,11 @@ export function MessageComposer({
                         /{s.trigger}
                       </code>
                       <span className="text-[10px] text-muted-foreground">
-                        {s.label}
+                        {t(s.labelKey)}
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {s.body}
+                      {t(s.bodyKey)}
                     </p>
                   </div>
                 </button>
@@ -262,7 +267,7 @@ export function MessageComposer({
             ))}
           </ul>
           <div className="border-t border-border bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
-            ↑↓ navega · Enter inserta · Esc cierra
+            {t("inbox.snippetHints")}
           </div>
         </div>
       )}
@@ -273,8 +278,8 @@ export function MessageComposer({
           size="sm"
           className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
           onClick={onOpenTemplates}
-          title="Enviar plantilla"
-          aria-label="Enviar plantilla"
+          title={t("inbox.sendTemplate")}
+          aria-label={t("inbox.sendTemplate")}
         >
           <LayoutTemplate className="h-4 w-4" />
         </Button>
@@ -286,8 +291,8 @@ export function MessageComposer({
           onKeyDown={handleKeyDown}
           placeholder={
             sessionExpired
-              ? "Sesión expirada. Usa una plantilla."
-              : "Mensaje. Tipea / para usar un atajo."
+              ? t("inbox.composerExpiredPlaceholder")
+              : t("inbox.composerPlaceholder")
           }
           disabled={sessionExpired}
           rows={1}
@@ -302,7 +307,7 @@ export function MessageComposer({
           className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
           disabled={!text.trim() || sessionExpired || sending}
           onClick={handleSend}
-          aria-label="Enviar mensaje"
+          aria-label={t("inbox.sendMessage")}
         >
           <Send className="h-4 w-4" />
         </Button>

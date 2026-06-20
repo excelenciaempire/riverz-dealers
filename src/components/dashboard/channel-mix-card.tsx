@@ -1,8 +1,11 @@
+'use client'
+
 import { ChannelLogo } from '@/components/inbox/channel-logo'
 import { CHANNEL_DISPLAY } from '@/lib/channels/display'
 import type { ChannelMixPoint } from '@/lib/dashboard/types'
 import type { Channel } from '@/types'
 import { cn } from '@/lib/utils'
+import { useT } from '@/hooks/use-locale'
 
 interface ChannelMixCardProps {
   mix: ChannelMixPoint[]
@@ -14,16 +17,17 @@ interface ChannelMixCardProps {
  * team can spot a channel that's exploding (or one that's gone quiet).
  */
 export function ChannelMixCard({ mix }: ChannelMixCardProps) {
+  const t = useT()
   const total = mix.reduce((n, m) => n + m.inbound + m.outbound, 0)
   const peak = Math.max(1, ...mix.map((m) => m.inbound + m.outbound))
   return (
     <section className="rounded-xl border border-border bg-card p-5">
       <header className="mb-4 flex items-baseline justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Volumen por canal</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('dashboard.channelVolume')}</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          Total: <span className="font-semibold text-foreground tabular-nums">{total.toLocaleString()}</span>
+          {t('dashboard.total')}: <span className="font-semibold text-foreground tabular-nums">{total.toLocaleString()}</span>
         </p>
       </header>
       <ul className="space-y-3">
@@ -67,11 +71,11 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
       <div className="mt-4 flex items-center gap-4 text-[10px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2 rounded-sm bg-foreground/40" />
-          Recibidos
+          {t('dashboard.received')}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2 rounded-sm bg-primary" />
-          Enviados
+          {t('dashboard.sent')}
         </span>
       </div>
     </section>

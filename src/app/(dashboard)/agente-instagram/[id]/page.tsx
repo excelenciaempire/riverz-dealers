@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 import type {
   InstagramCampaign,
@@ -30,16 +31,17 @@ import type {
 } from '@/lib/instagram-agent/types';
 
 const STATUS_LABEL: Record<CampaignStatus, string> = {
-  draft: 'Borrador',
-  active: 'Activa',
-  paused: 'Pausada',
-  done: 'Finalizada',
+  draft: 'igAgent.statusDraft',
+  active: 'igAgent.statusActive',
+  paused: 'igAgent.statusPaused',
+  done: 'igAgent.statusDone',
 };
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [campaign, setCampaign] = useState<InstagramCampaign | null>(null);
   const [byStatus, setByStatus] = useState<Record<string, number>>({});
   const [revenueByPost, setRevenueByPost] = useState<
@@ -67,14 +69,14 @@ export default function CampaignDetailPage() {
           }>,
         );
       } else {
-        toast.error(json.error ?? 'No se pudo cargar la campaña');
+        toast.error(json.error ?? t('igAgent.errorLoadCampaign'));
       }
     } catch {
-      toast.error('Error de red');
+      toast.error(t('igAgent.errorNetwork'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     load();
@@ -99,13 +101,13 @@ export default function CampaignDetailPage() {
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(json.error ?? 'La acción falló');
+        toast.error(json.error ?? t('igAgent.errorActionFailed'));
         return;
       }
       if (okMsg) toast.success(okMsg);
       load();
     } catch {
-      toast.error('Error de red');
+      toast.error(t('igAgent.errorNetwork'));
     } finally {
       setBusy(false);
     }
@@ -122,7 +124,9 @@ export default function CampaignDetailPage() {
     return (
       <div className="space-y-4">
         <BackLink />
-        <p className="text-sm text-muted-foreground">Campaña no encontrada.</p>
+        <p className="text-sm text-muted-foreground">
+          {t('igAgent.campaignNotFound')}
+        </p>
       </div>
     );
   }
@@ -146,7 +150,7 @@ export default function CampaignDetailPage() {
         <div>
           <p className="app-eyebrow flex items-center gap-1.5">
             <InstagramIcon className="h-3.5 w-3.5" />
-            Campaña de Instagram
+            {t('igAgent.instagramCampaign')}
           </p>
           <h1 className="app-page-title mt-1.5">{campaign.name}</h1>
           <p className="mt-1 text-xs text-muted-foreground">{campaign.goal}</p>
@@ -161,7 +165,7 @@ export default function CampaignDetailPage() {
           }
           className="shrink-0"
         >
-          {STATUS_LABEL[campaign.status]}
+          {t(STATUS_LABEL[campaign.status])}
         </Badge>
       </div>
 
@@ -170,7 +174,12 @@ export default function CampaignDetailPage() {
         {(campaign.status === 'draft' || campaign.status === 'paused') && (
           <Button
             onClick={() =>
-              action('/launch', 'POST', undefined, 'Campaña lanzada')
+              action(
+                '/launch',
+                'POST',
+                undefined,
+                t('igAgent.toastCampaignLaunched'),
+              )
             }
             disabled={busy}
           >
@@ -179,56 +188,73 @@ export default function CampaignDetailPage() {
             ) : (
               <Rocket className="h-4 w-4" />
             )}
-            {campaign.status === 'paused' ? 'Retomar' : 'Lanzar campaña'}
+            {campaign.status === 'paused'
+              ? t('igAgent.resume')
+              : t('igAgent.launchCampaign')}
           </Button>
         )}
         {campaign.status === 'active' && (
           <Button
             variant="outline"
             onClick={() =>
-              action('', 'PATCH', { status: 'paused' }, 'Campaña pausada')
+              action(
+                '',
+                'PATCH',
+                { status: 'paused' },
+                t('igAgent.toastCampaignPaused'),
+              )
             }
             disabled={busy}
           >
             <Pause className="h-4 w-4" />
-            Pausar agente
+            {t('igAgent.pauseAgent')}
           </Button>
         )}
         {campaign.status !== 'done' && (
           <Button
             variant="ghost"
             onClick={() =>
-              action('', 'PATCH', { status: 'done' }, 'Campaña finalizada')
+              action(
+                '',
+                'PATCH',
+                { status: 'done' },
+                t('igAgent.toastCampaignFinished'),
+              )
             }
             disabled={busy}
           >
             <CheckCircle2 className="h-4 w-4" />
-            Finalizar
+            {t('igAgent.finish')}
           </Button>
         )}
         {campaign.status === 'draft' && (
           <Button
             variant="ghost"
             onClick={() =>
-              action('/resolve', 'POST', undefined, 'Audiencia resuelta')
+              action(
+                '/resolve',
+                'POST',
+                undefined,
+                t('igAgent.toastAudienceResolved'),
+              )
             }
             disabled={busy}
           >
             <Play className="h-4 w-4" />
-            Resolver audiencia
+            {t('igAgent.resolveAudience')}
           </Button>
         )}
       </div>
 
       {/* Embudo real */}
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p className="app-eyebrow">Embudo real</p>
+        <p className="app-eyebrow">{t('igAgent.realFunnel')}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label="En cola" value={byStatus.queued ?? 0} />
-          <Stat label="Enviados" value={byStatus.sent ?? 0} />
-          <Stat label="Respuestas" value={byStatus.replied ?? 0} />
+          <Stat label={t('igAgent.queued')} value={byStatus.queued ?? 0} />
+          <Stat label={t('igAgent.sent')} value={byStatus.sent ?? 0} />
+          <Stat label={t('igAgent.replies')} value={byStatus.replied ?? 0} />
           <Stat
-            label="Conversiones"
+            label={t('igAgent.conversions')}
             value={byStatus.converted ?? 0}
             highlight
           />
@@ -239,7 +265,9 @@ export default function CampaignDetailPage() {
             <span className="font-semibold text-accent-ink">
               {metrics.revenue.toLocaleString()} {metrics.currency}
             </span>
-            <span className="text-muted-foreground">atribuidos (último toque)</span>
+            <span className="text-muted-foreground">
+              {t('igAgent.attributedLastTouch')}
+            </span>
           </p>
         )}
 
@@ -249,24 +277,25 @@ export default function CampaignDetailPage() {
           <div className="mt-3 rounded-lg border border-accent-ink/30 bg-accent/20 p-3">
             <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
               <TrendingUp className="h-3.5 w-3.5 text-accent-ink" />
-              Incrementalidad (vs. control de {metrics.control_size})
+              {t('igAgent.incrementalityVsControl', { n: metrics.control_size })}
             </p>
             <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
               <span className="text-lg font-semibold text-accent-ink">
                 {metrics.incremental_revenue.toLocaleString()} {metrics.currency}
               </span>
               <span className="text-xs text-muted-foreground">
-                revenue incremental · {metrics.incremental_conversions} ventas netas
+                {t('igAgent.incrementalRevenueLabel', {
+                  n: metrics.incremental_conversions,
+                })}
               </span>
               {metrics.uplift_pct > 0 && (
                 <span className="text-xs font-medium text-accent-ink">
-                  +{metrics.uplift_pct}% uplift
+                  {t('igAgent.upliftPct', { n: metrics.uplift_pct })}
                 </span>
               )}
             </div>
             <p className="mt-1 text-[10px] text-muted-foreground">
-              El control no recibió DM; restamos su compra orgánica para aislar
-              el efecto real del agente.
+              {t('igAgent.controlExplanation')}
             </p>
           </div>
         )}
@@ -279,11 +308,10 @@ export default function CampaignDetailPage() {
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="app-eyebrow flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5 text-accent-ink" />
-            Ingresos por post
+            {t('igAgent.revenueByPost')}
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Qué publicación está generando ventas — atribuido al post donde la
-            persona interactuó antes del DM.
+            {t('igAgent.revenueByPostNote')}
           </p>
           <ul className="mt-3 divide-y divide-border">
             {revenueByPost.map((p) => (
@@ -298,10 +326,12 @@ export default function CampaignDetailPage() {
                     rel="noopener noreferrer"
                     className="truncate font-mono text-xs text-foreground hover:text-accent-ink hover:underline"
                   >
-                    Post …{p.post_id.slice(-8)}
+                    {t('igAgent.postLabel', { id: p.post_id.slice(-8) })}
                   </a>
                   <p className="text-[11px] text-muted-foreground">
-                    {p.conversions} {p.conversions === 1 ? 'venta' : 'ventas'}
+                    {p.conversions === 1
+                      ? t('igAgent.salesCountOne', { n: p.conversions })
+                      : t('igAgent.salesCountOther', { n: p.conversions })}
                   </p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-accent-ink">
@@ -318,7 +348,7 @@ export default function CampaignDetailPage() {
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
           <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
             <InstagramIcon className="h-4 w-4" />
-            DM de Instagram
+            {t('igAgent.instagramDm')}
           </p>
           <div className="rounded-xl bg-[#0b0b0f] p-3">
             <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-white">
@@ -328,7 +358,7 @@ export default function CampaignDetailPage() {
           <div className="mt-4">
             <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
               <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              Seguimiento
+              {t('igAgent.followUp')}
             </p>
             <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
               {plan.follow_up}
@@ -340,7 +370,7 @@ export default function CampaignDetailPage() {
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
               <Users className="h-4 w-4 text-accent-ink" />
-              Audiencia
+              {t('igAgent.audience')}
             </p>
             <p className="text-xs text-muted-foreground">
               {plan.audience.description}
@@ -354,7 +384,7 @@ export default function CampaignDetailPage() {
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <Tag className="h-4 w-4 text-accent-ink" />
-                Oferta
+                {t('igAgent.offer')}
               </p>
               <span className="rounded-md border border-dashed border-accent-ink/40 bg-accent/40 px-2 py-1 font-mono text-sm font-semibold text-accent-ink">
                 {plan.offer.code}
@@ -374,13 +404,14 @@ export default function CampaignDetailPage() {
 }
 
 function BackLink() {
+  const t = useT();
   return (
     <Link
       href="/agente-instagram"
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
     >
       <ArrowLeft className="h-3.5 w-3.5" />
-      Agente de Instagram
+      {t('igAgent.backToAgent')}
     </Link>
   );
 }

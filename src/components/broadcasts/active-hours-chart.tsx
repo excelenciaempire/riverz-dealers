@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useT } from '@/hooks/use-locale';
 
 interface ActiveHoursChartProps {
   /** ISO timestamps of when each message was sent. */
@@ -13,6 +14,7 @@ interface ActiveHoursChartProps {
  * hour (0–23) and draws proportional bars. Pure CSS, no chart lib.
  */
 export function ActiveHoursChart({ timestamps }: ActiveHoursChartProps) {
+  const t = useT();
   const { buckets, max, total } = useMemo(() => {
     const b = new Array<number>(24).fill(0);
     let t = 0;
@@ -28,10 +30,10 @@ export function ActiveHoursChart({ timestamps }: ActiveHoursChartProps) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="mb-4 text-sm font-medium text-foreground">Horas activas</h3>
+      <h3 className="mb-4 text-sm font-medium text-foreground">{t('broadcasts.activeHours')}</h3>
       {total === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Aún no hay envíos para mostrar actividad por hora.
+          {t('broadcasts.activeHoursEmpty')}
         </p>
       ) : (
         <div className="flex h-40 items-end gap-[2px]">
@@ -39,7 +41,11 @@ export function ActiveHoursChart({ timestamps }: ActiveHoursChartProps) {
             <div
               key={hour}
               className="group relative flex flex-1 flex-col items-center justify-end"
-              title={`${hour}:00 · ${count} envío${count === 1 ? '' : 's'}`}
+              title={t('broadcasts.activeHoursTooltip', {
+                hour,
+                count,
+                sends: count === 1 ? t('broadcasts.sendSingular') : t('broadcasts.sendPlural'),
+              })}
             >
               <div
                 className="w-full rounded-sm bg-foreground/40 transition-all group-hover:bg-foreground/70"
