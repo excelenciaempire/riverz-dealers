@@ -147,6 +147,10 @@ export function ChannelsPanel() {
         "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at",
       )
       .eq("workspace_id", workspace.id)
+      // Las conexiones desconectadas no se muestran: al desconectar, la fila
+      // debe desaparecer de la tarjeta (el registro queda en BD por si se
+      // reconecta, y el router de webhooks ya las ignora).
+      .neq("status", "disconnected")
       .order("created_at", { ascending: false });
     setConnections((data ?? []) as ChannelConnection[]);
   }, [workspace]);
@@ -184,11 +188,9 @@ export function ChannelsPanel() {
         toast.error(error.message);
         return;
       }
-      setConnections((prev) =>
-        prev.map((c) =>
-          ids.includes(c.id) ? { ...c, status: "disconnected" } : c,
-        ),
-      );
+      // Quitar de la vista al instante (no solo marcar disconnected): el
+      // usuario espera que la fila desaparezca al desconectar.
+      setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
       toast.success("Canal desconectado");
       void fetchConnections();
     },
