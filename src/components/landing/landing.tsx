@@ -5,9 +5,11 @@ import Link from "next/link";
 import {
   Inbox,
   Sparkles,
-  Workflow,
   Megaphone,
   ShoppingBag,
+  ShoppingCart,
+  RotateCcw,
+  Package,
   BarChart3,
   ArrowRight,
   Check,
@@ -155,56 +157,65 @@ const SECTIONS: {
 }[] = [
   {
     n: "01",
-    eyebrow: "Bandeja",
-    icon: Inbox,
-    title: "Todos tus chats,",
-    titleMuted: "en una sola bandeja.",
-    body: "WhatsApp, Instagram, Messenger y correo en una pantalla. Sin saltar de app, sin perder un mensaje.",
-    Preview: InboxPreview,
-  },
-  {
-    n: "02",
-    eyebrow: "Asistente de IA",
+    eyebrow: "Agente de ventas",
     icon: Sparkles,
-    title: "Conoce tus productos",
-    titleMuted: "y responde por ti.",
-    body: "El agente aprende tu catálogo, tus precios y tus envíos, y contesta como tu mejor vendedor — de día y de noche.",
+    title: "Un vendedor con IA",
+    titleMuted: "que conoce tus productos.",
+    body: "Aprende tu catálogo, tus precios y tus envíos, y responde como tu mejor vendedor: recomienda, resuelve objeciones y cierra la compra. De día y de noche.",
     Preview: BrainPreview,
   },
   {
+    n: "02",
+    eyebrow: "Carritos abandonados",
+    icon: ShoppingCart,
+    title: "Recupera cada",
+    titleMuted: "carrito abandonado.",
+    body: "Cuando alguien deja la compra a medias, el agente le escribe solo, resuelve la duda y recupera la venta antes de que se enfríe.",
+    Preview: CartRecoveryChat,
+  },
+  {
     n: "03",
-    eyebrow: "Automatizaciones",
-    icon: Workflow,
-    title: "Mensajes que salen solos",
-    titleMuted: "en el momento justo.",
-    body: "Saludos, seguimientos y recordatorios automáticos. Defines el flujo una vez y corre solo, sin que estés encima.",
+    eyebrow: "Recompras",
+    icon: RotateCcw,
+    title: "Haz que vuelvan",
+    titleMuted: "a comprar, solos.",
+    body: "Seguimiento post-venta, recordatorios de recompra y reactivación de clientes dormidos. Defines el flujo una vez y corre solo.",
     Preview: FlowPreview,
   },
   {
     n: "04",
     eyebrow: "Campañas",
     icon: Megaphone,
-    title: "Envíos masivos",
-    titleMuted: "con seguimiento real.",
-    body: "Lanza campañas por WhatsApp a miles de contactos y mira en vivo quién recibió, leyó y respondió.",
+    title: "Campañas masivas en",
+    titleMuted: "WhatsApp e Instagram.",
+    body: "Lanza ofertas y lanzamientos a miles de contactos por WhatsApp e Instagram, y mira en vivo quién recibió, leyó, respondió y compró.",
     Preview: CampaignPreview,
   },
   {
     n: "05",
-    eyebrow: "Productos",
-    icon: ShoppingBag,
-    title: "Conecta Shopify",
-    titleMuted: "y vende con datos reales.",
-    body: "Tu inventario, precios y pedidos sincronizados. La IA recomienda y cierra con información al día.",
-    Preview: ProductPreview,
+    eyebrow: "Bandeja",
+    icon: Inbox,
+    title: "Y todo, en una",
+    titleMuted: "sola bandeja.",
+    body: "WhatsApp, Instagram, Messenger y correo en una pantalla. Tu equipo y el agente trabajan juntos, sin perder un solo mensaje.",
+    Preview: InboxPreview,
   },
   {
     n: "06",
+    eyebrow: "Productos",
+    icon: Package,
+    title: "Conecta Shopify",
+    titleMuted: "y vende con datos reales.",
+    body: "Inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
+    Preview: ProductPreview,
+  },
+  {
+    n: "07",
     eyebrow: "Métricas",
     icon: BarChart3,
-    title: "Ventas y tiempos",
-    titleMuted: "de respuesta, en vivo.",
-    body: "Cuánto vendes, qué tan rápido respondes y qué canal convierte mejor. Todo en un panel claro.",
+    title: "Cuánto vendes y",
+    titleMuted: "cuánto recuperas, en vivo.",
+    body: "Ventas, carritos recuperados, conversión y tiempos de respuesta. Sabes con exactitud cuánto dinero te está generando tu agente.",
     Preview: MetricsPreview,
   },
 ];
@@ -237,12 +248,15 @@ export function Landing() {
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             <div>
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-[12px] font-medium text-accent-ink duration-700 animate-in fade-in slide-in-from-bottom-3">
+                <Sparkles className="size-3.5" /> Agente de ventas con IA
+              </div>
               <h1 className={`max-w-[16ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
                 Vende mientras{" "}
                 <span className="text-muted-foreground">la IA responde.</span>
               </h1>
-              <p className="mt-6 max-w-[30ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[42ch]">
-                Reúne WhatsApp, Instagram, Messenger y correo en una sola bandeja. Tu agente atiende, recomienda y cierra ventas por ti.
+              <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[48ch]">
+                No es una bandeja más: es un agente que atiende, recomienda, recupera carritos abandonados y reactiva clientes para que vuelvan a comprar. Cierra ventas en WhatsApp e Instagram, las 24 horas.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -291,9 +305,11 @@ export function Landing() {
       <section className="mx-auto max-w-6xl px-5 py-20">
         <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-8 py-16 text-center">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-32 mx-auto h-72 w-[600px] rounded-full bg-primary/15 blur-[100px]" />
-          <h2 className={`relative mx-auto max-w-xl ${H2}`}>Empieza hoy.</h2>
-          <p className={`relative mx-auto mt-4 max-w-sm ${BODY}`}>
-            Crea tu cuenta y conecta tu primer canal en minutos.
+          <h2 className={`relative mx-auto max-w-2xl ${H2}`}>
+            La herramienta definitiva para vender por chat.
+          </h2>
+          <p className={`relative mx-auto mt-4 max-w-md ${BODY}`}>
+            Conecta WhatsApp e Instagram y deja que tu agente atienda, recupere carritos y cierre ventas — desde hoy.
           </p>
           <Link
             href="/registro"
@@ -401,9 +417,11 @@ type Step =
   | { kind: "them"; text: string }
   | { kind: "you"; text: string }
   | { kind: "typing" }
-  | { kind: "sale" };
+  | { kind: "note"; text: string }
+  | { kind: "sale"; label?: string; recovered?: boolean };
 
-const SCRIPT: Step[] = [
+// Inbound: customer asks, the agent attends and closes the sale.
+const HERO_SCRIPT: Step[] = [
   { kind: "them", text: "Hola 👋 ¿el Serum Pilar sigue disponible?" },
   { kind: "typing" },
   { kind: "you", text: "¡Hola Laura! Sí 🙌 nos quedan 8 unidades." },
@@ -414,12 +432,26 @@ const SCRIPT: Step[] = [
   { kind: "sale" },
 ];
 
+// Outbound: an abandoned cart triggers the agent to reach out and recover it.
+const CART_SCRIPT: Step[] = [
+  { kind: "note", text: "🛒 Carrito abandonado · Serum Pilar" },
+  { kind: "typing" },
+  { kind: "you", text: "Hola Andrés 👋 vi que dejaste el Serum Pilar en tu carrito." },
+  { kind: "you", text: "Te guardo el 15% off y envío gratis. ¿Lo terminamos? 💛" },
+  { kind: "them", text: "Uy sí, se me fue 🙈 dale" },
+  { kind: "typing" },
+  { kind: "you", text: "Listo, aquí tu pago seguro 👇" },
+  { kind: "sale", label: "Venta recuperada", recovered: true },
+];
+
 function delayFor(step: Step): number {
   switch (step.kind) {
     case "typing":
       return 700;
     case "sale":
       return 1200;
+    case "note":
+      return 1100;
     case "them":
       return 1500;
     default:
@@ -427,14 +459,24 @@ function delayFor(step: Step): number {
   }
 }
 
-function SaleChat() {
+function ChatPlayer({
+  script,
+  name,
+  status,
+  channel,
+}: {
+  script: Step[];
+  name: string;
+  status: string;
+  channel: Ch;
+}) {
   const reduced = useReducedMotion();
   const [n, setN] = useState(1);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (reduced) {
-      const raf = requestAnimationFrame(() => setN(SCRIPT.length));
+      const raf = requestAnimationFrame(() => setN(script.length));
       return () => cancelAnimationFrame(raf);
     }
     let id: ReturnType<typeof setTimeout>;
@@ -442,12 +484,12 @@ function SaleChat() {
     const loop = () => {
       let delay: number;
       let next: number;
-      if (cur >= SCRIPT.length) {
+      if (cur >= script.length) {
         next = 1; // restart the loop
         delay = 800;
       } else {
         next = cur + 1;
-        delay = delayFor(SCRIPT[cur]); // delay before revealing the next step
+        delay = delayFor(script[cur]); // delay before revealing the next step
       }
       id = setTimeout(() => {
         cur = next;
@@ -457,7 +499,7 @@ function SaleChat() {
     };
     loop();
     return () => clearTimeout(id);
-  }, [reduced]);
+  }, [reduced, script]);
 
   // Keep newest message in view.
   useEffect(() => {
@@ -466,20 +508,18 @@ function SaleChat() {
   }, [n]);
 
   // A `typing` step is transient: hide it once a later step has appeared.
-  const steps = SCRIPT.slice(0, n).filter(
-    (s, i) => !(s.kind === "typing" && i !== n - 1),
-  );
+  const steps = script
+    .slice(0, n)
+    .filter((s, i) => !(s.kind === "typing" && i !== n - 1));
 
   return (
     <PreviewFrame>
       {/* conversation header */}
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-2.5">
-        <span className="relative">
-          <ChannelLogo channel="whatsapp" size={20} />
-        </span>
+        <ChannelLogo channel={channel} size={20} />
         <div className="leading-tight">
-          <div className="text-sm font-medium">Laura M.</div>
-          <div className="text-[11px] text-accent-ink">en línea · atiende la IA</div>
+          <div className="text-sm font-medium">{name}</div>
+          <div className="text-[11px] text-accent-ink">{status}</div>
         </div>
         <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
           <Sparkles className="size-3" /> Agente activo
@@ -498,6 +538,28 @@ function SaleChat() {
   );
 }
 
+function SaleChat() {
+  return (
+    <ChatPlayer
+      script={HERO_SCRIPT}
+      name="Laura M."
+      status="en línea · atiende la IA"
+      channel="whatsapp"
+    />
+  );
+}
+
+function CartRecoveryChat() {
+  return (
+    <ChatPlayer
+      script={CART_SCRIPT}
+      name="Andrés Q."
+      status="recuperando carrito"
+      channel="whatsapp"
+    />
+  );
+}
+
 function Bubble({ step }: { step: Step }) {
   if (step.kind === "typing") {
     return (
@@ -509,14 +571,22 @@ function Bubble({ step }: { step: Step }) {
     );
   }
 
+  if (step.kind === "note") {
+    return (
+      <div className="mx-auto rounded-full border border-border bg-background/70 px-3 py-1 text-[11px] text-muted-foreground duration-300 animate-in fade-in">
+        {step.text}
+      </div>
+    );
+  }
+
   if (step.kind === "sale") {
     return (
       <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
         <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check className="size-4" />
+            {step.recovered ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
           </span>
-          <span className="text-sm font-semibold">Venta confirmada</span>
+          <span className="text-sm font-semibold">{step.label ?? "Venta confirmada"}</span>
           <span className="ml-auto text-sm font-semibold text-accent-ink">$89.000</span>
         </div>
         <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
@@ -660,9 +730,9 @@ function BrainPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 const FLOW: { icon: typeof Inbox; label: string; sub: string }[] = [
-  { icon: MessageSquare, label: "Disparador", sub: "Mensaje nuevo sin responder" },
-  { icon: Clock, label: "Espera", sub: "5 minutos" },
-  { icon: Send, label: "Acción", sub: "Enviar saludo + catálogo" },
+  { icon: ShoppingBag, label: "Disparador", sub: "Compró hace 30 días" },
+  { icon: Clock, label: "Espera", sub: "Momento ideal de recompra" },
+  { icon: Send, label: "Acción", sub: "Oferta de recompra personalizada" },
 ];
 
 function FlowPreview() {
@@ -746,7 +816,11 @@ function CampaignPreview() {
           </span>
           <div className="leading-tight">
             <div className="text-sm font-semibold">Lanzamiento Serum 💛</div>
-            <div className="text-[11px] text-muted-foreground">Plantilla aprobada · WhatsApp</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ChannelLogo channel="whatsapp" size={12} />
+              <ChannelLogo channel="instagram" size={12} />
+              WhatsApp e Instagram
+            </div>
           </div>
           <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
             Enviada
@@ -844,7 +918,7 @@ function MetricsPreview() {
   }, []);
 
   const ventas = useCountUp(1.84, run);
-  const conv = useCountUp(18, run);
+  const recup = useCountUp(420, run);
   const resp = useCountUp(4, run, 900);
 
   return (
@@ -853,7 +927,7 @@ function MetricsPreview() {
         <div className="grid grid-cols-3 gap-2.5">
           {[
             { label: "Ventas hoy", value: `$${ventas.toFixed(2)}M`, up: true },
-            { label: "Conversión", value: `${Math.round(conv)}%`, up: true },
+            { label: "Recuperadas", value: `$${Math.round(recup)}K`, up: true },
             { label: "Respuesta", value: `${Math.round(resp)}s`, up: false },
           ].map((m) => (
             <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
