@@ -61,8 +61,12 @@ export function verifyMetaWebhookSignatureDetailed(
   rawBody: string,
   signatureHeader: string | null,
   legacySha1Header: string | null,
+  /** Override the signing secret. Instagram webhooks (post-API-migration)
+   *  are signed with the Instagram app secret, not META_APP_SECRET — the
+   *  channel verifier retries IG deliveries with INSTAGRAM_APP_SECRET. */
+  secretOverride?: string,
 ): MetaSignatureResult {
-  const secret = process.env.META_APP_SECRET
+  const secret = secretOverride ?? process.env.META_APP_SECRET
   if (!secret) {
     console.error(
       '[webhook] META_APP_SECRET is not set — rejecting request. ' +

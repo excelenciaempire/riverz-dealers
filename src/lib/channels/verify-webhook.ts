@@ -49,11 +49,28 @@ export async function verifyChannelWebhook(
   if (META_CHANNELS.has(channel)) {
     const signature = request.headers.get("x-hub-signature-256");
     const legacySignature = request.headers.get("x-hub-signature");
-    const verdict = verifyMetaWebhookSignatureDetailed(
+    let verdict = verifyMetaWebhookSignatureDetailed(
       rawBody,
       signature,
       legacySignature,
     );
+    // Instagram webhooks (tras la migración de la API de Instagram, ~jun 2026)
+    // se firman con el SECRETO DE LA APP DE INSTAGRAM, no con META_APP_SECRET.
+    // Messenger / FB comments siguen con META_APP_SECRET. Reintentamos las
+    // entregas de Instagram con INSTAGRAM_APP_SECRET para que la firma cuadre.
+    if (
+      !verdict.ok &&
+      (channel === "instagram" || channel === "ig_comment") &&
+      process.env.INSTAGRAM_APP_SECRET
+    ) {
+      const igVerdict = verifyMetaWebhookSignatureDetailed(
+        rawBody,
+        signature,
+        legacySignature,
+        process.env.INSTAGRAM_APP_SECRET,
+      );
+      if (igVerdict.ok) verdict = igVerdict;
+    }
     if (!verdict.ok) {
       return {
         ok: false,
