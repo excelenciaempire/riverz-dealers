@@ -1,75 +1,68 @@
 # Pre-launch production audit (2026-06-19)
 
 Multi-agent audit of the Riverz CRM before market launch. 14 confirmed findings
-(each verified against the code by a second adversarial pass). Ordered by severity.
-`[x]` = fixed, `[ ]` = open.
+(each verified against the code by a second adversarial pass). `[x]` done,
+`[~]` partial, `[ ]` open. Most are now fixed + deployed.
 
 ## HIGH
 
-- [x] **Anthropic client had no timeout/retry cap on the bot path.** SDK defaults
-  (10-min timeout, 2 retries, timeouts retried) on the fire-and-forget webhook
-  reply runner → under provider degradation (429/529/no-credits) each message
-  could hold a task open for minutes and fan out unbounded on a memory-constrained
-  service. Fixed: `src/lib/ai/anthropic-client.ts` `getAnthropic()` (45s, 1 retry);
-  `runner.ts` migrated. **Remaining:** migrate the other 12 `new Anthropic()` sites
-  to the factory (segment, summarize ×2, lead-scoring, personalize-dm, realtime,
-  ai-intent, and the 5 API routes). Optional: add an in-process concurrency cap on
-  `runAiAgent`.
+- [x] **Anthropic client had no timeout/retry cap.** SDK defaults (10-min
+  timeout, 2 retries, timeouts retried) on the fire-and-forget webhook reply
+  runner → under provider degradation each message could hold a task open for
+  minutes and fan out unbounded. Fixed: `src/lib/ai/anthropic-client.ts`
+  `getAnthropic()` (45s, 1 retry); migrated **all 13 call sites** (runner, tools
+  loop, summarize ×2, segment, lead-scoring, personalize-dm, realtime, ai-intent,
+  and the 5 API routes). Optional later: in-process concurrency cap on runAiAgent.
+- [x] **AI checkout tool hardcoded to Pilar's economics for every tenant.** Gated
+  `CREATE_CHECKOUT_TOOL` behind `PILAR_SHOP_DOMAINS`; other tenants keep the
+  generic order-lookup. **Follow-up (feature):** per-workspace offers/prices/
+  currency/variant so the AI can sell correctly for any merchant — needs a
+  decision on where offers live (derive from shopify_products or a new table).
 
-- [x] **AI checkout tool hardcoded to Pilar's economics for every tenant.**
-  `CREATE_CHECKOUT_TOOL` (ARS prices, Mercado Pago, $4.900 transfer discount,
-  Pilar variant) was offered to every Shopify-connected workspace → a new
-  merchant's agent would quote Pilar's prices/currency to its customers. Fixed:
-  gated behind `PILAR_SHOP_DOMAINS` in `runner.ts`; others keep order-lookup only.
-  **Proper fix (later):** make offers/prices/currency/variant per-workspace.
+## MEDIUM
 
-## MEDIUM (open)
+- [x] **ai_agents / workspace_integrations api_key writes** → migration 075:
+  member SELECT kept, INSERT/UPDATE/DELETE restricted to `is_workspace_admin`.
+  Applied to prod for ai_agents. workspace_integrations is guarded (its table
+  isn't in prod — see the 067 note below) and will apply once 067 is.
+- [~] **channel_connections.secrets readable by members.** Left unchanged on
+  purpose: needs a coordinated client change (several `.select('*')` reads) before
+  a column REVOKE / secrets-omitting view, or it would break the UI. Recommended
+  steps documented in migration 075.
+- [x] **Outlook webhook fail-open.** Now fails closed: drops notifications unless
+  OUTLOOK_PUSH_CLIENT_STATE is set and matches (subscriptions already set it).
+- [x] **transcribe (Groq/media) fetch had no timeout.** `AbortSignal.timeout(15s)`
+  on both fetches; graceful fallback now fires on a hung provider/CDN.
+- [ ] **Workspace provisioning depends on an error-swallowing trigger.** Open
+  (recommended follow-up). Low probability (trigger body is trivial/robust) but
+  no self-recovery if it ever fails. Fix: idempotent app-level workspace bootstrap
+  on first authenticated load + make the trigger failure observable.
 
-- [ ] **channel_connections.secrets readable by any member (incl. agent role).**
-  RLS SELECT uses `is_workspace_member`, not admin; the browser reads `select("*")`
-  which includes encrypted token ciphertext. `013_unified_inbox.sql:201`. Fix:
-  restrict secret columns to admin / expose a secrets-omitting view; change the
-  client read to drop secret columns. (No plaintext leak — ciphertext only.)
-- [ ] **ai_agents / workspace_integrations `api_key_encrypted` member read+WRITE.**
-  `FOR ALL` with member (not admin) check → an agent can read encrypted provider
-  keys and tamper/delete agent + integration config. `024_ai_agents.sql:69`,
-  `067_workspace_integrations.sql:31`. Fix: gate INSERT/UPDATE/DELETE on admin.
-- [ ] **Outlook webhook unauthenticated + fails open.** `verifyChannelWebhook`
-  returns ok for outlook; the only check (clientState) is skipped if unset or
-  omitted. Forged notifications can drive Graph calls on the tenant token + trigger
-  the auto-responder. Fix: fail closed (require OUTLOOK_PUSH_CLIENT_STATE + matching
-  clientState). `verify-webhook.ts:82`, `outlook/adapter.ts:155`.
-- [ ] **transcribe (Groq/media) fetch has no timeout.** A hung Groq endpoint or
-  slow media CDN stalls the bot reply for voice notes (graceful fallback can't
-  fire). Fix: `signal: AbortSignal.timeout(15_000)` on both fetches in
-  `src/lib/ai/transcribe.ts:79,108`.
-- [ ] **Workspace provisioning depends on an error-swallowing DB trigger.** If the
-  signup trigger ever fails, the merchant is logged in with no workspace and no
-  self-recovery (can't create products/connect channels). Low probability, high
-  impact. Fix: idempotent app-level bootstrap on first authenticated load + make
-  the trigger failure observable. `013_unified_inbox.sql:298`.
+## LOW
 
-## LOW (open unless noted)
+- [x] PUBLIC `WITH CHECK (true)` write policies — already remediated in 056.
+- [x] Audit/log tables `FOR ALL` member: `automation_logs`, `flow_pending_retries`
+  → migration 075 (member SELECT + service-role-only writes). `messages` and
+  `instagram_campaign_recipients` LEFT ALONE — members legitimately write them via
+  the RLS-bound cookie client (template sends, campaign launch); restricting would
+  break those. Documented in 075.
+- [~] `profiles` exposes teammate email. Migration 075 adds the
+  `workspace_teammates` view (id/name/avatar only). Follow-up: switch the inbox's
+  profile reads to the view, then a later migration narrows the profiles policy.
+- [~] Encrypted secret columns member-readable — same root as channel_connections;
+  ciphertext only (key server-side). Same documented follow-up.
+- [ ] `ENCRYPTION_KEY` reused for AES + HMAC OAuth-state. Open (deferred): no known
+  attack; changing it must coordinate two subsystems / could invalidate in-flight
+  OAuth states. Fix later via HKDF subkeys or a dedicated OAUTH_STATE_SECRET.
+- [x] inbox-writer idempotency comment corrected.
+- [x] `runWithTools` final call wrapped in try/catch → routes to the human-handoff
+  fallback instead of replying nothing.
 
-- [x] PUBLIC/`WITH CHECK (true)` RLS write policies — already remediated in
-  `056_prod_hardening_pass.sql`. Action: confirm 056 is applied in all envs.
-- [ ] Audit/log + campaign tables (`automation_logs`, `flow_pending_retries`,
-  `instagram_campaign_recipients`, `messages`) use `FOR ALL` member policies → a
-  member can forge/delete those rows in their workspace. Fix: split into member
-  SELECT + service-role-only write (matches the shopify_checkouts pattern).
-- [ ] `profiles` policy exposes every teammate's email to co-members (only the name
-  is needed). `062:28`. Fix: expose id/name/avatar via a view; keep profiles SELECT
-  to self.
-- [ ] Encrypted secret columns SELECTable by members (defense-in-depth; same root
-  as the channel_connections finding) — ciphertext only, key is server-side.
-- [ ] `ENCRYPTION_KEY` reused for AES-256-GCM token encryption AND HMAC OAuth-state
-  signing. No known attack; hygiene. Fix: HKDF subkeys or a dedicated
-  `OAUTH_STATE_SECRET`. `oauth.ts:22`.
-- [ ] inbox-writer idempotency comment is misleading (dedup is on
-  (conversation_id, message_id), not a global message_id unique). Doc-only fix to
-  prevent a future regression. `inbox-writer.ts:24`.
-- [ ] `runWithTools` post-loop final `messages.create` has no try/catch → on loop
-  exhaustion + a provider error the customer gets no reply and no handoff. Fix:
-  wrap it like the in-loop call so the truncated-fallback fires. `tools.ts:289`.
+## Separate gap found while applying 075
+
+**`workspace_integrations` table does not exist in prod** — migration 067 was
+never applied. The Klaviyo integration (save/read the private key) is non-functional
+until 067 is applied via the Supabase Management API. Worth applying 067 (and
+auditing which other migrations are unapplied) before relying on Klaviyo.
 
 Full per-finding evidence + adversarial verdicts: workflow run `wf_75edd334-a84`.
