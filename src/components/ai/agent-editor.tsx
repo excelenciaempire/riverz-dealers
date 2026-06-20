@@ -368,7 +368,7 @@ export function AgentEditor({
       const next = [...prev, id];
       // Primer producto de un asistente nuevo → preparar la plantilla y
       // disparar la investigación del producto (lo que antes era manual).
-      if (isNew && prev.length === 0) void prefillFromProduct(id);
+      if (prev.length === 0) void prefillFromProduct(id);
       return next;
     });
   }
@@ -391,6 +391,11 @@ export function AgentEditor({
           `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`
         : cur,
     );
+    // "Información del negocio": la rellenamos con un resumen del producto
+    // (cliente ideal + beneficios o descripción) SOLO si está vacía, para
+    // que el agente quede pre-armado al elegir el producto. No pisa lo que
+    // el usuario haya escrito.
+    setKnowledge((cur) => (cur.trim() ? cur : buildBusinessInfoFromProduct(p) || cur));
   }
 
   async function prefillFromProduct(productId: string) {
@@ -1643,6 +1648,38 @@ interface ProductDetail {
   id: string;
   title: string;
   ai_research_status?: string | null;
+  description?: string | null;
+  structured_research?: Record<string, unknown> | null;
+}
+
+/**
+ * Resumen corto del producto para precargar "Información del negocio" al
+ * elegirlo en el editor del agente. Prioriza la investigación estructurada
+ * (cliente ideal + beneficios); si no hay, cae a la descripción recortada.
+ * Se mantiene breve a propósito: el runner ya inyecta el producto completo
+ * en cada conversación, esto es solo para que el merchant lo vea pre-armado.
+ */
+function buildBusinessInfoFromProduct(p: ProductDetail): string {
+  const arr = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.map((x) => String(x).trim()).filter(Boolean)
+      : [];
+  const sr =
+    p.structured_research && typeof p.structured_research === 'object'
+      ? (p.structured_research as Record<string, unknown>)
+      : null;
+  const lines: string[] = [];
+  if (sr) {
+    const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
+    if (audience) lines.push(`Cliente ideal: ${audience}`);
+    const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
+    if (benefits.length) lines.push(`Beneficios clave: ${benefits.join('; ')}`);
+  }
+  if (lines.length === 0 && p.description) {
+    const d = p.description.replace(/\s+/g, ' ').trim().slice(0, 400);
+    if (d) lines.push(d);
+  }
+  return lines.join('\n');
 }
 
 async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
