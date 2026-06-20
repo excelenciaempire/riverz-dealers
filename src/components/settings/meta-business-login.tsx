@@ -5,6 +5,15 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /**
  * Facebook Login for Business launcher for Messenger / Instagram. Uses the
@@ -50,6 +59,13 @@ export function MetaBusinessLogin({
   const [busy, setBusy] = useState(false);
   const fetchWithCsrf = useFetchWithCsrf();
 
+  // Held between the discovery (list_only) call and the persist call so the
+  // picker can connect the chosen accounts without re-running FB.login.
+  const [cred, setCred] = useState<{ access_token?: string; code?: string } | null>(null);
+  const [accounts, setAccounts] = useState<{ id: string; label: string }[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   useEffect(() => {
     if (!APP_ID || !CONFIG_ID) return;
     if (window.FB) {
@@ -89,14 +105,21 @@ export function MetaBusinessLogin({
     return () => clearInterval(poll);
   }, []);
 
-  const finish = useCallback(
-    async (payload: { access_token?: string; code?: string }) => {
+  // Persist the chosen accounts. `pageIds` empty/absent = let the server
+  // decide (single-account fast path passes the one id explicitly).
+  const persist = useCallback(
+    async (payload: { access_token?: string; code?: string }, pageIds: string[]) => {
       setBusy(true);
       try {
         const r = await fetchWithCsrf("/api/connections/meta/sdk-connect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, channel, workspace_id: workspaceId }),
+          body: JSON.stringify({
+            ...payload,
+            channel,
+            workspace_id: workspaceId,
+            page_ids: pageIds,
+          }),
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
@@ -104,6 +127,8 @@ export function MetaBusinessLogin({
           return;
         }
         toast.success(`Conectado: ${j.saved ?? 0} cuenta(s)`);
+        setPickerOpen(false);
+        setCred(null);
         onConnected();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Error de red");
@@ -112,6 +137,52 @@ export function MetaBusinessLogin({
       }
     },
     [workspaceId, channel, onConnected, fetchWithCsrf],
+  );
+
+  // Step 1: discover the accounts the token can manage (no persistence).
+  // 0 → error · 1 → connect it directly · >1 → open the picker.
+  const discover = useCallback(
+    async (payload: { access_token?: string; code?: string }) => {
+      setBusy(true);
+      try {
+        const r = await fetchWithCsrf("/api/connections/meta/sdk-connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            channel,
+            workspace_id: workspaceId,
+            list_only: true,
+          }),
+        });
+        const j = (await r.json().catch(() => ({}))) as {
+          accounts?: { id: string; label: string }[];
+          error?: string;
+        };
+        if (!r.ok) {
+          toast.error(j.error || "No se pudo conectar");
+          return;
+        }
+        const found = j.accounts ?? [];
+        if (found.length === 0) {
+          toast.error("No se encontraron cuentas para conectar");
+          return;
+        }
+        if (found.length === 1) {
+          await persist(payload, [found[0].id]);
+          return;
+        }
+        setCred(payload);
+        setAccounts(found);
+        setChecked(new Set(found.map((a) => a.id)));
+        setPickerOpen(true);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error de red");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [workspaceId, channel, fetchWithCsrf, persist],
   );
 
   const launch = useCallback(() => {
@@ -130,28 +201,85 @@ export function MetaBusinessLogin({
           | undefined;
         const token = ar?.accessToken;
         const code = ar?.code;
-        if (token) void finish({ access_token: token });
-        else if (code) void finish({ code });
+        if (token) void discover({ access_token: token });
+        else if (code) void discover({ code });
         else toast.error("Conexión cancelada");
       },
       { config_id: CONFIG_ID },
     );
-  }, [finish]);
+  }, [discover]);
 
   if (!APP_ID || !CONFIG_ID) return null;
 
+  const toggle = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
-    <button
-      onClick={launch}
-      disabled={!sdkReady || busy}
-      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
-    >
-      {busy ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <ChannelLogo channel={logoChannel} size={16} />
-      )}
-      {anyConnected ? "Añadir otra cuenta" : "Conectar"}
-    </button>
+    <>
+      <button
+        onClick={launch}
+        disabled={!sdkReady || busy}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <ChannelLogo channel={logoChannel} size={16} />
+        )}
+        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+      </button>
+
+      <Dialog
+        open={pickerOpen}
+        onOpenChange={(o) => {
+          // Don't drop the held credential mid-request; only reset on close.
+          setPickerOpen(o);
+          if (!o) setCred(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Elige las cuentas a conectar</DialogTitle>
+            <DialogDescription>
+              Selecciona qué cuentas quieres conectar a este espacio de trabajo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto">
+            {accounts.map((a) => (
+              <li key={a.id}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={checked.has(a.id)}
+                    onChange={() => toggle(a.id)}
+                  />
+                  <span className="flex items-center gap-2 text-sm">
+                    <ChannelLogo channel={logoChannel} size={16} />
+                    {a.label}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter showCloseButton>
+            <Button
+              onClick={() => cred && void persist(cred, [...checked])}
+              disabled={busy || checked.size === 0}
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Conectar seleccionadas ({checked.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

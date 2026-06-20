@@ -36,7 +36,14 @@ export async function POST(req: Request): Promise<Response> {
   if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as
-    | { code?: string; access_token?: string; channel?: string; workspace_id?: string }
+    | {
+        code?: string;
+        access_token?: string;
+        channel?: string;
+        workspace_id?: string;
+        list_only?: boolean;
+        page_ids?: string[];
+      }
     | null;
   if (!body || !body.channel || !body.workspace_id || !(body.code || body.access_token)) {
     return NextResponse.json(
@@ -105,12 +112,24 @@ export async function POST(req: Request): Promise<Response> {
       console.warn("[meta/sdk-connect] fb_exchange_token failed (non-fatal):", err);
     }
 
-    // 3. Discover + persist connections (shared with the OAuth callback).
+    // 3a. list_only: just discover the manageable pages / IG accounts so the
+    //     client can show a picker, WITHOUT persisting anything.
+    if (body.list_only) {
+      const { discoverMetaAccounts } = await import("@/lib/channels/meta-graph");
+      const discovered = await discoverMetaAccounts(accessToken, body.channel as Channel);
+      return NextResponse.json({
+        accounts: discovered.map((a) => ({ id: a.external_account_id, label: a.label })),
+      });
+    }
+
+    // 3b. Discover + persist connections (shared with the OAuth callback).
+    //     page_ids (when present) narrows to the accounts the user picked.
     const result = await persistMetaConnections(admin, {
       accessToken,
       channel: body.channel as Channel,
       workspaceId: body.workspace_id,
       userId: user.id,
+      pageIds: body.page_ids,
     });
 
     return NextResponse.json({ ok: true, ...result });

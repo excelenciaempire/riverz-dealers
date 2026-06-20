@@ -26,9 +26,13 @@ export async function persistMetaConnections(
     workspaceId: string;
     userId: string;
     baseSecrets?: Record<string, unknown>;
+    /** When set, only persist accounts whose external_account_id (or
+     *  config.page_id) is in this list — the page-picker flow. Absent =
+     *  persist everything (legacy behavior). */
+    pageIds?: string[];
   },
 ): Promise<PersistMetaResult> {
-  const { accessToken, channel, workspaceId, userId, baseSecrets = {} } = opts;
+  const { accessToken, channel, workspaceId, userId, baseSecrets = {}, pageIds } = opts;
 
   let discovered;
   try {
@@ -36,6 +40,12 @@ export async function persistMetaConnections(
   } catch (err) {
     console.error(`[meta-connect] discovery failed:`, err);
     throw new MetaConnectError("could not list pages/accounts");
+  }
+  if (pageIds && pageIds.length > 0) {
+    const wanted = new Set(pageIds.map(String));
+    discovered = discovered.filter(
+      (a) => wanted.has(a.external_account_id) || wanted.has(String(a.config.page_id)),
+    );
   }
   if (discovered.length === 0) {
     throw new MetaConnectError(
