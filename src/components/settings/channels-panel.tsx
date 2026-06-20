@@ -58,7 +58,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   },
   {
     key: "facebook",
-    label: "Facebook",
+    label: "Meta",
     description:
       "Messenger y comentarios de tu página en una sola conexión.",
     logoChannel: "messenger",
@@ -370,7 +370,14 @@ export function ChannelsPanel() {
               )}
             >
               <div className="flex items-start gap-3">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
+                <div
+                  className={cn(
+                    "flex size-11 shrink-0 items-center justify-center rounded-xl p-2 shadow-sm ring-1 ring-border",
+                    // El logo de Meta es azul sobre transparente: va en una
+                    // caja blanca para que contraste con la tarjeta oscura.
+                    g.logoSrc ? "bg-white" : "bg-card",
+                  )}
+                >
                   <ChannelLogo channel={g.logoChannel} src={g.logoSrc} size={28} />
                 </div>
                 <div className="min-w-0">
