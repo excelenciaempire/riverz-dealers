@@ -10,14 +10,41 @@ import {
   ShoppingBag,
   BarChart3,
   ArrowRight,
+  Check,
+  CheckCheck,
+  Clock,
+  Send,
+  MessageSquare,
+  TrendingUp,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 
 /**
  * Public marketing landing for riverz.co (logged-out root). Interactive,
- * theme-aware, lime accent, Inter Tight. The hero preview cycles through
- * channels live and reacts to click/hover. No real customer data.
+ * theme-aware, lime accent, Inter Tight.
+ *
+ * Type scale ported 1:1 from riverzai.com's editorial system so the two
+ * surfaces feel like one brand:
+ *   display  → clamp(40px, 7vw, 82px)   tracking -0.045em  leading 0.96
+ *   h2/title → clamp(26px, 3.2vw, 38px) tracking -0.035em  leading 1.05
+ *   body     → clamp(15px, 1.3vw, 17px) tracking -0.005em  leading 1.55
+ *
+ * Every former feature card is now its own full alternating section, each
+ * with a self-contained, mobile-first interactive preview. The hero plays a
+ * looping animation where the AI attends a customer and closes a sale — the
+ * same component scales cleanly from phone to desktop. No real customer data.
  */
+
+// Shared editorial type scale (matches riverzai.com).
+const DISPLAY =
+  "font-medium tracking-[-0.045em] leading-[0.96] text-[clamp(40px,7vw,82px)]";
+const H2 =
+  "font-medium tracking-[-0.035em] leading-[1.05] text-[clamp(26px,3.2vw,38px)]";
+const BODY =
+  "text-[clamp(15px,1.3vw,17px)] leading-[1.55] tracking-[-0.005em] text-muted-foreground";
+const EYEBROW =
+  "text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground";
+const SECTION = "py-[clamp(64px,8vw,128px)]";
 
 type Ch = "whatsapp" | "instagram" | "messenger" | "gmail";
 
@@ -35,32 +62,154 @@ const THREADS: Record<Ch, { name: string; them: string; you: string }> = {
   gmail: { name: "Pedido #1042", them: "¿Estado de mi pedido?", you: "Va en camino, llega mañana ✉️" },
 };
 
-const FEATURES = [
-  { icon: Inbox, title: "Bandeja unificada", body: "WhatsApp, Instagram, Messenger y correo en una pantalla." },
-  { icon: Sparkles, title: "Asistente de IA", body: "Conoce tus productos y responde por ti." },
-  { icon: Workflow, title: "Automatizaciones", body: "Mensajes que salen solos en el momento justo." },
-  { icon: Megaphone, title: "Campañas", body: "Envíos masivos por WhatsApp con seguimiento real." },
-  { icon: ShoppingBag, title: "Productos", body: "Conecta Shopify y vende con datos reales." },
-  { icon: BarChart3, title: "Métricas", body: "Ventas y tiempos de respuesta, en vivo." },
+// ─────────────────────────────────────────────────────────────────────────
+// Small shared hooks
+// ─────────────────────────────────────────────────────────────────────────
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const fn = () => setReduced(m.matches);
+    const id = requestAnimationFrame(fn); // initial read, deferred off effect body
+    m.addEventListener?.("change", fn);
+    return () => {
+      cancelAnimationFrame(id);
+      m.removeEventListener?.("change", fn);
+    };
+  }, []);
+  return reduced;
+}
+
+/** Reveal children on scroll-into-view — the riverzai `lv4-reveal` feel. */
+function Reveal({
+  children,
+  className,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      style={{ transitionDelay: `${delay}ms` }}
+      className={`${className ?? ""} transition-all duration-700 ease-out ${
+        shown ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Count up to `target` once `run` flips true. */
+function useCountUp(target: number, run: boolean, duration = 1100) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!run) return;
+    let raf = 0;
+    let start = 0;
+    const step = (ts: number) => {
+      if (!start) start = ts;
+      const p = Math.min(1, (ts - start) / duration);
+      setV(target * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, run, duration]);
+  return v;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────
+
+const SECTIONS: {
+  n: string;
+  eyebrow: string;
+  icon: typeof Inbox;
+  title: string;
+  titleMuted: string;
+  body: string;
+  Preview: () => React.ReactElement;
+}[] = [
+  {
+    n: "01",
+    eyebrow: "Bandeja",
+    icon: Inbox,
+    title: "Todos tus chats,",
+    titleMuted: "en una sola bandeja.",
+    body: "WhatsApp, Instagram, Messenger y correo en una pantalla. Sin saltar de app, sin perder un mensaje.",
+    Preview: InboxPreview,
+  },
+  {
+    n: "02",
+    eyebrow: "Asistente de IA",
+    icon: Sparkles,
+    title: "Conoce tus productos",
+    titleMuted: "y responde por ti.",
+    body: "El agente aprende tu catálogo, tus precios y tus envíos, y contesta como tu mejor vendedor — de día y de noche.",
+    Preview: BrainPreview,
+  },
+  {
+    n: "03",
+    eyebrow: "Automatizaciones",
+    icon: Workflow,
+    title: "Mensajes que salen solos",
+    titleMuted: "en el momento justo.",
+    body: "Saludos, seguimientos y recordatorios automáticos. Defines el flujo una vez y corre solo, sin que estés encima.",
+    Preview: FlowPreview,
+  },
+  {
+    n: "04",
+    eyebrow: "Campañas",
+    icon: Megaphone,
+    title: "Envíos masivos",
+    titleMuted: "con seguimiento real.",
+    body: "Lanza campañas por WhatsApp a miles de contactos y mira en vivo quién recibió, leyó y respondió.",
+    Preview: CampaignPreview,
+  },
+  {
+    n: "05",
+    eyebrow: "Productos",
+    icon: ShoppingBag,
+    title: "Conecta Shopify",
+    titleMuted: "y vende con datos reales.",
+    body: "Tu inventario, precios y pedidos sincronizados. La IA recomienda y cierra con información al día.",
+    Preview: ProductPreview,
+  },
+  {
+    n: "06",
+    eyebrow: "Métricas",
+    icon: BarChart3,
+    title: "Ventas y tiempos",
+    titleMuted: "de respuesta, en vivo.",
+    body: "Cuánto vendes, qué tan rápido respondes y qué canal convierte mejor. Todo en un panel claro.",
+    Preview: MetricsPreview,
+  },
 ];
 
 export function Landing() {
-  const [active, setActive] = useState<Ch>("whatsapp");
-  const paused = useRef(false);
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (paused.current) return;
-      setActive((cur) => {
-        const i = CHANNELS.findIndex((c) => c.id === cur);
-        return CHANNELS[(i + 1) % CHANNELS.length].id;
-      });
-    }, 3200);
-    return () => clearInterval(t);
-  }, []);
-
-  const t = THREADS[active];
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
@@ -85,35 +234,36 @@ export function Landing() {
           aria-hidden
           className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]"
         />
-        <div className="relative mx-auto max-w-6xl px-5 pt-20 pb-12 sm:pt-28">
-          <h1 className="max-w-3xl animate-in fade-in slide-in-from-bottom-3 text-[2.6rem] font-semibold leading-[1.03] tracking-tight duration-700 sm:text-[4.2rem]">
-            Una bandeja para todos tus clientes.
-          </h1>
-          <p className="mt-5 max-w-lg animate-in fade-in slide-in-from-bottom-3 text-lg leading-relaxed text-muted-foreground duration-700">
-            Todos tus canales en un solo lugar. La IA responde y vende por ti.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href="/registro"
-              className="group inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
-            >
-              Empezar gratis
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-            <Link
-              href="/ingresar"
-              className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              Iniciar sesión
-            </Link>
-          </div>
+        <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+            <div>
+              <h1 className={`max-w-[16ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
+                Vende mientras{" "}
+                <span className="text-muted-foreground">la IA responde.</span>
+              </h1>
+              <p className="mt-6 max-w-[30ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[42ch]">
+                Reúne WhatsApp, Instagram, Messenger y correo en una sola bandeja. Tu agente atiende, recomienda y cierra ventas por ti.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/registro"
+                  className="group inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
+                >
+                  Empezar gratis
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+                <Link
+                  href="/ingresar"
+                  className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  Iniciar sesión
+                </Link>
+              </div>
+            </div>
 
-          <div
-            className="mt-14 animate-in fade-in duration-1000"
-            onMouseEnter={() => (paused.current = true)}
-            onMouseLeave={() => (paused.current = false)}
-          >
-            <InboxPreview active={active} setActive={setActive} thread={t} />
+            <div className="animate-in fade-in duration-1000 sm:mx-auto sm:max-w-sm lg:mx-0 lg:max-w-none">
+              <SaleChat />
+            </div>
           </div>
         </div>
       </section>
@@ -130,33 +280,19 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Features */}
-      <section id="funciones" className="mx-auto max-w-6xl px-5 py-24">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-[2.6rem]">Una herramienta, no cinco.</h2>
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="group rounded-2xl border border-border bg-card p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/25"
-            >
-              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-accent-ink transition-transform group-hover:scale-110">
-                <f.icon className="size-5" />
-              </div>
-              <h3 className="mt-4 text-base font-semibold">{f.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Feature sections — one per former card, alternating */}
+      <div id="funciones" className="divide-y divide-border/40">
+        {SECTIONS.map((s, i) => (
+          <FeatureSection key={s.n} s={s} flip={i % 2 === 1} />
+        ))}
+      </div>
 
       {/* CTA */}
-      <section className="mx-auto max-w-6xl px-5 pb-24">
+      <section className="mx-auto max-w-6xl px-5 py-20">
         <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-8 py-16 text-center">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-32 mx-auto h-72 w-[600px] rounded-full bg-primary/15 blur-[100px]" />
-          <h2 className="relative mx-auto max-w-xl text-3xl font-semibold tracking-tight sm:text-[2.6rem]">
-            Empieza hoy.
-          </h2>
-          <p className="relative mx-auto mt-4 max-w-sm text-muted-foreground">
+          <h2 className={`relative mx-auto max-w-xl ${H2}`}>Empieza hoy.</h2>
+          <p className={`relative mx-auto mt-4 max-w-sm ${BODY}`}>
             Crea tu cuenta y conecta tu primer canal en minutos.
           </p>
           <Link
@@ -194,52 +330,561 @@ export function Landing() {
   );
 }
 
-function InboxPreview({
-  active,
-  setActive,
-  thread,
+function FeatureSection({
+  s,
+  flip,
 }: {
-  active: Ch;
-  setActive: (c: Ch) => void;
-  thread: { name: string; them: string; you: string };
+  s: (typeof SECTIONS)[number];
+  flip: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/20">
+    <section className={SECTION}>
+      <div className="mx-auto max-w-6xl px-5">
+        <div className="grid items-center gap-10 md:grid-cols-2 md:gap-14 lg:gap-20">
+          <Reveal className={flip ? "md:order-2" : undefined}>
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
+                <s.icon className="size-5" />
+              </span>
+              <span className={EYEBROW}>
+                {s.n} · {s.eyebrow}
+              </span>
+            </div>
+            <h2 className={`mt-5 ${H2}`}>
+              {s.title}{" "}
+              <span className="text-muted-foreground">{s.titleMuted}</span>
+            </h2>
+            <p className={`mt-5 max-w-[460px] ${BODY}`}>{s.body}</p>
+          </Reveal>
+          <Reveal className={flip ? "md:order-1" : undefined} delay={80}>
+            <s.Preview />
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Shared preview chrome
+// ─────────────────────────────────────────────────────────────────────────
+
+function PreviewFrame({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`mx-auto w-full max-w-[440px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 ${className ?? ""}`}
+    >
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="size-3 rounded-full bg-muted-foreground/25" />
         <span className="size-3 rounded-full bg-muted-foreground/25" />
         <span className="size-3 rounded-full bg-muted-foreground/25" />
         <span className="ml-3 text-xs font-medium lowercase tracking-[0.04em] text-accent-ink">riverz</span>
       </div>
+      {children}
+    </div>
+  );
+}
 
-      {/* channel switcher */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5">
-        {CHANNELS.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => setActive(c.id)}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              active === c.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <ChannelLogo channel={c.id} size={15} /> {c.label}
-          </button>
+// ─────────────────────────────────────────────────────────────────────────
+// HERO + AI: the sale animation (AI attends customer → sale closes), looping.
+// Mobile-first: the frame is fluid (max-w-440) and the chat body uses
+// justify-end so older bubbles roll up out of view as new ones arrive.
+// ─────────────────────────────────────────────────────────────────────────
+
+type Step =
+  | { kind: "them"; text: string }
+  | { kind: "you"; text: string }
+  | { kind: "typing" }
+  | { kind: "sale" };
+
+const SCRIPT: Step[] = [
+  { kind: "them", text: "Hola 👋 ¿el Serum Pilar sigue disponible?" },
+  { kind: "typing" },
+  { kind: "you", text: "¡Hola Laura! Sí 🙌 nos quedan 8 unidades." },
+  { kind: "you", text: "Hoy tiene 15% off y envío gratis a Cali. ¿Te lo aparto?" },
+  { kind: "them", text: "Uy sí, lo quiero 💛" },
+  { kind: "typing" },
+  { kind: "you", text: "Listo, te dejo el pago seguro aquí 👇" },
+  { kind: "sale" },
+];
+
+function delayFor(step: Step): number {
+  switch (step.kind) {
+    case "typing":
+      return 700;
+    case "sale":
+      return 1200;
+    case "them":
+      return 1500;
+    default:
+      return 1300;
+  }
+}
+
+function SaleChat() {
+  const reduced = useReducedMotion();
+  const [n, setN] = useState(1);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (reduced) {
+      const raf = requestAnimationFrame(() => setN(SCRIPT.length));
+      return () => cancelAnimationFrame(raf);
+    }
+    let id: ReturnType<typeof setTimeout>;
+    let cur = 1;
+    const loop = () => {
+      let delay: number;
+      let next: number;
+      if (cur >= SCRIPT.length) {
+        next = 1; // restart the loop
+        delay = 800;
+      } else {
+        next = cur + 1;
+        delay = delayFor(SCRIPT[cur]); // delay before revealing the next step
+      }
+      id = setTimeout(() => {
+        cur = next;
+        setN(next);
+        loop();
+      }, delay);
+    };
+    loop();
+    return () => clearTimeout(id);
+  }, [reduced]);
+
+  // Keep newest message in view.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [n]);
+
+  // A `typing` step is transient: hide it once a later step has appeared.
+  const steps = SCRIPT.slice(0, n).filter(
+    (s, i) => !(s.kind === "typing" && i !== n - 1),
+  );
+
+  return (
+    <PreviewFrame>
+      {/* conversation header */}
+      <div className="flex items-center gap-2.5 border-b border-border px-4 py-2.5">
+        <span className="relative">
+          <ChannelLogo channel="whatsapp" size={20} />
+        </span>
+        <div className="leading-tight">
+          <div className="text-sm font-medium">Laura M.</div>
+          <div className="text-[11px] text-accent-ink">en línea · atiende la IA</div>
+        </div>
+        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
+          <Sparkles className="size-3" /> Agente activo
+        </span>
+      </div>
+
+      <div
+        ref={bodyRef}
+        className="flex h-[300px] flex-col justify-end gap-2.5 overflow-hidden p-4 sm:h-[340px]"
+      >
+        {steps.map((s, i) => (
+          <Bubble key={i} step={s} />
         ))}
       </div>
+    </PreviewFrame>
+  );
+}
 
-      {/* conversation */}
-      <div key={active} className="animate-in fade-in slide-in-from-bottom-2 flex min-h-[210px] flex-col gap-3 p-5 duration-300">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <ChannelLogo channel={active} size={18} /> {thread.name}
+function Bubble({ step }: { step: Step }) {
+  if (step.kind === "typing") {
+    return (
+      <div className="flex max-w-[80%] items-center gap-1 self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-3 duration-300 animate-in fade-in slide-in-from-bottom-2">
+        <span className="size-1.5 animate-bounce rounded-full bg-primary-foreground/70 [animation-delay:-0.3s]" />
+        <span className="size-1.5 animate-bounce rounded-full bg-primary-foreground/70 [animation-delay:-0.15s]" />
+        <span className="size-1.5 animate-bounce rounded-full bg-primary-foreground/70" />
+      </div>
+    );
+  }
+
+  if (step.kind === "sale") {
+    return (
+      <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
+        <div className="flex items-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-4" />
+          </span>
+          <span className="text-sm font-semibold">Venta confirmada</span>
+          <span className="ml-auto text-sm font-semibold text-accent-ink">$89.000</span>
         </div>
-        <div className="max-w-[78%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">{thread.them}</div>
-        <div className="max-w-[78%] self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
-          {thread.you}
-        </div>
-        <div className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
-          <Sparkles className="size-3 text-accent-ink" /> Respondido por la IA en 4s
+        <div className="mt-2.5 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Serum Pilar · 1 ud.</span>
+          <span className="inline-flex items-center gap-1">
+            <ShoppingBag className="size-3" /> Pedido #1042 · Shopify
+          </span>
         </div>
       </div>
+    );
+  }
+
+  const mine = step.kind === "you";
+  return (
+    <div
+      className={`max-w-[82%] rounded-2xl px-3.5 py-2 text-sm duration-300 animate-in fade-in slide-in-from-bottom-2 ${
+        mine
+          ? "self-end rounded-tr-sm bg-primary text-primary-foreground"
+          : "self-start rounded-tl-sm bg-muted text-foreground"
+      }`}
+    >
+      {step.text}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 01 · Bandeja unificada — cycling multi-channel inbox
+// ─────────────────────────────────────────────────────────────────────────
+
+function InboxPreview() {
+  const reduced = useReducedMotion();
+  const [active, setActive] = useState<Ch>("whatsapp");
+  const paused = useRef(false);
+
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => {
+      if (paused.current) return;
+      setActive((cur) => {
+        const i = CHANNELS.findIndex((c) => c.id === cur);
+        return CHANNELS[(i + 1) % CHANNELS.length].id;
+      });
+    }, 3000);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  const thread = THREADS[active];
+
+  return (
+    <PreviewFrame>
+      <div
+        onMouseEnter={() => (paused.current = true)}
+        onMouseLeave={() => (paused.current = false)}
+      >
+        {/* channel switcher */}
+        <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5">
+          {CHANNELS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActive(c.id)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                active === c.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <ChannelLogo channel={c.id} size={15} /> {c.label}
+            </button>
+          ))}
+        </div>
+
+        {/* conversation */}
+        <div key={active} className="flex min-h-[210px] flex-col gap-3 p-5 duration-300 animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <ChannelLogo channel={active} size={18} /> {thread.name}
+          </div>
+          <div className="max-w-[78%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">{thread.them}</div>
+          <div className="max-w-[78%] self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+            {thread.you}
+          </div>
+          <div className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+            <Sparkles className="size-3 text-accent-ink" /> Respondido por la IA en 4s
+          </div>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 02 · Asistente de IA — grounds a reply in the product knowledge base
+// ─────────────────────────────────────────────────────────────────────────
+
+const KNOWLEDGE = ["Catálogo", "Stock", "Precios", "Envíos", "Reseñas"];
+
+function BrainPreview() {
+  const reduced = useReducedMotion();
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setLit((i) => (i + 1) % KNOWLEDGE.length), 850);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-3 p-5">
+        <div className="max-w-[80%] self-start rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm">
+          ¿Cuál me recomiendas para piel grasa?
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/60 p-3">
+          <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-accent-ink">
+            <Sparkles className="size-3" /> Consultando tu conocimiento
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {KNOWLEDGE.map((k, i) => (
+              <span
+                key={k}
+                className={`rounded-full border px-2.5 py-1 text-[11px] transition-all duration-300 ${
+                  i === lit
+                    ? "border-primary/50 bg-primary/15 text-accent-ink"
+                    : "border-border text-muted-foreground"
+                }`}
+              >
+                {k}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-w-[88%] self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+          Para piel grasa te recomiendo el <strong>Serum Pilar</strong>: control de grasa sin resecar. Quedan 8 y hoy tiene 15% off 💛
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 03 · Automatizaciones — a flow with a pulsing active node
+// ─────────────────────────────────────────────────────────────────────────
+
+const FLOW: { icon: typeof Inbox; label: string; sub: string }[] = [
+  { icon: MessageSquare, label: "Disparador", sub: "Mensaje nuevo sin responder" },
+  { icon: Clock, label: "Espera", sub: "5 minutos" },
+  { icon: Send, label: "Acción", sub: "Enviar saludo + catálogo" },
+];
+
+function FlowPreview() {
+  const reduced = useReducedMotion();
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setStep((s) => (s + 1) % (FLOW.length + 1)), 1100);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-0 p-5">
+        {FLOW.map((node, i) => {
+          const done = reduced || step > i;
+          const active = !reduced && step === i;
+          return (
+            <div key={node.label}>
+              <div
+                className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-300 ${
+                  active
+                    ? "border-primary/50 bg-primary/10"
+                    : done
+                      ? "border-border bg-background/60"
+                      : "border-border bg-card"
+                }`}
+              >
+                <span
+                  className={`flex size-9 items-center justify-center rounded-lg transition-colors ${
+                    active || done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {done ? <Check className="size-4" /> : <node.icon className="size-4" />}
+                </span>
+                <div className="leading-tight">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{node.label}</div>
+                  <div className="text-sm font-medium">{node.sub}</div>
+                </div>
+                {active && (
+                  <span className="ml-auto size-2 animate-pulse rounded-full bg-primary" />
+                )}
+              </div>
+              {i < FLOW.length - 1 && (
+                <div className="ml-[34px] h-5 w-px bg-border" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 04 · Campañas — broadcast with live-ticking delivery stats
+// ─────────────────────────────────────────────────────────────────────────
+
+function CampaignPreview() {
+  const reduced = useReducedMotion();
+  const [run, setRun] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setRun(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const sent = useCountUp(1240, run);
+  const delivered = useCountUp(1198, run);
+  const read = useCountUp(932, run);
+  const replied = useCountUp(214, run);
+  const pct = reduced ? 96 : Math.min(96, Math.round((delivered / 1240) * 100));
+
+  const fmt = (v: number) => Math.round(v).toLocaleString("es-CO");
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-accent-ink">
+            <Megaphone className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Lanzamiento Serum 💛</div>
+            <div className="text-[11px] text-muted-foreground">Plantilla aprobada · WhatsApp</div>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
+            Enviada
+          </span>
+        </div>
+
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-1000 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {[
+            { label: "Enviados", value: fmt(sent), icon: Send },
+            { label: "Entregados", value: fmt(delivered), icon: Check },
+            { label: "Leídos", value: fmt(read), icon: CheckCheck },
+            { label: "Respondieron", value: fmt(replied), icon: MessageSquare },
+          ].map((m) => (
+            <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
+              <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <m.icon className="size-3" /> {m.label}
+              </div>
+              <div className="mt-1 text-lg font-semibold tracking-[-0.02em]">{m.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 05 · Productos — Shopify-synced product card the AI sells from
+// ─────────────────────────────────────────────────────────────────────────
+
+function ProductPreview() {
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex gap-3.5">
+          <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-primary/30 via-primary/10 to-transparent">
+            <span className="absolute inset-0 grid place-items-center text-2xl">🧴</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">Serum Pilar</div>
+                <div className="text-[11px] text-muted-foreground">Cuidado facial · 30 ml</div>
+              </div>
+              <div className="text-sm font-semibold text-accent-ink">$89.000</div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-accent-ink">
+                <Check className="size-3" /> En stock · 8
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                15% off
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2.5">
+          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <ChannelLogo channel="whatsapp" size={14} />
+            <span className="font-medium text-foreground">Sincronizado con Shopify</span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> al día
+          </span>
+        </div>
+
+        <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-xs text-foreground duration-500 animate-in fade-in">
+          <ShoppingBag className="size-3.5 text-accent-ink" />
+          La IA recomendó este producto y creó el <strong>pedido #1042</strong>.
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 06 · Métricas — animated counters + sparkline bars
+// ─────────────────────────────────────────────────────────────────────────
+
+const BARS = [38, 52, 44, 70, 60, 84, 96];
+
+function MetricsPreview() {
+  const [run, setRun] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setRun(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const ventas = useCountUp(1.84, run);
+  const conv = useCountUp(18, run);
+  const resp = useCountUp(4, run, 900);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="grid grid-cols-3 gap-2.5">
+          {[
+            { label: "Ventas hoy", value: `$${ventas.toFixed(2)}M`, up: true },
+            { label: "Conversión", value: `${Math.round(conv)}%`, up: true },
+            { label: "Respuesta", value: `${Math.round(resp)}s`, up: false },
+          ].map((m) => (
+            <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{m.label}</div>
+              <div className="mt-1 inline-flex items-baseline gap-1 text-lg font-semibold tracking-[-0.02em]">
+                {m.value}
+                {m.up && <TrendingUp className="size-3 text-accent-ink" />}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-border bg-background/60 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium">Ventas · últimos 7 días</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
+              <TrendingUp className="size-3" /> +32%
+            </span>
+          </div>
+          <div className="flex h-24 items-end gap-2">
+            {BARS.map((h, i) => (
+              <div key={i} className="flex flex-1 flex-col justify-end">
+                <div
+                  className="w-full rounded-t-md bg-primary transition-[height] duration-700 ease-out"
+                  style={{ height: run ? `${h}%` : "0%", transitionDelay: `${i * 70}ms` }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PreviewFrame>
   );
 }
