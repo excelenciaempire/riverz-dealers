@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 /**
@@ -17,7 +17,12 @@ import { createClient } from '@/lib/supabase/client';
 export interface SetupStatus {
   workspace_created: boolean;
   whatsapp_connected: boolean;
+  /** Cualquier canal conectado (WhatsApp, Instagram o Facebook). El stepper
+   *  de onboarding lo usa para marcar el paso "Conecta un canal". */
+  any_channel_connected: boolean;
   shopify_connected: boolean;
+  /** Tiene al menos un producto (shopify_products, sincronizado o manual). */
+  has_product: boolean;
   has_agent: boolean;
   /** Número de pasos completados (sobre el total de pasos). */
   completed: number;
@@ -26,28 +31,42 @@ export interface SetupStatus {
   ready: boolean;
   /** Se está consultando todavía. El UI puede mostrar skeleton. */
   loading: boolean;
+  /** Vuelve a consultar el estado de onboarding. Útil cuando el merchant
+   *  acaba de conectar un canal y quiere ver el avance sin recargar. */
+  refresh: () => void;
 }
 
 export function useSetupStatus(): SetupStatus {
-  const [status, setStatus] = useState<SetupStatus>({
+  const [status, setStatus] = useState<
+    Omit<SetupStatus, 'refresh'>
+  >({
     workspace_created: false,
     whatsapp_connected: false,
+    any_channel_connected: false,
     shopify_connected: false,
+    has_product: false,
     has_agent: false,
     completed: 0,
     ready: false,
     loading: true,
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  // Guard contra respuestas que llegan tras un nuevo refresh: solo la última
+  // consulta puede escribir el estado.
+  const epochRef = useRef(0);
+
+  const load = useCallback(async () => {
+    const epoch = ++epochRef.current;
+    const fresh = () => epoch === epochRef.current;
+    // No volvemos a `loading: true` en refrescos: el primer mount ya arranca
+    // en loading, y un refresh manual debe actualizar el estado sin parpadeo.
+    {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        if (!cancelled)
+        if (fresh())
           setStatus((s) => ({ ...s, loading: false }));
         return;
       }
@@ -64,11 +83,13 @@ export function useSetupStatus(): SetupStatus {
       const workspace_created = workspaceIds.length > 0;
 
       if (!workspace_created) {
-        if (!cancelled)
+        if (fresh())
           setStatus({
             workspace_created: false,
             whatsapp_connected: false,
+            any_channel_connected: false,
             shopify_connected: false,
+            has_product: false,
             has_agent: false,
             completed: 0,
             ready: false,
@@ -77,25 +98,34 @@ export function useSetupStatus(): SetupStatus {
         return;
       }
 
-      const [{ data: channels }, { data: shopify }, { data: agents }] =
-        await Promise.all([
-          supabase
-            .from('channel_connections')
-            .select('channel, status')
-            .in('workspace_id', workspaceIds),
-          supabase
-            .from('shopify_connections')
-            .select('id')
-            .in('workspace_id', workspaceIds)
-            .eq('status', 'active')
-            .limit(1),
-          supabase
-            .from('ai_agents')
-            .select('id')
-            .in('workspace_id', workspaceIds)
-            .eq('is_active', true)
-            .limit(1),
-        ]);
+      const [
+        { data: channels },
+        { data: shopify },
+        { data: products },
+        { data: agents },
+      ] = await Promise.all([
+        supabase
+          .from('channel_connections')
+          .select('channel, status')
+          .in('workspace_id', workspaceIds),
+        supabase
+          .from('shopify_connections')
+          .select('id')
+          .in('workspace_id', workspaceIds)
+          .eq('status', 'active')
+          .limit(1),
+        supabase
+          .from('shopify_products')
+          .select('id')
+          .in('workspace_id', workspaceIds)
+          .limit(1),
+        supabase
+          .from('ai_agents')
+          .select('id')
+          .in('workspace_id', workspaceIds)
+          .eq('is_active', true)
+          .limit(1),
+      ]);
       const channelList = (channels ?? []) as Array<{
         channel: string;
         status: string;
@@ -103,24 +133,34 @@ export function useSetupStatus(): SetupStatus {
       const whatsapp_connected = channelList.some(
         (c) => c.channel === 'whatsapp' && c.status === 'connected',
       );
+      // Cualquier canal de mensajería conectado: WhatsApp, Instagram o
+      // Facebook. Shopify es una integración de catálogo, no un canal.
+      const any_channel_connected = channelList.some(
+        (c) =>
+          c.status === 'connected' &&
+          (c.channel === 'whatsapp' ||
+            c.channel === 'instagram' ||
+            c.channel === 'facebook'),
+      );
       const shopify_connected =
         (shopify ?? []).length > 0 ||
         channelList.some(
           (c) => c.channel === 'shopify' && c.status === 'connected',
         );
+      const has_product = (products ?? []).length > 0;
       const has_agent = (agents ?? []).length > 0;
-      const flags = [
-        workspace_created,
-        whatsapp_connected,
-        shopify_connected,
-        has_agent,
-      ];
+      // Pasos operativos: un canal conectado (cualquiera) + un producto +
+      // un asistente activo. Shopify es opcional y WhatsApp no es obligatorio,
+      // así que `ready` (chip "Conecta" del sidebar) refleja este camino real.
+      const flags = [any_channel_connected, has_product, has_agent];
       const completed = flags.filter(Boolean).length;
-      if (!cancelled) {
+      if (fresh()) {
         setStatus({
           workspace_created,
           whatsapp_connected,
+          any_channel_connected,
           shopify_connected,
+          has_product,
           has_agent,
           completed,
           ready: completed === flags.length,
@@ -128,11 +168,11 @@ export function useSetupStatus(): SetupStatus {
         });
       }
     }
-    void load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  return status;
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { ...status, refresh: load };
 }
