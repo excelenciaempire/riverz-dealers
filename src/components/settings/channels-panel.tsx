@@ -133,9 +133,15 @@ export function ChannelsPanel() {
   const fetchConnections = useCallback(async () => {
     if (!workspace) return;
     const supabase = createClient();
+    // Explicit non-secret columns only. The encrypted `secrets` and
+    // `webhook_secret` columns must never reach the browser; migration 078
+    // also REVOKEs them at the column level so a crafted member query can't
+    // read the ciphertext either.
     const { data } = await supabase
       .from("channel_connections")
-      .select("*")
+      .select(
+        "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at",
+      )
       .eq("workspace_id", workspace.id)
       .order("created_at", { ascending: false });
     setConnections((data ?? []) as ChannelConnection[]);
