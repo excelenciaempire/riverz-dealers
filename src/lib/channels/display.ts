@@ -69,3 +69,17 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
 export function channelDisplay(channel: Channel): ChannelDisplay {
   return CHANNEL_DISPLAY[channel];
 }
+
+import type { TFn } from "@/lib/i18n/translate";
+
+/**
+ * Locale-aware channel label for USER-FACING UI. Brand names (WhatsApp,
+ * Instagram, Messenger, Gmail, Outlook) are returned as-is; only the
+ * non-brand comment labels are translated. Backend/log uses can keep using
+ * channelDisplay(channel).label directly.
+ */
+export function channelLabel(channel: Channel, t: TFn): string {
+  if (channel === "fb_comment") return t("common.channelFbComments");
+  if (channel === "ig_comment") return t("common.channelIgComments");
+  return CHANNEL_DISPLAY[channel].label;
+}

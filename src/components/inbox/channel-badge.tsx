@@ -1,6 +1,9 @@
+"use client";
+
 import type { Channel } from "@/types";
-import { channelDisplay } from "@/lib/channels/display";
+import { channelDisplay, channelLabel } from "@/lib/channels/display";
 import { cn } from "@/lib/utils";
+import { useT } from "@/hooks/use-locale";
 
 interface ChannelBadgeProps {
   channel: Channel;
@@ -19,10 +22,12 @@ export function ChannelBadge({
   variant = "short",
   className,
 }: ChannelBadgeProps) {
+  const t = useT();
   const d = channelDisplay(channel);
+  const fullLabel = channelLabel(channel, t);
   return (
     <span
-      title={d.label}
+      title={fullLabel}
       className={cn(
         "inline-flex items-center rounded-full font-semibold uppercase tracking-wider",
         d.badge,
@@ -30,7 +35,7 @@ export function ChannelBadge({
         className,
       )}
     >
-      {variant === "short" ? d.shortLabel : d.label}
+      {variant === "short" ? d.shortLabel : fullLabel}
     </span>
   );
 }

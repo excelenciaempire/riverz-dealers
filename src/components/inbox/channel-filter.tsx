@@ -1,7 +1,7 @@
 "use client";
 
 import type { Channel } from "@/types";
-import { CHANNEL_DISPLAY } from "@/lib/channels/display";
+import { CHANNEL_DISPLAY, channelLabel } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { cn } from "@/lib/utils";
 import { Inbox } from "lucide-react";
@@ -41,7 +41,7 @@ export function ChannelFilter({
         .map((d) => (
           <Chip
             key={d.channel}
-            label={d.label}
+            label={channelLabel(d.channel, t)}
             tone={d.accent}
             // Real brand logo instead of two-letter abbreviation —
             // the row is the channel filter, so showing the actual

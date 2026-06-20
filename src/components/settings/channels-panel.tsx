@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { whatsappPaymentUrl } from "@/lib/whatsapp/billing";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { useT } from "@/hooks/use-locale";
 import type { Channel, ChannelConnection } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
@@ -660,8 +661,17 @@ function ManualTokenModal({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const meta = MANUAL_HINT[channel];
+  // Las etiquetas de marca quedan tal cual; solo los dos canales de
+  // comentarios (no son nombres de marca) se traducen según el idioma.
+  const metaLabel =
+    channel === "fb_comment"
+      ? t("common.channelFbComments")
+      : channel === "ig_comment"
+        ? t("common.channelIgComments")
+        : meta.label;
   const [token, setToken] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -715,7 +725,7 @@ function ManualTokenModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">
-              Conectar {meta.label} con token
+              Conectar {metaLabel} con token
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{meta.tip}</p>
           </div>

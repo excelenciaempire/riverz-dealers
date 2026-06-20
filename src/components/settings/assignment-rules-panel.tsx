@@ -23,10 +23,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { CHANNELS, type Channel } from "@/types";
-import { channelDisplay } from "@/lib/channels/display";
+import { channelLabel } from "@/lib/channels/display";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { useT } from "@/hooks/use-locale";
 
 /**
  * Editor de reglas de asignación automática. La fila más importante de
@@ -67,15 +68,6 @@ const KIND_HINT: Record<RuleKind, string> = {
   by_tag: "Asigna al agente si el contacto tiene la etiqueta.",
   by_channel: "Asigna al agente cuando la conversación viene del canal.",
   by_keyword: "Asigna al agente si el primer mensaje contiene la palabra.",
-};
-
-// Mapa para SelectValue: el componente base-ui imprime el value crudo si
-// no le damos children o labels. Cubrimos el sentinel "any" + cada canal.
-const channelSelectLabels: Record<string, string> = {
-  any: "Cualquiera",
-  ...Object.fromEntries(
-    CHANNELS.map((c) => [c, channelDisplay(c)?.label ?? c]),
-  ),
 };
 
 export function AssignmentRulesPanel() {
@@ -249,8 +241,9 @@ function RuleRowCard({
   onDelete: () => void;
   deleting: boolean;
 }) {
-  const channelLabel = rule.channel
-    ? channelDisplay(rule.channel as Channel)?.label ?? rule.channel
+  const t = useT();
+  const channelLabelText = rule.channel
+    ? channelLabel(rule.channel as Channel, t)
     : "Cualquier canal";
   return (
     <li className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
@@ -271,7 +264,7 @@ function RuleRowCard({
           </span>
         </div>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          Prioridad {rule.priority} · {channelLabel}
+          Prioridad {rule.priority} · {channelLabelText}
         </p>
       </button>
       <Switch
@@ -322,7 +315,17 @@ function RuleEditorModal({
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
+  // Mapa para SelectValue: el componente base-ui imprime el value crudo si
+  // no le damos children o labels. Cubrimos el sentinel "any" + cada canal.
+  const channelSelectLabels = useMemo<Record<string, string>>(
+    () => ({
+      any: "Cualquiera",
+      ...Object.fromEntries(CHANNELS.map((c) => [c, channelLabel(c, t)])),
+    }),
+    [t],
+  );
   const [draft, setDraft] = useState<RuleDraft>(() => ({
     name: rule?.name ?? "",
     is_active: rule?.is_active ?? true,
@@ -480,7 +483,7 @@ function RuleEditorModal({
                   <SelectItem value="any">Cualquiera</SelectItem>
                   {CHANNELS.map((ch) => (
                     <SelectItem key={ch} value={ch}>
-                      {channelDisplay(ch)?.label ?? ch}
+                      {channelLabel(ch, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -614,7 +617,7 @@ function RuleEditorModal({
                   <SelectContent>
                     {CHANNELS.map((ch) => (
                       <SelectItem key={ch} value={ch}>
-                        {channelDisplay(ch)?.label ?? ch}
+                        {channelLabel(ch, t)}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -30,4 +30,7 @@ export const common = {
   no: { es: "No", en: "No" },
   optional: { es: "Opcional", en: "Optional" },
   required: { es: "Obligatorio", en: "Required" },
+  // Channel labels that aren't brand names (resolved via channelLabel()).
+  channelFbComments: { es: "Comentarios FB", en: "FB comments" },
+  channelIgComments: { es: "Comentarios IG", en: "IG comments" },
 } satisfies Namespace;

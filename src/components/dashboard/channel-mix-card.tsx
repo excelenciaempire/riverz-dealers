@@ -1,7 +1,7 @@
 'use client'
 
 import { ChannelLogo } from '@/components/inbox/channel-logo'
-import { CHANNEL_DISPLAY } from '@/lib/channels/display'
+import { CHANNEL_DISPLAY, channelLabel } from '@/lib/channels/display'
 import type { ChannelMixPoint } from '@/lib/dashboard/types'
 import type { Channel } from '@/types'
 import { cn } from '@/lib/utils'
@@ -43,7 +43,7 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
                   <ChannelLogo channel={m.channel as Channel} size={14} />
                 </span>
                 <span className="truncate text-xs font-medium text-foreground">
-                  {display?.label ?? m.channel}
+                  {display ? channelLabel(m.channel as Channel, t) : m.channel}
                 </span>
               </div>
               <div className="flex-1">
