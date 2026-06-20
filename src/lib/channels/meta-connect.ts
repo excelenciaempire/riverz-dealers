@@ -80,6 +80,36 @@ export async function persistMetaConnections(
     }
     saved++;
 
+    // Crear también la conexión hermana de COMENTARIOS de esta cuenta
+    // (messenger→fb_comment, instagram→ig_comment). Sin esta fila, el webhook
+    // de comentarios (page feed / instagram comments) no se puede atribuir a
+    // ninguna conexión y se descarta. Misma cuenta, mismo token (la respuesta
+    // al comentario usa el page token).
+    const commentSibling =
+      channel === "messenger"
+        ? "fb_comment"
+        : channel === "instagram"
+          ? "ig_comment"
+          : null;
+    if (commentSibling) {
+      const { error: cErr } = await admin.from("channel_connections").insert({
+        workspace_id: workspaceId,
+        channel: commentSibling,
+        label: account.label,
+        status: "connected",
+        external_account_id: account.external_account_id,
+        config: account.config,
+        secrets,
+        created_by: userId,
+      });
+      if (cErr && cErr.code !== "23505") {
+        console.error(
+          `[meta-connect] comment-sibling insert failed for ${account.label}:`,
+          cErr,
+        );
+      }
+    }
+
     if (channel !== "whatsapp") {
       const pageId = String(account.config.page_id ?? account.external_account_id);
       const igUserId = account.config.ig_user_id as string | undefined;
