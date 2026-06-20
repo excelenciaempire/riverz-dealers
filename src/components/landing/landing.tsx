@@ -1085,22 +1085,28 @@ function SupportPreview() {
           </span>
         </div>
 
-        {/* push-style notifications stacking in */}
+        {/* Every notification keeps its slot from the start (the container never
+            changes height); they just fade in one after another, so the page
+            below never shifts while scrolling. */}
         <div className="flex flex-col gap-2.5">
-          {SUPPORT_EVENTS.slice(0, shown).map((e, i) => (
-            <div
-              key={e.title}
-              className={`flex items-center gap-3 rounded-xl border p-3 duration-300 animate-in fade-in slide-in-from-top-2 ${
-                i === shown - 1 ? "border-primary/45 bg-primary/5" : "border-border bg-background/60"
-              }`}
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                <e.icon className="size-4" />
-              </span>
-              <span className="text-sm font-medium">{e.title}</span>
-              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{e.meta}</span>
-            </div>
-          ))}
+          {SUPPORT_EVENTS.map((e, i) => {
+            const visible = reduced || i < shown;
+            const newest = !reduced && i === shown - 1;
+            return (
+              <div
+                key={e.title}
+                className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-300 ${
+                  newest ? "border-primary/45 bg-primary/5" : "border-border bg-background/60"
+                } ${visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <e.icon className="size-4" />
+                </span>
+                <span className="text-sm font-medium">{e.title}</span>
+                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{e.meta}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </PreviewFrame>
