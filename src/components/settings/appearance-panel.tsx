@@ -1,43 +1,81 @@
 "use client";
 
-import { Check, Moon, Sun } from "lucide-react";
+import { Check, Languages, Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
+import { useLocale, useT } from "@/hooks/use-locale";
 import { THEMES, type ThemeId } from "@/lib/themes";
+import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
 
 /**
- * Appearance panel — light / dark mode picker.
+ * Appearance panel — light / dark mode picker + UI language picker.
  *
- * Click a card → applies + persists immediately. No save button:
- * the whole change is a single data-theme swap on <html>, there's
- * nothing to roll back. The active card carries a check chip + a
- * primary-tinted border so the current pick is obvious.
+ * Click a card → applies + persists immediately. No save button: theme is a
+ * single data-theme swap on <html>; language updates the cookie + localStorage
+ * and refreshes server-rendered copy. The active card carries a check chip.
  *
- * Persistence: localStorage only (device-scoped). The boot script in
- * layout.tsx replays the choice before first paint on subsequent
- * loads.
+ * Persistence: theme is localStorage only (device-scoped). Language is cookie
+ * + localStorage + profile (cross-device for signed-in users).
  */
 export function AppearancePanel() {
   const { theme, setTheme } = useTheme();
+  const { locale, setLocale } = useLocale();
+  const t = useT();
+
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Apariencia</h2>
+    <section className="space-y-8">
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t("settings.appearance")}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {THEMES.map((th) => {
+            const name = t(th.id === "dark" ? "settings.themeDark" : "settings.themeLight");
+            const tagline = t(
+              th.id === "dark" ? "settings.themeDarkTagline" : "settings.themeLightTagline",
+            );
+            return (
+              <ThemeCard
+                key={th.id}
+                id={th.id}
+                name={name}
+                tagline={tagline}
+                swatch={th.swatch}
+                isActive={th.id === theme}
+                ariaLabel={t("settings.useTheme", { name })}
+                idLabel={t("settings.themeId", { id: th.id })}
+                onPick={() => setTheme(th.id)}
+              />
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {THEMES.map((t) => (
-          <ThemeCard
-            key={t.id}
-            id={t.id}
-            name={t.name}
-            tagline={t.tagline}
-            swatch={t.swatch}
-            isActive={t.id === theme}
-            onPick={() => setTheme(t.id)}
-          />
-        ))}
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-foreground">
+            {t("settings.language")}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.languageDescription")}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {LOCALES.map((loc) => (
+            <LanguageCard
+              key={loc}
+              name={LOCALE_NAMES[loc]}
+              isActive={loc === locale}
+              ariaLabel={t("settings.useLanguage", { name: LOCALE_NAMES[loc] })}
+              onPick={() => setLocale(loc as Locale)}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -49,6 +87,8 @@ function ThemeCard({
   tagline,
   swatch,
   isActive,
+  ariaLabel,
+  idLabel,
   onPick,
 }: {
   id: ThemeId;
@@ -56,6 +96,8 @@ function ThemeCard({
   tagline: string;
   swatch: string;
   isActive: boolean;
+  ariaLabel: string;
+  idLabel: string;
   onPick: () => void;
 }) {
   const isDark = id === "dark";
@@ -65,7 +107,7 @@ function ThemeCard({
       type="button"
       onClick={onPick}
       aria-pressed={isActive}
-      aria-label={`Usar el tema ${name}`}
+      aria-label={ariaLabel}
       className={cn(
         "flex flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors",
         isActive
@@ -98,10 +140,7 @@ function ThemeCard({
         </div>
       </div>
       {/* Mini preview: surface, then the shared lime accent swatch. */}
-      <div
-        className="mt-1 flex h-2 overflow-hidden rounded-full"
-        aria-hidden
-      >
+      <div className="mt-1 flex h-2 overflow-hidden rounded-full" aria-hidden>
         <span className="flex-1" style={{ background: swatch }} />
         <span className="w-5" style={{ background: "#f7ff9e" }} />
         <span
@@ -109,7 +148,49 @@ function ThemeCard({
           style={{ background: isDark ? "#25252e" : "#e8e1d2" }}
         />
       </div>
-      <span className="sr-only">ID del tema: {id}</span>
+      <span className="sr-only">{idLabel}</span>
+    </button>
+  );
+}
+
+function LanguageCard({
+  name,
+  isActive,
+  ariaLabel,
+  onPick,
+}: {
+  name: string;
+  isActive: boolean;
+  ariaLabel: string;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      aria-pressed={isActive}
+      aria-label={ariaLabel}
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-xl border bg-card p-4 text-left transition-colors",
+        isActive
+          ? "border-primary/60 ring-2 ring-primary/40"
+          : "border-border hover:border-foreground/30 hover:bg-accent",
+      )}
+    >
+      <span className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground"
+        >
+          <Languages className="h-4 w-4" />
+        </span>
+        <span className="text-sm font-semibold text-foreground">{name}</span>
+      </span>
+      {isActive && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-foreground">
+          <Check className="h-3 w-3" />
+        </span>
+      )}
     </button>
   );
 }

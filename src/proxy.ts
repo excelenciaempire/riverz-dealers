@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from '@/lib/i18n/config'
+import { detectLocale } from '@/lib/i18n/detect'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -151,6 +153,17 @@ export async function proxy(request: NextRequest) {
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
     return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), nonce)
+  }
+
+  // First-visit locale default: if no locale cookie yet, seed it from the
+  // geo/Accept-Language headers ("por IP"). Not httpOnly — the client
+  // LocaleProvider reads + overwrites it when the user picks a language.
+  if (!request.cookies.get(LOCALE_COOKIE)) {
+    supabaseResponse.cookies.set(LOCALE_COOKIE, detectLocale(request.headers), {
+      path: '/',
+      maxAge: LOCALE_COOKIE_MAX_AGE,
+      sameSite: 'lax',
+    })
   }
 
   return applyCsp(supabaseResponse, nonce)

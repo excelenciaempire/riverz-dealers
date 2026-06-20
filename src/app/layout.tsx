@@ -5,6 +5,8 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { LocaleProvider } from "@/hooks/use-locale";
+import { getLocale } from "@/lib/i18n/server";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
@@ -137,10 +139,11 @@ export default async function RootLayout({
   // so the theme-boot tag MUST carry the same value the proxy stamped
   // into the Content-Security-Policy response header.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const locale = await getLocale();
 
   return (
     <html
-      lang="es"
+      lang={locale}
       data-theme={DEFAULT_THEME}
       className={`${interTight.variable} h-full antialiased`}
       suppressHydrationWarning
@@ -158,17 +161,19 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: "var(--popover)",
-                border: "1px solid var(--border)",
-                color: "var(--popover-foreground)",
-              },
-            }}
-          />
+          <LocaleProvider initialLocale={locale}>
+            {children}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  color: "var(--popover-foreground)",
+                },
+              }}
+            />
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
+import { useT } from "@/hooks/use-locale";
 import { useSetupStatus } from "@/hooks/use-setup-status";
 import {
   Home,
@@ -48,6 +49,7 @@ import { InstagramIcon } from "@/components/layout/instagram-icon";
 
 interface NavItem {
   href: string;
+  /** i18n key (e.g. "nav.inbox") resolved with t() at render time. */
   label: string;
   /** Acepta iconos de lucide y componentes propios (p. ej. el glifo de
    *  Instagram) — todos respetan el contrato `{ className }`. */
@@ -57,6 +59,7 @@ interface NavItem {
 }
 
 interface NavGroup {
+  /** i18n key for the group title. */
   title: string;
   items: NavItem[];
 }
@@ -69,40 +72,40 @@ interface NavGroup {
 // "Flujos" y es item raíz.
 const navGroups: NavGroup[] = [
   {
-    title: "Día a día",
+    title: "nav.groupDaily",
     items: [
-      { href: "/panel", label: "Inicio", icon: Home },
-      { href: "/bandeja", label: "Bandeja", icon: Inbox },
-      { href: "/contactos", label: "Contactos", icon: Users },
+      { href: "/panel", label: "nav.home", icon: Home },
+      { href: "/bandeja", label: "nav.inbox", icon: Inbox },
+      { href: "/contactos", label: "nav.contacts", icon: Users },
     ],
   },
   {
-    title: "Servicio al cliente",
+    title: "nav.groupCustomerService",
     items: [
-      { href: "/asistente", label: "Asistente IA", icon: Sparkles },
-      { href: "/menus", label: "Flujos", icon: Workflow },
+      { href: "/asistente", label: "nav.assistant", icon: Sparkles },
+      { href: "/menus", label: "nav.flows", icon: Workflow },
     ],
   },
   {
-    title: "Envíos",
+    title: "nav.groupOutbound",
     items: [
-      { href: "/campanas", label: "Campañas", icon: Megaphone },
-      { href: "/automatizaciones", label: "Automatizaciones", icon: Zap },
-      { href: "/plantillas", label: "Plantillas", icon: LayoutTemplate },
-      { href: "/agente-instagram", label: "Agente de Instagram", icon: InstagramIcon, beta: true },
+      { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
+      { href: "/automatizaciones", label: "nav.automations", icon: Zap },
+      { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
+      { href: "/agente-instagram", label: "nav.instagramAgent", icon: InstagramIcon, beta: true },
     ],
   },
   {
-    title: "Tienda",
+    title: "nav.groupStore",
     items: [
-      { href: "/productos", label: "Productos", icon: ShoppingBag },
-      { href: "/pedidos", label: "Pedidos", icon: Receipt },
+      { href: "/productos", label: "nav.products", icon: ShoppingBag },
+      { href: "/pedidos", label: "nav.orders", icon: Receipt },
     ],
   },
   {
-    title: "Análisis",
+    title: "nav.groupAnalytics",
     items: [
-      { href: "/metricas", label: "Métricas", icon: BarChart3 },
+      { href: "/metricas", label: "nav.metrics", icon: BarChart3 },
     ],
   },
 ];
@@ -136,6 +139,7 @@ export function Sidebar({
   const totalUnread = useTotalUnread();
   const { theme, setTheme } = useTheme();
   const setup = useSetupStatus();
+  const t = useT();
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -165,7 +169,7 @@ export function Sidebar({
       {/* Mobile backdrop. */}
       <button
         type="button"
-        aria-label="Cerrar menú"
+        aria-label={t("nav.closeMenu")}
         onClick={onClose}
         className={cn(
           "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm transition-opacity lg:hidden",
@@ -184,7 +188,7 @@ export function Sidebar({
           "lg:static lg:z-0 lg:translate-x-0 lg:transition-[width] lg:duration-200",
           collapsed ? "lg:w-16" : "lg:w-60",
         )}
-        aria-label="Principal"
+        aria-label={t("nav.main")}
       >
         {/* Logo row — lowercase lime wordmark, matching Riverz. */}
         <div
@@ -209,7 +213,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Cerrar menú"
+            aria-label={t("nav.closeMenu")}
             className="rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -220,8 +224,8 @@ export function Sidebar({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
-              title={collapsed ? "Expandir menú" : "Contraer menú"}
+              aria-label={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
+              title={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
               className={cn(
                 "hidden rounded-md p-1 text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground lg:block",
                 collapsed && "lg:mx-auto",
@@ -251,7 +255,7 @@ export function Sidebar({
                   collapsed && "lg:hidden",
                 )}
               >
-                {group.title}
+                {t(group.title)}
               </h3>
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => (
@@ -279,7 +283,7 @@ export function Sidebar({
           )}
         >
           <NavLink
-            item={{ href: "/ajustes?tab=workspace", label: "Equipo", icon: UserRound }}
+            item={{ href: "/ajustes?tab=workspace", label: "nav.team", icon: UserRound }}
             pathname={pathname} fullPath={fullPath}
             collapsed={collapsed}
             totalUnread={0}
@@ -287,7 +291,7 @@ export function Sidebar({
           <NavLink
             item={{
               href: "/integraciones",
-              label: "Integraciones",
+              label: "nav.integrations",
               icon: Blocks,
             }}
             pathname={pathname} fullPath={fullPath}
@@ -296,7 +300,7 @@ export function Sidebar({
             setupPending={!setup.ready}
           />
           <NavLink
-            item={{ href: "/ajustes", label: "Ajustes", icon: Settings }}
+            item={{ href: "/ajustes", label: "nav.settings", icon: Settings }}
             pathname={pathname} fullPath={fullPath}
             collapsed={collapsed}
             totalUnread={0}
@@ -333,7 +337,7 @@ export function Sidebar({
               </Avatar>
               <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
                 <p className="truncate text-[13px] font-medium text-sidebar-foreground">
-                  {profile?.full_name ?? "Usuario"}
+                  {profile?.full_name ?? t("nav.user")}
                 </p>
                 <p className="truncate text-[11px] text-sidebar-foreground/55">
                   {profile?.email ?? ""}
@@ -356,7 +360,7 @@ export function Sidebar({
                 }
               >
                 <User className="size-4" />
-                Perfil
+                {t("nav.profile")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
@@ -368,7 +372,7 @@ export function Sidebar({
                 }
               >
                 <Settings className="size-4" />
-                Ajustes
+                {t("nav.settings")}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
@@ -376,7 +380,7 @@ export function Sidebar({
                 className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
               >
                 <LogOut className="size-4" />
-                Cerrar sesión
+                {t("nav.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -386,9 +390,9 @@ export function Sidebar({
             type="button"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label={
-              theme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"
+              theme === "dark" ? t("nav.switchToLight") : t("nav.switchToDark")
             }
-            title={theme === "dark" ? "Tema claro" : "Tema oscuro"}
+            title={theme === "dark" ? t("nav.lightTheme") : t("nav.darkTheme")}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sidebar-border text-sidebar-foreground/60 transition-colors hover:border-sidebar-primary hover:text-sidebar-primary"
           >
             {theme === "dark" ? (
@@ -422,6 +426,7 @@ function NavLink({
    *  mostramos un chip "Conecta" para guiar el onboarding. */
   setupPending?: boolean;
 }) {
+  const t = useT();
   // Lógica de activo:
   //   1) Si el item.href tiene "?tab=X", es "qualified": solo se activa
   //      cuando el fullPath actual coincide exactamente con item.href.
@@ -473,27 +478,27 @@ function NavLink({
     >
       <item.icon className="h-3.5 w-3.5 shrink-0" />
       <span className={cn("flex-1", collapsed && "lg:hidden")}>
-        {item.label}
+        {t(item.label)}
       </span>
       {item.beta && !collapsed && (
         <span
-          aria-label="Función Beta"
+          aria-label={t("nav.betaFeature")}
           className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
         >
-          Beta
+          {t("nav.beta")}
         </span>
       )}
       {setupPending && !collapsed && (
         <span
-          aria-label="Falta conectar WhatsApp o Shopify"
+          aria-label={t("nav.connectPending")}
           className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
         >
-          Conecta
+          {t("nav.connectCta")}
         </span>
       )}
       {showUnreadBadge && !collapsed && (
         <span
-          aria-label={`${totalUnread} sin leer`}
+          aria-label={t("nav.unread", { n: totalUnread })}
           className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[10px] font-semibold leading-none text-sidebar-primary-foreground"
         >
           {unreadLabel}
@@ -501,7 +506,7 @@ function NavLink({
       )}
       {showUnreadBadge && collapsed && (
         <span
-          aria-label={`${totalUnread} sin leer`}
+          aria-label={t("nav.unread", { n: totalUnread })}
           className="absolute right-1 top-1 inline-flex min-w-[14px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-semibold leading-none text-sidebar-primary-foreground lg:flex"
         >
           {unreadLabel}
@@ -516,7 +521,7 @@ function NavLink({
         <Tooltip>
           <TooltipTrigger render={link} />
           <TooltipContent side="right" sideOffset={8}>
-            {item.label}
+            {t(item.label)}
           </TooltipContent>
         </Tooltip>
       ) : (
