@@ -9,6 +9,7 @@ import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
 import {
   buildCheckoutTool,
+  buildOrderTool,
   LOOKUP_ORDER_TOOL,
   runWithTools,
   type ShopifyToolContext,
@@ -111,6 +112,14 @@ export async function POST(
       a.workspace_id,
       body?.simulated_phone,
     );
+    // dryRun: el panel de prueba NUNCA crea pedidos reales. canCreateOrders
+    // refleja el toggle del agente para que el tester vea la tool si aplica.
+    if (shopify) {
+      shopify.dryRun = true;
+      shopify.canCreateOrders = a.puede_crear_pedidos === true;
+      shopify.workspaceId = a.workspace_id;
+      shopify.agentId = a.id;
+    }
 
     const client = getAnthropic(apiKey);
     const max_tokens = Math.max(
@@ -118,7 +127,13 @@ export async function POST(
       Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
     );
     const tools = shopify
-      ? [LOOKUP_ORDER_TOOL, buildCheckoutTool(shopify.config ?? null)]
+      ? [
+          LOOKUP_ORDER_TOOL,
+          buildCheckoutTool(shopify.config ?? null),
+          ...(shopify.canCreateOrders
+            ? [buildOrderTool(shopify.config ?? null)]
+            : []),
+        ]
       : [];
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',

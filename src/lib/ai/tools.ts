@@ -20,6 +20,12 @@ import {
   type CheckoutConfig,
   type PaymentHint,
 } from '@/lib/shopify/create-checkout'
+import {
+  createShopifyOrder,
+  type CreateOrderInput,
+  type ShippingAddressInput,
+} from '@/lib/shopify/create-order'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
 
 export const AGENTIC_LOOP_MAX_ITERS = 3
 
@@ -42,6 +48,23 @@ export interface ShopifyToolContext {
   /** Config de checkout por-workspace (fila de workspace_checkout_config).
    *  Si null o sin offers, `create_checkout` corre en AUTO MODE. */
   config?: CheckoutConfig | null
+
+  // ── Order creation (tool create_order) ──
+  /** Si el agente tiene permitido crear pedidos reales (ai_agents
+   *  .puede_crear_pedidos). El caller decide exponer la tool según esto. */
+  canCreateOrders?: boolean
+  /** Identificadores para persistir el pedido en la tabla `orders` de
+   *  Riverz tras crearlo en Shopify. */
+  workspaceId?: string | null
+  agentId?: string | null
+  contactId?: string | null
+  conversationId?: string | null
+  channel?: string | null
+  /** Nombre del contacto, prellenado desde la conversación. */
+  contactName?: string | null
+  /** Modo simulación: el panel de prueba lo activa para que create_order
+   *  NO cree un pedido real ni escriba en la base. */
+  dryRun?: boolean
 }
 
 /** Definición JSON-Schema de la tool `lookup_order` (formato Anthropic). */
@@ -159,6 +182,109 @@ export function buildCheckoutTool(
 export const CREATE_CHECKOUT_TOOL: Anthropic.Tool = buildCheckoutTool(null)
 
 /**
+ * Construye la tool `create_order` (formato Anthropic). Crea un PEDIDO
+ * REAL en Shopify — sólo se expone cuando el agente tiene
+ * `puede_crear_pedidos` activo. La forma (offer vs quantity) sigue la
+ * misma config de checkout que el resto del flujo.
+ *
+ * El campo `confirmed` es un forcing-function: el modelo sólo debe
+ * mandarlo en true cuando la clienta confirmó EXPLÍCITAMENTE el pedido
+ * final (producto, cantidad, total y, si aplica, dirección). La tool
+ * rechaza la creación si llega en false.
+ */
+export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
+  const offers = config?.offers ?? null
+  const bundleMode = !!(config?.enabled && offers && offers.length > 0)
+  const currency = config?.currency || 'ARS'
+
+  const transferAmount =
+    typeof config?.transfer_discount_amount === 'number'
+      ? config.transfer_discount_amount
+      : null
+  const transferLabel = config?.transfer_discount_label || 'transferencia'
+  const hasTransferDiscount = transferAmount != null && transferAmount > 0
+
+  const properties: Record<string, unknown> = {
+    customer_name: {
+      type: 'string',
+      description:
+        'Nombre y apellido del cliente para el pedido. Pedilo si no lo sabés.',
+    },
+    customer_phone: {
+      type: 'string',
+      description:
+        'Teléfono del cliente. Opcional — si no lo pasás se usa el del chat.',
+    },
+    customer_email: {
+      type: 'string',
+      description: 'Correo del cliente (opcional, recomendado si lo tenés).',
+    },
+    shipping_address: {
+      type: 'object',
+      description:
+        'Dirección de envío. Pedila para productos físicos antes de crear el pedido.',
+      properties: {
+        address1: { type: 'string', description: 'Calle y número.' },
+        address2: { type: 'string', description: 'Piso/depto (opcional).' },
+        city: { type: 'string', description: 'Ciudad/localidad.' },
+        province: { type: 'string', description: 'Provincia/estado.' },
+        zip: { type: 'string', description: 'Código postal.' },
+        country: { type: 'string', description: 'País.' },
+      },
+    },
+    payment_hint: {
+      type: 'string',
+      enum: ['card_or_mp', 'transfer'],
+      description: hasTransferDiscount
+        ? `Cómo va a pagar. "transfer" si paga por ${transferLabel} (crédito de ${fmtMoney(transferAmount!, currency)} al confirmar); "card_or_mp" para tarjeta/Mercado Pago.`
+        : 'Cómo va a pagar: "card_or_mp" para tarjeta/Mercado Pago, "transfer" para transferencia.',
+    },
+    note: {
+      type: 'string',
+      description:
+        'Nota interna para el equipo (opcional): aclaraciones del cliente, referencias, etc.',
+    },
+    confirmed: {
+      type: 'boolean',
+      description:
+        'true SOLO si la clienta confirmó explícitamente el pedido final (producto, cantidad, total y dirección si aplica). Si todavía no confirmó, NO llames esta tool.',
+    },
+  }
+
+  const required: string[] = ['customer_name', 'confirmed']
+
+  if (bundleMode) {
+    const enumeration = (offers ?? [])
+      .map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`)
+      .join('. ')
+    properties.offer = {
+      type: 'string',
+      enum: (offers ?? []).map((o) => o.key),
+      description: `Oferta que eligió la clienta. ${enumeration}.`,
+    }
+    required.push('offer')
+  } else {
+    properties.quantity = {
+      type: 'integer',
+      minimum: 1,
+      default: 1,
+      description: 'Cantidad de unidades. Por defecto 1.',
+    }
+  }
+
+  return {
+    name: 'create_order',
+    description:
+      'Crea el PEDIDO REAL en Shopify cuando la clienta YA confirmó qué quiere comprar. Antes de llamarla: reuní el producto/cantidad, el nombre, los datos de envío si es producto físico y el método de pago; mostrale el resumen y el total, y esperá su confirmación explícita. Llamala una sola vez, con confirmed=true. Devuelve el número de pedido para que se lo pases a la clienta. Si todavía falta info o no confirmó, NO la llames: seguí preguntando.',
+    input_schema: {
+      type: 'object' as const,
+      properties: properties as Anthropic.Tool.InputSchema['properties'],
+      required,
+    },
+  }
+}
+
+/**
  * Ejecuta una `tool_use` que devuelve Claude. Devuelve el `tool_result`
  * con un payload JSON que el modelo pueda interpretar fácilmente.
  */
@@ -240,6 +366,112 @@ export async function runTool(
         config,
       },
     )
+    return JSON.stringify(result)
+  }
+  if (toolName === 'create_order') {
+    if (!shopify) {
+      return JSON.stringify({
+        error: 'no_shopify_connection',
+        message: 'El workspace no tiene Shopify conectado.',
+      })
+    }
+    if (!shopify.canCreateOrders) {
+      return JSON.stringify({
+        error: 'orders_disabled',
+        message:
+          'Este asistente no tiene habilitado crear pedidos. No prometas el pedido; ofrecé pasar la conversación a una persona del equipo.',
+      })
+    }
+    const input = (toolInput ?? {}) as {
+      offer?: string
+      quantity?: number
+      payment_hint?: PaymentHint
+      customer_name?: string
+      customer_phone?: string
+      customer_email?: string
+      shipping_address?: ShippingAddressInput
+      note?: string
+      confirmed?: boolean
+    }
+    if (input.confirmed !== true) {
+      return JSON.stringify({
+        error: 'not_confirmed',
+        message:
+          'No crees el pedido hasta que la clienta confirme explícitamente. Mostrale el resumen (producto, cantidad, total y dirección si aplica) y pedile que confirme; recién ahí llamá create_order con confirmed=true.',
+      })
+    }
+    const config = shopify.config ?? null
+    const orderInput: CreateOrderInput = {
+      offer: input.offer,
+      quantity: input.quantity,
+      payment_hint: input.payment_hint,
+      customer_name: input.customer_name,
+      customer_phone: input.customer_phone,
+      customer_email: input.customer_email,
+      shipping_address: input.shipping_address,
+      note: input.note,
+    }
+
+    // Modo simulación (panel de prueba): no creamos pedido real ni
+    // escribimos en la base — devolvemos un eco para que el tester vea
+    // que el modelo habría cerrado el pedido.
+    if (shopify.dryRun) {
+      return JSON.stringify({
+        dry_run: true,
+        message:
+          '(Simulación) En producción crearía el pedido real en Shopify con estos datos. No se creó nada.',
+        echo: orderInput,
+      })
+    }
+
+    const result = await createShopifyOrder(orderInput, {
+      shopDomain: shopify.shopDomain,
+      accessToken: shopify.accessToken,
+      apiVersion: shopify.apiVersion,
+      pinnedVariantId: shopify.pinnedVariantId ?? null,
+      customerPhone: shopify.customerPhone ?? null,
+      customerEmail: shopify.customerEmail ?? null,
+      config,
+    })
+    if ('error' in result) {
+      return JSON.stringify(result)
+    }
+
+    // Espejo en Riverz (tabla orders). Fail-soft: si la persistencia
+    // falla, el pedido YA existe en Shopify, así que NO le decimos a la
+    // clienta que falló — sólo lo logueamos.
+    if (shopify.workspaceId) {
+      try {
+        await supabaseAdmin()
+          .from('orders')
+          .insert({
+            workspace_id: shopify.workspaceId,
+            contact_id: shopify.contactId ?? null,
+            agent_id: shopify.agentId ?? null,
+            conversation_id: shopify.conversationId ?? null,
+            channel: shopify.channel ?? null,
+            shop_domain: shopify.shopDomain,
+            shopify_order_id: result.shopify_order_id,
+            order_number: result.order_number,
+            order_status_url: result.order_status_url,
+            currency: result.currency,
+            total_price: result.total_price,
+            line_items: result.line_items,
+            customer_name: result.customer_name,
+            customer_phone: result.customer_phone,
+            customer_email: result.customer_email,
+            shipping_address: result.shipping_address,
+            payment_method: result.payment_method,
+            financial_status: 'pending',
+            status: 'created',
+            created_by: 'ai',
+            note: input.note ?? null,
+          })
+      } catch (err) {
+        console.error('[ai] order created in Shopify but Riverz insert failed:', err)
+      }
+    }
+
     return JSON.stringify(result)
   }
   return JSON.stringify({

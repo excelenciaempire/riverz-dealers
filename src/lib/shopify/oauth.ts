@@ -18,9 +18,13 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10'
+// `write_orders` habilita que el asistente IA cree pedidos reales
+// (src/lib/shopify/create-order.ts). Las tiendas conectadas con el set
+// viejo (solo lectura) deben RECONECTAR para otorgarlo — hasta entonces
+// la tool create_order devuelve missing_write_scope y no crea nada.
 const DEFAULT_SCOPES =
   process.env.SHOPIFY_SCOPES ||
-  'read_orders,read_checkouts,read_customers,read_products'
+  'read_orders,write_orders,read_checkouts,read_customers,read_products'
 
 export function shopifyApiVersion(): string {
   return API_VERSION

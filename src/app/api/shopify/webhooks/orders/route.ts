@@ -84,6 +84,15 @@ export async function POST(request: Request) {
     const incomingFulfillment =
       (order.fulfillment_status as string | null | undefined) ?? null
 
+    // Reconciliar el espejo en Riverz (tabla orders, migración 080). Sólo
+    // afecta a pedidos creados por la IA — en cualquier otro pedido el
+    // update no matchea ninguna fila y es un no-op. Best-effort.
+    if (orderId > 0) {
+      await reconcileRiverzOrder(admin, shopDomain, order, orderId).catch((err) =>
+        console.error('[shopify] reconcile riverz order failed:', err),
+      )
+    }
+
     let triggerType: AutomationTriggerType | null = null
     if (topic === 'orders/create') {
       triggerType = 'shopify_order_created'
@@ -214,6 +223,48 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ ok: true })
   }
+}
+
+/**
+ * Mantiene en sync la fila de `orders` (Riverz) que la IA creó para este
+ * pedido de Shopify. Matchea por (shop_domain, shopify_order_id); si el
+ * pedido no lo creó la IA, no hay fila y el update no hace nada.
+ *
+ * `status` sólo AVANZA (cancelled > fulfilled > paid) para no degradar una
+ * fila ya marcada como pagada/enviada en un update no relacionado.
+ */
+async function reconcileRiverzOrder(
+  admin: ReturnType<typeof supabaseAdmin>,
+  shopDomain: string,
+  order: Record<string, unknown>,
+  orderId: number,
+): Promise<void> {
+  const financial = (order.financial_status as string | null) ?? null
+  const fulfillment = (order.fulfillment_status as string | null) ?? null
+  const cancelled = !!order.cancelled_at
+
+  const update: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  }
+  if (financial) update.financial_status = financial
+  if (fulfillment) update.fulfillment_status = fulfillment
+  if (order.order_status_url) update.order_status_url = order.order_status_url
+  if (order.total_price != null) {
+    const t =
+      typeof order.total_price === 'number'
+        ? order.total_price
+        : parseFloat(String(order.total_price))
+    if (!Number.isNaN(t)) update.total_price = t
+  }
+  if (cancelled) update.status = 'cancelled'
+  else if (fulfillment === 'fulfilled') update.status = 'fulfilled'
+  else if (financial === 'paid') update.status = 'paid'
+
+  await admin
+    .from('orders')
+    .update(update)
+    .eq('shop_domain', shopDomain)
+    .eq('shopify_order_id', String(orderId))
 }
 
 function buildVarsForOrder(

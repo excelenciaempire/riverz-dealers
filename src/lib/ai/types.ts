@@ -63,6 +63,12 @@ export interface AiAgent {
   /** Máximo de follow-ups por racha de silencio (anti-spam). */
   followup_max_count: number;
 
+  /** Si está ON, el asistente puede armar y CREAR el pedido real en
+   *  Shopify (tool create_order). OFF (default): no cierra pedidos por su
+   *  cuenta; deja el cierre a una persona del equipo. Migration 080.
+   *  Requiere el scope write_orders (reconectar Shopify). */
+  puede_crear_pedidos: boolean;
+
   provider: AiProvider;
   model: string;
   /** Encrypted; never returned to the client. */

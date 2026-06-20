@@ -19,6 +19,7 @@ import {
   Blocks,
   Settings,
   ShoppingBag,
+  Receipt,
   Workflow,
   LogOut,
   User,
@@ -95,6 +96,7 @@ const navGroups: NavGroup[] = [
     title: "Tienda",
     items: [
       { href: "/productos", label: "Productos", icon: ShoppingBag },
+      { href: "/pedidos", label: "Pedidos", icon: Receipt },
     ],
   },
   {

@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     followup_enabled: body.followup_enabled ?? false,
     followup_delay_hours: body.followup_delay_hours ?? 24,
     followup_max_count: body.followup_max_count ?? 1,
+    puede_crear_pedidos: body.puede_crear_pedidos ?? false,
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-haiku-4-5-20251001',
     scope: body.scope ?? 'workspace',

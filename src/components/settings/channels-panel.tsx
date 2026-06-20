@@ -329,7 +329,10 @@ export function ChannelsPanel() {
       )}
 
       {/* Grid de canales — una tarjeta por plataforma. */}
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* items-start: cada tarjeta toma la altura de su contenido y NO se
+          estira a la más alta de la fila (antes, una cuenta con muchas
+          páginas inflaba a WhatsApp/Instagram con espacio vacío). */}
+      <ul className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
@@ -374,9 +377,10 @@ export function ChannelsPanel() {
                 </div>
               </div>
 
-              {/* One row per connected account. */}
+              {/* One row per connected account. Con muchas cuentas la lista
+                  hace scroll en vez de estirar la tarjeta sin límite. */}
               {accounts.length > 0 && (
-                <ul className="space-y-1">
+                <ul className="max-h-80 space-y-1 overflow-y-auto">
                   {accounts.map((conns) => {
                     const primary =
                       conns.find((c) => c.status === "connected") ?? conns[0];

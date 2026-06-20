@@ -273,6 +273,12 @@ export function AgentEditor({
   const [followupMaxCount, setFollowupMaxCount] = useState<number>(
     agent?.followup_max_count ?? 1,
   );
+  // Cierre de ventas: si está ON, el asistente arma y crea el pedido real
+  // en Shopify. Migration 080. Requiere Shopify conectado con permiso de
+  // pedidos (write_orders).
+  const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
+    agent?.puede_crear_pedidos ?? false,
+  );
   const initialBh = readBusinessHours(agent?.business_hours);
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
@@ -520,6 +526,7 @@ export function AgentEditor({
       followup_enabled: followupEnabled,
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
+      puede_crear_pedidos: puedeCrearPedidos,
       model: DEFAULT_MODEL,
       scope,
       channels: scope === 'channels' ? channels : [],
@@ -1246,6 +1253,26 @@ export function AgentEditor({
                         Messenger.
                       </p>
                     </>
+                  )}
+                </SectionCard>
+
+                <SectionCard
+                  title="Cierre de ventas"
+                  hint="Si está activo, el asistente arma el pedido con el cliente, confirma los datos y lo crea en Shopify. Si no, deja el cierre a una persona del equipo."
+                  right={
+                    <Switch
+                      checked={puedeCrearPedidos}
+                      onCheckedChange={setPuedeCrearPedidos}
+                    />
+                  }
+                >
+                  {puedeCrearPedidos && (
+                    <p className="text-[11px] text-muted-foreground">
+                      El asistente pregunta lo que falte (datos de envío, método
+                      de pago) y solo crea el pedido cuando el cliente confirma.
+                      Requiere Shopify conectado con permiso de pedidos — si lo
+                      conectaste antes, reconéctalo desde Integraciones.
+                    </p>
                   )}
                 </SectionCard>
 

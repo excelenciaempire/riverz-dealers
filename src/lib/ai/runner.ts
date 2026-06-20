@@ -21,6 +21,7 @@ import {
 } from './product-routing';
 import {
   buildCheckoutTool,
+  buildOrderTool,
   LOOKUP_ORDER_TOOL,
   runWithTools,
   type ShopifyToolContext,
@@ -182,6 +183,18 @@ export async function runAiAgent(
       args.contact,
       productMatch,
     );
+    // Datos para que la tool create_order pueda (a) decidir si está
+    // habilitada para ESTE agente y (b) persistir el pedido en la tabla
+    // `orders` de Riverz vinculado al workspace/contacto/agente/charla.
+    if (shopify) {
+      shopify.canCreateOrders = agent.puede_crear_pedidos === true;
+      shopify.workspaceId = args.workspaceId;
+      shopify.agentId = agent.id;
+      shopify.contactId = primaryContact.id;
+      shopify.conversationId = args.conversation.id;
+      shopify.channel = args.channel;
+      shopify.contactName = args.contact.name ?? null;
+    }
     let reply: Awaited<ReturnType<typeof generateReply>>;
     try {
       reply = await generateReply(
@@ -1110,8 +1123,16 @@ async function generateReply(
   // El checkout ahora es por-workspace: cada tienda con Shopify conectado
   // obtiene lookup_order + create_checkout. La forma de create_checkout
   // (offers vs cantidad) la decide la config (workspace_checkout_config).
+  // create_order sólo se expone si el agente tiene el toggle ON. Cuando
+  // está OFF, create_checkout (link) sigue disponible como hasta ahora.
   const tools = shopify
-    ? [LOOKUP_ORDER_TOOL, buildCheckoutTool(shopify.config ?? null)]
+    ? [
+        LOOKUP_ORDER_TOOL,
+        buildCheckoutTool(shopify.config ?? null),
+        ...(shopify.canCreateOrders
+          ? [buildOrderTool(shopify.config ?? null)]
+          : []),
+      ]
     : [];
   const result = await runWithTools(client, {
     model: agent.model || 'claude-haiku-4-5-20251001',
@@ -1360,6 +1381,21 @@ function buildSystemPrompt(
   } else if (shopify) {
     lines.push(
       'Política de precios (estricta): cotizá únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasá la cantidad al generar el checkout. Si pide un descuento que no existe, decile con cortesía que no podés aplicarlo y ofrecé escalar a un humano.',
+    );
+  }
+
+  // ── Política de creación de pedidos (toggle por agente) ──
+  // ON: el asistente cierra la venta creando el pedido real (create_order).
+  // Le exigimos reunir datos, mostrar resumen y obtener confirmación
+  // explícita antes de llamar la tool. OFF: no cierra pedidos; deriva la
+  // confirmación final a una persona (el link de compra sigue disponible).
+  if (shopify?.canCreateOrders) {
+    lines.push(
+      'Cierre de pedidos: podés crear el pedido vos cuando la clienta quiera comprar. Flujo: (1) confirmá qué quiere (producto y cantidad u oferta); (2) reuní los datos necesarios — nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) mostrale un resumen con el total y pedile que confirme; (5) SÓLO cuando confirme explícitamente, llamá create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explicá con cortesía y ofrecé ayuda de una persona del equipo. Tené 100% de certeza de lo que quiere antes de crear el pedido.',
+    );
+  } else if (shopify) {
+    lines.push(
+      'Cierre de pedidos: no tenés habilitado crear pedidos por tu cuenta. Podés ayudar con la info y, si la clienta quiere avanzar con la compra, avisale que una persona del equipo confirma el pedido. No afirmes que el pedido quedó registrado.',
     );
   }
 
