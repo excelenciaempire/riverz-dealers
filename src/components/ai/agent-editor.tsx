@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -68,12 +69,12 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_PERSONA =
   'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.';
 
-const CHANNELS: { value: Channel; label: string }[] = [
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'messenger', label: 'Messenger' },
-  { value: 'gmail', label: 'Gmail' },
-  { value: 'outlook', label: 'Outlook' },
+const CHANNELS: { value: Channel; label: string; icon: string }[] = [
+  { value: 'whatsapp', label: 'WhatsApp', icon: '/channels/whatsapp.svg' },
+  { value: 'instagram', label: 'Instagram', icon: '/channels/instagram.svg' },
+  { value: 'messenger', label: 'Messenger', icon: '/channels/messenger.svg' },
+  { value: 'gmail', label: 'Gmail', icon: '/channels/gmail.svg' },
+  { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
 ];
 
 const LANGUAGES: { code: string; label: string }[] = [
@@ -279,6 +280,13 @@ export function AgentEditor({
   const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
     agent?.puede_crear_pedidos ?? false,
   );
+  // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
+  // cargando. El cierre solo se puede activar con Shopify conectado; si no,
+  // mostramos un botón "Vincular" que abre un popup sin salir del editor.
+  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
+  const [linkShop, setLinkShop] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linking, setLinking] = useState(false);
   const initialBh = readBusinessHours(agent?.business_hours);
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
@@ -431,6 +439,65 @@ export function AgentEditor({
       cancelled = true;
     };
   }, [productScope, catalog.length]);
+
+  // Estado de la conexión Shopify (gatea "Cierre de ventas").
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/shopify/status', { cache: 'no-store' });
+        const d = await res.json();
+        if (!cancelled) setShopifyConnected(d?.connection?.status === 'active');
+      } catch {
+        if (!cancelled) setShopifyConnected(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Vincula Shopify desde un popup, sin que el usuario salga del editor. Al
+  // detectar la conexión activa, habilita el cierre de ventas en el acto.
+  function linkShopify() {
+    const shop = linkShop.trim();
+    if (!shop) {
+      toast.error('Escribe el dominio de tu tienda (tu-tienda.myshopify.com).');
+      return;
+    }
+    setLinking(true);
+    const popup = window.open(
+      `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
+      'shopify-connect',
+      'width=620,height=760',
+    );
+    const started = Date.now();
+    const timer = window.setInterval(async () => {
+      try {
+        const res = await fetch('/api/shopify/status', { cache: 'no-store' });
+        const d = await res.json();
+        if (d?.connection?.status === 'active') {
+          window.clearInterval(timer);
+          setShopifyConnected(true);
+          setLinking(false);
+          setShowLinkInput(false);
+          try {
+            popup?.close();
+          } catch {
+            /* ignore */
+          }
+          toast.success('Shopify conectado. Ya puedes activar el cierre de ventas.');
+          return;
+        }
+      } catch {
+        /* sigue intentando */
+      }
+      if ((popup && popup.closed) || Date.now() - started > 180_000) {
+        window.clearInterval(timer);
+        setLinking(false);
+      }
+    }, 2000);
+  }
 
   const filteredCatalog = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
@@ -997,12 +1064,19 @@ export function AgentEditor({
                         type="button"
                         onClick={() => toggleChannel(c.value)}
                         className={cn(
-                          'rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                          'flex items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors',
                           on
                             ? 'border-primary/60 bg-primary/10 text-foreground'
                             : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
                         )}
                       >
+                        <Image
+                          src={c.icon}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="shrink-0"
+                        />
                         {c.label}
                       </button>
                     );
@@ -1262,17 +1336,90 @@ export function AgentEditor({
                   right={
                     <Switch
                       checked={puedeCrearPedidos}
-                      onCheckedChange={setPuedeCrearPedidos}
+                      // Solo se puede ACTIVAR con Shopify conectado. Si ya
+                      // está activo, se puede desactivar siempre.
+                      disabled={!shopifyConnected && !puedeCrearPedidos}
+                      onCheckedChange={(v) => {
+                        if (v && !shopifyConnected) {
+                          toast.error('Primero conecta Shopify para activar el cierre de ventas.');
+                          return;
+                        }
+                        setPuedeCrearPedidos(v);
+                      }}
                     />
                   }
                 >
-                  {puedeCrearPedidos && (
-                    <p className="text-[11px] text-muted-foreground">
-                      El asistente pregunta lo que falte (datos de envío, método
-                      de pago) y solo crea el pedido cuando el cliente confirma.
-                      Requiere Shopify conectado con permiso de pedidos — si lo
-                      conectaste antes, reconéctalo desde Integraciones.
-                    </p>
+                  {shopifyConnected === false && !puedeCrearPedidos ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Para que el asistente cree pedidos necesitas conectar
+                        Shopify. Hazlo aquí mismo sin salir de esta pantalla.
+                      </p>
+                      {showLinkInput ? (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            value={linkShop}
+                            onChange={(e) => setLinkShop(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && linkShopify()}
+                            placeholder="tu-tienda.myshopify.com"
+                            className="bg-background"
+                            disabled={linking}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={linkShopify}
+                              disabled={linking}
+                            >
+                              {linking ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                'Conectar'
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setShowLinkInput(false)}
+                              disabled={linking}
+                              className="border-border"
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setShowLinkInput(true)}
+                        >
+                          <Image
+                            src="/channels/shopify.svg"
+                            alt=""
+                            width={16}
+                            height={16}
+                          />
+                          Vincular Shopify
+                        </Button>
+                      )}
+                      {linking && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Completa la conexión en la ventana emergente… se activa
+                          solo al terminar.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    puedeCrearPedidos && (
+                      <p className="text-[11px] text-muted-foreground">
+                        El asistente pregunta lo que falte (datos de envío, método
+                        de pago) y solo crea el pedido cuando el cliente confirma.
+                      </p>
+                    )
                   )}
                 </SectionCard>
 
