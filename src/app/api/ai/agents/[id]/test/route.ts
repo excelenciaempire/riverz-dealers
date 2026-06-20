@@ -8,12 +8,13 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
 import {
-  CREATE_CHECKOUT_TOOL,
+  buildCheckoutTool,
   LOOKUP_ORDER_TOOL,
   runWithTools,
   type ShopifyToolContext,
 } from '@/lib/ai/tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
+import type { CheckoutConfig } from '@/lib/shopify/create-checkout';
 
 /**
  * Smoke-test an AI agent without involving any channel. Generates a
@@ -116,7 +117,9 @@ export async function POST(
       64,
       Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
     );
-    const tools = shopify ? [LOOKUP_ORDER_TOOL, CREATE_CHECKOUT_TOOL] : [];
+    const tools = shopify
+      ? [LOOKUP_ORDER_TOOL, buildCheckoutTool(shopify.config ?? null)]
+      : [];
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
       max_tokens,
@@ -209,10 +212,19 @@ async function resolveShopifyContextForWorkspace(
     return null;
   }
 
+  // Per-workspace checkout config (BUNDLE vs AUTO mode). Same source the
+  // prod runner reads from, so the test panel mirrors live behavior.
+  const { data: cfg } = await admin
+    .from('workspace_checkout_config')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
   return {
     shopDomain: conn.shop_domain,
     accessToken,
     apiVersion: shopifyApiVersion(),
     customerPhone: simulatedPhone?.trim() || undefined,
+    config: (cfg as CheckoutConfig | null) ?? null,
   };
 }

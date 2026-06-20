@@ -16,7 +16,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import {
   createCheckoutLink,
-  type CheckoutOffer,
+  fmtMoney,
+  type CheckoutConfig,
   type PaymentHint,
 } from '@/lib/shopify/create-checkout'
 
@@ -31,13 +32,16 @@ export interface ShopifyToolContext {
   customerEmail?: string
   /** Variant id del producto pinned (detección de producto en el
    *  mensaje del cliente). Lo usa `create_checkout` para armar el
-   *  cart-permalink correcto. Opcional — si no hay, la tool cae a un
-   *  default por tienda conocida. */
+   *  cart-permalink correcto. Opcional — si no hay, la tool cae a
+   *  config.default_variant_id. */
   pinnedVariantId?: string | null
   /** Dominio público de la storefront (ej. "pilarargentina.store"),
    *  cacheado por el caller cuando lo conoce. Si null, `create_checkout`
    *  llama a /shop.json para resolverlo. */
   storefrontDomain?: string | null
+  /** Config de checkout por-workspace (fila de workspace_checkout_config).
+   *  Si null o sin offers, `create_checkout` corre en AUTO MODE. */
+  config?: CheckoutConfig | null
 }
 
 /** Definición JSON-Schema de la tool `lookup_order` (formato Anthropic). */
@@ -64,37 +68,95 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
 }
 
 /**
- * Definición JSON-Schema de la tool `create_checkout` (formato Anthropic).
+ * Construye la definición JSON-Schema de la tool `create_checkout`
+ * (formato Anthropic) según la config de checkout del workspace.
  *
- * El modelo la llama cuando la clienta ya eligió una oferta y queremos
- * mandarla directo al checkout de Shopify (Shopify maneja dirección,
- * tarjeta, Mercado Pago — no lo pedimos por chat). El cart-permalink
- * que devuelve dispara automáticamente el descuento por bundle (Käching
- * Bundles Cart Function) sin necesidad de código de descuento.
+ * El modelo la llama cuando la clienta ya quiere ir al checkout de
+ * Shopify (Shopify maneja dirección, tarjeta, Mercado Pago — no lo
+ * pedimos por chat). El cart-permalink que devuelve dispara
+ * automáticamente el descuento por bundle (Käching Bundles Cart
+ * Function) sin necesidad de código de descuento.
+ *
+ *   - Si la config tiene `offers` (BUNDLE MODE), el input pide `offer`
+ *     (enum con las keys de la config; descripciones armadas con el
+ *     label + total de cada oferta). Pilar mantiene su enum de 3 keys.
+ *   - Si NO hay offers (AUTO MODE), el input pide `quantity` (las
+ *     unidades que quiere la clienta); el precio sale del producto real.
  */
-export const CREATE_CHECKOUT_TOOL: Anthropic.Tool = {
-  name: 'create_checkout',
-  description:
-    'Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta y opcionalmente que va a pagar por transferencia para aplicarle el descuento de $4.900. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify (que ya maneja tarjeta + Mercado Pago).',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      offer: {
-        type: 'string',
-        enum: ['1u', '2u_1_gratis', '3u_1_gratis'],
-        description:
-          'Oferta que eligió la clienta. 1u = 1 unidad ($39.990). 2u_1_gratis = 2 unidades + 1 gratis ($69.900). 3u_1_gratis = 3 unidades + 1 gratis ($99.900).',
+export function buildCheckoutTool(
+  config: CheckoutConfig | null,
+): Anthropic.Tool {
+  const offers = config?.offers ?? null
+  const bundleMode = !!(config?.enabled && offers && offers.length > 0)
+  const currency = config?.currency || 'ARS'
+
+  const transferAmount =
+    typeof config?.transfer_discount_amount === 'number'
+      ? config.transfer_discount_amount
+      : null
+  const transferLabel = config?.transfer_discount_label || 'transferencia'
+  const hasTransferDiscount = transferAmount != null && transferAmount > 0
+
+  const payment_hint = {
+    type: 'string' as const,
+    enum: ['card_or_mp', 'transfer'],
+    description: hasTransferDiscount
+      ? `Si la clienta dijo que va a pagar por ${transferLabel}, pasá "transfer" para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Para todo lo demás (tarjeta, Mercado Pago) usá "card_or_mp".`
+      : 'Método de pago. Para tarjeta o Mercado Pago usá "card_or_mp".',
+  }
+
+  if (bundleMode) {
+    const enumeration = (offers ?? [])
+      .map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`)
+      .join('. ')
+    return {
+      name: 'create_checkout',
+      description: hasTransferDiscount
+        ? `Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta y opcionalmente que va a pagar por ${transferLabel} para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify (que ya maneja tarjeta + Mercado Pago).`
+        : 'Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          offer: {
+            type: 'string',
+            enum: (offers ?? []).map((o) => o.key),
+            description: `Oferta que eligió la clienta. ${enumeration}.`,
+          },
+          payment_hint,
+        },
+        required: ['offer'],
       },
-      payment_hint: {
-        type: 'string',
-        enum: ['card_or_mp', 'transfer'],
-        description:
-          'Si la clienta dijo que va a pagar por transferencia, pasá "transfer" para aplicarle el descuento de $4.900. Para todo lo demás (tarjeta, Mercado Pago) usá "card_or_mp".',
+    }
+  }
+
+  // AUTO MODE
+  return {
+    name: 'create_checkout',
+    description:
+      'Generá el link de checkout de Shopify para la clienta cuando ya quiere comprar. Pasá la cantidad de unidades que quiere. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify. Cotizá sólo el precio real del producto; no inventes descuentos ni cupones.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        quantity: {
+          type: 'integer',
+          minimum: 1,
+          default: 1,
+          description:
+            'Cantidad de unidades que quiere la clienta. Por defecto 1.',
+        },
+        payment_hint,
       },
+      required: [],
     },
-    required: ['offer'],
-  },
+  }
 }
+
+/**
+ * Tool por defecto (AUTO MODE, sin config) para callers que importan el
+ * símbolo estático. El runner usa `buildCheckoutTool(config)` con la
+ * config del workspace.
+ */
+export const CREATE_CHECKOUT_TOOL: Anthropic.Tool = buildCheckoutTool(null)
 
 /**
  * Ejecuta una `tool_use` que devuelve Claude. Devuelve el `tool_result`
@@ -146,23 +208,36 @@ export async function runTool(
       })
     }
     const input = (toolInput ?? {}) as {
-      offer?: CheckoutOffer
+      offer?: string
+      quantity?: number
       payment_hint?: PaymentHint
     }
-    if (!input.offer) {
+    const config = shopify.config ?? null
+    const bundleMode = !!(
+      config?.enabled &&
+      config.offers &&
+      config.offers.length > 0
+    )
+    if (bundleMode && !input.offer) {
+      const valid = (config?.offers ?? []).map((o) => o.key).join(' | ')
       return JSON.stringify({
         error: 'missing_offer',
-        message: 'Pasá la oferta (1u | 2u_1_gratis | 3u_1_gratis).',
+        message: `Pasá la oferta (${valid}).`,
       })
     }
     const result = await createCheckoutLink(
-      { offer: input.offer, payment_hint: input.payment_hint },
+      {
+        offer: input.offer,
+        quantity: input.quantity,
+        payment_hint: input.payment_hint,
+      },
       {
         shopDomain: shopify.shopDomain,
         accessToken: shopify.accessToken,
         apiVersion: shopify.apiVersion,
         pinnedVariantId: shopify.pinnedVariantId ?? null,
         storefrontDomain: shopify.storefrontDomain ?? null,
+        config,
       },
     )
     return JSON.stringify(result)

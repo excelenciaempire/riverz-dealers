@@ -7,6 +7,20 @@
  * Bundles, que es la app que Pilar Argentina usa para el "2+1 GRATIS" /
  * "3+1 GRATIS" del Sérum Pilar).
  *
+ * El comportamiento es PER-WORKSPACE, gobernado por una fila de
+ * `workspace_checkout_config` que el runner carga y pasa en `ctx.config`:
+ *
+ *   - BUNDLE MODE (config.offers tiene elementos): igual que Pilar hoy.
+ *     La oferta elegida (`input.offer`) matchea contra config.offers[].key
+ *     y de ahí salen qty/label/total/compare_at. El cart-permalink usa la
+ *     cantidad del bundle; la Cart Function de la tienda re-escribe el
+ *     precio en checkout mirando sólo (variant_id, quantity).
+ *
+ *   - AUTO MODE (sin offers): cotizamos el precio REAL del variant en
+ *     Shopify × `input.quantity`. Sin compare-at, sin descuentos
+ *     inventados. La moneda sale de la tienda (/shop.json) si la config
+ *     no la fija.
+ *
  * Recon verificado contra pilarargentina.store (15-jun-2026):
  *   - qty=1 → 1 unidad a $39.990 ARS (precio promo).
  *   - qty=3 → 3 unidades a $69.900 ARS total (descuento "2 Unidades + 1 GRATIS").
@@ -17,72 +31,58 @@
  * property, código de descuento, ni llamada al app-proxy. Por eso esta
  * tool simplemente arma el cart-permalink crudo.
  *
- * Para el descuento de $4.900 por transferencia: NO hay código en
- * Shopify (el equipo lo aplica manualmente al confirmar la transferencia
- * bancaria), así que mandamos cart-attributes que avisan al backoffice +
- * la respuesta para Pili explica el flujo.
+ * Para el descuento por transferencia: NO hay código en Shopify (el
+ * equipo lo aplica manualmente al confirmar la transferencia bancaria),
+ * así que mandamos cart-attributes que avisan al backoffice + la
+ * respuesta para Pili explica el flujo.
  */
 
-export const PILAR_SHOP_DOMAINS = new Set(['j9kgap-kn.myshopify.com'])
-
-/** Único descuento adicional permitido fuera del bundle. Pagar por
- *  transferencia (no por tarjeta / Mercado Pago) descuenta este monto
- *  manualmente en el back-office. Exportado para que el system prompt
- *  pueda enunciar la política completa sin números mágicos. */
-export const TRANSFER_DISCOUNT_ARS = 4900
-
-export type CheckoutOffer = '1u' | '2u_1_gratis' | '3u_1_gratis'
 export type PaymentHint = 'card_or_mp' | 'transfer'
 
-/** Cantidad real que va al cart según la oferta elegida. */
-const OFFER_QUANTITY: Record<CheckoutOffer, number> = {
-  '1u': 1,
-  '2u_1_gratis': 3,
-  '3u_1_gratis': 4,
+/** Una oferta de bundle, tal como vive en `workspace_checkout_config.offers`. */
+export interface CheckoutOfferConfig {
+  key: string
+  label: string
+  qty: number
+  total: number
+  compare_at?: number | null
 }
 
-/** Etiqueta amigable para devolverle al modelo. */
-export const OFFER_LABEL: Record<CheckoutOffer, string> = {
-  '1u': '1 unidad',
-  '2u_1_gratis': '2 unidades + 1 gratis',
-  '3u_1_gratis': '3 unidades + 1 gratis',
-}
-
-/** Precio final ARS por oferta — sólo para el `total_label` que devuelve
- *  la tool (no se usa en la URL: lo aplica la Cart Function). Estos
- *  valores son los verificados en la recon contra pilarargentina.store. */
-export const OFFER_TOTAL_ARS: Record<CheckoutOffer, number> = {
-  '1u': 39990,
-  '2u_1_gratis': 69900,
-  '3u_1_gratis': 99900,
-}
-
-/** Precio "tachado" (compare_at) por oferta para mostrar el ahorro. */
-const OFFER_COMPARE_ARS: Record<CheckoutOffer, number> = {
-  '1u': 70000,
-  '2u_1_gratis': 210000,
-  '3u_1_gratis': 280000,
+/** Fila de `workspace_checkout_config` (la pasa el runner en `ctx.config`). */
+export interface CheckoutConfig {
+  enabled: boolean
+  currency: string | null
+  offers: CheckoutOfferConfig[] | null
+  transfer_discount_amount: number | null
+  transfer_discount_label: string | null
+  payment_methods: string[] | null
+  default_variant_id: string | null
 }
 
 export interface CreateCheckoutInput {
-  offer: CheckoutOffer
+  /** Clave de la oferta elegida (BUNDLE MODE). */
+  offer?: string
+  /** Unidades pedidas (AUTO MODE). */
+  quantity?: number
   payment_hint?: PaymentHint
 }
 
 export interface CreateCheckoutContext {
   /** Dominio admin (*.myshopify.com) del workspace. */
   shopDomain: string
-  /** Access token Shopify Admin. Sólo se usa para resolver el dominio
-   *  público de la storefront vía /shop.json si no lo tenemos cacheado. */
+  /** Access token Shopify Admin. Se usa para resolver el dominio público
+   *  de la storefront vía /shop.json y, en AUTO MODE, el precio del variant. */
   accessToken: string
   apiVersion: string
   /** Variant id del producto que el cliente está mencionando — viene
-   *  del productMatch en el runner. Si null, caemos a un default conocido
-   *  (Pilar Sérum) para no romper la oferta principal. */
+   *  del productMatch en el runner. Si null, caemos a
+   *  config.default_variant_id. */
   pinnedVariantId?: string | null
   /** Dominio público de la storefront (ej. "pilarargentina.store").
    *  Si no se conoce, se resuelve vía /shop.json (1 request, ~150ms). */
   storefrontDomain?: string | null
+  /** Config de checkout por-workspace. Si null o sin offers => AUTO MODE. */
+  config?: CheckoutConfig | null
 }
 
 export interface CreateCheckoutResult {
@@ -94,16 +94,53 @@ export interface CreateCheckoutResult {
 }
 
 /**
- * Resuelve el dominio público de la storefront. Shopify lo expone en
- * `/admin/api/{v}/shop.json` como `shop.domain` (el primary domain del
- * tema activo). Si la llamada falla, caemos al myshopify.com — sigue
- * funcionando aunque sea menos "marca".
+ * Formato de moneda. Para ARS reproducimos EXACTAMENTE el viejo `fmtArs`
+ * ("$" + miles con punto, sin decimales) para no romper el output de
+ * Pilar. Para el resto de monedas usamos Intl.NumberFormat con el código
+ * ISO. Default 'ARS' para mantener el comportamiento histórico.
  */
-async function resolveStorefrontDomain(
+export function fmtMoney(n: number, currency?: string | null): string {
+  const cur = (currency || 'ARS').toUpperCase()
+  if (cur === 'ARS') {
+    // 69900 → "$69.900" (separador de miles con punto, como en AR).
+    return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: cur,
+      maximumFractionDigits: 2,
+    }).format(n)
+  } catch {
+    // Currency desconocido por Intl → fallback simple con el código.
+    return `${cur} ${n}`
+  }
+}
+
+/**
+ * Back-compat: `fmtArs` delega en `fmtMoney(..., 'ARS')`. Se mantiene por
+ * si algún importador externo lo usa. Output idéntico al original.
+ */
+export function fmtArs(n: number): string {
+  return fmtMoney(n, 'ARS')
+}
+
+/**
+ * Resuelve el dominio público de la storefront y, opcionalmente, la
+ * moneda de la tienda. Shopify expone ambos en
+ * `/admin/api/{v}/shop.json` (`shop.domain` = primary domain del tema
+ * activo; `shop.currency` = ISO 4217). Si la llamada falla, caemos al
+ * myshopify.com y a 'USD'.
+ */
+async function resolveStorefront(
   ctx: CreateCheckoutContext,
-): Promise<string> {
+): Promise<{ domain: string; currency: string }> {
+  let cachedDomain: string | null = null
   if (ctx.storefrontDomain && ctx.storefrontDomain.trim()) {
-    return ctx.storefrontDomain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')
+    cachedDomain = ctx.storefrontDomain
+      .trim()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '')
   }
   try {
     const url = `https://${ctx.shopDomain}/admin/api/${ctx.apiVersion}/shop.json`
@@ -113,37 +150,19 @@ async function resolveStorefrontDomain(
         'Content-Type': 'application/json',
       },
     })
-    if (!res.ok) return ctx.shopDomain
-    const data = (await res.json()) as { shop?: { domain?: string } }
-    return data.shop?.domain || ctx.shopDomain
+    if (!res.ok) {
+      return { domain: cachedDomain || ctx.shopDomain, currency: 'USD' }
+    }
+    const data = (await res.json()) as {
+      shop?: { domain?: string; currency?: string }
+    }
+    return {
+      domain: cachedDomain || data.shop?.domain || ctx.shopDomain,
+      currency: data.shop?.currency || 'USD',
+    }
   } catch {
-    return ctx.shopDomain
+    return { domain: cachedDomain || ctx.shopDomain, currency: 'USD' }
   }
-}
-
-/**
- * Resuelve el variant_id a usar:
- *   1. Si el caller pasó pinnedVariantId (producto detectado en el
- *      mensaje), ese tiene prioridad.
- *   2. Si la tienda es Pilar (conocida), usamos el variant del Sérum
- *      verificado en la recon. Esto evita devolver "no encontré producto"
- *      si el cliente ya está pidiendo claro pero el detector no marcó.
- *   3. Sino devolvemos null — la tool va a responder con un error
- *      controlado que el modelo puede parafrasear.
- */
-function resolveVariantId(ctx: CreateCheckoutContext): string | null {
-  if (ctx.pinnedVariantId && ctx.pinnedVariantId.trim()) {
-    return ctx.pinnedVariantId.trim()
-  }
-  if (PILAR_SHOP_DOMAINS.has(ctx.shopDomain)) {
-    return '48310065791076'
-  }
-  return null
-}
-
-export function fmtArs(n: number): string {
-  // 69900 → "$69.900" (separador de miles con punto, como en AR).
-  return '$' + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
 /**
@@ -154,14 +173,36 @@ export async function createCheckoutLink(
   input: CreateCheckoutInput,
   ctx: CreateCheckoutContext,
 ): Promise<CreateCheckoutResult | { error: string; message: string }> {
-  const offer = input.offer
-  if (!OFFER_QUANTITY[offer]) {
-    return {
-      error: 'invalid_offer',
-      message: `Oferta "${offer}" no reconocida. Usá 1u | 2u_1_gratis | 3u_1_gratis.`,
+  const config = ctx.config ?? null
+  const offers = config?.offers ?? null
+  const bundleMode = !!(config?.enabled && offers && offers.length > 0)
+
+  // ── Resolución de oferta / cantidad ───────────────────────────────
+  let qty: number
+  let offerLabel: string
+  let matchedOffer: CheckoutOfferConfig | null = null
+  if (bundleMode) {
+    const key = input.offer
+    matchedOffer = (offers ?? []).find((o) => o.key === key) ?? null
+    if (!matchedOffer) {
+      const valid = (offers ?? []).map((o) => o.key).join(' | ')
+      return {
+        error: 'invalid_offer',
+        message: `Oferta "${key ?? ''}" no reconocida. Usá ${valid}.`,
+      }
     }
+    qty = matchedOffer.qty
+    offerLabel = matchedOffer.label
+  } else {
+    qty = input.quantity && input.quantity > 0 ? Math.floor(input.quantity) : 1
+    offerLabel = qty === 1 ? '1 unidad' : `${qty} unidades`
   }
-  const variantId = resolveVariantId(ctx)
+
+  // ── Resolución del variant ────────────────────────────────────────
+  const variantId =
+    (ctx.pinnedVariantId && ctx.pinnedVariantId.trim()) ||
+    (config?.default_variant_id && config.default_variant_id.trim()) ||
+    null
   if (!variantId) {
     return {
       error: 'no_variant',
@@ -169,15 +210,18 @@ export async function createCheckoutLink(
         'No pude resolver el producto de esta tienda. Pedí ayuda al equipo humano para armar el link.',
     }
   }
-  const qty = OFFER_QUANTITY[offer]
 
-  // Best-effort stock check before we hand out the link. Only blocks
-  // when the shop both tracks inventory AND denies oversell — for
-  // untracked variants (inventory_management=null) or "continue
-  // selling" variants we fall through to the link as before. Fail-open
-  // on network/Admin errors so we never silently break the happy path.
+  // Best-effort stock check + (AUTO MODE) precio real del variant antes
+  // de entregar el link. El check de stock sólo bloquea cuando la tienda
+  // trackea inventario Y deniega oversell — para variants sin tracking
+  // (inventory_management=null) o "continue selling" caemos al link como
+  // antes. Fail-open en errores de red/Admin para no romper el happy path.
+  let autoUnitPrice: number | null = null
   try {
-    const vUrl = `https://${ctx.shopDomain}/admin/api/${ctx.apiVersion}/variants/${variantId}.json?fields=inventory_quantity,inventory_policy,inventory_management`
+    const fields = bundleMode
+      ? 'inventory_quantity,inventory_policy,inventory_management'
+      : 'inventory_quantity,inventory_policy,inventory_management,price'
+    const vUrl = `https://${ctx.shopDomain}/admin/api/${ctx.apiVersion}/variants/${variantId}.json?fields=${fields}`
     const vRes = await fetch(vUrl, {
       headers: {
         'X-Shopify-Access-Token': ctx.accessToken,
@@ -190,6 +234,7 @@ export async function createCheckoutLink(
           inventory_quantity?: number
           inventory_policy?: string
           inventory_management?: string | null
+          price?: string | number
         }
       }
       if (
@@ -200,58 +245,99 @@ export async function createCheckoutLink(
       ) {
         return {
           error: 'out_of_stock',
-          message: `No hay stock suficiente para ${OFFER_LABEL[offer]} ahora mismo (quedan ${variant.inventory_quantity}). Ofrecele anotarse en lista de espera o sugerí otra cantidad.`,
+          message: `No hay stock suficiente para ${offerLabel} ahora mismo (quedan ${variant.inventory_quantity}). Ofrecele anotarse en lista de espera o sugerí otra cantidad.`,
         }
+      }
+      if (!bundleMode && variant?.price != null) {
+        const p =
+          typeof variant.price === 'number'
+            ? variant.price
+            : parseFloat(variant.price)
+        if (!Number.isNaN(p)) autoUnitPrice = p
       }
     }
   } catch {
     /* fail-open */
   }
 
-  const storefront = await resolveStorefrontDomain(ctx)
+  const { domain: storefront, currency: shopCurrency } =
+    await resolveStorefront(ctx)
+  const currency = config?.currency || (bundleMode ? 'ARS' : shopCurrency)
   const paymentHint: PaymentHint = input.payment_hint ?? 'card_or_mp'
+
+  // ── Descuento por transferencia (sólo si la config lo provee) ──────
+  const transferAmount =
+    typeof config?.transfer_discount_amount === 'number'
+      ? config.transfer_discount_amount
+      : null
+  const transferLabel = config?.transfer_discount_label || 'transferencia'
+  const hasTransferDiscount =
+    paymentHint === 'transfer' && transferAmount != null && transferAmount > 0
 
   // Cart-permalink format:
   //   https://{storefront}/cart/{variant_id}:{quantity}?attributes[...]=...
-  // Cuando paga por transferencia, sumamos cart-attributes para que el
-  // backoffice vea el flag y aplique los $4.900 menos al confirmar.
+  // Cuando paga por transferencia y hay descuento configurado, sumamos
+  // cart-attributes para que el backoffice vea el flag y aplique el
+  // descuento al confirmar.
   const params = new URLSearchParams()
-  if (paymentHint === 'transfer') {
-    params.set('attributes[pago]', 'transferencia')
-    params.set(
-      'attributes[descuento_pendiente_ars]',
-      String(TRANSFER_DISCOUNT_ARS),
-    )
+  if (hasTransferDiscount) {
+    params.set('attributes[pago]', transferLabel)
+    params.set('attributes[descuento_pendiente_ars]', String(transferAmount))
   }
   const qs = params.toString()
   const checkoutUrl = `https://${storefront}/cart/${variantId}:${qty}${qs ? '?' + qs : ''}`
 
-  const total = OFFER_TOTAL_ARS[offer]
-  const compare = OFFER_COMPARE_ARS[offer]
-  // We don't pre-subtract the $4,900 transfer discount from the
-  // customer-facing total any more: Shopify's checkout will show the
-  // full total, and if we quote a number that's $4,900 lower the
-  // customer thinks the AI lied (or the bundle promo broke). Instead we
-  // show the same total Shopify will show and frame the $4,900 as a
-  // post-confirmation credit.
-  const totalLabel =
-    paymentHint === 'transfer'
-      ? `${fmtArs(total)} (antes ${fmtArs(compare)}) — te devolvemos $4.900 al confirmar la transferencia`
-      : `${fmtArs(total)} (antes ${fmtArs(compare)})`
+  // ── Etiquetas para el modelo ──────────────────────────────────────
+  let totalLabel: string
+  if (bundleMode) {
+    const total = matchedOffer!.total
+    const compare = matchedOffer!.compare_at
+    // No pre-restamos el descuento por transferencia del total que ve la
+    // clienta: el checkout de Shopify muestra el total completo, y si
+    // cotizamos un número menor la clienta cree que la IA mintió (o que
+    // el bundle se rompió). Mostramos el mismo total que Shopify y
+    // encuadramos el descuento como crédito post-confirmación.
+    const base =
+      compare != null
+        ? `${fmtMoney(total, currency)} (antes ${fmtMoney(compare, currency)})`
+        : `${fmtMoney(total, currency)}`
+    totalLabel = hasTransferDiscount
+      ? `${base} — te devolvemos ${fmtMoney(transferAmount!, currency)} al confirmar la ${transferLabel}`
+      : base
+  } else {
+    // AUTO MODE: precio real × cantidad. Sin compare-at, sin descuento
+    // inventado. Si no pudimos leer el precio, devolvemos un total sin
+    // monto (el modelo cotiza el precio listado que ya conoce).
+    if (autoUnitPrice != null) {
+      const total = autoUnitPrice * qty
+      const base = fmtMoney(total, currency)
+      totalLabel = hasTransferDiscount
+        ? `${base} — te devolvemos ${fmtMoney(transferAmount!, currency)} al confirmar la ${transferLabel}`
+        : base
+    } else {
+      totalLabel = ''
+    }
+  }
 
-  const paymentLabel =
-    paymentHint === 'transfer'
-      ? 'En el checkout vas a ver el total completo; cuando confirmes la transferencia te devolvemos $4.900.'
-      : 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
+  const paymentMethods = config?.payment_methods ?? null
+  const acceptsCard = !paymentMethods || paymentMethods.includes('card')
+  const acceptsMp = !paymentMethods || paymentMethods.includes('mercado_pago')
 
-  const nextStepForPili =
-    paymentHint === 'transfer'
-      ? 'Mandale el link. El total en Shopify es el total completo; cuando confirme la transferencia el equipo le devuelve $4.900.'
-      : 'Mandale el link y decile que en el checkout completa dirección y elige tarjeta o Mercado Pago. El descuento del bundle ya se aplica automático.'
+  const paymentLabel = hasTransferDiscount
+    ? `En el checkout vas a ver el total completo; cuando confirmes la ${transferLabel} te devolvemos ${fmtMoney(transferAmount!, currency)}.`
+    : acceptsCard && acceptsMp
+      ? 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
+      : 'Podés completar el pago en el checkout de Shopify.'
+
+  const nextStepForPili = hasTransferDiscount
+    ? `Mandale el link. El total en Shopify es el total completo; cuando confirme la ${transferLabel} el equipo le devuelve ${fmtMoney(transferAmount!, currency)}.`
+    : bundleMode
+      ? 'Mandale el link y decile que en el checkout completa dirección y elige tarjeta o Mercado Pago. El descuento del bundle ya se aplica automático.'
+      : 'Mandale el link y decile que en el checkout completa dirección y método de pago.'
 
   return {
     checkout_url: checkoutUrl,
-    offer_label: OFFER_LABEL[offer],
+    offer_label: offerLabel,
     total_label: totalLabel,
     payment_label: paymentLabel,
     next_step_for_pili: nextStepForPili,
