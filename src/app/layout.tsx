@@ -25,12 +25,29 @@ const interTight = Inter_Tight({
 export const metadata: Metadata = {
   metadataBase: new URL("https://riverz.co"),
   title: {
-    default: "Riverz — CRM con IA para WhatsApp e Instagram",
-    template: "%s · Riverz",
+    default: "riverz — CRM con IA para WhatsApp e Instagram",
+    template: "%s · riverz",
   },
   description:
-    "Riverz es el CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más. Bandeja unificada, automatizaciones y campañas en un solo lugar.",
-  applicationName: "Riverz",
+    "riverz es el agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y mide cada venta, 24/7.",
+  applicationName: "riverz",
+  authors: [{ name: "riverz", url: "https://riverz.co" }],
+  creator: "riverz",
+  publisher: "riverz",
+  category: "business",
+  keywords: [
+    "agente de IA para ventas",
+    "CRM con IA",
+    "CRM para WhatsApp",
+    "CRM para Instagram",
+    "chatbot de ventas WhatsApp",
+    "automatización de WhatsApp",
+    "recuperación de carritos",
+    "bandeja unificada",
+    "atención al cliente con IA",
+    "WhatsApp Business",
+    "vender por Instagram",
+  ],
   // The public marketing surface (landing + legal + auth) must be
   // indexable; per-route metadata still wins, so the private dashboard
   // can opt out of indexing on its own segments if needed.
@@ -45,26 +62,31 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  // og:image / twitter:image are auto-injected from the site-wide
+  // opengraph-image.tsx and twitter-image.tsx file conventions — no need to
+  // declare images here.
   openGraph: {
     type: "website",
-    siteName: "Riverz",
-    title: "Riverz — CRM con IA para WhatsApp e Instagram",
+    siteName: "riverz",
+    title: "riverz — CRM con IA para WhatsApp e Instagram",
     description:
-      "El CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más.",
+      "El agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. 24/7.",
     url: "/",
     locale: "es_ES",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Riverz — CRM con IA para WhatsApp e Instagram",
+    title: "riverz — CRM con IA para WhatsApp e Instagram",
     description:
-      "El CRM con agentes de IA que atiende, vende y responde por ti en WhatsApp, Instagram y más.",
+      "El agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. 24/7.",
   },
   alternates: {
     canonical: "/",
   },
-  icons: {
-    icon: [{ url: "/icon" }],
+  appleWebApp: {
+    capable: true,
+    title: "riverz",
+    statusBarStyle: "default",
   },
   formatDetection: {
     email: false,
@@ -118,7 +140,7 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="en"
+      lang="es"
       data-theme={DEFAULT_THEME}
       className={`${interTight.variable} h-full antialiased`}
       suppressHydrationWarning

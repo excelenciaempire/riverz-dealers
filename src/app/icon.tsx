@@ -1,12 +1,16 @@
 import { ImageResponse } from "next/og";
 
-// Replaces the default Next.js favicon with the brand mark — Hostinger
-// violet rounded square + white chat-square glyph — matching the
-// sidebar logo in `src/components/layout/sidebar.tsx`. Next.js renders
-// this at build time and auto-injects <link rel="icon"> into <head>.
+// Brand favicon — the riverz signature: a charcoal tile with the lowercase
+// lime "r" lettermark, derived from the "riverz" wordmark used in the
+// sidebar (`text-sidebar-primary`) and the landing header (`text-accent-ink`).
 //
-// This route takes precedence over src/app/favicon.ico, which is the
-// Next.js default and can stay on disk harmlessly (or be removed).
+// Charcoal-on-lime (not lime-on-charcoal) was chosen on purpose: a dark tile
+// reads on ANY browser chrome (it always contrasts), while the bright lime
+// "r" carries the brand and stays legible down to 16px. The mark is drawn as
+// SVG strokes so it's weight-perfect and crisp at every size — no font needed.
+//
+// Tokens mirror src/app/globals.css: --primary #f7ff9e, dark surface #0a0a0a.
+// This route takes precedence over any app/favicon.ico on disk.
 
 export const runtime = "edge";
 export const size = { width: 32, height: 32 };
@@ -22,21 +26,24 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
-          borderRadius: 6,
+          background: "#0a0a0a",
+          borderRadius: 7,
         }}
       >
         <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
+          width="32"
+          height="32"
+          viewBox="0 0 32 32"
           fill="none"
-          stroke="#ffffff"
-          strokeWidth="2.5"
+          stroke="#f7ff9e"
+          strokeWidth="4"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          {/* stem */}
+          <path d="M11.5 7 V25" />
+          {/* shoulder / arm */}
+          <path d="M11.5 12.5 C13 8.8 16.5 7.6 21.5 8.6" />
         </svg>
       </div>
     ),
