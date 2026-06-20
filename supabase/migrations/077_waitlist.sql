@@ -19,9 +19,10 @@ create table if not exists public.waitlist (
   created_at timestamptz not null default now()
 );
 
--- One row per email (the API upserts on conflict).
+-- One row per email (the API lowercases before insert and upserts on
+-- conflict, so a plain unique index on the column is what ON CONFLICT needs).
 create unique index if not exists uq_waitlist_email
-  on public.waitlist (lower(email));
+  on public.waitlist (email);
 
 alter table public.waitlist enable row level security;
 -- (intentionally no policies — service role only)
