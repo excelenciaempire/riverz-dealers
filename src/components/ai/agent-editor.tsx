@@ -287,6 +287,9 @@ export function AgentEditor({
   const [linkShop, setLinkShop] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linking, setLinking] = useState(false);
+  // Id del poll de conexión Shopify, para limpiarlo al desmontar (evita
+  // un setInterval huérfano si se cierra el editor a mitad de la vinculación).
+  const linkTimerRef = useRef<number | null>(null);
   const initialBh = readBusinessHours(agent?.business_hours);
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
@@ -375,11 +378,11 @@ export function AgentEditor({
 
   /**
    * Plantilla de identidad del asistente a partir de un producto. Sólo pisa
-   * lo que el usuario no tocó (nombre vacío, persona por defecto). NO copia el
-   * conocimiento del producto: el runner ya inyecta el producto asignado en
-   * pleno (training_material + research) en cada conversación, así que volcarlo
-   * acá lo duplicaría en el prompt. "Información del negocio" queda para datos
-   * transversales (envíos, políticas), no para el producto.
+   * lo que el usuario no tocó (nombre vacío, persona por defecto, "Información
+   * del negocio" vacía). En cada conversación el runner igual inyecta el
+   * producto completo (training_material + research); acá precargamos un
+   * resumen breve en "Información del negocio" SOLO si está vacía, para que el
+   * merchant vea el agente pre-armado sin duplicar la investigación completa.
    */
   function applyProductTemplate(p: ProductDetail) {
     setName((cur) => cur.trim() || `Asesor de ${p.title}`.slice(0, 60));
@@ -471,6 +474,7 @@ export function AgentEditor({
       return;
     }
     setLinking(true);
+    if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
     const popup = window.open(
       `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
       'shopify-connect',
@@ -502,7 +506,16 @@ export function AgentEditor({
         setLinking(false);
       }
     }, 2000);
+    linkTimerRef.current = timer;
   }
+
+  // Limpia el poll de conexión Shopify si el editor se desmonta a media
+  // vinculación (evita un setInterval huérfano golpeando /status).
+  useEffect(() => {
+    return () => {
+      if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
+    };
+  }, []);
 
   const filteredCatalog = useMemo(() => {
     const q = productSearch.trim().toLowerCase();

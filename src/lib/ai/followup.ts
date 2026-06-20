@@ -155,6 +155,11 @@ export async function runFollowUp(
           last_message_at: now,
           last_sender_type: 'bot',
           updated_at: now,
+          // Limpiamos el pago pendiente: ya mandamos UNA recuperación. Sin
+          // esto, el cron reenviaría el link en cada corrida hasta tocar
+          // followup_max_count (spam). Una sola recuperación por checkout.
+          pending_checkout_at: null,
+          pending_checkout_url: null,
         })
         .eq('id', conversation.id);
       return { sent: true };

@@ -219,6 +219,7 @@ export async function POST(request: Request) {
         contactId,
         order,
         name,
+        shopDomain,
       }).catch((err) =>
         console.error('[shopify] ai order confirmation failed:', err),
       )
@@ -331,20 +332,56 @@ async function sendAiOrderConfirmation(
     contactId: string
     order: Record<string, unknown>
     name: string | undefined
+    shopDomain: string
   },
 ): Promise<void> {
-  const { workspaceId, contactId, order, name } = args
-  const { data: convsRaw } = await admin
-    .from('conversations')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .eq('contact_id', contactId)
-    .in('channel', ['whatsapp', 'instagram', 'messenger'])
-    .order('last_message_at', { ascending: false })
-    .limit(5)
-  const convs = (convsRaw ?? []) as Conversation[]
-  const conv = convs.find((c) => c.pending_checkout_at) ?? convs[0]
-  if (!conv) return
+  const { workspaceId, contactId, order, name, shopDomain } = args
+
+  // Elegir la conversación correcta:
+  //  1) Si el pedido lo creó la tool create_order, la fila de `orders`
+  //     guarda su conversation_id exacto → lo usamos.
+  //  2) Si vino de un link create_checkout (sin fila en orders), tomamos
+  //     la conversación con pending_checkout_at.
+  //  3) Fallback: la más reciente del contacto.
+  // Así nunca limpiamos el pending de una conversación ajena.
+  let conv: Conversation | null = null
+  const shopifyOrderId = order.id != null ? String(order.id) : null
+  if (shopifyOrderId) {
+    const { data: orderRow } = await admin
+      .from('orders')
+      .select('conversation_id')
+      .eq('shop_domain', shopDomain)
+      .eq('shopify_order_id', shopifyOrderId)
+      .maybeSingle()
+    const convId = (orderRow as { conversation_id?: string } | null)?.conversation_id
+    if (convId) {
+      const { data } = await admin
+        .from('conversations')
+        .select('*')
+        .eq('id', convId)
+        .maybeSingle()
+      conv = (data as Conversation | null) ?? null
+    }
+  }
+  if (!conv) {
+    const { data: convsRaw } = await admin
+      .from('conversations')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('contact_id', contactId)
+      .in('channel', ['whatsapp', 'instagram', 'messenger'])
+      .order('last_message_at', { ascending: false })
+      .limit(10)
+    const convs = (convsRaw ?? []) as Conversation[]
+    conv = convs.find((c) => c.pending_checkout_at) ?? convs[0] ?? null
+  }
+  if (!conv) {
+    console.warn(
+      '[shopify] ai confirmation: sin conversación para contacto',
+      contactId,
+    )
+    return
+  }
 
   let connection: ChannelConnection | null = null
   if (conv.connection_id) {
@@ -367,14 +404,20 @@ async function sendAiOrderConfirmation(
       .maybeSingle()
     connection = (data as ChannelConnection | null) ?? null
   }
-  if (!connection) return
+  if (!connection) {
+    console.warn('[shopify] ai confirmation: sin conexión de canal', conv.id)
+    return
+  }
 
   const { data: contactRow } = await admin
     .from('contacts')
     .select('*')
     .eq('id', contactId)
     .maybeSingle()
-  if (!contactRow) return
+  if (!contactRow) {
+    console.warn('[shopify] ai confirmation: contacto no encontrado', contactId)
+    return
+  }
   const contact = contactRow as Contact
 
   const first = (name || contact.name || '').trim().split(/\s+/)[0]
@@ -402,17 +445,20 @@ async function sendAiOrderConfirmation(
     message_id: sendResult.externalMessageId,
     status: sendResult.status ?? 'sent',
   })
-  await admin
-    .from('conversations')
-    .update({
-      last_message_text: text.slice(0, 200),
-      last_message_at: now,
-      last_sender_type: 'bot',
-      updated_at: now,
-      pending_checkout_at: null,
-      pending_checkout_url: null,
-    })
-    .eq('id', conv.id)
+  const convUpdate: Record<string, unknown> = {
+    last_message_text: text.slice(0, 200),
+    last_message_at: now,
+    last_sender_type: 'bot',
+    updated_at: now,
+  }
+  // Solo limpiamos el pago pendiente si ESTA conversación lo tenía — así no
+  // pisamos el pending de otra conversación concurrente (p. ej. un
+  // create_order que cae en la conversación equivocada).
+  if (conv.pending_checkout_at) {
+    convUpdate.pending_checkout_at = null
+    convUpdate.pending_checkout_url = null
+  }
+  await admin.from('conversations').update(convUpdate).eq('id', conv.id)
 }
 
 function buildVarsForOrder(
