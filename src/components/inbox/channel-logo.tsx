@@ -16,6 +16,10 @@ interface ChannelLogoProps {
   channel: Channel;
   size?: number;
   className?: string;
+  /** Override the brand logo with a specific asset (e.g. the Meta logo on
+   *  the Facebook group card). Falls back to the channel's mapped logo. */
+  src?: string;
+  alt?: string;
 }
 
 const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
@@ -28,8 +32,9 @@ const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
   ig_comment: { src: "/channels/instagram.svg", alt: "Instagram" },
 };
 
-export function ChannelLogo({ channel, size = 20, className }: ChannelLogoProps) {
-  const logo = LOGO_MAP[channel];
+export function ChannelLogo({ channel, size = 20, className, src, alt }: ChannelLogoProps) {
+  const mapped = LOGO_MAP[channel];
+  const logo = src ? { src, alt: alt ?? mapped?.alt ?? channel } : mapped;
   if (!logo) {
     return (
       <MessageSquare

@@ -37,6 +37,9 @@ interface ChannelGroup {
   description: string;
   /** Channel whose brand logo represents the group. */
   logoChannel: Channel;
+  /** Optional explicit logo asset that overrides logoChannel (e.g. the Meta
+   *  logo for the Facebook/Messenger group). */
+  logoSrc?: string;
   /** Internal channels this group sets up. */
   members: Channel[];
   /** Channel passed to the connect flow (backend expands to siblings). */
@@ -59,6 +62,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     description:
       "Messenger y comentarios de tu página en una sola conexión.",
     logoChannel: "messenger",
+    logoSrc: "/channels/meta.svg",
     members: ["messenger", "fb_comment"],
     connectChannel: "messenger",
   },
@@ -367,7 +371,7 @@ export function ChannelsPanel() {
             >
               <div className="flex items-start gap-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
-                  <ChannelLogo channel={g.logoChannel} size={28} />
+                  <ChannelLogo channel={g.logoChannel} src={g.logoSrc} size={28} />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{g.label}</p>
