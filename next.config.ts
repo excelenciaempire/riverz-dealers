@@ -87,6 +87,13 @@ const URL_REDIRECTS: { from: string; to: string }[] = [
 ];
 
 const nextConfig: NextConfig = {
+  // @sentry/node usa APIs nativas de Node (node:diagnostics_channel,
+  // OpenTelemetry async hooks) que el bundler no puede empaquetar. Lo
+  // dejamos como `require` nativo en el server en vez de bundlearlo —
+  // de lo contrario el build de Turbopack falla con "the chunking context
+  // does not support external modules".
+  serverExternalPackages: ["@sentry/node"],
+
   async redirects() {
     return URL_REDIRECTS.map(({ from, to }) => ({
       source: from,

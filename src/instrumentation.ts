@@ -47,7 +47,9 @@ export const onRequestError: Instrumentation.onRequestError = async (
   if (!process.env.SENTRY_DSN) return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   try {
-    const Sentry = await import('@sentry/node')
+    // turbopackIgnore: no bundlear @sentry/node en el grafo edge de
+    // instrumentation; sólo se ejecuta en runtime Node (gate de arriba).
+    const Sentry = await import(/* turbopackIgnore: true */ '@sentry/node')
     Sentry.captureException(err, {
       data: {
         path: (request as { path?: string } | undefined)?.path,

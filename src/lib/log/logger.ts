@@ -69,13 +69,21 @@ let sentryPromise: Promise<{ captureException: (e: unknown, hint?: unknown) => v
   null
 
 async function loadSentry() {
+  // @sentry/node es nativo de Node (node:diagnostics_channel, OpenTelemetry).
+  // logger.ts lo importan también client components (error.tsx / global-error.tsx)
+  // e instrumentation edge; si el bundler intentara empaquetar @sentry/node en
+  // esos grafos el build revienta. Dos defensas:
+  //   1) NEXT_RUNTIME !== 'nodejs' → nunca se ejecuta el import fuera de Node.
+  //   2) /* turbopackIgnore: true */ → Turbopack no lo mete en los bundles de
+  //      cliente/edge; se resuelve en runtime desde node_modules sólo en Node.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return null
   if (!process.env.SENTRY_DSN) return null
   if (!sentryPromise) {
     sentryPromise = (async () => {
       try {
-        // Import dinámico de @sentry/node. Si no está instalado (self-host
-        // sin observabilidad) el import falla y caemos a null sin romper nada.
-        const mod = (await import('@sentry/node')) as unknown as {
+        // Si no está instalado (self-host sin observabilidad) el import falla
+        // y caemos a null sin romper nada.
+        const mod = (await import(/* turbopackIgnore: true */ '@sentry/node')) as unknown as {
           captureException: (e: unknown, hint?: unknown) => void
         }
         return mod
