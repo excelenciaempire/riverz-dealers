@@ -816,14 +816,22 @@ function InboxPreview() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 01 · Agente de ventas — what the agent has learned (non-chat knowledge panel)
+// 01 · Agente de ventas — your product knowledge integrating into the agent.
+// Four sources sit at the corners; each lights up and feeds a central agent
+// node in turn. Minimal: one word per source, no secondary text.
 // ─────────────────────────────────────────────────────────────────────────
 
-const AGENT_LEARNS: { icon: typeof Inbox; label: string; meta: string }[] = [
-  { icon: Boxes, label: "Catálogo", meta: "142 productos" },
-  { icon: Tag, label: "Precios y stock", meta: "al día" },
-  { icon: Truck, label: "Envíos y pagos", meta: "configurado" },
-  { icon: Star, label: "Reseñas", meta: "328 opiniones" },
+const AGENT_SOURCES: {
+  icon: typeof Inbox;
+  label: string;
+  pos: string;
+  x: number;
+  y: number;
+}[] = [
+  { icon: Boxes, label: "Catálogo", pos: "left-4 top-4", x: 30, y: 30 },
+  { icon: Tag, label: "Precios", pos: "right-4 top-4", x: 70, y: 30 },
+  { icon: Truck, label: "Envíos", pos: "left-4 bottom-4", x: 30, y: 70 },
+  { icon: Star, label: "Reseñas", pos: "right-4 bottom-4", x: 70, y: 70 },
 ];
 
 function AgentPanel() {
@@ -831,63 +839,70 @@ function AgentPanel() {
   const [lit, setLit] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(
-      () => setLit((i) => (i + 1) % (AGENT_LEARNS.length + 1)),
-      850,
-    );
+    const t = setInterval(() => setLit((i) => (i + 1) % (AGENT_SOURCES.length + 1)), 1100);
     return () => clearInterval(t);
   }, [reduced]);
 
+  const ready = reduced || lit >= AGENT_SOURCES.length;
+  const integrated = (i: number) => reduced || lit > i;
+
   return (
     <PreviewFrame>
-      <div className="flex flex-col gap-4 p-5">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="size-4" />
-          </span>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">Tu agente de ventas</div>
-            <div className="text-[11px] text-accent-ink">aprendiendo tu negocio…</div>
-          </div>
-          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[10px] font-medium text-accent-ink">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> activo
-          </span>
-        </div>
+      <div className="relative h-[300px] sm:h-[340px]">
+        {/* connectors feeding the agent */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full">
+          {AGENT_SOURCES.map((s, i) => (
+            <line
+              key={s.label}
+              x1="50"
+              y1="50"
+              x2={s.x}
+              y2={s.y}
+              vectorEffect="non-scaling-stroke"
+              strokeLinecap="round"
+              strokeWidth={lit === i || integrated(i) ? 1.6 : 1}
+              className={`transition-all duration-500 ${
+                lit === i ? "animate-pulse stroke-primary" : integrated(i) ? "stroke-primary/60" : "stroke-border"
+              }`}
+            />
+          ))}
+        </svg>
 
-        <div className="flex flex-col gap-2">
-          {AGENT_LEARNS.map((s, i) => {
-            const done = reduced || lit > i;
-            const active = !reduced && lit === i;
-            return (
-              <div
+        {/* central agent node */}
+        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
+          <span className="relative flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+            {!reduced && <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />}
+            <Sparkles className="relative size-6" />
+          </span>
+          <span className="mt-2.5 text-[12px] font-semibold text-accent-ink">
+            {ready ? "Agente listo" : "Aprendiendo"}
+          </span>
+          <span className="mt-1.5 flex gap-1">
+            {AGENT_SOURCES.map((s, i) => (
+              <span
                 key={s.label}
-                className={`flex items-center gap-3 rounded-xl border p-2.5 transition-all duration-300 ${
-                  active ? "border-primary/50 bg-primary/10" : "border-border bg-background/60"
-                }`}
-              >
-                <span
-                  className={`flex size-8 items-center justify-center rounded-lg transition-colors ${
-                    done || active ? "bg-primary/15 text-accent-ink" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <s.icon className="size-4" />
-                </span>
-                <div className="leading-tight">
-                  <div className="text-sm font-medium">{s.label}</div>
-                  <div className="text-[11px] text-muted-foreground">{s.meta}</div>
-                </div>
-                <span className="ml-auto flex size-4 items-center justify-center">
-                  {done ? <Check className="size-4 text-accent-ink" /> : null}
-                </span>
-              </div>
-            );
-          })}
+                className={`size-1.5 rounded-full transition-colors ${integrated(i) ? "bg-primary" : "bg-muted"}`}
+              />
+            ))}
+          </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl bg-primary/10 px-3 py-2.5 text-xs">
-          <span className="font-medium">Listo para vender</span>
-          <span className="text-muted-foreground">Responde en ~4s · 24/7</span>
-        </div>
+        {/* knowledge sources at the corners */}
+        {AGENT_SOURCES.map((s, i) => (
+          <div
+            key={s.label}
+            className={`absolute ${s.pos} inline-flex items-center gap-1.5 rounded-xl border bg-card px-2.5 py-2 text-xs font-medium shadow-sm transition-all duration-300 ${
+              lit === i
+                ? "scale-105 border-primary/60 bg-primary/10 text-accent-ink"
+                : integrated(i)
+                  ? "border-primary/30 text-foreground"
+                  : "border-border text-muted-foreground"
+            }`}
+          >
+            <s.icon className="size-3.5" />
+            {s.label}
+          </div>
+        ))}
       </div>
     </PreviewFrame>
   );
@@ -953,10 +968,6 @@ function CartRecoveryPanel() {
               <div className="text-[11px] text-muted-foreground">1 ud. · negro</div>
             </div>
             <div className="text-sm font-semibold">$210.000</div>
-          </div>
-          <div className="mt-2.5 flex items-center justify-between border-t border-border pt-2.5 text-[11px]">
-            <span className="text-muted-foreground">Envío gratis · pago en 1 clic</span>
-            <span className="font-medium">Total $210.000</span>
           </div>
         </div>
 
