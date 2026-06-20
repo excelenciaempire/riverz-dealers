@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ interface UsageData {
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
@@ -107,12 +109,12 @@ export function WorkspacePanel() {
     setDeleting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? "No se pudo eliminar el espacio de trabajo");
+      toast.error(payload.error ?? t("settings.workspaceDeleteError"));
       return;
     }
-    toast.success("Espacio de trabajo eliminado");
+    toast.success(t("settings.workspaceDeleted"));
     window.location.href = "/ingresar";
-  }, [workspace, deleteConfirm, fetchWithCsrf]);
+  }, [workspace, deleteConfirm, fetchWithCsrf, t]);
 
   const handleRename = useCallback(async () => {
     if (!workspace) return;
@@ -128,9 +130,9 @@ export function WorkspacePanel() {
       toast.error(error.message);
       return;
     }
-    toast.success("Espacio de trabajo renombrado");
+    toast.success(t("settings.workspaceRenamed"));
     reload();
-  }, [workspace, name, reload]);
+  }, [workspace, name, reload, t]);
 
   const handleSaveTimezone = useCallback(async () => {
     if (!workspace) return;
@@ -149,9 +151,9 @@ export function WorkspacePanel() {
     // Prime the cache so the inbox + dashboard pick up the new zone on the
     // next navigation instead of flashing the old cached value.
     cacheWorkspaceTimezone(timezone);
-    toast.success("Zona horaria actualizada");
+    toast.success(t("settings.timezoneUpdated"));
     reload();
-  }, [workspace, timezone, reload]);
+  }, [workspace, timezone, reload, t]);
 
   const handleInvite = useCallback(async () => {
     if (!workspace || !inviteEmail.trim()) return;
@@ -168,13 +170,13 @@ export function WorkspacePanel() {
     setInviting(false);
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? "No se pudo enviar la invitación");
+      toast.error(payload.error ?? t("settings.inviteError"));
       return;
     }
-    toast.success(`Invitación enviada a ${inviteEmail}`);
+    toast.success(t("settings.inviteSent", { email: inviteEmail }));
     setInviteEmail("");
     await fetchMembersAndInvites();
-  }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites, fetchWithCsrf]);
+  }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites, fetchWithCsrf, t]);
 
   const handleRemoveMember = useCallback(
     async (id: string) => {
@@ -184,10 +186,10 @@ export function WorkspacePanel() {
         toast.error(error.message);
         return;
       }
-      toast.success("Miembro eliminado");
+      toast.success(t("settings.memberRemoved"));
       await fetchMembersAndInvites();
     },
-    [fetchMembersAndInvites],
+    [fetchMembersAndInvites, t],
   );
 
   const handleChangeRole = useCallback(
@@ -223,7 +225,7 @@ export function WorkspacePanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        Sin espacio de trabajo. Vuelve a iniciar sesión.
+        {t("settings.noWorkspace")}
       </div>
     );
   }
@@ -234,11 +236,11 @@ export function WorkspacePanel() {
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
           <Building2 className="size-5 text-accent-ink" />
-          <h2 className="text-base font-semibold text-foreground">Espacio de trabajo</h2>
+          <h2 className="text-base font-semibold text-foreground">{t("settings.workspace")}</h2>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Nombre</Label>
+            <Label className="text-xs text-muted-foreground">{t("settings.nameLabel")}</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -252,7 +254,7 @@ export function WorkspacePanel() {
               disabled={saving || !name.trim() || name === workspace.name}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : "Guardar"}
+              {saving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
             </Button>
           )}
         </div>
@@ -264,7 +266,7 @@ export function WorkspacePanel() {
           <div className="space-y-1.5">
             <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Clock className="size-3.5" />
-              Zona horaria
+              {t("settings.timezoneLabel")}
             </Label>
             <select
               value={timezone}
@@ -288,20 +290,19 @@ export function WorkspacePanel() {
               }
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {savingTz ? <Loader2 className="size-4 animate-spin" /> : "Guardar"}
+              {savingTz ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
             </Button>
           )}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Rige el día de todas las métricas y las horas que se muestran en la
-          bandeja, para todo el equipo.
+          {t("settings.timezoneHint")}
         </p>
       </section>
 
       {/* Members card */}
       <section className="rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">
-          <h2 className="text-base font-semibold text-foreground">Miembros del equipo</h2>
+          <h2 className="text-base font-semibold text-foreground">{t("settings.teamMembers")}</h2>
         </div>
         <ul className="divide-y divide-border">
           {members.map((m) => {
@@ -315,8 +316,8 @@ export function WorkspacePanel() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">
-                    {user?.full_name ?? user?.email ?? "Pendiente"}
-                    {isYou && <span className="ml-2 text-xs text-muted-foreground">(tú)</span>}
+                    {user?.full_name ?? user?.email ?? t("settings.memberPending")}
+                    {isYou && <span className="ml-2 text-xs text-muted-foreground">{t("settings.memberYou")}</span>}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                 </div>
@@ -326,20 +327,20 @@ export function WorkspacePanel() {
                     onChange={(e) => handleChangeRole(m.id, e.target.value as "admin" | "agent")}
                     className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
                   >
-                    <option value="admin">Administrador</option>
-                    <option value="agent">Agente</option>
+                    <option value="admin">{t("settings.roleAdmin")}</option>
+                    <option value="agent">{t("settings.roleAgent")}</option>
                   </select>
                 ) : (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     {m.role === "admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
-                    {m.role === "admin" ? "Administrador" : "Agente"}
+                    {m.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent")}
                   </span>
                 )}
                 {isAdmin && (
                   <button
                     onClick={() => handleRemoveMember(m.id)}
                     className="ml-2 rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
-                    aria-label="Eliminar miembro"
+                    aria-label={t("settings.removeMember")}
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -354,13 +355,13 @@ export function WorkspacePanel() {
           <div className="border-t border-border px-5 py-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <UserPlus className="size-4 text-accent-ink" />
-              Invitar
+              {t("settings.invite")}
             </h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Input
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="compañero@email.com"
+                placeholder={t("settings.invitePlaceholder")}
                 className="bg-muted text-foreground"
               />
               <select
@@ -368,15 +369,15 @@ export function WorkspacePanel() {
                 onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
                 className="rounded-md border border-border bg-muted px-2 text-sm text-foreground"
               >
-                <option value="agent">Agente</option>
-                <option value="admin">Administrador</option>
+                <option value="agent">{t("settings.roleAgent")}</option>
+                <option value="admin">{t("settings.roleAdmin")}</option>
               </select>
               <Button
                 onClick={handleInvite}
                 disabled={inviting || !inviteEmail.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Enviar"}
+                {inviting ? <Loader2 className="size-4 animate-spin" /> : t("settings.send")}
               </Button>
             </div>
           </div>
@@ -387,12 +388,12 @@ export function WorkspacePanel() {
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
           <Activity className="size-5 text-accent-ink" />
-          <h2 className="text-base font-semibold text-foreground">Uso del mes</h2>
+          <h2 className="text-base font-semibold text-foreground">{t("settings.monthlyUsage")}</h2>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-border bg-muted/30 p-4">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Mensajes enviados
+              {t("settings.messagesSent")}
             </p>
             <p className="mt-1 text-2xl font-semibold text-foreground">
               {usage ? usage.messages_sent.toLocaleString("es-ES") : "—"}
@@ -400,7 +401,7 @@ export function WorkspacePanel() {
           </div>
           <div className="rounded-lg border border-border bg-muted/30 p-4">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Respuestas de IA
+              {t("settings.aiReplies")}
             </p>
             <p className="mt-1 text-2xl font-semibold text-foreground">
               {usage ? usage.ai_replies.toLocaleString("es-ES") : "—"}
@@ -408,8 +409,7 @@ export function WorkspacePanel() {
           </div>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Contadores del mes calendario actual, según la zona horaria del
-          espacio de trabajo.
+          {t("settings.usageHint")}
         </p>
       </section>
 
@@ -417,7 +417,7 @@ export function WorkspacePanel() {
       {invites.length > 0 && (
         <section className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4">
-            <h2 className="text-base font-semibold text-foreground">Invitaciones pendientes</h2>
+            <h2 className="text-base font-semibold text-foreground">{t("settings.pendingInvites")}</h2>
           </div>
           <ul className="divide-y divide-border">
             {invites.map((inv) => (
@@ -426,14 +426,17 @@ export function WorkspacePanel() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-foreground">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    Rol: {inv.role === "admin" ? "Administrador" : "Agente"} · expira el {new Date(inv.expires_at).toLocaleDateString('es-ES')}
+                    {t("settings.inviteRoleExpires", {
+                      role: inv.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent"),
+                      date: new Date(inv.expires_at).toLocaleDateString('es-ES'),
+                    })}
                   </p>
                 </div>
                 {isAdmin && (
                   <button
                     onClick={() => handleRevokeInvite(inv.id)}
                     className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
-                    aria-label="Revocar invitación"
+                    aria-label={t("settings.revokeInvite")}
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -450,18 +453,17 @@ export function WorkspacePanel() {
           <div className="flex items-center gap-3">
             <AlertTriangle className="size-5 text-red-500" />
             <h2 className="text-base font-semibold text-foreground">
-              Eliminar workspace permanentemente
+              {t("settings.deleteWorkspacePermanently")}
             </h2>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            El espacio se ocultará de inmediato para todo el equipo. La
-            depuración real de datos personales corre como un proceso aparte.
+            {t("settings.deleteWorkspaceWarning")}
           </p>
           <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
             <Input
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder={`Escribe "${workspace.name}" para confirmar`}
+              placeholder={t("settings.deleteWorkspaceConfirmPlaceholder", { name: workspace.name })}
               className="bg-card text-foreground"
             />
             <Button
@@ -472,7 +474,7 @@ export function WorkspacePanel() {
               {deleting ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                "Eliminar workspace"
+                t("settings.deleteWorkspace")
               )}
             </Button>
           </div>

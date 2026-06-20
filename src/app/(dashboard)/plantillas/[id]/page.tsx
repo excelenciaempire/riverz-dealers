@@ -12,26 +12,31 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 import type { MessageTemplate, Broadcast } from '@/types';
 
 /**
  * Detail de una plantilla — preview del mensaje + datos de aprobación +
  * dónde se está usando (qué campañas la referencian).
+ *
+ * CATEGORY_KEYS / STATUS_KEYS map a DB value to its i18n key, resolved with
+ * t() at render time.
  */
-const CATEGORY_LABELS: Record<string, string> = {
-  Marketing: 'Marketing',
-  Utility: 'Utilidad',
-  Authentication: 'Autenticación',
+const CATEGORY_KEYS: Record<string, string> = {
+  Marketing: 'templates.categoryMarketing',
+  Utility: 'templates.categoryUtility',
+  Authentication: 'templates.categoryAuthentication',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  Draft: 'Borrador',
-  Pending: 'Pendiente',
-  Approved: 'Aprobada',
-  Rejected: 'Rechazada',
+const STATUS_KEYS: Record<string, string> = {
+  Draft: 'templates.statusDraft',
+  Pending: 'templates.statusPending',
+  Approved: 'templates.statusApproved',
+  Rejected: 'templates.statusRejected',
 };
 
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, t }: { status: string; t: TFn }) {
   const tone =
     status === 'Approved'
       ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
@@ -47,7 +52,7 @@ function StatusPill({ status }: { status: string }) {
         tone,
       )}
     >
-      {STATUS_LABELS[status] ?? status}
+      {STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status}
     </span>
   );
 }
@@ -56,6 +61,7 @@ export default function TemplateDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const templateId = params.id;
+  const t = useT();
 
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
   const [usedIn, setUsedIn] = useState<Broadcast[]>([]);
@@ -75,7 +81,7 @@ export default function TemplateDetailPage() {
           .maybeSingle();
         if (err) throw err;
         if (!data) {
-          setError('Plantilla no encontrada');
+          setError(t('templates.templateNotFound'));
         } else {
           setTemplate(data as MessageTemplate);
           // Campañas que usan esta plantilla por nombre
@@ -92,12 +98,13 @@ export default function TemplateDetailPage() {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error');
+        setError(err instanceof Error ? err.message : t('templates.genericError'));
       } finally {
         setLoading(false);
       }
     }
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId]);
 
   async function handleDelete() {
@@ -113,10 +120,10 @@ export default function TemplateDetailPage() {
         .delete()
         .eq('id', template.id);
       if (delErr) throw delErr;
-      toast.success('Plantilla eliminada');
+      toast.success(t('templates.templateDeleted'));
       router.push('/plantillas');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar');
+      toast.error(err instanceof Error ? err.message : t('templates.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -132,9 +139,9 @@ export default function TemplateDetailPage() {
   if (error || !template) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-500">{error ?? 'Plantilla no encontrada'}</p>
+        <p className="text-sm text-red-500">{error ?? t('templates.templateNotFound')}</p>
         <Button variant="outline" onClick={() => router.push('/plantillas')}>
-          Volver
+          {t('templates.back')}
         </Button>
       </div>
     );
@@ -167,7 +174,7 @@ export default function TemplateDetailPage() {
         <span
           key={i}
           className="rounded bg-emerald-100 px-1 font-medium text-emerald-900"
-          title={`Variable {{${m[1]}}}`}
+          title={t('templates.variableTitle', { n: m[1] })}
         >
           {sample || `{{${m[1]}}}`}
         </span>
@@ -184,26 +191,30 @@ export default function TemplateDetailPage() {
             size="icon"
             onClick={() => router.push('/plantillas')}
             className="size-10 sm:size-8 border-border"
-            aria-label="Volver"
+            aria-label={t('templates.back')}
           >
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Plantilla de WhatsApp</p>
+            <p className="text-xs text-muted-foreground">{t('templates.whatsappTemplate')}</p>
             <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
               {template.name}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>
-                {CATEGORY_LABELS[template.category] ?? template.category}
+                {CATEGORY_KEYS[template.category]
+                  ? t(CATEGORY_KEYS[template.category])
+                  : template.category}
               </span>
               <span>·</span>
               <span className="uppercase">{template.language ?? 'es'}</span>
               <span>·</span>
-              <StatusPill status={template.status || 'Draft'} />
+              <StatusPill status={template.status || 'Draft'} t={t} />
               <span>·</span>
               <span>
-                Creada el {new Date(template.created_at).toLocaleDateString('es-ES')}
+                {t('templates.createdOn', {
+                  date: new Date(template.created_at).toLocaleDateString('es-ES'),
+                })}
               </span>
             </div>
           </div>
@@ -216,7 +227,7 @@ export default function TemplateDetailPage() {
           className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
         >
           <Trash2 className="size-3.5" />
-          Eliminar
+          {t('templates.delete')}
         </Button>
       </div>
 
@@ -225,12 +236,12 @@ export default function TemplateDetailPage() {
         {/* Vista previa del mensaje */}
         <div className="rounded-lg border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-foreground">
-            Vista previa
+            {t('templates.preview')}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {samples.length > 0
-              ? 'Los valores resaltados son ejemplos; se reemplazan al enviar.'
-              : `Los {{n}} se reemplazan al enviar.`}
+              ? t('templates.previewHintWithSamples')
+              : t('templates.previewHintNoSamples')}
           </p>
 
           <div
@@ -263,7 +274,7 @@ export default function TemplateDetailPage() {
           {varNums.length > 0 && (
             <div className="mt-4">
               <p className="text-xs text-muted-foreground">
-                Qué reemplaza cada variable:
+                {t('templates.whatEachVariableReplaces')}
               </p>
               <div className="mt-1.5 space-y-1">
                 {varNums.map((n) => {
@@ -275,9 +286,7 @@ export default function TemplateDetailPage() {
                       </span>
                       <span className="text-muted-foreground">→</span>
                       <span className="text-foreground">
-                        {sample
-                          ? sample
-                          : 'valor dinámico (define un ejemplo al crearla)'}
+                        {sample ? sample : t('templates.dynamicValueHint')}
                       </span>
                     </div>
                   );
@@ -291,31 +300,14 @@ export default function TemplateDetailPage() {
         <div className="space-y-3">
           <div className="rounded-lg border border-border bg-card p-4">
             <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
-              Aprobación de Meta
+              {t('templates.metaApproval')}
             </h3>
             <p className="mt-2 text-sm text-foreground">
-              {template.status === 'Approved' && (
-                <>
-                  Aprobada. Puedes usarla en campañas masivas y mensajes
-                  fuera de la ventana de 24h.
-                </>
-              )}
-              {template.status === 'Pending' && (
-                <>Pendiente de revisión por Meta. Suele tardar entre 5 min y 24h.</>
-              )}
-              {template.status === 'Rejected' && (
-                <>
-                  Rechazada por Meta. Revisa las reglas de plantillas
-                  (no promesas exageradas, no contenido restringido) y vuelve
-                  a enviarla.
-                </>
-              )}
-              {(!template.status || template.status === 'Draft') && (
-                <>
-                  Es un borrador. Envíala a aprobar desde Meta para poder
-                  usarla en envíos masivos.
-                </>
-              )}
+              {template.status === 'Approved' && t('templates.approvalApproved')}
+              {template.status === 'Pending' && t('templates.approvalPending')}
+              {template.status === 'Rejected' && t('templates.approvalRejected')}
+              {(!template.status || template.status === 'Draft') &&
+                t('templates.approvalDraft')}
             </p>
             <a
               href="https://business.facebook.com/wa/manage/message-templates/"
@@ -323,7 +315,7 @@ export default function TemplateDetailPage() {
               rel="noreferrer"
               className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground hover:text-accent-ink"
             >
-              Ver en Meta Business
+              {t('templates.viewInMetaBusiness')}
               <ExternalLink className="size-3" />
             </a>
           </div>
@@ -331,7 +323,7 @@ export default function TemplateDetailPage() {
           {usedIn.length > 0 && (
             <div className="rounded-lg border border-border bg-card p-4">
               <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
-                Usada en
+                {t('templates.usedIn')}
               </h3>
               <ul className="mt-2 space-y-1.5">
                 {usedIn.map((bc) => (

@@ -1,14 +1,16 @@
 import { RequiresConnection } from '@/components/common/requires-connection';
+import { getT } from '@/lib/i18n/server';
 
-export default function TemplatesLayout({
+export default async function TemplatesLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getT();
   return (
     <RequiresConnection
-      title="Conecta WhatsApp para gestionar plantillas"
-      description="Las plantillas se envían a Meta para su aprobación."
+      title={t('templates.connectToManage')}
+      description={t('templates.connectDescription')}
     >
       {children}
     </RequiresConnection>

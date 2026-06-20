@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 
 interface ShopifyConnection {
   shop_domain: string;
@@ -22,6 +23,7 @@ interface ShopifyConnection {
  */
 export function ShopifyCard() {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
@@ -33,9 +35,10 @@ export function ShopifyCard() {
     void load();
     const params = new URLSearchParams(window.location.search);
     const result = params.get('shopify');
-    if (result === 'connected') toast.success('Shopify conectado');
+    if (result === 'connected') toast.success(t('settings.shopifyConnected'));
     else if (result === 'error')
-      toast.error(`No se pudo conectar Shopify (${params.get('reason') ?? 'error'})`);
+      toast.error(t('settings.shopifyConnectError', { reason: params.get('reason') ?? 'error' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function load() {
@@ -55,22 +58,22 @@ export function ShopifyCard() {
   function handleConnect() {
     const trimmed = shop.trim();
     if (!trimmed) {
-      toast.error('Falta el dominio de la tienda.');
+      toast.error(t('settings.shopifyMissingDomain'));
       return;
     }
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
   }
 
   async function handleDisconnect() {
-    if (!confirm('¿Desconectar Shopify?')) return;
+    if (!confirm(t('settings.shopifyDisconnectConfirm'))) return;
     setDisconnecting(true);
     try {
       const res = await fetchWithCsrf('/api/shopify/status', { method: 'DELETE' });
       if (!res.ok) throw new Error('failed');
-      toast.success('Shopify desconectado');
+      toast.success(t('settings.shopifyDisconnected'));
       setConnection(null);
     } catch {
-      toast.error('No se pudo desconectar');
+      toast.error(t('settings.disconnectError'));
     } finally {
       setDisconnecting(false);
     }
@@ -94,7 +97,7 @@ export function ShopifyCard() {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">Shopify</p>
           <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-            Disparadores de carrito abandonado y pedidos hacia WhatsApp.
+            {t('settings.shopifyDescription')}
           </p>
         </div>
       </div>
@@ -105,7 +108,7 @@ export function ShopifyCard() {
         </div>
       ) : !configured ? (
         <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-          Faltan credenciales SHOPIFY_API_KEY / SHOPIFY_API_SECRET en el servidor.
+          {t('settings.shopifyMissingCredentials')}
         </p>
       ) : isConnected ? (
         <ul className="space-y-1">
@@ -117,7 +120,7 @@ export function ShopifyCard() {
             <button
               onClick={handleDisconnect}
               disabled={disconnecting}
-              title="Desconectar"
+              title={t('settings.disconnect')}
               className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
             >
               {disconnecting ? (
@@ -135,7 +138,7 @@ export function ShopifyCard() {
           {showInput ? (
             <>
               <Input
-                placeholder="tu-tienda.myshopify.com"
+                placeholder={t('settings.shopifyDomainPlaceholder')}
                 value={shop}
                 onChange={(e) => setShop(e.target.value)}
                 className="bg-background text-sm"
@@ -145,13 +148,13 @@ export function ShopifyCard() {
                   onClick={handleConnect}
                   className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                 >
-                  Conectar
+                  {t('common.connect')}
                 </button>
                 <button
                   onClick={() => setShowInput(false)}
                   className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             </>
@@ -166,7 +169,7 @@ export function ShopifyCard() {
               )}
             >
               <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
-              {isConnected ? 'Añadir otra tienda' : 'Conectar'}
+              {isConnected ? t('settings.addAnotherStore') : t('common.connect')}
             </button>
           )}
         </div>
@@ -174,7 +177,7 @@ export function ShopifyCard() {
       {!configured && (
         <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           <AlertCircle className="size-3.5" />
-          Faltan credenciales
+          {t('settings.missingCredentials')}
         </div>
       )}
     </li>

@@ -8,6 +8,8 @@ import { Loader2, Plus, RefreshCw, Trash2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useAuth } from '@/hooks/use-auth';
+import { useT } from '@/hooks/use-locale';
+import type { TFn } from '@/lib/i18n/translate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,17 +23,19 @@ import {
 import { cn } from '@/lib/utils';
 import type { MessageTemplate } from '@/types';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  Marketing: 'Marketing',
-  Utility: 'Utilidad',
-  Authentication: 'Autenticación',
+// Maps a DB category / status value to its i18n key. Resolved with t() at
+// render time so the visible label follows the active UI language.
+const CATEGORY_KEYS: Record<string, string> = {
+  Marketing: 'templates.categoryMarketing',
+  Utility: 'templates.categoryUtility',
+  Authentication: 'templates.categoryAuthentication',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  Draft: 'Borrador',
-  Pending: 'Pendiente',
-  Approved: 'Aprobada',
-  Rejected: 'Rechazada',
+const STATUS_KEYS: Record<string, string> = {
+  Draft: 'templates.statusDraft',
+  Pending: 'templates.statusPending',
+  Approved: 'templates.statusApproved',
+  Rejected: 'templates.statusRejected',
 };
 
 /**
@@ -39,7 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
  * Approved (verde sutil) and Rejected (rojo sutil). Borrador y Pendiente
  * quedan neutros para reducir ruido cromático.
  */
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, t }: { status: string; t: TFn }) {
   const tone =
     status === 'Approved'
       ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
@@ -55,7 +59,7 @@ function StatusPill({ status }: { status: string }) {
         tone,
       )}
     >
-      {STATUS_LABELS[status] ?? status}
+      {STATUS_KEYS[status] ? t(STATUS_KEYS[status]) : status}
     </span>
   );
 }
@@ -70,6 +74,7 @@ export default function TemplatesPage() {
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const { user, loading: authLoading } = useAuth();
+  const t = useT();
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -98,7 +103,7 @@ export default function TemplatesPage() {
       setTemplates(data || []);
     } catch (err) {
       console.error('Failed to fetch templates:', err);
-      toast.error('No se cargaron las plantillas');
+      toast.error(t('templates.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -110,13 +115,18 @@ export default function TemplatesPage() {
     try {
       const res = await fetchWithCsrf('/api/whatsapp/templates/sync', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Sincronización fallida');
+      if (!res.ok) throw new Error(data?.error || t('templates.syncFailedDefault'));
       toast.success(
-        `${data.total} plantilla${data.total === 1 ? '' : 's'} sincronizada${data.total === 1 ? '' : 's'} desde Meta`,
+        t(
+          data.total === 1
+            ? 'templates.syncedFromMetaSingular'
+            : 'templates.syncedFromMetaPlural',
+          { count: data.total },
+        ),
       );
       await fetchTemplates(user.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo sincronizar');
+      toast.error(err instanceof Error ? err.message : t('templates.syncCouldNot'));
     } finally {
       setSyncing(false);
     }
@@ -129,10 +139,10 @@ export default function TemplatesPage() {
         .delete()
         .eq('id', id);
       if (error) throw error;
-      toast.success('Plantilla eliminada');
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      toast.success(t('templates.templateDeleted'));
+      setTemplates((prev) => prev.filter((tpl) => tpl.id !== id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar');
+      toast.error(err instanceof Error ? err.message : t('templates.deleteFailed'));
     }
   }
 
@@ -141,10 +151,10 @@ export default function TemplatesPage() {
     if (!query.trim()) return rows;
     const q = query.trim().toLowerCase();
     return rows.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        (t.body_text ?? '').toLowerCase().includes(q) ||
-        (t.category ?? '').toLowerCase().includes(q),
+      (tpl) =>
+        tpl.name.toLowerCase().includes(q) ||
+        (tpl.body_text ?? '').toLowerCase().includes(q) ||
+        (tpl.category ?? '').toLowerCase().includes(q),
     );
   }, [rows, query]);
 
@@ -153,7 +163,7 @@ export default function TemplatesPage() {
       {/* ── Header + actions ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Plantillas de WhatsApp
+          {t('templates.whatsappTemplates')}
         </h1>
         <div className="flex items-center gap-2">
           <Button
@@ -163,14 +173,14 @@ export default function TemplatesPage() {
             className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
           >
             <RefreshCw className={cn('size-4', syncing && 'animate-spin')} />
-            {syncing ? 'Sincronizando…' : 'Sincronizar'}
+            {syncing ? t('templates.syncing') : t('templates.sync')}
           </Button>
           <Button
             render={<Link href="/plantillas/nueva" />}
             className="h-9 bg-foreground text-background hover:bg-foreground/90"
           >
             <Plus className="size-4" />
-            Nueva plantilla
+            {t('templates.newTemplate')}
           </Button>
         </div>
       </div>
@@ -182,9 +192,9 @@ export default function TemplatesPage() {
         </div>
       ) : templates.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card/40 py-16 text-center">
-          <p className="text-sm font-medium text-foreground">Todavía no tienes plantillas</p>
+          <p className="text-sm font-medium text-foreground">{t('templates.emptyTitle')}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Crea una nueva o sincronízalas desde Meta.
+            {t('templates.emptyDescription')}
           </p>
         </div>
       ) : (
@@ -194,7 +204,7 @@ export default function TemplatesPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar plantilla…"
+              placeholder={t('templates.searchPlaceholder')}
               className="h-9 pl-8"
             />
           </div>
@@ -203,19 +213,19 @@ export default function TemplatesPage() {
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Nombre
+                  {t('templates.columnName')}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Categoría
+                  {t('templates.columnCategory')}
                 </TableHead>
                 <TableHead className="hidden text-xs font-medium text-muted-foreground md:table-cell">
-                  Mensaje
+                  {t('templates.columnMessage')}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Estado
+                  {t('templates.columnStatus')}
                 </TableHead>
                 <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell">
-                  Actualizada
+                  {t('templates.columnUpdated')}
                 </TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -227,7 +237,7 @@ export default function TemplatesPage() {
                     colSpan={6}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
-                    No encontramos plantillas que coincidan con “{query}”.
+                    {t('templates.noMatches', { query })}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -242,13 +252,15 @@ export default function TemplatesPage() {
                         {template.name}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {CATEGORY_LABELS[template.category] ?? template.category}
+                        {CATEGORY_KEYS[template.category]
+                          ? t(CATEGORY_KEYS[template.category])
+                          : template.category}
                       </TableCell>
                       <TableCell className="hidden max-w-[420px] truncate text-sm text-muted-foreground md:table-cell">
                         {template.body_text}
                       </TableCell>
                       <TableCell>
-                        <StatusPill status={template.status || 'Draft'} />
+                        <StatusPill status={template.status || 'Draft'} t={t} />
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
                         {formatRelative(template.created_at)}
@@ -262,7 +274,7 @@ export default function TemplatesPage() {
                           size="icon"
                           onClick={() => handleDelete(template.id)}
                           className="min-h-10 min-w-10 sm:h-8 sm:w-8 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-                          aria-label="Eliminar plantilla"
+                          aria-label={t('templates.deleteTemplateAria')}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>

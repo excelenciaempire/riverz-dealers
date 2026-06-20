@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,6 +59,7 @@ export function MetaBusinessLogin({
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
 
   // Held between the discovery (list_only) call and the persist call so the
   // picker can connect the chosen accounts without re-running FB.login.
@@ -123,20 +125,20 @@ export function MetaBusinessLogin({
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
-          toast.error(j.error || "No se pudo conectar");
+          toast.error(j.error || t("settings.metaConnectError"));
           return;
         }
-        toast.success(`Conectado: ${j.saved ?? 0} cuenta(s)`);
+        toast.success(t("settings.metaConnectedAccounts", { n: j.saved ?? 0 }));
         setPickerOpen(false);
         setCred(null);
         onConnected();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error de red");
+        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, channel, onConnected, fetchWithCsrf],
+    [workspaceId, channel, onConnected, fetchWithCsrf, t],
   );
 
   // Step 1: discover the accounts the token can manage (no persistence).
@@ -160,12 +162,12 @@ export function MetaBusinessLogin({
           error?: string;
         };
         if (!r.ok) {
-          toast.error(j.error || "No se pudo conectar");
+          toast.error(j.error || t("settings.metaConnectError"));
           return;
         }
         const found = j.accounts ?? [];
         if (found.length === 0) {
-          toast.error("No se encontraron cuentas para conectar");
+          toast.error(t("settings.metaNoAccounts"));
           return;
         }
         if (found.length === 1) {
@@ -177,12 +179,12 @@ export function MetaBusinessLogin({
         setChecked(new Set(found.map((a) => a.id)));
         setPickerOpen(true);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error de red");
+        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, channel, fetchWithCsrf, persist],
+    [workspaceId, channel, fetchWithCsrf, persist, t],
   );
 
   const launch = useCallback(() => {
@@ -203,11 +205,11 @@ export function MetaBusinessLogin({
         const code = ar?.code;
         if (token) void discover({ access_token: token });
         else if (code) void discover({ code });
-        else toast.error("Conexión cancelada");
+        else toast.error(t("settings.metaConnectionCancelled"));
       },
       { config_id: CONFIG_ID },
     );
-  }, [discover]);
+  }, [discover, t]);
 
   if (!APP_ID || !CONFIG_ID) return null;
 
@@ -231,7 +233,7 @@ export function MetaBusinessLogin({
         ) : (
           <ChannelLogo channel={logoChannel} size={16} />
         )}
-        {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+        {anyConnected ? t("settings.addAnotherAccount") : t("common.connect")}
       </button>
 
       <Dialog
@@ -244,9 +246,9 @@ export function MetaBusinessLogin({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Elige las cuentas a conectar</DialogTitle>
+            <DialogTitle>{t("settings.chooseAccountsToConnect")}</DialogTitle>
             <DialogDescription>
-              Selecciona qué cuentas quieres conectar a este espacio de trabajo.
+              {t("settings.chooseAccountsDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -275,7 +277,7 @@ export function MetaBusinessLogin({
               disabled={busy || checked.size === 0}
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
-              Conectar seleccionadas ({checked.size})
+              {t("settings.connectSelected", { n: checked.size })}
             </Button>
           </DialogFooter>
         </DialogContent>

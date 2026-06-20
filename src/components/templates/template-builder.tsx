@@ -44,78 +44,94 @@ import {
 } from '@/lib/whatsapp/template-validate';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 
+// Module-level option lists store i18n KEY strings; the visible label/hint
+// are resolved with t() at render time.
 const CATEGORIES: {
   value: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
 }[] = [
   {
     value: 'MARKETING',
-    label: 'Marketing',
-    hint: 'Promociones, novedades, ofertas y campañas. Requiere consentimiento del contacto.',
+    labelKey: 'templates.categoryMarketing',
+    hintKey: 'templates.categoryMarketingHint',
   },
   {
     value: 'UTILITY',
-    label: 'Utilidad',
-    hint: 'Mensajes operativos en respuesta a una acción: confirmaciones, envíos, recordatorios, recibos.',
+    labelKey: 'templates.categoryUtility',
+    hintKey: 'templates.categoryUtilityHint',
   },
   {
     value: 'AUTHENTICATION',
-    label: 'Autenticación',
-    hint: 'Códigos de verificación de un solo uso (OTP) para iniciar sesión o validar la identidad.',
+    labelKey: 'templates.categoryAuthentication',
+    hintKey: 'templates.categoryAuthenticationHint',
   },
 ];
 
-const HEADER_TYPES: { value: TemplateHeaderType; label: string }[] = [
-  { value: 'none', label: 'Sin encabezado' },
-  { value: 'text', label: 'Texto' },
+const HEADER_TYPES: { value: TemplateHeaderType; labelKey: string }[] = [
+  { value: 'none', labelKey: 'templates.headerNone' },
+  { value: 'text', labelKey: 'templates.headerTextOption' },
 ];
 
-const LANGUAGES: { code: string; label: string }[] = [
-  { code: 'es', label: 'Español' },
-  { code: 'es_AR', label: 'Español (Argentina)' },
-  { code: 'es_ES', label: 'Español (España)' },
-  { code: 'es_MX', label: 'Español (México)' },
-  { code: 'en', label: 'Inglés' },
-  { code: 'en_US', label: 'Inglés (EE. UU.)' },
-  { code: 'en_GB', label: 'Inglés (Reino Unido)' },
-  { code: 'pt_BR', label: 'Portugués (Brasil)' },
-  { code: 'pt_PT', label: 'Portugués (Portugal)' },
-  { code: 'fr', label: 'Francés' },
-  { code: 'de', label: 'Alemán' },
-  { code: 'it', label: 'Italiano' },
+const LANGUAGES: { code: string; labelKey: string }[] = [
+  { code: 'es', labelKey: 'templates.languageEs' },
+  { code: 'es_AR', labelKey: 'templates.languageEsAr' },
+  { code: 'es_ES', labelKey: 'templates.languageEsEs' },
+  { code: 'es_MX', labelKey: 'templates.languageEsMx' },
+  { code: 'en', labelKey: 'templates.languageEn' },
+  { code: 'en_US', labelKey: 'templates.languageEnUs' },
+  { code: 'en_GB', labelKey: 'templates.languageEnGb' },
+  { code: 'pt_BR', labelKey: 'templates.languagePtBr' },
+  { code: 'pt_PT', labelKey: 'templates.languagePtPt' },
+  { code: 'fr', labelKey: 'templates.languageFr' },
+  { code: 'de', labelKey: 'templates.languageDe' },
+  { code: 'it', labelKey: 'templates.languageIt' },
 ];
 
 const BUTTON_TYPES = [
   {
     value: 'QUICK_REPLY',
-    label: 'Respuesta rápida',
-    hint: 'Botón que envía un texto de vuelta cuando el contacto lo toca.',
+    labelKey: 'templates.buttonQuickReply',
+    hintKey: 'templates.buttonQuickReplyHint',
     Icon: Reply,
   },
   {
     value: 'URL',
-    label: 'Enlace (URL)',
-    hint: 'Abre una página web al tocarlo.',
+    labelKey: 'templates.buttonUrl',
+    hintKey: 'templates.buttonUrlHint',
     Icon: ExternalLink,
   },
   {
     value: 'PHONE_NUMBER',
-    label: 'Llamar por teléfono',
-    hint: 'Inicia una llamada al número que indiques.',
+    labelKey: 'templates.buttonPhone',
+    hintKey: 'templates.buttonPhoneHint',
     Icon: Phone,
   },
 ] as const;
 
-const LANGUAGE_LABELS = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.label]));
-const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map((c) => [c.value, c.label]));
-const HEADER_LABELS = Object.fromEntries(HEADER_TYPES.map((h) => [h.value, h.label]));
-const BUTTON_TYPE_LABELS = Object.fromEntries(BUTTON_TYPES.map((b) => [b.value, b.label]));
-
 export function TemplateBuilder() {
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
+
+  const languageLabels = useMemo(
+    () => Object.fromEntries(LANGUAGES.map((l) => [l.code, t(l.labelKey)])),
+    [t],
+  );
+  const categoryLabels = useMemo(
+    () => Object.fromEntries(CATEGORIES.map((c) => [c.value, t(c.labelKey)])),
+    [t],
+  );
+  const headerLabels = useMemo(
+    () => Object.fromEntries(HEADER_TYPES.map((h) => [h.value, t(h.labelKey)])),
+    [t],
+  );
+  const buttonTypeLabels = useMemo(
+    () => Object.fromEntries(BUTTON_TYPES.map((b) => [b.value, t(b.labelKey)])),
+    [t],
+  );
 
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('es');
@@ -201,16 +217,21 @@ export function TemplateBuilder() {
     setAttempted(true);
     if (blockers.length > 0) {
       toast.error(
-        `Corrige ${blockers.length} ${blockers.length === 1 ? 'error' : 'errores'} antes de enviar a Meta.`,
+        t('templates.fixErrorsBeforeSending', {
+          count: blockers.length,
+          errorWord: t(
+            blockers.length === 1 ? 'templates.errorSingular' : 'templates.errorPlural',
+          ),
+        }),
       );
       return;
     }
     if (!name.trim()) {
-      toast.error('Falta el nombre.');
+      toast.error(t('templates.missingName'));
       return;
     }
     if (!bodyText.trim()) {
-      toast.error('Falta el mensaje.');
+      toast.error(t('templates.missingMessage'));
       return;
     }
     setSubmitting(true);
@@ -231,11 +252,11 @@ export function TemplateBuilder() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'No se pudo crear la plantilla');
-      toast.success('Plantilla enviada');
+      if (!res.ok) throw new Error(data?.error || t('templates.createFailed'));
+      toast.success(t('templates.templateSent'));
       router.push('/plantillas');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo crear la plantilla');
+      toast.error(err instanceof Error ? err.message : t('templates.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -253,16 +274,16 @@ export function TemplateBuilder() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-semibold text-foreground">Nueva plantilla</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('templates.newTemplate')}</h1>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Form card */}
         <div className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="space-y-6 p-6">
-            <Field label="Nombre">
+            <Field label={t('templates.fieldName')}>
               <Input
-                placeholder="recordatorio_constancia"
+                placeholder={t('templates.namePlaceholder')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-background"
@@ -270,15 +291,15 @@ export function TemplateBuilder() {
             </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Idioma">
+              <Field label={t('templates.fieldLanguage')}>
                 <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
                   <SelectTrigger className="w-full bg-background">
-                    <SelectValue labels={LANGUAGE_LABELS} />
+                    <SelectValue labels={languageLabels} />
                   </SelectTrigger>
                   <SelectContent>
                     {LANGUAGES.map((l) => (
                       <SelectItem key={l.code} value={l.code}>
-                        {l.label}
+                        {t(l.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -288,12 +309,12 @@ export function TemplateBuilder() {
               <Field
                 label={
                   <span className="inline-flex items-center gap-1.5">
-                    Categoría
+                    {t('templates.fieldCategory')}
                     <TooltipProvider delay={150}>
                       <Tooltip>
                         <TooltipTrigger
                           type="button"
-                          aria-label="Qué significa cada categoría"
+                          aria-label={t('templates.categoryTooltip')}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           <Info className="size-3.5" />
@@ -301,7 +322,7 @@ export function TemplateBuilder() {
                         <TooltipContent className="max-w-xs space-y-1.5 text-xs">
                           {CATEGORIES.map((c) => (
                             <div key={c.value}>
-                              <span className="font-semibold">{c.label}:</span> {c.hint}
+                              <span className="font-semibold">{t(c.labelKey)}:</span> {t(c.hintKey)}
                             </div>
                           ))}
                         </TooltipContent>
@@ -317,12 +338,12 @@ export function TemplateBuilder() {
                   }
                 >
                   <SelectTrigger className="w-full bg-background">
-                    <SelectValue labels={CATEGORY_LABELS} />
+                    <SelectValue labels={categoryLabels} />
                   </SelectTrigger>
                   <SelectContent>
                     {CATEGORIES.map((c) => (
                       <SelectItem key={c.value} value={c.value}>
-                        {c.label}
+                        {t(c.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -330,18 +351,18 @@ export function TemplateBuilder() {
               </Field>
             </div>
 
-            <Field label="Encabezado">
+            <Field label={t('templates.fieldHeader')}>
               <Select
                 value={headerType}
                 onValueChange={(v) => setHeaderType(v as TemplateHeaderType)}
               >
                 <SelectTrigger className="w-full bg-background">
-                  <SelectValue labels={HEADER_LABELS} />
+                  <SelectValue labels={headerLabels} />
                 </SelectTrigger>
                 <SelectContent>
                   {HEADER_TYPES.map((h) => (
                     <SelectItem key={h.value} value={h.value}>
-                      {h.label}
+                      {t(h.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -359,18 +380,18 @@ export function TemplateBuilder() {
             {/* Message */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-foreground">Mensaje</Label>
+                <Label className="text-foreground">{t('templates.fieldMessage')}</Label>
                 <button
                   type="button"
                   onClick={insertVariable}
                   className="inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
                 >
                   <Plus className="size-3" />
-                  Añadir variable
+                  {t('templates.addVariable')}
                 </button>
               </div>
               <Textarea
-                placeholder="Escribe el mensaje. Usa {{1}}, {{2}} para datos variables."
+                placeholder={t('templates.messagePlaceholder')}
                 value={bodyText}
                 rows={10}
                 maxLength={1024}
@@ -391,7 +412,7 @@ export function TemplateBuilder() {
                         {`{{${v}}}`}
                       </span>
                       <Input
-                        placeholder="María"
+                        placeholder={t('templates.variableSamplePlaceholder')}
                         value={samples[v] ?? ''}
                         onChange={(e) =>
                           setSamples((prev) => ({ ...prev, [v]: e.target.value }))
@@ -404,9 +425,9 @@ export function TemplateBuilder() {
               </div>
             )}
 
-            <Field label="Pie">
+            <Field label={t('templates.fieldFooter')}>
               <Input
-                placeholder="Equipo Vitalú"
+                placeholder={t('templates.footerPlaceholder')}
                 value={footerText}
                 maxLength={60}
                 onChange={(e) => setFooterText(e.target.value)}
@@ -424,7 +445,7 @@ export function TemplateBuilder() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <MousePointerClick className="size-4 text-foreground" />
-                    <p className="text-sm font-semibold text-foreground">Botones</p>
+                    <p className="text-sm font-semibold text-foreground">{t('templates.buttonsLabel')}</p>
                   </div>
                 </div>
               </div>
@@ -445,7 +466,7 @@ export function TemplateBuilder() {
                       className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                     >
                       <Plus className="size-3.5" />
-                      Añadir botón
+                      {t('templates.addButton')}
                     </button>
                   )}
                 </div>
@@ -465,7 +486,7 @@ export function TemplateBuilder() {
               onClick={() => router.push('/plantillas')}
               className="w-full border-border text-foreground hover:bg-accent sm:w-auto"
             >
-              Cancelar
+              {t('templates.cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
@@ -474,10 +495,10 @@ export function TemplateBuilder() {
             >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Enviando…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t('templates.sending')}
                 </>
               ) : (
-                'Enviar a Meta'
+                t('templates.sendToMeta')
               )}
             </Button>
           </div>
@@ -537,6 +558,10 @@ function ButtonRow({
   onChange: (patch: Partial<TemplateButtonInput>) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
+  const buttonTypeLabels = Object.fromEntries(
+    BUTTON_TYPES.map((b) => [b.value, t(b.labelKey)]),
+  );
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
@@ -545,21 +570,21 @@ function ButtonRow({
           onValueChange={(v) => onChange({ type: v as TemplateButtonInput['type'] })}
         >
           <SelectTrigger className="w-full bg-background">
-            <SelectValue labels={BUTTON_TYPE_LABELS} />
+            <SelectValue labels={buttonTypeLabels} />
           </SelectTrigger>
           <SelectContent>
-            {BUTTON_TYPES.map((t) => (
-              <SelectItem key={t.value} value={t.value}>
+            {BUTTON_TYPES.map((bt) => (
+              <SelectItem key={bt.value} value={bt.value}>
                 <span className="inline-flex items-center gap-2">
-                  <t.Icon className="size-3.5 text-muted-foreground" />
-                  {t.label}
+                  <bt.Icon className="size-3.5 text-muted-foreground" />
+                  {t(bt.labelKey)}
                 </span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Input
-          placeholder="Texto del botón"
+          placeholder={t('templates.buttonTextPlaceholder')}
           value={button.text}
           maxLength={25}
           onChange={(e) => onChange({ text: e.target.value })}
@@ -569,7 +594,7 @@ function ButtonRow({
           variant="ghost"
           size="icon"
           onClick={onRemove}
-          aria-label="Quitar botón"
+          aria-label={t('templates.removeButton')}
           className="text-muted-foreground hover:text-red-400"
         >
           <X className="h-4 w-4" />
@@ -577,7 +602,7 @@ function ButtonRow({
       </div>
       {button.type === 'URL' && (
         <Input
-          placeholder="tu-pagina.com/oferta"
+          placeholder={t('templates.urlPlaceholder')}
           value={button.url ?? ''}
           onChange={(e) => onChange({ url: e.target.value })}
           // Auto-add https:// so the user never has to type the scheme.
@@ -587,7 +612,7 @@ function ButtonRow({
       )}
       {button.type === 'PHONE_NUMBER' && (
         <Input
-          placeholder="+57 300 000 0000"
+          placeholder={t('templates.phonePlaceholder')}
           value={button.phone_number ?? ''}
           onChange={(e) => onChange({ phone_number: e.target.value })}
           className="mt-2 bg-background"
@@ -598,6 +623,7 @@ function ButtonRow({
 }
 
 function TemplateIssuesPanel({ issues }: { issues: TemplateIssue[] }) {
+  const t = useT();
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
   return (
@@ -620,12 +646,27 @@ function TemplateIssuesPanel({ issues }: { issues: TemplateIssue[] }) {
         />
         <span className="font-medium text-foreground">
           {errors.length > 0
-            ? `${errors.length} error${errors.length === 1 ? '' : 'es'} bloquean el envío`
-            : `${warnings.length} sugerencia${warnings.length === 1 ? '' : 's'} antes de enviar`}
+            ? t(
+                errors.length === 1
+                  ? 'templates.errorsBlockSendingSingular'
+                  : 'templates.errorsBlockSendingPlural',
+                { count: errors.length },
+              )
+            : t(
+                warnings.length === 1
+                  ? 'templates.suggestionsBeforeSendingSingular'
+                  : 'templates.suggestionsBeforeSendingPlural',
+                { count: warnings.length },
+              )}
         </span>
         <span className="text-muted-foreground">
           {warnings.length > 0 && errors.length > 0 &&
-            ` y ${warnings.length} advertencia${warnings.length === 1 ? '' : 's'}`}
+            t(
+              warnings.length === 1
+                ? 'templates.andWarningsSingular'
+                : 'templates.andWarningsPlural',
+              { count: warnings.length },
+            )}
         </span>
       </div>
       <ul className="space-y-1">

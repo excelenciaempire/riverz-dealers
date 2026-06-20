@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { useT } from "@/hooks/use-locale";
 
 /**
  * WhatsApp Embedded Signup launcher. Opens Meta's official onboarding
@@ -45,6 +46,7 @@ export function WhatsAppEmbeddedSignup({
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   // Latched from the WA_EMBEDDED_SIGNUP message event — carries the
   // waba_id + phone_number_id Meta assigns during onboarding.
   const sessionInfo = useRef<{ waba_id?: string; phone_number_id?: string }>({});
@@ -95,7 +97,7 @@ export function WhatsAppEmbeddedSignup({
     async (code: string) => {
       const { waba_id, phone_number_id } = sessionInfo.current;
       if (!waba_id || !phone_number_id) {
-        toast.error("No se recibió la cuenta de WhatsApp.");
+        toast.error(t("settings.whatsappAccountNotReceived"));
         return;
       }
       setBusy(true);
@@ -107,22 +109,22 @@ export function WhatsAppEmbeddedSignup({
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
-          toast.error(j.error || "No se pudo conectar WhatsApp");
+          toast.error(j.error || t("settings.whatsappConnectError"));
           return;
         }
         toast.success(
           j.coexistence
-            ? `WhatsApp conectado en coexistencia: ${j.label}`
-            : `WhatsApp conectado: ${j.label}`,
+            ? t("settings.whatsappConnectedCoexistence", { label: j.label })
+            : t("settings.whatsappConnectedLabel", { label: j.label }),
         );
         onConnected();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error de red");
+        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, onConnected, fetchWithCsrf],
+    [workspaceId, onConnected, fetchWithCsrf, t],
   );
 
   const launch = useCallback(() => {
@@ -132,7 +134,7 @@ export function WhatsAppEmbeddedSignup({
       (resp) => {
         const code = resp.authResponse?.code;
         if (code) void finish(code);
-        else toast.error("Onboarding cancelado");
+        else toast.error(t("settings.whatsappOnboardingCancelled"));
       },
       {
         config_id: CONFIG_ID,
@@ -141,7 +143,7 @@ export function WhatsAppEmbeddedSignup({
         extras: { setup: {}, sessionInfoVersion: "3" },
       },
     );
-  }, [finish]);
+  }, [finish, t]);
 
   // Without the env config we can't launch the popup — render nothing
   // so the parent falls back to the manual-paste connect button.
@@ -158,7 +160,7 @@ export function WhatsAppEmbeddedSignup({
       ) : (
         <ChannelLogo channel="whatsapp" size={16} />
       )}
-      Conectar WhatsApp (oficial)
+      {t("settings.connectWhatsappOfficial")}
     </button>
   );
 }

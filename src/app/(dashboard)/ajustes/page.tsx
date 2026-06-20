@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Palette, Building2, Blocks, ArrowRight, GitBranch } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
@@ -25,6 +26,7 @@ function isTabValue(v: string | null): v is TabValue {
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useT();
 
   const queryTab = searchParams.get('tab');
   const tab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
@@ -40,13 +42,13 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Ajustes</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('settings.title')}</h1>
         <Link
           href="/integraciones"
           className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           <Blocks className="size-4" />
-          Integraciones
+          {t('settings.integrations')}
           <ArrowRight className="size-3.5" />
         </Link>
       </div>
@@ -58,28 +60,28 @@ export default function SettingsPage() {
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <User className="size-4" />
-            Perfil
+            {t('settings.tabProfile')}
           </TabsTrigger>
           <TabsTrigger
             value="workspace"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Building2 className="size-4" />
-            Equipo
+            {t('settings.tabWorkspace')}
           </TabsTrigger>
           <TabsTrigger
             value="rules"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <GitBranch className="size-4" />
-            Reglas
+            {t('settings.tabRules')}
           </TabsTrigger>
           <TabsTrigger
             value="appearance"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
             <Palette className="size-4" />
-            Apariencia
+            {t('settings.tabAppearance')}
           </TabsTrigger>
         </TabsList>
 

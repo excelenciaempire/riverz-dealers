@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Loader2, LogOut } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
+import { useT } from '@/hooks/use-locale';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,6 +23,7 @@ import {
 
 export function SessionsCard() {
   const supabase = createClient();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -38,7 +40,7 @@ export function SessionsCard() {
       }
       window.location.href = '/ingresar';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error';
+      const msg = err instanceof Error ? err.message : t('settings.genericError');
       toast.error(msg);
     } finally {
       setSigningOut(false);
@@ -51,7 +53,7 @@ export function SessionsCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <LogOut className="size-4 text-accent-ink" />
-            Sesiones activas
+            {t('settings.activeSessions')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -61,7 +63,7 @@ export function SessionsCard() {
             onClick={() => setOpen(true)}
           >
             <LogOut className="size-4" />
-            Cerrar sesión en todos los dispositivos
+            {t('settings.signOutAllDevices')}
           </Button>
         </CardContent>
       </Card>
@@ -69,7 +71,7 @@ export function SessionsCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Cerrar sesión en todos los dispositivos?</DialogTitle>
+            <DialogTitle>{t('settings.signOutAllConfirm')}</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button
@@ -78,13 +80,13 @@ export function SessionsCard() {
               onClick={() => setOpen(false)}
               disabled={signingOut}
             >
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="button" onClick={onConfirm} disabled={signingOut}>
               {signingOut ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Cerrar sesión'
+                t('settings.signOut')
               )}
             </Button>
           </DialogFooter>

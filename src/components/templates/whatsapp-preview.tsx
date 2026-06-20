@@ -1,6 +1,7 @@
 'use client';
 
 import { FileText, Image as ImageIcon, Video, Reply, ExternalLink, Phone } from 'lucide-react';
+import { useT } from '@/hooks/use-locale';
 import type {
   TemplateHeaderType,
   TemplateButtonInput,
@@ -34,6 +35,7 @@ export function WhatsappPreview({
   footerText,
   buttons,
 }: WhatsappPreviewProps) {
+  const t = useT();
   const activeButtons = (buttons ?? []).filter((b) => b.text?.trim());
 
   return (
@@ -43,7 +45,7 @@ export function WhatsappPreview({
         {/* Chat header */}
         <div className="flex items-center gap-2 bg-[#075e54] px-4 py-3">
           <div className="h-8 w-8 rounded-full bg-white/20" />
-          <div className="text-sm font-medium text-white">Tu negocio</div>
+          <div className="text-sm font-medium text-white">{t('templates.yourBusiness')}</div>
         </div>
 
         {/* Canvas */}
@@ -75,7 +77,7 @@ export function WhatsappPreview({
             {/* Body */}
             <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-[#111b21]">
               {bodyText.trim() || (
-                <span className="text-[#667781]">Tu mensaje aparece aquí…</span>
+                <span className="text-[#667781]">{t('templates.messageAppearsHere')}</span>
               )}
             </p>
 

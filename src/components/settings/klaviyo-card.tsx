@@ -6,6 +6,7 @@ import { Loader2, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 
 /**
  * Conectar Klaviyo (por workspace) para el sync de leads capturados por el
@@ -13,6 +14,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
  */
 export function KlaviyoCard() {
   const fetchWithCsrf = useFetchWithCsrf();
+  const t = useT();
   const [connected, setConnected] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export function KlaviyoCard() {
 
   async function save() {
     if (apiKey.trim().length < 10) {
-      toast.error('Pega una API key válida de Klaviyo.');
+      toast.error(t('settings.klaviyoInvalidKey'));
       return;
     }
     setSaving(true);
@@ -48,14 +50,14 @@ export function KlaviyoCard() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo conectar Klaviyo');
+        toast.error(json.error ?? t('settings.klaviyoConnectError'));
         return;
       }
       setConnected(true);
       setApiKey('');
-      toast.success('Klaviyo conectado');
+      toast.success(t('settings.klaviyoConnected'));
     } catch {
-      toast.error('Error de red');
+      toast.error(t('settings.networkError'));
     } finally {
       setSaving(false);
     }
@@ -68,13 +70,13 @@ export function KlaviyoCard() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        toast.error('No se pudo desconectar');
+        toast.error(t('settings.disconnectError'));
         return;
       }
       setConnected(false);
-      toast.success('Klaviyo desconectado');
+      toast.success(t('settings.klaviyoDisconnected'));
     } catch {
-      toast.error('Error de red');
+      toast.error(t('settings.networkError'));
     } finally {
       setSaving(false);
     }
@@ -86,14 +88,13 @@ export function KlaviyoCard() {
         <div>
           <p className="text-sm font-medium text-foreground">Klaviyo</p>
           <p className="text-xs text-muted-foreground">
-            Sincroniza los leads que captura el Agente de Instagram a tu lista de
-            email/SMS.
+            {t('settings.klaviyoDescription')}
           </p>
         </div>
         {connected && (
           <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
             <Check className="h-3 w-3" />
-            Conectado
+            {t('settings.connected')}
           </span>
         )}
       </div>
@@ -108,17 +109,17 @@ export function KlaviyoCard() {
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Reemplazar API key…"
+            placeholder={t('settings.replaceApiKeyPlaceholder')}
             className="max-w-xs min-w-0 flex-1"
           />
           <Button onClick={save} disabled={saving} variant="secondary">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t('settings.update')}
           </Button>
           <Button
             onClick={disconnect}
             disabled={saving}
             variant="ghost"
-            aria-label="Desconectar Klaviyo"
+            aria-label={t('settings.disconnectKlaviyo')}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -129,11 +130,11 @@ export function KlaviyoCard() {
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Klaviyo Private API key (pk_…)"
+            placeholder={t('settings.klaviyoApiKeyPlaceholder')}
             className="max-w-xs min-w-0 flex-1"
           />
           <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Conectar'}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.connect')}
           </Button>
         </div>
       )}

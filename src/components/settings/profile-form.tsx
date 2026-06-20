@@ -6,6 +6,7 @@ import { Loader2, Upload, Trash2, Mail } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useT } from '@/hooks/use-locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +38,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
   const supabase = createClient();
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState('');
@@ -74,11 +76,11 @@ export function ProfileForm() {
     if (!file) return;
 
     if (!ALLOWED_MIME.has(file.type)) {
-      toast.error('Usa PNG, JPG, WebP o GIF.');
+      toast.error(t('settings.avatarInvalidType'));
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('Máximo 2 MB.');
+      toast.error(t('settings.avatarTooLarge'));
       return;
     }
 
@@ -101,12 +103,12 @@ export function ProfileForm() {
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      toast.error('Falta el nombre.');
+      toast.error(t('settings.nameMissing'));
       return;
     }
     const trimmedEmail = email.trim();
     if (!EMAIL_RE.test(trimmedEmail)) {
-      toast.error('Correo inválido.');
+      toast.error(t('settings.emailInvalid'));
       return;
     }
 
@@ -127,7 +129,7 @@ export function ProfileForm() {
             contentType: pendingAvatar.type,
           });
         if (uploadError) {
-          throw new Error(`Falló la subida: ${uploadError.message}`);
+          throw new Error(t('settings.uploadFailed', { message: uploadError.message }));
         }
         const {
           data: { publicUrl },
@@ -147,7 +149,7 @@ export function ProfileForm() {
         })
         .eq('user_id', user.id);
       if (updateError) {
-        throw new Error(`No se pudo guardar: ${updateError.message}`);
+        throw new Error(t('settings.saveFailed', { message: updateError.message }));
       }
 
       // Email change goes through Supabase Auth, which emails a
@@ -162,8 +164,8 @@ export function ProfileForm() {
         });
         if (emailError) {
           // Partial success: name/avatar saved but email didn't.
-          toast.success('Guardado');
-          toast.error(`No se pudo cambiar el correo: ${emailError.message}`);
+          toast.success(t('common.saved'));
+          toast.error(t('settings.emailChangeFailed', { message: emailError.message }));
           setSaving(false);
           await refreshProfile();
           return;
@@ -179,11 +181,11 @@ export function ProfileForm() {
 
       toast.success(
         emailSent
-          ? 'Guardado — confirma el cambio de correo desde tu bandeja'
-          : 'Guardado',
+          ? t('settings.savedEmailConfirm')
+          : t('common.saved'),
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error';
+      const msg = err instanceof Error ? err.message : t('settings.genericError');
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -208,7 +210,7 @@ export function ProfileForm() {
   return (
     <Card className="bg-card/40 border-border">
       <CardHeader>
-        <CardTitle className="text-foreground">Perfil</CardTitle>
+        <CardTitle className="text-foreground">{t('settings.profileTitle')}</CardTitle>
       </CardHeader>
 
       <CardContent>
@@ -217,7 +219,7 @@ export function ProfileForm() {
           <div className="flex flex-wrap items-center gap-5">
             <Avatar size="lg" className="size-16">
               {currentAvatar ? (
-                <AvatarImage src={currentAvatar} alt={fullName || 'Avatar'} />
+                <AvatarImage src={currentAvatar} alt={fullName || t('settings.avatarAlt')} />
               ) : null}
               <AvatarFallback className="bg-primary/10 text-base text-accent-ink">
                 {initial}
@@ -239,7 +241,7 @@ export function ProfileForm() {
                 disabled={saving}
               >
                 <Upload className="size-4" />
-                {currentAvatar ? 'Cambiar foto' : 'Subir foto'}
+                {currentAvatar ? t('settings.changePhoto') : t('settings.uploadPhoto')}
               </Button>
               {currentAvatar && (
                 <Button
@@ -250,7 +252,7 @@ export function ProfileForm() {
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <Trash2 className="size-4" />
-                  Quitar
+                  {t('common.remove')}
                 </Button>
               )}
             </div>
@@ -259,7 +261,7 @@ export function ProfileForm() {
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="profile-full-name" className="text-foreground">
-              Nombre para mostrar
+              {t('settings.displayName')}
             </Label>
             <Input
               id="profile-full-name"
@@ -274,7 +276,7 @@ export function ProfileForm() {
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="profile-email" className="text-foreground">
-              Correo
+              {t('settings.emailLabel')}
             </Label>
             <Input
               id="profile-email"
@@ -288,9 +290,10 @@ export function ProfileForm() {
               <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <Mail className="mt-0.5 size-3.5 shrink-0" />
                 <span>
-                  Revisa la bandeja de <strong>{profile?.email}</strong> y{' '}
-                  <strong>{email}</strong> — ambos deben confirmar antes de que
-                  el cambio tenga efecto.
+                  {t('settings.emailChangePendingNotice', {
+                    oldEmail: profile?.email ?? '',
+                    newEmail: email,
+                  })}
                 </span>
               </p>
             )}
@@ -299,21 +302,21 @@ export function ProfileForm() {
           {/* Read-only block */}
           <div className="rounded-lg border border-border bg-card/60 p-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Datos de la cuenta
+              {t('settings.accountData')}
             </p>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted-foreground">Rol</dt>
+                <dt className="text-muted-foreground">{t('settings.roleLabel')}</dt>
                 <dd className="mt-0.5 font-mono text-foreground">
                   {profile?.role ?? 'user'}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Registrado el</dt>
+                <dt className="text-muted-foreground">{t('settings.joinedOn')}</dt>
                 <dd className="mt-0.5 text-foreground">{joined}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">ID de usuario</dt>
+                <dt className="text-muted-foreground">{t('settings.userId')}</dt>
                 <dd className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
                   {user?.id ?? '—'}
                 </dd>
@@ -330,7 +333,7 @@ export function ProfileForm() {
               {saving ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                'Guardar'
+                t('common.save')
               )}
             </Button>
           </div>
