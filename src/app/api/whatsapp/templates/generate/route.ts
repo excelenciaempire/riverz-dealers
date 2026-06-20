@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { createClient } from '@/lib/supabase/server'
 import {
   checkRateLimit,
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const client = new Anthropic({ apiKey })
+    const client = getAnthropic(apiKey)
 
     const userPrompt = [
       `Idioma: ${language}`,

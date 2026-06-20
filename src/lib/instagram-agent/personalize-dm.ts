@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { pickModel } from './model';
 import { brandBrief, type BrandContext } from './brand-context';
 
@@ -81,7 +82,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     .join('\n\n');
 
   try {
-    const client = new Anthropic({ apiKey: input.apiKey });
+    const client = getAnthropic(input.apiKey);
     const res = await client.messages.create({
       model: pickModel('close', { leadScore: 'medium' }),
       max_tokens: 400,

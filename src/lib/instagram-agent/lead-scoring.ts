@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { pickModel } from './model';
 import { latestInboundText } from './engagement';
 
@@ -86,7 +87,7 @@ export async function scoreLeads(
   texts: string[],
 ): Promise<ScoredLead[]> {
   if (texts.length === 0) return [];
-  const client = new Anthropic({ apiKey });
+  const client = getAnthropic(apiKey);
   const userPrompt = texts
     .map((t, i) => `${i}: ${t.slice(0, 400).replace(/\n/g, ' ')}`)
     .join('\n');

@@ -76,7 +76,7 @@ export async function transcribeAudio(
     return null;
   }
   try {
-    const audioRes = await fetch(audioUrl);
+    const audioRes = await fetch(audioUrl, { signal: AbortSignal.timeout(15000) });
     if (!audioRes.ok) {
       console.warn(
         `[transcribe] no se pudo bajar el audio (${audioRes.status}): ${audioUrl}`,
@@ -109,6 +109,7 @@ export async function transcribeAudio(
       method: "POST",
       headers: { Authorization: `Bearer ${provider.apiKey}` },
       body: form,
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

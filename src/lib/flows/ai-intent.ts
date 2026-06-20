@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { supabaseAdmin } from './admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
@@ -41,7 +42,7 @@ export async function classifyIntent(args: {
     .map((i) => `- ${i.intent_key}: ${i.description}`)
     .join('\n')
 
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic(apiKey)
   try {
     const response = await client.messages.create({
       model,

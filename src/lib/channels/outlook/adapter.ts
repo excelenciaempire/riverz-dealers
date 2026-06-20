@@ -151,8 +151,10 @@ export const outlookAdapter: ChannelAdapter = {
     const events: InboundEvent[] = [];
     for (const n of notifications) {
       // Reject anything not carrying our shared secret — Graph echoes
-      // the clientState we set at subscription time.
-      if (expectedState && n.clientState && n.clientState !== expectedState) {
+      // the clientState we set at subscription time. Fail CLOSED: skip
+      // unless OUTLOOK_PUSH_CLIENT_STATE is set AND the notification's
+      // clientState matches it.
+      if (!expectedState || n.clientState !== expectedState) {
         continue;
       }
       const graphId = extractMessageId(n.resource ?? "") || n.resourceData?.id;

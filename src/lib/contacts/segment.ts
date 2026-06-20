@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 
 /**
  * AI-enriched contact segment — Blueberry's CRM card ("Segment: Engaged
@@ -69,7 +70,7 @@ export async function generateContactSegment(
     .join('\n');
 
   try {
-    const client = new Anthropic({ apiKey });
+    const client = getAnthropic(apiKey);
     const res = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,

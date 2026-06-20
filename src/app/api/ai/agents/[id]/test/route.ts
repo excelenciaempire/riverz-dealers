@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -111,7 +111,7 @@ export async function POST(
       body?.simulated_phone,
     );
 
-    const client = new Anthropic({ apiKey });
+    const client = getAnthropic(apiKey);
     const max_tokens = Math.max(
       64,
       Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),

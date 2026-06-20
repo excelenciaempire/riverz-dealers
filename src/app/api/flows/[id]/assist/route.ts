@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAnthropic } from "@/lib/ai/anthropic-client";
 import { createClient } from "@/lib/supabase/server";
 import { csrfGuard } from "@/lib/csrf";
 import {
@@ -99,7 +100,7 @@ export async function POST(
   }
 
   // ── Llamada a Claude con tool-use forzado ──
-  const client = new Anthropic({ apiKey });
+  const client = getAnthropic(apiKey);
   const system = buildSystemPrompt(body.flow_snapshot, body.products ?? []);
 
   const historyTurns = (body.history ?? []).slice(-10);

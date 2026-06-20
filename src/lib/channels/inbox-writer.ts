@@ -21,9 +21,10 @@ import {
  * Channel-agnostic — every adapter feeds its parsed events through
  * here so the inbox sees a consistent shape.
  *
- * Idempotent on `messages.message_id` — if the same external id has
- * already been ingested, this is a no-op (the unique index on
- * `messages.message_id` would otherwise raise 23505).
+ * Idempotent on `(conversation_id, message_id)` — if the same external
+ * id has already been ingested into this conversation, this is a no-op
+ * (the `uniq_msg_per_conv` unique index on (conversation_id, message_id)
+ * from migration 036 would otherwise raise 23505).
  */
 export async function ingestInboundEvent(
   db: SupabaseClient,
@@ -143,7 +144,8 @@ export async function ingestInboundEvent(
     .select()
     .single();
   if (error) {
-    // 23505 = unique_violation on message_id → already ingested.
+    // 23505 = unique_violation on (conversation_id, message_id) via
+    //         uniq_msg_per_conv → already ingested into this conversation.
     if (error.code === "23505") return null;
     console.error("[inbox-writer] insert message failed:", error);
     return null;

@@ -22,6 +22,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from './anthropic-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Conversation, Contact } from '@/types';
 import type { AiAgent } from './types';
@@ -120,7 +121,7 @@ export async function summarizeConversationIfNeeded(
       })
       .join('\n');
 
-    const client = new Anthropic({ apiKey });
+    const client = getAnthropic(apiKey);
     const prompt = `Eres el módulo de memoria de un asistente de servicio al cliente. Recibís un transcripto y devolvés un resumen muy comprimido (máximo 200 palabras) que conserve TODO lo que un siguiente turno del asistente necesitaría: pedido del cliente, productos mencionados, decisiones tomadas, datos compartidos (números de pedido, direcciones, montos), tono y estado emocional. No uses listas con guiones; escribilo como un párrafo denso en español. No incluyas saludos ni meta-comentarios — sólo el resumen.\n\nTranscripto:\n${transcript}`;
 
     const res = await client.messages.create({
@@ -220,7 +221,7 @@ export async function summarizeContactIfNeeded(
       ? `Resumen previo del cliente (mantené lo útil y actualizá):\n${contact.ai_summary}\n\n`
       : '';
 
-    const client = new Anthropic({ apiKey });
+    const client = getAnthropic(apiKey);
     const res = await client.messages.create({
       model: SUMMARY_MODEL,
       max_tokens: 350,

@@ -286,12 +286,26 @@ export async function runWithTools(
 
   // Si después de AGENTIC_LOOP_MAX_ITERS el modelo sigue pidiendo
   // tools, hacemos una llamada final SIN tools para forzar un texto.
-  const final = await client.messages.create({
-    model: args.model,
-    max_tokens: args.max_tokens,
-    system: args.system,
-    messages,
-  })
+  let final: Anthropic.Message
+  try {
+    final = await client.messages.create({
+      model: args.model,
+      max_tokens: args.max_tokens,
+      system: args.system,
+      messages,
+    })
+  } catch {
+    // Si la llamada final falla (timeout/overloaded/etc.), no lanzamos:
+    // devolvemos texto vacío + truncated para que el runner dispare su
+    // fallback existente en vez de explotar.
+    return {
+      text: '',
+      promptTokens,
+      completionTokens,
+      iterations: iter + 1,
+      truncated: true,
+    }
+  }
   promptTokens += final.usage?.input_tokens ?? 0
   completionTokens += final.usage?.output_tokens ?? 0
   const text = final.content

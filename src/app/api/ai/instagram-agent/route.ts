@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { createClient } from '@/lib/supabase/server'
 import {
   checkRateLimit,
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join('\n')
 
-    const client = new Anthropic({ apiKey })
+    const client = getAnthropic(apiKey)
     const response = await client.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 2048,

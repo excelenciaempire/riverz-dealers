@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -292,7 +293,7 @@ async function generateCloserReply(input: {
     .join('\n\n');
 
   try {
-    const client = new Anthropic({ apiKey: input.apiKey });
+    const client = getAnthropic(input.apiKey);
     const res = await client.messages.create({
       model: pickModel('close', { leadScore: input.leadScore ?? 'medium' }),
       max_tokens: 400,
