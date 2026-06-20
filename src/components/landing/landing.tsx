@@ -169,7 +169,7 @@ const SECTIONS: {
     icon: Sparkles,
     title: "Un vendedor con IA",
     titleMuted: "que conoce tus productos.",
-    body: "Aprende tu catálogo, tus precios y tus envíos, y responde como tu mejor vendedor: recomienda, resuelve objeciones y cierra la compra. De día y de noche.",
+    body: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, responde dudas y cierra la compra como tu mejor vendedor, también mientras duermes.",
     Preview: AgentPanel,
   },
   {
@@ -187,7 +187,7 @@ const SECTIONS: {
     icon: RotateCcw,
     title: "Recompras automáticas,",
     titleMuted: "sin que muevas un dedo.",
-    body: "Seguimiento post-venta y recordatorios de recompra que reactivan a tus clientes dormidos. Configuras las recompras una vez y el agente las dispara en el momento justo.",
+    body: "Seguimiento post-venta y recordatorios de recompra para tus clientes dormidos. Configuras las recompras una sola vez y el agente las envía cuando es más probable que vuelvan a comprar.",
     Preview: FlowPreview,
   },
   {
@@ -196,7 +196,7 @@ const SECTIONS: {
     icon: MessageSquare,
     title: "También responde",
     titleMuted: "los comentarios.",
-    body: "Cada comentario en tus publicaciones y anuncios de Instagram y Facebook recibe respuesta al instante — y el agente lleva la conversación al DM para cerrar la venta.",
+    body: "Responde al instante cada comentario en tus publicaciones y anuncios de Instagram y Facebook, y se lleva la conversación al DM para cerrar la venta.",
     Preview: CommentsPreview,
   },
   {
@@ -205,7 +205,7 @@ const SECTIONS: {
     icon: Megaphone,
     title: "Campañas masivas en",
     titleMuted: "WhatsApp e Instagram.",
-    body: "Lanza ofertas y lanzamientos a miles de contactos por WhatsApp e Instagram, y mira en vivo quién recibió, leyó, respondió y compró.",
+    body: "Lanza una promoción a miles de contactos por WhatsApp e Instagram y mira en vivo quién la recibió, quién la leyó, quién te respondió y quién te compró.",
     Preview: CampaignPreview,
   },
   {
@@ -214,7 +214,7 @@ const SECTIONS: {
     icon: Inbox,
     title: "Y todo, en una",
     titleMuted: "sola bandeja.",
-    body: "WhatsApp, Instagram, Messenger y correo en una pantalla. Tu equipo y el agente trabajan juntos, sin perder un solo mensaje.",
+    body: "WhatsApp, Instagram, Messenger y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
     Preview: InboxPreview,
   },
   {
@@ -237,11 +237,11 @@ const SECTIONS: {
   },
   {
     n: "09",
-    eyebrow: "Métricas",
+    eyebrow: "Resultados",
     icon: BarChart3,
-    title: "Más eficiente",
-    titleMuted: "que un humano.",
-    body: "Responde en segundos, las 24 horas y sin perder un solo lead. Mira ventas, carritos recuperados y tiempos de respuesta, y comprueba cuánto te está generando tu agente.",
+    title: "Un ROAS claro,",
+    titleMuted: "no corazonadas.",
+    body: "Cada venta queda atribuida al agente, así sabes cuánto te devuelve cada peso que inviertes. Y como contesta en segundos y atiende muchos chats a la vez, te rinde más que cualquier humano.",
     Preview: MetricsPreview,
   },
 ];
@@ -282,7 +282,7 @@ export function Landing() {
                 <span className="text-muted-foreground">la IA responde.</span>
               </h1>
               <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[48ch]">
-                No es una bandeja más: es un agente que atiende, recomienda, recupera carritos abandonados y reactiva clientes para que vuelvan a comprar. Cierra ventas en WhatsApp e Instagram, las 24 horas.
+                La mayoría de plataformas te dan una bandeja y te dejan a ti todo el trabajo. La nuestra contesta, recomienda y cierra ventas por ti. Recupera carritos, trae de vuelta a tus clientes y vende en WhatsApp e Instagram a cualquier hora.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -328,22 +328,56 @@ export function Landing() {
       </div>
 
       {/* CTA */}
-      <section className="mx-auto max-w-6xl px-5 py-20">
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-8 py-16 text-center">
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-32 mx-auto h-72 w-[600px] rounded-full bg-primary/15 blur-[100px]" />
-          <h2 className={`relative mx-auto max-w-2xl ${H2}`}>
-            La herramienta definitiva para vender por chat.
-          </h2>
-          <p className={`relative mx-auto mt-4 max-w-md ${BODY}`}>
-            Conecta WhatsApp e Instagram y deja que tu agente atienda, recupere carritos y cierre ventas — desde hoy.
-          </p>
-          <Link
-            href="/registro"
-            className="group relative mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
-          >
-            Empezar gratis
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
+      <section className="mx-auto max-w-6xl px-5 py-24">
+        <div className="relative overflow-hidden rounded-[2rem] bg-[#0b0b0a] px-6 py-20 text-center sm:px-12">
+          {/* warm lime glow + faint grid */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 h-[360px] w-[760px] -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/25 blur-[130px]"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-[0.05]"
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)",
+              backgroundSize: "44px 44px",
+              maskImage: "radial-gradient(ellipse at center, #000 30%, transparent 75%)",
+            }}
+          />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[12px] font-medium text-primary">
+              <Sparkles className="size-3.5" /> Tu agente de ventas, listo hoy
+            </span>
+            <h2 className="mx-auto mt-6 max-w-[18ch] text-balance text-[clamp(32px,4.6vw,58px)] font-medium leading-[1.02] tracking-[-0.04em] text-white">
+              Pon a tu agente a vender hoy.
+            </h2>
+            <p className="mx-auto mt-5 max-w-md text-[15px] leading-relaxed text-white/55">
+              Conectas WhatsApp e Instagram, activas el agente y empieza a contestar y a cerrar ventas. Toma minutos, no semanas.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/registro"
+                className="group inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03]"
+              >
+                Empezar gratis
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/ingresar"
+                className="rounded-full border border-white/15 px-6 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/5"
+              >
+                Iniciar sesión
+              </Link>
+            </div>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] text-white/40">
+              <span>Sin tarjeta de crédito</span>
+              <span className="size-1 rounded-full bg-white/25" />
+              <span>Listo en minutos</span>
+              <span className="size-1 rounded-full bg-white/25" />
+              <span>Cancela cuando quieras</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1358,7 +1392,7 @@ function ProductPreview() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 06 · Métricas — animated counters + sparkline bars
+// 09 · Resultados — ROAS-first dashboard with attributed-revenue bars
 // ─────────────────────────────────────────────────────────────────────────
 
 const BARS = [38, 52, 44, 70, 60, 84, 96];
@@ -1370,37 +1404,52 @@ function MetricsPreview() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const ventas = useCountUp(1.84, run);
+  const roas = useCountUp(4.2, run, 1100);
+  const ingresos = useCountUp(1.84, run);
   const recup = useCountUp(420, run);
-  const resp = useCountUp(4, run, 900);
 
   return (
     <PreviewFrame>
       <div className="flex flex-col gap-4 p-5">
+        {/* ROAS hero */}
+        <div className="flex items-center gap-4 rounded-xl border border-primary/40 bg-primary/10 p-4">
+          <div className="leading-none">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">ROAS</div>
+            <div className="mt-1.5 text-[34px] font-semibold leading-none tracking-[-0.03em] text-accent-ink">
+              {roas.toFixed(1)}x
+            </div>
+          </div>
+          <div className="ml-auto text-right">
+            <div className="inline-flex items-center gap-1 text-sm font-semibold text-accent-ink">
+              <TrendingUp className="size-4" /> +32%
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">por cada $1 invertido</div>
+          </div>
+        </div>
+
+        {/* supporting stats */}
         <div className="grid grid-cols-3 gap-2.5">
           {[
-            { label: "Ventas hoy", value: `$${ventas.toFixed(2)}M`, up: true },
-            { label: "Recuperadas", value: `$${Math.round(recup)}K`, up: true },
-            { label: "Respuesta", value: `${Math.round(resp)}s`, up: false },
+            { label: "Ingresos", value: `$${ingresos.toFixed(2)}M` },
+            { label: "Recuperado", value: `$${Math.round(recup)}K` },
+            { label: "Respuesta", value: "4s" },
           ].map((m) => (
             <div key={m.label} className="rounded-xl border border-border bg-background/60 p-3">
               <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{m.label}</div>
-              <div className="mt-1 inline-flex items-baseline gap-1 text-lg font-semibold tracking-[-0.02em]">
-                {m.value}
-                {m.up && <TrendingUp className="size-3 text-accent-ink" />}
-              </div>
+              <div className="mt-1 text-lg font-semibold tracking-[-0.02em]">{m.value}</div>
             </div>
           ))}
         </div>
 
+        {/* revenue attributed to the agent */}
         <div className="rounded-xl border border-border bg-background/60 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-medium">Ventas · últimos 7 días</span>
+            <span className="text-xs font-medium">Ingresos del agente · 7 días</span>
             <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
               <TrendingUp className="size-3" /> +32%
             </span>
           </div>
-          <div className="flex h-24 items-end gap-2">
+          <div className="flex h-20 items-end gap-2">
             {BARS.map((h, i) => (
               <div key={i} className="flex flex-1 flex-col justify-end">
                 <div
