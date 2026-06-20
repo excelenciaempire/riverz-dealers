@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getAnthropic } from './anthropic-client';
 import { transcribeAudio } from './transcribe';
 import type {
   Channel,
@@ -974,7 +975,7 @@ async function generateReply(
     throw new Error('Missing Anthropic API key (workspace key or ANTHROPIC_API_KEY).');
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = getAnthropic(apiKey);
   const system = buildSystemPrompt(
     agent,
     contact,
@@ -1039,7 +1040,16 @@ async function generateReply(
   // Sólo exponemos las tools si hay conexión Shopify activa para el
   // workspace. Sin conexión, no podríamos resolver la llamada y
   // gastaríamos tokens describiéndosela al modelo en vano.
-  const tools = shopify ? [LOOKUP_ORDER_TOOL, CREATE_CHECKOUT_TOOL] : [];
+  //
+  // CREATE_CHECKOUT_TOOL hoy tiene la economía (ofertas, precios ARS,
+  // descuento por transferencia, variante) cableada a Pilar, así que solo se
+  // expone para sus tiendas. El resto de comercios obtiene la búsqueda de
+  // pedidos (genérica) hasta que el checkout sea por-workspace.
+  const tools = shopify
+    ? PILAR_SHOP_DOMAINS.has(shopify.shopDomain)
+      ? [LOOKUP_ORDER_TOOL, CREATE_CHECKOUT_TOOL]
+      : [LOOKUP_ORDER_TOOL]
+    : [];
   const result = await runWithTools(client, {
     model: agent.model || 'claude-haiku-4-5-20251001',
     max_tokens: Math.max(
