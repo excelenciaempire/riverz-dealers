@@ -76,6 +76,27 @@ export async function POST(request: Request) {
         workspaceId =
           conn.row.workspace_id ||
           (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
+      } else {
+        // Carrera con shop/redact: si la conexión ya fue desactivada (o
+        // borrada por shop/redact, que corre cerca), getConnectionByShop
+        // (solo 'active') devuelve null y la PII del comprador quedaría sin
+        // anonimizar. Fallback: resolver el workspace por shop_domain SIN
+        // filtrar por status. Sigue scoped a esa tienda → sin fuga cross-tenant.
+        const { data: anyConn } = await admin
+          .from('shopify_connections')
+          .select('workspace_id, user_id')
+          .eq('shop_domain', resolvedShop)
+          .order('installed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (anyConn) {
+          workspaceId =
+            (anyConn as { workspace_id: string | null }).workspace_id ||
+            (await resolveWorkspaceIdForUser(
+              admin,
+              (anyConn as { user_id: string }).user_id,
+            ))
+        }
       }
     }
 

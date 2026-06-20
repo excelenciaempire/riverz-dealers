@@ -172,6 +172,32 @@ async function purgeWorkspace(
  * (ver lib/channels/media-ingest.ts → buildStoragePath), así que listamos
  * un nivel de subcarpetas (conversationId) y removemos sus archivos.
  */
+type StorageEntry = { name: string; id?: string | null }
+
+/**
+ * `storage.list` topa en 1000 entries por página; sin paginar, un workspace
+ * con >1000 conversaciones (o una conversación con >1000 adjuntos) dejaría
+ * archivos de PII sin borrar de forma silenciosa. Paginamos con offset hasta
+ * recibir menos de PAGE entries.
+ */
+async function listAllStorage(
+  bucket: ReturnType<SupabaseClient['storage']['from']>,
+  prefix: string,
+): Promise<{ data: StorageEntry[] | null; error: { message: string } | null }> {
+  const PAGE = 1000
+  const all: StorageEntry[] = []
+  let offset = 0
+  for (;;) {
+    const { data, error } = await bucket.list(prefix, { limit: PAGE, offset })
+    if (error) return { data: null, error }
+    const batch = (data ?? []) as StorageEntry[]
+    all.push(...batch)
+    if (batch.length < PAGE) break
+    offset += PAGE
+  }
+  return { data: all, error: null }
+}
+
 async function purgeWorkspaceStorage(
   admin: SupabaseClient,
   workspaceId: string,
@@ -180,9 +206,10 @@ async function purgeWorkspaceStorage(
 
   // Subcarpetas = conversationId. `list` devuelve "carpetas" como entries
   // sin `id` (metadata null); los archivos traen metadata.
-  const { data: folders, error: listErr } = await bucket.list(workspaceId, {
-    limit: 1000,
-  })
+  const { data: folders, error: listErr } = await listAllStorage(
+    bucket,
+    workspaceId,
+  )
   if (listErr) {
     // Bucket inexistente o error de permisos: nada que purgar (fail-soft).
     log.warn('storage list failed', {
@@ -198,9 +225,7 @@ async function purgeWorkspaceStorage(
     if (isFolder) {
       // Listar los archivos dentro de la subcarpeta del conversationId.
       const sub = `${workspaceId}/${entry.name}`
-      const { data: files, error: subErr } = await bucket.list(sub, {
-        limit: 1000,
-      })
+      const { data: files, error: subErr } = await listAllStorage(bucket, sub)
       if (subErr) {
         log.warn('storage sublist failed', {
           workspace_id: workspaceId,
