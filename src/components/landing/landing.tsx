@@ -52,8 +52,6 @@ const H2 =
   "font-medium tracking-[-0.035em] leading-[1.05] text-[clamp(26px,3.2vw,38px)]";
 const BODY =
   "text-[clamp(15px,1.3vw,17px)] leading-[1.55] tracking-[-0.005em] text-muted-foreground";
-const EYEBROW =
-  "text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground";
 const SECTION = "py-[clamp(64px,8vw,128px)]";
 
 type Ch = "whatsapp" | "instagram" | "messenger" | "gmail";
@@ -89,46 +87,6 @@ function useReducedMotion() {
     };
   }, []);
   return reduced;
-}
-
-/** Reveal children on scroll-into-view — the riverzai `lv4-reveal` feel. */
-function Reveal({
-  children,
-  className,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
-          setShown(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={`${className ?? ""} transition-all duration-700 ease-out ${
-        shown ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-      }`}
-    >
-      {children}
-    </div>
-  );
 }
 
 /** Count up to `target` once `run` flips true. */
@@ -417,24 +375,16 @@ function FeatureSection({
     <section className={SECTION}>
       <div className="mx-auto max-w-6xl px-5">
         <div className="grid items-center gap-10 md:grid-cols-2 md:gap-14 lg:gap-20">
-          <Reveal className={flip ? "md:order-2" : undefined}>
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
-                <s.icon className="size-5" />
-              </span>
-              <span className={EYEBROW}>
-                {s.n} · {s.eyebrow}
-              </span>
-            </div>
-            <h2 className={`mt-5 ${H2}`}>
+          <div className={flip ? "md:order-2" : undefined}>
+            <h2 className={H2}>
               {s.title}{" "}
               <span className="text-muted-foreground">{s.titleMuted}</span>
             </h2>
             <p className={`mt-5 max-w-[460px] ${BODY}`}>{s.body}</p>
-          </Reveal>
-          <Reveal className={flip ? "md:order-1" : undefined} delay={80}>
+          </div>
+          <div className={flip ? "md:order-1" : undefined}>
             <s.Preview />
-          </Reveal>
+          </div>
         </div>
       </div>
     </section>
@@ -816,22 +766,15 @@ function InboxPreview() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 01 · Agente de ventas — your product knowledge integrating into the agent.
-// Four sources sit at the corners; each lights up and feeds a central agent
-// node in turn. Minimal: one word per source, no secondary text.
+// 01 · Agente de ventas — four knowledge sources on the left join the agent
+// on the right through animated flowing lines. The agent reads "Entrenándose".
 // ─────────────────────────────────────────────────────────────────────────
 
-const AGENT_SOURCES: {
-  icon: typeof Inbox;
-  label: string;
-  pos: string;
-  x: number;
-  y: number;
-}[] = [
-  { icon: Boxes, label: "Catálogo", pos: "left-4 top-4", x: 30, y: 30 },
-  { icon: Tag, label: "Precios", pos: "right-4 top-4", x: 70, y: 30 },
-  { icon: Truck, label: "Envíos", pos: "left-4 bottom-4", x: 30, y: 70 },
-  { icon: Star, label: "Reseñas", pos: "right-4 bottom-4", x: 70, y: 70 },
+const AGENT_SOURCES: { icon: typeof Inbox; label: string; y: number }[] = [
+  { icon: Boxes, label: "Catálogo", y: 15 },
+  { icon: Tag, label: "Precios", y: 38 },
+  { icon: Truck, label: "Envíos", y: 62 },
+  { icon: Star, label: "Reseñas", y: 85 },
 ];
 
 function AgentPanel() {
@@ -839,59 +782,53 @@ function AgentPanel() {
   const [lit, setLit] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setLit((i) => (i + 1) % (AGENT_SOURCES.length + 1)), 1100);
+    const t = setInterval(() => setLit((i) => (i + 1) % (AGENT_SOURCES.length + 1)), 1000);
     return () => clearInterval(t);
   }, [reduced]);
 
-  const ready = reduced || lit >= AGENT_SOURCES.length;
   const integrated = (i: number) => reduced || lit > i;
+  const ready = reduced || lit >= AGENT_SOURCES.length;
 
   return (
     <PreviewFrame>
-      <div className="relative h-[300px] sm:h-[340px]">
-        {/* connectors feeding the agent */}
+      <div className="relative h-[300px] sm:h-[330px]">
+        {/* animated lines flowing from the sources into the agent */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full">
-          {AGENT_SOURCES.map((s, i) => (
-            <line
-              key={s.label}
-              x1="50"
-              y1="50"
-              x2={s.x}
-              y2={s.y}
-              vectorEffect="non-scaling-stroke"
-              strokeLinecap="round"
-              strokeWidth={lit === i || integrated(i) ? 1.6 : 1}
-              className={`transition-all duration-500 ${
-                lit === i ? "animate-pulse stroke-primary" : integrated(i) ? "stroke-primary/60" : "stroke-border"
-              }`}
-            />
-          ))}
+          {AGENT_SOURCES.map((s, i) => {
+            const on = lit === i || integrated(i);
+            return (
+              <line
+                key={s.label}
+                x1="29"
+                y1={s.y}
+                x2="68"
+                y2="50"
+                vectorEffect="non-scaling-stroke"
+                strokeLinecap="round"
+                strokeWidth={on ? 1.6 : 1}
+                strokeDasharray="2 4"
+                className={`transition-colors duration-500 ${on ? "stroke-primary" : "stroke-border"}`}
+              >
+                {!reduced && (
+                  <animate
+                    attributeName="stroke-dashoffset"
+                    from="0"
+                    to="-12"
+                    dur="0.9s"
+                    repeatCount="indefinite"
+                  />
+                )}
+              </line>
+            );
+          })}
         </svg>
 
-        {/* central agent node */}
-        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-          <span className="relative flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
-            {!reduced && <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />}
-            <Sparkles className="relative size-6" />
-          </span>
-          <span className="mt-2.5 text-[12px] font-semibold text-accent-ink">
-            {ready ? "Agente listo" : "Aprendiendo"}
-          </span>
-          <span className="mt-1.5 flex gap-1">
-            {AGENT_SOURCES.map((s, i) => (
-              <span
-                key={s.label}
-                className={`size-1.5 rounded-full transition-colors ${integrated(i) ? "bg-primary" : "bg-muted"}`}
-              />
-            ))}
-          </span>
-        </div>
-
-        {/* knowledge sources at the corners */}
+        {/* knowledge sources — left column */}
         {AGENT_SOURCES.map((s, i) => (
           <div
             key={s.label}
-            className={`absolute ${s.pos} inline-flex items-center gap-1.5 rounded-xl border bg-card px-2.5 py-2 text-xs font-medium shadow-sm transition-all duration-300 ${
+            style={{ top: `${s.y}%` }}
+            className={`absolute left-3 inline-flex -translate-y-1/2 items-center gap-1.5 rounded-xl border bg-card px-2.5 py-2 text-xs font-medium shadow-sm transition-all duration-300 ${
               lit === i
                 ? "scale-105 border-primary/60 bg-primary/10 text-accent-ink"
                 : integrated(i)
@@ -903,21 +840,36 @@ function AgentPanel() {
             {s.label}
           </div>
         ))}
+
+        {/* agent — right side */}
+        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-4 backdrop-blur-sm">
+          <span className="relative flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+            {!reduced && <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />}
+            <Sparkles className="relative size-6" />
+          </span>
+          <span className="text-[12px] font-semibold text-accent-ink">
+            {ready ? "Agente listo" : "Entrenándose"}
+          </span>
+          <span className="flex gap-1">
+            {AGENT_SOURCES.map((s, i) => (
+              <span
+                key={s.label}
+                className={`size-1.5 rounded-full transition-colors ${integrated(i) ? "bg-primary" : "bg-muted"}`}
+              />
+            ))}
+          </span>
+        </div>
       </div>
     </PreviewFrame>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 02 · Carritos abandonados — premium recovery dashboard (non-chat):
-// checkout summary → timeline with timestamps → recovered-revenue counter.
+// 02 · Carritos abandonados — minimal recovery: abandoned → AI → recovered.
+// Autoplays on its own; no secondary copy, just the essential story.
 // ─────────────────────────────────────────────────────────────────────────
 
-const CART_STEPS: { icon: typeof Inbox; label: string; time: string }[] = [
-  { icon: ShoppingCart, label: "Abandonado", time: "14:02" },
-  { icon: Sparkles, label: "La IA reactivó", time: "14:14" },
-  { icon: Check, label: "Recuperado", time: "14:15" },
-];
+const CART_ICONS: (typeof Inbox)[] = [ShoppingCart, Sparkles, Check];
 
 function CartRecoveryPanel() {
   const reduced = useReducedMotion();
@@ -931,86 +883,63 @@ function CartRecoveryPanel() {
 
   const recovered = reduced || phase >= 2;
   const amount = useCountUp(210000, recovered, 900);
-  const pct = recovered ? 100 : phase === 1 ? 55 : 8;
 
   return (
     <PreviewFrame>
-      <div className="flex flex-col gap-4 p-5">
-        {/* customer + live status */}
+      <div className="flex flex-col gap-5 p-5">
+        {/* customer + status */}
         <div className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-[12px] font-semibold text-accent-ink">
             ML
           </span>
-          <div className="leading-tight">
-            <div className="text-sm font-medium">Mariana L.</div>
-            <div className="text-[11px] text-muted-foreground">Checkout iniciado · Instagram</div>
-          </div>
+          <span className="text-sm font-medium">Mariana L.</span>
           <span
-            className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ${
+            className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
               recovered
                 ? "bg-primary/15 text-accent-ink"
                 : "border border-amber-500/40 text-amber-600 dark:text-amber-400"
             }`}
           >
             <span className={`size-1.5 rounded-full ${recovered ? "bg-primary" : "animate-pulse bg-amber-500"}`} />
-            {recovered ? "Recuperado" : "Abandonado · 1 h"}
+            {recovered ? "Recuperado" : "Abandonado"}
           </span>
         </div>
 
-        {/* checkout summary card */}
-        <div className="rounded-xl border border-border bg-background/60 p-3">
-          <div className="flex items-center gap-3">
-            <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-lg">
-              🎧
-            </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="text-sm font-medium">Audífonos Pulse</div>
-              <div className="text-[11px] text-muted-foreground">1 ud. · negro</div>
-            </div>
-            <div className="text-sm font-semibold">$210.000</div>
+        {/* product */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-lg">
+            🎧
           </div>
+          <span className="flex-1 truncate text-sm font-medium">Audífonos Pulse</span>
+          <span className="text-sm font-semibold">$210.000</span>
         </div>
 
-        {/* recovery timeline */}
-        <div>
-          <div className="mb-2 h-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="flex items-start">
-            {CART_STEPS.map((s, i) => {
-              const reached = reduced || phase >= i;
-              const active = !reduced && phase === i;
-              return (
-                <div
-                  key={s.label}
-                  className={`flex flex-1 flex-col gap-1 text-center ${
-                    i === 0 ? "items-start text-left" : i === CART_STEPS.length - 1 ? "items-end text-right" : "items-center"
-                  }`}
+        {/* recovery progress — icons only */}
+        <div className="flex items-center px-1">
+          {CART_ICONS.map((Icon, i) => {
+            const reached = reduced || phase >= i;
+            const active = !reduced && phase === i;
+            return (
+              <div key={i} className="flex flex-1 items-center last:flex-none">
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all ${
+                    reached ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  } ${active ? "ring-4 ring-primary/20" : ""}`}
                 >
-                  <span
-                    className={`flex size-6 items-center justify-center rounded-full transition-all ${
-                      reached ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    } ${active ? "ring-2 ring-primary/30" : ""}`}
-                  >
-                    {reached && i === CART_STEPS.length - 1 ? <Check className="size-3" /> : <s.icon className="size-3" />}
-                  </span>
-                  <span className="text-[10px] font-medium leading-tight">{s.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{s.time}</span>
-                </div>
-              );
-            })}
-          </div>
+                  <Icon className="size-4" />
+                </span>
+                {i < CART_ICONS.length - 1 && (
+                  <span className={`h-0.5 flex-1 rounded-full transition-colors ${phase > i ? "bg-primary" : "bg-border"}`} />
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* recovered-revenue result */}
+        {/* result — recovered amount + Shopify */}
         <div
           className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-500 ${
-            recovered
-              ? "translate-y-0 border-primary/45 bg-primary/10 opacity-100"
-              : "translate-y-1 border-dashed border-border opacity-40"
+            recovered ? "border-primary/45 bg-primary/10 opacity-100" : "border-dashed border-border opacity-40"
           }`}
         >
           <span className="relative flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -1019,22 +948,12 @@ function CartRecoveryPanel() {
           </span>
           <div className="leading-tight">
             <div className="text-sm font-semibold">Venta recuperada</div>
-            <div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <ShopifyLogo size={11} /> Pedido #1042 · Shopify
+            <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ShopifyLogo size={14} /> Shopify
             </div>
           </div>
-          <div className="ml-auto text-right">
-            <div className="text-base font-semibold tracking-[-0.02em] text-accent-ink">
-              ${Math.round(amount).toLocaleString("es-CO")}
-            </div>
-            <div className="text-[10px] text-muted-foreground">recuperado</div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl bg-primary/5 px-3 py-2 text-[11px]">
-          <span className="text-muted-foreground">Esta semana</span>
-          <span className="font-medium">
-            14 carritos recuperados · <span className="text-accent-ink">+$2.4M</span>
+          <span className="ml-auto text-base font-semibold tracking-[-0.02em] text-accent-ink">
+            ${Math.round(amount).toLocaleString("es-CO")}
           </span>
         </div>
       </div>
@@ -1071,7 +990,7 @@ function CommentsPreview() {
           </span>
           <div className="leading-tight">
             <div className="text-sm font-medium">tu.marca</div>
-            <div className="text-[11px] text-muted-foreground">Publicación · anuncio</div>
+            <div className="text-[11px] text-muted-foreground">Anuncio</div>
           </div>
           <ChannelLogo channel="instagram" size={18} className="ml-auto" />
         </div>
@@ -1104,7 +1023,7 @@ function CommentsPreview() {
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 pl-2 text-[11px] text-accent-ink">
                 <CornerDownRight className="size-3" />
-                <Sparkles className="size-3" /> Respondido por la IA · llevado a DM
+                <Sparkles className="size-3" /> Respondido por la IA · al DM
               </div>
             </div>
           ))}
@@ -1170,10 +1089,7 @@ function SetupPreview() {
             <ChannelLogo channel="instagram" size={18} />
             <ChannelLogo channel="messenger" size={18} />
           </span>
-          <div className="leading-tight">
-            <div className="text-sm font-medium">Conecta tus canales</div>
-            <div className="text-[11px] text-muted-foreground">WhatsApp · Instagram · Messenger</div>
-          </div>
+          <span className="text-sm font-medium">Conecta tus canales</span>
           <span className="ml-auto">
             <SetupToggle on={done(0)} />
           </span>
@@ -1182,10 +1098,7 @@ function SetupPreview() {
         {/* step 2 — connect store */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
           <ShopifyLogo size={20} />
-          <div className="leading-tight">
-            <div className="text-sm font-medium">Conecta tu tienda</div>
-            <div className="text-[11px] text-muted-foreground">Catálogo y pedidos de Shopify</div>
-          </div>
+          <span className="text-sm font-medium">Conecta tu tienda</span>
           <span className="ml-auto">
             <SetupToggle on={done(1)} />
           </span>
@@ -1196,10 +1109,7 @@ function SetupPreview() {
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-accent-ink">
             <Sparkles className="size-4" />
           </span>
-          <div className="leading-tight">
-            <div className="text-sm font-medium">Activa el agente</div>
-            <div className="text-[11px] text-muted-foreground">Y empieza a vender</div>
-          </div>
+          <span className="text-sm font-medium">Activa el agente</span>
           <span
             className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
               done(2) ? "bg-primary/15 text-accent-ink" : "bg-primary text-primary-foreground"
@@ -1227,10 +1137,10 @@ function SetupPreview() {
 // 03 · Automatizaciones — a flow with a pulsing active node
 // ─────────────────────────────────────────────────────────────────────────
 
-const FLOW: { icon: typeof Inbox; label: string; sub: string }[] = [
-  { icon: ShoppingBag, label: "Disparador", sub: "Compró hace 30 días" },
-  { icon: Clock, label: "Espera", sub: "Momento ideal de recompra" },
-  { icon: Send, label: "Acción", sub: "Oferta de recompra personalizada" },
+const FLOW: { icon: typeof Inbox; sub: string }[] = [
+  { icon: ShoppingBag, sub: "Compró hace 30 días" },
+  { icon: Clock, sub: "Espera el momento ideal" },
+  { icon: Send, sub: "Envía la oferta de recompra" },
 ];
 
 function FlowPreview() {
@@ -1249,7 +1159,7 @@ function FlowPreview() {
           const done = reduced || step > i;
           const active = !reduced && step === i;
           return (
-            <div key={node.label}>
+            <div key={node.sub}>
               <div
                 className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-300 ${
                   active
@@ -1266,10 +1176,7 @@ function FlowPreview() {
                 >
                   {done ? <Check className="size-4" /> : <node.icon className="size-4" />}
                 </span>
-                <div className="leading-tight">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{node.label}</div>
-                  <div className="text-sm font-medium">{node.sub}</div>
-                </div>
+                <div className="text-sm font-medium">{node.sub}</div>
                 {active && (
                   <span className="ml-auto size-2 animate-pulse rounded-full bg-primary" />
                 )}
@@ -1395,7 +1302,7 @@ function ProductPreview() {
 
         <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-xs text-foreground duration-500 animate-in fade-in">
           <ShoppingBag className="size-3.5 text-accent-ink" />
-          La IA recomendó este producto y creó el <strong>pedido #1042</strong>.
+          Pedido <strong>#1042</strong> creado por la IA.
         </div>
       </div>
     </PreviewFrame>
