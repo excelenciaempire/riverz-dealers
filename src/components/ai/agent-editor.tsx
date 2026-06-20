@@ -262,6 +262,17 @@ export function AgentEditor({
   const [escalateAfterMessages, setEscalateAfterMessages] = useState<number>(
     agent?.escalate_after_messages ?? 0,
   );
+  // Seguimiento inteligente: si el cliente no responde, el asistente
+  // manda un mensaje contextual de seguimiento. Migration 079.
+  const [followupEnabled, setFollowupEnabled] = useState<boolean>(
+    agent?.followup_enabled ?? false,
+  );
+  const [followupDelayHours, setFollowupDelayHours] = useState<number>(
+    agent?.followup_delay_hours ?? 24,
+  );
+  const [followupMaxCount, setFollowupMaxCount] = useState<number>(
+    agent?.followup_max_count ?? 1,
+  );
   const initialBh = readBusinessHours(agent?.business_hours);
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
@@ -448,6 +459,16 @@ export function AgentEditor({
       toast.error('El escalamiento no puede ser negativo');
       return;
     }
+    if (followupEnabled) {
+      if (!(followupDelayHours > 0)) {
+        toast.error('Las horas de espera del seguimiento deben ser mayores a 0');
+        return;
+      }
+      if (followupMaxCount < 1) {
+        toast.error('El seguimiento necesita al menos 1 mensaje');
+        return;
+      }
+    }
     if (hoursEnabled) {
       if (hoursStart >= hoursEnd) {
         toast.error('La hora de inicio debe ser menor que la de fin');
@@ -496,6 +517,9 @@ export function AgentEditor({
       ),
       escalate_keywords: escalateKeywords,
       escalate_after_messages: escalateAfterMessages,
+      followup_enabled: followupEnabled,
+      followup_delay_hours: followupDelayHours,
+      followup_max_count: followupMaxCount,
       model: DEFAULT_MODEL,
       scope,
       channels: scope === 'channels' ? channels : [],
@@ -1165,6 +1189,64 @@ export function AgentEditor({
                       0 desactiva la regla.
                     </p>
                   </Field>
+                </SectionCard>
+
+                <SectionCard
+                  title="Seguimiento automático"
+                  hint="Si el cliente deja de responder, el asistente le escribe un seguimiento contextual según la conversación."
+                  right={
+                    <Switch
+                      checked={followupEnabled}
+                      onCheckedChange={setFollowupEnabled}
+                    />
+                  }
+                >
+                  {followupEnabled && (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Horas de espera">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={followupDelayHours}
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              setFollowupDelayHours(
+                                Number.isFinite(n) ? Math.max(1, n) : 24,
+                              );
+                            }}
+                            className="bg-background"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Silencio del cliente antes del primer seguimiento.
+                          </p>
+                        </Field>
+                        <Field label="Máximo de seguimientos">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={5}
+                            value={followupMaxCount}
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              setFollowupMaxCount(
+                                Number.isFinite(n) ? Math.max(1, Math.min(5, n)) : 1,
+                              );
+                            }}
+                            className="bg-background"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Por racha de silencio. Se reinicia cuando responde.
+                          </p>
+                        </Field>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Respeta el horario de atención y &quot;no responder con
+                        agente asignado&quot;. Solo aplica a WhatsApp, Instagram y
+                        Messenger.
+                      </p>
+                    </>
+                  )}
                 </SectionCard>
 
                 <Field label="API key propia (opcional)">

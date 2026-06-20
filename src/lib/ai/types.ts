@@ -54,6 +54,15 @@ export interface AiAgent {
   escalate_keywords: string[];
   escalate_after_messages: number | null;
 
+  /** Follow-up inteligente: si el cliente deja de responder tras nuestro
+   *  último mensaje, el asistente envía un seguimiento contextual.
+   *  Migration 079. */
+  followup_enabled: boolean;
+  /** Horas de silencio del cliente antes de enviar un follow-up. */
+  followup_delay_hours: number;
+  /** Máximo de follow-ups por racha de silencio (anti-spam). */
+  followup_max_count: number;
+
   provider: AiProvider;
   model: string;
   /** Encrypted; never returned to the client. */

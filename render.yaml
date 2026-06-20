@@ -169,6 +169,24 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Follow-ups inteligentes: si el cliente no responde, el asistente le
+  # escribe un seguimiento contextual. El propio endpoint respeta el delay
+  # por-agente; correr cada 30 min da buena latencia sin spamear.
+  - type: cron
+    name: cron-ai-followups
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/ai-followups
+    schedule: "*/30 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   # Refresca el token largo (~60d) de Facebook Login antes de que muera, así
   # las conexiones FB/IG/Messenger no se caen solas. Diario (ventana de ~5d).
   - type: cron

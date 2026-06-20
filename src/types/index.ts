@@ -211,6 +211,10 @@ export interface Conversation {
   ai_summary_up_to_message_id?: string | null;
   /** Timestamp del último refresh de ai_summary. Migration 048. */
   ai_summary_updated_at?: string | null;
+  /** Follow-ups enviados en la racha de silencio actual. Migration 079. */
+  followup_count?: number;
+  /** Timestamp del último follow-up enviado. Migration 079. */
+  followup_last_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;
