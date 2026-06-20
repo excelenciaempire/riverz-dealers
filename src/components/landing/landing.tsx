@@ -26,6 +26,7 @@ import {
   MousePointerClick,
   Heart,
   CornerDownRight,
+  Headset,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 
@@ -90,7 +91,7 @@ function useReducedMotion() {
 }
 
 /** Count up to `target` once `run` flips true. */
-function useCountUp(target: number, run: boolean, duration = 1100) {
+function useCountUp(target: number, run: boolean, duration = 1100, trigger = 0) {
   const [v, setV] = useState(0);
   useEffect(() => {
     if (!run) return;
@@ -104,7 +105,7 @@ function useCountUp(target: number, run: boolean, duration = 1100) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [target, run, duration]);
+  }, [target, run, duration, trigger]);
   return v;
 }
 
@@ -150,6 +151,15 @@ const SECTIONS: {
   },
   {
     n: "04",
+    eyebrow: "Soporte",
+    icon: Headset,
+    title: "Atiende y avisa,",
+    titleMuted: "las 24 horas.",
+    body: "Confirma cada pedido, envía el número de guía y resuelve dudas al instante. Tus clientes siempre saben en qué va su compra, a cualquier hora.",
+    Preview: SupportPreview,
+  },
+  {
+    n: "05",
     eyebrow: "Comentarios",
     icon: MessageSquare,
     title: "También responde",
@@ -158,7 +168,7 @@ const SECTIONS: {
     Preview: CommentsPreview,
   },
   {
-    n: "05",
+    n: "06",
     eyebrow: "Campañas",
     icon: Megaphone,
     title: "Campañas masivas en",
@@ -167,7 +177,7 @@ const SECTIONS: {
     Preview: CampaignPreview,
   },
   {
-    n: "06",
+    n: "07",
     eyebrow: "Bandeja",
     icon: Inbox,
     title: "Y todo, en una",
@@ -176,7 +186,7 @@ const SECTIONS: {
     Preview: InboxPreview,
   },
   {
-    n: "07",
+    n: "08",
     eyebrow: "Productos",
     icon: Package,
     title: "Conecta Shopify",
@@ -185,7 +195,7 @@ const SECTIONS: {
     Preview: ProductPreview,
   },
   {
-    n: "08",
+    n: "09",
     eyebrow: "Configuración",
     icon: MousePointerClick,
     title: "Listo en minutos,",
@@ -194,7 +204,7 @@ const SECTIONS: {
     Preview: SetupPreview,
   },
   {
-    n: "09",
+    n: "10",
     eyebrow: "Resultados",
     icon: BarChart3,
     title: "Un ROAS claro,",
@@ -232,15 +242,12 @@ export function Landing() {
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-[12px] font-medium text-accent-ink duration-700 animate-in fade-in slide-in-from-bottom-3">
-                <Sparkles className="size-3.5" /> Agente de ventas con IA
-              </div>
-              <h1 className={`max-w-[16ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
-                Vende mientras{" "}
-                <span className="text-muted-foreground">la IA responde.</span>
+              <h1 className={`max-w-[15ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
+                Convierte cada chat{" "}
+                <span className="text-muted-foreground">en una venta.</span>
               </h1>
-              <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[48ch]">
-                La mayoría de plataformas te dan una bandeja y te dejan a ti todo el trabajo. La nuestra contesta, recomienda y cierra ventas por ti. Recupera carritos, trae de vuelta a tus clientes y vende en WhatsApp e Instagram a cualquier hora.
+              <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[46ch]">
+                Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, las 24 horas.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -274,7 +281,12 @@ export function Landing() {
               <ChannelLogo channel={c.id} size={22} /> {c.label}
             </span>
           ))}
-          <span className="text-sm font-medium text-muted-foreground">Shopify</span>
+          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <MetaLogo size={22} /> Meta
+          </span>
+          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ShopifyLogo size={22} /> Shopify
+          </span>
         </div>
       </section>
 
@@ -374,13 +386,13 @@ function FeatureSection({
   return (
     <section className={SECTION}>
       <div className="mx-auto max-w-6xl px-5">
-        <div className="grid items-center gap-10 md:grid-cols-2 md:gap-14 lg:gap-20">
+        <div className="grid items-center gap-10 md:grid-cols-[0.85fr_1.15fr] md:gap-12 lg:gap-16">
           <div className={flip ? "md:order-2" : undefined}>
             <h2 className={H2}>
               {s.title}{" "}
               <span className="text-muted-foreground">{s.titleMuted}</span>
             </h2>
-            <p className={`mt-5 max-w-[460px] ${BODY}`}>{s.body}</p>
+            <p className={`mt-5 max-w-[420px] ${BODY}`}>{s.body}</p>
           </div>
           <div className={flip ? "md:order-1" : undefined}>
             <s.Preview />
@@ -404,7 +416,7 @@ function PreviewFrame({
 }) {
   return (
     <div
-      className={`mx-auto w-full max-w-[440px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 ${className ?? ""}`}
+      className={`mx-auto w-full max-w-[440px] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/20 md:max-w-[500px] lg:max-w-[540px] ${className ?? ""}`}
     >
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="size-3 rounded-full bg-muted-foreground/25" />
@@ -417,16 +429,16 @@ function PreviewFrame({
   );
 }
 
-// Official Shopify brand mark (asset shared with the app's Shopify settings).
+// Brand marks (assets shared with the app's settings screens).
 function ShopifyLogo({ size = 13 }: { size?: number }) {
   return (
-    <Image
-      src="/channels/shopify.svg"
-      alt="Shopify"
-      width={size}
-      height={size}
-      className="inline-block"
-    />
+    <Image src="/channels/shopify.svg" alt="Shopify" width={size} height={size} className="inline-block" />
+  );
+}
+
+function MetaLogo({ size = 13 }: { size?: number }) {
+  return (
+    <Image src="/channels/meta.svg" alt="Meta" width={size} height={size} className="inline-block" />
   );
 }
 
@@ -696,7 +708,7 @@ function SaleCard({ product, order }: { product: Product; order: string }) {
           {product.emoji} {product.name} · 1 ud.
         </span>
         <span className="inline-flex items-center gap-1">
-          <ShopifyLogo size={12} /> Pedido {order}
+          <ShopifyLogo size={15} /> Pedido {order}
         </span>
       </div>
     </div>
@@ -791,30 +803,30 @@ function AgentPanel() {
 
   return (
     <PreviewFrame>
-      <div className="relative h-[300px] sm:h-[330px]">
-        {/* animated lines flowing from the sources into the agent */}
+      <div className="relative h-[360px] sm:h-[420px] lg:h-[440px]">
+        {/* animated black lines flowing from the sources into the agent */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full">
           {AGENT_SOURCES.map((s, i) => {
             const on = lit === i || integrated(i);
             return (
               <line
                 key={s.label}
-                x1="29"
+                x1="28"
                 y1={s.y}
-                x2="68"
+                x2="66"
                 y2="50"
                 vectorEffect="non-scaling-stroke"
                 strokeLinecap="round"
-                strokeWidth={on ? 1.6 : 1}
-                strokeDasharray="2 4"
-                className={`transition-colors duration-500 ${on ? "stroke-primary" : "stroke-border"}`}
+                strokeWidth={on ? 2.4 : 1.4}
+                strokeDasharray="3 5"
+                className={`transition-colors duration-500 ${on ? "stroke-foreground" : "stroke-foreground/20"}`}
               >
                 {!reduced && (
                   <animate
                     attributeName="stroke-dashoffset"
                     from="0"
-                    to="-12"
-                    dur="0.9s"
+                    to="-16"
+                    dur="0.8s"
                     repeatCount="indefinite"
                   />
                 )}
@@ -828,7 +840,7 @@ function AgentPanel() {
           <div
             key={s.label}
             style={{ top: `${s.y}%` }}
-            className={`absolute left-3 inline-flex -translate-y-1/2 items-center gap-1.5 rounded-xl border bg-card px-2.5 py-2 text-xs font-medium shadow-sm transition-all duration-300 ${
+            className={`absolute left-4 inline-flex -translate-y-1/2 items-center gap-2 rounded-xl border bg-card px-3 py-2.5 text-sm font-medium shadow-sm transition-all duration-300 ${
               lit === i
                 ? "scale-105 border-primary/60 bg-primary/10 text-accent-ink"
                 : integrated(i)
@@ -836,21 +848,21 @@ function AgentPanel() {
                   : "border-border text-muted-foreground"
             }`}
           >
-            <s.icon className="size-3.5" />
+            <s.icon className="size-4" />
             {s.label}
           </div>
         ))}
 
         {/* agent — right side */}
-        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-4 backdrop-blur-sm">
-          <span className="relative flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+        <div className="absolute right-4 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2.5 rounded-2xl border border-primary/40 bg-primary/5 px-5 py-5 backdrop-blur-sm">
+          <span className="relative flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
             {!reduced && <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />}
-            <Sparkles className="relative size-6" />
+            <Sparkles className="relative size-7" />
           </span>
-          <span className="text-[12px] font-semibold text-accent-ink">
+          <span className="text-[13px] font-semibold text-accent-ink">
             {ready ? "Agente listo" : "Entrenándose"}
           </span>
-          <span className="flex gap-1">
+          <span className="flex gap-1.5">
             {AGENT_SOURCES.map((s, i) => (
               <span
                 key={s.label}
@@ -949,7 +961,7 @@ function CartRecoveryPanel() {
           <div className="leading-tight">
             <div className="text-sm font-semibold">Venta recuperada</div>
             <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <ShopifyLogo size={14} /> Shopify
+              <ShopifyLogo size={17} /> Shopify
             </div>
           </div>
           <span className="ml-auto text-base font-semibold tracking-[-0.02em] text-accent-ink">
@@ -1034,7 +1046,69 @@ function CommentsPreview() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 08 · Configuración — 3-click setup wizard (non-chat)
+// 04 · Soporte 24/7 — a live feed of proactive updates the agent pushes to
+// the customer (order confirmed, tracking, questions). Distinct from the
+// other previews: notifications stack in from the top, one after another.
+// ─────────────────────────────────────────────────────────────────────────
+
+const SUPPORT_EVENTS: { icon: typeof Inbox; title: string; meta: string }[] = [
+  { icon: Check, title: "Pedido confirmado", meta: "#1042" },
+  { icon: Truck, title: "En camino · guía enviada", meta: "9400 1234" },
+  { icon: MessageSquare, title: "“¿Cuándo llega?” resuelto", meta: "ahora" },
+];
+
+function SupportPreview() {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(1);
+  useEffect(() => {
+    if (reduced) {
+      const raf = requestAnimationFrame(() => setShown(SUPPORT_EVENTS.length));
+      return () => cancelAnimationFrame(raf);
+    }
+    const t = setInterval(
+      () => setShown((s) => (s >= SUPPORT_EVENTS.length ? 1 : s + 1)),
+      1400,
+    );
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-3 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
+            <Headset className="size-4" />
+          </span>
+          <span className="text-sm font-semibold">Soporte 24/7</span>
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-accent-ink">
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" /> en línea
+          </span>
+        </div>
+
+        {/* push-style notifications stacking in */}
+        <div className="flex flex-col gap-2.5">
+          {SUPPORT_EVENTS.slice(0, shown).map((e, i) => (
+            <div
+              key={e.title}
+              className={`flex items-center gap-3 rounded-xl border p-3 duration-300 animate-in fade-in slide-in-from-top-2 ${
+                i === shown - 1 ? "border-primary/45 bg-primary/5" : "border-border bg-background/60"
+              }`}
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <e.icon className="size-4" />
+              </span>
+              <span className="text-sm font-medium">{e.title}</span>
+              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{e.meta}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 09 · Configuración — 3-click setup wizard (non-chat)
 // ─────────────────────────────────────────────────────────────────────────
 
 function SetupToggle({ on }: { on: boolean }) {
@@ -1198,16 +1272,21 @@ function FlowPreview() {
 
 function CampaignPreview() {
   const reduced = useReducedMotion();
-  const [run, setRun] = useState(false);
+  const [cycle, setCycle] = useState(0);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setRun(true));
-    return () => cancelAnimationFrame(id);
+    const start = setTimeout(() => setCycle(1), 60);
+    const loop = setInterval(() => setCycle((c) => c + 1), 5200);
+    return () => {
+      clearTimeout(start);
+      clearInterval(loop);
+    };
   }, []);
+  const run = cycle > 0;
 
-  const sent = useCountUp(1240, run);
-  const delivered = useCountUp(1198, run);
-  const read = useCountUp(932, run);
-  const replied = useCountUp(214, run);
+  const sent = useCountUp(1240, run, 1100, cycle);
+  const delivered = useCountUp(1198, run, 1100, cycle);
+  const read = useCountUp(932, run, 1100, cycle);
+  const replied = useCountUp(214, run, 1100, cycle);
   const pct = reduced ? 96 : Math.min(96, Math.round((delivered / 1240) * 100));
 
   const fmt = (v: number) => Math.round(v).toLocaleString("es-CO");
@@ -1292,7 +1371,7 @@ function ProductPreview() {
 
         <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2.5">
           <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <ShopifyLogo size={15} />
+            <ShopifyLogo size={18} />
             <span className="font-medium text-foreground">Sincronizado con Shopify</span>
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
@@ -1316,15 +1395,22 @@ function ProductPreview() {
 const BARS = [38, 52, 44, 70, 60, 84, 96];
 
 function MetricsPreview() {
-  const [run, setRun] = useState(false);
+  // setInterval-driven so the counters reliably start and re-animate (a one-shot
+  // requestAnimationFrame can be dropped if the tab mounts in the background).
+  const [cycle, setCycle] = useState(0);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setRun(true));
-    return () => cancelAnimationFrame(id);
+    const start = setTimeout(() => setCycle(1), 60);
+    const loop = setInterval(() => setCycle((c) => c + 1), 5200);
+    return () => {
+      clearTimeout(start);
+      clearInterval(loop);
+    };
   }, []);
+  const run = cycle > 0;
 
-  const roas = useCountUp(4.2, run, 1100);
-  const ingresos = useCountUp(1.84, run);
-  const recup = useCountUp(420, run);
+  const roas = useCountUp(4.2, run, 1100, cycle);
+  const ingresos = useCountUp(1.84, run, 1100, cycle);
+  const recup = useCountUp(420, run, 1100, cycle);
 
   return (
     <PreviewFrame>
@@ -1369,7 +1455,7 @@ function MetricsPreview() {
           </div>
           <div className="flex h-20 items-end gap-2">
             {BARS.map((h, i) => (
-              <div key={i} className="flex flex-1 flex-col justify-end">
+              <div key={i} className="flex h-full flex-1 flex-col justify-end">
                 <div
                   className="w-full rounded-t-md bg-primary transition-[height] duration-700 ease-out"
                   style={{ height: run ? `${h}%` : "0%", transitionDelay: `${i * 70}ms` }}
