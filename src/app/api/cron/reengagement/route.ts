@@ -27,12 +27,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * cumple y upsertea `contact_reengagement_state` con `last_reengagement_at
  * = now()`. Un fallo transitorio revierte el claim del cooldown.
  *
- * Antes esta cron estaba clavada a PILAR_WORKSPACE_ID, así que ningún otro
- * tenant recibía recompras aunque tuviera la automation activa. Ahora
- * itera por workspace para que funcione para cualquier usuario de Riverz.
+ * Es totalmente por-workspace: procesa cualquier tenant con una automation
+ * activa de tipo customer_inactive, sin casos especiales ni fallbacks por
+ * UUID.
  */
-const DEFAULT_AUTOMATION_ID = '9a4c971b-7a36-48b3-be1e-cf2989b13918'
-const PILAR_WORKSPACE_ID = '522a68ae-568d-4dd9-92e5-2c8f633f1761'
 const DEFAULT_DAYS_THRESHOLD = 14
 const COOLDOWN_DAYS = 30
 
@@ -45,14 +43,10 @@ export async function GET(request: Request) {
   }
   void pingCron('reengagement')
 
-  const legacyAutomationId =
-    process.env.PILAR_REENGAGEMENT_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
-  const legacyWorkspaceId = process.env.PILAR_WORKSPACE_ID || PILAR_WORKSPACE_ID
-
   const admin = supabaseAdmin()
 
   // Workspaces to process: cualquiera con una automation activa de tipo
-  // customer_inactive + el workspace legacy (que usa el fallback por UUID).
+  // customer_inactive.
   const { data: wsRows, error: wsErr } = await admin
     .from('automations')
     .select('workspace_id')
@@ -65,19 +59,12 @@ export async function GET(request: Request) {
   for (const r of (wsRows ?? []) as Array<{ workspace_id: string | null }>) {
     if (r.workspace_id) targets.add(r.workspace_id)
   }
-  // Siempre incluimos el workspace legacy para conservar el fallback por
-  // UUID mientras migra (aunque no tenga una automation por trigger_type).
-  targets.add(legacyWorkspaceId)
 
   let processed = 0
   let dispatched = 0
   for (const wsId of targets) {
     try {
-      const res = await processWorkspace(
-        admin,
-        wsId,
-        wsId === legacyWorkspaceId ? legacyAutomationId : null,
-      )
+      const res = await processWorkspace(admin, wsId)
       processed += res.processed
       dispatched += res.dispatched
     } catch (err) {
@@ -89,14 +76,12 @@ export async function GET(request: Request) {
 }
 
 /**
- * Procesa un workspace. `legacyAutomationId` es no-null sólo para el
- * workspace legacy de Pilar — para el resto, si no hay automations por
- * trigger_type simplemente no se dispara nada (no hay fallback cross-tenant).
+ * Procesa un workspace. Si no hay automations activas por trigger_type
+ * simplemente no se dispara nada — no hay fallback cross-tenant.
  */
 async function processWorkspace(
   admin: SupabaseClient,
   workspaceId: string,
-  legacyAutomationId: string | null,
 ): Promise<{ processed: number; dispatched: number }> {
   // Automations activas de este workspace.
   const { data: candidateAutomations } = await admin
@@ -111,21 +96,18 @@ async function processWorkspace(
     trigger_config: { days_threshold?: number } | null
   }>
 
-  // Sin automations propias y sin fallback legacy => nada que hacer.
-  if (automationsToFire.length === 0 && !legacyAutomationId) {
+  // Sin automations propias => nada que hacer.
+  if (automationsToFire.length === 0) {
     return { processed: 0, dispatched: 0 }
   }
 
   // El cutoff de silencio es el MENOR days_threshold configurado (así no nos
   // perdemos contactos que califican para la automation más agresiva).
-  const minThreshold =
-    automationsToFire.length > 0
-      ? Math.min(
-          ...automationsToFire.map((a) =>
-            Number(a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD),
-          ),
-        )
-      : DEFAULT_DAYS_THRESHOLD
+  const minThreshold = Math.min(
+    ...automationsToFire.map((a) =>
+      Number(a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD),
+    ),
+  )
   const cutoff = new Date(
     Date.now() - minThreshold * 24 * 60 * 60 * 1000,
   ).toISOString()
@@ -213,15 +195,11 @@ async function processWorkspace(
       : Number.POSITIVE_INFINITY
 
     const idsToFire: string[] = []
-    if (automationsToFire.length > 0) {
-      for (const a of automationsToFire) {
-        const need = Number(
-          a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD,
-        )
-        if (Number.isFinite(need) && elapsedDays >= need) idsToFire.push(a.id)
-      }
-    } else if (legacyAutomationId) {
-      idsToFire.push(legacyAutomationId)
+    for (const a of automationsToFire) {
+      const need = Number(
+        a.trigger_config?.days_threshold ?? DEFAULT_DAYS_THRESHOLD,
+      )
+      if (Number.isFinite(need) && elapsedDays >= need) idsToFire.push(a.id)
     }
 
     let dispatchedHere = 0

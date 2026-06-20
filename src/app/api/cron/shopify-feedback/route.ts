@@ -36,15 +36,12 @@ import { pingCron } from '@/lib/cron/heartbeat'
  * disparar, como hace el cron de cart-recovery.
  *
  * Discovery de automation:
- *   - Modo nuevo: por trigger_type='post_delivery_feedback' (con
+ *   - Por trigger_type='post_delivery_feedback' (con
  *     trigger_config.days_after = cadencia). Cualquier workspace
  *     puede tener su propia automation activa con este trigger sin
- *     tocar env vars; los nuevos templates usan este path.
- *   - Modo legacy: la env var `PILAR_FEEDBACK_AUTOMATION_ID` o el UUID
- *     hard-codeado se siguen usando como fallback para el workspace
- *     de Pilar mientras migramos.
+ *     tocar env vars. Si el workspace no tiene una automation activa
+ *     con este trigger, no se dispara nada (sin fallback cross-tenant).
  */
-const DEFAULT_AUTOMATION_ID = 'b29697f9-378a-48c7-9ad1-6d45205ffa2b'
 const DEFAULT_DAYS_AFTER = 3
 
 export async function GET(request: Request) {
@@ -55,9 +52,6 @@ export async function GET(request: Request) {
     throw r
   }
   void pingCron('shopify-feedback')
-
-  const legacyAutomationId =
-    process.env.PILAR_FEEDBACK_AUTOMATION_ID || DEFAULT_AUTOMATION_ID
 
   const admin = supabaseAdmin()
   const threeDaysAgo = new Date(
@@ -152,8 +146,8 @@ export async function GET(request: Request) {
     }
 
     // Buscamos toda automation activa con trigger_type='post_delivery_feedback'
-    // en este workspace. Si ninguna existe, caemos al UUID legacy
-    // (Pilar) para no romper el flujo actual mientras migramos.
+    // en este workspace. Si ninguna existe, no se dispara nada para este
+    // workspace (sin fallback cross-tenant) y se libera el claim abajo.
     const { data: candidates } = await admin
       .from('automations')
       .select('id, trigger_config')
@@ -165,19 +159,15 @@ export async function GET(request: Request) {
       trigger_config: { days_after?: number } | null
     }>
 
+    // Solo disparamos las que tienen days_after <= antigüedad del
+    // delivered_at (el predicado SQL ya limita a 3 días, así que
+    // automations configuradas con days_after > 3 ya no entran).
     const ids: string[] = []
-    if (matches.length > 0) {
-      // Solo disparamos las que tienen days_after <= antigüedad del
-      // delivered_at (el predicado SQL ya limita a 3 días, así que
-      // automations configuradas con days_after > 3 ya no entran).
-      const deliveredMs = new Date(r.delivered_at).getTime()
-      const elapsedDays = (Date.now() - deliveredMs) / 86_400_000
-      for (const m of matches) {
-        const need = Number(m.trigger_config?.days_after ?? DEFAULT_DAYS_AFTER)
-        if (Number.isFinite(need) && elapsedDays >= need) ids.push(m.id)
-      }
-    } else {
-      ids.push(legacyAutomationId)
+    const deliveredMs = new Date(r.delivered_at).getTime()
+    const elapsedDays = (Date.now() - deliveredMs) / 86_400_000
+    for (const m of matches) {
+      const need = Number(m.trigger_config?.days_after ?? DEFAULT_DAYS_AFTER)
+      if (Number.isFinite(need) && elapsedDays >= need) ids.push(m.id)
     }
 
     // Fetch the contact's name so the feedback template can address the
