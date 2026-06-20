@@ -65,9 +65,14 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    // 1. Exchange the FB.login code for a user token (no redirect_uri).
+    // 1. Exchange the FB.login code for a user token.
+    //    El code viene del JS SDK (FB.login), cuyo diálogo registra
+    //    redirect_uri = "" (vacío). El canje DEBE mandar redirect_uri vacío
+    //    e IDÉNTICO, si no Facebook responde 400 error_subcode 36008
+    //    ("redirect_uri ... identical"). Omitirlo no basta: hay que enviar
+    //    el parámetro presente y vacío (`&redirect_uri=`).
     const tokRes = await fetch(
-      `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${encodeURIComponent(body.code)}`,
+      `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=&code=${encodeURIComponent(body.code)}`,
     );
     if (!tokRes.ok) {
       // Surface Facebook's actual reason: el body trae el error_subcode /
