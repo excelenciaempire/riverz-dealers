@@ -300,7 +300,7 @@ export function SegmentsPanel() {
                     <button
                       onClick={() => startEdit(s)}
                       title="Editar"
-                      className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       <Pencil className="size-4" />
                     </button>
@@ -308,7 +308,7 @@ export function SegmentsPanel() {
                       onClick={() => handleDelete(s.id)}
                       disabled={deletingId === s.id}
                       title="Eliminar"
-                      className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
+                      className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
                     >
                       {deletingId === s.id ? (
                         <Loader2 className="size-4 animate-spin" />
@@ -447,7 +447,7 @@ function SegmentEditor({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
+        className="grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
         showCloseButton={false}
       >
         <div className="flex items-start justify-between border-b border-border px-6 py-4">
@@ -808,7 +808,7 @@ function RuleControls({
               type="date"
               value={rule.value.slice(0, 10)}
               onChange={(e) => onChange({ ...rule, value: e.target.value })}
-              className="h-8 w-40 bg-background text-xs"
+              className="h-8 w-full sm:w-40 bg-background text-xs"
             />
           )}
         </>
@@ -868,7 +868,7 @@ function RuleControls({
             value={rule.value}
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
             placeholder="texto"
-            className="h-8 w-44 bg-background text-xs"
+            className="h-8 w-full sm:w-44 bg-background text-xs"
           />
         </>
       );
@@ -900,7 +900,7 @@ function RuleControls({
             value={rule.value}
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
             placeholder="valor"
-            className="h-8 w-44 bg-background text-xs"
+            className="h-8 w-full sm:w-44 bg-background text-xs"
           />
         </>
       );
@@ -925,7 +925,7 @@ function MiniSelect({
 }) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v ?? '')}>
-      <SelectTrigger className="h-8 min-w-[8rem] bg-background text-xs">
+      <SelectTrigger className="h-8 w-full sm:w-auto sm:min-w-[8rem] bg-background text-xs">
         <SelectValue labels={labels} placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

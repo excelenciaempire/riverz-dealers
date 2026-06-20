@@ -133,7 +133,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                 : 0;
           return (
             <div key={step.label} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-xs text-muted-foreground">
+              <span className="w-16 shrink-0 sm:w-24 text-xs text-muted-foreground">
                 {step.label}
               </span>
               <div className="relative h-6 flex-1 rounded-md bg-muted/60">
@@ -145,7 +145,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                   {step.value.toLocaleString('es-ES')}
                 </span>
               </div>
-              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              <span className="w-10 shrink-0 sm:w-14 text-right text-xs tabular-nums text-muted-foreground">
                 {idx === 0 ? '—' : `${pctOfPrev}%`}
               </span>
             </div>
@@ -326,7 +326,7 @@ export default function BroadcastDetailPage() {
             variant="outline"
             size="icon"
             onClick={() => router.push('/campanas')}
-            className="h-8 w-8 border-border"
+            className="h-9 w-9 border-border md:h-8 md:w-8"
             aria-label="Volver a campañas"
           >
             <ArrowLeft className="size-4" />
@@ -492,7 +492,7 @@ export default function BroadcastDetailPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar contacto…"
-                className="h-8 w-56 pl-8"
+                className="h-8 w-full sm:w-56 pl-8"
               />
             </div>
 

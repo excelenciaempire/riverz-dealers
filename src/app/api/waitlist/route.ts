@@ -35,7 +35,12 @@ function originAllowed(req: Request): boolean {
   const origin = req.headers.get("origin");
   if (!origin) return true;
   try {
-    return ALLOWED_HOSTS.has(new URL(origin).host);
+    const oHost = new URL(origin).host;
+    if (ALLOWED_HOSTS.has(oHost)) return true;
+    // Allow same-origin posts too (e.g. the *.onrender.com host, or any new
+    // domain the app is served from) — Origin host equals the request host.
+    const host = req.headers.get("host");
+    return host != null && oHost === host;
   } catch {
     return false;
   }

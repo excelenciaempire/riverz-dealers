@@ -150,7 +150,7 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
             type="button"
             onClick={() => toggle(tag.id)}
             disabled={busyId === tag.id}
-            className="rounded-full p-0.5 opacity-60 transition-opacity hover:opacity-100"
+            className="-mr-1 rounded-full p-1.5 opacity-60 transition-opacity hover:opacity-100"
             aria-label={`Quitar ${tag.name}`}
           >
             <X className="size-2.5" />

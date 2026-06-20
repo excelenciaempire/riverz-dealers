@@ -144,7 +144,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     onClick={() => setPageSize(size)}
                     disabled={disabled}
                     className={cn(
-                      'rounded-md px-2 py-1 font-medium tabular-nums transition-colors',
+                      'min-h-9 min-w-9 md:min-h-0 md:min-w-0 rounded-md px-2 py-1 font-medium tabular-nums transition-colors',
                       pageSize === size
                         ? 'bg-muted text-foreground'
                         : 'text-muted-foreground hover:bg-accent hover:text-foreground',

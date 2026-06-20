@@ -590,10 +590,10 @@ export function AgentEditor({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
+        className="grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
         showCloseButton={false}
       >
-        <div className="flex items-start justify-between border-b border-border px-6 py-4">
+        <div className="flex items-start justify-between border-b border-border px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Sparkles className="size-4" />
@@ -665,7 +665,7 @@ export function AgentEditor({
           </nav>
 
           {/* Form column */}
-          <div className="space-y-6 overflow-y-auto p-6">
+          <div className="space-y-6 overflow-y-auto p-4 sm:p-6">
             {tab === 'business' && (
               <>
                 {/* Producto PRIMERO: elegirlo dispara la investigación y
@@ -1360,7 +1360,7 @@ export function AgentEditor({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-4 py-4 sm:px-6">
           <Button
             variant="outline"
             onClick={onClose}

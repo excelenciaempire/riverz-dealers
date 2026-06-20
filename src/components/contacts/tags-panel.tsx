@@ -168,7 +168,7 @@ export function TagsPanel() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="size-7"
+                  className="size-9 sm:size-7"
                   onClick={() => setEditing(tag)}
                   aria-label="Editar etiqueta"
                 >
@@ -177,7 +177,7 @@ export function TagsPanel() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="size-7 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                  className="size-9 sm:size-7 text-red-500 hover:bg-red-500/10 hover:text-red-500"
                   onClick={() => setDeleteTarget(tag)}
                   aria-label="Eliminar etiqueta"
                 >

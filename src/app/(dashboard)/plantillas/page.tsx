@@ -261,7 +261,7 @@ export default function TemplatesPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDelete(template.id)}
-                          className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                          className="min-h-10 min-w-10 sm:h-8 sm:w-8 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                           aria-label="Eliminar plantilla"
                         >
                           <Trash2 className="size-3.5" />

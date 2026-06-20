@@ -32,7 +32,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       {children}
       {/* Discoverable legal links (Meta App Review expects the privacy
           policy reachable from the app). Subtle, fixed at the bottom. */}
-      <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 py-3 text-[11px] text-muted-foreground">
+      <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-[11px] text-muted-foreground">
         <Link href="/privacidad" className="pointer-events-auto hover:text-foreground">
           Privacidad
         </Link>

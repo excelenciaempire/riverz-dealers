@@ -162,6 +162,11 @@ html[data-theme="dark"] {
   html {
     @apply font-sans;
     color-scheme: light;
+    /* Stop iOS Safari / older Android from auto-inflating text on
+       rotation and from "boosting" font sizes — we size type explicitly,
+       so this keeps mobile rendering identical to what we author. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   html[data-theme="dark"] {
     color-scheme: dark;
@@ -176,6 +181,29 @@ html[data-theme="dark"] {
      with negative tracking. */
   h1, h2, h3, h4 {
     letter-spacing: -0.025em;
+  }
+
+  /* ----------------------------------------------------------------
+   * iOS focus-zoom guard (global safety net)
+   *
+   * Mobile Safari auto-zooms the whole page whenever a focused form
+   * control has a computed font-size < 16px. The shared <Input>/
+   * <Textarea> already use `text-base` on mobile, but the app also has
+   * many RAW native <select>/<input> (timezone pickers, builder config,
+   * audience filters…) that use text-sm/text-xs and WOULD trigger the
+   * zoom. Force a 16px minimum on every native control below the md
+   * breakpoint so focusing ANY field is zoom-free on every iPhone.
+   * Desktop (>=768px) is untouched — the editorial 13–14px sizing
+   * stays. Checkboxes/radios are excluded (font-size is irrelevant and
+   * could nudge their box size). `!important` is required because these
+   * are element selectors competing with Tailwind utility classes.
+   * ---------------------------------------------------------------- */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 }
 

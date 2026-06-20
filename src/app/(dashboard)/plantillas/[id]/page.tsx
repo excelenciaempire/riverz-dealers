@@ -183,7 +183,7 @@ export default function TemplateDetailPage() {
             variant="outline"
             size="icon"
             onClick={() => router.push('/plantillas')}
-            className="h-8 w-8 border-border"
+            className="size-10 sm:size-8 border-border"
             aria-label="Volver"
           >
             <ArrowLeft className="size-4" />
@@ -244,11 +244,11 @@ export default function TemplateDetailPage() {
           >
             <div className="max-w-sm space-y-1.5 rounded-md rounded-tl-none bg-white p-3 shadow-sm">
               {template.header_content && (
-                <p className="text-sm font-semibold text-[#111b21]">
+                <p className="text-sm font-semibold text-[#111b21] break-words">
                   {template.header_content}
                 </p>
               )}
-              <p className="whitespace-pre-wrap text-sm leading-snug text-[#111b21]">
+              <p className="whitespace-pre-wrap break-words text-sm leading-snug text-[#111b21]">
                 {samples.length > 0 ? renderBody(template.body_text) : template.body_text}
               </p>
               {template.footer_text && (

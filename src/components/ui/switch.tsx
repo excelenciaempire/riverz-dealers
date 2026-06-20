@@ -16,6 +16,10 @@ function Switch({
       data-slot="switch"
       className={cn(
         "inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+        // Invisible expanded hit area (mirrors RadioGroupItem) so the 20px-tall
+        // track is comfortably tappable on touch without changing its visual
+        // size or the surrounding layout.
+        "relative after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-['']",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[checked]:bg-primary data-[unchecked]:bg-input",

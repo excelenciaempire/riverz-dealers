@@ -188,6 +188,7 @@ export function Sidebar({
         <div
           className={cn(
             "flex h-14 shrink-0 items-center justify-between gap-2",
+            "pt-[env(safe-area-inset-top)] lg:pt-0",
             collapsed ? "px-4 lg:justify-center lg:px-2" : "px-4",
           )}
         >
@@ -304,6 +305,7 @@ export function Sidebar({
         <div
           className={cn(
             "flex shrink-0 items-center gap-2 border-t border-sidebar-border p-3",
+            "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
             collapsed && "lg:flex-col lg:gap-2 lg:p-2",
           )}
         >
@@ -462,6 +464,7 @@ function NavLink({
       href={item.href}
       className={cn(
         "app-sidebar-link",
+        "min-h-[44px] lg:min-h-0",
         collapsed && "lg:justify-center lg:px-0",
         isActive && "is-active",
       )}

@@ -652,7 +652,7 @@ export function AutomationBuilder({
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
           gets maximum width. */}
-      <header className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-card/80 px-3 py-3 sm:gap-3 sm:px-4">
+      <header className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-card/80 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:gap-3 sm:px-4">
         <button
           type="button"
           onClick={() => router.push("/automatizaciones")}
@@ -1880,42 +1880,73 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     return () => el.removeEventListener("wheel", onWheel)
   }, [scale, zoomAt])
 
-  // Pan whenever the user left-drags on empty canvas (no Space needed).
-  // Middle mouse anywhere still pans. Clicks that land on form controls
-  // or buttons pass through untouched so inputs/menus keep working.
-  function onMouseDown(e: React.MouseEvent) {
+  // Pointer-based pan + pinch-zoom. Pointer Events cover mouse, touch and
+  // pen, so the builder pans with one finger and pinch-zooms with two on a
+  // phone/tablet — not just left-drag on desktop. Middle mouse still pans.
+  // Clicks on form controls/buttons pass through so inputs/menus keep
+  // working. `touch-action: none` on the container (below) stops the page
+  // from scrolling/zooming under the gesture. setPointerCapture replaces the
+  // old window-level mouse listeners.
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinchRef = useRef<{
+    startDist: number
+    startScale: number
+    cx: number
+    cy: number
+  } | null>(null)
+
+  function onPointerDown(e: React.PointerEvent) {
     const target = e.target as HTMLElement
-    if (e.button !== 0 && e.button !== 1) return
-    if (e.button === 0 && target.closest(INTERACTIVE_SELECTOR)) return
-    e.preventDefault()
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startTx: tx,
-      startTy: ty,
+    if (target.closest(INTERACTIVE_SELECTOR)) return
+    if (e.pointerType === "mouse" && e.button !== 0 && e.button !== 1) return
+
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+
+    if (pointersRef.current.size === 2) {
+      dragRef.current = null
+      setDragging(false)
+      const [a, b] = [...pointersRef.current.values()]
+      pinchRef.current = {
+        startDist: Math.hypot(a.x - b.x, a.y - b.y),
+        startScale: scale,
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+      }
+    } else if (pointersRef.current.size === 1) {
+      e.preventDefault()
+      dragRef.current = { startX: e.clientX, startY: e.clientY, startTx: tx, startTy: ty }
+      setDragging(true)
     }
-    setDragging(true)
   }
 
-  useEffect(() => {
-    function move(e: MouseEvent) {
-      if (!dragRef.current) return
+  function onPointerMove(e: React.PointerEvent) {
+    if (!pointersRef.current.has(e.pointerId)) return
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      const dist = Math.hypot(a.x - b.x, a.y - b.y)
+      if (pinchRef.current.startDist > 0) {
+        const ratio = dist / pinchRef.current.startDist
+        zoomAt(pinchRef.current.cx, pinchRef.current.cy, pinchRef.current.startScale * ratio)
+      }
+      return
+    }
+    if (dragRef.current) {
       setTx(dragRef.current.startTx + (e.clientX - dragRef.current.startX))
       setTy(dragRef.current.startTy + (e.clientY - dragRef.current.startY))
     }
-    function up() {
-      if (dragRef.current) {
-        dragRef.current = null
-        setDragging(false)
-      }
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    pointersRef.current.delete(e.pointerId)
+    if (pointersRef.current.size < 2) pinchRef.current = null
+    if (pointersRef.current.size === 0) {
+      dragRef.current = null
+      setDragging(false)
     }
-    window.addEventListener("mousemove", move)
-    window.addEventListener("mouseup", up)
-    return () => {
-      window.removeEventListener("mousemove", move)
-      window.removeEventListener("mouseup", up)
-    }
-  }, [])
+  }
 
   function zoomByButton(delta: number) {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -1926,7 +1957,13 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={containerRef}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      // touch-action:none so one finger pans and two fingers pinch-zoom the
+      // canvas instead of scrolling/zooming the page. No effect with a mouse.
+      style={{ touchAction: "none" }}
       className={cn(
         "relative flex-1 overflow-hidden select-none",
         dragging ? "cursor-grabbing" : "cursor-grab",
@@ -1958,7 +1995,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           onClick={() => zoomByButton(-0.1)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Reducir (Ctrl + rueda)"
           aria-label="Reducir"
         >
@@ -1975,7 +2012,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           onClick={() => zoomByButton(0.1)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Ampliar (Ctrl + rueda)"
           aria-label="Ampliar"
         >
@@ -1985,7 +2022,7 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           onClick={fitToView}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Centrar todo el flujo"
           aria-label="Centrar"
         >

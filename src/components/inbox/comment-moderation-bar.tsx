@@ -55,7 +55,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         disabled={busy !== null}
         title={liked ? "Quitar me gusta" : "Me gusta como página"}
         aria-label={liked ? "Quitar me gusta" : "Me gusta como página"}
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
+        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
       >
         <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
       </button>
@@ -64,7 +64,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         disabled={busy !== null}
         title={hidden ? "Mostrar" : "Ocultar comentario"}
         aria-label={hidden ? "Mostrar comentario" : "Ocultar comentario"}
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
+        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
       >
         {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
       </button>
@@ -75,7 +75,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
         disabled={busy !== null}
         title="Eliminar"
         aria-label="Eliminar comentario"
-        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
       >
         <Trash2 className="size-3" />
       </button>
@@ -85,7 +85,7 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
           target="_blank"
           rel="noopener noreferrer"
           title="Abrir en Facebook/Instagram"
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <ExternalLink className="size-3" />
         </a>

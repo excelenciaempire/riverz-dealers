@@ -191,7 +191,7 @@ export function AiBuilderPanel({
       {open && (
         <div
           className={cn(
-            "absolute right-4 top-4 bottom-4 z-30 flex w-[400px] flex-col",
+            "absolute left-4 right-4 top-4 bottom-4 z-30 flex w-auto flex-col lg:left-auto lg:w-[400px]",
             "rounded-xl border border-border bg-card shadow-2xl shadow-black/40",
           )}
         >

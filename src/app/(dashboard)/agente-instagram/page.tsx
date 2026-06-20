@@ -513,7 +513,7 @@ export default function InstagramAgentPage() {
                   type="button"
                   onClick={() => deleteCampaign(c.id)}
                   aria-label="Eliminar campaña"
-                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  className="shrink-0 inline-flex items-center justify-center min-h-9 min-w-9 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

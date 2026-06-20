@@ -286,7 +286,7 @@ export function ChannelsPanel() {
                           <span className="truncate text-foreground">{url}</span>
                           <button
                             onClick={() => copyToClipboard(url, p)}
-                            className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="shrink-0 rounded p-1 flex items-center justify-center min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
                             title="Copiar"
                           >
                             <Copy className="size-3" />
@@ -401,7 +401,7 @@ export function ChannelsPanel() {
                                 <button
                                   onClick={() => handleDisconnect(ids)}
                                   title="Desconectar"
-                                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+                                  className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-amber-400"
                                 >
                                   <RefreshCcw className="size-3.5" />
                                 </button>
@@ -409,7 +409,7 @@ export function ChannelsPanel() {
                               <button
                                 onClick={() => handleDelete(ids)}
                                 title="Eliminar"
-                                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+                                className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400"
                               >
                                 <Trash2 className="size-3.5" />
                               </button>
@@ -668,7 +668,7 @@ function ManualTokenModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
+        className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>

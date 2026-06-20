@@ -34,7 +34,7 @@ export default async function EliminarDatosPage({
           <p className="mt-1 text-foreground/85">
             Tu solicitud de eliminación se está procesando. Código de
             confirmación:{" "}
-            <span className="font-mono text-foreground">{code}</span>
+            <span className="font-mono text-foreground break-all">{code}</span>
           </p>
           <p className="mt-1 text-foreground/85">
             Los datos asociados se eliminan o anonimizan en un plazo razonable.

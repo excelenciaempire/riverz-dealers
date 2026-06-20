@@ -601,7 +601,7 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6 lg:-m-8 lg:h-screen">
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden sm:-m-6 lg:-m-8 lg:h-dvh">
       {hasAnyConnection === false && (
         <Link
           href="/integraciones"
@@ -697,15 +697,37 @@ export default function InboxPage() {
           />
         </div>
 
-        {/* Right panel: Contact sidebar — desktop only, collapsed by
-            default and revealed via the thread header's toggle. */}
+        {/* Right panel: Contact sidebar. Collapsed by default, revealed via
+            the thread header's toggle.
+            - Desktop (lg+): an inline column beside the thread.
+            - Mobile (<lg): a right-side drawer over a backdrop, since the
+              3-pane layout has no room for a third column on a phone. This
+              also makes the thread header's contact toggle actually do
+              something on mobile (previously it flipped state but nothing
+              rendered). */}
         {contactPanelOpen && (
-          <div className="hidden shrink-0 lg:block">
-            <ContactSidebar
-              contact={activeContact}
-              onClose={() => setContactPanelOpen(false)}
-            />
-          </div>
+          <>
+            <div className="hidden shrink-0 lg:block">
+              <ContactSidebar
+                contact={activeContact}
+                onClose={() => setContactPanelOpen(false)}
+              />
+            </div>
+            <div className="fixed inset-0 z-50 flex lg:hidden">
+              <button
+                type="button"
+                aria-label="Cerrar panel de contacto"
+                onClick={() => setContactPanelOpen(false)}
+                className="flex-1 bg-black/60 backdrop-blur-sm"
+              />
+              <div className="h-full shrink-0 shadow-xl">
+                <ContactSidebar
+                  contact={activeContact}
+                  onClose={() => setContactPanelOpen(false)}
+                />
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

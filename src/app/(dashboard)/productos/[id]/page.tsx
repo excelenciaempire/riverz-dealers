@@ -445,7 +445,7 @@ export default function ProductDetailPage() {
                   }
                   className="h-10 flex-1 bg-card"
                 />
-                <div className="relative w-40">
+                <div className="relative w-28 sm:w-40">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     $
                   </span>
@@ -730,13 +730,13 @@ export default function ProductDetailPage() {
 
       {/* Sticky save bar */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
           <span className="truncate text-xs text-muted-foreground">
             {isShopify ? 'Sincronizado desde Shopify' : 'Producto manual'}
             {' · '}
             {product.title}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               onClick={handleResearch}
@@ -807,7 +807,7 @@ function Collapsible({
         <span className="text-muted-foreground">{icon}</span>
         <span className="flex-1">
           <span className="text-sm font-medium text-foreground">{title}</span>
-          {subtitle && <span className="ml-2 text-xs text-muted-foreground">{subtitle}</span>}
+          {subtitle && <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{subtitle}</span>}
         </span>
         {action}
         <svg

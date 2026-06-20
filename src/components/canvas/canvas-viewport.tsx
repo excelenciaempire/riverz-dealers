@@ -208,39 +208,77 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     return () => el.removeEventListener('wheel', onWheel);
   }, [scale, zoomAt]);
 
-  function onMouseDown(e: React.MouseEvent) {
+  // Pointer-based pan + pinch-zoom. Using Pointer Events (instead of the
+  // old mouse-only handlers) makes the canvas work with touch and pen as
+  // well as mouse — one finger pans, two fingers pinch-zoom — so the flow
+  // editor is usable on a phone/tablet, not just desktop. `touch-action:
+  // none` on the container (below) stops the browser from hijacking the
+  // one-finger drag for page scroll. setPointerCapture keeps move/up events
+  // coming even when the finger/cursor leaves the element, replacing the
+  // old window-level mouse listeners.
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{
+    startDist: number;
+    startScale: number;
+    cx: number;
+    cy: number;
+  } | null>(null);
+
+  function onPointerDown(e: React.PointerEvent) {
     const target = e.target as HTMLElement;
-    if (e.button !== 0 && e.button !== 1) return;
-    if (e.button === 0 && target.closest(INTERACTIVE_SELECTOR)) return;
-    e.preventDefault();
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startTx: tx,
-      startTy: ty,
-    };
-    setDragging(true);
+    // Let taps/clicks on controls reach the control instead of panning.
+    if (target.closest(INTERACTIVE_SELECTOR)) return;
+    // Mouse: only left/middle button drags. Touch/pen always start.
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
+
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+
+    if (pointersRef.current.size === 2) {
+      // Second finger down → start a pinch, abandon the single-finger pan.
+      dragRef.current = null;
+      setDragging(false);
+      const [a, b] = [...pointersRef.current.values()];
+      pinchRef.current = {
+        startDist: Math.hypot(a.x - b.x, a.y - b.y),
+        startScale: scale,
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+      };
+    } else if (pointersRef.current.size === 1) {
+      e.preventDefault();
+      dragRef.current = { startX: e.clientX, startY: e.clientY, startTx: tx, startTy: ty };
+      setDragging(true);
+    }
   }
 
-  useEffect(() => {
-    function move(e: MouseEvent) {
-      if (!dragRef.current) return;
+  function onPointerMove(e: React.PointerEvent) {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchRef.current.startDist > 0) {
+        const ratio = dist / pinchRef.current.startDist;
+        zoomAt(pinchRef.current.cx, pinchRef.current.cy, pinchRef.current.startScale * ratio);
+      }
+      return;
+    }
+    if (dragRef.current) {
       setTx(dragRef.current.startTx + (e.clientX - dragRef.current.startX));
       setTy(dragRef.current.startTy + (e.clientY - dragRef.current.startY));
     }
-    function up() {
-      if (dragRef.current) {
-        dragRef.current = null;
-        setDragging(false);
-      }
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 0) {
+      dragRef.current = null;
+      setDragging(false);
     }
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-    return () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-    };
-  }, []);
+  }
 
   function zoomByButton(delta: number) {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -251,7 +289,14 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
   return (
     <div
       ref={containerRef}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      // touch-action:none so one-finger drag pans the canvas instead of
+      // scrolling the page, and two fingers pinch-zoom instead of zooming
+      // the page. No effect with a mouse.
+      style={{ touchAction: 'none' }}
       className={cn(
         'relative flex-1 overflow-hidden select-none',
         dragging ? 'cursor-grabbing' : 'cursor-grab',
@@ -284,7 +329,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         <button
           type="button"
           onClick={() => zoomByButton(-0.1)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Reducir (Ctrl + rueda)"
           aria-label="Reducir"
         >
@@ -301,7 +346,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         <button
           type="button"
           onClick={() => zoomByButton(0.1)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Ampliar (Ctrl + rueda)"
           aria-label="Ampliar"
         >
@@ -311,7 +356,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         <button
           type="button"
           onClick={fitToView}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
           title="Centrar todo el flujo"
           aria-label="Centrar"
         >
@@ -321,7 +366,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
           <button
             type="button"
             onClick={onAutoLayout}
-            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-10 w-10 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:h-auto lg:w-auto lg:p-1.5"
             title="Reordenar nodos automáticamente"
             aria-label="Auto-organizar"
           >

@@ -192,7 +192,7 @@ export function TemplatePicker({
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="max-h-[70svh] space-y-3 overflow-y-auto">
             <div className="rounded-md border border-border bg-background/50 p-3">
               <p className="mb-1 text-xs text-muted-foreground">Vista previa</p>
               <p className="whitespace-pre-wrap text-sm text-foreground">

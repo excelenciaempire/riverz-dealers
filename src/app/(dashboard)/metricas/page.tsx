@@ -132,7 +132,7 @@ export default function MetricasPage() {
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : data?.not_connected ? (
-        <div className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
+        <div className="rounded-xl border border-dashed border-border bg-card/40 p-6 sm:p-8 text-center">
           <ShoppingBag className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium text-foreground">
             Conecta Shopify para ver atribución
@@ -267,28 +267,30 @@ function AttributionTable({
           {emptyLabel}
         </p>
       ) : (
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2 text-left">Nombre</th>
-              <th className="px-4 py-2 text-right">Órdenes</th>
-              <th className="px-4 py-2 text-right">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border first:border-t-0">
-                <td className="px-4 py-2 text-foreground">{r.name}</td>
-                <td className="px-4 py-2 text-right tabular-nums text-foreground">
-                  {r.orders_count}
-                </td>
-                <td className="px-4 py-2 text-right font-semibold tabular-nums text-foreground">
-                  {formatMoney(r.revenue, r.currency)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left">Nombre</th>
+                <th className="px-4 py-2 text-right">Órdenes</th>
+                <th className="px-4 py-2 text-right">Revenue</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-t border-border first:border-t-0">
+                  <td className="px-4 py-2 text-foreground max-w-[160px] truncate sm:max-w-none">{r.name}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-foreground">
+                    {r.orders_count}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-foreground">
+                    {formatMoney(r.revenue, r.currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

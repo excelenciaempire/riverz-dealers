@@ -474,7 +474,7 @@ export function SimulatorPanel({
       {/* Header de control fuera del frame del teléfono — botones de
           reiniciar, cerrar y toggle de variables. No es parte del
           "celular" para que la ilusión visual del frame sea pareja. */}
-      <div className="mb-2 flex w-[360px] items-center justify-between gap-2">
+      <div className="mb-2 flex w-[min(360px,calc(100vw-2rem))] items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => {
@@ -505,11 +505,11 @@ export function SimulatorPanel({
           (~iPhone 14 ratio: 360x720). Sombra acentuada para que se
           despegue visualmente del lienzo del editor. */}
       <div
-        className="relative flex flex-col overflow-hidden rounded-[2.5rem] bg-[#111] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55)]"
-        style={{ width: 360, height: 720, padding: 12 }}
+        className="relative flex w-[min(360px,calc(100vw-2rem))] h-[min(720px,calc(100dvh-2rem))] lg:w-[360px] lg:h-[720px] flex-col overflow-hidden rounded-[2.5rem] bg-[#111] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55)]"
+        style={{ padding: 12 }}
       >
         {/* Pantalla interior con borde mate. Toda la app vive dentro. */}
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[1.8rem] bg-[#ece5dd]">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.8rem] bg-[#ece5dd]">
           {/* Notch (Dynamic Island estilo). Es decorativo. */}
           <div className="pointer-events-none absolute left-1/2 top-2 z-30 h-6 w-24 -translate-x-1/2 rounded-full bg-[#111]" />
 

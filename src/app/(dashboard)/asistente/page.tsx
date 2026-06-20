@@ -272,14 +272,14 @@ function AgentCard({
           <button
             onClick={onEdit}
             title="Editar"
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Pencil className="size-4" />
           </button>
           <button
             onClick={onDelete}
             title="Eliminar"
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+            className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
           >
             <Trash2 className="size-4" />
           </button>

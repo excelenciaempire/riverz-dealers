@@ -103,13 +103,13 @@ export function KlaviyoCard() {
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : connected ? (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Reemplazar API key…"
-            className="max-w-xs"
+            className="max-w-xs min-w-0 flex-1"
           />
           <Button onClick={save} disabled={saving} variant="secondary">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar'}
@@ -124,13 +124,13 @@ export function KlaviyoCard() {
           </Button>
         </div>
       ) : (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Klaviyo Private API key (pk_…)"
-            className="max-w-xs"
+            className="max-w-xs min-w-0 flex-1"
           />
           <Button onClick={save} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Conectar'}

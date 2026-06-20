@@ -2298,7 +2298,7 @@ export function FlowBuilder({
     // sidebar chrome poking in from the left.
     <FlowBubbleActionsContext.Provider value={bubbleActions}>
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3">
+      <div className="flex-shrink-0 border-b border-border bg-card/40 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <Header
           state={state}
           setState={setStateDirty}
@@ -2396,7 +2396,7 @@ export function FlowBuilder({
           // Bottom-LEFT — los controles de zoom del CanvasViewport viven
           // en bottom-right, así que llevamos la paleta al otro lado
           // para que no se solape con los controles de zoom.
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2">
+          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2 pb-[env(safe-area-inset-bottom)]">
             <div className="pointer-events-auto">
               <FloatingAddPalette onAdd={addNode} />
             </div>
@@ -2733,7 +2733,7 @@ function Header({
             />
             <span
               className={cn(
-                "text-xs font-medium",
+                "hidden text-xs font-medium lg:inline",
                 state.status === "active"
                   ? "text-foreground"
                   : "text-muted-foreground",
@@ -2754,7 +2754,7 @@ function Header({
           title="Probar el flujo como cliente"
         >
           <PlayCircle className="h-3.5 w-3.5" />
-          Probar
+          <span className="hidden sm:inline">Probar</span>
         </Button>
         <Button onClick={onSave} disabled={saving} size="sm">
           {saving ? (
@@ -2764,7 +2764,9 @@ function Header({
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
-          {templatePreview ? "Usar plantilla" : "Guardar"}
+          <span className="hidden sm:inline">
+            {templatePreview ? "Usar plantilla" : "Guardar"}
+          </span>
         </Button>
         {!templatePreview && (
         <DropdownMenu>
@@ -3469,13 +3471,14 @@ function LogicNodeBody({
               </span>
               <span
                 data-connection-port="true"
-                onMouseDown={(e) => {
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
                   e.stopPropagation();
                   e.preventDefault();
                   onConnectStart("text", i, e);
                 }}
                 className={cn(
-                  "absolute right-[-7px] top-1/2 z-10 h-3 w-3 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-all",
+                  "absolute right-[-7px] top-1/2 z-10 h-3 w-3 -translate-y-1/2 cursor-crosshair touch-none rounded-full border-2 transition-all before:absolute before:-inset-3.5 before:content-['']",
                   o.connected
                     ? "border-[#00a5f4] bg-[#00a5f4] shadow-[0_0_0_2px_rgba(0,165,244,0.18)]"
                     : "border-[#9aa6ad] bg-white hover:scale-125 hover:border-[#00a5f4] hover:shadow-[0_0_0_3px_rgba(0,165,244,0.22)]",
@@ -5681,7 +5684,7 @@ function FlowCanvas(props: FlowTreeProps) {
       rafQueued = false
       forceTick((c) => (c + 1) | 0)
     }
-    function move(e: MouseEvent) {
+    function move(e: PointerEvent) {
       const root = canvasRef.current
       if (!root) return
       const rootRect = root.getBoundingClientRect()
@@ -5704,7 +5707,7 @@ function FlowCanvas(props: FlowTreeProps) {
       // setState SOLO si cambió — evitamos re-renders gratis.
       setDropTargetKey((prev) => (prev === nextTarget ? prev : nextTarget))
     }
-    function up(e: MouseEvent) {
+    function up(e: PointerEvent) {
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
       const nodeEl = el?.closest<HTMLElement>("[data-node-key]")
       const toKey = nodeEl?.dataset.nodeKey ?? null
@@ -5717,11 +5720,11 @@ function FlowCanvas(props: FlowTreeProps) {
       setConnecting(null)
       setDropTargetKey(null)
     }
-    window.addEventListener("mousemove", move)
-    window.addEventListener("mouseup", up)
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
     return () => {
-      window.removeEventListener("mousemove", move)
-      window.removeEventListener("mouseup", up)
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
     }
     // Sólo nos importa "empezó/terminó" (boolean) + scale (lectura del
     // coord). NO depemos del objeto `connecting` entero ni de `props`.
@@ -6035,15 +6038,19 @@ function DraggableNode(props: DraggableNodeProps) {
     nodeY: number
   } | null>(null)
 
-  const onDragMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return
+  const onDragPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return
       const t = e.target as HTMLElement
       if (
         t.closest(DRAG_BLOCK_SELECTOR)
       ) {
         return
       }
+      // setPointerCapture mantiene los pointermove/pointerup llegando
+      // aunque el dedo/cursor salga del elemento — reemplaza la captura
+      // implícita que daban los listeners de mouse a nivel window.
+      e.currentTarget.setPointerCapture?.(e.pointerId)
       // Selección por click: si Shift, toggle dentro del set; si no,
       // reemplaza (solo este nodo). Lo notificamos ANTES de empezar
       // el drag para que la selección visual se aplique en el primer
@@ -6067,7 +6074,7 @@ function DraggableNode(props: DraggableNodeProps) {
 
   useEffect(() => {
     if (!dragging) return
-    function move(e: MouseEvent) {
+    function move(e: PointerEvent) {
       const s = startRef.current
       if (!s) return
       const dx = (e.clientX - s.mouseX) / scale
@@ -6078,18 +6085,18 @@ function DraggableNode(props: DraggableNodeProps) {
       startRef.current = null
       setDragging(false)
     }
-    window.addEventListener("mousemove", move)
-    window.addEventListener("mouseup", up)
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
     return () => {
-      window.removeEventListener("mousemove", move)
-      window.removeEventListener("mouseup", up)
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
     }
   }, [dragging, scale, props])
 
   return (
     <div
       className={cn(
-        "absolute select-none transition-transform",
+        "absolute touch-none select-none transition-transform",
         dragging
           ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
           : "cursor-grab",
@@ -6107,7 +6114,7 @@ function DraggableNode(props: DraggableNodeProps) {
         top: props.node.position_y,
         width: CARD_WIDTH,
       }}
-      onMouseDown={onDragMouseDown}
+      onPointerDown={onDragPointerDown}
     >
       {/* Punto rojo en la esquina superior izquierda si hay errores en
           vivo. No reemplaza el panel inferior — es solo un avisador. */}
@@ -6195,13 +6202,16 @@ function DraggableTriggerWrapper({
     nodeY: number
   } | null>(null)
 
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return
       const t = e.target as HTMLElement
       if (t.closest(DRAG_BLOCK_SELECTOR)) {
         return
       }
+      // setPointerCapture mantiene los pointermove/pointerup llegando
+      // aunque el dedo/cursor salga del elemento.
+      e.currentTarget.setPointerCapture?.(e.pointerId)
       e.preventDefault()
       e.stopPropagation()
       startRef.current = {
@@ -6218,7 +6228,7 @@ function DraggableTriggerWrapper({
 
   useEffect(() => {
     if (!dragging) return
-    function move(e: MouseEvent) {
+    function move(e: PointerEvent) {
       const s = startRef.current
       if (!s) return
       const dx = (e.clientX - s.mouseX) / scale
@@ -6229,18 +6239,18 @@ function DraggableTriggerWrapper({
       startRef.current = null
       setDragging(false)
     }
-    window.addEventListener("mousemove", move)
-    window.addEventListener("mouseup", up)
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
     return () => {
-      window.removeEventListener("mousemove", move)
-      window.removeEventListener("mouseup", up)
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
     }
   }, [dragging, scale, onMove])
 
   return (
     <div
       className={cn(
-        "absolute select-none transition-transform",
+        "absolute touch-none select-none transition-transform",
         dragging
           ? "z-30 cursor-grabbing shadow-2xl shadow-black/40"
           : "cursor-grab",
@@ -6251,7 +6261,7 @@ function DraggableTriggerWrapper({
         top: position.y,
         width: TRIGGER_WIDTH,
       }}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
     >
       {children}
     </div>

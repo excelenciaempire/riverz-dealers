@@ -105,7 +105,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+    <div className="flex min-h-dvh items-center justify-center bg-background p-6">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
         {state === "loading" && (
           <div className="flex flex-col items-center gap-3 py-6">

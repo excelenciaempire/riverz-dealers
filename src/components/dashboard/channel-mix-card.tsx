@@ -34,7 +34,7 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
           const outboundPct = (m.outbound / peak) * 100
           return (
             <li key={m.channel} className="flex items-center gap-3">
-              <div className="flex w-28 shrink-0 items-center gap-2">
+              <div className="flex w-16 sm:w-28 shrink-0 items-center gap-2">
                 <span className="flex size-6 items-center justify-center rounded-md bg-muted">
                   <ChannelLogo channel={m.channel as Channel} size={14} />
                 </span>
@@ -54,7 +54,7 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
                   />
                 </div>
               </div>
-              <div className="w-32 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
+              <div className="w-auto sm:w-32 shrink-0 whitespace-nowrap text-right text-[11px] text-muted-foreground tabular-nums">
                 <span className={cn('font-semibold text-foreground')}>{sum.toLocaleString()}</span>
                 <span className="ml-2 text-muted-foreground">
                   ↓ {m.inbound} · ↑ {m.outbound}

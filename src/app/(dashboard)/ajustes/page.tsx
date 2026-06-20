@@ -52,7 +52,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
-        <TabsList className="bg-card border border-border">
+        <TabsList className="bg-card border border-border max-w-full overflow-x-auto">
           <TabsTrigger
             value="profile"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"

@@ -282,7 +282,7 @@ function RuleRowCard({
       <button
         onClick={onEdit}
         title="Editar"
-        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+        className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
       >
         <Pencil className="size-4" />
       </button>
@@ -290,7 +290,7 @@ function RuleRowCard({
         onClick={onDelete}
         disabled={deleting}
         title="Eliminar"
-        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
+        className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
       >
         {deleting ? (
           <Loader2 className="size-4 animate-spin" />
@@ -407,7 +407,7 @@ function RuleEditorModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
+        className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-sm font-semibold text-foreground">

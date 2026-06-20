@@ -58,7 +58,7 @@ export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterPro
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 md:py-1 text-xs font-medium transition-colors',
             preset === 'custom'
               ? 'bg-muted text-foreground'
               : 'text-muted-foreground hover:text-foreground',
@@ -95,7 +95,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+        'rounded-md px-2.5 py-2 md:py-1 text-xs font-medium transition-colors',
         active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
       )}
     >
@@ -193,7 +193,7 @@ function RangeCalendar({
               disabled={future}
               onClick={() => handleClick(key)}
               className={cn(
-                'h-7 rounded text-xs tabular-nums transition-colors',
+                'h-9 sm:h-7 rounded text-xs tabular-nums transition-colors',
                 !isSameMonth(d, month) && 'text-muted-foreground/40',
                 future && 'cursor-not-allowed opacity-30',
                 edge

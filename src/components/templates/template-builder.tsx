@@ -249,7 +249,7 @@ export function TemplateBuilder() {
           variant="outline"
           size="icon"
           onClick={() => router.push('/plantillas')}
-          className="border-border"
+          className="size-10 border-border sm:size-8"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -459,18 +459,18 @@ export function TemplateBuilder() {
           {attempted && issues.length > 0 && <TemplateIssuesPanel issues={issues} />}
 
           {/* Footer actions */}
-          <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-6 py-4">
+          <div className="flex flex-col gap-2 border-t border-border bg-card/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
             <Button
               variant="outline"
               onClick={() => router.push('/plantillas')}
-              className="border-border text-foreground hover:bg-accent"
+              className="w-full border-border text-foreground hover:bg-accent sm:w-auto"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={submitting}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto"
             >
               {submitting ? (
                 <>
