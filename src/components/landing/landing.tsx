@@ -23,6 +23,9 @@ import {
   Tag,
   Truck,
   Star,
+  MousePointerClick,
+  Heart,
+  CornerDownRight,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 
@@ -182,13 +185,22 @@ const SECTIONS: {
     n: "03",
     eyebrow: "Recompras",
     icon: RotateCcw,
-    title: "Haz que vuelvan",
-    titleMuted: "a comprar, solos.",
-    body: "Seguimiento post-venta, recordatorios de recompra y reactivación de clientes dormidos. Defines el flujo una vez y corre solo.",
+    title: "Recompras automáticas,",
+    titleMuted: "sin que muevas un dedo.",
+    body: "Seguimiento post-venta y recordatorios de recompra que reactivan a tus clientes dormidos. Configuras las recompras una vez y el agente las dispara en el momento justo.",
     Preview: FlowPreview,
   },
   {
     n: "04",
+    eyebrow: "Comentarios",
+    icon: MessageSquare,
+    title: "También responde",
+    titleMuted: "los comentarios.",
+    body: "Cada comentario en tus publicaciones y anuncios de Instagram y Facebook recibe respuesta al instante — y el agente lleva la conversación al DM para cerrar la venta.",
+    Preview: CommentsPreview,
+  },
+  {
+    n: "05",
     eyebrow: "Campañas",
     icon: Megaphone,
     title: "Campañas masivas en",
@@ -197,7 +209,7 @@ const SECTIONS: {
     Preview: CampaignPreview,
   },
   {
-    n: "05",
+    n: "06",
     eyebrow: "Bandeja",
     icon: Inbox,
     title: "Y todo, en una",
@@ -206,7 +218,7 @@ const SECTIONS: {
     Preview: InboxPreview,
   },
   {
-    n: "06",
+    n: "07",
     eyebrow: "Productos",
     icon: Package,
     title: "Conecta Shopify",
@@ -215,12 +227,21 @@ const SECTIONS: {
     Preview: ProductPreview,
   },
   {
-    n: "07",
+    n: "08",
+    eyebrow: "Configuración",
+    icon: MousePointerClick,
+    title: "Listo en minutos,",
+    titleMuted: "con unos cuantos clics.",
+    body: "Conectas tus canales y tu tienda, activas el agente y ya está vendiendo. Sin código y sin los dolores de cabeza de otras plataformas.",
+    Preview: SetupPreview,
+  },
+  {
+    n: "09",
     eyebrow: "Métricas",
     icon: BarChart3,
-    title: "Cuánto vendes y",
-    titleMuted: "cuánto recuperas, en vivo.",
-    body: "Ventas, carritos recuperados, conversión y tiempos de respuesta. Sabes con exactitud cuánto dinero te está generando tu agente.",
+    title: "Más eficiente",
+    titleMuted: "que un humano.",
+    body: "Responde en segundos, las 24 horas y sin perder un solo lead. Mira ventas, carritos recuperados y tiempos de respuesta, y comprueba cuánto te está generando tu agente.",
     Preview: MetricsPreview,
   },
 ];
@@ -531,50 +552,60 @@ function delayFor(step: Step): number {
 
 function HeroInbox() {
   const reduced = useReducedMotion();
-  const [ci, setCi] = useState(0);
-  const [n, setN] = useState(1);
+  // One state object so switching channels resets the step count atomically
+  // (no synchronous setN in the effect, no stale-slice flash).
+  const [{ ci, n }, set] = useState({ ci: 0, n: 1 });
+  const pausedRef = useRef(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
+  // Play the active channel's conversation; when idle, advance to the next
+  // channel — but while the visitor hovers or has clicked a tab, stay put and
+  // replay the channel they're looking at.
   useEffect(() => {
     if (reduced) {
-      const raf = requestAnimationFrame(() => setN(HERO_CONVOS[0].steps.length));
+      const raf = requestAnimationFrame(() =>
+        set((s) => ({ ...s, n: HERO_CONVOS[s.ci].steps.length })),
+      );
       return () => cancelAnimationFrame(raf);
     }
     let id: ReturnType<typeof setTimeout>;
-    let curCi = 0;
-    let curN = 1;
+    let cur = 1; // steps shown so far for this channel
     const loop = () => {
-      const steps = HERO_CONVOS[curCi].steps;
-      let delay: number;
-      let nextCi = curCi;
-      let nextN: number;
-      if (curN >= steps.length) {
-        // Full conversation (incl. the confirmed sale) is on screen — hold it
-        // so the sale lands, then move to the next channel.
-        nextCi = (curCi + 1) % HERO_CONVOS.length;
-        nextN = 1;
-        delay = 2800;
+      const steps = HERO_CONVOS[ci].steps;
+      if (cur >= steps.length) {
+        // Whole conversation (incl. the confirmed sale) is on screen — hold it.
+        id = setTimeout(() => {
+          if (pausedRef.current) {
+            cur = 1;
+            set((s) => ({ ...s, n: 1 })); // replay the same channel
+            loop();
+          } else {
+            set((s) => ({ ci: (s.ci + 1) % HERO_CONVOS.length, n: 1 }));
+          }
+        }, 2800);
       } else {
-        nextN = curN + 1;
-        delay = delayFor(steps[curN]); // delay before revealing the next step
+        const next = cur + 1;
+        id = setTimeout(() => {
+          cur = next;
+          set((s) => ({ ...s, n: next }));
+          loop();
+        }, delayFor(steps[cur]));
       }
-      id = setTimeout(() => {
-        curCi = nextCi;
-        curN = nextN;
-        setCi(curCi);
-        setN(curN);
-        loop();
-      }, delay);
     };
     loop();
     return () => clearTimeout(id);
-  }, [reduced]);
+  }, [ci, reduced]);
 
   // Keep newest message in view.
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [n, ci]);
+
+  const select = (i: number) => {
+    pausedRef.current = true;
+    if (i !== ci) set({ ci: i, n: 1 });
+  };
 
   const convo = HERO_CONVOS[ci];
   // A `typing` step is transient: hide it once a later step has appeared.
@@ -584,19 +615,25 @@ function HeroInbox() {
 
   return (
     <PreviewFrame>
-      {/* channel tabs — the whole unified inbox on display */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5">
-        {CHANNELS.map((c) => (
-          <span
+      {/* clickable channel tabs — switch inbox with a click */}
+      <div
+        className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5"
+        onMouseEnter={() => (pausedRef.current = true)}
+        onMouseLeave={() => (pausedRef.current = false)}
+      >
+        {CHANNELS.map((c, i) => (
+          <button
             key={c.id}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            type="button"
+            onClick={() => select(i)}
+            className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               c.id === convo.channel
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground"
+                : "text-muted-foreground hover:bg-muted"
             }`}
           >
             <ChannelLogo channel={c.id} size={15} /> {c.label}
-          </span>
+          </button>
         ))}
       </div>
 
@@ -614,6 +651,8 @@ function HeroInbox() {
 
       <div
         ref={bodyRef}
+        onMouseEnter={() => (pausedRef.current = true)}
+        onMouseLeave={() => (pausedRef.current = false)}
         className="flex h-[300px] flex-col justify-end gap-2.5 overflow-hidden p-4 sm:h-[340px]"
       >
         {steps.map((s, i) =>
@@ -821,93 +860,318 @@ function AgentPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 02 · Carritos abandonados — recovery funnel (non-chat): abandoned → recovered
+// 02 · Carritos abandonados — premium recovery dashboard (non-chat):
+// checkout summary → timeline with timestamps → recovered-revenue counter.
 // ─────────────────────────────────────────────────────────────────────────
 
-const CART_PHASES: { icon: typeof Inbox; label: string }[] = [
-  { icon: ShoppingCart, label: "Carrito abandonado" },
-  { icon: Send, label: "La IA escribió al cliente" },
-  { icon: Check, label: "Compra recuperada" },
+const CART_STEPS: { icon: typeof Inbox; label: string; time: string }[] = [
+  { icon: ShoppingCart, label: "Abandonado", time: "14:02" },
+  { icon: Sparkles, label: "La IA reactivó", time: "14:14" },
+  { icon: Check, label: "Recuperado", time: "14:15" },
 ];
 
 function CartRecoveryPanel() {
   const reduced = useReducedMotion();
-  // 4 states: 0 abandoned, 1 writing, 2 recovered, 3 recovered-hold → loop.
+  // phases: 0 abandoned · 1 agent reaches out · 2 recovered · 3 hold → loop.
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     if (reduced) return;
-    const t = setInterval(() => setPhase((p) => (p + 1) % (CART_PHASES.length + 1)), 1300);
+    const t = setInterval(() => setPhase((p) => (p + 1) % 4), 1500);
     return () => clearInterval(t);
   }, [reduced]);
 
   const recovered = reduced || phase >= 2;
-  const product: Product = { emoji: "🎧", name: "Audífonos Pulse", price: "$210.000" };
+  const amount = useCountUp(210000, recovered, 900);
+  const pct = recovered ? 100 : phase === 1 ? 55 : 8;
 
   return (
     <PreviewFrame>
       <div className="flex flex-col gap-4 p-5">
-        {/* cart card — flips from Abandonado to Recuperado */}
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
-          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-xl">
-            {product.emoji}
-          </div>
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="text-sm font-semibold">{product.name}</div>
-            <div className="text-[11px] text-muted-foreground">1 unidad · {product.price}</div>
+        {/* customer + live status */}
+        <div className="flex items-center gap-3">
+          <span className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-[12px] font-semibold text-accent-ink">
+            ML
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Mariana L.</div>
+            <div className="text-[11px] text-muted-foreground">Checkout iniciado · Instagram</div>
           </div>
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium transition-colors ${
-              recovered ? "bg-primary/15 text-accent-ink" : "border border-border text-muted-foreground"
+            className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ${
+              recovered
+                ? "bg-primary/15 text-accent-ink"
+                : "border border-amber-500/40 text-amber-600 dark:text-amber-400"
             }`}
           >
-            {recovered ? (
+            <span className={`size-1.5 rounded-full ${recovered ? "bg-primary" : "animate-pulse bg-amber-500"}`} />
+            {recovered ? "Recuperado" : "Abandonado · 1 h"}
+          </span>
+        </div>
+
+        {/* checkout summary card */}
+        <div className="rounded-xl border border-border bg-background/60 p-3">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/30 via-primary/10 to-transparent text-lg">
+              🎧
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="text-sm font-medium">Audífonos Pulse</div>
+              <div className="text-[11px] text-muted-foreground">1 ud. · negro</div>
+            </div>
+            <div className="text-sm font-semibold">$210.000</div>
+          </div>
+          <div className="mt-2.5 flex items-center justify-between border-t border-border pt-2.5 text-[11px]">
+            <span className="text-muted-foreground">Envío gratis · pago en 1 clic</span>
+            <span className="font-medium">Total $210.000</span>
+          </div>
+        </div>
+
+        {/* recovery timeline */}
+        <div>
+          <div className="mb-2 h-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="flex items-start">
+            {CART_STEPS.map((s, i) => {
+              const reached = reduced || phase >= i;
+              const active = !reduced && phase === i;
+              return (
+                <div
+                  key={s.label}
+                  className={`flex flex-1 flex-col gap-1 text-center ${
+                    i === 0 ? "items-start text-left" : i === CART_STEPS.length - 1 ? "items-end text-right" : "items-center"
+                  }`}
+                >
+                  <span
+                    className={`flex size-6 items-center justify-center rounded-full transition-all ${
+                      reached ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    } ${active ? "ring-2 ring-primary/30" : ""}`}
+                  >
+                    {reached && i === CART_STEPS.length - 1 ? <Check className="size-3" /> : <s.icon className="size-3" />}
+                  </span>
+                  <span className="text-[10px] font-medium leading-tight">{s.label}</span>
+                  <span className="text-[10px] text-muted-foreground">{s.time}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* recovered-revenue result */}
+        <div
+          className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-500 ${
+            recovered
+              ? "translate-y-0 border-primary/45 bg-primary/10 opacity-100"
+              : "translate-y-1 border-dashed border-border opacity-40"
+          }`}
+        >
+          <span className="relative flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            {recovered && <span className="absolute inset-0 animate-ping rounded-full bg-primary/40" />}
+            <Check className="relative size-5" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Venta recuperada</div>
+            <div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ShopifyLogo size={11} /> Pedido #1042 · Shopify
+            </div>
+          </div>
+          <div className="ml-auto text-right">
+            <div className="text-base font-semibold tracking-[-0.02em] text-accent-ink">
+              ${Math.round(amount).toLocaleString("es-CO")}
+            </div>
+            <div className="text-[10px] text-muted-foreground">recuperado</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl bg-primary/5 px-3 py-2 text-[11px]">
+          <span className="text-muted-foreground">Esta semana</span>
+          <span className="font-medium">
+            14 carritos recuperados · <span className="text-accent-ink">+$2.4M</span>
+          </span>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 04 · Comentarios — post + comments, each answered instantly by the AI
+// ─────────────────────────────────────────────────────────────────────────
+
+const COMMENTS: { user: string; text: string }[] = [
+  { user: "ana_p", text: "¿Cuánto vale? 😍" },
+  { user: "luis.gs", text: "¿Hacen envíos a todo el país?" },
+  { user: "cami.rr", text: "Lo quiero en negro 🔥" },
+];
+
+function CommentsPreview() {
+  const reduced = useReducedMotion();
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setLit((i) => (i + 1) % COMMENTS.length), 1500);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-3 p-5">
+        {/* post header */}
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/40 to-primary/10 text-sm">
+            🛍️
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-medium">tu.marca</div>
+            <div className="text-[11px] text-muted-foreground">Publicación · anuncio</div>
+          </div>
+          <ChannelLogo channel="instagram" size={18} className="ml-auto" />
+        </div>
+
+        {/* post media */}
+        <div className="relative h-20 overflow-hidden rounded-xl bg-gradient-to-br from-primary/25 via-primary/10 to-transparent">
+          <span className="absolute inset-0 grid place-items-center text-3xl">👟</span>
+          <div className="absolute bottom-2 left-2 inline-flex items-center gap-3 text-[11px] text-foreground/70">
+            <span className="inline-flex items-center gap-1">
+              <Heart className="size-3" /> 1.2k
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <MessageSquare className="size-3" /> 48
+            </span>
+          </div>
+        </div>
+
+        {/* comments answered by the AI */}
+        <div className="flex flex-col gap-2">
+          {COMMENTS.map((c, i) => (
+            <div
+              key={c.user}
+              className={`rounded-xl border p-2.5 transition-all duration-300 ${
+                i === lit ? "border-primary/40 bg-primary/5" : "border-border bg-background/60"
+              }`}
+            >
+              <div className="flex items-baseline gap-2 text-xs">
+                <span className="font-semibold">{c.user}</span>
+                <span className="text-muted-foreground">{c.text}</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 pl-2 text-[11px] text-accent-ink">
+                <CornerDownRight className="size-3" />
+                <Sparkles className="size-3" /> Respondido por la IA · llevado a DM
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 08 · Configuración — 3-click setup wizard (non-chat)
+// ─────────────────────────────────────────────────────────────────────────
+
+function SetupToggle({ on }: { on: boolean }) {
+  return (
+    <span
+      className={`flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+        on ? "justify-end bg-primary" : "justify-start bg-muted"
+      }`}
+    >
+      <span className="size-4 rounded-full bg-card shadow-sm" />
+    </span>
+  );
+}
+
+function SetupPreview() {
+  const reduced = useReducedMotion();
+  const [step, setStep] = useState(0); // 0..3 (3 = all done) → loop
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setStep((s) => (s + 1) % 4), 1100);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  const done = (i: number) => reduced || step > i;
+  const pct = reduced ? 100 : Math.round((Math.min(step, 3) / 3) * 100);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
+            <MousePointerClick className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Configura tu agente</div>
+            <div className="text-[11px] text-muted-foreground">3 pasos · ~2 minutos</div>
+          </div>
+          <span className="ml-auto text-xs font-semibold text-accent-ink">{pct}%</span>
+        </div>
+
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        {/* step 1 — connect channels */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
+          <span className="flex items-center -space-x-1.5">
+            <ChannelLogo channel="whatsapp" size={18} />
+            <ChannelLogo channel="instagram" size={18} />
+            <ChannelLogo channel="messenger" size={18} />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Conecta tus canales</div>
+            <div className="text-[11px] text-muted-foreground">WhatsApp · Instagram · Messenger</div>
+          </div>
+          <span className="ml-auto">
+            <SetupToggle on={done(0)} />
+          </span>
+        </div>
+
+        {/* step 2 — connect store */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
+          <ShopifyLogo size={20} />
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Conecta tu tienda</div>
+            <div className="text-[11px] text-muted-foreground">Catálogo y pedidos de Shopify</div>
+          </div>
+          <span className="ml-auto">
+            <SetupToggle on={done(1)} />
+          </span>
+        </div>
+
+        {/* step 3 — activate */}
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-accent-ink">
+            <Sparkles className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Activa el agente</div>
+            <div className="text-[11px] text-muted-foreground">Y empieza a vender</div>
+          </div>
+          <span
+            className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              done(2) ? "bg-primary/15 text-accent-ink" : "bg-primary text-primary-foreground"
+            }`}
+          >
+            {done(2) ? (
               <>
-                <RotateCcw className="size-3" /> Recuperado
+                <Check className="size-3" /> Activo
               </>
             ) : (
-              "Abandonado · 1 h"
+              "Activar"
             )}
           </span>
         </div>
 
-        {/* horizontal recovery funnel */}
-        <div className="flex items-center">
-          {CART_PHASES.map((p, i) => {
-            const active = !reduced && phase === i;
-            const done = reduced || phase > i;
-            return (
-              <div key={p.label} className="flex flex-1 items-center last:flex-none">
-                <span
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
-                    done || active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {done ? <Check className="size-3.5" /> : <p.icon className="size-3.5" />}
-                </span>
-                {i < CART_PHASES.length - 1 && (
-                  <span className={`h-px flex-1 transition-colors ${phase > i ? "bg-primary" : "bg-border"}`} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="-mt-1 text-[11px] text-muted-foreground">
-          {CART_PHASES[reduced ? CART_PHASES.length - 1 : Math.min(phase, CART_PHASES.length - 1)].label}
-        </div>
-
-        {/* result */}
-        <div
-          className={`flex items-center gap-2 rounded-xl border p-3 transition-all duration-500 ${
-            recovered ? "border-primary/45 bg-primary/10 opacity-100" : "border-dashed border-border opacity-50"
-          }`}
-        >
-          <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check className="size-4" />
-          </span>
-          <span className="text-sm font-semibold">Venta recuperada</span>
-          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ShopifyLogo size={12} /> {product.price}
-          </span>
+        <div className="text-center text-[11px] text-muted-foreground">
+          Sin código · sin dolores de cabeza.
         </div>
       </div>
     </PreviewFrame>
