@@ -120,24 +120,12 @@ export async function GET(request: Request) {
 
   // 1. HMAC over the query string. This is the security gate for BOTH flows.
   if (!verifyOAuthHmac(params, apiSecret)) {
-    const { createHmac } = await import('node:crypto')
-    const pairs: string[] = []
-    for (const [k, v] of params.entries()) {
-      if (k === 'hmac' || k === 'signature') continue
-      pairs.push(`${k}=${v}`)
-    }
-    pairs.sort()
-    const message = pairs.join('&')
-    const computed = createHmac('sha256', apiSecret).update(message).digest('hex')
+    // Solo diagnóstico NO sensible. No recomputamos ni logueamos el HMAC, el
+    // mensaje firmado, el raw_query ni fragmento/longitud del secreto —
+    // filtraría material sensible a stdout/Sentry.
     log.error('hmac_failed', {
       shop: params.get('shop'),
-      received_hmac: params.get('hmac'),
-      computed_hmac: computed,
-      message_signed: message,
-      raw_query: new URL(request.url).search,
       param_keys: [...params.keys()],
-      secret_prefix: apiSecret.slice(0, 8),
-      secret_len: apiSecret.length,
     })
     return bounce(request, { shopify: 'error', reason: 'hmac' })
   }
