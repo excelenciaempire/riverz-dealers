@@ -148,8 +148,28 @@ export const contacts = {
   importDescriptionPrefix: { es: "CSV con columna", en: "CSV with column" },
   importDescriptionOptional: { es: ". Opcionales:", en: ". Optional:" },
   importNoValidRows: {
-    es: 'Sin filas válidas. Falta la columna "phone".',
-    en: 'No valid rows. The "phone" column is missing.',
+    es: 'No se pudieron leer filas del archivo. Revisa que sea un CSV.',
+    en: "Couldn't read rows from the file. Make sure it's a CSV.",
+  },
+  importIntro: {
+    es: 'Sube un CSV (o tu Excel guardado como CSV). Después eliges qué columna corresponde a cada dato.',
+    en: 'Upload a CSV (or your Excel saved as CSV). Then choose which column maps to each field.',
+  },
+  downloadTemplate: { es: 'Descargar plantilla', en: 'Download template' },
+  mapColumns: { es: 'Asignar columnas', en: 'Map columns' },
+  mapHint: {
+    es: 'Elige qué columna de tu archivo corresponde a cada campo.',
+    en: 'Pick which column in your file maps to each field.',
+  },
+  columnNone: { es: '— Ninguna —', en: '— None —' },
+  importNeedPhone: {
+    es: 'Asigna la columna de teléfono para continuar.',
+    en: 'Map the phone column to continue.',
+  },
+  skippedCount: { es: '{count} omitidos (ya existían)', en: '{count} skipped (already existed)' },
+  importAllSkipped: {
+    es: 'Todos ya existían ({count} omitidos)',
+    en: 'All already existed ({count} skipped)',
   },
   importRowsDetected: {
     es: "{count} filas detectadas",

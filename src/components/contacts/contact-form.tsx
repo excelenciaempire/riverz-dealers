@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
+import { useWorkspace } from '@/hooks/use-workspace';
 
 interface ContactFormProps {
   open: boolean;
@@ -36,6 +37,7 @@ export function ContactForm({
 }: ContactFormProps) {
   const supabase = createClient();
   const t = useT();
+  const { workspace } = useWorkspace();
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
@@ -93,6 +95,7 @@ export function ContactForm({
       } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) throw new Error(t('contacts.notAuthenticated'));
+      if (!workspace) throw new Error(t('contacts.notAuthenticated'));
 
       let contactId = contact?.id;
 
@@ -113,6 +116,8 @@ export function ContactForm({
           .from('contacts')
           .insert({
             user_id: user.id,
+            workspace_id: workspace.id,
+            channel: 'whatsapp',
             name: name.trim() || null,
             phone: phone.trim(),
             email: email.trim() || null,

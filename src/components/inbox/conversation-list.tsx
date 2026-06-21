@@ -15,7 +15,6 @@ import {
 import Link from "@/components/i18n/locale-link";
 import {
   Search,
-  ChevronDown,
   MoreVertical,
   Trash2,
   CheckSquare,
@@ -76,13 +75,6 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-muted-foreground",
 };
 
-const FILTER_OPTIONS: { labelKey: string; value: ConversationStatus | "all" }[] = [
-  { labelKey: "inbox.filterAll", value: "all" },
-  { labelKey: "inbox.filterOpen", value: "open" },
-  { labelKey: "inbox.filterPending", value: "pending" },
-  { labelKey: "inbox.filterClosed", value: "closed" },
-];
-
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -97,7 +89,6 @@ export function ConversationList({
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<ConversationStatus | "all">("all");
   const [loading, setLoading] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -230,10 +221,6 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
-    if (filter !== "all") {
-      result = result.filter((c) => c.status === filter);
-    }
-
     if (search.trim()) {
       // Diacritic-insensitive — "cancion" should match "canción" and
       // "anibal" should match "Aníbal". Both sides go through the same
@@ -245,7 +232,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, normalizedIndex]);
+  }, [conversations, search, normalizedIndex]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,7 +275,6 @@ export function ConversationList({
     // That's the fix for "deleted but reappeared on reload". Any narrower
     // selection deletes the specific ids instead.
     const clearingAll =
-      filter === "all" &&
       !search.trim() &&
       filtered.length > 0 &&
       selectedIds.size >= filtered.length;
@@ -331,7 +317,6 @@ export function ConversationList({
   }, [
     selectedIds,
     workspaceId,
-    filter,
     search,
     filtered,
     channelFilter,
@@ -341,8 +326,6 @@ export function ConversationList({
     onBulkDeleted,
     t,
   ]);
-
-  const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   // ── Virtualization ──
   // Plain `.map()` over `filtered` mounts every row on first paint and
@@ -391,33 +374,7 @@ export function ConversationList({
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-accent">
-                {activeFilter ? t(activeFilter.labelKey) : t("inbox.filterAll")}
-                <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="border-border bg-card"
-            >
-              {FILTER_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => setFilter(opt.value)}
-                  className={cn(
-                    "text-sm",
-                    filter === opt.value
-                      ? "text-accent-ink"
-                      : "text-foreground"
-                  )}
-                >
-                  {t(opt.labelKey)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
+        <div className="flex items-center justify-end">
           {selectMode ? (
             <button
               onClick={exitSelectMode}
@@ -450,9 +407,7 @@ export function ConversationList({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <InboxEmptyState
-            hasFilters={!!search.trim() || filter !== "all"}
-          />
+          <InboxEmptyState hasFilters={!!search.trim()} />
         ) : (
           <div
             style={{

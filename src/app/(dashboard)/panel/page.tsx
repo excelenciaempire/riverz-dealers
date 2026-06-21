@@ -8,7 +8,6 @@ import type { TFn } from '@/lib/i18n/translate'
 import {
   MessageSquare,
   UserPlus,
-  CheckCircle2,
   Send,
   Inbox,
 } from 'lucide-react'
@@ -184,9 +183,9 @@ export default function DashboardPage() {
       <SetupChecklist />
 
       {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricsLoading || !metrics ? (
-          Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
             <MetricCard
@@ -200,12 +199,6 @@ export default function DashboardPage() {
               value={fmt.number(metrics.newContacts.current)}
               icon={UserPlus}
               delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix, t, fmt.number)}
-            />
-            <MetricCard
-              title={t('dashboard.resolved')}
-              value={fmt.number(metrics.resolved.current)}
-              icon={CheckCircle2}
-              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix, t, fmt.number)}
             />
             <MetricCard
               title={t('dashboard.messagesReceived')}

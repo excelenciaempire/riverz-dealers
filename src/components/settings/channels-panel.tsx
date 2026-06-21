@@ -326,11 +326,13 @@ export function ChannelsPanel() {
         />
       )}
 
-      {/* Canales — una tarjeta por plataforma, en layout de columnas
-          (masonry): cada tarjeta toma la altura de su contenido y las que
-          siguen suben para llenar el hueco, así no quedan espacios vacíos
-          debajo de las tarjetas cortas como pasaba con el grid de filas. */}
-      <ul className="columns-1 gap-3 sm:columns-2 lg:columns-3 [&>li]:mb-3 [&>li]:break-inside-avoid">
+      {/* Canales — una tarjeta por plataforma en un grid de filas de igual
+          altura: cada tarjeta se estira a la altura de su fila y el CTA va
+          anclado abajo (mt-auto), de modo que las tarjetas quedan alineadas
+          y los botones de acción a la misma altura, tengan o no conexiones
+          vinculadas. El masonry de columnas anterior dejaba las tarjetas
+          escalonadas/desordenadas porque cada una tomaba su propia altura. */}
+      <ul className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
