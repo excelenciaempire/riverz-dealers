@@ -4,6 +4,7 @@ import type {
   AutomationTriggerConfig,
   AutomationTriggerType,
 } from '@/types'
+import type { Locale } from '@/lib/i18n/config'
 
 export type TemplateSlug =
   | 'carrito-abandonado'
@@ -237,8 +238,55 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'recompras',
 ]
 
-export function getTemplate(slug: string): AutomationTemplateDefinition | null {
-  return AUTOMATION_TEMPLATES[slug as TemplateSlug] ?? null
+/**
+ * English variants of the suggested Meta-template body. The gallery
+ * name/description are localized via i18n keys at the call sites; the seed
+ * step content is mostly empty placeholders (template_name / tag_id the
+ * merchant fills), so the only language-bearing pieces are this guidance
+ * body and the `send_template` language code — both followed to the
+ * merchant's locale so an English merchant doesn't seed Spanish defaults.
+ */
+const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
+  'carrito-abandonado':
+    'Hi {{customer_name}}, you left your cart unfinished. We saved it in case you want to pick it back up: {{checkout_url}}.',
+  'nuevo-pedido':
+    "Thanks for your purchase, {{customer_name}}. We confirmed order {{order_name}} for {{total_price}} {{currency}}. We'll let you know as soon as it ships.",
+  'enviar-tracking':
+    'Your order has shipped. Tracking number: {{tracking_number}}. Follow it here: {{tracking_url}}.',
+  'post-survey':
+    '{{customer_name}}, how did it go with your order? Any feedback really helps us.',
+  recompras:
+    "Hi {{customer_name}}, it's been a while since your last order. Want to restock? Here's the link to buy again.",
+}
+
+function localizeTemplate(
+  t: AutomationTemplateDefinition,
+  locale: Locale,
+): AutomationTemplateDefinition {
+  if (locale !== 'en') return t
+  return {
+    ...t,
+    suggested_template_body: SUGGESTED_BODIES_EN[t.slug] ?? t.suggested_template_body,
+    steps: t.steps.map((s) =>
+      s.step_type === 'send_template'
+        ? {
+            ...s,
+            step_config: {
+              ...(s.step_config as Record<string, unknown>),
+              language: 'en',
+            } as AutomationStepConfig,
+          }
+        : s,
+    ),
+  }
+}
+
+export function getTemplate(
+  slug: string,
+  locale: Locale = 'es',
+): AutomationTemplateDefinition | null {
+  const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
+  return t ? localizeTemplate(t, locale) : null
 }
 
 /**
@@ -255,18 +303,18 @@ export function automationTemplateDescKey(slug: string): string {
   return `automations.tpl_${slug}_desc`
 }
 
-export function listTemplates(): AutomationTemplateDefinition[] {
+export function listTemplates(locale: Locale = 'es'): AutomationTemplateDefinition[] {
   const seen = new Set<TemplateSlug>()
   const out: AutomationTemplateDefinition[] = []
   for (const slug of TEMPLATE_GALLERY_ORDER) {
     const t = AUTOMATION_TEMPLATES[slug]
     if (t) {
-      out.push(t)
+      out.push(localizeTemplate(t, locale))
       seen.add(slug)
     }
   }
   for (const slug of Object.keys(AUTOMATION_TEMPLATES) as TemplateSlug[]) {
-    if (!seen.has(slug)) out.push(AUTOMATION_TEMPLATES[slug])
+    if (!seen.has(slug)) out.push(localizeTemplate(AUTOMATION_TEMPLATES[slug], locale))
   }
   return out
 }

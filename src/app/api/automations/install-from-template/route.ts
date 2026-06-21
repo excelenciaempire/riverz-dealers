@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const template = getTemplate(templateId)
+  const template = getTemplate(templateId, locale)
   if (!template) {
     return NextResponse.json(
       { error: translate(locale, 'errFlows.automationUnknownTemplate') },

@@ -10,21 +10,25 @@ import {
 } from "@/components/automations/automation-builder"
 import {
   AUTOMATION_TEMPLATES,
+  getTemplate,
   automationTemplateNameKey,
   automationTemplateDescKey,
   type TemplateSlug,
 } from "@/lib/automations/templates"
-import { useT } from "@/hooks/use-locale"
+import { useT, useLocale } from "@/hooks/use-locale"
 import type { AutomationStepType, AutomationTriggerType } from "@/types"
 
 export default function NewAutomationPage() {
   const params = useSearchParams()
   const t = useT()
+  const { locale } = useLocale()
   const template = params.get("template") as TemplateSlug | null
 
   const initial: BuilderInitial = useMemo(() => {
-    if (template && AUTOMATION_TEMPLATES[template]) {
-      const def = AUTOMATION_TEMPLATES[template]
+    // getTemplate localizes the seed step language code to the merchant's
+    // locale (the gallery name/description come from i18n keys below).
+    const def = template ? getTemplate(template, locale) : null
+    if (def) {
       const steps = expandFromSeeds(
         def.steps.map((seed, idx) => ({
           index: idx,
@@ -53,7 +57,7 @@ export default function NewAutomationPage() {
       is_active: false,
       steps: [],
     }
-  }, [template, t])
+  }, [template, t, locale])
 
   // When arriving from a gallery card we're *previewing* a template: the
   // builder shows a "Usar plantilla" CTA that persists it (and lands the

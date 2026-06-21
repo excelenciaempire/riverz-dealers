@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
   // -------- Template clone path --------
   if (body.template_slug) {
-    const template = getFlowTemplate(body.template_slug)
+    const template = getFlowTemplate(body.template_slug, locale)
     if (!template) {
       return NextResponse.json(
         {

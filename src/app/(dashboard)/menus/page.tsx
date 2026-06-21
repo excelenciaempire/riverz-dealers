@@ -41,7 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
 import {
   listFlowTemplates,
@@ -77,6 +77,7 @@ type CreateStep = "choose" | "name" | "template" | "preview";
 export default function FlowsPage() {
   const router = useLocalizedRouter();
   const t = useT();
+  const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +189,7 @@ export default function FlowsPage() {
     );
   }
 
-  const templates = listFlowTemplates();
+  const templates = listFlowTemplates(locale);
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">

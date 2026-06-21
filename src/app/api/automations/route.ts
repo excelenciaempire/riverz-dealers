@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   let effectiveTriggerConfig = trigger_config
 
   if (template && (!steps || steps.length === 0)) {
-    const t = getTemplate(template)
+    const t = getTemplate(template, locale)
     if (t) {
       effectiveName =
         effectiveName ?? translate(locale, automationTemplateNameKey(t.slug))

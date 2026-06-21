@@ -6,7 +6,7 @@ import { useLocalizedRouter } from "@/hooks/use-localized-router";
 
 import { Button } from "@/components/ui/button";
 import { FlowBuilder } from "@/components/flows/flow-builder";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
 import {
   getFlowTemplate,
   flowTemplateNameKey,
@@ -30,9 +30,10 @@ import {
 export default function NewFlowFromTemplatePage() {
   const router = useLocalizedRouter();
   const t = useT();
+  const { locale } = useLocale();
   const params = useSearchParams();
   const slug = params.get("template") ?? "";
-  const template = useMemo(() => getFlowTemplate(slug), [slug]);
+  const template = useMemo(() => getFlowTemplate(slug, locale), [slug, locale]);
 
   // Timestamp estático: el FlowBuilder no lee created_at/updated_at en su
   // estado, así que un valor fijo evita cualquier mismatch de hidratación.
