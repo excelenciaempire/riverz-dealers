@@ -16,6 +16,7 @@ import type { RangePreset } from '@/lib/dashboard/date-utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 
 export interface CustomRange {
   /** YYYY-MM-DD */
@@ -48,6 +49,7 @@ const parseYmd = (s: string): Date => {
 /** Global date-range filter: preset chips + a custom calendar range picker. */
 export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterProps) {
   const t = useT()
+  const fmt = useFormat()
   const [open, setOpen] = useState(false)
 
   return (
@@ -67,7 +69,7 @@ export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterPro
           )}
         >
           <CalendarIcon className="size-3.5" />
-          {preset === 'custom' && custom ? customLabel(custom) : t('dashboard.custom')}
+          {preset === 'custom' && custom ? customLabel(custom, fmt.date) : t('dashboard.custom')}
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto">
           <RangeCalendar
@@ -106,8 +108,11 @@ function Chip({
   )
 }
 
-function customLabel(c: CustomRange): string {
-  const f = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+function customLabel(
+  c: CustomRange,
+  df: (v: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string,
+): string {
+  const f = (d: Date) => df(d, { day: 'numeric', month: 'short' })
   const s = parseYmd(c.start)
   const e = parseYmd(c.end)
   return c.start === c.end ? f(s) : `${f(s)} – ${f(e)}`
@@ -131,6 +136,7 @@ function RangeCalendar({
   onSelect: (r: CustomRange) => void
 }) {
   const t = useT()
+  const fmt = useFormat()
   const [month, setMonth] = useState<Date>(() => (value ? parseYmd(value.end) : new Date()))
   // First click sets the start and waits for the end click.
   const [pendingStart, setPendingStart] = useState<string | null>(null)
@@ -173,7 +179,7 @@ function RangeCalendar({
           <ChevronLeft className="size-4" />
         </button>
         <span className="text-xs font-medium capitalize text-foreground">
-          {month.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+          {fmt.date(month, { month: 'long', year: 'numeric' })}
         </span>
         <button
           type="button"

@@ -5,6 +5,8 @@ import { serverError } from '@/lib/api/errors';
 import { buildTrainingMaterial } from '@/lib/products/training-material';
 import { firecrawlScrape } from '@/lib/firecrawl/client';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -31,10 +33,12 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY no configurada en el servidor' },
+      { error: translate(locale, 'errProducts.anthropicKeyMissing') },
       { status: 500 },
     );
   }
@@ -278,6 +282,6 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
       .eq('id', id);
     // 502: fallo del proveedor de IA (upstream). El detalle ya quedó en
     // ai_research_error; al cliente, mensaje genérico no-filtrante.
-    return serverError(err, 'No se pudo generar la investigación', 502);
+    return serverError(err, translate(locale, 'errProducts.researchFailed'), 502);
   }
 }

@@ -39,6 +39,7 @@ import {
 import { ActiveHoursChart } from '@/components/broadcasts/active-hours-chart';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 
 /** Human label for a broadcast's audience filter (the "Segmentación"). */
@@ -86,6 +87,7 @@ function MetricCard({
   emphasis?: boolean;
 }) {
   const t = useT();
+  const fmt = useFormat();
   return (
     <div
       className={cn(
@@ -97,7 +99,7 @@ function MetricCard({
         {label}
       </p>
       <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-        {value.toLocaleString('es-ES')}
+        {fmt.number(value)}
       </p>
       {pct !== null && (
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -120,6 +122,7 @@ interface FunnelStep {
  */
 function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   const t = useT();
+  const fmt = useFormat();
   const max = Math.max(...steps.map((s) => s.value), 1);
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -146,7 +149,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                   style={{ width: `${pctOfMax}%` }}
                 />
                 <span className="absolute inset-0 flex items-center px-2.5 text-xs font-medium text-background mix-blend-screen">
-                  {step.value.toLocaleString('es-ES')}
+                  {fmt.number(step.value)}
                 </span>
               </div>
               <span className="w-10 shrink-0 sm:w-14 text-right text-xs tabular-nums text-muted-foreground">
@@ -185,6 +188,7 @@ export default function BroadcastDetailPage() {
   const params = useParams();
   const router = useRouter();
   const t = useT();
+  const fmt = useFormat();
   const broadcastId = params.id as string;
 
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
@@ -359,10 +363,13 @@ export default function BroadcastDetailPage() {
               <span>
                 {broadcast.scheduled_at && broadcast.status === 'scheduled'
                   ? t('broadcasts.scheduledFor', {
-                      date: new Date(broadcast.scheduled_at).toLocaleString('es-ES'),
+                      date: fmt.dateTime(broadcast.scheduled_at, {
+                        dateStyle: 'short',
+                        timeStyle: 'medium',
+                      }),
                     })
                   : t('broadcasts.createdOn', {
-                      date: new Date(broadcast.created_at).toLocaleDateString('es-ES'),
+                      date: fmt.date(broadcast.created_at, { dateStyle: 'short' }),
                     })}
               </span>
             </p>
@@ -617,7 +624,7 @@ export default function BroadcastDetailPage() {
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                         {recipient.sent_at
-                          ? new Date(recipient.sent_at).toLocaleString('es-ES', {
+                          ? fmt.dateTime(recipient.sent_at, {
                               day: '2-digit',
                               month: 'short',
                               hour: '2-digit',
@@ -627,20 +634,17 @@ export default function BroadcastDetailPage() {
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
                         {recipient.delivered_at
-                          ? new Date(recipient.delivered_at).toLocaleString(
-                              'es-ES',
-                              {
-                                day: '2-digit',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                            )
+                          ? fmt.dateTime(recipient.delivered_at, {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
                           : '—'}
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
                         {recipient.read_at
-                          ? new Date(recipient.read_at).toLocaleString('es-ES', {
+                          ? fmt.dateTime(recipient.read_at, {
                               day: '2-digit',
                               month: 'short',
                               hour: '2-digit',

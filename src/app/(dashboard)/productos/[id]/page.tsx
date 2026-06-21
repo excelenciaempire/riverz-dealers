@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 interface Product {
   id: string;
@@ -93,6 +94,7 @@ function parseObjections(text: string): Array<{ objection: string; rebuttal: str
 
 export default function ProductDetailPage() {
   const t = useT();
+  const fmt = useFormat();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -570,7 +572,7 @@ export default function ProductDetailPage() {
             {product.scraped_at && (
               <p className="text-[11px] text-muted-foreground">
                 {t('products.lastRead')}{' '}
-                {new Date(product.scraped_at).toLocaleString('es-ES', {
+                {fmt.dateTime(product.scraped_at, {
                   day: '2-digit',
                   month: 'short',
                   hour: '2-digit',

@@ -3,6 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import type { Locale } from '@/lib/i18n/config';
 import {
   fetchRecentOrders,
   getActiveShopifyConnection,
@@ -53,6 +56,7 @@ function emptyResponse(days: number) {
 }
 
 export async function GET(request: Request) {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -133,6 +137,7 @@ export async function GET(request: Request) {
     workspaceId,
     sinceIso,
     untilIso,
+    locale,
   );
 
   // Match cada orden con un contact (por email o phone).
@@ -195,7 +200,13 @@ export async function GET(request: Request) {
     if (bcRow) {
       const row = bcRow as { broadcast_id: string; broadcasts: { name?: string } | { name?: string }[] };
       const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
-      accumulate(byBroadcast, row.broadcast_id, join?.name ?? 'Campaña', total, currency);
+      accumulate(
+        byBroadcast,
+        row.broadcast_id,
+        join?.name ?? translate(locale, 'errInbox.broadcastFallback'),
+        total,
+        currency,
+      );
     }
 
     // Last flow run for this contact in the lookback window.
@@ -212,7 +223,13 @@ export async function GET(request: Request) {
     if (frRow) {
       const row = frRow as { flow_id: string; flows: { name?: string } | { name?: string }[] };
       const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
-      accumulate(byFlow, row.flow_id, join?.name ?? 'Flujo', total, currency);
+      accumulate(
+        byFlow,
+        row.flow_id,
+        join?.name ?? translate(locale, 'errInbox.flowFallback'),
+        total,
+        currency,
+      );
     }
 
     // Last successful/partial automation run for this contact in the window.
@@ -230,7 +247,13 @@ export async function GET(request: Request) {
     if (autoRow) {
       const row = autoRow as { automation_id: string; automations: { name?: string } | { name?: string }[] };
       const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
-      accumulate(byAutomation, row.automation_id, join?.name ?? 'Automatización', total, currency);
+      accumulate(
+        byAutomation,
+        row.automation_id,
+        join?.name ?? translate(locale, 'errInbox.automationFallback'),
+        total,
+        currency,
+      );
     }
   }
 
@@ -279,6 +302,7 @@ async function attributeInstagramAgent(
   workspaceId: string,
   sinceIso: string,
   untilIso: string,
+  locale: Locale,
 ): Promise<AttrRow[]> {
   const { data } = await admin
     .from('instagram_campaign_recipients')
@@ -304,7 +328,7 @@ async function attributeInstagramAgent(
     const cur =
       map.get(row.campaign_id) ?? {
         id: row.campaign_id,
-        name: join?.name ?? 'Campaña IG',
+        name: join?.name ?? translate(locale, 'errInbox.igCampaignFallback'),
         orders_count: 0,
         revenue: 0,
         currency: row.currency || 'USD',

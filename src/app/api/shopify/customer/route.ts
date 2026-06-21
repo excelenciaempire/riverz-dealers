@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getActiveShopifyConnection } from '@/lib/attribution/shopify';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/shopify/customer?email=&phone=
@@ -78,11 +80,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const url = new URL(request.url);
   const email = url.searchParams.get('email')?.trim() ?? '';
   const phone = url.searchParams.get('phone')?.trim() ?? '';
   if (!email && !phone) {
-    return NextResponse.json({ error: 'email o phone requerido' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.emailOrPhoneRequired') },
+      { status: 400 },
+    );
   }
 
   // Conexión Shopify del workspace. Resolvemos el workspace owner-first

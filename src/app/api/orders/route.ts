@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Pedidos creados por el asistente IA (tabla `orders`, migración 080).
@@ -15,14 +17,22 @@ import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
  */
 export async function GET() {
   const supabase = await createClient();
+  const locale = await getLocale();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.notAuthenticated') },
+      { status: 401 },
+    );
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
   if (!workspaceId) {
-    return NextResponse.json({ error: 'Sin workspace' }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.noWorkspace') },
+      { status: 403 },
+    );
   }
 
   const { data, error } = await supabase
@@ -36,7 +46,7 @@ export async function GET() {
 
   if (error) {
     return NextResponse.json(
-      { error: 'No se pudieron cargar los pedidos' },
+      { error: translate(locale, 'errProducts.ordersLoadFailed') },
       { status: 500 },
     );
   }

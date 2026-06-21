@@ -17,6 +17,8 @@ import {
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Submit a NEW WhatsApp message template to Meta for approval, then mirror
@@ -44,6 +46,7 @@ const DB_CATEGORY: Record<MetaTemplateCategory, 'Marketing' | 'Utility' | 'Authe
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
     const {
@@ -52,7 +55,10 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.notAuthenticated') },
+        { status: 401 },
+      )
     }
 
     const limit = checkRateLimit(`template-create:${user.id}`, RATE_LIMITS.broadcast)
@@ -60,7 +66,10 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null)
     if (!body) {
-      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.invalidJson') },
+        { status: 400 },
+      )
     }
     const rawName: string = body.name ?? ''
     const language: string = (body.language ?? 'es').trim()
@@ -69,12 +78,15 @@ export async function POST(request: Request) {
     const name = normalizeTemplateName(rawName)
     if (!name) {
       return NextResponse.json(
-        { error: 'El nombre de la plantilla es obligatorio.' },
+        { error: translate(locale, 'errWhatsapp.templateNameRequired') },
         { status: 400 },
       )
     }
     if (!['MARKETING', 'UTILITY', 'AUTHENTICATION'].includes(category)) {
-      return NextResponse.json({ error: 'Categoría no válida.' }, { status: 400 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.invalidCategory') },
+        { status: 400 },
+      )
     }
 
     const form: TemplateFormInput = {
@@ -102,19 +114,13 @@ export async function POST(request: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        {
-          error:
-            'WhatsApp no está conectado. Conecta tu cuenta de WhatsApp Business en Ajustes primero.',
-        },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConnected') },
         { status: 400 },
       )
     }
     if (!config.waba_id) {
       return NextResponse.json(
-        {
-          error:
-            'Falta el ID de la Cuenta de WhatsApp Business (WABA). Vuelve a conectar tu cuenta en Ajustes.',
-        },
+        { error: translate(locale, 'errWhatsapp.missingWabaId') },
         { status: 400 },
       )
     }
@@ -126,7 +132,7 @@ export async function POST(request: Request) {
     const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
     if (!workspaceId) {
       return NextResponse.json(
-        { error: 'No se pudo resolver el workspace de tu cuenta.' },
+        { error: translate(locale, 'errWhatsapp.workspaceResolveFailed') },
         { status: 400 },
       )
     }
@@ -146,7 +152,12 @@ export async function POST(request: Request) {
     } catch (err) {
       // Surface Meta's reason (e.g. duplicate name, invalid variable) directly.
       return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Meta rechazó la plantilla.' },
+        {
+          error:
+            err instanceof Error
+              ? err.message
+              : translate(locale, 'errWhatsapp.metaRejectedTemplate'),
+        },
         { status: 502 },
       )
     }
@@ -195,7 +206,9 @@ export async function POST(request: Request) {
       console.error('Template mirror failed:', writeErr)
       return NextResponse.json(
         {
-          error: `La plantilla se envió a Meta pero no se pudo guardar localmente: ${writeErr.message}`,
+          error: translate(locale, 'errWhatsapp.templateSentButMirrorFailed', {
+            detail: writeErr.message,
+          }),
           meta_template_id: metaResult.id,
         },
         { status: 500 },
@@ -214,7 +227,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'No se pudo crear la plantilla',
+          error instanceof Error
+            ? error.message
+            : translate(locale, 'errWhatsapp.createTemplateFailed'),
       },
       { status: 500 },
     )

@@ -26,6 +26,7 @@ import type { ContactSegment } from '@/lib/segments/types';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 
 type AudienceType = 'all' | 'tags' | 'segment';
@@ -58,10 +59,6 @@ function parseUsdRate(): number {
   const raw = process.env.NEXT_PUBLIC_META_MSG_COST_USD;
   const n = raw ? parseFloat(raw) : 0.02;
   return Number.isFinite(n) && n >= 0 ? n : 0.02;
-}
-
-function formatUsd(amount: number): string {
-  return `USD ${amount.toFixed(2)}`;
 }
 
 /** Quick chips above the manual datetime picker. Keeps the common case
@@ -115,6 +112,7 @@ function describeScheduledAt(iso: string | null, t: TFn): string {
 export default function NewBroadcastPage() {
   const router = useRouter();
   const t = useT();
+  const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
 
@@ -623,14 +621,14 @@ export default function NewBroadcastPage() {
                     {recipientCount === null
                       ? t('broadcasts.calculatingRecipients')
                       : t('broadcasts.recipientsCount', {
-                          count: recipientCount.toLocaleString('es'),
+                          count: fmt.number(recipientCount),
                         })}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">{t('broadcasts.estimatedCost')}</p>
                   <p className="text-sm font-semibold text-foreground">
-                    {estimatedCost === null ? '—' : formatUsd(estimatedCost)}
+                    {estimatedCost === null ? '—' : fmt.currency(estimatedCost, 'USD')}
                   </p>
                 </div>
               </div>

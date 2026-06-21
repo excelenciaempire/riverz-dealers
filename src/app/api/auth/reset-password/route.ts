@@ -7,6 +7,8 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { safeRedirectTo } from "@/lib/auth/redirect";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * POST /api/auth/reset-password
@@ -19,18 +21,19 @@ import { safeRedirectTo } from "@/lib/auth/redirect";
  * endpoint sees the same "if the account exists…" line every time.
  */
 
-const GENERIC_OK = {
-  ok: true,
-  message: "Si la cuenta existe, recibirás un correo con instrucciones.",
-} as const;
-
 export async function POST(req: Request) {
+  const locale = await getLocale();
+  const genericOk = {
+    ok: true,
+    message: translate(locale, "errAccount.resetEmailSent"),
+  } as const;
+
   const body = (await req.json().catch(() => null)) as
     | { email?: string; redirect_to?: string }
     | null;
   const email = body?.email?.trim().toLowerCase();
   if (!email) {
-    return NextResponse.json(GENERIC_OK);
+    return NextResponse.json(genericOk);
   }
 
   const ip = clientIp(req);
@@ -46,5 +49,5 @@ export async function POST(req: Request) {
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: safeRedirectTo(body?.redirect_to),
   });
-  return NextResponse.json(GENERIC_OK);
+  return NextResponse.json(genericOk);
 }

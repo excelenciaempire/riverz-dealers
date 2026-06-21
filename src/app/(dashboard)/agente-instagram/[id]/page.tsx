@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 import type {
   InstagramCampaign,
@@ -42,6 +43,7 @@ export default function CampaignDetailPage() {
   const id = params?.id;
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
+  const fmt = useFormat();
   const [campaign, setCampaign] = useState<InstagramCampaign | null>(null);
   const [byStatus, setByStatus] = useState<Record<string, number>>({});
   const [revenueByPost, setRevenueByPost] = useState<
@@ -263,7 +265,7 @@ export default function CampaignDetailPage() {
           <p className="mt-3 flex items-center gap-1.5 text-sm">
             <TrendingUp className="h-4 w-4 text-accent-ink" />
             <span className="font-semibold text-accent-ink">
-              {metrics.revenue.toLocaleString()} {metrics.currency}
+              {fmt.currency(metrics.revenue, metrics.currency)}
             </span>
             <span className="text-muted-foreground">
               {t('igAgent.attributedLastTouch')}
@@ -281,7 +283,7 @@ export default function CampaignDetailPage() {
             </p>
             <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
               <span className="text-lg font-semibold text-accent-ink">
-                {metrics.incremental_revenue.toLocaleString()} {metrics.currency}
+                {fmt.currency(metrics.incremental_revenue, metrics.currency)}
               </span>
               <span className="text-xs text-muted-foreground">
                 {t('igAgent.incrementalRevenueLabel', {
@@ -335,7 +337,9 @@ export default function CampaignDetailPage() {
                   </p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums text-accent-ink">
-                  {p.revenue.toLocaleString()} {p.currency ?? ''}
+                  {p.currency
+                    ? fmt.currency(p.revenue, p.currency)
+                    : fmt.number(p.revenue)}
                 </span>
               </li>
             ))}
@@ -425,6 +429,7 @@ function Stat({
   value: number;
   highlight?: boolean;
 }) {
+  const fmt = useFormat();
   return (
     <div
       className={cn(
@@ -443,7 +448,7 @@ function Stat({
           highlight ? 'text-accent-ink' : 'text-foreground',
         )}
       >
-        {value.toLocaleString()}
+        {fmt.number(value)}
       </p>
     </div>
   );

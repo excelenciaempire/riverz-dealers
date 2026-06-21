@@ -18,6 +18,7 @@ import { Plus, Loader2, Search, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -49,6 +50,7 @@ function RateCell({ value, total }: { value: number; total: number }) {
 export default function BroadcastsPage() {
   const router = useRouter();
   const t = useT();
+  const fmt = useFormat();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -315,7 +317,7 @@ export default function BroadcastsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
-                      {new Date(broadcast.created_at).toLocaleDateString('es-ES', {
+                      {fmt.date(broadcast.created_at, {
                         day: '2-digit',
                         month: 'short',
                       })}

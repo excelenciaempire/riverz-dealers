@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ShoppingBag, ExternalLink, Package, Truck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 /**
  * Panel Shopify contextual a la derecha del chat. Llama a
@@ -71,6 +72,7 @@ export function ShopifyContactPanel({
   contactPhone: string | null;
 }) {
   const t = useT();
+  const fmt = useFormat();
   const [data, setData] = useState<ShopifyResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -108,7 +110,7 @@ export function ShopifyContactPanel({
   const c = data.customer;
   const fullName =
     `${c.first_name} ${c.last_name}`.trim() || c.email || t('inbox.shopifyCustomer');
-  const totalSpent = formatMoney(c.total_spent, c.currency);
+  const totalSpent = formatMoney(c.total_spent, c.currency, fmt.currency);
   const orders = data.orders ?? [];
 
   return (
@@ -201,7 +203,7 @@ export function ShopifyContactPanel({
                           {o.name}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {date.toLocaleDateString('es-ES', {
+                          {fmt.date(date, {
                             day: '2-digit',
                             month: 'short',
                           })}
@@ -236,7 +238,7 @@ export function ShopifyContactPanel({
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-semibold text-foreground">
-                        {formatMoney(o.total_price, o.currency)}
+                        {formatMoney(o.total_price, o.currency, fmt.currency)}
                       </p>
                       {o.order_status_url && (
                         <a
@@ -262,16 +264,16 @@ export function ShopifyContactPanel({
   );
 }
 
-function formatMoney(amount: string | number | undefined, currency: string): string {
+function formatMoney(
+  amount: string | number | undefined,
+  currency: string,
+  formatCurrency: (
+    value: number,
+    currency?: string,
+    opts?: Intl.NumberFormatOptions,
+  ) => string,
+): string {
   const num = typeof amount === 'string' ? Number(amount) : amount ?? 0;
   if (!isFinite(num)) return `${amount ?? ''}`;
-  try {
-    return new Intl.NumberFormat('es', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 0,
-    }).format(num);
-  } catch {
-    return `${num.toLocaleString('es')} ${currency}`;
-  }
+  return formatCurrency(num, currency || 'USD', { maximumFractionDigits: 0 });
 }

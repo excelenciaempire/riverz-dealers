@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * POST /api/waitlist  — public pre-launch lead capture.
@@ -68,7 +70,11 @@ export async function POST(req: Request): Promise<Response> {
 
   const email = body?.email?.trim().toLowerCase() ?? "";
   if (!EMAIL_RE.test(email) || email.length > 254) {
-    return NextResponse.json({ error: "Correo inválido" }, { status: 400 });
+    const locale = await getLocale();
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.emailInvalid") },
+      { status: 400 },
+    );
   }
   const name = body?.name?.trim().slice(0, 120) || null;
 

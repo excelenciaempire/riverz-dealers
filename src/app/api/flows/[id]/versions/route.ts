@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/flows/[id]/versions — lista las últimas 50 versiones del
@@ -51,6 +53,7 @@ export async function POST(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await context.params;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -63,7 +66,10 @@ export async function POST(
     note?: string;
   } | null;
   if (!body?.kind) {
-    return NextResponse.json({ error: 'Falta kind' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.versionsMissingKind') },
+      { status: 400 },
+    );
   }
   // Pre-check de propiedad con el cliente RLS-scoped del caller ANTES de
   // tocar el admin client (que bypassa RLS). Sin esto, un usuario de otro

@@ -7,6 +7,7 @@ import { Loader2, Upload, Trash2, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,7 @@ export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
   const supabase = createClient();
   const t = useT();
+  const fmt = useFormat();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState('');
@@ -200,7 +202,7 @@ export function ProfileForm() {
       removeAvatar);
 
   const joined = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString('es-ES', {
+    ? fmt.date(user.created_at, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',

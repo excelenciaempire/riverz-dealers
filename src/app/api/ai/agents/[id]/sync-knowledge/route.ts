@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -97,6 +99,7 @@ export async function POST(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -115,7 +118,7 @@ export async function POST(
   const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
-      { error: 'URL inválida. Debe empezar con https://' },
+      { error: translate(locale, 'errAi.urlInvalidHttps') },
       { status: 400 },
     );
   }
@@ -123,7 +126,7 @@ export async function POST(
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Falta FIRECRAWL_API_KEY en el servidor.' },
+      { error: translate(locale, 'errAi.firecrawlMissingKey') },
       { status: 500 },
     );
   }
@@ -151,13 +154,16 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            startJson?.error ?? `Firecrawl no aceptó el crawl (status ${startRes.status})`,
+            startJson?.error ??
+            translate(locale, 'errAi.firecrawlRejected', {
+              status: startRes.status,
+            }),
         },
         { status: 502 },
       );
     }
   } catch (err) {
-    return serverError(err, 'No se pudo contactar Firecrawl', 502);
+    return serverError(err, translate(locale, 'errAi.firecrawlUnreachable'), 502);
   }
 
   const crawlId = startJson.id;
@@ -176,7 +182,7 @@ export async function POST(
       if (json.status === 'completed') break;
       if (json.status === 'failed') {
         return NextResponse.json(
-          { error: json.error ?? 'Firecrawl falló durante el crawl.' },
+          { error: json.error ?? translate(locale, 'errAi.firecrawlFailed') },
           { status: 502 },
         );
       }

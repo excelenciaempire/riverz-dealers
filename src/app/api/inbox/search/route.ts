@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/inbox/search?q=...
@@ -27,6 +29,7 @@ interface RpcRow {
 }
 
 export async function GET(request: Request) {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,7 +75,8 @@ export async function GET(request: Request) {
     };
     for (const c of (convs ?? []) as Row[]) {
       const ct = Array.isArray(c.contact) ? c.contact[0] : c.contact;
-      const name = ct?.name || ct?.phone || ct?.email || 'Contacto';
+      const name =
+        ct?.name || ct?.phone || ct?.email || translate(locale, 'errInbox.contactFallback');
       contactByConv.set(c.id, { name });
     }
   }
@@ -90,7 +94,9 @@ export async function GET(request: Request) {
   for (const r of (rows as RpcRow[] | null ?? [])) {
     if (seen.has(r.conversation_id)) continue;
     seen.add(r.conversation_id);
-    const name = contactByConv.get(r.conversation_id)?.name ?? 'Contacto';
+    const name =
+      contactByConv.get(r.conversation_id)?.name ??
+      translate(locale, 'errInbox.contactFallback');
     if (r.kind === 'conv') {
       out.push({
         id: r.conversation_id,

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { escapeLike } from '@/lib/security/like';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/broadcasts/audience-preview
@@ -48,6 +50,7 @@ interface AudienceBody {
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -58,7 +61,10 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as AudienceBody | null;
   if (!body?.audience) {
-    return NextResponse.json({ error: 'Falta audience' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.audienceMissing') },
+      { status: 400 },
+    );
   }
   const limit = Math.max(1, Math.min(50, body.limit ?? 12));
   const a = body.audience;

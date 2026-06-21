@@ -3,6 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "@/lib/ai/anthropic-client";
 import { createClient } from "@/lib/supabase/server";
 import { csrfGuard } from "@/lib/csrf";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
@@ -62,6 +64,7 @@ export async function POST(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await context.params;
+  const locale = await getLocale();
 
   // ── Auth + propiedad del flujo ──
   const supabase = await createClient();
@@ -83,7 +86,7 @@ export async function POST(
   const body = (await request.json().catch(() => null)) as AssistRequestBody | null;
   if (!body || !body.message?.trim() || !body.flow_snapshot) {
     return NextResponse.json(
-      { error: "Falta `message` o `flow_snapshot`." },
+      { error: translate(locale, "errFlows.assistMissingFields") },
       { status: 400 },
     );
   }
@@ -92,8 +95,7 @@ export async function POST(
   if (!apiKey) {
     return NextResponse.json(
       {
-        error:
-          "La clave de Anthropic no está configurada en este servidor (ANTHROPIC_API_KEY).",
+        error: translate(locale, "errFlows.assistAnthropicNotConfigured"),
       },
       { status: 500 },
     );
@@ -142,8 +144,7 @@ export async function POST(
   if (!toolUse) {
     return NextResponse.json(
       {
-        error:
-          "La IA no devolvió la estructura esperada. Intenta de nuevo con un pedido más concreto.",
+        error: translate(locale, "errFlows.assistUnexpectedAiResponse"),
       },
       { status: 502 },
     );
@@ -153,7 +154,7 @@ export async function POST(
   const reply =
     typeof parsed.reply === "string" && parsed.reply.trim()
       ? parsed.reply.trim()
-      : "Listo.";
+      : translate(locale, "errFlows.assistDefaultReply");
   const patches = Array.isArray(parsed.patches)
     ? (parsed.patches.filter(isPatch) as AiPatch[])
     : [];
@@ -181,7 +182,9 @@ export async function POST(
       const detail = newIssues.map((i) => i.message).join(" ");
       return NextResponse.json(
         {
-          error: `Los cambios propuestos romperían el flujo: ${detail}`,
+          error: translate(locale, "errFlows.assistPatchesWouldBreak", {
+            detail,
+          }),
         },
         { status: 422 },
       );

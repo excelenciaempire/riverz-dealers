@@ -6,6 +6,8 @@ import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
 import { slugifyTitle, handleSuffix } from '@/lib/products/slug';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/products
@@ -132,16 +134,24 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const locale = await getLocale();
+
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = String(body?.title ?? '').trim();
   if (!title) {
-    return NextResponse.json({ error: 'El nombre del producto es obligatorio.' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.productNameRequired') },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   if (!workspaceId) {
-    return NextResponse.json({ error: 'No se pudo resolver el workspace.' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.workspaceResolveFailed') },
+      { status: 400 },
+    );
   }
 
   const num = (v: unknown): number | null => {

@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ContactTags } from '@/components/contacts/contact-tags';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import {
   Phone,
   Mail,
@@ -46,6 +47,7 @@ export function ContactDetailView({
 }: ContactDetailViewProps) {
   const supabase = createClient();
   const t = useT();
+  const fmt = useFormat();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
@@ -454,7 +456,7 @@ export function ContactDetailView({
                           </button>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString('es-ES', {
+                          {fmt.dateTime(note.created_at, {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',

@@ -6,6 +6,8 @@ import {
   clientIp,
   RATE_LIMITS,
 } from "@/lib/rate-limit";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * POST /api/auth/login
@@ -20,21 +22,22 @@ import {
  * be used to distinguish "no such email" from "wrong password".
  */
 
-const GENERIC_FAIL = {
-  error: "credenciales_invalidas",
-  message: "Email o contraseña incorrectos.",
-} as const;
 const MIN_RESPONSE_MS = 300;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function failResponse(status = 401) {
-  return NextResponse.json(GENERIC_FAIL, { status });
+function failResponse(message: string, status = 401) {
+  return NextResponse.json(
+    { error: "credenciales_invalidas", message },
+    { status },
+  );
 }
 
 export async function POST(req: Request) {
+  const locale = await getLocale();
+  const failMessage = translate(locale, "errAccount.invalidCredentials");
   const startedAt = Date.now();
   const finish = async <T>(value: T): Promise<T> => {
     const elapsed = Date.now() - startedAt;
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
   const email = body?.email?.trim().toLowerCase();
   const password = body?.password;
   if (!email || !password) {
-    return finish(failResponse(400));
+    return finish(failResponse(failMessage, 400));
   }
 
   const ip = clientIp(req);
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    return finish(failResponse(401));
+    return finish(failResponse(failMessage, 401));
   }
   return finish(NextResponse.json({ ok: true }));
 }

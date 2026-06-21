@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { getLogger } from "@/lib/log/logger";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 const log = getLogger("workspace.accept-invite");
 
@@ -26,17 +28,24 @@ const log = getLogger("workspace.accept-invite");
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "No has iniciado sesión." }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.notSignedIn") },
+      { status: 401 },
+    );
   }
 
   const body = (await req.json().catch(() => null)) as { token?: string } | null;
   if (!body?.token) {
-    return NextResponse.json({ error: "Token requerido." }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.tokenRequired") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -48,19 +57,19 @@ export async function POST(req: Request): Promise<Response> {
 
   if (!invite) {
     return NextResponse.json(
-      { error: "Esta invitación no es válida." },
+      { error: translate(locale, "errAccount.inviteInvalid") },
       { status: 404 },
     );
   }
   if (invite.accepted_at) {
     return NextResponse.json(
-      { error: "Esta invitación ya fue usada." },
+      { error: translate(locale, "errAccount.inviteAlreadyUsed") },
       { status: 409 },
     );
   }
   if (new Date(invite.expires_at).getTime() < Date.now()) {
     return NextResponse.json(
-      { error: "La invitación caducó. Pide una nueva al administrador." },
+      { error: translate(locale, "errAccount.inviteExpired") },
       { status: 410 },
     );
   }
@@ -72,8 +81,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!user.email_confirmed_at && !user.confirmed_at) {
     return NextResponse.json(
       {
-        error:
-          "Verifica tu correo antes de aceptar la invitación. Revisa tu bandeja de entrada.",
+        error: translate(locale, "errAccount.verifyEmailFirst"),
       },
       { status: 403 },
     );
@@ -86,7 +94,7 @@ export async function POST(req: Request): Promise<Response> {
     const [localPart] = inviteEmail.split("@");
     const masked = localPart
       ? `${localPart.slice(0, 2)}…@…`
-      : "la dirección invitada";
+      : translate(locale, "errAccount.invitedAddressFallback");
     log.warn("invite email mismatch", {
       invite_id: invite.id,
       workspace_id: invite.workspace_id,
@@ -94,7 +102,7 @@ export async function POST(req: Request): Promise<Response> {
     });
     return NextResponse.json(
       {
-        error: `Este enlace fue creado para otra cuenta. Inicia sesión con ${masked} o pide una nueva invitación.`,
+        error: translate(locale, "errAccount.inviteForOtherAccount", { masked }),
       },
       { status: 403 },
     );
@@ -125,7 +133,7 @@ export async function POST(req: Request): Promise<Response> {
         error: insErr.message,
       });
       return NextResponse.json(
-        { error: "No se pudo unirte al espacio de trabajo." },
+        { error: translate(locale, "errAccount.joinWorkspaceFailed") },
         { status: 400 },
       );
     }

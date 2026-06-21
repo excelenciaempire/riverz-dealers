@@ -6,6 +6,7 @@ import type { ChannelMixPoint } from '@/lib/dashboard/types'
 import type { Channel } from '@/types'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 
 interface ChannelMixCardProps {
   mix: ChannelMixPoint[]
@@ -18,6 +19,7 @@ interface ChannelMixCardProps {
  */
 export function ChannelMixCard({ mix }: ChannelMixCardProps) {
   const t = useT()
+  const fmt = useFormat()
   const total = mix.reduce((n, m) => n + m.inbound + m.outbound, 0)
   const peak = Math.max(1, ...mix.map((m) => m.inbound + m.outbound))
   return (
@@ -27,7 +29,7 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
           <h2 className="text-base font-semibold text-foreground">{t('dashboard.channelVolume')}</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          {t('dashboard.total')}: <span className="font-semibold text-foreground tabular-nums">{total.toLocaleString()}</span>
+          {t('dashboard.total')}: <span className="font-semibold text-foreground tabular-nums">{fmt.number(total)}</span>
         </p>
       </header>
       <ul className="space-y-3">
@@ -59,9 +61,9 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
                 </div>
               </div>
               <div className="w-auto sm:w-32 shrink-0 whitespace-nowrap text-right text-[11px] text-muted-foreground tabular-nums">
-                <span className={cn('font-semibold text-foreground')}>{sum.toLocaleString()}</span>
+                <span className={cn('font-semibold text-foreground')}>{fmt.number(sum)}</span>
                 <span className="ml-2 text-muted-foreground">
-                  ↓ {m.inbound} · ↑ {m.outbound}
+                  ↓ {fmt.number(m.inbound)} · ↑ {fmt.number(m.outbound)}
                 </span>
               </div>
             </li>

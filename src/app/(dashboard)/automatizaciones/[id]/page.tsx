@@ -19,6 +19,7 @@ import type { Automation, AutomationLog } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 /**
  * Detail / visualizador de data de una automatización.
@@ -59,6 +60,7 @@ function MetricCard({
   value: string | number;
   emphasis?: boolean;
 }) {
+  const fmt = useFormat();
   return (
     <div
       className={cn(
@@ -70,7 +72,7 @@ function MetricCard({
         {label}
       </p>
       <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-        {typeof value === 'number' ? value.toLocaleString('es-ES') : value}
+        {typeof value === 'number' ? fmt.number(value) : value}
       </p>
     </div>
   );

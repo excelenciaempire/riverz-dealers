@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,17 +65,13 @@ function StatusPill({ status, t }: { status: string; t: TFn }) {
   );
 }
 
-function formatRelative(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-}
-
 export default function TemplatesPage() {
   const supabase = createClient();
   const router = useRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const { user, loading: authLoading } = useAuth();
   const t = useT();
+  const fmt = useFormat();
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -263,7 +260,7 @@ export default function TemplatesPage() {
                         <StatusPill status={template.status || 'Draft'} t={t} />
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
-                        {formatRelative(template.created_at)}
+                        {fmt.date(template.created_at, { day: '2-digit', month: 'short' })}
                       </TableCell>
                       <TableCell
                         className="w-10 text-right"

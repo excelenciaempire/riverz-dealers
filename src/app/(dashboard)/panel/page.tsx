@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 import type { TFn } from '@/lib/i18n/translate'
 import {
   MessageSquare,
@@ -47,6 +48,7 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
 export default function DashboardPage() {
   const t = useT()
+  const fmt = useFormat()
   const tz = useTimezone()
 
   // One global date-range filter drives every card, chart and feed.
@@ -190,33 +192,33 @@ export default function DashboardPage() {
           <>
             <MetricCard
               title={t('dashboard.openConversations')}
-              value={metrics.activeConversations.current.toLocaleString()}
+              value={fmt.number(metrics.activeConversations.current)}
               icon={MessageSquare}
               subtitle={t('dashboard.inProgressNow')}
             />
             <MetricCard
               title={t('dashboard.newContacts')}
-              value={metrics.newContacts.current.toLocaleString()}
+              value={fmt.number(metrics.newContacts.current)}
               icon={UserPlus}
-              delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix, t)}
+              delta={deltaFor(metrics.newContacts.current, metrics.newContacts.previous, suffix, t, fmt.number)}
             />
             <MetricCard
               title={t('dashboard.resolved')}
-              value={metrics.resolved.current.toLocaleString()}
+              value={fmt.number(metrics.resolved.current)}
               icon={CheckCircle2}
-              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix, t)}
+              delta={deltaFor(metrics.resolved.current, metrics.resolved.previous, suffix, t, fmt.number)}
             />
             <MetricCard
               title={t('dashboard.messagesReceived')}
-              value={metrics.messagesReceived.current.toLocaleString()}
+              value={fmt.number(metrics.messagesReceived.current)}
               icon={Inbox}
-              delta={deltaFor(metrics.messagesReceived.current, metrics.messagesReceived.previous, suffix, t)}
+              delta={deltaFor(metrics.messagesReceived.current, metrics.messagesReceived.previous, suffix, t, fmt.number)}
             />
             <MetricCard
               title={t('dashboard.messagesSent')}
-              value={metrics.messagesSent.current.toLocaleString()}
+              value={fmt.number(metrics.messagesSent.current)}
               icon={Send}
-              delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix, t)}
+              delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix, t, fmt.number)}
             />
           </>
         )}
@@ -275,13 +277,19 @@ function deltaSuffix(preset: RangePreset, t: TFn): string {
   }
 }
 
-function deltaFor(current: number, previous: number, suffix: string, t: TFn) {
+function deltaFor(
+  current: number,
+  previous: number,
+  suffix: string,
+  t: TFn,
+  nf: (v: number) => string,
+) {
   const delta = current - previous
   const label =
     delta === 0
       ? t('dashboard.noChange', { suffix })
       : t('dashboard.deltaChange', {
-          delta: `${delta > 0 ? '+' : ''}${delta.toLocaleString()}`,
+          delta: `${delta > 0 ? '+' : '-'}${nf(Math.abs(delta))}`,
           suffix,
         })
   return { sign: delta, label }

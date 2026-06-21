@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
@@ -49,6 +51,7 @@ export async function POST(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -88,7 +91,7 @@ export async function POST(
       process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Falta la API key (workspace o ANTHROPIC_API_KEY del servidor).' },
+        { error: translate(locale, 'errAi.missingApiKey') },
         { status: 500 },
       );
     }
@@ -157,7 +160,7 @@ export async function POST(
       },
     });
   } catch (err) {
-    return serverError(err, 'No se pudo generar la respuesta', 502);
+    return serverError(err, translate(locale, 'errAi.testGenerateFailed'), 502);
   }
 }
 

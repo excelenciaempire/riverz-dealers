@@ -9,6 +9,8 @@ import {
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Manually re-pull the product catalog from Shopify. The first sync
@@ -29,6 +31,8 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const locale = await getLocale();
+
   const admin = supabaseAdmin();
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   const conn = workspaceId
@@ -36,7 +40,7 @@ export async function POST(req: Request) {
     : await getConnectionForUser(admin, user.id);
   if (!conn) {
     return NextResponse.json(
-      { error: 'No hay tienda Shopify conectada.' },
+      { error: translate(locale, 'errProducts.noShopifyStoreConnected') },
       { status: 400 },
     );
   }

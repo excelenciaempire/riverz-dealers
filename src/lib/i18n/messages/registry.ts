@@ -11,6 +11,12 @@ import { broadcasts } from "./broadcasts";
 import { common } from "./common";
 import { contacts } from "./contacts";
 import { dashboard } from "./dashboard";
+import { errAccount } from "./errAccount";
+import { errAi } from "./errAi";
+import { errFlows } from "./errFlows";
+import { errInbox } from "./errInbox";
+import { errProducts } from "./errProducts";
+import { errWhatsapp } from "./errWhatsapp";
 import { flows } from "./flows";
 import { igAgent } from "./igAgent";
 import { inbox } from "./inbox";
@@ -32,6 +38,12 @@ const NAMESPACES: Record<string, Namespace> = {
   common,
   contacts,
   dashboard,
+  errAccount,
+  errAi,
+  errFlows,
+  errInbox,
+  errProducts,
+  errWhatsapp,
   flows,
   igAgent,
   inbox,

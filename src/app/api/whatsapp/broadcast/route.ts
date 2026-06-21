@@ -20,6 +20,8 @@ import {
 } from '@/lib/whatsapp/tier-cap'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 interface BroadcastResult {
   phone: string
@@ -58,6 +60,7 @@ interface NewRecipient {
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
 
@@ -80,7 +83,10 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null)
     if (!body) {
-      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.invalidJson') },
+        { status: 400 }
+      )
     }
     const {
       recipients: newRecipients,
@@ -120,7 +126,9 @@ export async function POST(request: Request) {
     if (recipients.length > MAX_RECIPIENTS) {
       return NextResponse.json(
         {
-          error: `Demasiados destinatarios (máx ${MAX_RECIPIENTS}). Dividí la campaña.`,
+          error: translate(locale, 'errWhatsapp.tooManyRecipients', {
+            max: MAX_RECIPIENTS,
+          }),
         },
         { status: 400 }
       )

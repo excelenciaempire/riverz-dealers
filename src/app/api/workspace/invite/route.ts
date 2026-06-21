@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * POST /api/workspace/invite
@@ -20,6 +22,7 @@ import { serverError } from "@/lib/api/errors";
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,7 +40,10 @@ export async function POST(req: Request): Promise<Response> {
   // would just be unredeemable. Better to reject up-front.
   const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailShape.test(body.email.trim())) {
-    return NextResponse.json({ error: "Correo inválido" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.emailInvalid") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -62,7 +68,11 @@ export async function POST(req: Request): Promise<Response> {
     invited_by: user.id,
   });
   if (error) {
-    return serverError(error, "No se pudo crear la invitación", 400);
+    return serverError(
+      error,
+      translate(locale, "errAccount.createInviteFailed"),
+      400,
+    );
   }
 
   const acceptUrl = new URL(req.url);

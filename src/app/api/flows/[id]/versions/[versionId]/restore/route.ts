@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/flows/[id]/versions/[versionId]/restore
@@ -41,6 +43,7 @@ export async function POST(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id, versionId } = await context.params;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -58,7 +61,10 @@ export async function POST(
     .eq('flow_id', id)
     .maybeSingle();
   if (vErr || !version) {
-    return NextResponse.json({ error: 'Versión no encontrada' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.restoreVersionNotFound') },
+      { status: 404 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -80,7 +86,7 @@ export async function POST(
       flow_id: id,
       kind: 'draft',
       snapshot: { flow: curFlow, nodes: curNodes ?? [] },
-      note: 'Backup antes de restaurar',
+      note: translate(locale, 'errFlows.restoreBackupNote'),
       created_by: user.id,
     });
   }

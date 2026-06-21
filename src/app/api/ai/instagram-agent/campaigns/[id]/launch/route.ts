@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveAudience } from '@/lib/instagram-agent/resolve-audience';
 import { coercePlan } from '@/lib/instagram-agent/types';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/ai/instagram-agent/campaigns/[id]/launch
@@ -18,13 +20,17 @@ export async function POST(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await context.params;
+  const locale = await getLocale();
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const { data: campaign, error } = await supabase
@@ -36,7 +42,10 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!campaign) {
-    return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.campaignNotFound') },
+      { status: 404 },
+    );
   }
   const row = campaign as {
     id: string;
@@ -47,7 +56,7 @@ export async function POST(
   };
   if (row.status === 'done') {
     return NextResponse.json(
-      { error: 'La campaña ya está finalizada.' },
+      { error: translate(locale, 'errAi.campaignAlreadyDone') },
       { status: 400 },
     );
   }
@@ -63,7 +72,7 @@ export async function POST(
     const plan = coercePlan(row.plan);
     if (!plan) {
       return NextResponse.json(
-        { error: 'La campaña no tiene un plan válido.' },
+        { error: translate(locale, 'errAi.campaignNoValidPlan') },
         { status: 400 },
       );
     }
@@ -79,17 +88,16 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            err instanceof Error ? err.message : 'No se pudo resolver la audiencia',
+            err instanceof Error
+              ? err.message
+              : translate(locale, 'errAi.resolveAudienceFailed'),
         },
         { status: 500 },
       );
     }
     if (queued === 0) {
       return NextResponse.json(
-        {
-          error:
-            'No hay contactos de Instagram para esta campaña todavía. Conecta Instagram y deja que lleguen interacciones.',
-        },
+        { error: translate(locale, 'errAi.noInstagramContactsLaunch') },
         { status: 400 },
       );
     }

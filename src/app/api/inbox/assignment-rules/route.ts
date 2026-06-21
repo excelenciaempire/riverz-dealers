@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/inbox/assignment-rules — lista reglas del workspace.
@@ -33,6 +35,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
   } | null;
   if (!body?.name || !body.kind || !body.workspace_id) {
     return NextResponse.json(
-      { error: 'Faltan name, kind o workspace_id' },
+      { error: translate(locale, 'errInbox.missingRuleFields') },
       { status: 400 },
     );
   }
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
   // permitimos ambos para forward-compat.
   if (!['admin', 'owner'].includes(member.role)) {
     return NextResponse.json(
-      { error: 'Solo admins/owners pueden modificar reglas' },
+      { error: translate(locale, 'errInbox.rulesAdminsOnly') },
       { status: 403 },
     );
   }
@@ -123,6 +126,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -135,7 +139,7 @@ export async function DELETE(request: Request) {
   const workspaceId = url.searchParams.get('workspace_id');
   if (!id || !workspaceId) {
     return NextResponse.json(
-      { error: 'Faltan id o workspace_id' },
+      { error: translate(locale, 'errInbox.missingIdOrWorkspace') },
       { status: 400 },
     );
   }
@@ -153,7 +157,7 @@ export async function DELETE(request: Request) {
   }
   if (!['admin', 'owner'].includes(member.role)) {
     return NextResponse.json(
-      { error: 'Solo admins/owners pueden modificar reglas' },
+      { error: translate(locale, 'errInbox.rulesAdminsOnly') },
       { status: 403 },
     );
   }

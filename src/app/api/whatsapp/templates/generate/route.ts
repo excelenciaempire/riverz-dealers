@@ -8,6 +8,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Draft a WhatsApp template body with Claude from a short brief.
@@ -33,6 +35,7 @@ Reglas estrictas:
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
     const {
@@ -40,13 +43,16 @@ export async function POST(request: Request) {
       error: authError,
     } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.notAuthenticated') },
+        { status: 401 },
+      )
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'La generación con IA no está configurada (falta ANTHROPIC_API_KEY).' },
+        { error: translate(locale, 'errWhatsapp.aiNotConfigured') },
         { status: 503 },
       )
     }
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
 
     if (!brief) {
       return NextResponse.json(
-        { error: 'Describe brevemente el mensaje que quieres generar.' },
+        { error: translate(locale, 'errWhatsapp.describeMessage') },
         { status: 400 },
       )
     }
@@ -106,7 +112,7 @@ export async function POST(request: Request) {
 
     if (!text) {
       return NextResponse.json(
-        { error: 'La IA no devolvió ningún texto. Inténtalo de nuevo.' },
+        { error: translate(locale, 'errWhatsapp.aiReturnedNoText') },
         { status: 502 },
       )
     }
@@ -119,10 +125,13 @@ export async function POST(request: Request) {
     console.error('Error generating template with AI:', error)
     const message =
       error instanceof Anthropic.APIError
-        ? `Error de la API de Claude (${error.status}): ${error.message}`
+        ? translate(locale, 'errWhatsapp.claudeApiError', {
+            status: error.status ?? '',
+            message: error.message,
+          })
         : error instanceof Error
           ? error.message
-          : 'No se pudo generar el mensaje'
+          : translate(locale, 'errWhatsapp.generateMessageFailed')
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

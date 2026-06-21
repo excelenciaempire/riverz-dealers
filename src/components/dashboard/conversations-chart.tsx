@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 import type { TFn } from '@/lib/i18n/translate'
+
+/** Locale-bound date formatter from useFormat().date — passed to label helpers. */
+type DateFormatter = (
+  v: Date | string | number,
+  opts?: Intl.DateTimeFormatOptions,
+) => string
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 
@@ -26,6 +33,7 @@ const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
 export function ConversationsChart({ data, loading }: ConversationsChartProps) {
   const t = useT()
+  const fmt = useFormat()
   // Memoise the max so per-point hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
     const arr = data ?? []
@@ -58,7 +66,7 @@ export function ConversationsChart({ data, loading }: ConversationsChartProps) {
             title={t('dashboard.noActivityInRange')}
           />
         ) : (
-          <LineSvg data={data} maxY={maxY} ticks={niceTicks} t={t} />
+          <LineSvg data={data} maxY={maxY} ticks={niceTicks} t={t} df={fmt.date} />
         )}
       </div>
 
@@ -79,11 +87,13 @@ function LineSvg({
   maxY,
   ticks,
   t,
+  df,
 }: {
   data: ConversationsSeriesPoint[]
   maxY: number
   ticks: number[]
   t: TFn
+  df: DateFormatter
 }) {
   // Hover state: both the snapped index AND the tooltip's pixel
   // offset inside the wrapper div. They're stored together so the
@@ -212,7 +222,7 @@ function LineSvg({
               textAnchor="middle"
               className="fill-muted-foreground text-[10px]"
             >
-              {shortDayLabel(p.day)}
+              {shortDayLabel(p.day, df)}
             </text>
           ) : null,
         )}
@@ -262,7 +272,7 @@ function LineSvg({
           className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] shadow-lg"
           style={{ left: `${hover.tooltipLeftPx}px` }}
         >
-          <div className="font-medium text-foreground">{longDayLabel(hovered.day)}</div>
+          <div className="font-medium text-foreground">{longDayLabel(hovered.day, df)}</div>
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
@@ -298,18 +308,18 @@ function parseKey(key: string): { date: Date; isHour: boolean } {
   return { date: new Date(y, m - 1, d, h), isHour: hourPart != null }
 }
 
-function shortDayLabel(key: string): string {
+function shortDayLabel(key: string, df: DateFormatter): string {
   const { date, isHour } = parseKey(key)
   if (isHour) return `${String(date.getHours()).padStart(2, '0')}:00`
-  return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
+  return df(date, { month: 'short', day: 'numeric' })
 }
 
-function longDayLabel(key: string): string {
+function longDayLabel(key: string, df: DateFormatter): string {
   const { date, isHour } = parseKey(key)
   if (isHour) {
-    return `${date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}, ${String(date.getHours()).padStart(2, '0')}:00`
+    return `${df(date, { day: 'numeric', month: 'short' })}, ${String(date.getHours()).padStart(2, '0')}:00`
   }
-  return date.toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' })
+  return df(date, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 /**

@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import type { MessageTemplate, Broadcast } from '@/types';
 
@@ -62,6 +63,7 @@ export default function TemplateDetailPage() {
   const router = useRouter();
   const templateId = params.id;
   const t = useT();
+  const fmt = useFormat();
 
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
   const [usedIn, setUsedIn] = useState<Broadcast[]>([]);
@@ -213,7 +215,11 @@ export default function TemplateDetailPage() {
               <span>·</span>
               <span>
                 {t('templates.createdOn', {
-                  date: new Date(template.created_at).toLocaleDateString('es-ES'),
+                  date: fmt.date(template.created_at, {
+                    day: 'numeric',
+                    month: 'numeric',
+                    year: 'numeric',
+                  }),
                 })}
               </span>
             </div>
@@ -335,7 +341,7 @@ export default function TemplateDetailPage() {
                     >
                       <span className="truncate text-foreground">{bc.name}</span>
                       <span className="shrink-0 text-muted-foreground">
-                        {new Date(bc.created_at).toLocaleDateString('es-ES', {
+                        {fmt.date(bc.created_at, {
                           day: '2-digit',
                           month: 'short',
                         })}

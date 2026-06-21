@@ -7,6 +7,8 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { safeRedirectTo } from "@/lib/auth/redirect";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * POST /api/auth/signup
@@ -23,12 +25,13 @@ import { safeRedirectTo } from "@/lib/auth/redirect";
  * two branches apart.
  */
 
-const GENERIC_OK = {
-  ok: true,
-  message: "Si el correo es válido, recibirás un mensaje.",
-} as const;
-
 export async function POST(req: Request) {
+  const locale = await getLocale();
+  const genericOk = {
+    ok: true,
+    message: translate(locale, "errAccount.signupGenericOk"),
+  } as const;
+
   const body = (await req.json().catch(() => null)) as
     | {
         email?: string;
@@ -41,7 +44,7 @@ export async function POST(req: Request) {
   const password = body?.password;
   const fullName = body?.full_name?.trim() ?? "";
   if (!email || !password) {
-    return NextResponse.json(GENERIC_OK);
+    return NextResponse.json(genericOk);
   }
 
   const ip = clientIp(req);
@@ -80,5 +83,5 @@ export async function POST(req: Request) {
       redirectTo,
     });
   }
-  return NextResponse.json(GENERIC_OK);
+  return NextResponse.json(genericOk);
 }

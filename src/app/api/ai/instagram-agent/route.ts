@@ -10,6 +10,8 @@ import {
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace'
 import { loadBrandContext, brandBrief } from '@/lib/instagram-agent/brand-context'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * POST /api/ai/instagram-agent
@@ -91,6 +93,7 @@ function parseJson(text: string): unknown {
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
     const {
@@ -98,16 +101,16 @@ export async function POST(request: Request) {
       error: authError,
     } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.notAuthenticated') },
+        { status: 401 },
+      )
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        {
-          error:
-            'El Agente de Ventas no está configurado (falta ANTHROPIC_API_KEY).',
-        },
+        { error: translate(locale, 'errAi.agentNotConfigured') },
         { status: 503 },
       )
     }
@@ -119,13 +122,13 @@ export async function POST(request: Request) {
     const goal: string = (body.goal ?? '').toString().trim()
     if (!goal) {
       return NextResponse.json(
-        { error: 'Describe el objetivo de tu campaña.' },
+        { error: translate(locale, 'errAi.describeGoal') },
         { status: 400 },
       )
     }
     if (goal.length > 2000) {
       return NextResponse.json(
-        { error: 'El objetivo es demasiado largo (máx. 2000 caracteres).' },
+        { error: translate(locale, 'errAi.goalTooLong') },
         { status: 400 },
       )
     }
@@ -211,7 +214,7 @@ export async function POST(request: Request) {
 
     if (!text) {
       return NextResponse.json(
-        { error: 'El Agente no devolvió ningún plan. Inténtalo de nuevo.' },
+        { error: translate(locale, 'errAi.noPlanReturned') },
         { status: 502 },
       )
     }
@@ -221,7 +224,7 @@ export async function POST(request: Request) {
       plan = parseJson(text)
     } catch {
       return NextResponse.json(
-        { error: 'No se pudo interpretar el plan generado. Inténtalo de nuevo.' },
+        { error: translate(locale, 'errAi.planParseFailed') },
         { status: 502 },
       )
     }
@@ -238,7 +241,7 @@ export async function POST(request: Request) {
         ? `Error de la API de Claude (${error.status}): ${error.message}`
         : error instanceof Error
           ? error.message
-          : 'No se pudo generar el plan'
+          : translate(locale, 'errAi.generatePlanFailed')
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

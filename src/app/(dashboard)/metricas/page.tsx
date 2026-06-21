@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import { useTimezone } from '@/hooks/use-timezone';
 import { rangeForPreset, type RangePreset } from '@/lib/dashboard/date-utils';
 import {
@@ -41,6 +42,7 @@ interface AttributionResponse {
 
 export default function MetricasPage() {
   const t = useT();
+  const fmt = useFormat();
   const tz = useTimezone();
   const [preset, setPreset] = useState<RangePreset>('30d');
   const [custom, setCustom] = useState<CustomRange | null>(null);
@@ -162,25 +164,25 @@ export default function MetricasPage() {
             <SummaryCard
               icon={Megaphone}
               label={t('metrics.cardCampaigns')}
-              value={formatMoney(totalBroadcastRevenue, currency)}
+              value={formatMoney(fmt, totalBroadcastRevenue, currency)}
               sub={t('metrics.withSales', { n: data?.by_broadcast?.length ?? 0 })}
             />
             <SummaryCard
               icon={Workflow}
               label={t('metrics.cardFlows')}
-              value={formatMoney(totalFlowRevenue, currency)}
+              value={formatMoney(fmt, totalFlowRevenue, currency)}
               sub={t('metrics.withSales', { n: data?.by_flow?.length ?? 0 })}
             />
             <SummaryCard
               icon={InstagramIcon}
               label={t('metrics.cardInstagramAgent')}
-              value={formatMoney(totalInstagramRevenue, currency)}
+              value={formatMoney(fmt, totalInstagramRevenue, currency)}
               sub={t('metrics.withSales', { n: data?.by_instagram_agent?.length ?? 0 })}
             />
             <SummaryCard
               icon={Zap}
               label={t('metrics.cardAutomations')}
-              value={formatMoney(totalAutomationRevenue, currency)}
+              value={formatMoney(fmt, totalAutomationRevenue, currency)}
               sub={t('metrics.withSales', { n: data?.by_automation?.length ?? 0 })}
             />
           </div>
@@ -256,6 +258,7 @@ function AttributionTable({
   emptyLabel: string;
 }) {
   const t = useT();
+  const fmt = useFormat();
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -284,7 +287,7 @@ function AttributionTable({
                     {r.orders_count}
                   </td>
                   <td className="px-4 py-2 text-right font-semibold tabular-nums text-foreground">
-                    {formatMoney(r.revenue, r.currency)}
+                    {formatMoney(fmt, r.revenue, r.currency)}
                   </td>
                 </tr>
               ))}
@@ -296,14 +299,14 @@ function AttributionTable({
   );
 }
 
-function formatMoney(amount: number, currency: string): string {
+function formatMoney(
+  fmt: ReturnType<typeof useFormat>,
+  amount: number,
+  currency: string,
+): string {
   try {
-    return new Intl.NumberFormat('es', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return fmt.currency(amount, currency || 'USD', { maximumFractionDigits: 0 });
   } catch {
-    return `${amount.toLocaleString('es')} ${currency}`;
+    return `${fmt.number(amount)} ${currency}`;
   }
 }

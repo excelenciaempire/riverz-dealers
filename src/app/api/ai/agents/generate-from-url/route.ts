@@ -5,6 +5,9 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import type { Locale } from '@/lib/i18n/config';
 import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
 
 /**
@@ -83,10 +86,10 @@ async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
-async function scrapeSite(url: string): Promise<string> {
+async function scrapeSite(url: string, locale: Locale): Promise<string> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
-    throw new Error('Falta FIRECRAWL_API_KEY en el servidor.');
+    throw new Error(translate(locale, 'errAi.firecrawlMissingKey'));
   }
   const startRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl`, {
     method: 'POST',
@@ -103,7 +106,8 @@ async function scrapeSite(url: string): Promise<string> {
   const startJson = (await startRes.json().catch(() => ({}))) as FirecrawlCrawlStart;
   if (!startRes.ok || !startJson?.id) {
     throw new Error(
-      startJson?.error ?? `Firecrawl rechazó el crawl (status ${startRes.status})`,
+      startJson?.error ??
+        translate(locale, 'errAi.firecrawlRejectedAlt', { status: startRes.status }),
     );
   }
 
@@ -120,7 +124,7 @@ async function scrapeSite(url: string): Promise<string> {
       lastStatus = json;
       if (json.status === 'completed') break;
       if (json.status === 'failed') {
-        throw new Error(json.error ?? 'Firecrawl falló durante el crawl.');
+        throw new Error(json.error ?? translate(locale, 'errAi.firecrawlFailed'));
       }
     } catch {
       // transient — keep polling
@@ -225,6 +229,7 @@ function fallbackConfig(url: string): AgentConfigSuggestion {
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
@@ -239,14 +244,14 @@ export async function POST(request: Request) {
   const workspaceId = body?.workspace_id?.trim();
   if (!rawUrl || !workspaceId) {
     return NextResponse.json(
-      { error: 'url y workspace_id son requeridos' },
+      { error: translate(locale, 'errAi.urlWorkspaceRequired') },
       { status: 400 },
     );
   }
   const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
-      { error: 'URL inválida. Debe empezar con https://' },
+      { error: translate(locale, 'errAi.urlInvalidHttps') },
       { status: 400 },
     );
   }
@@ -263,10 +268,13 @@ export async function POST(request: Request) {
   // 1) Scrape
   let knowledge = '';
   try {
-    knowledge = await scrapeSite(parsed.toString());
+    knowledge = await scrapeSite(parsed.toString(), locale);
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'No se pudo scrapear la web.' },
+      {
+        error:
+          err instanceof Error ? err.message : translate(locale, 'errAi.scrapeFailed'),
+      },
       { status: 502 },
     );
   }
@@ -333,7 +341,7 @@ export async function POST(request: Request) {
     .select()
     .single();
   if (error || !created) {
-    return serverError(error, 'No se pudo crear el agente', 500);
+    return serverError(error, translate(locale, 'errAi.agentCreateFailed'), 500);
   }
 
   const { data: fresh } = await admin

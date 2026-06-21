@@ -15,10 +15,13 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
 
@@ -43,7 +46,10 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null)
     if (!body) {
-      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.invalidJson') },
+        { status: 400 }
+      )
     }
     const {
       conversation_id,

@@ -13,6 +13,7 @@ import type { ComponentType } from 'react'
 import type { ActivityItem, ActivityKind } from '@/lib/dashboard/types'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 import type { TFn } from '@/lib/i18n/translate'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
@@ -40,6 +41,7 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
 
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   const t = useT()
+  const fmt = useFormat()
   // Start at 5 — a quick scan of the most recent events without
   // dominating vertical real estate. User expands explicitly via the
   // footer control when they want deeper history.
@@ -115,7 +117,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     {it.text}
                   </span>
                   <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {relativeTime(it.at, t)}
+                    {relativeTime(it.at, t, fmt.date)}
                   </span>
                 </div>
               )
@@ -168,7 +170,11 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   )
 }
 
-function relativeTime(iso: string, t: TFn): string {
+function relativeTime(
+  iso: string,
+  t: TFn,
+  df: (v: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string,
+): string {
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return ''
   const diffSec = Math.round((Date.now() - then) / 1000)
@@ -176,5 +182,5 @@ function relativeTime(iso: string, t: TFn): string {
   if (diffSec < 3600) return t('dashboard.agoMinutes', { n: Math.floor(diffSec / 60) })
   if (diffSec < 86400) return t('dashboard.agoHours', { n: Math.floor(diffSec / 3600) })
   if (diffSec < 2_592_000) return t('dashboard.agoDays', { n: Math.floor(diffSec / 86400) })
-  return new Date(iso).toLocaleDateString('es-ES')
+  return df(iso, { day: 'numeric', month: 'numeric', year: 'numeric' })
 }

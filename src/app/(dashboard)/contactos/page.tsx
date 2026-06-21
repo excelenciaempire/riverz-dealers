@@ -48,6 +48,7 @@ import { SegmentsPanel } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
@@ -61,6 +62,7 @@ export default function ContactsPage() {
   const { workspace } = useWorkspace();
   const workspaceId = workspace?.id ?? null;
   const t = useT();
+  const fmt = useFormat();
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -510,7 +512,7 @@ export default function ContactsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('es-ES', {
+                    {fmt.date(contact.created_at, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',

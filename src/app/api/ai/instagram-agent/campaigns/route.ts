@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
 import { coercePlan } from '@/lib/instagram-agent/types';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET  /api/ai/instagram-agent/campaigns        — lista las campañas del workspace.
@@ -14,12 +16,16 @@ import { coercePlan } from '@/lib/instagram-agent/types';
  */
 
 export async function GET() {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const { data, error } = await supabase
@@ -39,18 +45,22 @@ export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
 
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
   if (!workspaceId) {
     return NextResponse.json(
-      { error: 'No perteneces a ningún workspace.' },
+      { error: translate(locale, 'errAi.noWorkspace') },
       { status: 403 },
     );
   }
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
   const plan = coercePlan(body.plan);
   if (!goal || !plan) {
     return NextResponse.json(
-      { error: 'Faltan el objetivo o un plan válido.' },
+      { error: translate(locale, 'errAi.missingGoalOrPlan') },
       { status: 400 },
     );
   }

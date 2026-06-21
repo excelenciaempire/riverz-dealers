@@ -4,6 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client';
 import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/products/[id]/scrape
@@ -34,6 +36,8 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const { data: product, error } = await supabase
     .from('shopify_products')
     .select('id, url, websites')
@@ -59,7 +63,7 @@ export async function POST(
 
   if (sites.length === 0) {
     return NextResponse.json(
-      { error: 'El producto no tiene una URL pública válida' },
+      { error: translate(locale, 'errProducts.productNoPublicUrl') },
       { status: 400 },
     );
   }
@@ -129,6 +133,6 @@ export async function POST(
     // 502: el fallo es de Firecrawl (upstream), no interno. El detalle real
     // ya quedó persistido en scrape_error (visible al recargar); al cliente
     // le damos un mensaje genérico no-filtrante.
-    return serverError(err, 'No se pudo leer la página', 502);
+    return serverError(err, translate(locale, 'errProducts.scrapeFailed'), 502);
   }
 }

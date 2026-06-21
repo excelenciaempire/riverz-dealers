@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, Send, Loader2, Users, Save, Clock, MessageSquarePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 interface AudienceConfig {
   type: string;
@@ -65,6 +66,7 @@ export function Step4ScheduleSend({
   estimatedCount,
 }: Step4Props) {
   const t = useT();
+  const fmt = useFormat();
   const isScheduled = scheduledAt.trim().length > 0;
   const [showConfirm, setShowConfirm] = useState(false);
   const loadingReach = estimatedCount === null;
@@ -119,7 +121,7 @@ export function Step4ScheduleSend({
               ) : (
                 <>
                   <Users className="h-3.5 w-3.5 text-accent-ink" />
-                  <p className="font-medium text-foreground">{estimatedReach.toLocaleString()}</p>
+                  <p className="font-medium text-foreground">{fmt.number(estimatedReach)}</p>
                 </>
               )}
             </div>
@@ -267,11 +269,14 @@ export function Step4ScheduleSend({
                   <>
                     {t('broadcasts.confirmScheduledPart1')}{' '}
                     <span className="font-medium text-foreground">
-                      {estimatedReach.toLocaleString()}
+                      {fmt.number(estimatedReach)}
                     </span>{' '}
                     {t('broadcasts.confirmScheduledPart2')}{' '}
                     <span className="font-medium text-foreground">
-                      {new Date(scheduledAt).toLocaleString('es-ES')}
+                      {fmt.dateTime(scheduledAt, {
+                        dateStyle: 'short',
+                        timeStyle: 'medium',
+                      })}
                     </span>{' '}
                     {t('broadcasts.confirmScheduledPart3')}{' '}
                     <span className="font-medium text-foreground">{template.name}</span>.
@@ -280,7 +285,7 @@ export function Step4ScheduleSend({
                   <>
                     {t('broadcasts.confirmImmediatePart1')}{' '}
                     <span className="font-medium text-foreground">
-                      {estimatedReach.toLocaleString()}
+                      {fmt.number(estimatedReach)}
                     </span>{' '}
                     {t('broadcasts.confirmImmediatePart2')}{' '}
                     <span className="font-medium text-foreground">{template.name}</span>.

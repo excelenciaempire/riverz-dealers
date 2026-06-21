@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { coercePlan, type CampaignStatus } from '@/lib/instagram-agent/types';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET    /api/ai/instagram-agent/campaigns/[id]  — detalle (plan + métricas + recipients resumidos).
@@ -18,12 +20,16 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const { data: campaign, error } = await supabase
@@ -35,7 +41,10 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!campaign) {
-    return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.campaignNotFound') },
+      { status: 404 },
+    );
   }
 
   // Resumen de destinatarios por estado, para el dashboard de la campaña.
@@ -97,13 +106,17 @@ export async function PATCH(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await context.params;
+  const locale = await getLocale();
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
@@ -111,21 +124,30 @@ export async function PATCH(
 
   if (body.status !== undefined) {
     if (!VALID_STATUS.includes(body.status)) {
-      return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.invalidStatus') },
+        { status: 400 },
+      );
     }
     patch.status = body.status;
   }
   if (body.plan !== undefined) {
     const plan = coercePlan(body.plan);
     if (!plan) {
-      return NextResponse.json({ error: 'Plan inválido' }, { status: 400 });
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.invalidPlan') },
+        { status: 400 },
+      );
     }
     patch.plan = plan;
     patch.name = plan.campaign_name.slice(0, 160);
     patch.offer_code = plan.offer?.code ?? null;
   }
   if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.nothingToUpdate') },
+      { status: 400 },
+    );
   }
 
   const { data, error } = await supabase
@@ -138,7 +160,10 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!data) {
-    return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.campaignNotFound') },
+      { status: 404 },
+    );
   }
   return NextResponse.json({ success: true, campaign: data });
 }
@@ -150,13 +175,17 @@ export async function DELETE(
   const block = await csrfGuard(request);
   if (block) return block;
   const { id } = await context.params;
+  const locale = await getLocale();
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
   }
 
   const { error } = await supabase

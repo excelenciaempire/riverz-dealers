@@ -6,6 +6,8 @@ import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { decrypt } from '@/lib/channels/encryption';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/products/sync
@@ -28,6 +30,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const admin = supabaseAdmin();
 
   // Buscamos la conexión Shopify activa del usuario.
@@ -46,10 +50,7 @@ export async function POST(req: Request) {
   }
   if (!connection) {
     return NextResponse.json(
-      {
-        error:
-          'No hay una conexión Shopify activa. Conecta Shopify desde Integraciones primero.',
-      },
+      { error: translate(locale, 'errProducts.noActiveShopifyConnection') },
       { status: 412 },
     );
   }
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
   const encryptedToken = String(secrets.access_token ?? '');
   if (!shopDomain || !encryptedToken) {
     return NextResponse.json(
-      { error: 'La conexión Shopify no tiene shop_domain o access_token' },
+      { error: translate(locale, 'errProducts.shopifyConnectionMissingCredentials') },
       { status: 500 },
     );
   }
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   if (!workspaceId) {
     return NextResponse.json(
-      { error: 'El usuario no tiene un workspace asignado' },
+      { error: translate(locale, 'errProducts.userNoWorkspace') },
       { status: 412 },
     );
   }

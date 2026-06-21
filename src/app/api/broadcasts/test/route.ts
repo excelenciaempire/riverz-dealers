@@ -14,6 +14,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { csrfGuard } from '@/lib/csrf'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * POST /api/broadcasts/test
@@ -35,6 +37,7 @@ interface TestBody {
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
+  const locale = await getLocale()
   const supabase = await createClient()
   const {
     data: { user },
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json(
-      { sent: false, error: 'Sin sesión' },
+      { sent: false, error: translate(locale, 'errFlows.testNoSession') },
       { status: 401 },
     )
   }
@@ -53,7 +56,10 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as TestBody | null
   if (!body?.templateId || !body.phone) {
     return NextResponse.json(
-      { sent: false, error: 'Falta templateId o phone' },
+      {
+        sent: false,
+        error: translate(locale, 'errFlows.testMissingTemplateOrPhone'),
+      },
       { status: 400 },
     )
   }
@@ -61,7 +67,7 @@ export async function POST(request: Request) {
   const sanitized = sanitizePhoneForMeta(body.phone)
   if (!isValidE164(sanitized)) {
     return NextResponse.json(
-      { sent: false, error: 'Número no válido' },
+      { sent: false, error: translate(locale, 'errFlows.testInvalidPhone') },
       { status: 400 },
     )
   }
@@ -73,7 +79,10 @@ export async function POST(request: Request) {
     .maybeSingle()
   if (tplErr || !template) {
     return NextResponse.json(
-      { sent: false, error: 'No se encontró la plantilla' },
+      {
+        sent: false,
+        error: translate(locale, 'errFlows.testTemplateNotFound'),
+      },
       { status: 404 },
     )
   }
@@ -85,7 +94,10 @@ export async function POST(request: Request) {
     .single()
   if (configErr || !config) {
     return NextResponse.json(
-      { sent: false, error: 'WhatsApp no está configurado' },
+      {
+        sent: false,
+        error: translate(locale, 'errFlows.testWhatsappNotConfigured'),
+      },
       { status: 400 },
     )
   }
@@ -107,13 +119,19 @@ export async function POST(request: Request) {
       })
       return NextResponse.json({ sent: true, messageId: r.messageId })
     } catch (err) {
-      lastError = err instanceof Error ? err.message : 'Error desconocido'
+      lastError =
+        err instanceof Error
+          ? err.message
+          : translate(locale, 'errFlows.testUnknownError')
       if (!isRecipientNotAllowedError(lastError)) break
     }
   }
 
   return NextResponse.json(
-    { sent: false, error: lastError ?? 'Error desconocido' },
+    {
+      sent: false,
+      error: lastError ?? translate(locale, 'errFlows.testUnknownError'),
+    },
     { status: 502 },
   )
 }

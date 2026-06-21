@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Klaviyo integration (por workspace) para el sync de leads del Agente de
@@ -13,11 +15,16 @@ import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
  */
 
 export async function GET() {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAccount.notAuthenticated') },
+      { status: 401 },
+    );
 
   const { data } = await supabase
     .from('workspace_integrations')
@@ -35,21 +42,32 @@ export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
 
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAccount.notAuthenticated') },
+      { status: 401 },
+    );
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
   if (!workspaceId) {
-    return NextResponse.json({ error: 'Sin workspace' }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAccount.noWorkspace') },
+      { status: 403 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
   const apiKey: string = (body.api_key ?? '').toString().trim();
   if (!apiKey || apiKey.length < 10) {
-    return NextResponse.json({ error: 'API key inválida' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAccount.apiKeyInvalid') },
+      { status: 400 },
+    );
   }
 
   const { error } = await supabase.from('workspace_integrations').upsert(
@@ -72,11 +90,16 @@ export async function DELETE(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
 
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAccount.notAuthenticated') },
+      { status: 401 },
+    );
 
   const { error } = await supabase
     .from('workspace_integrations')

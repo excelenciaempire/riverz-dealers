@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/products/[id]/agents { agent_id }
@@ -27,12 +29,14 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const body = (await request.json().catch(() => null)) as {
     agent_id?: string;
   } | null;
   if (!body?.agent_id) {
     return NextResponse.json(
-      { error: 'agent_id es requerido' },
+      { error: translate(locale, 'errProducts.agentIdRequired') },
       { status: 400 },
     );
   }
@@ -45,7 +49,10 @@ export async function POST(
     .eq('id', id)
     .maybeSingle();
   if (!product) {
-    return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.productNotFound') },
+      { status: 404 },
+    );
   }
 
   // Verificamos que el agente exista y sea del mismo workspace que
@@ -56,7 +63,10 @@ export async function POST(
     .eq('id', body.agent_id)
     .maybeSingle();
   if (agentErr || !agent) {
-    return NextResponse.json({ error: 'Agente no encontrado' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.agentNotFound') },
+      { status: 404 },
+    );
   }
 
   const { error } = await supabase
@@ -87,11 +97,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const url = new URL(request.url);
   const agentId = url.searchParams.get('agent_id');
   if (!agentId) {
     return NextResponse.json(
-      { error: 'agent_id query param requerido' },
+      { error: translate(locale, 'errProducts.agentIdQueryParamRequired') },
       { status: 400 },
     );
   }
@@ -106,7 +118,10 @@ export async function DELETE(
     .eq('id', id)
     .maybeSingle();
   if (!product) {
-    return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.productNotFound') },
+      { status: 404 },
+    );
   }
 
   const { error } = await supabase

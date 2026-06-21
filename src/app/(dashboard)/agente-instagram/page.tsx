@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 import type { InstagramPlan, CampaignStatus } from '@/lib/instagram-agent/types';
 
@@ -61,6 +62,7 @@ const EXAMPLES = [
 export default function InstagramAgentPage() {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
+  const fmt = useFormat();
   const [goal, setGoal] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<InstagramPlan | null>(null);
@@ -289,7 +291,7 @@ export default function InstagramAgentPage() {
               <Badge variant="secondary" className="shrink-0">
                 <Users className="mr-1 h-3 w-3" />
                 {t('igAgent.contactsCount', {
-                  n: plan.audience.estimated_reach.toLocaleString(),
+                  n: fmt.number(plan.audience.estimated_reach),
                 })}
               </Badge>
             </div>
@@ -299,17 +301,17 @@ export default function InstagramAgentPage() {
               <FunnelStat
                 icon={<MessageCircle className="h-3.5 w-3.5" />}
                 label={t('igAgent.funnelContacted')}
-                value={plan.funnel.contacted.toLocaleString()}
+                value={fmt.number(plan.funnel.contacted)}
               />
               <FunnelStat
                 icon={<CornerDownRight className="h-3.5 w-3.5" />}
                 label={t('igAgent.funnelReplies')}
-                value={plan.funnel.replies.toLocaleString()}
+                value={fmt.number(plan.funnel.replies)}
               />
               <FunnelStat
                 icon={<Tag className="h-3.5 w-3.5" />}
                 label={t('igAgent.funnelConversions')}
-                value={plan.funnel.conversions.toLocaleString()}
+                value={fmt.number(plan.funnel.conversions)}
               />
               <FunnelStat
                 icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -499,7 +501,11 @@ export default function InstagramAgentPage() {
                     {c.offer_code
                       ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
                       : ''}
-                    {new Date(c.updated_at).toLocaleDateString()}
+                    {fmt.date(c.updated_at, {
+                      day: 'numeric',
+                      month: 'numeric',
+                      year: 'numeric',
+                    })}
                   </p>
                 </Link>
                 <Badge
@@ -590,6 +596,7 @@ function AgentThinking({
   productCount?: number;
 }) {
   const t = useT();
+  const fmt = useFormat();
   const steps = useMemo(
     () => [
       t('igAgent.thinkingUnderstandGoal'),
@@ -598,7 +605,7 @@ function AgentThinking({
         : t('igAgent.thinkingReviewCatalog'),
       audience
         ? t('igAgent.thinkingScanAudienceCount', {
-            n: audience.toLocaleString(),
+            n: fmt.number(audience),
           })
         : t('igAgent.thinkingScanAudience'),
       t('igAgent.thinkingDetectIntent'),
@@ -606,7 +613,7 @@ function AgentThinking({
       t('igAgent.thinkingDraftDm'),
       t('igAgent.thinkingComputeFunnel'),
     ],
-    [audience, productCount, t],
+    [audience, productCount, t, fmt],
   );
   const [active, setActive] = useState(0);
   useEffect(() => {

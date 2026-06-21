@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Receipt, ExternalLink } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 
 /**
@@ -39,6 +40,7 @@ interface OrderRow {
 
 export default function PedidosPage() {
   const t = useT();
+  const fmt = useFormat();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -130,7 +132,12 @@ export default function PedidosPage() {
                     {summarizeItems(o.line_items)}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-foreground">
-                    {formatMoney(o.total_price, o.currency)}
+                    {o.total_price == null
+                      ? '—'
+                      : fmt.currency(
+                          o.total_price,
+                          (o.currency || 'ARS').toUpperCase(),
+                        )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {formatPayment(o.payment_method, t)}
@@ -139,7 +146,12 @@ export default function PedidosPage() {
                     <StatusBadge order={o} />
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {formatDate(o.created_at)}
+                    {fmt.dateTime(o.created_at, {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </td>
                 </tr>
               ))}
@@ -156,40 +168,10 @@ function summarizeItems(items: OrderLine[] | null): string {
   return items.map((i) => `${i.quantity}× ${i.title}`).join(', ');
 }
 
-function formatMoney(n: number | null, currency: string | null): string {
-  if (n == null) return '—';
-  const cur = (currency || 'ARS').toUpperCase();
-  if (cur === 'ARS') {
-    return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  }
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: cur,
-      maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return `${cur} ${n}`;
-  }
-}
-
 function formatPayment(method: string | null, t: TFn): string {
   if (method === 'transfer') return t('products.paymentTransfer');
   if (method === 'card_or_mp') return t('products.paymentCardOrMp');
   return method ?? '—';
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('es', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
 }
 
 function StatusBadge({ order }: { order: OrderRow }) {

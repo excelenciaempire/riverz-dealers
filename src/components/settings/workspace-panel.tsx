@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
+import { useFormat } from "@/hooks/use-format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
+  const fmt = useFormat();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
@@ -396,7 +398,7 @@ export function WorkspacePanel() {
               {t("settings.messagesSent")}
             </p>
             <p className="mt-1 text-2xl font-semibold text-foreground">
-              {usage ? usage.messages_sent.toLocaleString("es-ES") : "—"}
+              {usage ? fmt.number(usage.messages_sent) : "—"}
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/30 p-4">
@@ -404,7 +406,7 @@ export function WorkspacePanel() {
               {t("settings.aiReplies")}
             </p>
             <p className="mt-1 text-2xl font-semibold text-foreground">
-              {usage ? usage.ai_replies.toLocaleString("es-ES") : "—"}
+              {usage ? fmt.number(usage.ai_replies) : "—"}
             </p>
           </div>
         </div>
@@ -428,7 +430,7 @@ export function WorkspacePanel() {
                   <p className="text-xs text-muted-foreground">
                     {t("settings.inviteRoleExpires", {
                       role: inv.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent"),
-                      date: new Date(inv.expires_at).toLocaleDateString('es-ES'),
+                      date: fmt.date(inv.expires_at),
                     })}
                   </p>
                 </div>
