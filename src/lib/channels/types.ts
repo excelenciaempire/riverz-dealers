@@ -63,6 +63,13 @@ export interface InboundEvent {
    * refers to the customer (the recipient), so the conversation keys
    * correctly. */
   outbound?: boolean;
+  /** When false, only ingest into a conversation that ALREADY exists (and
+   *  is live); never create one. Used by the Meta DM backfill, whose job is
+   *  filling outbound gaps in existing threads — a piece of old history must
+   *  not spawn a brand-new inbox row, and above all must not resurrect a
+   *  conversation the user soft-deleted (migración 085). Defaults to true so
+   *  real-time webhooks keep opening fresh conversations as before. */
+  createIfMissing?: boolean;
   /** Raw payload kept for debugging — never echoed to clients. */
   raw?: unknown;
 }

@@ -102,6 +102,7 @@ export async function ingestInboundEvent(
     firstMessageText: event.text,
     lastMessageAt: event.receivedAt,
     lastSenderType: event.outbound ? "agent" : "customer",
+    createIfMissing: event.createIfMissing,
   });
   if (!conversation) return null;
 
@@ -378,6 +379,9 @@ interface FindOrCreateConversationInput {
    *  previews correctly the instant it's created. */
   lastMessageAt?: string;
   lastSenderType?: "agent" | "customer";
+  /** When false, return null instead of creating a conversation when none
+   *  live exists — see InboundEvent.createIfMissing. Defaults to creating. */
+  createIfMissing?: boolean;
 }
 
 async function findOrCreateConversation(
@@ -403,6 +407,12 @@ async function findOrCreateConversation(
   }
   const { data: existing } = await query.limit(1).maybeSingle();
   if (existing) return existing as Conversation;
+
+  // Backfill mode (createIfMissing === false): only fill gaps in threads that
+  // already exist and are live. A historical message must never open a new
+  // inbox row — above all it must not resurrect a conversation the user
+  // soft-deleted, which the Meta DM backfill cron otherwise did every 6h.
+  if (input.createIfMissing === false) return null;
 
   // Run assignment rules so non-WhatsApp inbound (IG/Messenger/email/
   // comments) auto-assigns to an agent, same as the legacy WhatsApp

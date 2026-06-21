@@ -168,6 +168,10 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
         text: m.message ?? "",
         receivedAt: m.created_time ?? new Date().toISOString(),
         outbound: true,
+        // Only fill gaps in threads that still exist — never let an old
+        // outbound message recreate a conversation the user deleted from
+        // the inbox (that 6-hourly resurrection was the whole bug).
+        createIfMissing: false,
         raw: { backfill: true },
       });
       ingested++;
