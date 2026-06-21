@@ -15,6 +15,7 @@ import {
 import Link from "@/components/i18n/locale-link";
 import {
   Search,
+  Plus,
   MoreVertical,
   Trash2,
   CheckSquare,
@@ -23,6 +24,7 @@ import {
   Inbox as InboxIcon,
   Plug2,
 } from "lucide-react";
+import { NewChatModal } from "@/components/inbox/new-chat-modal";
 import { toast } from "sonner";
 import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -93,6 +95,7 @@ export function ConversationList({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const tz = useTimezone();
   const { workspace, isAdmin } = useWorkspace();
   const workspaceId = workspace?.id ?? null;
@@ -366,6 +369,17 @@ export function ConversationList({
     // resize drag visually — the inline width from the parent would
     // change but this div stayed pinned at 320px.
     <div className="flex h-full w-full flex-col bg-card">
+      <NewChatModal
+        open={newChatOpen}
+        onOpenChange={setNewChatOpen}
+        onConversationCreated={(conv) => {
+          onConversationsLoaded([
+            conv,
+            ...conversations.filter((c) => c.id !== conv.id),
+          ]);
+          onSelect(conv);
+        }}
+      />
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">
@@ -378,7 +392,14 @@ export function ConversationList({
           />
         </div>
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setNewChatOpen(true)}
+            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink hover:bg-accent"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("inbox.newChat")}
+          </button>
           {selectMode ? (
             <button
               onClick={exitSelectMode}

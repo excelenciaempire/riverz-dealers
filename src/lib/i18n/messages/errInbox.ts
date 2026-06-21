@@ -42,6 +42,7 @@ export const errInbox = {
   forbiddenAdminOnly: { es: "Prohibido — solo administradores", en: "Forbidden — admin only" },
   noWorkspace: { es: "Sin espacio de trabajo", en: "No workspace" },
   adminOnly: { es: "Solo administradores", en: "Admins only" },
+  sendFailed: { es: "No se pudo enviar", en: "Couldn't send" },
 
   // Shared resource guards
   missingIdGeneric: { es: "Falta el id", en: "Missing id" },

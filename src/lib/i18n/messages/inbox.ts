@@ -18,6 +18,36 @@ export const inbox = {
   filterPending: { es: "Pendientes", en: "Pending" },
   filterClosed: { es: "Cerradas", en: "Closed" },
 
+  // New WhatsApp chat compose
+  newChat: { es: "Nuevo chat", en: "New chat" },
+  newChatTitle: { es: "Nuevo chat de WhatsApp", en: "New WhatsApp chat" },
+  newChatDesc: {
+    es: "Escribe el número con código de país. Si el cliente no te escribió en las últimas 24 horas, WhatsApp solo permite enviar una plantilla aprobada.",
+    en: "Type the number with country code. If the customer hasn't written in the last 24 hours, WhatsApp only allows sending an approved template.",
+  },
+  recipientPhone: { es: "Número de WhatsApp", en: "WhatsApp number" },
+  recipientName: { es: "Nombre (opcional)", en: "Name (optional)" },
+  newChatContinue: { es: "Continuar", en: "Continue" },
+  newChatWindowOpen: {
+    es: "Ventana de 24 h abierta. Puedes enviar un mensaje de texto.",
+    en: "24h window open. You can send a free text message.",
+  },
+  newChatNeedsTemplate: {
+    es: "Número nuevo o fuera de la ventana de 24 h: elige una plantilla aprobada.",
+    en: "New number or outside the 24h window: pick an approved template.",
+  },
+  newChatMessage: { es: "Mensaje", en: "Message" },
+  newChatTemplate: { es: "Plantilla", en: "Template" },
+  newChatTemplateVar: { es: "Variable {n}", en: "Variable {n}" },
+  newChatNoTemplates: {
+    es: "No tienes plantillas aprobadas. Crea una en Plantillas.",
+    en: "You have no approved templates. Create one in Templates.",
+  },
+  newChatSend: { es: "Enviar", en: "Send" },
+  newChatSending: { es: "Enviando…", en: "Sending…" },
+  newChatSent: { es: "Mensaje enviado", en: "Message sent" },
+  newChatFailed: { es: "No se pudo enviar: {reason}", en: "Couldn't send: {reason}" },
+
   // Conversation list — search, selection, bulk actions
   search: { es: "Buscar", en: "Search" },
   select: { es: "Seleccionar", en: "Select" },

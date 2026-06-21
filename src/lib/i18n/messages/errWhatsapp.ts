@@ -113,6 +113,14 @@ export const errWhatsapp = {
     es: "Formato de número de teléfono no válido.",
     en: "Invalid phone number format.",
   },
+  noWhatsappConnection: {
+    es: "Primero conecta un número de WhatsApp en Integraciones.",
+    en: "Connect a WhatsApp number in Integrations first.",
+  },
+  windowClosedNeedsTemplate: {
+    es: "La ventana de 24 horas está cerrada. Para este número debes usar una plantilla aprobada.",
+    en: "The 24 hour window is closed. Use an approved template for this number.",
+  },
   replyTargetNotFound: {
     es: "El mensaje al que respondes no existe en esta conversación.",
     en: "reply_to_message_id not found in this conversation.",
