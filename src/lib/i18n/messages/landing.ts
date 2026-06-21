@@ -5,8 +5,8 @@ import type { Namespace } from "./types";
 export const landing = {
   // ── Page metadata (browser tab, search snippets, share previews) ──
   metaTitle: {
-    es: "riverz — Agente de IA que vende por WhatsApp e Instagram",
-    en: "riverz — AI agent that sells on WhatsApp and Instagram",
+    es: "riverz",
+    en: "riverz",
   },
   metaDescription: {
     es: "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, 24/7.",
@@ -22,7 +22,6 @@ export const landing = {
   },
 
   // ── Header / nav ──
-  navFeatures: { es: "Funciones", en: "Features" },
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
@@ -32,9 +31,9 @@ export const landing = {
     es: "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, las 24 horas.",
     en: "An AI agent that engages, recommends, and closes sales on WhatsApp and Instagram. Recover carts, win customers back, and see exactly how much you sell, around the clock.",
   },
-  heroWaitlistHint: {
-    es: "Estamos en pre-lanzamiento. Déjanos tu correo y te avisamos apenas abramos.",
-    en: "We're in pre-launch. Leave your email and we'll let you know the moment we open.",
+  heroCta: {
+    es: "Unirse a la lista de espera",
+    en: "Join the waitlist",
   },
 
   // ── Channels strip ──

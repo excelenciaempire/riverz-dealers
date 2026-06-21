@@ -31,8 +31,9 @@ import {
   Moon,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { useT } from "@/hooks/use-locale";
+import { useLocale, useT } from "@/hooks/use-locale";
 import { useTheme } from "@/hooks/use-theme";
+import { LOCALES } from "@/lib/i18n/config";
 import type { Channel } from "@/types";
 
 /**
@@ -244,10 +245,8 @@ export function Landing() {
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
           <span className="text-[19px] font-semibold lowercase tracking-[0.04em] text-accent-ink">riverz</span>
-          <div className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
-            <a href="#funciones" className="transition-colors hover:text-foreground">{t("landing.navFeatures")}</a>
-          </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <LandingLocaleToggle />
             <LandingThemeToggle />
             <a
               href="#lista"
@@ -275,11 +274,14 @@ export function Landing() {
               <p className="mt-6 max-w-[34ch] animate-in fade-in slide-in-from-bottom-3 text-[clamp(16px,1.6vw,20px)] leading-relaxed tracking-[-0.01em] text-muted-foreground duration-700 sm:max-w-[46ch]">
                 {t("landing.heroSubtitle")}
               </p>
-              <div id="lista" className="mt-8 scroll-mt-24">
-                <WaitlistForm />
-                <p className="mt-2.5 text-xs text-muted-foreground">
-                  {t("landing.heroWaitlistHint")}
-                </p>
+              <div className="mt-8">
+                <a
+                  href="#lista"
+                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.03]"
+                >
+                  {t("landing.heroCta")}
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </a>
               </div>
             </div>
 
@@ -314,8 +316,8 @@ export function Landing() {
         ))}
       </div>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-5 py-24">
+      {/* CTA — the dedicated waitlist screen the hero + nav buttons jump to */}
+      <section id="lista" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24">
         {/* Intentionally always-dark editorial band. In dark mode the page bg
             (#0a0a0a) is nearly the same shade, so a faint border keeps the band
             a defined panel instead of an edgeless blur; in light mode it just
@@ -466,6 +468,34 @@ function ShopifyLogo({ size = 13 }: { size?: number }) {
 function MetaLogo({ size = 13 }: { size?: number }) {
   return (
     <Image src="/channels/meta.svg" alt="Meta" width={size} height={size} className="inline-block" />
+  );
+}
+
+// Language switch for the landing nav. The public landing has no app chrome,
+// so this is the only place a logged-out visitor can pick a language. It drives
+// the same shared LocaleProvider the app uses (cookie + localStorage), so the
+// choice carries into the app after sign-up and vice-versa. Compact segmented
+// pill: the active locale is highlighted; the codes show as-is (ES / EN).
+function LandingLocaleToggle() {
+  const { locale, setLocale } = useLocale();
+  return (
+    <div className="inline-flex items-center rounded-full border border-border/60 p-0.5 text-xs font-medium">
+      {LOCALES.map((loc) => (
+        <button
+          key={loc}
+          type="button"
+          onClick={() => setLocale(loc)}
+          aria-pressed={locale === loc}
+          className={`rounded-full px-2.5 py-1 uppercase transition-colors ${
+            locale === loc
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {loc}
+        </button>
+      ))}
+    </div>
   );
 }
 
