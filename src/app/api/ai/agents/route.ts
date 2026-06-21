@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { encrypt } from '@/lib/whatsapp/encryption';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -14,15 +16,23 @@ import type { AiAgent } from '@/lib/ai/types';
  * POST   /api/ai/agents          body: { workspace_id, name, ...defaults }
  */
 export async function GET(request: Request) {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const workspaceId = new URL(request.url).searchParams.get('workspace_id');
   if (!workspaceId) {
-    return NextResponse.json({ error: 'workspace_id required' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.workspaceIdRequired') },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -32,7 +42,11 @@ export async function GET(request: Request) {
     .eq('workspace_id', workspaceId)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.forbidden') },
+      { status: 403 },
+    );
 
   // Incluimos ai_agent_products(product_id): el editor pre-selecciona los
   // productos asignados al abrir un agente existente. Sin esto el modal
@@ -54,11 +68,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const body = (await request.json().catch(() => null)) as Partial<AiAgent> & {
     workspace_id?: string;
@@ -68,7 +87,7 @@ export async function POST(request: Request) {
   } | null;
   if (!body?.workspace_id || !body.name?.trim()) {
     return NextResponse.json(
-      { error: 'workspace_id + name required' },
+      { error: translate(locale, 'errAi.workspaceIdNameRequired') },
       { status: 400 },
     );
   }
@@ -80,7 +99,11 @@ export async function POST(request: Request) {
     .eq('workspace_id', body.workspace_id)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.forbidden') },
+      { status: 403 },
+    );
 
   const payload: Record<string, unknown> = {
     workspace_id: body.workspace_id,

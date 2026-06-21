@@ -10,6 +10,8 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { Channel } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -44,12 +46,16 @@ const META_CHANNELS: Channel[] = [
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "not signed in" }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
   }
 
   const body = (await req.json().catch(() => null)) as
@@ -65,12 +71,15 @@ export async function POST(req: Request): Promise<Response> {
     | null;
   if (!body || !body.channel || !body.token || !body.workspace_id) {
     return NextResponse.json(
-      { error: "channel, token, workspace_id required" },
+      { error: translate(locale, "errInbox.metaManualMissingFields") },
       { status: 400 },
     );
   }
   if (!META_CHANNELS.includes(body.channel as Channel)) {
-    return NextResponse.json({ error: "channel not supported" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.channelNotSupported") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -82,7 +91,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("role", "admin")
     .maybeSingle();
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
   }
 
   const channel = body.channel as Channel;
@@ -110,7 +122,9 @@ export async function POST(req: Request): Promise<Response> {
     if (err instanceof WhatsAppAlreadyConnectedError) {
       return NextResponse.json(
         {
-          error: `Ya tienes un WhatsApp conectado (${err.existingLabel}). Desconéctalo antes de conectar otro número.`,
+          error: translate(locale, "errInbox.whatsappAlreadyConnected", {
+            label: err.existingLabel,
+          }),
         },
         { status: 409 },
       );

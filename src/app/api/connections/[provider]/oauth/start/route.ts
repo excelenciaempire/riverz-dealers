@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { baseUrl, encodeState, loadProvider, type ProviderName } from "@/lib/channels/oauth";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 const VALID: ProviderName[] = ["meta", "google", "microsoft"];
 
@@ -18,8 +20,12 @@ export async function GET(
   ctx: { params: Promise<{ provider: string }> },
 ): Promise<Response> {
   const { provider } = await ctx.params;
+  const locale = await getLocale();
   if (!isProvider(provider)) {
-    return NextResponse.json({ error: "Unknown provider" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unknownProvider") },
+      { status: 404 },
+    );
   }
 
   const supabase = await createClient();
@@ -32,7 +38,10 @@ export async function GET(
   const workspaceId = url.searchParams.get("workspace_id");
   const channel = url.searchParams.get("channel");
   if (!workspaceId || !channel) {
-    return NextResponse.json({ error: "workspace_id + channel required" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.workspaceAndChannelRequired") },
+      { status: 400 },
+    );
   }
 
   // Admin-only.
@@ -44,7 +53,10 @@ export async function GET(
     .eq("role", "admin")
     .maybeSingle();
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbiddenAdminOnly") },
+      { status: 403 },
+    );
   }
 
   let cfg;
@@ -52,7 +64,12 @@ export async function GET(
     cfg = loadProvider(provider);
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Provider not configured" },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : translate(locale, "errInbox.providerNotConfigured"),
+      },
       { status: 500 },
     );
   }

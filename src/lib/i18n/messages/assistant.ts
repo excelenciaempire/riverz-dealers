@@ -138,6 +138,13 @@ export const assistant = {
     es: 'Se completa al elegir tu producto. O toca "Editar avanzado".',
     en: 'Filled in when you pick your product. Or tap "Advanced edit".',
   },
+  // Placeholders (greyed example text shown in empty inputs)
+  agentNamePlaceholder: { es: "Pili", en: "Pili" },
+  personaPlaceholder: {
+    es: "Eres Pili, asesora de la marca. Atiendes con calidez, una pregunta por turno, nunca admites ser IA.",
+    en: "You are Pili, a brand advisor. You reply warmly, one question per turn, and never admit to being an AI.",
+  },
+  shopDomainPlaceholder: { es: "tu-tienda.myshopify.com", en: "your-store.myshopify.com" },
   businessInfoTitle: { es: "Información del negocio", en: "Business information" },
   businessInfoHint: {
     es: "Datos transversales (envíos, políticas, horarios). Lo del producto ya lo aprende solo; esto es opcional.",

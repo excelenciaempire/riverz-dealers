@@ -12,12 +12,16 @@ import { translate } from '@/lib/i18n/translate';
  */
 
 export async function GET() {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const { data, error } = await supabase
     .from('inbox_saved_filters')
@@ -39,7 +43,10 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const body = (await request.json().catch(() => null)) as {
     name?: string;
@@ -59,7 +66,10 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
   if (!member?.workspace_id) {
-    return NextResponse.json({ error: 'No workspace' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.noWorkspace') },
+      { status: 400 },
+    );
   }
   const { data, error } = await supabase
     .from('inbox_saved_filters')
@@ -86,7 +96,10 @@ export async function DELETE(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const url = new URL(request.url);
   const id = url.searchParams.get('id');

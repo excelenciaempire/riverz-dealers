@@ -57,7 +57,11 @@ export async function POST(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const body = (await request.json().catch(() => null)) as {
     message?: string;
@@ -65,7 +69,10 @@ export async function POST(
   } | null;
   const message = body?.message?.trim();
   if (!message) {
-    return NextResponse.json({ error: 'message required' }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.messageRequired') },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -74,7 +81,11 @@ export async function POST(
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (!agent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!agent)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notFound') },
+      { status: 404 },
+    );
 
   const { data: member } = await admin
     .from('workspace_members')
@@ -82,7 +93,11 @@ export async function POST(
     .eq('workspace_id', (agent as AiAgent).workspace_id)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.forbidden') },
+      { status: 403 },
+    );
 
   const a = agent as AiAgent;
   try {

@@ -4,6 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { slugifyTitle, handleSuffix, isUuid } from '@/lib/products/slug';
 import { buildTrainingMaterial } from '@/lib/products/training-material';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/products/[id]
@@ -121,6 +123,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const locale = await getLocale();
+
   const body = (await request.json().catch(() => null)) as PatchBody | null;
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
@@ -130,14 +134,14 @@ export async function PATCH(
   if (body.custom_faqs !== undefined) {
     if (!Array.isArray(body.custom_faqs)) {
       return NextResponse.json(
-        { error: 'custom_faqs debe ser un array' },
+        { error: translate(locale, 'errProducts.customFaqsMustBeArray') },
         { status: 400 },
       );
     }
     for (const f of body.custom_faqs) {
       if (typeof f?.q !== 'string' || typeof f?.a !== 'string') {
         return NextResponse.json(
-          { error: 'Cada FAQ debe tener q y a como string' },
+          { error: translate(locale, 'errProducts.customFaqInvalidShape') },
           { status: 400 },
         );
       }

@@ -9,6 +9,8 @@ import {
   validateStepsForActivation,
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -16,6 +18,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   // Scope by workspace_id so a multi-workspace user doesn't see a
   // cross-tenant mix. RLS protects against access, but it cannot
@@ -33,7 +36,7 @@ export async function GET(request: Request) {
       .maybeSingle()
     if (!member) {
       return NextResponse.json(
-        { error: 'Not a member of that workspace' },
+        { error: translate(locale, 'errFlows.notWorkspaceMember') },
         { status: 403 },
       )
     }
@@ -70,9 +73,14 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const body = await request.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  if (!body)
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.invalidJson') },
+      { status: 400 },
+    )
 
   const {
     name,
@@ -104,7 +112,7 @@ export async function POST(request: Request) {
 
   if (!effectiveName || !effectiveTriggerType) {
     return NextResponse.json(
-      { error: 'name and trigger_type are required' },
+      { error: translate(locale, 'errFlows.automationNameAndTriggerRequired') },
       { status: 400 },
     )
   }
@@ -122,7 +130,10 @@ export async function POST(request: Request) {
     ]
     if (issues.length > 0) {
       return NextResponse.json(
-        { error: 'Cannot activate automation with invalid configuration', issues },
+        {
+          error: translate(locale, 'errFlows.automationCannotActivateInvalid'),
+          issues,
+        },
         { status: 400 },
       )
     }
@@ -145,7 +156,7 @@ export async function POST(request: Request) {
       .maybeSingle()
     if (!member) {
       return NextResponse.json(
-        { error: 'Not a member of that workspace' },
+        { error: translate(locale, 'errFlows.notWorkspaceMember') },
         { status: 403 },
       )
     }
@@ -162,7 +173,7 @@ export async function POST(request: Request) {
   }
   if (!resolvedWorkspaceId) {
     return NextResponse.json(
-      { error: 'No workspace found for user' },
+      { error: translate(locale, 'errFlows.noWorkspace') },
       { status: 400 },
     )
   }

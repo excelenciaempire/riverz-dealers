@@ -63,21 +63,21 @@ export async function POST(request: Request) {
 
     if (!conversation_id || !message_type) {
       return NextResponse.json(
-        { error: 'conversation_id and message_type are required' },
+        { error: translate(locale, 'errWhatsapp.conversationAndTypeRequired') },
         { status: 400 }
       )
     }
 
     if (message_type === 'text' && !content_text) {
       return NextResponse.json(
-        { error: 'content_text is required for text messages' },
+        { error: translate(locale, 'errWhatsapp.contentTextRequired') },
         { status: 400 }
       )
     }
 
     if (message_type === 'template' && !template_name) {
       return NextResponse.json(
-        { error: 'template_name is required for template messages' },
+        { error: translate(locale, 'errWhatsapp.templateNameRequiredForTemplate') },
         { status: 400 }
       )
     }
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 
     if (convError || !conversation) {
       return NextResponse.json(
-        { error: 'Conversation not found' },
+        { error: translate(locale, 'errWhatsapp.conversationNotFound') },
         { status: 404 }
       )
     }
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     const contact = conversation.contact
     if (!contact?.phone) {
       return NextResponse.json(
-        { error: 'Contact phone number not found' },
+        { error: translate(locale, 'errWhatsapp.contactPhoneNotFound') },
         { status: 400 }
       )
     }
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const sanitizedPhone = sanitizePhoneForMeta(contact.phone)
     if (!isValidE164(sanitizedPhone)) {
       return NextResponse.json(
-        { error: 'Invalid phone number format' },
+        { error: translate(locale, 'errWhatsapp.invalidPhoneFormat') },
         { status: 400 }
       )
     }
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConfiguredSetup') },
         { status: 400 }
       )
     }
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
 
       if (parentError || !parent) {
         return NextResponse.json(
-          { error: 'reply_to_message_id not found in this conversation' },
+          { error: translate(locale, 'errWhatsapp.replyTargetNotFound') },
           { status: 400 }
         )
       }
@@ -280,7 +280,11 @@ export async function POST(request: Request) {
     if (msgError) {
       console.error('Error inserting sent message:', msgError)
       return NextResponse.json(
-        { error: `Message sent to Meta but failed to save to DB: ${msgError.message}` },
+        {
+          error: translate(locale, 'errWhatsapp.messageSentButSaveFailed', {
+            detail: msgError.message,
+          }),
+        },
         { status: 500 }
       )
     }
@@ -334,7 +338,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in WhatsApp send POST:', error)
     return NextResponse.json(
-      { error: 'Failed to send message' },
+      { error: translate(locale, 'errWhatsapp.sendMessageFailed') },
       { status: 500 }
     )
   }

@@ -4,6 +4,8 @@ import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import type { AiAgent, AiScope } from '@/lib/ai/types';
 
 async function requireMember(agentId: string, userId: string) {
@@ -30,15 +32,24 @@ export async function PATCH(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const target = await requireMember(id, user.id);
-  if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!target)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notFound') },
+      { status: 404 },
+    );
 
   const body = (await request.json().catch(() => null)) as
     | (Partial<AiAgent> & {
@@ -47,7 +58,11 @@ export async function PATCH(
         api_key?: string;
       })
     | null;
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  if (!body)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.invalidJson') },
+      { status: 400 },
+    );
 
   const admin = supabaseAdmin();
   const update: Record<string, unknown> = {};
@@ -140,15 +155,24 @@ export async function DELETE(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const target = await requireMember(id, user.id);
-  if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!target)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notFound') },
+      { status: 404 },
+    );
 
   // Soft-delete via migration 059's `deleted_at` column. Partial index
   // `idx_ai_agents_workspace_active` ignores tombstones so the runner

@@ -973,7 +973,7 @@ export function AgentEditor({
                     <Input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Pili"
+                      placeholder={t('assistant.agentNamePlaceholder')}
                       className="bg-background"
                     />
                   </Field>
@@ -1042,7 +1042,7 @@ export function AgentEditor({
                       value={persona}
                       rows={10}
                       onChange={(e) => setPersona(e.target.value)}
-                      placeholder="Eres Pili, asesora de Vitalú. Atiendes con calidez, una pregunta por turno, nunca admites ser IA."
+                      placeholder={t('assistant.personaPlaceholder')}
                       className="resize-y bg-background font-mono text-xs leading-relaxed"
                     />
                   ) : (
@@ -1389,7 +1389,7 @@ export function AgentEditor({
                             value={linkShop}
                             onChange={(e) => setLinkShop(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && linkShopify()}
-                            placeholder="tu-tienda.myshopify.com"
+                            placeholder={t('assistant.shopDomainPlaceholder')}
                             className="bg-background"
                             disabled={linking}
                           />

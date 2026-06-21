@@ -9,6 +9,23 @@ import type { Namespace } from "./types";
 export const errAi = {
   // Shared validation / auth
   notAuthenticated: { es: "No autenticado", en: "Not authenticated" },
+  unauthorized: { es: "No autorizado", en: "Unauthorized" },
+  forbidden: { es: "Acceso denegado", en: "Forbidden" },
+  notFound: { es: "No encontrado", en: "Not found" },
+  invalidJson: { es: "JSON inválido", en: "Invalid JSON" },
+  urlRequired: { es: "La URL es requerida", en: "url is required" },
+  workspaceIdRequired: {
+    es: "workspace_id es requerido",
+    en: "workspace_id is required",
+  },
+  workspaceIdNameRequired: {
+    es: "workspace_id y nombre son requeridos",
+    en: "workspace_id and name are required",
+  },
+  messageRequired: {
+    es: "El mensaje es requerido",
+    en: "message is required",
+  },
   urlInvalidHttps: {
     es: "URL inválida. Debe empezar con https://",
     en: "Invalid URL. It must start with https://",
@@ -84,6 +101,10 @@ export const errAi = {
   generatePlanFailed: {
     es: "No se pudo generar el plan",
     en: "Could not generate the plan",
+  },
+  claudeApiError: {
+    es: "Error de la API de Claude ({status}): {message}",
+    en: "Claude API error ({status}): {message}",
   },
 
   // Campaigns (create / list)

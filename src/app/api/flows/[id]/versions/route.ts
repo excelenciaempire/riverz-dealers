@@ -81,7 +81,10 @@ export async function POST(
     .eq('id', id)
     .maybeSingle();
   if (!owned) {
-    return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.versionsFlowNotFound') },
+      { status: 404 },
+    );
   }
   const admin = supabaseAdmin();
   // Snapshot del flujo entero.
@@ -90,7 +93,10 @@ export async function POST(
     admin.from('flow_nodes').select('*').eq('flow_id', id),
   ]);
   if (!flow) {
-    return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.versionsFlowNotFound') },
+      { status: 404 },
+    );
   }
   const snapshot: SnapshotShape = {
     flow: flow as Record<string, unknown>,

@@ -7,6 +7,8 @@ import {
   shopifyScopes,
 } from '@/lib/shopify/oauth'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Kick off Shopify OAuth. Requires a logged-in user; stores the user id +
@@ -26,10 +28,12 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/ingresar', request.url))
   }
 
+  const locale = await getLocale()
+
   const apiKey = process.env.SHOPIFY_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Shopify no está configurado (falta SHOPIFY_API_KEY).' },
+      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
       { status: 503 },
     )
   }
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
   const shop = normalizeShopDomain(url.searchParams.get('shop') || '')
   if (!shop) {
     return NextResponse.json(
-      { error: 'Dominio de tienda no válido (debe ser *.myshopify.com).' },
+      { error: translate(locale, 'errProducts.invalidShopDomain') },
       { status: 400 },
     )
   }
@@ -49,7 +53,7 @@ export async function GET(request: Request) {
   const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
   if (!workspaceId) {
     return NextResponse.json(
-      { error: 'No se encontró un workspace para tu usuario.' },
+      { error: translate(locale, 'errProducts.noWorkspaceForUser') },
       { status: 400 },
     )
   }

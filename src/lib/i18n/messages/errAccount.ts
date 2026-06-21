@@ -71,6 +71,18 @@ export const errAccount = {
     es: "No se pudo crear la invitación",
     en: "We couldn't create the invitation",
   },
+  unauthorized: {
+    es: "No autorizado",
+    en: "Unauthorized",
+  },
+  inviteFieldsRequired: {
+    es: "workspace_id y correo requeridos",
+    en: "workspace_id and email are required",
+  },
+  inviteAdminOnly: {
+    es: "Acceso denegado: solo administradores",
+    en: "Forbidden — admin only",
+  },
 
   // Delete workspace
   deleteFieldsRequired: {

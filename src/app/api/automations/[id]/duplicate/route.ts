@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 export async function POST(
   request: Request,
@@ -16,6 +18,7 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const admin = supabaseAdmin()
   const { data: original, error: origErr } = await admin
@@ -24,7 +27,11 @@ export async function POST(
     .eq('id', id)
     .maybeSingle()
   if (origErr) return serverError(origErr)
-  if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!original)
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.notFound') },
+      { status: 404 },
+    )
 
   // Autorización por workspace (el admin client bypassa RLS): la copia solo
   // se permite si el usuario es miembro del workspace de la automatización.
@@ -34,7 +41,10 @@ export async function POST(
   if (!workspaceId) {
     // Filas legacy pre-013 sin backfill: tratar como no encontrada para no
     // filtrar su existencia.
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.notFound') },
+      { status: 404 },
+    )
   }
   const { data: membership } = await admin
     .from('workspace_members')
@@ -43,7 +53,10 @@ export async function POST(
     .eq('user_id', user.id)
     .maybeSingle()
   if (!membership) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.notFound') },
+      { status: 404 },
+    )
   }
 
   const { data: copy, error: copyErr } = await admin

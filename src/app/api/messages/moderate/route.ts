@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { decrypt } from "@/lib/channels/encryption";
 import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation, Message } from "@/types";
 
 type Action = "hide" | "unhide" | "delete" | "like" | "unlike";
@@ -18,17 +20,25 @@ type Action = "hide" | "unhide" | "delete" | "like" | "unlike";
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unauthorized") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as
     | { message_id?: string; action?: Action }
     | null;
   if (!body?.message_id || !body.action) {
-    return NextResponse.json({ error: "message_id + action required" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.moderateMissingFields") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -38,14 +48,23 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", body.message_id)
     .maybeSingle();
   if (!message) {
-    return NextResponse.json({ error: "message not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.messageNotFound") },
+      { status: 404 },
+    );
   }
   const m = message as Message;
   if (m.channel !== "fb_comment" && m.channel !== "ig_comment") {
-    return NextResponse.json({ error: "moderation only valid on FB/IG comments" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.moderateOnlyComments") },
+      { status: 400 },
+    );
   }
   if (!m.message_id) {
-    return NextResponse.json({ error: "comment has no external id" }, { status: 409 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.commentNoExternalId") },
+      { status: 409 },
+    );
   }
 
   const { data: conv } = await admin
@@ -53,7 +72,11 @@ export async function POST(req: Request): Promise<Response> {
     .select("*")
     .eq("id", m.conversation_id)
     .maybeSingle();
-  if (!conv) return NextResponse.json({ error: "conversation not found" }, { status: 404 });
+  if (!conv)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.conversationNotFound") },
+      { status: 404 },
+    );
 
   // Authorization — admin of the workspace can moderate.
   const { data: membership } = await admin
@@ -63,7 +86,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("user_id", user.id)
     .maybeSingle();
   if (!membership || (membership as { role: string }).role !== "admin") {
-    return NextResponse.json({ error: "admin only" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.adminOnly") },
+      { status: 403 },
+    );
   }
 
   const { data: connection } = await admin
@@ -71,7 +97,11 @@ export async function POST(req: Request): Promise<Response> {
     .select("*")
     .eq("id", (conv as Conversation).connection_id ?? "")
     .maybeSingle();
-  if (!connection) return NextResponse.json({ error: "connection not found" }, { status: 404 });
+  if (!connection)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.connectionNotFound") },
+      { status: 404 },
+    );
   const secrets = ((connection as ChannelConnection).secrets ?? {}) as Record<string, unknown>;
   const accessToken = decrypt(String(secrets.access_token ?? ""));
 
@@ -79,7 +109,10 @@ export async function POST(req: Request): Promise<Response> {
   const action = body.action;
   const result = await applyGraphAction(commentId, action, accessToken);
   if (!result.ok) {
-    return NextResponse.json({ error: result.detail ?? "graph call failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: result.detail ?? translate(locale, "errInbox.graphCallFailed") },
+      { status: 502 },
+    );
   }
 
   // Local bookkeeping — flip status when deleted, store a tag/annotation for hidden.

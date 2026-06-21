@@ -10,6 +10,7 @@ import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { safeLocale } from "@/lib/i18n/server";
 import { handleMetaGraphError } from "../meta-auth";
 import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
@@ -67,9 +68,9 @@ export const fbCommentAdapter: ChannelAdapter = {
       // Flip the connection to error on a genuine token death (so Settings
       // › Canales shows a Reconectar CTA) — same as the DM adapters.
       await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
-      // Log Meta's raw body server-side; surface a clear Spanish message.
+      // Log Meta's raw body server-side; surface a clear localized message.
       console.error(`[fb_comment] reply failed (${res.status}): ${detail}`);
-      throw new Error(describeMetaSendError("fb_comment", res.status, parsed).userMessage);
+      throw new Error(describeMetaSendError("fb_comment", res.status, parsed, await safeLocale()).userMessage);
     }
     const json = (await res.json()) as { id?: string };
     return { externalMessageId: json.id, status: "sent" };

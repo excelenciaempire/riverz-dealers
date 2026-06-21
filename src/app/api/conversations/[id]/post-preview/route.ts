@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -24,11 +26,16 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await ctx.params;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unauthorized") },
+      { status: 401 },
+    );
 
   const admin = supabaseAdmin();
   const { data: conv } = await admin
@@ -36,7 +43,11 @@ export async function GET(
     .select("*")
     .eq("id", id)
     .maybeSingle();
-  if (!conv) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!conv)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notFound") },
+      { status: 404 },
+    );
   const conversation = conv as Conversation;
 
   // Membership guard.
@@ -46,7 +57,11 @@ export async function GET(
     .eq("workspace_id", conversation.workspace_id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!membership)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
 
   if (conversation.channel !== "fb_comment" && conversation.channel !== "ig_comment") {
     return NextResponse.json({});

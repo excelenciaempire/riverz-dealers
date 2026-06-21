@@ -15,12 +15,16 @@ import { translate } from '@/lib/i18n/translate';
  */
 
 export async function GET() {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const { data, error } = await supabase
     .from('conversation_assignment_rules')
@@ -41,7 +45,10 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const body = (await request.json().catch(() => null)) as {
     id?: string;
@@ -71,7 +78,10 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (!member) {
-    return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.noWorkspace') },
+      { status: 403 },
+    );
   }
   // 013_unified_inbox.sql solo define 'admin' | 'agent', pero la
   // política RLS de 032_assignment_rules.sql usa 'owner', así que
@@ -132,7 +142,10 @@ export async function DELETE(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 },
+    );
   }
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
@@ -153,7 +166,10 @@ export async function DELETE(request: Request) {
     .eq('workspace_id', workspaceId)
     .maybeSingle();
   if (!member) {
-    return NextResponse.json({ error: 'No workspace' }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.noWorkspace') },
+      { status: 403 },
+    );
   }
   if (!['admin', 'owner'].includes(member.role)) {
     return NextResponse.json(

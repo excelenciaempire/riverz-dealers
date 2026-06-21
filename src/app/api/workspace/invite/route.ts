@@ -27,13 +27,20 @@ export async function POST(req: Request): Promise<Response> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.unauthorized") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as
     | { workspace_id?: string; email?: string; role?: "admin" | "agent" }
     | null;
   if (!body?.workspace_id || !body.email?.trim()) {
-    return NextResponse.json({ error: "workspace_id + email required" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.inviteFieldsRequired") },
+      { status: 400 },
+    );
   }
   // Surface a clear 400 when the email is malformed. The accept gate
   // does case-insensitive equality, so an invite for "not-an-email"
@@ -55,7 +62,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("role", "admin")
     .maybeSingle();
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.inviteAdminOnly") },
+      { status: 403 },
+    );
   }
 
   const token = crypto.randomBytes(24).toString("hex");

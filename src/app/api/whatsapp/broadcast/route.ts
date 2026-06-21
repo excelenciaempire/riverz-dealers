@@ -110,10 +110,7 @@ export async function POST(request: Request) {
       }))
     } else {
       return NextResponse.json(
-        {
-          error:
-            'Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array',
-        },
+        { error: translate(locale, 'errWhatsapp.provideRecipientsOrPhones') },
         { status: 400 }
       )
     }
@@ -136,7 +133,7 @@ export async function POST(request: Request) {
 
     if (!template_name) {
       return NextResponse.json(
-        { error: 'template_name is required' },
+        { error: translate(locale, 'errWhatsapp.templateNameFieldRequired') },
         { status: 400 }
       )
     }
@@ -149,10 +146,7 @@ export async function POST(request: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        {
-          error:
-            'WhatsApp not configured. Please set up your WhatsApp integration first.',
-        },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConfiguredSetup') },
         { status: 400 }
       )
     }
@@ -278,7 +272,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in WhatsApp broadcast POST:', error)
     return NextResponse.json(
-      { error: 'Failed to process broadcast' },
+      { error: translate(locale, 'errWhatsapp.broadcastFailed') },
       { status: 500 }
     )
   }

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.
@@ -100,14 +102,18 @@ export async function PUT(
   const { id } = await context.params
   const guard = await requireOwnership(id)
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  const locale = await getLocale()
 
   const body = (await request.json().catch(() => null)) as PutBody | null
   if (!body) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.invalidJson') },
+      { status: 400 },
+    )
   }
   if (body.name !== undefined && !body.name.trim()) {
     return NextResponse.json(
-      { error: 'name cannot be empty' },
+      { error: translate(locale, 'errFlows.flowNameEmpty') },
       { status: 400 },
     )
   }

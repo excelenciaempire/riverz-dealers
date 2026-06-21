@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/ai/instagram-agent/context
@@ -10,11 +12,16 @@ import { createClient } from '@/lib/supabase/server';
  * the plan is generated. RLS scopes the counts to the caller's workspace.
  */
 export async function GET() {
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.notAuthenticated') },
+      { status: 401 },
+    );
 
   const [{ count: contactCount }, { count: productCount }, { data: cur }] =
     await Promise.all([

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -23,10 +25,14 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const body = await request.json().catch(() => null)
   if (!body?.trigger_type) {
-    return NextResponse.json({ error: 'trigger_type required' }, { status: 400 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.automationTriggerTypeRequired') },
+      { status: 400 },
+    )
   }
 
   const admin = supabaseAdmin()
@@ -41,7 +47,7 @@ export async function POST(request: Request) {
       .maybeSingle()
     if (!member) {
       return NextResponse.json(
-        { error: 'Not a member of that workspace' },
+        { error: translate(locale, 'errFlows.notWorkspaceMember') },
         { status: 403 },
       )
     }
@@ -58,7 +64,7 @@ export async function POST(request: Request) {
   }
   if (!resolvedWorkspaceId) {
     return NextResponse.json(
-      { error: 'No workspace found for user' },
+      { error: translate(locale, 'errFlows.noWorkspace') },
       { status: 400 },
     )
   }

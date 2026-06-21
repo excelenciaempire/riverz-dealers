@@ -234,7 +234,11 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.unauthorized') },
+      { status: 401 },
+    );
 
   const body = (await request.json().catch(() => null)) as {
     url?: string;
@@ -263,7 +267,11 @@ export async function POST(request: Request) {
     .eq('workspace_id', workspaceId)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.forbidden') },
+      { status: 403 },
+    );
 
   // 1) Scrape
   let knowledge = '';

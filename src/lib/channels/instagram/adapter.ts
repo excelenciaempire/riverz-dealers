@@ -11,6 +11,7 @@ import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
@@ -82,10 +83,10 @@ export const instagramAdapter: ChannelAdapter = {
       const parsed = parseMetaError(detail);
       await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
       // Keep Meta's raw body in the server logs for debugging, but surface
-      // only a clear, actionable Spanish message to the agent (the toast /
-      // campaign log shows this) instead of a wall of JSON.
+      // only a clear, actionable message (in the merchant's locale) to the
+      // agent (the toast / campaign log shows this) instead of a wall of JSON.
       console.error(`[instagram] send failed (${res.status}): ${detail}`);
-      throw new Error(describeMetaSendError("instagram", res.status, parsed).userMessage);
+      throw new Error(describeMetaSendError("instagram", res.status, parsed, await safeLocale()).userMessage);
     }
     // Send succeeded — auto-restore a connection previously flagged dead
     // so a recovered token re-greens without a manual reconnect.

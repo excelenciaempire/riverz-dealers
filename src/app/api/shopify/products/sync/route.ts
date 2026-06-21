@@ -52,7 +52,11 @@ export async function POST(req: Request) {
     .select('access_token, workspace_id')
     .eq('id', conn.id)
     .maybeSingle();
-  if (!row) return NextResponse.json({ error: 'connection not found' }, { status: 404 });
+  if (!row)
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.shopifyConnectionNotFound') },
+      { status: 404 },
+    );
 
   try {
     const result = await syncShopifyProducts(admin, {
@@ -64,7 +68,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'sync failed' },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : translate(locale, 'errProducts.shopifySyncFailed'),
+      },
       { status: 502 },
     );
   }

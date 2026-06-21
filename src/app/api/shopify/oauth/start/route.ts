@@ -5,6 +5,8 @@ import {
   buildAuthorizeUrl,
   shopifyScopes,
 } from '@/lib/shopify/oauth'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Post-install bootstrap entrypoint. Shopify custom-app distribution
@@ -16,10 +18,12 @@ import {
  * present.
  */
 export async function GET(request: Request) {
+  const locale = await getLocale()
+
   const apiKey = process.env.SHOPIFY_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Shopify no está configurado (falta SHOPIFY_API_KEY).' },
+      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
       { status: 503 },
     )
   }
@@ -28,7 +32,7 @@ export async function GET(request: Request) {
   const shop = normalizeShopDomain(url.searchParams.get('shop') || '')
   if (!shop) {
     return NextResponse.json(
-      { error: 'Dominio de tienda no válido (debe ser *.myshopify.com).' },
+      { error: translate(locale, 'errProducts.invalidShopDomain') },
       { status: 400 },
     )
   }

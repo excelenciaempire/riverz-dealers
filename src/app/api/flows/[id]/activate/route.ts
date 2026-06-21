@@ -4,6 +4,8 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { validateFlowForActivation } from '@/lib/flows/validate'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * POST /api/flows/[id]/activate
@@ -34,6 +36,7 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const locale = await getLocale()
 
   const body = (await request.json().catch(() => null)) as
     | { status?: 'draft' | 'active' | 'archived' }
@@ -41,7 +44,7 @@ export async function POST(
   const status = body?.status
   if (!status || !['draft', 'active', 'archived'].includes(status)) {
     return NextResponse.json(
-      { error: "status must be one of 'draft' | 'active' | 'archived'" },
+      { error: translate(locale, 'errFlows.activateInvalidStatus') },
       { status: 400 },
     )
   }
@@ -53,7 +56,10 @@ export async function POST(
     .eq('id', id)
     .maybeSingle()
   if (!existing) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.notFound') },
+      { status: 404 },
+    )
   }
 
   const admin = supabaseAdmin()
@@ -72,7 +78,10 @@ export async function POST(
         .eq('flow_id', id),
     ])
     if (!flow) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: translate(locale, 'errFlows.notFound') },
+        { status: 404 },
+      )
     }
     const issues = validateFlowForActivation(
       flow as {
@@ -91,7 +100,7 @@ export async function POST(
     if (blockers.length > 0) {
       return NextResponse.json(
         {
-          error: 'Cannot activate flow — fix the issues below first.',
+          error: translate(locale, 'errFlows.activateHasBlockers'),
           issues,
         },
         { status: 422 },

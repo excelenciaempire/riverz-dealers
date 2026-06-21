@@ -4,6 +4,8 @@ import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { withAppsecretProof } from '@/lib/channels/meta-graph'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Sync message templates from Meta → local message_templates table.
@@ -89,6 +91,7 @@ function normalizeStatus(
 export async function POST(req: Request) {
   const block = await csrfGuard(req)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
 
@@ -110,20 +113,14 @@ export async function POST(req: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        {
-          error:
-            'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
-        },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConnectedSync') },
         { status: 400 },
       )
     }
 
     if (!config.waba_id) {
       return NextResponse.json(
-        {
-          error:
-            'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
-        },
+        { error: translate(locale, 'errWhatsapp.missingWabaIdSync') },
         { status: 400 },
       )
     }
@@ -134,7 +131,7 @@ export async function POST(req: Request) {
     const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
     if (!workspaceId) {
       return NextResponse.json(
-        { error: 'No workspace resolved for this account.' },
+        { error: translate(locale, 'errWhatsapp.noWorkspaceResolved') },
         { status: 400 },
       )
     }
@@ -264,7 +261,9 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to sync templates',
+          error instanceof Error
+            ? error.message
+            : translate(locale, 'errWhatsapp.syncTemplatesFailed'),
       },
       { status: 500 },
     )

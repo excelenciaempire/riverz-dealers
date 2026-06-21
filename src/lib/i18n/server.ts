@@ -20,3 +20,17 @@ export async function getT(): Promise<TFn> {
   const locale = await getLocale();
   return (key, vars) => translate(locale, key, vars);
 }
+
+/**
+ * Like getLocale() but never throws. `cookies()` is only callable inside a
+ * request scope; code shared with background/cron paths (e.g. the channel
+ * adapters) calls this so it degrades to the default locale instead of
+ * crashing when there's no request.
+ */
+export async function safeLocale(): Promise<Locale> {
+  try {
+    return await getLocale();
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}

@@ -12,6 +12,9 @@ import {
   validateStepsForActivation,
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
+import type { Locale } from '@/lib/i18n/config'
 
 async function requireUser() {
   const supabase = await createClient()
@@ -35,6 +38,7 @@ async function loadAuthorizedAutomation(
   admin: ReturnType<typeof supabaseAdmin>,
   automationId: string,
   userId: string,
+  locale: Locale,
   // Caller-supplied projection — keeps PATCH's "need is_active +
   // trigger_* for re-validation" path from doing a second round trip.
   columns: string = 'id, user_id, workspace_id',
@@ -42,25 +46,24 @@ async function loadAuthorizedAutomation(
   | { ok: true; automation: Record<string, unknown> }
   | { ok: false; response: Response }
 > {
+  const notFound = () =>
+    NextResponse.json(
+      { error: translate(locale, 'errFlows.notFound') },
+      { status: 404 },
+    )
   const { data: existing } = await admin
     .from('automations')
     .select(columns)
     .eq('id', automationId)
     .maybeSingle()
   if (!existing) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
-    }
+    return { ok: false, response: notFound() }
   }
   const workspaceId = (existing as { workspace_id?: string }).workspace_id
   if (!workspaceId) {
     // Pre-013 rows that never got backfilled. Treat as not-found to
     // avoid leaking the row's existence to non-owners.
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
-    }
+    return { ok: false, response: notFound() }
   }
   const { data: membership } = await admin
     .from('workspace_members')
@@ -69,10 +72,7 @@ async function loadAuthorizedAutomation(
     .eq('user_id', userId)
     .maybeSingle()
   if (!membership) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'Not found' }, { status: 404 }),
-    }
+    return { ok: false, response: notFound() }
   }
   return {
     ok: true,
@@ -87,9 +87,10 @@ export async function GET(
   const { id } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const admin = supabaseAdmin()
-  const loaded = await loadAuthorizedAutomation(admin, id, user.id, '*')
+  const loaded = await loadAuthorizedAutomation(admin, id, user.id, locale, '*')
   if (!loaded.ok) return loaded.response
 
   const steps = await loadStepsTree(id)
@@ -105,9 +106,14 @@ export async function PATCH(
   const { id } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const body = await request.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  if (!body)
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.invalidJson') },
+      { status: 400 },
+    )
 
   const admin = supabaseAdmin()
 
@@ -118,6 +124,7 @@ export async function PATCH(
     admin,
     id,
     user.id,
+    locale,
     'id, user_id, workspace_id, is_active, trigger_type, trigger_config',
   )
   if (!loaded.ok) return loaded.response
@@ -158,7 +165,7 @@ export async function PATCH(
     if (issues.length > 0) {
       return NextResponse.json(
         {
-          error: 'Cannot keep automation active with invalid configuration',
+          error: translate(locale, 'errFlows.automationCannotKeepActiveInvalid'),
           issues,
         },
         { status: 400 },
@@ -191,12 +198,13 @@ export async function DELETE(
   const { id } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const admin = supabaseAdmin()
   // Must include workspace_id: loadAuthorizedAutomation reads it to run
   // the membership check. Selecting only 'id' left workspace_id undefined
   // and made every delete 404 with "Not found".
-  const loaded = await loadAuthorizedAutomation(admin, id, user.id, 'id, workspace_id')
+  const loaded = await loadAuthorizedAutomation(admin, id, user.id, locale, 'id, workspace_id')
   if (!loaded.ok) return loaded.response
 
   // Soft-delete via migration 059's `deleted_at` column — preserves

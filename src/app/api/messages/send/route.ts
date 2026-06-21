@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Contact, Conversation, Message } from "@/types";
 
 /**
@@ -16,17 +18,25 @@ import type { ChannelConnection, Contact, Conversation, Message } from "@/types"
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unauthorized") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as
     | { conversation_id?: string; text?: string; reply_to_external_id?: string }
     | null;
   if (!body?.conversation_id || !body.text?.trim()) {
-    return NextResponse.json({ error: "conversation_id + text required" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.sendMissingFields") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -37,7 +47,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", body.conversation_id)
     .maybeSingle();
   if (!conversation) {
-    return NextResponse.json({ error: "conversation not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.conversationNotFound") },
+      { status: 404 },
+    );
   }
 
   // Authorization: caller must be a member of the conversation's workspace.
@@ -48,7 +61,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("user_id", user.id)
     .maybeSingle();
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
   }
 
   const { data: contact } = await admin
@@ -57,12 +73,18 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", (conversation as Conversation).contact_id)
     .maybeSingle();
   if (!contact) {
-    return NextResponse.json({ error: "contact not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.contactNotFound") },
+      { status: 404 },
+    );
   }
 
   const connectionId = (conversation as Conversation).connection_id;
   if (!connectionId) {
-    return NextResponse.json({ error: "conversation has no connection" }, { status: 409 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.conversationNoConnection") },
+      { status: 409 },
+    );
   }
   const { data: connection } = await admin
     .from("channel_connections")
@@ -70,7 +92,10 @@ export async function POST(req: Request): Promise<Response> {
     .eq("id", connectionId)
     .maybeSingle();
   if (!connection) {
-    return NextResponse.json({ error: "connection not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.connectionNotFound") },
+      { status: 404 },
+    );
   }
 
   const channel = (conversation as Conversation).channel;

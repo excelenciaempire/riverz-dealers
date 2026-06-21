@@ -5,6 +5,8 @@ import {
   isSegmentFresh,
   type ContactSegment,
 } from '@/lib/contacts/segment';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * GET /api/contacts/[id]/segment[?refresh=1]
@@ -19,18 +21,27 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.notAuthenticated') },
+      { status: 401 },
+    );
 
   const { data: contact } = await supabase
     .from('contacts')
     .select('id, name, ai_segment, ai_summary')
     .eq('id', id)
     .maybeSingle();
-  if (!contact) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+  if (!contact)
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.notFound') },
+      { status: 404 },
+    );
 
   const c = contact as {
     id: string;

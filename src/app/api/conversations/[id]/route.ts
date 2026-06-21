@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * DELETE /api/conversations/:id
@@ -26,18 +28,30 @@ export async function PATCH(
 ): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await ctx.params;
-  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  if (!id)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.missingIdGeneric") },
+      { status: 400 },
+    );
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as { ai_enabled?: unknown } | null;
   if (!body || typeof body.ai_enabled !== "boolean") {
-    return NextResponse.json({ error: "ai_enabled boolean required" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.aiEnabledRequired") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -46,7 +60,11 @@ export async function PATCH(
     .select("id, workspace_id")
     .eq("id", id)
     .maybeSingle();
-  if (!conv) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!conv)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notFound") },
+      { status: 404 },
+    );
 
   const { data: membership } = await admin
     .from("workspace_members")
@@ -54,7 +72,11 @@ export async function PATCH(
     .eq("workspace_id", conv.workspace_id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!membership)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
 
   const { error } = await admin
     .from("conversations")
@@ -70,9 +92,13 @@ export async function DELETE(
 ): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const { id } = await ctx.params;
   if (!id) {
-    return NextResponse.json({ error: "missing id" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.missingIdGeneric") },
+      { status: 400 },
+    );
   }
 
   const supabase = await createClient();
@@ -80,7 +106,10 @@ export async function DELETE(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "not signed in" }, { status: 401 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -90,7 +119,10 @@ export async function DELETE(
     .eq("id", id)
     .maybeSingle();
   if (!conv) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notFound") },
+      { status: 404 },
+    );
   }
   const { data: membership } = await admin
     .from("workspace_members")
@@ -99,7 +131,10 @@ export async function DELETE(
     .eq("user_id", user.id)
     .maybeSingle();
   if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
   }
 
   // Messages are CASCADE-deleted via the FK in 001_initial_schema.sql.

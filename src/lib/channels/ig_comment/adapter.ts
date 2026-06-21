@@ -9,6 +9,7 @@ import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { safeLocale } from "@/lib/i18n/server";
 import { handleMetaGraphError } from "../meta-auth";
 import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
@@ -61,7 +62,7 @@ export const igCommentAdapter: ChannelAdapter = {
       const parsed = parseMetaError(detail);
       await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
       console.error(`[ig_comment] reply failed (${res.status}): ${detail}`);
-      throw new Error(describeMetaSendError("ig_comment", res.status, parsed).userMessage);
+      throw new Error(describeMetaSendError("ig_comment", res.status, parsed, await safeLocale()).userMessage);
     }
     const json = (await res.json()) as { id?: string };
     return { externalMessageId: json.id, status: "sent" };

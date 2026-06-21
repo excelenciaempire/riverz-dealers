@@ -9,6 +9,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/whatsapp/react
@@ -22,6 +24,7 @@ import { csrfGuard } from '@/lib/csrf';
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
+  const locale = await getLocale();
   try {
     const supabase = await createClient();
 
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
 
     if (!message_id || typeof emoji !== 'string') {
       return NextResponse.json(
-        { error: 'message_id and emoji are required' },
+        { error: translate(locale, 'errWhatsapp.messageIdAndEmojiRequired') },
         { status: 400 },
       );
     }
@@ -60,14 +63,17 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (msgError || !targetMessage) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.messageNotFound') },
+        { status: 404 },
+      );
     }
 
     if (!targetMessage.message_id) {
       // No Meta ID yet — usually a sending/failed agent message. We can't
       // tell Meta to react to a message it never received.
       return NextResponse.json(
-        { error: 'Cannot react to a message that has not been sent to WhatsApp' },
+        { error: translate(locale, 'errWhatsapp.cannotReactUnsentMessage') },
         { status: 400 },
       );
     }
@@ -81,7 +87,7 @@ export async function POST(request: Request) {
 
     if (convError || !conversation) {
       return NextResponse.json(
-        { error: 'Conversation not found' },
+        { error: translate(locale, 'errWhatsapp.conversationNotFound') },
         { status: 404 },
       );
     }
@@ -91,7 +97,7 @@ export async function POST(request: Request) {
       : conversation.contact;
     if (!contact?.phone) {
       return NextResponse.json(
-        { error: 'Contact phone number not found' },
+        { error: translate(locale, 'errWhatsapp.contactPhoneNotFound') },
         { status: 400 },
       );
     }
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured.' },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConfigured') },
         { status: 400 },
       );
     }
@@ -143,7 +149,7 @@ export async function POST(request: Request) {
       if (delError) {
         console.error('[whatsapp/react] DB delete failed:', delError.message);
         return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB delete failed' },
+          { error: translate(locale, 'errWhatsapp.reactionSavedDeleteFailed') },
           { status: 500 },
         );
       }
@@ -164,7 +170,7 @@ export async function POST(request: Request) {
       if (upsertError) {
         console.error('[whatsapp/react] DB upsert failed:', upsertError.message);
         return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB upsert failed' },
+          { error: translate(locale, 'errWhatsapp.reactionSavedUpsertFailed') },
           { status: 500 },
         );
       }
@@ -174,7 +180,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in WhatsApp react POST:', error);
     return NextResponse.json(
-      { error: 'Failed to react to message' },
+      { error: translate(locale, 'errWhatsapp.reactToMessageFailed') },
       { status: 500 },
     );
   }

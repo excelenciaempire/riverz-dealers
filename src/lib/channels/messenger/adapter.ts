@@ -11,6 +11,7 @@ import { verifyMetaHandshake } from "../meta-webhook";
 import { ingestMetaAttachment } from "../media-ingest";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
+import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
@@ -68,7 +69,7 @@ export const messengerAdapter: ChannelAdapter = {
       // Keep Meta's raw body in the server logs for debugging, but surface
       // only a clear, actionable Spanish message to the agent.
       console.error(`[messenger] send failed (${res.status}): ${detail}`);
-      throw new Error(describeMetaSendError("messenger", res.status, parsed).userMessage);
+      throw new Error(describeMetaSendError("messenger", res.status, parsed, await safeLocale()).userMessage);
     }
     // Send succeeded — auto-restore a connection previously flagged dead
     // so a recovered token re-greens without a manual reconnect.

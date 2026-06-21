@@ -3,17 +3,20 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ mediaId: string }> }
 ) {
+  const locale = await getLocale()
   try {
     const { mediaId } = await params
 
     if (!mediaId) {
       return NextResponse.json(
-        { error: 'Media ID is required' },
+        { error: translate(locale, 'errWhatsapp.mediaIdRequired') },
         { status: 400 }
       )
     }
@@ -78,7 +81,7 @@ export async function GET(
 
     if (candidates.length === 0) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured' },
+        { error: translate(locale, 'errWhatsapp.whatsappNotConfigured') },
         { status: 400 }
       )
     }
@@ -110,7 +113,7 @@ export async function GET(
   } catch (error) {
     console.error('Error in WhatsApp media GET:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch media' },
+      { error: translate(locale, 'errWhatsapp.fetchMediaFailed') },
       { status: 500 }
     )
   }

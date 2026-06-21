@@ -1,7 +1,12 @@
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { translate } from "@/lib/i18n/translate";
+
 /**
- * Translate a Meta Graph API send failure into a clear, actionable
- * Spanish message for the agent — instead of dumping the raw JSON error
- * into a toast. Used by the Instagram + Messenger adapters.
+ * Translate a Meta Graph API send failure into a clear, actionable message
+ * for the agent (in the merchant's UI locale) — instead of dumping the raw
+ * JSON error into a toast. Used by the Instagram + Messenger + comment
+ * adapters. Pass the request locale (via getLocale()) so the toast follows
+ * the language selected in settings; defaults to es when unknown.
  *
  * Background: the most common send failures on Meta DM channels are NOT
  * code bugs, they're platform-policy / access-level limits. The two we
@@ -43,7 +48,7 @@ export interface MetaErrorShape {
 
 export interface DescribedMetaError {
   category: MetaSendErrorCategory;
-  /** Agent-facing Spanish message — safe to show in a toast / campaign log. */
+  /** Agent-facing message in the request locale — safe to show in a toast / campaign log. */
   userMessage: string;
   /** True when retrying the identical send can't succeed. */
   permanent: boolean;
@@ -58,27 +63,37 @@ export function parseMetaError(bodyText: string): MetaErrorShape | null {
   }
 }
 
-const CHANNEL_LABEL: Record<string, string> = {
-  instagram: "Instagram",
-  messenger: "Messenger",
-  fb_comment: "los comentarios de Facebook",
-  ig_comment: "los comentarios de Instagram",
-};
+/** Localized channel label woven into the messages ("Instagram", "Messenger", ...). */
+function channelLabel(channel: string, locale: Locale): string {
+  switch (channel) {
+    case "instagram":
+      return "Instagram";
+    case "messenger":
+      return "Messenger";
+    case "fb_comment":
+      return translate(locale, "errMeta.metaLabelFbComments");
+    case "ig_comment":
+      return translate(locale, "errMeta.metaLabelIgComments");
+    default:
+      return "Meta";
+  }
+}
 
 /**
  * Map a (status, parsed body) pair to a categorized, human-readable error.
  * `channel` only tweaks wording ("Instagram"/"Messenger"); the logic is
- * shared.
+ * shared. `locale` controls the language of `userMessage`.
  */
 export function describeMetaSendError(
   channel: string,
   status: number,
   parsed: MetaErrorShape | null,
+  locale: Locale = DEFAULT_LOCALE,
 ): DescribedMetaError {
   const err = parsed?.error;
   const code = err?.code;
   const subcode = err?.error_subcode;
-  const label = CHANNEL_LABEL[channel] ?? "Meta";
+  const label = channelLabel(channel, locale);
 
   // Advanced Access missing — IG instagram_manage_messages / pages_messaging.
   // code 200 generally + subcode 2534048 specifically; also the message
@@ -90,11 +105,7 @@ export function describeMetaSendError(
     return {
       category: "advanced_access",
       permanent: true,
-      userMessage:
-        `${label} todavía no puede escribirle a esta persona. Meta exige ` +
-        `"acceso avanzado" a la mensajería, que se habilita aprobando tu app ` +
-        `en la revisión de Meta (App Review). Mientras tanto solo puedes ` +
-        `escribirle a cuentas que tengan un rol en tu app (admin/desarrollador/tester).`,
+      userMessage: translate(locale, "errMeta.metaAdvancedAccess", { label }),
     };
   }
 
@@ -111,10 +122,7 @@ export function describeMetaSendError(
     return {
       category: "permission",
       permanent: true,
-      userMessage:
-        `Esta acción en ${label} necesita un permiso de Meta que aún no está ` +
-        `habilitado para tu app. Hay que aprobarlo en la revisión de Meta ` +
-        `(App Review) — hasta entonces Meta no deja responder/gestionar este contenido.`,
+      userMessage: translate(locale, "errMeta.metaPermission", { label }),
     };
   }
 
@@ -128,10 +136,7 @@ export function describeMetaSendError(
     return {
       category: "outside_window",
       permanent: true,
-      userMessage:
-        `Pasaron más de 24 horas desde el último mensaje del cliente, así que ` +
-        `Meta no permite enviarle un mensaje libre por ${label}. Espera a que el ` +
-        `cliente vuelva a escribir, o usa una plantilla/etiqueta de mensaje aprobada por Meta.`,
+      userMessage: translate(locale, "errMeta.metaOutsideWindow", { label }),
     };
   }
 
@@ -146,9 +151,7 @@ export function describeMetaSendError(
     return {
       category: "token",
       permanent: true,
-      userMessage:
-        `La conexión de ${label} perdió su acceso (token expirado o revocado). ` +
-        `Vuelve a conectarla en Ajustes › Canales.`,
+      userMessage: translate(locale, "errMeta.metaToken", { label }),
     };
   }
 
@@ -157,9 +160,7 @@ export function describeMetaSendError(
     return {
       category: "rate_limit",
       permanent: false,
-      userMessage:
-        `Meta está limitando los envíos de ${label} por ahora. Espera un momento ` +
-        `e inténtalo de nuevo.`,
+      userMessage: translate(locale, "errMeta.metaRateLimit", { label }),
     };
   }
 
@@ -168,9 +169,7 @@ export function describeMetaSendError(
     return {
       category: "recipient",
       permanent: true,
-      userMessage:
-        `No se pudo entregar el mensaje por ${label}: el destinatario no está ` +
-        `disponible para recibir mensajes.`,
+      userMessage: translate(locale, "errMeta.metaRecipient", { label }),
     };
   }
 
@@ -180,7 +179,7 @@ export function describeMetaSendError(
     category: "unknown",
     permanent: false,
     userMessage: detail
-      ? `${label} rechazó el envío: ${detail}`
-      : `${label} rechazó el envío (error ${status}).`,
+      ? translate(locale, "errMeta.metaRejectedDetail", { label, detail })
+      : translate(locale, "errMeta.metaRejectedGeneric", { label, status }),
   };
 }

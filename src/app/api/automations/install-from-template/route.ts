@@ -6,6 +6,8 @@ import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { getTemplate } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 // ------------------------------------------------------------
 // Install an automation from a pre-built template in one POST.
@@ -30,18 +32,25 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const locale = await getLocale()
 
   const body = (await request.json().catch(() => null)) as
     | { template_id?: string; workspace_id?: string }
     | null
   const templateId = body?.template_id
   if (!templateId) {
-    return NextResponse.json({ error: 'template_id is required' }, { status: 400 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.automationTemplateIdRequired') },
+      { status: 400 },
+    )
   }
 
   const template = getTemplate(templateId)
   if (!template) {
-    return NextResponse.json({ error: 'Unknown template' }, { status: 404 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.automationUnknownTemplate') },
+      { status: 404 },
+    )
   }
 
   const admin = supabaseAdmin()
@@ -61,7 +70,7 @@ export async function POST(request: Request) {
       .maybeSingle()
     if (!member) {
       return NextResponse.json(
-        { error: 'Not a member of that workspace' },
+        { error: translate(locale, 'errFlows.notWorkspaceMember') },
         { status: 403 },
       )
     }
@@ -78,7 +87,7 @@ export async function POST(request: Request) {
   }
   if (!workspaceId) {
     return NextResponse.json(
-      { error: 'No workspace found for user' },
+      { error: translate(locale, 'errFlows.noWorkspace') },
       { status: 400 },
     )
   }

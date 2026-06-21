@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { persistMetaConnections, MetaConnectError } from "@/lib/channels/meta-connect";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { Channel } from "@/types";
 
 // v22.0 para que coincida con la versión del SDK que emitió el code
@@ -29,11 +31,16 @@ export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
 
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -47,12 +54,15 @@ export async function POST(req: Request): Promise<Response> {
     | null;
   if (!body || !body.channel || !body.workspace_id || !(body.code || body.access_token)) {
     return NextResponse.json(
-      { error: "channel, workspace_id and (code or access_token) required" },
+      { error: translate(locale, "errInbox.sdkConnectMissingFields") },
       { status: 400 },
     );
   }
   if (!VALID_CHANNELS.includes(body.channel)) {
-    return NextResponse.json({ error: "invalid channel" }, { status: 400 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.invalidChannel") },
+      { status: 400 },
+    );
   }
 
   const admin = supabaseAdmin();
@@ -63,12 +73,19 @@ export async function POST(req: Request): Promise<Response> {
     .eq("user_id", user.id)
     .eq("role", "admin")
     .maybeSingle();
-  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!membership)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
 
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) {
-    return NextResponse.json({ error: "Meta app not configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.metaAppNotConfigured") },
+      { status: 503 },
+    );
   }
 
   try {
@@ -134,7 +151,10 @@ export async function POST(req: Request): Promise<Response> {
 
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const msg = err instanceof MetaConnectError ? err.message : "connection failed";
+    const msg =
+      err instanceof MetaConnectError
+        ? err.message
+        : translate(locale, "errInbox.metaConnectionFailed");
     console.error("[meta/sdk-connect] error:", err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }

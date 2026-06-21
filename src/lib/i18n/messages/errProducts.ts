@@ -94,4 +94,36 @@ export const errProducts = {
     es: "No hay tienda Shopify conectada.",
     en: "There's no Shopify store connected.",
   },
+  shopifyConnectionNotFound: {
+    es: "Conexión no encontrada",
+    en: "Connection not found",
+  },
+  shopifySyncFailed: {
+    es: "No se pudo sincronizar",
+    en: "Couldn't sync",
+  },
+
+  // --- /api/products/[id] (PATCH) ---
+  customFaqsMustBeArray: {
+    es: "custom_faqs debe ser un array",
+    en: "custom_faqs must be an array",
+  },
+  customFaqInvalidShape: {
+    es: "Cada FAQ debe tener q y a como string",
+    en: "Each FAQ must have q and a as strings",
+  },
+
+  // --- /api/shopify/oauth/start, /api/shopify/install ---
+  shopifyNotConfigured: {
+    es: "Shopify no está configurado (falta SHOPIFY_API_KEY).",
+    en: "Shopify isn't configured (SHOPIFY_API_KEY is missing).",
+  },
+  invalidShopDomain: {
+    es: "Dominio de tienda no válido (debe ser *.myshopify.com).",
+    en: "Invalid store domain (must be *.myshopify.com).",
+  },
+  noWorkspaceForUser: {
+    es: "No se encontró un workspace para tu usuario.",
+    en: "No workspace was found for your user.",
+  },
 } satisfies Namespace;

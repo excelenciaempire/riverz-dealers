@@ -9,6 +9,8 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -33,18 +35,23 @@ const GRAPH = "https://graph.facebook.com/v22.0";
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
   if (block) return block;
+  const locale = await getLocale();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
 
   const body = (await req.json().catch(() => null)) as
     | { code?: string; waba_id?: string; phone_number_id?: string; workspace_id?: string }
     | null;
   if (!body?.code || !body.waba_id || !body.phone_number_id || !body.workspace_id) {
     return NextResponse.json(
-      { error: "code, waba_id, phone_number_id, workspace_id required" },
+      { error: translate(locale, "errInbox.embeddedSignupMissingFields") },
       { status: 400 },
     );
   }
@@ -57,12 +64,19 @@ export async function POST(req: Request): Promise<Response> {
     .eq("user_id", user.id)
     .eq("role", "admin")
     .maybeSingle();
-  if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!membership)
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
 
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) {
-    return NextResponse.json({ error: "Meta app not configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.metaAppNotConfigured") },
+      { status: 503 },
+    );
   }
 
   try {
@@ -153,7 +167,9 @@ export async function POST(req: Request): Promise<Response> {
     if (err instanceof WhatsAppAlreadyConnectedError) {
       return NextResponse.json(
         {
-          error: `Ya tienes un WhatsApp conectado (${err.existingLabel}). Desconéctalo antes de conectar otro número.`,
+          error: translate(locale, "errInbox.whatsappAlreadyConnected", {
+            label: err.existingLabel,
+          }),
         },
         { status: 409 },
       );

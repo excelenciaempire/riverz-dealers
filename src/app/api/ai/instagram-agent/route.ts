@@ -238,7 +238,10 @@ export async function POST(request: Request) {
     console.error('Error generating instagram-agent plan:', error)
     const message =
       error instanceof Anthropic.APIError
-        ? `Error de la API de Claude (${error.status}): ${error.message}`
+        ? translate(locale, 'errAi.claudeApiError', {
+            status: error.status ?? '',
+            message: error.message,
+          })
         : error instanceof Error
           ? error.message
           : translate(locale, 'errAi.generatePlanFailed')

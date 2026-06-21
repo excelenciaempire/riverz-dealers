@@ -4,6 +4,8 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { getFlowTemplate } from '@/lib/flows/templates'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * GET /api/flows — list the caller's flows.
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json(guard.body, { status: guard.status })
   }
   const { userId } = guard
+  const locale = await getLocale()
 
   const body = (await request.json().catch(() => null)) as
     | {
@@ -72,7 +75,10 @@ export async function POST(request: Request) {
       }
     | null
   if (!body) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.invalidJson') },
+      { status: 400 },
+    )
   }
 
   const admin = supabaseAdmin()
@@ -92,7 +98,7 @@ export async function POST(request: Request) {
   const workspaceId = (membership as { workspace_id?: string } | null)?.workspace_id
   if (!workspaceId) {
     return NextResponse.json(
-      { error: 'El usuario no tiene un workspace asignado.' },
+      { error: translate(locale, 'errFlows.flowNoWorkspaceAssigned') },
       { status: 500 },
     )
   }
@@ -102,7 +108,11 @@ export async function POST(request: Request) {
     const template = getFlowTemplate(body.template_slug)
     if (!template) {
       return NextResponse.json(
-        { error: `Unknown template_slug "${body.template_slug}"` },
+        {
+          error: translate(locale, 'errFlows.flowUnknownTemplate', {
+            slug: body.template_slug,
+          }),
+        },
         { status: 400 },
       )
     }
@@ -145,7 +155,10 @@ export async function POST(request: Request) {
 
   // -------- Plain (empty) create path --------
   if (!body.name?.trim()) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    return NextResponse.json(
+      { error: translate(locale, 'errFlows.flowNameRequired') },
+      { status: 400 },
+    )
   }
   // Default to first_inbound_message: it has no required config, so the
   // editor opens without a red "missing keywords" error blocking the

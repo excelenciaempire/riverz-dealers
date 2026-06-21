@@ -10,6 +10,8 @@ import {
 } from "@/lib/channels/meta-graph";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { startOutlookWatch } from "@/lib/channels/outlook/watch";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection } from "@/types";
 
 const VALID: ProviderName[] = ["meta", "google", "microsoft"];
@@ -27,7 +29,11 @@ export async function GET(
 ): Promise<Response> {
   const { provider } = await ctx.params;
   if (!isProvider(provider)) {
-    return NextResponse.json({ error: "Unknown provider" }, { status: 404 });
+    const locale = await getLocale();
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unknownProvider") },
+      { status: 404 },
+    );
   }
 
   const url = new URL(req.url);

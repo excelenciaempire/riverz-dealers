@@ -20,6 +20,7 @@ import { translate } from '@/lib/i18n/translate'
  *   { connected: false, reason: 'meta_api_error',   message: '...' }
  */
 export async function GET() {
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
 
@@ -41,7 +42,11 @@ export async function GET() {
     if (configError) {
       console.error('Error fetching whatsapp_config:', configError)
       return NextResponse.json(
-        { connected: false, reason: 'db_error', message: 'Failed to fetch configuration' },
+        {
+          connected: false,
+          reason: 'db_error',
+          message: translate(locale, 'errWhatsapp.fetchConfigFailed'),
+        },
         { status: 200 }
       )
     }
@@ -51,7 +56,7 @@ export async function GET() {
         {
           connected: false,
           reason: 'no_config',
-          message: 'No WhatsApp configuration saved yet. Fill in the form and click Save Configuration.',
+          message: translate(locale, 'errWhatsapp.noConfigSavedYet'),
         },
         { status: 200 }
       )
@@ -69,8 +74,7 @@ export async function GET() {
           connected: false,
           reason: 'token_corrupted',
           needs_reset: true,
-          message:
-            'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. This usually means the key changed, or it differs between environments (local vs Hostinger vs Vercel). Click "Reset Configuration" below, then re-save.',
+          message: translate(locale, 'errWhatsapp.tokenCorrupted'),
         },
         { status: 200 }
       )
@@ -98,7 +102,11 @@ export async function GET() {
   } catch (error) {
     console.error('Error in WhatsApp config GET:', error)
     return NextResponse.json(
-      { connected: false, reason: 'unknown', message: 'Internal server error' },
+      {
+        connected: false,
+        reason: 'unknown',
+        message: translate(locale, 'errWhatsapp.internalServerError'),
+      },
       { status: 500 }
     )
   }
@@ -137,7 +145,7 @@ export async function POST(request: Request) {
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        { error: translate(locale, 'errWhatsapp.accessTokenAndPhoneRequired') },
         { status: 400 }
       )
     }
@@ -168,10 +176,7 @@ export async function POST(request: Request) {
       const message = err instanceof Error ? err.message : 'Unknown encryption error'
       console.error('Encryption failed:', message)
       return NextResponse.json(
-        {
-          error:
-            'Failed to encrypt token. Check that ENCRYPTION_KEY is a valid 64-character hex string in your environment variables.',
-        },
+        { error: translate(locale, 'errWhatsapp.encryptTokenFailed') },
         { status: 500 }
       )
     }
@@ -200,7 +205,7 @@ export async function POST(request: Request) {
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)
         return NextResponse.json(
-          { error: 'Failed to update configuration' },
+          { error: translate(locale, 'errWhatsapp.updateConfigFailed') },
           { status: 500 }
         )
       }
@@ -220,7 +225,7 @@ export async function POST(request: Request) {
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
         return NextResponse.json(
-          { error: 'Failed to save configuration' },
+          { error: translate(locale, 'errWhatsapp.saveConfigFailed') },
           { status: 500 }
         )
       }
@@ -229,7 +234,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, phone_info: phoneInfo })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: translate(locale, 'errWhatsapp.internalServerError') },
+      { status: 500 }
+    )
   }
 }
 
@@ -243,6 +251,7 @@ export async function POST(request: Request) {
 export async function DELETE(req: Request) {
   const block = await csrfGuard(req)
   if (block) return block
+  const locale = await getLocale()
   try {
     const supabase = await createClient()
 
@@ -263,7 +272,7 @@ export async function DELETE(req: Request) {
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)
       return NextResponse.json(
-        { error: 'Failed to delete configuration' },
+        { error: translate(locale, 'errWhatsapp.deleteConfigFailed') },
         { status: 500 }
       )
     }
@@ -271,6 +280,9 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error in WhatsApp config DELETE:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: translate(locale, 'errWhatsapp.internalServerError') },
+      { status: 500 }
+    )
   }
 }
