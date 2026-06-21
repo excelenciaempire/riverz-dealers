@@ -7,6 +7,7 @@ import { firecrawlScrape } from '@/lib/firecrawl/client';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { aiLangLabel, aiLangDirective } from '@/lib/i18n/ai-language';
 
 /**
  * POST /api/products/[id]/ai-research
@@ -120,16 +121,23 @@ export async function POST(
     .filter(Boolean)
     .join('\n');
 
+  // El contenido generado (descripción, FAQs, research…) debe salir en el
+  // idioma del merchant (su locale de UI), no siempre en español: un
+  // merchant de habla inglesa debe recibir su material en inglés.
+  const outLang = aiLangLabel(locale);
+
   const userPrompt = `Eres un asistente de servicio al cliente experto en e-commerce. Necesito que generes material de soporte para que otro asistente pueda responder dudas de clientes sobre este producto en WhatsApp.
+
+${aiLangDirective(locale)}
 
 PRODUCTO:
 ${productContext}
 
 Devuélveme un JSON con esta forma exacta (sin markdown, sin texto adicional):
 {
-  "description": "descripción de venta clara de 2 a 4 frases: qué es, para qué sirve y su beneficio principal, en español neutro sin voseo.",
+  "description": "descripción de venta clara de 2 a 4 frases: qué es, para qué sirve y su beneficio principal, en ${outLang}.",
   "faqs": [
-    {"q": "pregunta concisa que un cliente real haría", "a": "respuesta breve, máximo 3 líneas, en español neutro sin voseo"},
+    {"q": "pregunta concisa que un cliente real haría", "a": "respuesta breve, máximo 3 líneas, en ${outLang}"},
     ...
   ],
   "research": "un párrafo de máximo 4 oraciones que un asistente de WhatsApp debería tener en mente al hablar de este producto: para quién es, cuándo se compra típicamente, qué diferencia tiene vs alternativas, qué objeciones suelen aparecer.",
@@ -260,13 +268,16 @@ Genera entre 5 y 10 FAQs. Cubre temas típicos del producto: ingredientes/compon
 
     // training_material con la descripción final (la generada si la rellenamos)
     // y el contenido scrapeado, para que el runner lo inyecte completo.
-    update.training_material = buildTrainingMaterial({
-      ...product,
-      description: (update.description as string | undefined) ?? product.description,
-      scraped_content: scrapedContent,
-      ai_generated_faqs: faqs,
-      ai_research: research,
-    });
+    update.training_material = buildTrainingMaterial(
+      {
+        ...product,
+        description: (update.description as string | undefined) ?? product.description,
+        scraped_content: scrapedContent,
+        ai_generated_faqs: faqs,
+        ai_research: research,
+      },
+      locale,
+    );
 
     await supabase.from('shopify_products').update(update).eq('id', id);
 

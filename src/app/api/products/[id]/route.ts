@@ -232,7 +232,7 @@ export async function PATCH(
   }
 
   const merged = { ...current, ...patch };
-  const training = buildTrainingMaterial(merged);
+  const training = buildTrainingMaterial(merged, locale);
 
   const { data: updated, error } = await supabase
     .from('shopify_products')

@@ -135,7 +135,10 @@ export async function POST(request: Request) {
     persona: body.persona ?? '',
     knowledge: body.knowledge ?? null,
     knowledge_url: body.knowledge_url ?? null,
-    language: body.language ?? 'es',
+    // Default the agent's language to the merchant's UI locale (es/en) so a
+    // new English merchant gets an English-speaking agent end to end —
+    // runtime replies, generated persona and auto-filled copy all follow it.
+    language: body.language ?? locale,
     tone: body.tone ?? 'friendly',
     max_response_chars: body.max_response_chars ?? 500,
     reply_delay_seconds: body.reply_delay_seconds ?? 0,

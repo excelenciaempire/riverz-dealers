@@ -134,21 +134,34 @@ async function scrapeSite(url: string, locale: Locale): Promise<string> {
   return aggregateMarkdown(pages);
 }
 
-const META_SYSTEM = [
-  'You are an expert at writing AI customer service agent configurations.',
-  'Given the brand website content, produce a JSON config that captures their tone, products, brand voice and rules.',
-  'The agent will be the brand primary voice on WhatsApp.',
-  'RULES (hard, no exceptions):',
-  '- No em-dashes (—). Use commas or periods.',
-  '- No hashtags.',
-  '- No decorative emojis.',
-  '- One question per turn.',
-  '- Never admit to being AI.',
-  '- Argentine Spanish, neutral rioplatense, no voseo agresivo.',
-  '- Direct and warm.',
-].join('\n');
+// El nombre y la persona se generan en el idioma del merchant (su locale de
+// UI): un merchant de habla inglesa recibe un agente en inglés. NO se infiere
+// del idioma de la web (esa lógica generaba español aunque el merchant
+// trabajara en inglés). Nota: se quitó el "Argentine Spanish / voseo" — el
+// proyecto usa español NEUTRO sin voseo.
+function personaLangLabel(locale: Locale): string {
+  return locale === 'en' ? 'natural English (en-US)' : 'español neutro (sin voseo)';
+}
 
-const META_USER_TEMPLATE = (knowledge: string, url: string) => `Aquí está el contenido scrapeado de la web de la marca (${url}):
+function metaSystem(locale: Locale): string {
+  return [
+    'You are an expert at writing AI customer service agent configurations.',
+    'Given the brand website content, produce a JSON config that captures their tone, products, brand voice and rules.',
+    'The agent will be the brand primary voice on WhatsApp.',
+    'RULES (hard, no exceptions):',
+    '- No em-dashes (—). Use commas or periods.',
+    '- No hashtags.',
+    '- No decorative emojis.',
+    '- One question per turn.',
+    '- Never admit to being AI.',
+    `- Write the name and persona in ${personaLangLabel(locale)}, regardless of the website language.`,
+    '- Direct and warm.',
+  ].join('\n');
+}
+
+const metaUser = (knowledge: string, url: string, locale: Locale) => {
+  const langLabel = personaLangLabel(locale);
+  return `Aquí está el contenido scrapeado de la web de la marca (${url}):
 
 <contenido>
 ${knowledge.slice(0, 24_000)}
@@ -157,17 +170,18 @@ ${knowledge.slice(0, 24_000)}
 Devolvé ÚNICAMENTE un objeto JSON con esta forma exacta, sin texto antes ni después, sin bloques de código:
 
 {
-  "name": "string — nombre corto del agente, tipo 'Pili' o 'Asistente <Marca>'",
-  "persona": "string entre 700 y 1200 caracteres — system prompt operativo, instruye al agente sobre tono, cuándo hacer preguntas, qué nunca hacer, cuándo escalar a humano. Argentine Spanish neutral rioplatense, sin em-dashes, sin hashtags, sin emojis decorativos, una pregunta por turno, directo, nunca admite ser IA.",
+  "name": "string — nombre corto del agente, tipo 'Pili' o 'Asistente <Marca>'. Escríbelo en ${langLabel}.",
+  "persona": "string entre 700 y 1200 caracteres — system prompt operativo, instruye al agente sobre tono, cuándo hacer preguntas, qué nunca hacer, cuándo escalar a humano. Escríbelo en ${langLabel}, sin em-dashes, sin hashtags, sin emojis decorativos, una pregunta por turno, directo, nunca admite ser IA.",
   "tone": "friendly | formal | casual | concise",
   "response_mode": "single | multi | dynamic — preferí dynamic para chat conversacional",
   "inbound_debounce_seconds": 15,
-  "language": "es"
+  "language": "${locale}"
 }
 
-Si la web está en otro idioma, ajustá language y persona pero NUNCA inventes productos o políticas que no estén en el contenido.`;
+Escribe el name y la persona SIEMPRE en ${langLabel}, sin importar el idioma de la web. NUNCA inventes productos o políticas que no estén en el contenido.`;
+};
 
-function safeParseConfig(text: string): AgentConfigSuggestion | null {
+function safeParseConfig(text: string, locale: Locale): AgentConfigSuggestion | null {
   // Strip fenced code blocks the model may add despite instructions.
   let cleaned = text.trim();
   if (cleaned.startsWith('```')) {
@@ -196,28 +210,47 @@ function safeParseConfig(text: string): AgentConfigSuggestion | null {
       inbound_debounce_seconds: Number.isFinite(debounce)
         ? Math.max(0, Math.min(60, debounce))
         : 15,
-      language: String(parsed.language || 'es'),
+      // El agente habla en el idioma del merchant (lo pedimos así en el
+      // prompt); forzamos el locale para que language y persona no se
+      // desincronicen aunque el modelo devuelva otro valor.
+      language: locale,
     };
   } catch {
     return null;
   }
 }
 
-function fallbackConfig(url: string): AgentConfigSuggestion {
-  let host = 'la marca';
+function fallbackConfig(url: string, locale: Locale): AgentConfigSuggestion {
+  let host = locale === 'en' ? 'the brand' : 'la marca';
   try {
     host = new URL(url).hostname.replace(/^www\./, '');
   } catch {
     /* keep default */
   }
+  if (locale === 'en') {
+    return {
+      name: 'Assistant',
+      persona: [
+        `You are the voice of ${host} on WhatsApp. You help customers warmly, get to the point, and never admit to being an automated system.`,
+        'You reply in natural English, no em-dashes, no hashtags, no decorative emojis. One question per turn.',
+        'If the customer asks about a product, first confirm which one, then share price or stock. If they ask about shipping, ask for their city before quoting.',
+        'If the customer is upset, wants a refund, mentions "talk to a human", or the topic is out of your scope, escalate to a human agent without arguing.',
+        'Do not invent prices, promos or policies that are not in the context. If you do not know something, say so and offer to pass it to a human.',
+      ].join('\n\n'),
+      tone: 'friendly',
+      response_mode: 'dynamic',
+      inbound_debounce_seconds: 15,
+      language: 'en',
+    };
+  }
   return {
     name: 'Asistente',
     persona: [
-      `Sos la voz de ${host} en WhatsApp. Atendés clientes con calidez, vas al grano y nunca admitís ser un sistema automático.`,
-      'Respondés en español neutro, sin em-dashes, sin hashtags, sin emojis decorativos. Una pregunta por turno.',
-      'Si el cliente pregunta por un producto, primero confirmá cuál es y después pasás precio o stock. Si pregunta por envíos, pedí ciudad antes de cotizar.',
-      'Si el cliente está molesto, querés un reembolso, mencionás "hablar con un humano" o el tema sale de tu alcance, escalá a un agente humano sin discutir.',
-      'No inventes precios, promociones ni políticas que no estén en el contexto. Si no sabés algo, decilo y ofrecé pasarlo a un humano.',
+      `Eres la voz de ${host} en WhatsApp. Atiendes a los clientes con calidez, vas al grano y nunca admites ser un sistema automático.`,
+      'Respondes en español neutro, sin em-dashes, sin hashtags, sin emojis decorativos. Una pregunta por turno.',
+      'Si el cliente pregunta por un producto, primero confirma cuál es y después pasas precio o stock. Si pregunta por envíos, pide la ciudad antes de cotizar.',
+      'Si el cliente está molesto, quiere un reembolso, menciona "hablar con un humano" o el tema sale de tu alcance, escala a un agente humano sin discutir.',
+      'No inventes precios, promociones ni políticas que no estén en el contexto. Si no sabes algo, dilo y ofrece pasarlo a un humano.',
     ].join('\n\n'),
     tone: 'friendly',
     response_mode: 'dynamic',
@@ -289,23 +322,23 @@ export async function POST(request: Request) {
 
   // 2) Generate config with Claude (fallback if no knowledge or AI fails)
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  let config: AgentConfigSuggestion = fallbackConfig(parsed.toString());
+  let config: AgentConfigSuggestion = fallbackConfig(parsed.toString(), locale);
   if (anthropicKey && knowledge.trim().length > 200) {
     try {
       const client = getAnthropic(anthropicKey);
       const completion = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2000,
-        system: META_SYSTEM,
+        system: metaSystem(locale),
         messages: [
-          { role: 'user', content: META_USER_TEMPLATE(knowledge, parsed.toString()) },
+          { role: 'user', content: metaUser(knowledge, parsed.toString(), locale) },
         ],
       });
       const text = completion.content
         .map((c) => ('type' in c && c.type === 'text' ? c.text : ''))
         .join('')
         .trim();
-      const parsedCfg = safeParseConfig(text);
+      const parsedCfg = safeParseConfig(text, locale);
       if (parsedCfg) config = parsedCfg;
     } catch (err) {
       console.warn('[generate-from-url] Claude meta-prompt failed:', err);

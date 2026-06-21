@@ -41,7 +41,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
+import { useT, useLocale } from '@/hooks/use-locale';
 import type { TFn } from '@/lib/i18n/translate';
 import type {
   AiAgent,
@@ -68,8 +68,25 @@ const TONES: { value: AiTone; label: string; hint: string }[] = [
 // queremos exponerlo, vuelve a ser una constante con varios valores.
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
-const DEFAULT_PERSONA =
-  'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.';
+// El persona por defecto sigue el idioma del merchant (su locale de UI): un
+// merchant de habla inglesa arranca con un persona en inglés. Guardamos ambas
+// variantes para reconocer "el persona sigue siendo el default" sin importar
+// el idioma con que se sembró (ver isDefaultPersona).
+const DEFAULT_PERSONAS: Record<'es' | 'en', string> = {
+  es: 'Eres un asistente de atención al cliente. Respondes con calidez y vas directo al grano.',
+  en: 'You are a customer-support assistant. You reply warmly and get straight to the point.',
+};
+
+function defaultPersona(locale: string): string {
+  return DEFAULT_PERSONAS[locale === 'en' ? 'en' : 'es'];
+}
+
+/** True if the persona is still an untouched default (any locale) or empty —
+ *  i.e. safe to overwrite when the merchant picks a product. */
+function isDefaultPersona(persona: string): boolean {
+  const s = persona.trim();
+  return s === '' || s === DEFAULT_PERSONAS.es || s === DEFAULT_PERSONAS.en;
+}
 
 const CHANNELS: { value: Channel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '/channels/whatsapp.svg' },
@@ -214,6 +231,7 @@ export function AgentEditor({
   onSaved,
 }: AgentEditorProps) {
   const t = useT();
+  const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const router = useLocalizedRouter();
   // Persistimos el id del agente "en edición" en estado local porque
@@ -232,9 +250,11 @@ export function AgentEditor({
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
-  const [persona, setPersona] = useState(agent?.persona ?? DEFAULT_PERSONA);
+  const [persona, setPersona] = useState(agent?.persona ?? defaultPersona(locale));
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
-  const [language, setLanguage] = useState(agent?.language ?? 'es');
+  // New agents default to the merchant's UI language; existing agents keep
+  // whatever was saved.
+  const [language, setLanguage] = useState(agent?.language ?? locale);
   const [tone, setTone] = useState<AiTone>(agent?.tone ?? 'friendly');
   // max_response_chars y reply_delay_seconds dejan de ser editables
   // desde la UI: el primero se controla con la instrucción del persona
@@ -401,9 +421,7 @@ export function AgentEditor({
     // cliente ideal + beneficios + objeciones si hay investigación). Solo
     // pisa el persona por defecto / vacío, nunca lo que el usuario escribió.
     setPersona((cur) =>
-      cur.trim() === '' || cur.trim() === DEFAULT_PERSONA
-        ? buildPersonaFromProduct(p)
-        : cur,
+      isDefaultPersona(cur) ? buildPersonaFromProduct(p, locale) : cur,
     );
     // "Información del negocio": SIEMPRE queda rellena al elegir el producto
     // (si está vacía) — con el resumen del producto cuando hay investigación,
@@ -1682,32 +1700,49 @@ function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
  * System prompt (persona) armado a partir del producto. Base = asesor de
  * ventas del producto; si el producto ya tiene investigación, inyecta el
  * cliente ideal, los beneficios y las objeciones para que el prompt salga
- * afinado desde el primer momento. El persona NO se traduce (sigue el idioma
- * del agente como el resto de prompts), por eso queda en español.
+ * afinado desde el primer momento. Sigue el idioma del merchant (locale): un
+ * merchant de habla inglesa obtiene la persona en inglés. Los valores de
+ * investigación (audience/benefits/objections) ya se generan en ese idioma.
  */
-function buildPersonaFromProduct(p: ProductDetail): string {
+function buildPersonaFromProduct(p: ProductDetail, locale: string): string {
   const arr = (v: unknown): string[] =>
     Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
   const sr =
     p.structured_research && typeof p.structured_research === 'object'
       ? (p.structured_research as Record<string, unknown>)
       : null;
+  const en = locale === 'en';
   const lines: string[] = [
-    `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
-      `con calidez: resuelves dudas con la información del producto, manejas ` +
-      `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
-      `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`,
+    en
+      ? `You are an expert sales advisor for ${p.title}. You help customers warmly over ` +
+        `WhatsApp: answer questions with the product info, handle objections honestly, and ` +
+        `guide them to purchase (or repurchase) without pushing. One question per turn, ` +
+        `short messages. Never admit to being an AI.`
+      : `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
+        `con calidez: resuelves dudas con la información del producto, manejas ` +
+        `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
+        `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`,
   ];
   if (sr) {
     const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
-    if (audience) lines.push(`Tu cliente típico: ${audience}.`);
+    if (audience) {
+      lines.push(en ? `Your typical customer: ${audience}.` : `Tu cliente típico: ${audience}.`);
+    }
     const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
     if (benefits.length) {
-      lines.push(`Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`);
+      lines.push(
+        en
+          ? `Lean on these benefits to convince: ${benefits.join('; ')}.`
+          : `Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`,
+      );
     }
     const objections = arr(sr.objections).slice(0, 4);
     if (objections.length) {
-      lines.push(`Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`);
+      lines.push(
+        en
+          ? `Handle these common objections tactfully: ${objections.join('; ')}.`
+          : `Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`,
+      );
     }
   }
   return lines.join(' ');

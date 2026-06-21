@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
+import type { Locale } from "@/lib/i18n/config";
 import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
@@ -103,7 +104,7 @@ export async function POST(
 
   // ── Llamada a Claude con tool-use forzado ──
   const client = getAnthropic(apiKey);
-  const system = buildSystemPrompt(body.flow_snapshot, body.products ?? []);
+  const system = buildSystemPrompt(body.flow_snapshot, body.products ?? [], locale);
 
   const historyTurns = (body.history ?? []).slice(-10);
   const messages: Anthropic.MessageParam[] = [
@@ -197,13 +198,19 @@ export async function POST(
 
 /**
  * System prompt — describe el modelo del lienzo, las herramientas,
- * y le pasa el snapshot del flujo actual. Hablamos en español neutro
- * (sin voseo) porque el usuario va a interactuar en español.
+ * y le pasa el snapshot del flujo actual. El idioma de la respuesta Y del
+ * contenido generado para los nodos sigue el locale del merchant: un
+ * merchant de habla inglesa obtiene chat y mensajes de flujo en inglés.
  */
 function buildSystemPrompt(
   snapshot: AssistRequestBody["flow_snapshot"],
   products: Array<{ title: string; handle: string }>,
+  locale: Locale,
 ): string {
+  const langLabel =
+    locale === "en"
+      ? 'natural English (en-US)'
+      : 'español neutro, sin voseo (usa "tú" o impersonal)';
   const productsBlock =
     products.length > 0
       ? `\nProductos sincronizados del merchant (úsalos cuando el usuario te pida links a productos específicos):\n${products
@@ -213,10 +220,13 @@ function buildSystemPrompt(
       : "\nEl merchant todavía no tiene productos sincronizados desde Shopify. Si el usuario pide links de productos, sugiérele agregarlos primero en /productos.\n";
 
   return `Eres una IA asistente embebida en el editor de flujos de WhatsApp de Riverz.
-El usuario te habla en lenguaje natural en español y tú editas el flujo aplicando "patches" estructurados con la herramienta \`${ASSIST_TOOL_NAME}\`.
+El usuario te habla en lenguaje natural y tú editas el flujo aplicando "patches" estructurados con la herramienta \`${ASSIST_TOOL_NAME}\`.
+
+Idioma (OBLIGATORIO):
+- Escribe tu \`reply\` en ${langLabel}.
+- TODO el contenido que generes para los nodos del flujo (textos de mensajes, títulos de botones, filas de listas, prompts de captura, intents, etc.) DEBE estar en ${langLabel}. Estos mensajes los lee el cliente final del merchant.
 
 Estilo de respuesta:
-- Español neutro, sin voseo (usa "tú" o impersonal).
 - Sin guiones largos (—) ni encabezados markdown (##).
 - Frases cortas y al grano. Nada que suene a script generado.
 
