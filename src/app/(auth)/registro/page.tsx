@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "@/components/i18n/locale-link";
 import { useSearchParams } from "next/navigation";
 import { useT } from "@/hooks/use-locale";
+import { LEGAL_VERSION } from "@/lib/legal/version";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,8 @@ function SignupForm() {
         email,
         password,
         full_name: fullName,
+        accept_terms: accepted,
+        terms_version: LEGAL_VERSION,
         redirect_to: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       }),
     });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/channels/admin-client";
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -7,6 +8,7 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { safeRedirectTo } from "@/lib/auth/redirect";
+import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -37,12 +39,26 @@ export async function POST(req: Request) {
         email?: string;
         password?: string;
         full_name?: string;
+        accept_terms?: boolean;
+        terms_version?: string;
         redirect_to?: string;
       }
     | null;
   const email = body?.email?.trim().toLowerCase();
   const password = body?.password;
   const fullName = body?.full_name?.trim() ?? "";
+
+  // Compliance gate: an account cannot be created without an explicit,
+  // affirmative acceptance of the Terms & Privacy Policy. This is
+  // independent of whether the email exists, so a hard 400 here leaks
+  // nothing (preserves the anti-enumeration design below).
+  if (body?.accept_terms !== true) {
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.mustAcceptTerms") },
+      { status: 400 },
+    );
+  }
+
   if (!email || !password) {
     return NextResponse.json(genericOk);
   }
@@ -81,6 +97,19 @@ export async function POST(req: Request) {
   if (isCollision) {
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
+    });
+  } else if (data?.user?.id) {
+    // Genuine new account: persist the clickwrap consent (append-only
+    // audit row + profile mirror) so we hold proof of who accepted
+    // which version, when, and from where. Best-effort: a logging
+    // failure must not blow up account creation.
+    await recordLegalConsent({
+      admin: supabaseAdmin(),
+      userId: data.user.id,
+      email,
+      version: body?.terms_version,
+      context: "signup",
+      req,
     });
   }
   return NextResponse.json(genericOk);

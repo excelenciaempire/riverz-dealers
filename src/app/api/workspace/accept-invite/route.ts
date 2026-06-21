@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { getLogger } from "@/lib/log/logger";
+import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -40,10 +41,23 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const body = (await req.json().catch(() => null)) as { token?: string } | null;
+  const body = (await req.json().catch(() => null)) as
+    | { token?: string; accept_terms?: boolean; terms_version?: string }
+    | null;
   if (!body?.token) {
     return NextResponse.json(
       { error: translate(locale, "errAccount.tokenRequired") },
+      { status: 400 },
+    );
+  }
+
+  // Compliance gate: an admin-created user reaches this screen already
+  // signed in (the invite magic-link logs them in), so this checkbox is
+  // the only point at which they accept the Terms & Privacy Policy.
+  // Require explicit acceptance before granting workspace access.
+  if (body.accept_terms !== true) {
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.mustAcceptTerms") },
       { status: 400 },
     );
   }
@@ -143,6 +157,17 @@ export async function POST(req: Request): Promise<Response> {
     .from("workspace_invites")
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", invite.id);
+
+  // Record the clickwrap consent for this user (append-only audit row +
+  // profile mirror). Best-effort: never blocks joining the workspace.
+  await recordLegalConsent({
+    admin,
+    userId: user.id,
+    email: userEmail,
+    version: body.terms_version,
+    context: "invite",
+    req,
+  });
 
   log.info("invite accepted", {
     invite_id: invite.id,

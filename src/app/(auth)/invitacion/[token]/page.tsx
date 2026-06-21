@@ -5,6 +5,7 @@ import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import Link from "@/components/i18n/locale-link";
 import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
+import { LEGAL_VERSION } from "@/lib/legal/version";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
   const [workspaceName, setWorkspaceName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [accepting, setAccepting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -72,6 +74,10 @@ export default function AcceptInvitePage({ params }: PageProps) {
   }, [token, router, t]);
 
   const accept = async () => {
+    if (!accepted) {
+      toast.error(t("auth.mustAcceptTerms"));
+      return;
+    }
     setAccepting(true);
     // Seed the csrf cookie before the POST — this page lives outside the
     // dashboard CsrfProvider, so we ask the server for a token inline,
@@ -90,7 +96,11 @@ export default function AcceptInvitePage({ params }: PageProps) {
         "content-type": "application/json",
         ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
       },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({
+        token,
+        accept_terms: accepted,
+        terms_version: LEGAL_VERSION,
+      }),
     });
     setAccepting(false);
     if (!res.ok) {
@@ -125,10 +135,42 @@ export default function AcceptInvitePage({ params }: PageProps) {
                 {t("auth.inviteForPrefix")} <span className="text-foreground">{inviteEmail}</span>.
               </p>
             )}
+            <label
+              htmlFor="accept-terms"
+              className="flex items-start gap-2.5 text-left text-sm text-muted-foreground"
+            >
+              <input
+                id="accept-terms"
+                type="checkbox"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                required
+                className="mt-0.5 h-5 w-5 md:h-4 md:w-4 shrink-0 rounded border-border accent-primary"
+              />
+              <span>
+                {t("auth.acceptPrefix")}{" "}
+                <Link
+                  href="/terminos"
+                  target="_blank"
+                  className="text-accent-ink hover:text-accent-ink/80"
+                >
+                  {t("auth.termsLink")}
+                </Link>{" "}
+                {t("auth.acceptAnd")}{" "}
+                <Link
+                  href="/privacidad"
+                  target="_blank"
+                  className="text-accent-ink hover:text-accent-ink/80"
+                >
+                  {t("auth.privacyLink")}
+                </Link>
+                .
+              </span>
+            </label>
             <Button
               onClick={accept}
-              disabled={accepting}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={accepting || !accepted}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {accepting ? <Loader2 className="size-4 animate-spin" /> : t("auth.acceptInvite")}
             </Button>

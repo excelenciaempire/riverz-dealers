@@ -49,6 +49,10 @@ export const errAccount = {
     es: "Verifica tu correo antes de aceptar la invitación. Revisa tu bandeja de entrada.",
     en: "Verify your email before accepting the invitation. Check your inbox.",
   },
+  mustAcceptTerms: {
+    es: "Debes aceptar los Términos y condiciones y la Política de privacidad para continuar.",
+    en: "You must accept the Terms and Conditions and the Privacy Policy to continue.",
+  },
   invitedAddressFallback: {
     es: "la dirección invitada",
     en: "the invited address",
