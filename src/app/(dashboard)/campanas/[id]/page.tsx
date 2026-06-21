@@ -352,7 +352,7 @@ export default function BroadcastDetailPage() {
                   status.classes,
                 )}
               >
-                {status.label}
+                {t(status.labelKey)}
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -524,7 +524,7 @@ export default function BroadcastDetailPage() {
                 <Filter className="size-3.5" />
                 {statusFilter === 'all'
                   ? t('broadcasts.all')
-                  : getRecipientStatus(statusFilter).label}
+                  : t(getRecipientStatus(statusFilter).labelKey)}
                 <ChevronDown className="size-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="border-border bg-card">
@@ -542,7 +542,7 @@ export default function BroadcastDetailPage() {
                     onClick={() => setStatusFilter(s)}
                     className="text-foreground"
                   >
-                    {getRecipientStatus(s).label}
+                    {t(getRecipientStatus(s).labelKey)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -620,7 +620,7 @@ export default function BroadcastDetailPage() {
                             rStatus.classes,
                           )}
                         >
-                          {rStatus.label}
+                          {t(rStatus.labelKey)}
                         </span>
                       </TableCell>
                       <TableCell className="hidden text-sm text-muted-foreground md:table-cell">

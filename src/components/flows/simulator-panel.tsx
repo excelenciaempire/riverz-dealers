@@ -277,7 +277,7 @@ export function SimulatorPanel({
           const subjectVal =
             c.subject === "var"
               ? next.vars[c.subject_key ?? ""] ?? ""
-              : "(no evaluable en sim)";
+              : t("flows.simNotEvaluable");
           let result = false;
           if (c.operator === "equals") result = subjectVal === (c.value ?? "");
           else if (c.operator === "contains")

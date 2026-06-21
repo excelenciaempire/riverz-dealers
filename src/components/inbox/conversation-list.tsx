@@ -26,11 +26,11 @@ import {
 import { toast } from "sonner";
 import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
-import { es } from "date-fns/locale";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { normalize } from "@/lib/text/normalize";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
+import { dateFnsLocale } from "@/lib/i18n/format";
 import type { TFn } from "@/lib/i18n/translate";
 import { Input } from "@/components/ui/input";
 import {
@@ -516,6 +516,8 @@ const ConversationItem = memo(function ConversationItem({
 }: ConversationItemProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
+  const { locale } = useLocale();
+  const dfLocale = dateFnsLocale(locale);
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = useCallback(
@@ -566,10 +568,10 @@ const ConversationItem = memo(function ConversationItem({
     if (isToday(zoned)) return formatInTimeZone(utc, tz, "HH:mm");
     if (isYesterday(zoned)) return t("inbox.yesterday");
     if (isThisWeek(zoned, { weekStartsOn: 1 }))
-      return formatInTimeZone(utc, tz, "EEE", { locale: es });
+      return formatInTimeZone(utc, tz, "EEE", { locale: dfLocale });
     if (isThisYear(zoned))
-      return formatInTimeZone(utc, tz, "d MMM", { locale: es });
-    return formatInTimeZone(utc, tz, "d MMM yy", { locale: es });
+      return formatInTimeZone(utc, tz, "d MMM", { locale: dfLocale });
+    return formatInTimeZone(utc, tz, "d MMM yy", { locale: dfLocale });
   })();
 
   return (

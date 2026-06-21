@@ -9,8 +9,14 @@
  *
  * Cada issue tiene `field` (qué campo del wizard apuntar), `severity`
  * (error bloquea el submit, warning solo avisa), `message` (texto al
- * grano en español neutro) y `code` (para tracking).
+ * grano, ya localizado) y `code` (para tracking).
+ *
+ * El validador recibe la función `t` (i18n) y resuelve cada mensaje en
+ * el idioma activo. Es react-free, así que el llamador (TemplateBuilder)
+ * le pasa su `t` de `useT()`.
  */
+
+import type { TFn } from '@/lib/i18n/translate';
 
 export type TemplateIssueSeverity = 'error' | 'warning';
 
@@ -56,21 +62,14 @@ const MAX_BUTTONS = 10;
 const MAX_QUICK_REPLY = 3;
 const MAX_URL_BUTTONS = 2;
 const MAX_PHONE_BUTTONS = 1;
-// Patrones que Meta rechaza típicamente.
-const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
-  {
-    pattern: /\$\$+|!!+|\?\?+/,
-    message:
-      'Evita signos repetidos (??, !!, $$). Meta los rechaza por considerarlos spam.',
-  },
-  {
-    pattern: /[A-ZÁÉÍÓÚÑ]{6,}/u,
-    message:
-      'Evita palabras en mayúsculas largas. Meta lo lee como grito y suele rechazar.',
-  },
+// Patrones que Meta rechaza típicamente. Cada uno lleva su `code` y el
+// mensaje se resuelve vía i18n en el call site.
+const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; code: string }> = [
+  { pattern: /\$\$+|!!+|\?\?+/, code: 'body_pattern_repeated' },
+  { pattern: /[A-ZÁÉÍÓÚÑ]{6,}/u, code: 'body_pattern_caps' },
 ];
 
-export function validateTemplate(input: TemplateInput): TemplateIssue[] {
+export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] {
   const issues: TemplateIssue[] = [];
 
   // Nombre
@@ -79,7 +78,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'name',
       severity: 'error',
       code: 'name_required',
-      message: 'Escribe un nombre para la plantilla.',
+      message: t('templates.tplValidate_name_required'),
     });
   } else {
     if (input.name.length > MAX_NAME) {
@@ -87,7 +86,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'name',
         severity: 'error',
         code: 'name_too_long',
-        message: `El nombre pasa de ${MAX_NAME} caracteres.`,
+        message: t('templates.tplValidate_name_too_long', { max: MAX_NAME }),
       });
     }
     if (!NAME_REGEX.test(input.name)) {
@@ -95,8 +94,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'name',
         severity: 'error',
         code: 'name_format',
-        message:
-          'El nombre solo admite letras minúsculas, números y guion bajo (ej: confirmacion_pedido).',
+        message: t('templates.tplValidate_name_format'),
       });
     }
   }
@@ -107,7 +105,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'language',
       severity: 'error',
       code: 'language_required',
-      message: 'Elige el idioma de la plantilla.',
+      message: t('templates.tplValidate_language_required'),
     });
   }
 
@@ -118,14 +116,17 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'header',
         severity: 'error',
         code: 'header_empty',
-        message: 'El encabezado de texto está vacío.',
+        message: t('templates.tplValidate_header_empty'),
       });
     } else if (input.headerText.length > MAX_HEADER) {
       issues.push({
         field: 'header',
         severity: 'error',
         code: 'header_too_long',
-        message: `El encabezado pasa de ${MAX_HEADER} caracteres (${input.headerText.length} actuales).`,
+        message: t('templates.tplValidate_header_too_long', {
+          max: MAX_HEADER,
+          len: input.headerText.length,
+        }),
       });
     }
     // Solo se permite una variable en el header.
@@ -135,7 +136,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'header',
         severity: 'error',
         code: 'header_too_many_vars',
-        message: 'El encabezado solo puede tener una variable.',
+        message: t('templates.tplValidate_header_too_many_vars'),
       });
     }
   }
@@ -146,7 +147,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'body',
       severity: 'error',
       code: 'body_required',
-      message: 'Escribe el texto del cuerpo de la plantilla.',
+      message: t('templates.tplValidate_body_required'),
     });
   } else {
     if (input.bodyText.length > MAX_BODY) {
@@ -154,7 +155,10 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'body',
         severity: 'error',
         code: 'body_too_long',
-        message: `El cuerpo pasa de ${MAX_BODY} caracteres (${input.bodyText.length} actuales).`,
+        message: t('templates.tplValidate_body_too_long', {
+          max: MAX_BODY,
+          len: input.bodyText.length,
+        }),
       });
     }
     const bodyVars = countVars(input.bodyText);
@@ -168,7 +172,9 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
           field: 'body',
           severity: 'warning',
           code: 'body_samples_missing',
-          message: `Falta un valor de ejemplo para {{${missing.join('}}, {{')}}}. Meta lo necesita para aprobar la plantilla.`,
+          message: t('templates.tplValidate_body_samples_missing', {
+            vars: `{{${missing.join('}}, {{')}}}`,
+          }),
         });
       }
     }
@@ -178,7 +184,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'body',
         severity: 'error',
         code: 'body_whitespace',
-        message: 'El cuerpo no puede empezar ni terminar con espacios o saltos de línea.',
+        message: t('templates.tplValidate_body_whitespace'),
       });
     }
     // Meta rechaza plantillas cuyo cuerpo empieza o termina con una
@@ -191,8 +197,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'body',
         severity: 'error',
         code: 'body_var_at_edge',
-        message:
-          'El cuerpo no puede empezar ni terminar con una variable. Agrega texto antes o después de {{1}}.',
+        message: t('templates.tplValidate_body_var_at_edge'),
       });
     }
     // Patrones spam.
@@ -201,8 +206,8 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         issues.push({
           field: 'body',
           severity: 'warning',
-          code: 'body_pattern',
-          message: f.message,
+          code: f.code,
+          message: t(`templates.tplValidate_${f.code}`),
         });
         break;
       }
@@ -216,7 +221,10 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'footer',
         severity: 'error',
         code: 'footer_too_long',
-        message: `El pie pasa de ${MAX_FOOTER} caracteres (${input.footerText.length} actuales).`,
+        message: t('templates.tplValidate_footer_too_long', {
+          max: MAX_FOOTER,
+          len: input.footerText.length,
+        }),
       });
     }
     if (countVars(input.footerText) > 0) {
@@ -224,7 +232,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: 'footer',
         severity: 'error',
         code: 'footer_no_vars',
-        message: 'El pie de página no admite variables.',
+        message: t('templates.tplValidate_footer_no_vars'),
       });
     }
   }
@@ -235,7 +243,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'error',
       code: 'too_many_buttons',
-      message: `Meta acepta hasta ${MAX_BUTTONS} botones por plantilla.`,
+      message: t('templates.tplValidate_too_many_buttons', { max: MAX_BUTTONS }),
     });
   }
   const replyCount = input.buttons.filter((b) => b.type === 'QUICK_REPLY').length;
@@ -246,7 +254,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'error',
       code: 'too_many_reply',
-      message: `Hasta ${MAX_QUICK_REPLY} botones de respuesta rápida.`,
+      message: t('templates.tplValidate_too_many_reply', { max: MAX_QUICK_REPLY }),
     });
   }
   if (urlCount > MAX_URL_BUTTONS) {
@@ -254,7 +262,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'error',
       code: 'too_many_url',
-      message: `Hasta ${MAX_URL_BUTTONS} botones con URL.`,
+      message: t('templates.tplValidate_too_many_url', { max: MAX_URL_BUTTONS }),
     });
   }
   if (phoneCount > MAX_PHONE_BUTTONS) {
@@ -262,7 +270,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'error',
       code: 'too_many_phone',
-      message: 'Solo se permite un botón de llamada.',
+      message: t('templates.tplValidate_too_many_phone'),
     });
   }
   // Botones de respuesta no se pueden mezclar con CTA (url/phone).
@@ -271,8 +279,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'error',
       code: 'mixed_buttons',
-      message:
-        'No puedes mezclar botones de respuesta rápida con botones de URL o teléfono. Elige una sola modalidad.',
+      message: t('templates.tplValidate_mixed_buttons'),
     });
   }
   input.buttons.forEach((b, i) => {
@@ -281,14 +288,17 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
         field: `button.${i}`,
         severity: 'error',
         code: 'button_text_empty',
-        message: `El botón ${i + 1} no tiene texto.`,
+        message: t('templates.tplValidate_button_text_empty', { n: i + 1 }),
       });
     } else if (b.text.length > MAX_BUTTON_TEXT) {
       issues.push({
         field: `button.${i}`,
         severity: 'error',
         code: 'button_text_too_long',
-        message: `El texto del botón ${i + 1} pasa de ${MAX_BUTTON_TEXT} caracteres.`,
+        message: t('templates.tplValidate_button_text_too_long', {
+          n: i + 1,
+          max: MAX_BUTTON_TEXT,
+        }),
       });
     }
     if (b.type === 'URL') {
@@ -297,7 +307,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
           field: `button.${i}`,
           severity: 'error',
           code: 'button_url_https',
-          message: `El botón ${i + 1} debe usar una URL con https://.`,
+          message: t('templates.tplValidate_button_url_https', { n: i + 1 }),
         });
       }
     }
@@ -307,7 +317,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
           field: `button.${i}`,
           severity: 'error',
           code: 'button_phone_format',
-          message: `El teléfono del botón ${i + 1} debe estar en formato internacional (ej: +573001234567).`,
+          message: t('templates.tplValidate_button_phone_format', { n: i + 1 }),
         });
       }
     }
@@ -319,8 +329,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'buttons',
       severity: 'warning',
       code: 'marketing_no_cta',
-      message:
-        'Las plantillas de Marketing convierten mucho mejor con al menos un botón. Considera agregar uno.',
+      message: t('templates.tplValidate_marketing_no_cta'),
     });
   }
   if (
@@ -331,8 +340,7 @@ export function validateTemplate(input: TemplateInput): TemplateIssue[] {
       field: 'body',
       severity: 'warning',
       code: 'auth_no_code',
-      message:
-        'Las plantillas de Autenticación suelen incluir el código OTP en el cuerpo. ¿Olvidaste la variable?',
+      message: t('templates.tplValidate_auth_no_code'),
     });
   }
 

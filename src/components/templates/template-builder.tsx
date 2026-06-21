@@ -169,7 +169,7 @@ export function TemplateBuilder() {
         footerText,
         buttons: buttonsOn ? buttons : [],
         bodySamples: variables.map((v) => samples[v] ?? ''),
-      }),
+      }, t),
     [
       name,
       language,
@@ -182,6 +182,7 @@ export function TemplateBuilder() {
       buttons,
       samples,
       variables,
+      t,
     ],
   );
   const blockers = issues.filter((i) => i.severity === 'error');

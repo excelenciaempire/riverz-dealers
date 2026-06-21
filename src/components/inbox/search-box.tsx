@@ -13,7 +13,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, X, MessageSquare, Inbox as InboxIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
+import { localeTag } from "@/lib/i18n/format";
 
 interface SearchResult {
   id: string;
@@ -30,6 +31,7 @@ export function InboxSearchBox({
   onSelect: (conversationId: string, messageId?: string) => void;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -178,7 +180,7 @@ export function InboxSearchBox({
                   </span>
                   {r.last_message_at && (
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(r.last_message_at).toLocaleDateString("es")}
+                      {new Date(r.last_message_at).toLocaleDateString(localeTag(locale))}
                     </span>
                   )}
                 </div>

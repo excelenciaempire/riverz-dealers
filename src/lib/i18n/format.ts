@@ -1,4 +1,15 @@
+import { es, enUS, type Locale as DateFnsLocale } from "date-fns/locale";
 import type { Locale } from "./config";
+
+/**
+ * date-fns Locale object for the active UI locale — for the few places
+ * that format dates with date-fns / date-fns-tz (timezone-aware inbox
+ * timestamps) instead of Intl. Keeps month/weekday names in the user's
+ * language. Use the Intl helpers in this file for everything else.
+ */
+export function dateFnsLocale(locale: Locale): DateFnsLocale {
+  return locale === "en" ? enUS : es;
+}
 
 /**
  * Locale-aware display formatting for dates, times and numbers. Pure

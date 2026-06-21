@@ -29,8 +29,10 @@ import {
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
+import type { Locale } from "@/lib/i18n/config";
+import { dateFnsLocale } from "@/lib/i18n/format";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -107,12 +109,20 @@ interface MessageThreadProps {
   onToggleContactPanel?: () => void;
 }
 
-function formatDateSeparator(dateStr: string, tz: string, t: TFn): string {
+function formatDateSeparator(
+  dateStr: string,
+  tz: string,
+  t: TFn,
+  locale: Locale,
+): string {
   const utc = new Date(dateStr);
   const zoned = toZonedTime(utc, tz);
   if (isToday(zoned)) return t("inbox.today");
   if (isYesterday(zoned)) return t("inbox.yesterday");
-  return formatInTimeZone(utc, tz, "d 'de' MMMM 'de' yyyy");
+  // Spanish uses "d 'de' MMMM 'de' yyyy" (21 de junio de 2026); English
+  // uses "MMMM d, yyyy" (June 21, 2026).
+  const pattern = locale === "en" ? "MMMM d, yyyy" : "d 'de' MMMM 'de' yyyy";
+  return formatInTimeZone(utc, tz, pattern, { locale: dateFnsLocale(locale) });
 }
 
 function groupMessagesByDate(messages: Message[], tz: string) {
@@ -172,6 +182,7 @@ export function MessageThread({
   const fetchWithCsrf = useFetchWithCsrf();
   const tz = useTimezone();
   const t = useT();
+  const { locale } = useLocale();
   const [loading, setLoading] = useState(false);
   // Toggle de IA por conversación (migración 082). Se sincroniza con la
   // conversación; en false el asistente no responde en este chat (se suma
@@ -1208,7 +1219,7 @@ export function MessageThread({
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
                   <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
-                    {formatDateSeparator(group.date, tz, t)}
+                    {formatDateSeparator(group.date, tz, t, locale)}
                   </span>
                 </div>
                 {/* Messages */}

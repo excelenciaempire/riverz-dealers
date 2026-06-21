@@ -279,6 +279,7 @@ export const flows = {
     es: "Condición evaluada: {subject} {operator} {value} → {result}",
     en: "Condition evaluated: {subject} {operator} {value} → {result}",
   },
+  simNotEvaluable: { es: "(no evaluable en sim)", en: "(not evaluable in sim)" },
   simYes: { es: "Sí", en: "Yes" },
   simNo: { es: "No", en: "No" },
   simTagSet: { es: "Asigna etiqueta {tag}", en: "Adds tag {tag}" },

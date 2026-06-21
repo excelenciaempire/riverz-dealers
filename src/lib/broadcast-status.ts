@@ -11,7 +11,12 @@
 import type { BroadcastStatus, RecipientStatus } from "@/types";
 
 export interface StatusDisplay {
-  label: string;
+  /**
+   * i18n key (e.g. "broadcasts.statusDraft") resolved at the call site
+   * via `t(...)` so the badge follows the active locale. This module is
+   * react-free and can't call useT itself.
+   */
+  labelKey: string;
   classes: string;
   /**
    * Set true for statuses that should pulse in the UI to convey
@@ -28,26 +33,26 @@ export interface StatusDisplay {
  */
 export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
   draft: {
-    label: "Borrador",
+    labelKey: "broadcasts.statusBroadcastDraft",
     classes: "border-border bg-muted text-muted-foreground",
   },
   scheduled: {
-    label: "Programada",
+    labelKey: "broadcasts.statusBroadcastScheduled",
     classes: "border-border bg-muted text-foreground",
   },
   sending: {
-    label: "Enviando",
+    labelKey: "broadcasts.statusBroadcastSending",
     classes:
       "border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     pulse: true,
   },
   sent: {
-    label: "Enviada",
+    labelKey: "broadcasts.statusBroadcastSent",
     classes:
       "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   failed: {
-    label: "Fallida",
+    labelKey: "broadcasts.statusBroadcastFailed",
     classes:
       "border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-400",
   },
@@ -55,29 +60,29 @@ export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
 
 export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
   pending: {
-    label: "Pendiente",
+    labelKey: "broadcasts.statusRecipientPending",
     classes: "border-border bg-muted text-muted-foreground",
   },
   sent: {
-    label: "Enviado",
+    labelKey: "broadcasts.statusRecipientSent",
     classes: "border-border bg-muted text-foreground",
   },
   delivered: {
-    label: "Entregado",
+    labelKey: "broadcasts.statusRecipientDelivered",
     classes:
       "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   read: {
-    label: "Leído",
+    labelKey: "broadcasts.statusRecipientRead",
     classes:
       "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   replied: {
-    label: "Respondido",
+    labelKey: "broadcasts.statusRecipientReplied",
     classes: "border-border bg-muted text-foreground",
   },
   failed: {
-    label: "Fallido",
+    labelKey: "broadcasts.statusRecipientFailed",
     classes:
       "border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-400",
   },

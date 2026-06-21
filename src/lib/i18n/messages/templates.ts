@@ -209,4 +209,114 @@ export const templates = {
     es: "Las plantillas se envían a Meta para su aprobación.",
     en: "Templates are sent to Meta for approval.",
   },
+
+  // ── Live validation messages (template-validate.ts → builder issues panel) ──
+  tplValidate_name_required: {
+    es: "Escribe un nombre para la plantilla.",
+    en: "Enter a name for the template.",
+  },
+  tplValidate_name_too_long: {
+    es: "El nombre pasa de {max} caracteres.",
+    en: "The name exceeds {max} characters.",
+  },
+  tplValidate_name_format: {
+    es: "El nombre solo admite letras minúsculas, números y guion bajo (ej: confirmacion_pedido).",
+    en: "The name only allows lowercase letters, numbers and underscores (e.g. order_confirmation).",
+  },
+  tplValidate_language_required: {
+    es: "Elige el idioma de la plantilla.",
+    en: "Choose the template's language.",
+  },
+  tplValidate_header_empty: {
+    es: "El encabezado de texto está vacío.",
+    en: "The text header is empty.",
+  },
+  tplValidate_header_too_long: {
+    es: "El encabezado pasa de {max} caracteres ({len} actuales).",
+    en: "The header exceeds {max} characters ({len} now).",
+  },
+  tplValidate_header_too_many_vars: {
+    es: "El encabezado solo puede tener una variable.",
+    en: "The header can only have one variable.",
+  },
+  tplValidate_body_required: {
+    es: "Escribe el texto del cuerpo de la plantilla.",
+    en: "Enter the template body text.",
+  },
+  tplValidate_body_too_long: {
+    es: "El cuerpo pasa de {max} caracteres ({len} actuales).",
+    en: "The body exceeds {max} characters ({len} now).",
+  },
+  tplValidate_body_samples_missing: {
+    es: "Falta un valor de ejemplo para {vars}. Meta lo necesita para aprobar la plantilla.",
+    en: "A sample value is missing for {vars}. Meta needs it to approve the template.",
+  },
+  tplValidate_body_whitespace: {
+    es: "El cuerpo no puede empezar ni terminar con espacios o saltos de línea.",
+    en: "The body can't start or end with spaces or line breaks.",
+  },
+  tplValidate_body_var_at_edge: {
+    es: "El cuerpo no puede empezar ni terminar con una variable. Agrega texto antes o después de {{1}}.",
+    en: "The body can't start or end with a variable. Add text before or after {{1}}.",
+  },
+  tplValidate_body_pattern_repeated: {
+    es: "Evita signos repetidos (??, !!, $$). Meta los rechaza por considerarlos spam.",
+    en: "Avoid repeated symbols (??, !!, $$). Meta rejects them as spam.",
+  },
+  tplValidate_body_pattern_caps: {
+    es: "Evita palabras en mayúsculas largas. Meta lo lee como grito y suele rechazar.",
+    en: "Avoid long all-caps words. Meta reads them as shouting and often rejects.",
+  },
+  tplValidate_footer_too_long: {
+    es: "El pie pasa de {max} caracteres ({len} actuales).",
+    en: "The footer exceeds {max} characters ({len} now).",
+  },
+  tplValidate_footer_no_vars: {
+    es: "El pie de página no admite variables.",
+    en: "The footer can't contain variables.",
+  },
+  tplValidate_too_many_buttons: {
+    es: "Meta acepta hasta {max} botones por plantilla.",
+    en: "Meta allows up to {max} buttons per template.",
+  },
+  tplValidate_too_many_reply: {
+    es: "Hasta {max} botones de respuesta rápida.",
+    en: "Up to {max} quick-reply buttons.",
+  },
+  tplValidate_too_many_url: {
+    es: "Hasta {max} botones con URL.",
+    en: "Up to {max} URL buttons.",
+  },
+  tplValidate_too_many_phone: {
+    es: "Solo se permite un botón de llamada.",
+    en: "Only one call button is allowed.",
+  },
+  tplValidate_mixed_buttons: {
+    es: "No puedes mezclar botones de respuesta rápida con botones de URL o teléfono. Elige una sola modalidad.",
+    en: "You can't mix quick-reply buttons with URL or phone buttons. Pick a single type.",
+  },
+  tplValidate_button_text_empty: {
+    es: "El botón {n} no tiene texto.",
+    en: "Button {n} has no text.",
+  },
+  tplValidate_button_text_too_long: {
+    es: "El texto del botón {n} pasa de {max} caracteres.",
+    en: "Button {n}'s text exceeds {max} characters.",
+  },
+  tplValidate_button_url_https: {
+    es: "El botón {n} debe usar una URL con https://.",
+    en: "Button {n} must use an https:// URL.",
+  },
+  tplValidate_button_phone_format: {
+    es: "El teléfono del botón {n} debe estar en formato internacional (ej: +573001234567).",
+    en: "Button {n}'s phone must be in international format (e.g. +573001234567).",
+  },
+  tplValidate_marketing_no_cta: {
+    es: "Las plantillas de Marketing convierten mucho mejor con al menos un botón. Considera agregar uno.",
+    en: "Marketing templates convert much better with at least one button. Consider adding one.",
+  },
+  tplValidate_auth_no_code: {
+    es: "Las plantillas de Autenticación suelen incluir el código OTP en el cuerpo. ¿Olvidaste la variable?",
+    en: "Authentication templates usually include the OTP code in the body. Did you forget the variable?",
+  },
 } satisfies Namespace;

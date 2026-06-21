@@ -152,7 +152,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'plantilla-contactos.csv';
+    a.download = t('contacts.templateFileName');
     a.click();
     URL.revokeObjectURL(url);
   }

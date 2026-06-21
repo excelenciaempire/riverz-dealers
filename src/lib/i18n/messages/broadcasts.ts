@@ -31,6 +31,21 @@ export const broadcasts = {
   statusApproved: { es: "Aprobada", en: "Approved" },
   statusRejected: { es: "Rechazada", en: "Rejected" },
 
+  // ── Broadcast status badges (campaigns list + detail) ──
+  statusBroadcastDraft: { es: "Borrador", en: "Draft" },
+  statusBroadcastScheduled: { es: "Programada", en: "Scheduled" },
+  statusBroadcastSending: { es: "Enviando", en: "Sending" },
+  statusBroadcastSent: { es: "Enviada", en: "Sent" },
+  statusBroadcastFailed: { es: "Fallida", en: "Failed" },
+
+  // ── Recipient status badges (campaign detail) ──
+  statusRecipientPending: { es: "Pendiente", en: "Pending" },
+  statusRecipientSent: { es: "Enviado", en: "Sent" },
+  statusRecipientDelivered: { es: "Entregado", en: "Delivered" },
+  statusRecipientRead: { es: "Leído", en: "Read" },
+  statusRecipientReplied: { es: "Respondido", en: "Replied" },
+  statusRecipientFailed: { es: "Fallido", en: "Failed" },
+
   // ── Step 1: choose template ──
   step1Title: { es: "Elige una plantilla", en: "Choose a template" },
   step1Subtitle: {

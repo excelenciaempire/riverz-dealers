@@ -156,6 +156,7 @@ export const contacts = {
     en: 'Upload a CSV (or your Excel saved as CSV). Then choose which column maps to each field.',
   },
   downloadTemplate: { es: 'Descargar plantilla', en: 'Download template' },
+  templateFileName: { es: 'plantilla-contactos.csv', en: 'contacts-template.csv' },
   mapColumns: { es: 'Asignar columnas', en: 'Map columns' },
   mapHint: {
     es: 'Elige qué columna de tu archivo corresponde a cada campo.',

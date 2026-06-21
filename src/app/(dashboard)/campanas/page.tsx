@@ -313,7 +313,7 @@ export default function BroadcastsPage() {
                             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
                           </span>
                         )}
-                        {status.label}
+                        {t(status.labelKey)}
                       </span>
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">

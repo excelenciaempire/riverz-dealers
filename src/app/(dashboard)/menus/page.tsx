@@ -72,18 +72,6 @@ interface FlowRow {
   updated_at: string;
 }
 
-const STATUS_LABELS: Record<FlowRow["status"], string> = {
-  draft: "Borrador",
-  active: "Activo",
-  archived: "Archivado",
-};
-
-const STATUS_COLORS: Record<FlowRow["status"], string> = {
-  draft: "border-border bg-muted text-foreground",
-  active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  archived: "border-border bg-muted/50 text-muted-foreground",
-};
-
 type CreateStep = "choose" | "name" | "template" | "preview";
 
 export default function FlowsPage() {
