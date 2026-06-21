@@ -80,6 +80,13 @@ export const products = {
   name: { es: "Nombre", en: "Name" },
   description: { es: "Descripción", en: "Description" },
   prices: { es: "Precios", en: "Prices" },
+  pricesUnitsHint: {
+    es: "Poné las unidades de cada oferta (1, 3, 4…) para armar flujos de recompra según la que eligió el cliente.",
+    en: "Set the units for each offer (1, 3, 4…) to build repurchase flows based on the one the customer chose.",
+  },
+  units: { es: "Unidades", en: "Units" },
+  unitsSuffix: { es: "uds", en: "u" },
+  unitsPlaceholder: { es: "uds", en: "u" },
   currency: { es: "Moneda", en: "Currency" },
   removeOffer: { es: "Quitar oferta", en: "Remove offer" },
   addOffer: { es: "Agregar oferta", en: "Add offer" },

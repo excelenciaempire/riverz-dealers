@@ -258,12 +258,32 @@ export const automations = {
     es: "¿Es cliente recurrente?",
     en: "Is a repeat customer?",
   },
+  orderDataOfferChosen: { es: "Oferta que eligió", en: "Offer chosen" },
   orderDataTotalPrice: { es: "Total del pedido", en: "Order total" },
   orderDataItemCount: { es: "Cantidad de productos", en: "Item count" },
   orderDataFirstItem: { es: "Primer producto", en: "First item" },
   orderDataCurrency: { es: "Moneda", en: "Currency" },
   orderDataOrderNumber: { es: "Número de pedido", en: "Order number" },
   orderDataTrackingNumber: { es: "Número de seguimiento", en: "Tracking number" },
+
+  // Builder — offer_chosen condition (repurchase flows)
+  whichOffer: { es: "Qué oferta", en: "Which offer" },
+  chooseOffer: { es: "Elige una oferta…", en: "Choose an offer…" },
+  offerChosenNoOffersHint: {
+    es: "No hay ofertas configuradas. Definí las unidades de cada oferta en la sección Productos, o escribí la etiqueta exacta.",
+    en: "No offers configured yet. Set the units for each offer in the Products section, or type the exact label.",
+  },
+
+  // Builder — send_template variables editor
+  templateVariables: { es: "Variables de la plantilla", en: "Template variables" },
+  chooseVariable: { es: "Elige un dato…", en: "Choose a field…" },
+  templateVariablesHint: {
+    es: "Asigná a cada {{n}} de la plantilla el dato del pedido que querés inyectar (ej. la oferta que eligió).",
+    en: "Map each {{n}} in the template to the order field you want to inject (e.g. the offer they chose).",
+  },
+  varCustomerName: { es: "Nombre del cliente", en: "Customer name" },
+  varOrderStatusUrl: { es: "Link de estado del pedido", en: "Order status link" },
+  varTrackingUrl: { es: "Link de seguimiento", en: "Tracking link" },
 
   // Builder — step preview lines
   previewNoTextYet: { es: "sin texto aún", en: "no text yet" },

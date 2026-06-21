@@ -207,6 +207,25 @@ export async function POST(request: Request) {
         .eq('order_id', orderId)
     }
 
+    // Oferta elegida (flujos de recompra): derivamos qué oferta compró el
+    // cliente por número de unidades y la persistimos sobre el contacto en
+    // el momento de compra, así la IA la conoce en futuras conversaciones de
+    // recompra. Se calcula para todos los pedidos (también los del asistente)
+    // y se inyecta como var {{vars.offer_chosen}} más abajo.
+    const offer = await resolveOfferChosen(admin, workspaceId, order)
+    if (triggerType === 'shopify_order_created' && offer.label) {
+      const { error: offerErr } = await admin
+        .from('contacts')
+        .update({
+          last_offer_chosen: offer.label,
+          last_offer_units: offer.units,
+          last_offer_at: new Date().toISOString(),
+        })
+        .eq('id', contactId)
+      if (offerErr)
+        console.error('[shopify] last_offer update failed:', offerErr)
+    }
+
     // Atribución por pedido: si el pedido vino del asistente (link con
     // riverz_origin=ai, o pedido creado por la tool create_order con tag
     // riverz-ia), el ASISTENTE confirma el pago y NOS SALTAMOS la
@@ -227,6 +246,8 @@ export async function POST(request: Request) {
     }
 
     const vars = buildVarsForOrder(triggerType, order, name)
+    vars.offer_chosen = offer.label
+    vars.offer_units = offer.units > 0 ? String(offer.units) : ''
 
     runAutomationsForTrigger({
       workspaceId,
@@ -459,6 +480,87 @@ async function sendAiOrderConfirmation(
     convUpdate.pending_checkout_url = null
   }
   await admin.from('conversations').update(convUpdate).eq('id', conv.id)
+}
+
+/**
+ * Deriva QUÉ oferta eligió el cliente en este pedido, por NÚMERO DE
+ * UNIDADES. Matchea el total de unidades del pedido contra las ofertas
+ * configuradas (con `units`) en los productos del pedido —
+ * `shopify_products.allowed_offers`, editable en la sección Productos—.
+ * Cae a `workspace_checkout_config.offers` (campo `qty`) para los workspaces
+ * que usan el checkout del asistente.
+ *
+ * Devuelve la etiqueta de la oferta + las unidades totales. Si ninguna
+ * oferta matchea las unidades, `label` queda vacío (pero `units` se reporta
+ * igual, p. ej. para tiendas sin ofertas fijas).
+ */
+async function resolveOfferChosen(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  order: Record<string, unknown>,
+): Promise<{ label: string; units: number }> {
+  const lineItems = Array.isArray(order.line_items)
+    ? (order.line_items as Record<string, unknown>[])
+    : []
+  const totalUnits = lineItems.reduce(
+    (sum, li) => sum + (Number(li.quantity) || 0),
+    0,
+  )
+  if (totalUnits <= 0) return { label: '', units: 0 }
+
+  const candidates: { label: string; units: number }[] = []
+
+  // 1) Ofertas por producto (allowed_offers con `units`) de los productos
+  //    presentes en el pedido. external_id = product_id de Shopify.
+  const productIds = [
+    ...new Set(
+      lineItems
+        .map((li) => (li.product_id != null ? String(li.product_id) : ''))
+        .filter(Boolean),
+    ),
+  ]
+  if (productIds.length > 0) {
+    const { data } = await admin
+      .from('shopify_products')
+      .select('allowed_offers')
+      .eq('workspace_id', workspaceId)
+      .in('external_id', productIds)
+    for (const row of data ?? []) {
+      const offers = Array.isArray(
+        (row as Record<string, unknown>).allowed_offers,
+      )
+        ? ((row as Record<string, unknown>)
+            .allowed_offers as Record<string, unknown>[])
+        : []
+      for (const o of offers) {
+        const units = Number(o?.units)
+        if (Number.isFinite(units) && units > 0)
+          candidates.push({ label: String(o?.label ?? ''), units })
+      }
+    }
+  }
+
+  // 2) Fallback: ofertas del checkout del asistente (campo `qty`).
+  if (!candidates.some((c) => c.units === totalUnits)) {
+    const { data: cfg } = await admin
+      .from('workspace_checkout_config')
+      .select('offers')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    const offers = Array.isArray(
+      (cfg as Record<string, unknown> | null)?.offers,
+    )
+      ? ((cfg as Record<string, unknown>).offers as Record<string, unknown>[])
+      : []
+    for (const o of offers) {
+      const units = Number(o?.qty)
+      if (Number.isFinite(units) && units > 0)
+        candidates.push({ label: String(o?.label ?? ''), units })
+    }
+  }
+
+  const match = candidates.find((c) => c.units === totalUnits && c.label)
+  return { label: match?.label ?? '', units: totalUnits }
 }
 
 function buildVarsForOrder(

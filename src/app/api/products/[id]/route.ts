@@ -73,7 +73,14 @@ interface PatchBody {
   say_guidelines?: string | null;
   never_say?: string[];
   escalation_triggers?: string[];
-  allowed_offers?: Array<{ label?: string; total?: number | string; conditions?: string }>;
+  allowed_offers?: Array<{
+    label?: string;
+    total?: number | string;
+    conditions?: string;
+    /** Número de unidades del paquete — el webhook de pedidos lo usa para
+     *  detectar qué oferta eligió el cliente (flujos de recompra). */
+    units?: number;
+  }>;
   structured_research?: Record<string, unknown> | null;
   health_sensitive?: boolean;
 }

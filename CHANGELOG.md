@@ -9,6 +9,31 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [Unreleased]
+
+### Added
+
+#### Flujos de recompra por oferta elegida
+
+- **Migración requerida:** aplicá `supabase/migrations/084_contact_last_offer.sql`
+  (agrega `last_offer_chosen`, `last_offer_units`, `last_offer_at` a
+  `contacts`).
+- **Detección por unidades.** El webhook de pedidos de Shopify deriva qué
+  oferta compró el cliente matcheando el total de unidades del pedido
+  contra las ofertas configuradas por producto
+  (`shopify_products.allowed_offers`, con el nuevo campo de unidades), con
+  fallback a `workspace_checkout_config.offers`. Se expone como las
+  variables `{{vars.offer_chosen}}` y `{{vars.offer_units}}`.
+- **Productos.** El editor de "Precios de venta" ahora deja indicar las
+  unidades de cada oferta (1, 3, 4…), la base para detectar la oferta
+  elegida.
+- **Automatizaciones.** Nueva condición "Oferta que eligió" (con menú de
+  tus ofertas) para ramificar distintos flujos de recompra, y un editor de
+  parámetros en el paso "Enviar plantilla" que permite inyectar la oferta
+  (y otros datos del pedido) en los `{{1}}`, `{{2}}`… de la plantilla.
+- **Agente de IA.** El asistente conoce la última oferta elegida por el
+  cliente y la usa para ofrecer la recompra adecuada.
+
 ## [0.2.0] — 2026-05-22
 
 The **Flows** release. Adds a no-code, branching, button-driven WhatsApp

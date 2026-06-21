@@ -114,6 +114,14 @@ export interface Contact {
   /** Si este contacto comparte teléfono/email con otro del mismo
    *  workspace, apunta al "primario". Migration 050. */
   unified_contact_id?: string | null;
+  /** Última oferta que eligió el cliente, derivada del pedido de Shopify
+   *  por número de unidades (ver buildVarsForOrder). Permite flujos de
+   *  recompra distintos por oferta y que la IA la conozca. Migration 084. */
+  last_offer_chosen?: string | null;
+  /** Cantidad total de unidades del último pedido con oferta. Migration 084. */
+  last_offer_units?: number | null;
+  /** Cuándo se registró last_offer_chosen. Migration 084. */
+  last_offer_at?: string | null;
   created_at: string;
   updated_at: string;
 }

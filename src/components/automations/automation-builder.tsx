@@ -57,6 +57,7 @@ import { useT } from "@/hooks/use-locale"
 import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
+import { extractVariables } from "@/lib/whatsapp/template-components"
 import type {
   TemplateButtonInput,
   TemplateHeaderType,
@@ -78,6 +79,12 @@ const TagsContext = createContext<ContactTag[]>([])
 /** Team members. Powers the agent picker when a conversation is assigned
  *  to a specific person — name in the menu, user id under the hood. */
 const AgentsContext = createContext<Profile[]>([])
+
+/** Etiquetas de las ofertas configuradas del workspace (de
+ *  shopify_products.allowed_offers + workspace_checkout_config.offers).
+ *  Powers the `offer_chosen` condition dropdown so el merchant elige la
+ *  oferta exacta en vez de tipearla. */
+const OffersContext = createContext<string[]>([])
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -241,6 +248,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
 // the orders webhook); the label is what the user sees.
 // `label` holds an i18n key, resolved with t() inside the condition fields.
 const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
+  { key: "offer_chosen", label: "automations.orderDataOfferChosen" },
   { key: "is_repeat_customer", label: "automations.orderDataRepeatCustomer" },
   { key: "total_price", label: "automations.orderDataTotalPrice" },
   { key: "item_count", label: "automations.orderDataItemCount" },
@@ -248,6 +256,22 @@ const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
   { key: "currency", label: "automations.orderDataCurrency" },
   { key: "order_number", label: "automations.orderDataOrderNumber" },
   { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
+]
+
+// Variables del pedido que se pueden inyectar en los {{1}}, {{2}}… de una
+// plantilla desde el paso "Enviar plantilla". El value que se guarda es el
+// placeholder {{vars.KEY}} que el motor interpola al enviar (ver
+// interpolate() en src/lib/automations/engine.ts). `label` es clave i18n.
+const TEMPLATE_VAR_OPTIONS: { key: string; label: string }[] = [
+  { key: "offer_chosen", label: "automations.orderDataOfferChosen" },
+  { key: "customer_name", label: "automations.varCustomerName" },
+  { key: "first_item", label: "automations.orderDataFirstItem" },
+  { key: "order_number", label: "automations.orderDataOrderNumber" },
+  { key: "total_price", label: "automations.orderDataTotalPrice" },
+  { key: "currency", label: "automations.orderDataCurrency" },
+  { key: "order_status_url", label: "automations.varOrderStatusUrl" },
+  { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
+  { key: "tracking_url", label: "automations.varTrackingUrl" },
 ]
 
 function ConditionFields({
@@ -259,6 +283,7 @@ function ConditionFields({
 }) {
   const t = useT()
   const segments = useContext(SegmentsContext)
+  const offers = useContext(OffersContext)
   const subject = (cfg.subject as string) ?? "tag_presence"
   return (
     <>
@@ -380,6 +405,34 @@ function ConditionFields({
                 <option value="true">{t("automations.repeatCustomerYes")}</option>
                 <option value="false">{t("automations.repeatCustomerNo")}</option>
               </select>
+            </FieldBlock>
+          ) : cfg.operand === "offer_chosen" ? (
+            <FieldBlock label={t("automations.whichOffer")}>
+              {offers.length > 0 ? (
+                <select
+                  value={(cfg.value as string) ?? ""}
+                  onChange={(e) => set({ value: e.target.value })}
+                  className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+                >
+                  <option value="">{t("automations.chooseOffer")}</option>
+                  {offers.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <Input
+                    value={(cfg.value as string) ?? ""}
+                    onChange={(e) => set({ value: e.target.value })}
+                    className="bg-muted text-foreground"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {t("automations.offerChosenNoOffersHint")}
+                  </p>
+                </>
+              )}
             </FieldBlock>
           ) : cfg.operand ? (
             <FieldBlock label={t("automations.equals")}>
@@ -535,6 +588,7 @@ export function AutomationBuilder({
   const [segments, setSegments] = useState<ContactSegment[]>([])
   const [tags, setTags] = useState<ContactTag[]>([])
   const [agents, setAgents] = useState<Profile[]>([])
+  const [offers, setOffers] = useState<string[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
 
   // Load the user's templates once — powers the send_template picker and
@@ -548,7 +602,7 @@ export function AutomationBuilder({
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
-      const [{ data: tpl }, { data: seg }, { data: tg }, { data: ag }] =
+      const [{ data: tpl }, { data: seg }, { data: tg }, { data: ag }, { data: prods }, { data: checkoutCfg }] =
         await Promise.all([
           supabase
             .from("message_templates")
@@ -564,11 +618,33 @@ export function AutomationBuilder({
           // so a plain select returns only what they're allowed to pick.
           supabase.from("tags").select("*").order("name", { ascending: true }),
           supabase.from("profiles").select("*").order("full_name", { ascending: true }),
+          // Offers: per-product allowed_offers + the assistant checkout
+          // config. Both RLS-scoped to the workspace. Powers the
+          // `offer_chosen` condition dropdown.
+          supabase.from("shopify_products").select("allowed_offers"),
+          supabase.from("workspace_checkout_config").select("offers").maybeSingle(),
         ])
       setTemplates((tpl as MessageTemplate[]) ?? [])
       setSegments((seg as ContactSegment[]) ?? [])
       setTags((tg as ContactTag[]) ?? [])
       setAgents((ag as Profile[]) ?? [])
+
+      // Flatten + dedupe offer labels from both sources.
+      const labels = new Set<string>()
+      type OfferRow = { label?: unknown }
+      for (const row of (prods as { allowed_offers?: unknown }[] | null) ?? []) {
+        const list = Array.isArray(row?.allowed_offers) ? row.allowed_offers : []
+        for (const o of list as OfferRow[]) {
+          const label = typeof o === "string" ? o : String(o?.label ?? "").trim()
+          if (label) labels.add(label)
+        }
+      }
+      const cfgOffers = (checkoutCfg as { offers?: unknown } | null)?.offers
+      for (const o of (Array.isArray(cfgOffers) ? cfgOffers : []) as OfferRow[]) {
+        const label = String(o?.label ?? "").trim()
+        if (label) labels.add(label)
+      }
+      setOffers([...labels].sort((a, b) => a.localeCompare(b)))
     })()
   }, [])
 
@@ -662,6 +738,7 @@ export function AutomationBuilder({
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
     <AgentsContext.Provider value={agents}>
+    <OffersContext.Provider value={offers}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -792,6 +869,7 @@ export function AutomationBuilder({
         )}
       </div>
     </div>
+    </OffersContext.Provider>
     </AgentsContext.Provider>
     </TagsContext.Provider>
     </SegmentsContext.Provider>
@@ -1417,39 +1495,86 @@ function StepEditor({
           />
         </FieldBlock>
       )
-    case "send_template":
-      return (
-        <FieldBlock label={t("automations.whatsappTemplate")}>
-          {templates.length > 0 ? (
-            <select
-              value={(cfg.template_name as string) ?? ""}
-              onChange={(e) => {
-                const tpl = templates.find((tp) => tp.name === e.target.value)
-                set({
-                  template_name: e.target.value,
-                  language: tpl?.language ?? "es",
-                })
-              }}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-            >
-              <option value="">{t("automations.chooseTemplate")}</option>
-              {templates.map((tpl) => (
-                <option key={tpl.id} value={tpl.name}>
-                  {tpl.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              {t("automations.noApprovedTemplates")}{" "}
-              <Link href="/plantillas" className="text-accent-ink underline hover:opacity-80">
-                {t("automations.createOne")}
-              </Link>
-              .
-            </p>
-          )}
-        </FieldBlock>
+    case "send_template": {
+      const selectedTpl = templates.find(
+        (tp) => tp.name === (cfg.template_name as string),
       )
+      const varIndices = selectedTpl
+        ? extractVariables(selectedTpl.body_text ?? "")
+        : []
+      const variables = (cfg.variables as Record<string, string> | undefined) ?? {}
+      const setVar = (n: number, value: string) => {
+        const next = { ...variables }
+        if (value) next[String(n)] = value
+        else delete next[String(n)]
+        set({ variables: next })
+      }
+      return (
+        <>
+          <FieldBlock label={t("automations.whatsappTemplate")}>
+            {templates.length > 0 ? (
+              <select
+                value={(cfg.template_name as string) ?? ""}
+                onChange={(e) => {
+                  const tpl = templates.find((tp) => tp.name === e.target.value)
+                  // Cambiar de plantilla descarta el mapeo de variables previo
+                  // (los {{n}} de la nueva plantilla no se corresponden).
+                  set({
+                    template_name: e.target.value,
+                    language: tpl?.language ?? "es",
+                    variables: {},
+                  })
+                }}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="">{t("automations.chooseTemplate")}</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.name}>
+                    {tpl.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                {t("automations.noApprovedTemplates")}{" "}
+                <Link href="/plantillas" className="text-accent-ink underline hover:opacity-80">
+                  {t("automations.createOne")}
+                </Link>
+                .
+              </p>
+            )}
+          </FieldBlock>
+          {varIndices.length > 0 && (
+            <FieldBlock label={t("automations.templateVariables")}>
+              <div className="space-y-2">
+                {varIndices.map((n) => (
+                  <div key={n} className="flex items-center gap-2">
+                    <span className="w-9 shrink-0 rounded-md border border-border bg-muted px-1.5 py-1 text-center text-xs font-medium tabular-nums text-muted-foreground">
+                      {`{{${n}}}`}
+                    </span>
+                    <select
+                      value={variables[String(n)] ?? ""}
+                      onChange={(e) => setVar(n, e.target.value)}
+                      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                    >
+                      <option value="">{t("automations.chooseVariable")}</option>
+                      {TEMPLATE_VAR_OPTIONS.map((v) => (
+                        <option key={v.key} value={`{{vars.${v.key}}}`}>
+                          {t(v.label)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {t("automations.templateVariablesHint")}
+              </p>
+            </FieldBlock>
+          )}
+        </>
+      )
+    }
     case "add_tag":
     case "remove_tag":
       return (

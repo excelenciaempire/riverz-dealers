@@ -63,15 +63,26 @@ interface Product {
   never_say: string[] | null;
   escalation_triggers: string[] | null;
   allowed_offers:
-    | Array<string | { label?: string; total?: number | string; conditions?: string }>
+    | Array<
+        | string
+        | {
+            label?: string;
+            total?: number | string;
+            conditions?: string;
+            units?: number | string;
+          }
+      >
     | null;
   health_sensitive: boolean | null;
 }
 
-/** Una oferta de "Precios de venta" tal como se edita en el form. */
+/** Una oferta de "Precios de venta" tal como se edita en el form.
+ *  `units` = número de unidades del paquete; el webhook de pedidos lo usa
+ *  para detectar qué oferta eligió el cliente (flujos de recompra). */
 interface Offer {
   label: string;
   total: string;
+  units: string;
 }
 
 const CURRENCIES = ['COP', 'USD', 'ARS', 'MXN', 'CLP', 'PEN', 'EUR', 'BRL'];
@@ -148,8 +159,12 @@ export default function ProductDetailPage() {
       setOffers(
         (pr.allowed_offers ?? []).map((o) =>
           typeof o === 'string'
-            ? { label: o, total: '' }
-            : { label: o.label ?? '', total: o.total != null ? String(o.total) : '' },
+            ? { label: o, total: '', units: '' }
+            : {
+                label: o.label ?? '',
+                total: o.total != null ? String(o.total) : '',
+                units: o.units != null ? String(o.units) : '',
+              },
         ),
       );
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
@@ -203,7 +218,14 @@ export default function ProductDetailPage() {
       description: descriptionText.trim() || null,
       currency,
       allowed_offers: offers
-        .map((o) => ({ label: o.label.trim(), total: o.total.trim() }))
+        .map((o) => {
+          const units = parseInt(o.units, 10);
+          return {
+            label: o.label.trim(),
+            total: o.total.trim(),
+            ...(Number.isFinite(units) && units > 0 ? { units } : {}),
+          };
+        })
         .filter((o) => o.label || o.total),
       websites,
       structured_research: {
@@ -424,6 +446,7 @@ export default function ProductDetailPage() {
         {/* Precios de venta */}
         <Field
           label={t('products.prices')}
+          hint={t('products.pricesUnitsHint')}
           action={
             <select
               value={currency}
@@ -451,6 +474,27 @@ export default function ProductDetailPage() {
                   }
                   className="h-10 flex-1 bg-card"
                 />
+                <div className="relative w-16 sm:w-20">
+                  <Input
+                    value={o.units}
+                    onChange={(e) =>
+                      setOffers((cur) =>
+                        cur.map((x, i) =>
+                          i === idx
+                            ? { ...x, units: e.target.value.replace(/[^\d]/g, '') }
+                            : x,
+                        ),
+                      )
+                    }
+                    inputMode="numeric"
+                    placeholder={t('products.unitsPlaceholder')}
+                    aria-label={t('products.units')}
+                    className="h-10 bg-card pr-7 text-center tabular-nums"
+                  />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    {t('products.unitsSuffix')}
+                  </span>
+                </div>
                 <div className="relative w-28 sm:w-40">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     $
@@ -479,7 +523,7 @@ export default function ProductDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setOffers((cur) => [...cur, { label: '', total: '' }])}
+              onClick={() => setOffers((cur) => [...cur, { label: '', total: '', units: '' }])}
               className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
             >
               <Plus className="size-3.5" />

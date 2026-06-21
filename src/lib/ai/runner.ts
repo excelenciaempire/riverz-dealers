@@ -1424,6 +1424,23 @@ function buildSystemPrompt(
     const shopifyLine = formatShopifySnapshot(shopifySnapshot);
     if (shopifyLine) lines.push(shopifyLine);
   }
+  // ── Oferta elegida (flujos de recompra, migration 084) ──
+  // El webhook de pedidos persiste qué oferta compró el cliente (por número
+  // de unidades). La inyectamos para que la IA la conozca y pueda ofrecer la
+  // recompra correcta ("¿querés repetir tu pack de 3?") sin recalcularla.
+  if (primaryContact.last_offer_chosen && primaryContact.last_offer_chosen.trim()) {
+    let offerLine = `Oferta que eligió el cliente en su último pedido: ${primaryContact.last_offer_chosen.trim()}`;
+    if (primaryContact.last_offer_at) {
+      const d = new Date(primaryContact.last_offer_at);
+      if (!Number.isNaN(d.getTime())) {
+        const ageDays = Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
+        const ageLabel =
+          ageDays <= 0 ? 'hoy' : ageDays === 1 ? 'hace 1 día' : `hace ${ageDays} días`;
+        offerLine += ` (${ageLabel})`;
+      }
+    }
+    lines.push(`${offerLine}. Si corresponde, usá esto para ofrecer la recompra adecuada.`);
+  }
   if (recentNotes.length > 0) {
     lines.push('Notas previas del equipo:');
     lines.push(recentNotes.map((n) => `- ${n}`).join('\n'));
