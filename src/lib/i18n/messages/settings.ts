@@ -273,4 +273,239 @@ export const settings = {
     en: 'Type "{name}" to confirm',
   },
   deleteWorkspace: { es: "Eliminar workspace", en: "Delete workspace" },
+
+  // Channels panel — card descriptions
+  whatsappCardDescription: {
+    es: "Cloud API, WhatsApp Business o coexistencia.",
+    en: "Cloud API, WhatsApp Business or coexistence.",
+  },
+  metaCardDescription: {
+    es: "Messenger y comentarios de tu página en una sola conexión.",
+    en: "Messenger and your page's comments in a single connection.",
+  },
+  instagramCardDescription: {
+    es: "DMs y comentarios de Instagram en una sola conexión.",
+    en: "Instagram DMs and comments in a single connection.",
+  },
+  gmailCardDescription: {
+    es: "Cuentas @gmail o Google Workspace.",
+    en: "@gmail or Google Workspace accounts.",
+  },
+  outlookCardDescription: {
+    es: "Bandeja para Outlook, Hotmail y Microsoft 365.",
+    en: "Inbox for Outlook, Hotmail and Microsoft 365.",
+  },
+
+  // Channels panel — clipboard + toasts
+  copiedToClipboard: { es: "{label} copiado", en: "{label} copied" },
+  couldNotCopy: { es: "No se pudo copiar", en: "Couldn't copy" },
+  disconnectChannelConfirm: {
+    es: "¿Desconectar este canal?",
+    en: "Disconnect this channel?",
+  },
+  channelDisconnected: { es: "Canal desconectado", en: "Channel disconnected" },
+  deleteConnectionConfirm: {
+    es: "¿Eliminar esta conexión?",
+    en: "Delete this connection?",
+  },
+  connectionDeleted: { es: "Conexión eliminada", en: "Connection deleted" },
+
+  // Channels panel — empty / read-only states
+  workspaceNotFound: {
+    es: "No se encontró tu espacio de trabajo.",
+    en: "Your workspace wasn't found.",
+  },
+  readOnly: { es: "Solo lectura.", en: "Read only." },
+
+  // Channels panel — OAuth providers banner
+  oauthAppsMissing: {
+    es: "Faltan apps OAuth por registrar",
+    en: "OAuth apps still need to be registered",
+  },
+  redirectUrisToPaste: {
+    es: "Redirect URIs a pegar en cada consola:",
+    en: "Redirect URIs to paste in each console:",
+  },
+  copy: { es: "Copiar", en: "Copy" },
+
+  // Channels panel — header
+  channels: { es: "Canales", en: "Channels" },
+  channelActive: { es: "canal activo", en: "active channel" },
+  channelsActive: { es: "canales activos", en: "active channels" },
+
+  // Channels panel — connection rows
+  noLabel: { es: "Sin etiqueta", en: "No label" },
+  disconnectAction: { es: "Desconectar", en: "Disconnect" },
+  deleteAction: { es: "Eliminar", en: "Delete" },
+  configurePaymentMethod: {
+    es: "Configurar medio de pago",
+    en: "Set up payment method",
+  },
+  whatsappManagerPaymentTooltip: {
+    es: "WhatsApp Manager → Configuración → Métodos de pago",
+    en: "WhatsApp Manager → Settings → Payment methods",
+  },
+
+  // Channels panel — CTAs
+  oneWhatsappPerAccount: {
+    es: "Un WhatsApp por cuenta. Desconéctalo para cambiar de número.",
+    en: "One WhatsApp per account. Disconnect it to switch numbers.",
+  },
+  orConnectPastingToken: {
+    es: "o conectar pegando un token manualmente",
+    en: "or connect by pasting a token manually",
+  },
+  configureProvider: { es: "Configura el proveedor", en: "Set up the provider" },
+  connect: { es: "Conectar", en: "Connect" },
+  configureGoogleFirst: {
+    es: "Configura Google Cloud OAuth Client primero (ver banner amarillo)",
+    en: "Set up the Google Cloud OAuth Client first (see the yellow banner)",
+  },
+  configureMicrosoftFirst: {
+    es: "Configura Microsoft Azure App primero (ver banner amarillo)",
+    en: "Set up the Microsoft Azure App first (see the yellow banner)",
+  },
+  configureMetaFirst: {
+    es: "Configura la Meta App primero (ver banner amarillo)",
+    en: "Set up the Meta App first (see the yellow banner)",
+  },
+  disconnectAllAccountsConfirm: {
+    es: "¿Desconectar las {n} cuentas de {label}?",
+    en: "Disconnect the {n} {label} accounts?",
+  },
+  disconnectAll: { es: "Desconectar todas", en: "Disconnect all" },
+
+  // Channels panel — manual token modal
+  manualLabelWhatsapp: { es: "WhatsApp", en: "WhatsApp" },
+  manualLabelMessenger: { es: "Facebook Messenger", en: "Facebook Messenger" },
+  manualLabelInstagram: { es: "Instagram DMs", en: "Instagram DMs" },
+  manualLabelFbComment: { es: "Comentarios FB", en: "FB comments" },
+  manualLabelIgComment: { es: "Comentarios IG", en: "IG comments" },
+  manualTipWhatsapp: {
+    es: "Pega un System User Token (whatsapp_business_messaging + whatsapp_business_management) + el phone_number_id y waba_id. Importante: el número debe estar registrado en Cloud API y NO estar en uso en la app de WhatsApp Business del celular (coexistencia), o no recibirá mensajes.",
+    en: "Paste a System User Token (whatsapp_business_messaging + whatsapp_business_management) plus the phone_number_id and waba_id. Important: the number must be registered in Cloud API and NOT in use in the WhatsApp Business phone app (coexistence), or it won't receive messages.",
+  },
+  manualTipMessenger: {
+    es: "Pega un Page Access Token de la página (Business Settings → System Users → Generar identificador con permiso pages_messaging + pages_show_list).",
+    en: "Paste the page's Page Access Token (Business Settings → System Users → Generate token with the pages_messaging + pages_show_list permissions).",
+  },
+  manualTipInstagram: {
+    es: "Pega el Page Access Token de la página que tiene la cuenta IG Profesional vinculada. Necesita permisos instagram_basic + instagram_manage_messages.",
+    en: "Paste the Page Access Token of the page linked to the IG Professional account. It needs the instagram_basic + instagram_manage_messages permissions.",
+  },
+  manualTipFbComment: {
+    es: "Pega el Page Access Token con permisos pages_read_engagement + pages_manage_engagement.",
+    en: "Paste the Page Access Token with the pages_read_engagement + pages_manage_engagement permissions.",
+  },
+  manualTipIgComment: {
+    es: "Pega el Page Access Token de la página que gestiona la cuenta IG con instagram_manage_comments.",
+    en: "Paste the Page Access Token of the page managing the IG account with instagram_manage_comments.",
+  },
+  pasteAToken: { es: "Pega un token", en: "Paste a token" },
+  whatsappNeedsIds: {
+    es: "WhatsApp necesita phone_number_id y waba_id",
+    en: "WhatsApp needs phone_number_id and waba_id",
+  },
+  couldNotSaveToken: {
+    es: "No se pudo guardar el token",
+    en: "Couldn't save the token",
+  },
+  connectedLabel: { es: "Conectado: {label}", en: "Connected: {label}" },
+  connectWithToken: {
+    es: "Conectar {label} con token",
+    en: "Connect {label} with a token",
+  },
+  close: { es: "Cerrar", en: "Close" },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  saveAndConnect: { es: "Guardar y conectar", en: "Save and connect" },
+
+  // Assignment rules — kind labels
+  ruleKindRoundRobin: { es: "Round robin", en: "Round robin" },
+  ruleKindByTag: { es: "Por etiqueta", en: "By tag" },
+  ruleKindByChannel: { es: "Por canal", en: "By channel" },
+  ruleKindByKeyword: { es: "Por palabra clave", en: "By keyword" },
+
+  // Assignment rules — kind hints
+  ruleHintRoundRobin: {
+    es: "Rota la conversación entre los agentes seleccionados.",
+    en: "Rotates the conversation among the selected agents.",
+  },
+  ruleHintByTag: {
+    es: "Asigna al agente si el contacto tiene la etiqueta.",
+    en: "Assigns the agent if the contact has the tag.",
+  },
+  ruleHintByChannel: {
+    es: "Asigna al agente cuando la conversación viene del canal.",
+    en: "Assigns the agent when the conversation comes from the channel.",
+  },
+  ruleHintByKeyword: {
+    es: "Asigna al agente si el primer mensaje contiene la palabra.",
+    en: "Assigns the agent if the first message contains the word.",
+  },
+
+  // Assignment rules — toasts
+  rulesLoadError: { es: "No se cargaron las reglas", en: "Couldn't load the rules" },
+  workspaceUnavailable: {
+    es: "Workspace no disponible",
+    en: "Workspace unavailable",
+  },
+  couldNotUpdate: { es: "No se pudo actualizar", en: "Couldn't update" },
+  deleteRuleConfirm: { es: "¿Eliminar regla?", en: "Delete rule?" },
+  couldNotDelete: { es: "No se pudo eliminar", en: "Couldn't delete" },
+  ruleDeleted: { es: "Regla eliminada", en: "Rule deleted" },
+  giveItAName: { es: "Ponle un nombre", en: "Give it a name" },
+  couldNotSave: { es: "No se pudo guardar", en: "Couldn't save" },
+  ruleUpdated: { es: "Regla actualizada", en: "Rule updated" },
+  ruleCreated: { es: "Regla creada", en: "Rule created" },
+
+  // Assignment rules — headings + descriptions
+  assignmentRules: { es: "Reglas de asignación", en: "Assignment rules" },
+  assignmentRulesDescription: {
+    es: "Cuando entra una conversación nueva sin asignar, se evalúan estas reglas en orden de prioridad. La primera que coincide gana.",
+    en: "When a new unassigned conversation arrives, these rules are evaluated in priority order. The first match wins.",
+  },
+  newRule: { es: "Nueva regla", en: "New rule" },
+  noRulesYet: { es: "Sin reglas todavía", en: "No rules yet" },
+  noRulesYetDescription: {
+    es: "Crea una para que tu bandeja reparta las conversaciones entre el equipo automáticamente.",
+    en: "Create one so your inbox distributes conversations across the team automatically.",
+  },
+  createFirstRule: { es: "Crear primera regla", en: "Create first rule" },
+
+  // Assignment rules — row card
+  anyChannel: { es: "Cualquier canal", en: "Any channel" },
+  rulePriorityChannel: {
+    es: "Prioridad {priority} · {channel}",
+    en: "Priority {priority} · {channel}",
+  },
+  pauseRule: { es: "Pausar regla", en: "Pause rule" },
+  activateRule: { es: "Activar regla", en: "Activate rule" },
+  edit: { es: "Editar", en: "Edit" },
+
+  // Assignment rules — editor modal
+  anyOption: { es: "Cualquiera", en: "Any" },
+  editRule: { es: "Editar regla", en: "Edit rule" },
+  ruleNameLabel: { es: "Nombre", en: "Name" },
+  ruleNamePlaceholder: {
+    es: "Ej: Repartir a soporte",
+    en: "E.g. Route to support",
+  },
+  ruleTypeLabel: { es: "Tipo", en: "Type" },
+  ruleChannelLabel: { es: "Canal", en: "Channel" },
+  ruleChannelHint: {
+    es: "La regla solo aplica a conversaciones de este canal.",
+    en: "The rule only applies to conversations from this channel.",
+  },
+  rulePriorityLabel: { es: "Prioridad", en: "Priority" },
+  ruleActiveLabel: { es: "Activa", en: "Active" },
+  agentIdsLabel: {
+    es: "IDs de agentes (separados por coma)",
+    en: "Agent IDs (comma-separated)",
+  },
+  tagIdLabel: { es: "ID de etiqueta", en: "Tag ID" },
+  agentIdLabel: { es: "ID de agente", en: "Agent ID" },
+  keywordLabel: { es: "Palabra clave", en: "Keyword" },
+  targetChannelLabel: { es: "Canal objetivo", en: "Target channel" },
+  selectPlaceholder: { es: "Selecciona", en: "Select" },
+  save: { es: "Guardar", en: "Save" },
 } satisfies Namespace;

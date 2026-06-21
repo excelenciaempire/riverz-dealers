@@ -20,6 +20,7 @@ import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useT } from "@/hooks/use-locale";
 import type { Channel, ChannelConnection } from "@/types";
+import { channelLabel } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
 import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
@@ -35,7 +36,8 @@ import { cn } from "@/lib/utils";
 interface ChannelGroup {
   key: string;
   label: string;
-  description: string;
+  /** i18n key (settings.*) for the card description, resolved at render. */
+  descriptionKey: string;
   /** Channel whose brand logo represents the group. */
   logoChannel: Channel;
   /** Optional explicit logo asset that overrides logoChannel (e.g. the Meta
@@ -51,8 +53,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "whatsapp",
     label: "WhatsApp",
-    description:
-      "Cloud API, WhatsApp Business o coexistencia.",
+    descriptionKey: "settings.whatsappCardDescription",
     logoChannel: "whatsapp",
     members: ["whatsapp"],
     connectChannel: "whatsapp",
@@ -60,8 +61,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "facebook",
     label: "Meta",
-    description:
-      "Messenger y comentarios de tu página en una sola conexión.",
+    descriptionKey: "settings.metaCardDescription",
     logoChannel: "messenger",
     logoSrc: "/channels/meta.svg",
     members: ["messenger", "fb_comment"],
@@ -70,7 +70,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "instagram",
     label: "Instagram",
-    description: "DMs y comentarios de Instagram en una sola conexión.",
+    descriptionKey: "settings.instagramCardDescription",
     logoChannel: "instagram",
     members: ["instagram", "ig_comment"],
     connectChannel: "instagram",
@@ -78,7 +78,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "gmail",
     label: "Gmail",
-    description: "Cuentas @gmail o Google Workspace.",
+    descriptionKey: "settings.gmailCardDescription",
     logoChannel: "gmail",
     members: ["gmail"],
     connectChannel: "gmail",
@@ -86,7 +86,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     key: "outlook",
     label: "Outlook",
-    description: "Bandeja para Outlook, Hotmail y Microsoft 365.",
+    descriptionKey: "settings.outlookCardDescription",
     logoChannel: "outlook",
     members: ["outlook"],
     connectChannel: "outlook",
@@ -106,6 +106,7 @@ type ManualChannel = Extract<
 >;
 
 export function ChannelsPanel() {
+  const t = useT();
   const { workspace, isAdmin, loading } = useWorkspace();
   const [connections, setConnections] = useState<ChannelConnection[]>([]);
   const [busy, setBusy] = useState(false);
@@ -129,9 +130,9 @@ export function ChannelsPanel() {
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`${label} copiado`);
+      toast.success(t("settings.copiedToClipboard", { label }));
     } catch {
-      toast.error("No se pudo copiar");
+      toast.error(t("settings.couldNotCopy"));
     }
   };
 
@@ -179,7 +180,7 @@ export function ChannelsPanel() {
   // just-deleted row on screen until a manual reload.
   const handleDisconnect = useCallback(
     async (ids: string[]) => {
-      if (!ids.length || !confirm("¿Desconectar este canal?")) return;
+      if (!ids.length || !confirm(t("settings.disconnectChannelConfirm"))) return;
       const supabase = createClient();
       const { error } = await supabase
         .from("channel_connections")
@@ -192,15 +193,15 @@ export function ChannelsPanel() {
       // Quitar de la vista al instante (no solo marcar disconnected): el
       // usuario espera que la fila desaparezca al desconectar.
       setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
-      toast.success("Canal desconectado");
+      toast.success(t("settings.channelDisconnected"));
       void fetchConnections();
     },
-    [fetchConnections],
+    [fetchConnections, t],
   );
 
   const handleDelete = useCallback(
     async (ids: string[]) => {
-      if (!ids.length || !confirm("¿Eliminar esta conexión?")) return;
+      if (!ids.length || !confirm(t("settings.deleteConnectionConfirm"))) return;
       const supabase = createClient();
       const { error } = await supabase
         .from("channel_connections")
@@ -211,10 +212,10 @@ export function ChannelsPanel() {
         return;
       }
       setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
-      toast.success("Conexión eliminada");
+      toast.success(t("settings.connectionDeleted"));
       void fetchConnections();
     },
-    [fetchConnections],
+    [fetchConnections, t],
   );
 
   if (loading) {
@@ -228,7 +229,7 @@ export function ChannelsPanel() {
   if (!workspace) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        No se encontró tu espacio de trabajo.
+        {t("settings.workspaceNotFound")}
       </div>
     );
   }
@@ -253,7 +254,7 @@ export function ChannelsPanel() {
             <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0 flex-1 space-y-2">
               <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                Faltan apps OAuth por registrar
+                {t("settings.oauthAppsMissing")}
               </h3>
               <ul className="space-y-1 text-xs text-amber-100/70">
                 <li>
@@ -283,7 +284,7 @@ export function ChannelsPanel() {
               {providers.siteUrl && (
                 <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
                   <p className="mb-1 text-amber-800 dark:text-amber-200">
-                    Redirect URIs a pegar en cada consola:
+                    {t("settings.redirectUrisToPaste")}
                   </p>
                   <div className="space-y-1 font-mono">
                     {(["meta", "google", "microsoft"] as const).map((p) => {
@@ -294,7 +295,7 @@ export function ChannelsPanel() {
                           <button
                             onClick={() => copyToClipboard(url, p)}
                             className="shrink-0 rounded p-1 flex items-center justify-center min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            title="Copiar"
+                            title={t("settings.copy")}
                           >
                             <Copy className="size-3" />
                           </button>
@@ -311,16 +312,18 @@ export function ChannelsPanel() {
 
       {/* Header */}
       <div className="flex items-end justify-between gap-4">
-        <h2 className="text-xl font-bold text-foreground">Canales</h2>
+        <h2 className="text-xl font-bold text-foreground">{t("settings.channels")}</h2>
         <div className="hidden shrink-0 text-right sm:block">
           <p className="text-3xl font-bold text-foreground">{connectedCount}</p>
           <p className="text-xs text-muted-foreground">
-            {connectedCount === 1 ? "canal activo" : "canales activos"}
+            {connectedCount === 1
+              ? t("settings.channelActive")
+              : t("settings.channelsActive")}
           </p>
         </div>
       </div>
       {!isAdmin && (
-        <p className="text-xs text-muted-foreground">Solo lectura.</p>
+        <p className="text-xs text-muted-foreground">{t("settings.readOnly")}</p>
       )}
 
       {manualOpen && workspace && (
@@ -386,7 +389,7 @@ export function ChannelsPanel() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{g.label}</p>
                   <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                    {g.description}
+                    {t(g.descriptionKey)}
                   </p>
                 </div>
               </div>
@@ -411,14 +414,16 @@ export function ChannelsPanel() {
                         <div className="flex items-center gap-2">
                           <StatusIcon status={primary.status} />
                           <span className="flex-1 truncate text-xs text-foreground">
-                            {primary.label ?? primary.external_account_id ?? "Sin etiqueta"}
+                            {primary.label ??
+                              primary.external_account_id ??
+                              t("settings.noLabel")}
                           </span>
                           {isAdmin && (
                             <>
                               {primary.status === "connected" && (
                                 <button
                                   onClick={() => handleDisconnect(ids)}
-                                  title="Desconectar"
+                                  title={t("settings.disconnectAction")}
                                   className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-amber-400"
                                 >
                                   <RefreshCcw className="size-3.5" />
@@ -426,7 +431,7 @@ export function ChannelsPanel() {
                               )}
                               <button
                                 onClick={() => handleDelete(ids)}
-                                title="Eliminar"
+                                title={t("settings.deleteAction")}
                                 className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400"
                               >
                                 <Trash2 className="size-3.5" />
@@ -451,11 +456,11 @@ export function ChannelsPanel() {
                               )}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="WhatsApp Manager → Configuración → Métodos de pago"
+                              title={t("settings.whatsappManagerPaymentTooltip")}
                               className="mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium text-muted-foreground hover:text-foreground"
                             >
                               <CreditCard className="size-3" />
-                              Configurar medio de pago
+                              {t("settings.configurePaymentMethod")}
                             </a>
                           )}
                       </li>
@@ -472,7 +477,7 @@ export function ChannelsPanel() {
                       disconnect first to switch numbers. */}
                   {g.connectChannel === "whatsapp" && anyConnected ? (
                     <p className="text-center text-[10px] leading-snug text-muted-foreground">
-                      Un WhatsApp por cuenta. Desconéctalo para cambiar de número.
+                      {t("settings.oneWhatsappPerAccount")}
                     </p>
                   ) : /* WhatsApp: Embedded Signup (Coexistence/new number) is
                       the primary path WHEN configured; otherwise fall through
@@ -491,7 +496,7 @@ export function ChannelsPanel() {
                         className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
                       >
                         <KeyRound className="mr-1 inline-block size-2.5" />
-                        o conectar pegando un token manualmente
+                        {t("settings.orConnectPastingToken")}
                       </button>
                     </>
                   ) : /* Facebook / Instagram: Facebook Login for Business via
@@ -515,7 +520,7 @@ export function ChannelsPanel() {
                         className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
                       >
                         <KeyRound className="mr-1 inline-block size-2.5" />
-                        o conectar pegando un token manualmente
+                        {t("settings.orConnectPastingToken")}
                       </button>
                     </>
                   ) : (
@@ -525,10 +530,10 @@ export function ChannelsPanel() {
                           if (!ready) {
                             toast.error(
                               g.connectChannel === "gmail"
-                                ? "Configura Google Cloud OAuth Client primero (ver banner amarillo)"
+                                ? t("settings.configureGoogleFirst")
                                 : g.connectChannel === "outlook"
-                                  ? "Configura Microsoft Azure App primero (ver banner amarillo)"
-                                  : "Configura la Meta App primero (ver banner amarillo)",
+                                  ? t("settings.configureMicrosoftFirst")
+                                  : t("settings.configureMetaFirst"),
                             );
                             return;
                           }
@@ -557,12 +562,14 @@ export function ChannelsPanel() {
                         {!ready ? (
                           <>
                             <AlertCircle className="size-4" />
-                            Configura el proveedor
+                            {t("settings.configureProvider")}
                           </>
                         ) : (
                           <>
                             <ChannelLogo channel={g.logoChannel} size={16} />
-                            {anyConnected ? "Añadir otra cuenta" : "Conectar"}
+                            {anyConnected
+                              ? t("settings.addAnotherAccount")
+                              : t("settings.connect")}
                           </>
                         )}
                       </button>
@@ -578,7 +585,7 @@ export function ChannelsPanel() {
                             className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
                           >
                             <KeyRound className="mr-1 inline-block size-2.5" />
-                            o conectar pegando un token manualmente
+                            {t("settings.orConnectPastingToken")}
                           </button>
                         )}
                     </>
@@ -596,7 +603,10 @@ export function ChannelsPanel() {
                         if (
                           ids.length > 1 &&
                           !window.confirm(
-                            `¿Desconectar las ${ids.length} cuentas de ${g.label}?`,
+                            t("settings.disconnectAllAccountsConfirm", {
+                              n: ids.length,
+                              label: g.label,
+                            }),
                           )
                         )
                           return;
@@ -605,7 +615,9 @@ export function ChannelsPanel() {
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
                     >
                       <RefreshCcw className="size-4" />
-                      {accounts.length > 1 ? "Desconectar todas" : "Desconectar"}
+                      {accounts.length > 1
+                        ? t("settings.disconnectAll")
+                        : t("settings.disconnectAction")}
                     </button>
                   )}
                 </div>
@@ -627,26 +639,32 @@ function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
   return <XCircle className={cn(classes, "text-muted-foreground")} />;
 }
 
-const MANUAL_HINT: Record<ManualChannel, { label: string; tip: string }> = {
+// i18n keys per manual channel. The brand labels (whatsapp/messenger/instagram)
+// resolve to a settings.* key; the two comment channels use channelLabel(). Tips
+// are settings.* keys resolved at render in ManualTokenModal.
+const MANUAL_HINT: Record<
+  ManualChannel,
+  { labelKey: string; tipKey: string }
+> = {
   whatsapp: {
-    label: "WhatsApp",
-    tip: "Pega un System User Token (whatsapp_business_messaging + whatsapp_business_management) + el phone_number_id y waba_id. Importante: el número debe estar registrado en Cloud API y NO estar en uso en la app de WhatsApp Business del celular (coexistencia), o no recibirá mensajes.",
+    labelKey: "settings.manualLabelWhatsapp",
+    tipKey: "settings.manualTipWhatsapp",
   },
   messenger: {
-    label: "Facebook Messenger",
-    tip: "Pega un Page Access Token de la página (Business Settings → System Users → Generar identificador con permiso pages_messaging + pages_show_list).",
+    labelKey: "settings.manualLabelMessenger",
+    tipKey: "settings.manualTipMessenger",
   },
   instagram: {
-    label: "Instagram DMs",
-    tip: "Pega el Page Access Token de la página que tiene la cuenta IG Profesional vinculada. Necesita permisos instagram_basic + instagram_manage_messages.",
+    labelKey: "settings.manualLabelInstagram",
+    tipKey: "settings.manualTipInstagram",
   },
   fb_comment: {
-    label: "Comentarios FB",
-    tip: "Pega el Page Access Token con permisos pages_read_engagement + pages_manage_engagement.",
+    labelKey: "settings.manualLabelFbComment",
+    tipKey: "settings.manualTipFbComment",
   },
   ig_comment: {
-    label: "Comentarios IG",
-    tip: "Pega el Page Access Token de la página que gestiona la cuenta IG con instagram_manage_comments.",
+    labelKey: "settings.manualLabelIgComment",
+    tipKey: "settings.manualTipIgComment",
   },
 };
 
@@ -668,10 +686,10 @@ function ManualTokenModal({
   // comentarios (no son nombres de marca) se traducen según el idioma.
   const metaLabel =
     channel === "fb_comment"
-      ? t("common.channelFbComments")
+      ? channelLabel("fb_comment", t)
       : channel === "ig_comment"
-        ? t("common.channelIgComments")
-        : meta.label;
+        ? channelLabel("ig_comment", t)
+        : t(meta.labelKey);
   const [token, setToken] = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [wabaId, setWabaId] = useState("");
@@ -679,11 +697,11 @@ function ManualTokenModal({
 
   const submit = async () => {
     if (!token.trim()) {
-      toast.error("Pega un token");
+      toast.error(t("settings.pasteAToken"));
       return;
     }
     if (channel === "whatsapp" && (!phoneNumberId.trim() || !wabaId.trim())) {
-      toast.error("WhatsApp necesita phone_number_id y waba_id");
+      toast.error(t("settings.whatsappNeedsIds"));
       return;
     }
     setSaving(true);
@@ -701,10 +719,10 @@ function ManualTokenModal({
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string; label?: string };
       if (!res.ok) {
-        toast.error(json.error ?? "No se pudo guardar el token");
+        toast.error(json.error ?? t("settings.couldNotSaveToken"));
         return;
       }
-      toast.success(`Conectado: ${json.label ?? channel}`);
+      toast.success(t("settings.connectedLabel", { label: json.label ?? channel }));
       await onSaved();
     } finally {
       setSaving(false);
@@ -725,14 +743,14 @@ function ManualTokenModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">
-              Conectar {metaLabel} con token
+              {t("settings.connectWithToken", { label: metaLabel })}
             </h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{meta.tip}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t(meta.tipKey)}</p>
           </div>
           <button
             onClick={onClose}
             className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Cerrar"
+            aria-label={t("settings.close")}
           >
             <X className="size-4" />
           </button>
@@ -784,7 +802,7 @@ function ManualTokenModal({
             onClick={onClose}
             className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
           >
-            Cancelar
+            {t("settings.cancel")}
           </button>
           <button
             onClick={submit}
@@ -792,7 +810,7 @@ function ManualTokenModal({
             className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3 animate-spin" />}
-            Guardar y conectar
+            {t("settings.saveAndConnect")}
           </button>
         </div>
       </div>

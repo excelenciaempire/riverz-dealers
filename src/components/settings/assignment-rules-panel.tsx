@@ -56,21 +56,23 @@ interface RuleRow {
   created_at: string;
 }
 
-const KIND_LABEL: Record<RuleKind, string> = {
-  round_robin: "Round robin",
-  by_tag: "Por etiqueta",
-  by_channel: "Por canal",
-  by_keyword: "Por palabra clave",
+// i18n keys (settings.*) per rule kind, resolved at render via t().
+const KIND_LABEL_KEY: Record<RuleKind, string> = {
+  round_robin: "settings.ruleKindRoundRobin",
+  by_tag: "settings.ruleKindByTag",
+  by_channel: "settings.ruleKindByChannel",
+  by_keyword: "settings.ruleKindByKeyword",
 };
 
-const KIND_HINT: Record<RuleKind, string> = {
-  round_robin: "Rota la conversación entre los agentes seleccionados.",
-  by_tag: "Asigna al agente si el contacto tiene la etiqueta.",
-  by_channel: "Asigna al agente cuando la conversación viene del canal.",
-  by_keyword: "Asigna al agente si el primer mensaje contiene la palabra.",
+const KIND_HINT_KEY: Record<RuleKind, string> = {
+  round_robin: "settings.ruleHintRoundRobin",
+  by_tag: "settings.ruleHintByTag",
+  by_channel: "settings.ruleHintByChannel",
+  by_keyword: "settings.ruleHintByKeyword",
 };
 
 export function AssignmentRulesPanel() {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const { workspace } = useWorkspace();
   const [rules, setRules] = useState<RuleRow[] | null>(null);
@@ -81,12 +83,12 @@ export function AssignmentRulesPanel() {
     const res = await fetch("/api/inbox/assignment-rules");
     const json = await res.json();
     if (!res.ok) {
-      toast.error(json.error ?? "No se cargaron las reglas");
+      toast.error(json.error ?? t("settings.rulesLoadError"));
       setRules([]);
       return;
     }
     setRules((json.rules ?? []) as RuleRow[]);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -94,7 +96,7 @@ export function AssignmentRulesPanel() {
 
   async function toggleActive(rule: RuleRow, next: boolean) {
     if (!workspace?.id) {
-      toast.error("Workspace no disponible");
+      toast.error(t("settings.workspaceUnavailable"));
       return;
     }
     setRules((prev) =>
@@ -122,16 +124,16 @@ export function AssignmentRulesPanel() {
         ) ?? prev,
       );
       const json = await res.json().catch(() => ({}));
-      toast.error(json.error ?? "No se pudo actualizar");
+      toast.error(json.error ?? t("settings.couldNotUpdate"));
     }
   }
 
   async function handleDelete(id: string) {
     if (!workspace?.id) {
-      toast.error("Workspace no disponible");
+      toast.error(t("settings.workspaceUnavailable"));
       return;
     }
-    if (!confirm("¿Eliminar regla?")) return;
+    if (!confirm(t("settings.deleteRuleConfirm"))) return;
     setDeletingId(id);
     const res = await fetchWithCsrf(
       `/api/inbox/assignment-rules?id=${id}&workspace_id=${workspace.id}`,
@@ -142,11 +144,11 @@ export function AssignmentRulesPanel() {
     setDeletingId(null);
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      toast.error(json.error ?? "No se pudo eliminar");
+      toast.error(json.error ?? t("settings.couldNotDelete"));
       return;
     }
     setRules((prev) => prev?.filter((r) => r.id !== id) ?? prev);
-    toast.success("Regla eliminada");
+    toast.success(t("settings.ruleDeleted"));
   }
 
   if (rules === null) {
@@ -162,11 +164,10 @@ export function AssignmentRulesPanel() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-foreground">
-            Reglas de asignación
+            {t("settings.assignmentRules")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cuando entra una conversación nueva sin asignar, se evalúan estas
-            reglas en orden de prioridad. La primera que coincide gana.
+            {t("settings.assignmentRulesDescription")}
           </p>
         </div>
         <Button
@@ -174,7 +175,7 @@ export function AssignmentRulesPanel() {
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="size-4" />
-          Nueva regla
+          {t("settings.newRule")}
         </Button>
       </div>
 
@@ -184,18 +185,17 @@ export function AssignmentRulesPanel() {
             <GitBranch className="size-6" />
           </div>
           <p className="mt-3 text-sm font-medium text-foreground">
-            Sin reglas todavía
+            {t("settings.noRulesYet")}
           </p>
           <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-            Crea una para que tu bandeja reparta las conversaciones entre el
-            equipo automáticamente.
+            {t("settings.noRulesYetDescription")}
           </p>
           <Button
             onClick={() => setEditing("new")}
             className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="size-4" />
-            Crear primera regla
+            {t("settings.createFirstRule")}
           </Button>
         </div>
       ) : (
@@ -244,7 +244,7 @@ function RuleRowCard({
   const t = useT();
   const channelLabelText = rule.channel
     ? channelLabel(rule.channel as Channel, t)
-    : "Cualquier canal";
+    : t("settings.anyChannel");
   return (
     <li className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
@@ -260,21 +260,24 @@ function RuleRowCard({
             {rule.name}
           </p>
           <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {KIND_LABEL[rule.kind]}
+            {t(KIND_LABEL_KEY[rule.kind])}
           </span>
         </div>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          Prioridad {rule.priority} · {channelLabelText}
+          {t("settings.rulePriorityChannel", {
+            priority: rule.priority,
+            channel: channelLabelText,
+          })}
         </p>
       </button>
       <Switch
         checked={rule.is_active}
         onCheckedChange={(v) => onToggle(!!v)}
-        aria-label={rule.is_active ? "Pausar regla" : "Activar regla"}
+        aria-label={rule.is_active ? t("settings.pauseRule") : t("settings.activateRule")}
       />
       <button
         onClick={onEdit}
-        title="Editar"
+        title={t("settings.edit")}
         className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
       >
         <Pencil className="size-4" />
@@ -282,7 +285,7 @@ function RuleRowCard({
       <button
         onClick={onDelete}
         disabled={deleting}
-        title="Eliminar"
+        title={t("settings.deleteAction")}
         className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
       >
         {deleting ? (
@@ -321,9 +324,21 @@ function RuleEditorModal({
   // no le damos children o labels. Cubrimos el sentinel "any" + cada canal.
   const channelSelectLabels = useMemo<Record<string, string>>(
     () => ({
-      any: "Cualquiera",
+      any: t("settings.anyOption"),
       ...Object.fromEntries(CHANNELS.map((c) => [c, channelLabel(c, t)])),
     }),
+    [t],
+  );
+  // Resolved kind labels for SelectValue (base-ui prints the raw value
+  // otherwise) and the option list.
+  const kindLabels = useMemo<Record<RuleKind, string>>(
+    () =>
+      Object.fromEntries(
+        (Object.keys(KIND_LABEL_KEY) as RuleKind[]).map((k) => [
+          k,
+          t(KIND_LABEL_KEY[k]),
+        ]),
+      ) as Record<RuleKind, string>,
     [t],
   );
   const [draft, setDraft] = useState<RuleDraft>(() => ({
@@ -345,11 +360,11 @@ function RuleEditorModal({
 
   async function submit() {
     if (!draft.name.trim()) {
-      toast.error("Ponle un nombre");
+      toast.error(t("settings.giveItAName"));
       return;
     }
     if (!workspaceId) {
-      toast.error("Workspace no disponible");
+      toast.error(t("settings.workspaceUnavailable"));
       return;
     }
     // Recompone config según kind.
@@ -394,10 +409,10 @@ function RuleEditorModal({
     setSaving(false);
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      toast.error(json.error ?? "No se pudo guardar");
+      toast.error(json.error ?? t("settings.couldNotSave"));
       return;
     }
-    toast.success(rule ? "Regla actualizada" : "Regla creada");
+    toast.success(rule ? t("settings.ruleUpdated") : t("settings.ruleCreated"));
     await onSaved();
   }
 
@@ -414,12 +429,12 @@ function RuleEditorModal({
       >
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-sm font-semibold text-foreground">
-            {rule ? "Editar regla" : "Nueva regla"}
+            {rule ? t("settings.editRule") : t("settings.newRule")}
           </h3>
           <button
             onClick={onClose}
             className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Cerrar"
+            aria-label={t("settings.close")}
           >
             <X className="size-4" />
           </button>
@@ -428,7 +443,7 @@ function RuleEditorModal({
         <div className="mt-4 space-y-3">
           <div>
             <Label htmlFor="rule-name" className="text-xs text-foreground">
-              Nombre
+              {t("settings.ruleNameLabel")}
             </Label>
             <Input
               id="rule-name"
@@ -436,14 +451,14 @@ function RuleEditorModal({
               onChange={(e) =>
                 setDraft((d) => ({ ...d, name: e.target.value }))
               }
-              placeholder="Ej: Repartir a soporte"
+              placeholder={t("settings.ruleNamePlaceholder")}
               className="mt-1"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-foreground">Tipo</Label>
+              <Label className="text-xs text-foreground">{t("settings.ruleTypeLabel")}</Label>
               <Select
                 value={draft.kind}
                 onValueChange={(v) => {
@@ -452,23 +467,23 @@ function RuleEditorModal({
                 }}
               >
                 <SelectTrigger className="mt-1 w-full">
-                  <SelectValue labels={KIND_LABEL} />
+                  <SelectValue labels={kindLabels} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(KIND_LABEL) as RuleKind[]).map((k) => (
+                  {(Object.keys(KIND_LABEL_KEY) as RuleKind[]).map((k) => (
                     <SelectItem key={k} value={k}>
-                      {KIND_LABEL[k]}
+                      {kindLabels[k]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {KIND_HINT[draft.kind]}
+                {t(KIND_HINT_KEY[draft.kind])}
               </p>
             </div>
 
             <div>
-              <Label className="text-xs text-foreground">Canal</Label>
+              <Label className="text-xs text-foreground">{t("settings.ruleChannelLabel")}</Label>
               <Select
                 value={draft.channel || "any"}
                 onValueChange={(v) => {
@@ -480,7 +495,7 @@ function RuleEditorModal({
                   <SelectValue labels={channelSelectLabels} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Cualquiera</SelectItem>
+                  <SelectItem value="any">{t("settings.anyOption")}</SelectItem>
                   {CHANNELS.map((ch) => (
                     <SelectItem key={ch} value={ch}>
                       {channelLabel(ch, t)}
@@ -489,14 +504,14 @@ function RuleEditorModal({
                 </SelectContent>
               </Select>
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                La regla solo aplica a conversaciones de este canal.
+                {t("settings.ruleChannelHint")}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs text-foreground">Prioridad</Label>
+              <Label className="text-xs text-foreground">{t("settings.rulePriorityLabel")}</Label>
               <Input
                 type="number"
                 value={draft.priority}
@@ -510,7 +525,7 @@ function RuleEditorModal({
               />
             </div>
             <div className="flex items-end justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-              <span className="text-xs text-foreground">Activa</span>
+              <span className="text-xs text-foreground">{t("settings.ruleActiveLabel")}</span>
               <Switch
                 checked={draft.is_active}
                 onCheckedChange={(v) =>
@@ -524,7 +539,7 @@ function RuleEditorModal({
           {draft.kind === "round_robin" && (
             <div>
               <Label className="text-xs text-foreground">
-                IDs de agentes (separados por coma)
+                {t("settings.agentIdsLabel")}
               </Label>
               <Input
                 value={agentIdsText}
@@ -538,7 +553,7 @@ function RuleEditorModal({
           {draft.kind === "by_tag" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-foreground">ID de etiqueta</Label>
+                <Label className="text-xs text-foreground">{t("settings.tagIdLabel")}</Label>
                 <Input
                   value={String(draft.config.tag_id ?? "")}
                   onChange={(e) =>
@@ -551,7 +566,7 @@ function RuleEditorModal({
                 />
               </div>
               <div>
-                <Label className="text-xs text-foreground">ID de agente</Label>
+                <Label className="text-xs text-foreground">{t("settings.agentIdLabel")}</Label>
                 <Input
                   value={String(draft.config.agent_id ?? "")}
                   onChange={(e) =>
@@ -569,7 +584,7 @@ function RuleEditorModal({
           {draft.kind === "by_keyword" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-foreground">Palabra clave</Label>
+                <Label className="text-xs text-foreground">{t("settings.keywordLabel")}</Label>
                 <Input
                   value={String(draft.config.keyword ?? "")}
                   onChange={(e) =>
@@ -582,7 +597,7 @@ function RuleEditorModal({
                 />
               </div>
               <div>
-                <Label className="text-xs text-foreground">ID de agente</Label>
+                <Label className="text-xs text-foreground">{t("settings.agentIdLabel")}</Label>
                 <Input
                   value={String(draft.config.agent_id ?? "")}
                   onChange={(e) =>
@@ -600,7 +615,7 @@ function RuleEditorModal({
           {draft.kind === "by_channel" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-foreground">Canal objetivo</Label>
+                <Label className="text-xs text-foreground">{t("settings.targetChannelLabel")}</Label>
                 <Select
                   value={String(draft.config.channel ?? "")}
                   onValueChange={(v) => {
@@ -612,7 +627,7 @@ function RuleEditorModal({
                   }}
                 >
                   <SelectTrigger className="mt-1 w-full">
-                    <SelectValue labels={channelSelectLabels} placeholder="Selecciona" />
+                    <SelectValue labels={channelSelectLabels} placeholder={t("settings.selectPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {CHANNELS.map((ch) => (
@@ -624,7 +639,7 @@ function RuleEditorModal({
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-foreground">ID de agente</Label>
+                <Label className="text-xs text-foreground">{t("settings.agentIdLabel")}</Label>
                 <Input
                   value={String(draft.config.agent_id ?? "")}
                   onChange={(e) =>
@@ -645,7 +660,7 @@ function RuleEditorModal({
             onClick={onClose}
             className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
           >
-            Cancelar
+            {t("settings.cancel")}
           </button>
           <button
             onClick={submit}
@@ -653,7 +668,7 @@ function RuleEditorModal({
             className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3 animate-spin" />}
-            Guardar
+            {t("settings.save")}
           </button>
         </div>
       </div>
