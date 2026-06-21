@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { useSearchParams } from "next/navigation";
 import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { Mail, CheckCircle, Loader2 } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ import {
 
 export default function VerifyEmailPage() {
   const t = useT();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const supabase = createClient();
   const [email, setEmail] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);

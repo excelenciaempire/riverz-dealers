@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -22,8 +23,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
+import { useT, useLocale } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { localizePath, canonicalizePath } from '@/lib/i18n/routes';
 
 interface Product {
   id: string;
@@ -105,9 +107,10 @@ function parseObjections(text: string): Array<{ objection: string; rebuttal: str
 
 export default function ProductDetailPage() {
   const t = useT();
+  const { locale } = useLocale();
   const fmt = useFormat();
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -207,9 +210,13 @@ export default function ProductDetailPage() {
     if (!product?.handle) return;
     const desired = `/productos/${product.handle}`;
     if (window.location.pathname !== desired) {
-      window.history.replaceState(null, '', desired);
+      window.history.replaceState(
+        null,
+        '',
+        localizePath(canonicalizePath(desired), locale),
+      );
     }
-  }, [product?.handle]);
+  }, [product?.handle, locale]);
 
   const buildPatch = useCallback(
     () => ({

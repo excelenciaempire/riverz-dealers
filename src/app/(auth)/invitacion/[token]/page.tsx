@@ -1,8 +1,8 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
+import Link from "@/components/i18n/locale-link";
 import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ interface PageProps {
 export default function AcceptInvitePage({ params }: PageProps) {
   const { token } = use(params);
   const t = useT();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const [state, setState] = useState<"loading" | "ready" | "accepted" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");

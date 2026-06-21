@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { Plug2, Loader2 } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { useActiveConnections } from "@/hooks/use-active-connections";

@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import { Loader2 } from "lucide-react"
 
 import {
@@ -19,7 +19,7 @@ export default function EditAutomationPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const router = useRouter()
+  const router = useLocalizedRouter()
   const t = useT()
   const [initial, setInitial] = useState<BuilderInitial | null>(null)
   const [error, setError] = useState<string | null>(null)

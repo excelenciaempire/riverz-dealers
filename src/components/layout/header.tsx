@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { Menu } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 

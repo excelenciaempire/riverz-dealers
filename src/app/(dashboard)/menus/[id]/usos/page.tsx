@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import {
   ArrowLeft,
   Loader2,
@@ -246,7 +247,7 @@ function StatusBreakdown({
 }
 
 export default function FlowRunsPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const params = useParams<{ id: string }>();
 

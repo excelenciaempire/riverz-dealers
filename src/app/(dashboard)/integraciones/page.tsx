@@ -1,5 +1,6 @@
 'use client';
 
+import Link from '@/components/i18n/locale-link';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
 import { useT } from '@/hooks/use-locale';

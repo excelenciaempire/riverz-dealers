@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -17,7 +17,7 @@ const COLLAPSE_KEY = "ui.sidebar.collapsed";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is

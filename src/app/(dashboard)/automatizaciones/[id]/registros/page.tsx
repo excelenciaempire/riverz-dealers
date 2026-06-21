@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import {
   ArrowLeft,
   Check,
@@ -28,7 +28,7 @@ export default function AutomationLogsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  const router = useRouter()
+  const router = useLocalizedRouter()
   const t = useT()
 
   const [automation, setAutomation] = useState<Automation | null>(null)

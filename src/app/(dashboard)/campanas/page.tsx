@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,7 @@ function RateCell({ value, total }: { value: number; total: number }) {
 }
 
 export default function BroadcastsPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const fmt = useFormat();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);

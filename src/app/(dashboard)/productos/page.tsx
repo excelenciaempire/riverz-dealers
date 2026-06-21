@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/components/i18n/locale-link';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import {
   RefreshCw,
@@ -28,7 +28,8 @@ import {
 import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
+import { useT, useLocale } from '@/hooks/use-locale';
+import { localizePath, canonicalizePath } from '@/lib/i18n/routes';
 
 interface ProductRow {
   id: string;
@@ -51,7 +52,8 @@ interface ProductRow {
 
 export default function ProductosPage() {
   const t = useT();
-  const router = useRouter();
+  const { locale } = useLocale();
+  const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
@@ -92,9 +94,13 @@ export default function ProductosPage() {
     if (sp.get('new') === '1') {
       setName('');
       setCreateOpen(true);
-      window.history.replaceState(null, '', '/productos');
+      window.history.replaceState(
+        null,
+        '',
+        localizePath(canonicalizePath('/productos'), locale),
+      );
     }
-  }, []);
+  }, [locale]);
 
   async function handleSync() {
     setSyncing(true);

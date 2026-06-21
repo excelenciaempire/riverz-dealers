@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import Link from "@/components/i18n/locale-link"
+import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import { toast } from "sonner"
 import {
   Zap,
@@ -66,7 +66,7 @@ const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
 }
 
 export default function AutomationsPage() {
-  const router = useRouter()
+  const router = useLocalizedRouter()
   const t = useT()
   const fetchWithCsrf = useFetchWithCsrf()
   const { workspace, loading: wsLoading } = useWorkspace()

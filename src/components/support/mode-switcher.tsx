@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from "@/components/i18n/locale-link";
 import { Sparkles, Waypoints, ArrowRight } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';

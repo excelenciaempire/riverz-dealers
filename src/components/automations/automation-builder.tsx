@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import Link from "@/components/i18n/locale-link"
+import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -574,7 +574,7 @@ export function AutomationBuilder({
   templatePreview?: boolean
 }) {
   const t = useT()
-  const router = useRouter()
+  const router = useLocalizedRouter()
   const fetchWithCsrf = useFetchWithCsrf()
   const connections = useActiveConnections()
   // Automations send only through WhatsApp; surface which number runs them

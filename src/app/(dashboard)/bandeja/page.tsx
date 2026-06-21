@@ -17,13 +17,15 @@ import {
   channelBelongsToTab,
 } from "@/components/inbox/inbox-tabs";
 import { ResizablePane } from "@/components/inbox/resizable-pane";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
+import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
 
 export default function InboxPage() {
   const t = useT();
+  const { locale } = useLocale();
   const searchParams = useSearchParams();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
@@ -445,9 +447,13 @@ export default function InboxPage() {
       // and made the conversation list refetch on every click — that's the
       // "whole page reloads" the user saw. history.replaceState updates the
       // address bar only: no re-render, no refetch. Selection is React state.
-      window.history.replaceState(null, "", `/bandeja?c=${conv.id}`);
+      window.history.replaceState(
+        null,
+        "",
+        localizePath(canonicalizePath(`/bandeja?c=${conv.id}`), locale),
+      );
     },
-    [activeConversation?.id]
+    [activeConversation?.id, locale]
   );
 
   // Drop a conversation from local state after the user deletes it via
@@ -461,10 +467,14 @@ export default function InboxPage() {
         setActiveContact(null);
         setMessages([]);
         autoSelectedForDeepLinkRef.current = null;
-        window.history.replaceState(null, "", "/bandeja");
+        window.history.replaceState(
+          null,
+          "",
+          localizePath(canonicalizePath("/bandeja"), locale),
+        );
       }
     },
-    [activeConversation?.id],
+    [activeConversation?.id, locale],
   );
 
   // After a bulk delete, refetch authoritative state from the DB. The list
@@ -486,8 +496,12 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /bandeja?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
-    window.history.replaceState(null, "", "/bandeja");
-  }, []);
+    window.history.replaceState(
+      null,
+      "",
+      localizePath(canonicalizePath("/bandeja"), locale),
+    );
+  }, [locale]);
 
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {

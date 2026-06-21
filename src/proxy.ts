@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/lib/i18n/config'
-import { detectLocale } from '@/lib/i18n/detect'
+import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
@@ -165,11 +165,14 @@ export async function proxy(request: NextRequest) {
     return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), nonce)
   }
 
-  // First-visit locale default: if no locale cookie yet, seed it from the
-  // geo/Accept-Language headers ("por IP"). Not httpOnly — the client
-  // LocaleProvider reads + overwrites it when the user picks a language.
+  // First-visit locale default: if no locale cookie yet, assign one "por IP".
+  // detectLocaleWithIp does geo header → IP geolocation → Accept-Language →
+  // default, so a new visitor gets their country's language even on Render
+  // (no geo header) — and the lookup runs at most once per visitor (the cookie
+  // is set for a year). Not httpOnly: the client LocaleProvider reads it and
+  // overwrites it when the user picks a language in onboarding/Settings.
   if (!request.cookies.get(LOCALE_COOKIE)) {
-    supabaseResponse.cookies.set(LOCALE_COOKIE, detectLocale(request.headers), {
+    supabaseResponse.cookies.set(LOCALE_COOKIE, await detectLocaleWithIp(request.headers), {
       path: '/',
       maxAge: LOCALE_COOKIE_MAX_AGE,
       sameSite: 'lax',

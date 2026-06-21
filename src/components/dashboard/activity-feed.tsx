@@ -1,6 +1,6 @@
 "use client"
 
-import Link from 'next/link'
+import Link from "@/components/i18n/locale-link"
 import { useEffect, useState } from 'react'
 import {
   MessageSquare,

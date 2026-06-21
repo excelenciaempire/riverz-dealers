@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 
 import { Button } from "@/components/ui/button";
 import { FlowBuilder } from "@/components/flows/flow-builder";
@@ -23,7 +24,7 @@ import {
  * Mismo patrón que automatizaciones/nueva?template=.
  */
 export default function NewFlowFromTemplatePage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const params = useSearchParams();
   const slug = params.get("template") ?? "";

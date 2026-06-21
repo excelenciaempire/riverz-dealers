@@ -12,7 +12,7 @@ import {
   COMMENT_CHANNELS,
   type InboxTab,
 } from "@/components/inbox/inbox-tabs";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import {
   Search,
   ChevronDown,

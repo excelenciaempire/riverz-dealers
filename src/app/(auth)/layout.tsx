@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { getT } from "@/lib/i18n/server";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the

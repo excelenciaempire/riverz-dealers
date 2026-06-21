@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from '@/components/i18n/locale-link';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import { Loader2, Plus, RefreshCw, Trash2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -67,7 +67,7 @@ function StatusPill({ status, t }: { status: string; t: TFn }) {
 
 export default function TemplatesPage() {
   const supabase = createClient();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const { user, loading: authLoading } = useAuth();
   const t = useT();

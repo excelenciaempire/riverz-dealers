@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { toast } from "sonner";
 import {
   Workflow,
@@ -82,7 +82,7 @@ const STATUS_COLORS: Record<FlowRow["status"], string> = {
 type CreateStep = "choose" | "name" | "template" | "preview";
 
 export default function FlowsPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [flows, setFlows] = useState<FlowRow[]>([]);

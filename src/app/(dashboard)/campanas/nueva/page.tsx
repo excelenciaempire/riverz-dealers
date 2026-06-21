@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, CalendarClock, Loader2, Plus, Send } from 'lucide-react';
@@ -110,7 +110,7 @@ function describeScheduledAt(iso: string | null, t: TFn): string {
 }
 
 export default function NewBroadcastPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();

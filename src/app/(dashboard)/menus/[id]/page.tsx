@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +23,7 @@ import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
  * "Flow not found" state below.
  */
 export default function FlowEditorPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const params = useParams<{ id: string }>();
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import {
@@ -216,7 +216,7 @@ export function AgentEditor({
 }: AgentEditorProps) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   // Persistimos el id del agente "en edición" en estado local porque
   // la generación con IA crea el row a medio camino. Inicialmente es
   // el agente que entró por props (null cuando es "Nuevo"), pero al

@@ -25,7 +25,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import {
   ArrowLeft,
   CircleAlert,
@@ -629,7 +629,7 @@ export function FlowBuilder({
   templatePreview = false,
   templateSlug,
 }: FlowBuilderProps) {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
 

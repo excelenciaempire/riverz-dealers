@@ -55,13 +55,89 @@ export function localeFromAcceptLanguage(header: string | null | undefined): Loc
   return null;
 }
 
-/** Resolve the default locale from request headers. */
+/** Resolve the default locale from request headers (synchronous, no network). */
 export function detectLocale(headers: {
   get(name: string): string | null;
 }): Locale {
   for (const h of GEO_HEADERS) {
     const fromGeo = localeFromGeo(headers.get(h));
     if (fromGeo) return fromGeo;
+  }
+  const fromAccept = localeFromAcceptLanguage(headers.get("accept-language"));
+  if (fromAccept) return fromAccept;
+  return DEFAULT_LOCALE;
+}
+
+/** Real client IP from the usual proxy headers (first hop in x-forwarded-for). */
+export function clientIp(headers: { get(name: string): string | null }): string | null {
+  const xff = headers.get("x-forwarded-for");
+  if (xff) {
+    const first = xff.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return (
+    headers.get("true-client-ip") ||
+    headers.get("cf-connecting-ip") ||
+    headers.get("x-real-ip") ||
+    null
+  );
+}
+
+// Skip the geo lookup for these: bots (don't burn the shared lookup quota on
+// crawlers) and private/loopback IPs (localhost/dev — they never resolve).
+const BOT_UA = /bot|crawl|spider|slurp|crawler|preview|monitor|curl|wget|python-requests|headless|facebookexternalhit|lighthouse/i;
+const PRIVATE_IP =
+  /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80:)/i;
+
+/**
+ * Resolve a country from the client IP via a free, keyless geolocation
+ * endpoint. Used only when the upstream gave us no geo header (e.g. Render,
+ * which doesn't set one). Hard 800ms timeout and every failure path returns
+ * null, so detection degrades to Accept-Language instead of hanging.
+ *
+ * At scale, prefer a CDN that sets a country header (Cloudflare's
+ * `cf-ipcountry` is already read above) — that's instant and free per request,
+ * and short-circuits this network call entirely.
+ */
+async function countryFromIp(ip: string): Promise<string | null> {
+  if (PRIVATE_IP.test(ip)) return null;
+  try {
+    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/country/`, {
+      signal: AbortSignal.timeout(800),
+      headers: { "user-agent": "riverz-locale-detect" },
+    });
+    if (!res.ok) return null;
+    const cc = (await res.text()).trim();
+    return /^[A-Za-z]{2}$/.test(cc) ? cc.toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Like detectLocale() but adds a real IP→country geolocation step when no geo
+ * header is present, so first-time visitors get the right default "por IP"
+ * even on hosts (Render) that don't expose a country header. The user can
+ * still change it afterwards (onboarding / Settings).
+ *
+ * Priority: geo header → IP geolocation → Accept-Language → DEFAULT_LOCALE.
+ * Only used on the first visit (no locale cookie yet), so the network call
+ * happens at most once per visitor.
+ */
+export async function detectLocaleWithIp(headers: {
+  get(name: string): string | null;
+}): Promise<Locale> {
+  for (const h of GEO_HEADERS) {
+    const fromGeo = localeFromGeo(headers.get(h));
+    if (fromGeo) return fromGeo;
+  }
+  const ua = headers.get("user-agent") ?? "";
+  if (!BOT_UA.test(ua)) {
+    const ip = clientIp(headers);
+    if (ip) {
+      const fromIp = localeFromGeo(await countryFromIp(ip));
+      if (fromIp) return fromIp;
+    }
   }
   const fromAccept = localeFromAcceptLanguage(headers.get("accept-language"));
   if (fromAccept) return fromAccept;

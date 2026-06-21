@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -112,7 +112,7 @@ const BUTTON_TYPES = [
 ] as const;
 
 export function TemplateBuilder() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useLocalizedRouter } from "@/hooks/use-localized-router";
+import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { CheckCircle } from "lucide-react";
 
 export default function NewPasswordPage() {
   const t = useT();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const supabase = createClient();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

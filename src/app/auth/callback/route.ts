@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/server";
+import { getLocale } from "@/lib/i18n/server";
+import { canonicalizePath, localizePath } from "@/lib/i18n/routes";
 
 /**
  * Supabase password-recovery + email-confirmation redirect target.
@@ -17,6 +19,8 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/panel";
   const safeNext = next.startsWith("/") ? next : "/panel";
+  // Keep the post-auth landing URL in the user's language.
+  const locale = await getLocale();
 
   if (code) {
     const cookieStore = await cookies();
@@ -40,14 +44,14 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       const fail = url.clone();
-      fail.pathname = "/ingresar";
+      fail.pathname = localizePath("/ingresar", locale);
       fail.search = `?error=${encodeURIComponent(error.message)}`;
       return NextResponse.redirect(fail);
     }
   }
 
   const dest = url.clone();
-  dest.pathname = safeNext;
+  dest.pathname = localizePath(canonicalizePath(safeNext), locale);
   dest.search = "";
   dest.hash = "";
   return NextResponse.redirect(dest);
