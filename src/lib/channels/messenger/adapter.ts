@@ -99,21 +99,13 @@ export const messengerAdapter: ChannelAdapter = {
       pageToken = enc ? decrypt(enc) : "";
       return pageToken;
     };
-    // Messenger webhooks don't carry the sender's name. The /{psid} profile
-    // lookup often returns nothing without Advanced Access, so resolve from
-    // the conversations API (participants carry the name) first, then fall
-    // back to the per-id lookup. Built once per delivery, best-effort.
-    let participantMap: Map<string, string> | null = null;
-    const getParticipantMap = async (): Promise<Map<string, string>> => {
-      if (participantMap) return participantMap;
-      participantMap = await buildParticipantMap(
-        "messenger",
-        connection,
-        getToken() ?? "",
-        3,
-      ).catch(() => new Map<string, string>());
-      return participantMap;
-    };
+    // Messenger webhooks don't carry the sender's name, and the lookups
+    // (conversations API + /{psid}) are slow and often fail without Advanced
+    // Access. So we DON'T block the message on them: ingest immediately with
+    // no name (the inbox shows a generic label) and resolve names in the
+    // BACKGROUND, updating the contact when they land. upsertContact backfills
+    // names on update, so this is safe and the message appears instantly.
+    const senderIds = new Set<string>();
     for (const entry of entries) {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
@@ -131,9 +123,7 @@ export const messengerAdapter: ChannelAdapter = {
         // (sender = page id). Ingesting echoes as inbound makes the page
         // its own "customer" and inflates received counts.
         if (message.is_echo || selfIds.has(String(sender.id))) continue;
-        const name =
-          (await getParticipantMap()).get(sender.id) ??
-          (await fetchMessengerName(sender.id, getToken()));
+        senderIds.add(sender.id);
         // Messenger ships attachments con `type` (image/video/audio/file)
         // y `payload.url` ya público. Lo persistimos en Storage para
         // que la URL no se nos expire después.
@@ -147,7 +137,6 @@ export const messengerAdapter: ChannelAdapter = {
           channel: "messenger",
           connection,
           externalContactId: sender.id,
-          contactName: name,
           externalMessageId: message.mid,
           text: String(message.text ?? ""),
           attachments: attachments.length ? attachments : undefined,
@@ -155,6 +144,10 @@ export const messengerAdapter: ChannelAdapter = {
           raw: m,
         });
       }
+    }
+    // Fire-and-forget name resolution — never blocks the inbound insert.
+    if (senderIds.size > 0) {
+      void backfillMessengerNames(connection, [...senderIds], getToken());
     }
     return events;
   },
@@ -243,5 +236,40 @@ async function fetchMessengerName(
     return j.name && j.name.trim() ? j.name.trim() : undefined;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Resolve Messenger sender names AFTER ingest (so the message never waits on
+ * Graph). Updates each contact's name only while it's still null. Fully
+ * fire-and-forget — any error leaves the generic label for the next message
+ * or the 6h backfill cron.
+ */
+async function backfillMessengerNames(
+  connection: ChannelConnection,
+  senderIds: string[],
+  token: string | null,
+): Promise<void> {
+  try {
+    const map = await buildParticipantMap(
+      "messenger",
+      connection,
+      token ?? "",
+      5,
+    ).catch(() => new Map<string, string>());
+    const db = supabaseAdmin();
+    for (const id of senderIds) {
+      const name = map.get(id) ?? (await fetchMessengerName(id, token));
+      if (!name) continue;
+      await db
+        .from("contacts")
+        .update({ name })
+        .eq("workspace_id", connection.workspace_id)
+        .eq("channel", "messenger")
+        .eq("external_id", id)
+        .is("name", null);
+    }
+  } catch (err) {
+    console.error("[messenger] background name backfill failed:", err);
   }
 }

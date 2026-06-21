@@ -116,24 +116,15 @@ export const instagramAdapter: ChannelAdapter = {
       pageToken = enc ? decrypt(enc) : "";
       return pageToken;
     };
-    // IG webhooks ship the IGSID but no display label. The /{igsid} profile
-    // lookup returns nothing for DM senders without Advanced Access, so the
-    // reliable source is the conversations API (participants carry the
-    // username). Build that map ONCE per delivery (lazily, best-effort) and
-    // resolve from it first; fall back to the per-id lookup. This makes
-    // "@handle" show on the first message instead of waiting for the
-    // backfill cron. Capped low — the just-messaged sender is most-recent.
-    let participantMap: Map<string, string> | null = null;
-    const getParticipantMap = async (): Promise<Map<string, string>> => {
-      if (participantMap) return participantMap;
-      participantMap = await buildParticipantMap(
-        "instagram",
-        connection,
-        getToken() ?? "",
-        3,
-      ).catch(() => new Map<string, string>());
-      return participantMap;
-    };
+    // IG webhooks ship the IGSID but no display label. Resolving the name
+    // needs slow Graph calls (conversations API + /{igsid}) that frequently
+    // fail without Advanced Access — so we DON'T block the message on them.
+    // The message is ingested immediately (the inbox shows a generic label),
+    // and names are resolved in the BACKGROUND afterwards, updating the
+    // contact when they arrive. upsertContact already backfills names on
+    // update, so this is safe and the message appears instantly instead of
+    // waiting ~2-3s per delivery for lookups that mostly fail anyway.
+    const senderIds = new Set<string>();
     for (const entry of entries) {
       const messaging = (entry.messaging as Array<Record<string, unknown>> | undefined) ?? [];
       for (const m of messaging) {
@@ -148,9 +139,7 @@ export const instagramAdapter: ChannelAdapter = {
         // received counts. Our sends are recorded when WE send them / by
         // the DM-backfill cron, not from echoes.
         if (message.is_echo || selfIds.has(String(sender.id))) continue;
-        const name =
-          (await getParticipantMap()).get(sender.id) ??
-          (await fetchInstagramName(sender.id, getToken()));
+        senderIds.add(sender.id);
         // Bajamos cada attachment a Storage para tener un permalink —
         // las CDN URLs de IG caducan en horas y el inbox necesita
         // poder mostrar el adjunto días después.
@@ -164,7 +153,6 @@ export const instagramAdapter: ChannelAdapter = {
           channel: "instagram",
           connection,
           externalContactId: sender.id,
-          contactName: name,
           externalMessageId: message.mid,
           text: String(message.text ?? ""),
           attachments: attachments.length ? attachments : undefined,
@@ -172,6 +160,12 @@ export const instagramAdapter: ChannelAdapter = {
           raw: m,
         });
       }
+    }
+    // Fire-and-forget name resolution — never blocks the inbound insert. By
+    // the time the Graph call returns, ingest has already created the contact
+    // row, so the UPDATE lands; on failure the name just stays generic.
+    if (senderIds.size > 0) {
+      void backfillInstagramNames(connection, [...senderIds], getToken());
     }
     return events;
   },
@@ -261,5 +255,42 @@ async function fetchInstagramName(
     return undefined;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Resolve IG sender display names AFTER the message is ingested (so the
+ * message itself never waits on Graph). Updates each contact's name only
+ * when it's still null, so we never clobber a name resolved earlier. The
+ * conversations-API participant map is the reliable source; the per-id
+ * lookup is a best-effort fallback. Fully fire-and-forget — any error just
+ * leaves the generic label until the next message or the 6h backfill cron.
+ */
+async function backfillInstagramNames(
+  connection: ChannelConnection,
+  senderIds: string[],
+  token: string | null,
+): Promise<void> {
+  try {
+    const map = await buildParticipantMap(
+      "instagram",
+      connection,
+      token ?? "",
+      5,
+    ).catch(() => new Map<string, string>());
+    const db = supabaseAdmin();
+    for (const id of senderIds) {
+      const name = map.get(id) ?? (await fetchInstagramName(id, token));
+      if (!name) continue;
+      await db
+        .from("contacts")
+        .update({ name })
+        .eq("workspace_id", connection.workspace_id)
+        .eq("channel", "instagram")
+        .eq("external_id", id)
+        .is("name", null);
+    }
+  } catch (err) {
+    console.error("[instagram] background name backfill failed:", err);
   }
 }

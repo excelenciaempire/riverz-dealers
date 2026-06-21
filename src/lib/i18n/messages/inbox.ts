@@ -177,10 +177,6 @@ export const inbox = {
   },
   sendTemplate: { es: "Enviar plantilla", en: "Send template" },
   sendMessage: { es: "Enviar mensaje", en: "Send message" },
-  composerPlaceholder: {
-    es: "Mensaje. Tipea / para usar un atajo.",
-    en: "Message. Type / to use a snippet.",
-  },
   composerExpiredPlaceholder: {
     es: "Sesión expirada. Usa una plantilla.",
     en: "Session expired. Use a template.",

@@ -289,11 +289,7 @@ export function MessageComposer({
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={
-            sessionExpired
-              ? t("inbox.composerExpiredPlaceholder")
-              : t("inbox.composerPlaceholder")
-          }
+          placeholder={sessionExpired ? t("inbox.composerExpiredPlaceholder") : ""}
           disabled={sessionExpired}
           rows={1}
           className={cn(
