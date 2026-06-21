@@ -52,6 +52,25 @@ export async function ingestInboundEvent(
     return null;
   }
 
+  // 0b. Idempotencia GLOBAL por id externo de mensaje. El índice único
+  //     `uniq_msg_per_conv` es por (conversation_id, message_id), así que NO
+  //     cubre el caso de un polling de email que, tras borrar la conversación
+  //     de la bandeja, vuelve a traer el mismo correo: crearía una conversación
+  //     nueva y lo re-insertaría (otro conversation_id → el índice no choca).
+  //     Con el soft-delete (migración 085) la fila del mensaje se conserva, así
+  //     que aquí basta con ver si ese message_id ya existe en el workspace
+  //     (en cualquier conversación, viva o borrada) y, si existe, no re-ingerir.
+  if (event.externalMessageId) {
+    const { data: already } = await db
+      .from("messages")
+      .select("id, conversations!inner(workspace_id)")
+      .eq("message_id", event.externalMessageId)
+      .eq("conversations.workspace_id", workspaceId)
+      .limit(1)
+      .maybeSingle();
+    if (already) return null;
+  }
+
   // 1. Upsert contact by (workspace_id, channel, external_id).
   const contact = await upsertContact(db, {
     workspace_id: workspaceId,
@@ -372,7 +391,11 @@ async function findOrCreateConversation(
     .select("*")
     .eq("workspace_id", input.workspace_id)
     .eq("contact_id", input.contact_id)
-    .eq("channel", input.channel);
+    .eq("channel", input.channel)
+    // No reutilizar una conversación borrada de la bandeja (soft-delete): si
+    // el contacto vuelve a escribir, arranca un hilo nuevo en vez de revivir
+    // el borrado. (El re-polleo del MISMO correo ya se cortó en el paso 0b.)
+    .is("deleted_at", null);
   if (input.thread_external_id && (input.channel === "gmail" || input.channel === "outlook")) {
     query = query.eq("thread_external_id", input.thread_external_id);
   } else {
@@ -437,7 +460,8 @@ async function findOrCreateConversation(
         .select("*")
         .eq("workspace_id", input.workspace_id)
         .eq("contact_id", input.contact_id)
-        .eq("channel", input.channel);
+        .eq("channel", input.channel)
+        .is("deleted_at", null);
       if (
         input.thread_external_id &&
         (input.channel === "gmail" || input.channel === "outlook")

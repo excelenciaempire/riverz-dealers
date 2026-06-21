@@ -28,7 +28,8 @@ export function useTotalUnread(): number {
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("id, unread_count");
+        .select("id, unread_count")
+        .is("deleted_at", null);
       if (cancelled || error || !data) return;
 
       const map = new Map<string, number>();
@@ -54,7 +55,10 @@ export function useTotalUnread(): number {
             if (oldRow.id) map.delete(oldRow.id);
           } else {
             const row = payload.new as Conversation;
-            map.set(row.id, row.unread_count ?? 0);
+            // Soft-delete (migración 085): si la conversación fue borrada de la
+            // bandeja, sale del conteo aunque tuviera mensajes sin leer.
+            if (row.deleted_at) map.delete(row.id);
+            else map.set(row.id, row.unread_count ?? 0);
           }
           // Recompute — cheap, conversations per user stay small.
           let sum = 0;

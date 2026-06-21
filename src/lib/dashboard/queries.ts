@@ -79,7 +79,10 @@ export async function loadMetrics(
     messagesRecvPrev,
   ] = await Promise.all([
     // Active conversations = open RIGHT NOW (a live snapshot, not range-bound).
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+    // Excluye las borradas de la bandeja (soft-delete) para no inflar el conteo;
+    // las métricas basadas en `messages` (más abajo) SÍ conservan sus mensajes
+    // aunque la conversación se borre, que es justo lo que se pidió.
+    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').is('deleted_at', null),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', s).lt('created_at', e),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', ps).lt('created_at', pe),
     // "Resueltas" — gate on closed_at (set by code only when status actually

@@ -232,6 +232,10 @@ export interface Conversation {
   /** Link de checkout enviado, para reenviarlo en la recuperación de pago.
    *  Migration 081. */
   pending_checkout_url?: string | null;
+  /** Soft-delete: cuándo se borró de la bandeja. Migration 085. NULL = viva.
+   *  El borrado marca esto en vez de hacer DELETE físico, para conservar los
+   *  messages (métricas por fecha) y el watermark de dedup del ingest. */
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;

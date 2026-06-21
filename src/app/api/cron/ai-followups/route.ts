@@ -95,6 +95,7 @@ async function processWorkspace(
     .select('*')
     .eq('workspace_id', workspaceId)
     .eq('status', 'open')
+    .is('deleted_at', null)
     .in('last_sender_type', ['bot', 'agent'])
     .in('channel', DM_CHANNELS as unknown as string[])
     .lt('last_message_at', cutoff)

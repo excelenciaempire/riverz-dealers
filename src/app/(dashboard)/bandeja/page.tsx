@@ -124,6 +124,9 @@ export default function InboxPage() {
       }
       if (!data) return;
       const fetched = data as Conversation;
+      // No re-insertar una conversación borrada de la bandeja (soft-delete):
+      // si una carrera de eventos intentara hidratarla, la ignoramos.
+      if (fetched.deleted_at) return;
       setConversations((prev) => {
         const existing = prev.find((c) => c.id === fetched.id);
         if (existing) {
@@ -266,6 +269,19 @@ export default function InboxPage() {
       }
 
       if (event.eventType === "UPDATE") {
+        // Soft-delete (migración 085): "borrar de la bandeja" es un UPDATE que
+        // setea deleted_at. Lo tratamos como un borrado — sacarla de la lista y
+        // cerrar el hilo si estaba abierto — en vez de parchear la fila (que la
+        // dejaría visible). Cubre el borrado hecho desde otra pestaña/usuario.
+        if (conv.deleted_at) {
+          setConversations((prev) => prev.filter((c) => c.id !== conv.id));
+          if (activeConversation?.id === conv.id) {
+            setActiveConversation(null);
+            setActiveContact(null);
+            setMessages([]);
+          }
+          return;
+        }
         if (knownConvIdsRef.current.has(conv.id)) {
           // If this UPDATE is for the conv the user is currently viewing,
           // suppress the incoming unread_count — the user is reading it

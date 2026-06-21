@@ -20,9 +20,11 @@ import { translate } from "@/lib/i18n/translate";
  * mid-select). That's what makes "Select all → Delete" actually empty the
  * inbox instead of leaving stragglers that reappear on reload.
  *
- * Messages (and reactions, comment metadata) cascade-delete via FK. The
- * upstream platform (WhatsApp/IG/Messenger/Facebook) is never touched, so the
- * contact can still write again and a fresh conversation is created.
+ * Soft-delete (migración 085): marcamos `deleted_at` en vez de DELETE físico.
+ * Los messages se conservan, así las métricas por fecha siguen intactas y el
+ * polling de email no revive un hilo borrado (el ingest deduplica por
+ * message_id). El upstream (WhatsApp/IG/Messenger/Facebook) nunca se toca, así
+ * que el contacto puede volver a escribir y se crea una conversación nueva.
  */
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
@@ -78,11 +80,13 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // Always scope to the workspace so a forged id/channel can't reach another
-  // tenant's rows. ids takes precedence when both are sent.
+  // tenant's rows. ids takes precedence when both are sent. Soft-delete: marca
+  // deleted_at (no DELETE físico) y solo cuenta las que aún estaban vivas.
   let query = admin
     .from("conversations")
-    .delete({ count: "exact" })
-    .eq("workspace_id", workspaceId);
+    .update({ deleted_at: new Date().toISOString() }, { count: "exact" })
+    .eq("workspace_id", workspaceId)
+    .is("deleted_at", null);
   query = ids.length > 0 ? query.in("id", ids) : query.in("channel", channels);
 
   const { error, count } = await query;

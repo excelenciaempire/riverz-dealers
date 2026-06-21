@@ -64,19 +64,28 @@ export async function GET(request: Request) {
     ),
   ];
   const contactByConv = new Map<string, { name: string }>();
+  // Conversaciones borradas de la bandeja (soft-delete, migración 085): el RPC
+  // de búsqueda todavía las encuentra (busca sobre messages/conversations),
+  // así que las descartamos aquí para que no reaparezcan en los resultados.
+  const deletedConvs = new Set<string>();
   if (conversationIds.length > 0) {
     const { data: convs } = await supabase
       .from('conversations')
-      .select('id, contact:contacts(name, phone, email)')
+      .select('id, deleted_at, contact:contacts(name, phone, email)')
       .in('id', conversationIds);
     type Row = {
       id: string;
+      deleted_at?: string | null;
       contact:
         | { name?: string; phone?: string; email?: string }
         | Array<{ name?: string; phone?: string; email?: string }>
         | null;
     };
     for (const c of (convs ?? []) as Row[]) {
+      if (c.deleted_at) {
+        deletedConvs.add(c.id);
+        continue;
+      }
       const ct = Array.isArray(c.contact) ? c.contact[0] : c.contact;
       const name =
         ct?.name || ct?.phone || ct?.email || translate(locale, 'errInbox.contactFallback');
@@ -96,6 +105,7 @@ export async function GET(request: Request) {
 
   for (const r of (rows as RpcRow[] | null ?? [])) {
     if (seen.has(r.conversation_id)) continue;
+    if (deletedConvs.has(r.conversation_id)) continue;
     seen.add(r.conversation_id);
     const name =
       contactByConv.get(r.conversation_id)?.name ??

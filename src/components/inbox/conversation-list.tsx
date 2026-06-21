@@ -153,6 +153,10 @@ export function ConversationList({
         // queda una conversación "Sin mensajes" que ensucia la bandeja.
         // Sin último mensaje no es una conversación real.
         .not("last_message_at", "is", null)
+        // Ocultar conversaciones borradas de la bandeja (soft-delete, migración
+        // 085): la fila sigue en BD (para métricas + dedup de ingest) pero no
+        // se muestra.
+        .is("deleted_at", null)
         .order("last_message_at", { ascending: false });
       // Show all non-email conversations (RLS already limits to the
       // workspace) plus email conversations from this user's mailboxes.

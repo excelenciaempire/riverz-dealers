@@ -137,8 +137,14 @@ export async function DELETE(
     );
   }
 
-  // Messages are CASCADE-deleted via the FK in 001_initial_schema.sql.
-  const { error } = await admin.from("conversations").delete().eq("id", id);
+  // Soft-delete (migración 085): marcamos deleted_at en vez de DELETE físico.
+  // Los messages se conservan, así las métricas por fecha no se vacían y el
+  // polling de email no revive el hilo (el ingest deduplica por message_id).
+  const { error } = await admin
+    .from("conversations")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("deleted_at", null);
   if (error) {
     return serverError(error);
   }
