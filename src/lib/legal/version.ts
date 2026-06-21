@@ -8,11 +8,11 @@
  * acceptance points at the exact text that was in force.
  *
  * BUMP THIS whenever the substance of /terminos (`src/app/terminos`)
- * or /privacidad (`src/app/privacidad`) changes, and keep it in sync
- * with the human-readable "Last updated" date rendered on those pages
- * (currently "19 de junio de 2026" / "June 19, 2026"). Bumping it lets
- * us later require existing users to re-accept the new version.
+ * or /privacidad (`src/app/privacidad`) changes — it tracks the most
+ * recent update to EITHER document — and keep it in sync with the
+ * human-readable "Last updated" date rendered on those pages. Bumping
+ * it lets us later require existing users to re-accept the new version.
  *
  * Format: ISO date (YYYY-MM-DD) of the update.
  */
-export const LEGAL_VERSION = "2026-06-19";
+export const LEGAL_VERSION = "2026-06-21";

@@ -29,6 +29,13 @@ export default async function PrivacidadPage() {
         {t("legal.updatedLabel", { date: UPDATED })}
       </p>
 
+      {/* TODO (legal): las secciones de transferencias internacionales, RGPD y
+          CCPA son una base estándar y razonable; deben ser revisadas por un
+          abogado y ajustadas a la entidad y jurisdicción reales de riverz. */}
+      <p className="mt-6 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+        {t("legal.privacyDisclaimer")}
+      </p>
+
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-foreground/90">
         <Section title={t("legal.privacy1Title")}>
           <p>
@@ -108,6 +115,36 @@ export default async function PrivacidadPage() {
             <li>{t("legal.privacy9Item3")}</li>
             <li>{t("legal.privacy9Item4")}</li>
           </ul>
+        </Section>
+
+        <Section title={t("legal.privacyIntlTitle")}>
+          <p>{t("legal.privacyIntlBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyGdprTitle")}>
+          <p>{t("legal.privacyGdprIntro")}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>{t("legal.privacyGdprItemAccess")}</li>
+            <li>{t("legal.privacyGdprItemRectify")}</li>
+            <li>{t("legal.privacyGdprItemErase")}</li>
+            <li>{t("legal.privacyGdprItemRestrict")}</li>
+            <li>{t("legal.privacyGdprItemPortability")}</li>
+            <li>{t("legal.privacyGdprItemConsent")}</li>
+            <li>{t("legal.privacyGdprItemComplaint")}</li>
+          </ul>
+          <p className="mt-2">{t("legal.privacyGdprBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyCcpaTitle")}>
+          <p>{t("legal.privacyCcpaIntro")}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>{t("legal.privacyCcpaItemKnow")}</li>
+            <li>{t("legal.privacyCcpaItemDelete")}</li>
+            <li>{t("legal.privacyCcpaItemCorrect")}</li>
+            <li>{t("legal.privacyCcpaItemNoDiscrim")}</li>
+            <li>{t("legal.privacyCcpaItemNoSale")}</li>
+          </ul>
+          <p className="mt-2">{t("legal.privacyCcpaBody")}</p>
         </Section>
 
         <Section title={t("legal.privacy10Title")}>

@@ -160,13 +160,104 @@ export const legal = {
     en: "We document these requests, our responses, and the legal reasoning and actors involved.",
   },
 
-  privacy10Title: { es: "10. Cambios", en: "10. Changes" },
+  // International / cross-border data transfers
+  privacyIntlTitle: {
+    es: "10. Transferencias internacionales de datos",
+    en: "10. International data transfers",
+  },
+  privacyIntlBody: {
+    es: "riverz opera desde Estados Unidos y se apoya en proveedores ubicados principalmente allí (ver la sección de subencargados). Si usas el servicio o nos contactas desde fuera de Estados Unidos —por ejemplo desde la Unión Europea, el Reino Unido, América Latina u otra región—, tus datos pueden transferirse y tratarse en Estados Unidos y en otros países donde operan nuestros proveedores, cuyas leyes de protección de datos pueden diferir de las de tu país. Cuando la ley aplicable lo exige, aplicamos salvaguardas reconocidas para estas transferencias, como las Cláusulas Contractuales Tipo de la Comisión Europea. Al usar el servicio aceptas que tus datos se traten conforme a esta política.",
+    en: "riverz operates from the United States and relies on providers located primarily there (see the subprocessors section). If you use the service or contact us from outside the United States —for example from the European Union, the United Kingdom, Latin America or another region— your data may be transferred to and processed in the United States and in other countries where our providers operate, whose data-protection laws may differ from those of your country. Where applicable law requires it, we rely on recognized safeguards for these transfers, such as the European Commission's Standard Contractual Clauses. By using the service you agree that your data is processed in accordance with this policy.",
+  },
+
+  // GDPR / UK GDPR rights
+  privacyGdprTitle: {
+    es: "11. Tus derechos en la Unión Europea y el Reino Unido (RGPD)",
+    en: "11. Your rights in the European Union and the United Kingdom (GDPR)",
+  },
+  privacyGdprIntro: {
+    es: "Si te encuentras en el Espacio Económico Europeo, Suiza o el Reino Unido, el RGPD (y el UK GDPR) te reconocen los siguientes derechos sobre tus datos personales:",
+    en: "If you are located in the European Economic Area, Switzerland or the United Kingdom, the GDPR (and the UK GDPR) grant you the following rights over your personal data:",
+  },
+  privacyGdprItemAccess: {
+    es: "Acceso: obtener confirmación de si tratamos tus datos y una copia de ellos.",
+    en: "Access: obtain confirmation of whether we process your data and a copy of it.",
+  },
+  privacyGdprItemRectify: {
+    es: "Rectificación: corregir datos inexactos o incompletos.",
+    en: "Rectification: correct inaccurate or incomplete data.",
+  },
+  privacyGdprItemErase: {
+    es: "Supresión («derecho al olvido»): pedir que borremos tus datos cuando proceda.",
+    en: "Erasure («right to be forgotten»): request that we delete your data where applicable.",
+  },
+  privacyGdprItemRestrict: {
+    es: "Limitación y oposición: restringir u oponerte a ciertos tratamientos.",
+    en: "Restriction and objection: restrict or object to certain processing.",
+  },
+  privacyGdprItemPortability: {
+    es: "Portabilidad: recibir tus datos en un formato estructurado y de uso común.",
+    en: "Portability: receive your data in a structured, commonly used format.",
+  },
+  privacyGdprItemConsent: {
+    es: "Retirar el consentimiento en cualquier momento, sin afectar la licitud del tratamiento anterior.",
+    en: "Withdraw consent at any time, without affecting the lawfulness of prior processing.",
+  },
+  privacyGdprItemComplaint: {
+    es: "Presentar una reclamación ante tu autoridad de protección de datos.",
+    en: "Lodge a complaint with your data-protection authority.",
+  },
+  privacyGdprBody: {
+    es: "Para ejercer estos derechos, escríbenos a info@riverzai.com. Cuando actuamos como encargado del tratamiento por cuenta de un comercio, podemos remitir tu solicitud al comercio responsable. Tratamos los datos para ejecutar nuestro contrato contigo, cumplir obligaciones legales o con tu consentimiento, según el caso.",
+    en: "To exercise these rights, write to us at info@riverzai.com. Where we act as a processor on behalf of a merchant, we may forward your request to the merchant acting as controller. We process data to perform our contract with you, to comply with legal obligations, or with your consent, as applicable.",
+  },
+
+  // CCPA / CPRA rights
+  privacyCcpaTitle: {
+    es: "12. Tus derechos en California (CCPA/CPRA)",
+    en: "12. Your rights in California (CCPA/CPRA)",
+  },
+  privacyCcpaIntro: {
+    es: "Si resides en California, la CCPA (modificada por la CPRA) te reconoce derechos específicos:",
+    en: "If you are a California resident, the CCPA (as amended by the CPRA) grants you specific rights:",
+  },
+  privacyCcpaItemKnow: {
+    es: "Saber qué datos personales recopilamos, con qué fines y con quién los compartimos.",
+    en: "Know what personal information we collect, for what purposes, and with whom we share it.",
+  },
+  privacyCcpaItemDelete: {
+    es: "Solicitar la eliminación de tus datos personales.",
+    en: "Request deletion of your personal information.",
+  },
+  privacyCcpaItemCorrect: {
+    es: "Solicitar la corrección de datos inexactos.",
+    en: "Request correction of inaccurate information.",
+  },
+  privacyCcpaItemNoDiscrim: {
+    es: "No ser discriminado por ejercer tus derechos.",
+    en: "Not be discriminated against for exercising your rights.",
+  },
+  privacyCcpaItemNoSale: {
+    es: "No vendemos ni compartimos tus datos personales con fines publicitarios, por lo que no realizamos una «venta» en el sentido de la CCPA.",
+    en: "We do not sell or share your personal information for advertising purposes, so we do not engage in a «sale» under the CCPA.",
+  },
+  privacyCcpaBody: {
+    es: "Para ejercer estos derechos escríbenos a info@riverzai.com. Verificaremos tu identidad antes de responder. Puedes designar a un agente autorizado para presentar solicitudes en tu nombre.",
+    en: "To exercise these rights, write to us at info@riverzai.com. We will verify your identity before responding. You may designate an authorized agent to submit requests on your behalf.",
+  },
+
+  privacyDisclaimer: {
+    es: "riverz opera bajo la legislación de Estados Unidos y atiende a usuarios de distintos países. Esta política es una base razonable pendiente de revisión por un abogado; las condiciones definitivas pueden variar según tu jurisdicción.",
+    en: "riverz operates under United States law and serves users from various countries. This policy is a reasonable baseline pending review by a lawyer; the final terms may vary depending on your jurisdiction.",
+  },
+
+  privacy10Title: { es: "13. Cambios", en: "13. Changes" },
   privacy10Body: {
     es: "Podemos actualizar esta política. Publicaremos los cambios en esta página con su fecha de actualización.",
     en: "We may update this policy. We will publish any changes on this page along with their update date.",
   },
 
-  privacy11Title: { es: "11. Contacto", en: "11. Contact" },
+  privacy11Title: { es: "14. Contacto", en: "14. Contact" },
   privacy11BodyPre: { es: "¿Preguntas? Escríbenos a ", en: "Questions? Write to us at " },
   privacy11BodyEnd: { es: ".", en: "." },
 
