@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { ROUTE_SLUGS_EN } from "./src/lib/i18n/routes";
 
 /**
  * Baseline security headers applied to every response.
@@ -48,40 +49,37 @@ const SECURITY_HEADERS = [
 ] as const;
 
 /**
- * URL rename map (Phase 12): rutas internas en español. Cualquier link
- * antiguo (bookmarks, emails ya enviados, integraciones externas) se
- * redirige al equivalente en español con un 301 permanente.
+ * Localized URLs.
  *
- * Mantener este array sincronizado con la estructura de carpetas en
- * src/app/(dashboard) y src/app/(auth). Si renombrás otra ruta, añadí
- * aquí su par y el redirect aparece sin tocar nada más.
+ * The English first-segment slugs (see src/lib/i18n/routes.ts) are REWRITES,
+ * not redirects: they serve the canonical Spanish folder while keeping the
+ * English URL in the address bar, so an English-locale user actually sees
+ * /inbox, /dashboard, … The Spanish slugs ARE the canonical folders, so they
+ * serve directly. Both forms resolve → no link can 404.
+ *
+ * `LOCALIZED_REWRITES` is generated from the slug map: for each canonical
+ * folder we mask its English alias (and everything under it).
  */
-const URL_REDIRECTS: { from: string; to: string }[] = [
-  // auth
-  { from: "/login", to: "/ingresar" },
-  { from: "/signup", to: "/registro" },
-  { from: "/forgot-password", to: "/recuperar-clave" },
-  { from: "/invite/:token", to: "/invitacion/:token" },
-  // dashboard top-level
-  { from: "/dashboard", to: "/panel" },
-  { from: "/inbox", to: "/bandeja" },
-  { from: "/contacts", to: "/contactos" },
-  { from: "/ai", to: "/asistente" },
-  { from: "/settings", to: "/ajustes" },
-  // collections
-  { from: "/broadcasts", to: "/campanas" },
+const LOCALIZED_REWRITES = Object.entries(ROUTE_SLUGS_EN).flatMap(
+  ([canonical, en]) => [
+    { source: `/${en}`, destination: `/${canonical}` },
+    { source: `/${en}/:path*`, destination: `/${canonical}/:path*` },
+  ],
+);
+
+/**
+ * Legacy 301s for FULLY-English deep paths that the app no longer generates
+ * (it emits the Spanish deep segment, e.g. /broadcasts/nueva, and lets the
+ * rewrite carry it through). These only catch old bookmarks/emails and never
+ * collide with a localized URL the app produces. Redirects run before
+ * rewrites, so they win for these exact legacy paths.
+ */
+const LEGACY_REDIRECTS: { from: string; to: string }[] = [
   { from: "/broadcasts/new", to: "/campanas/nueva" },
-  { from: "/broadcasts/:id", to: "/campanas/:id" },
-  { from: "/templates", to: "/plantillas" },
   { from: "/templates/new", to: "/plantillas/nueva" },
-  { from: "/flows", to: "/menus" },
-  { from: "/flows/:id", to: "/menus/:id" },
   { from: "/flows/:id/runs", to: "/menus/:id/usos" },
-  // safety net for old bookmarks that point at the (legacy) english path
   { from: "/menus/:id/runs", to: "/menus/:id/usos" },
-  { from: "/automations", to: "/automatizaciones" },
   { from: "/automations/new", to: "/automatizaciones/nueva" },
-  { from: "/automations/:id", to: "/automatizaciones/:id" },
   { from: "/automations/:id/edit", to: "/automatizaciones/:id/editar" },
   { from: "/automations/:id/logs", to: "/automatizaciones/:id/registros" },
 ];
@@ -95,11 +93,23 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@sentry/node"],
 
   async redirects() {
-    return URL_REDIRECTS.map(({ from, to }) => ({
+    return LEGACY_REDIRECTS.map(({ from, to }) => ({
       source: from,
       destination: to,
       permanent: true,
     }));
+  },
+
+  // English URL aliases → canonical Spanish folders (masked, URL stays
+  // English). afterFiles so a real page always wins first; the aliases never
+  // match a real folder (all folders are Spanish), so this only fires for the
+  // English slugs. See src/lib/i18n/routes.ts.
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: LOCALIZED_REWRITES,
+      fallback: [],
+    };
   },
 
   /**

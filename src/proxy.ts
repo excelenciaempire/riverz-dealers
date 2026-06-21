@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
-import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from '@/lib/i18n/config'
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/lib/i18n/config'
 import { detectLocale } from '@/lib/i18n/detect'
+import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -109,26 +110,37 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  // The browser URL may be in either language (e.g. /inbox or /bandeja).
+  // Reason about routes in ONE vocabulary (canonical Spanish) for every
+  // check, and send redirects to the user's locale so the address bar stays
+  // in their language.
+  const canonicalPath = canonicalizePath(request.nextUrl.pathname)
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value
+  const locale: Locale = isLocale(cookieLocale)
+    ? cookieLocale
+    : detectLocale(request.headers)
+  const redirectTo = (path: string) => {
+    const url = request.nextUrl.clone()
+    url.pathname = localizePath(path, locale)
+    return applyCsp(NextResponse.redirect(url), nonce)
+  }
+
   // Auth pages - redirect to dashboard if already logged in. /nueva-clave
   // and /verificar-email are excluded: the user IS signed in when they
   // land there (recovery session / unconfirmed session) and need to
   // complete the flow before reaching the panel.
   if (user && (
-    request.nextUrl.pathname === '/ingresar' ||
-    request.nextUrl.pathname === '/registro' ||
-    request.nextUrl.pathname === '/recuperar-clave'
+    canonicalPath === '/ingresar' ||
+    canonicalPath === '/registro' ||
+    canonicalPath === '/recuperar-clave'
   )) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/panel'
-    return applyCsp(NextResponse.redirect(url), nonce)
+    return redirectTo('/panel')
   }
 
   // Protected pages - redirect to login if not authenticated
   const protectedPaths = ['/panel', '/bandeja', '/contactos', '/campanas', '/automatizaciones', '/menus', '/ajustes']
-  if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/ingresar'
-    return applyCsp(NextResponse.redirect(url), nonce)
+  if (!user && protectedPaths.some(path => canonicalPath.startsWith(path))) {
+    return redirectTo('/ingresar')
   }
 
   // Email verification gate. Signed-in users without a confirmed email
@@ -139,14 +151,12 @@ export async function proxy(request: NextRequest) {
     user &&
     !user.email_confirmed_at &&
     !user.confirmed_at &&
-    request.nextUrl.pathname !== '/verificar-email' &&
-    request.nextUrl.pathname !== '/auth/callback' &&
-    !request.nextUrl.pathname.startsWith('/api/auth/') &&
-    protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+    canonicalPath !== '/verificar-email' &&
+    canonicalPath !== '/auth/callback' &&
+    !canonicalPath.startsWith('/api/auth/') &&
+    protectedPaths.some(path => canonicalPath.startsWith(path))
   ) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/verificar-email'
-    return applyCsp(NextResponse.redirect(url), nonce)
+    return redirectTo('/verificar-email')
   }
 
   // API routes that need auth (not webhooks)

@@ -20,6 +20,7 @@ import {
   type Locale,
 } from "@/lib/i18n/config";
 import { translate, type TFn } from "@/lib/i18n/translate";
+import { canonicalizePath, localizePath } from "@/lib/i18n/routes";
 
 /**
  * LocaleProvider — owns the active UI language for the whole app.
@@ -92,6 +93,23 @@ export function LocaleProvider({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: next }),
       }).catch(() => {});
+      // Switch the address bar to the new language too (e.g. /inbox ↔
+      // /bandeja). Falls back to a plain refresh when the current route has no
+      // localized form. router.replace re-renders server components, so we
+      // don't also need router.refresh() on that path.
+      try {
+        const here =
+          window.location.pathname +
+          window.location.search +
+          window.location.hash;
+        const localized = localizePath(canonicalizePath(here), next);
+        if (localized !== here) {
+          router.replace(localized);
+          return;
+        }
+      } catch {
+        // window unavailable / malformed URL — fall through to refresh.
+      }
       // Re-render server components (the few server pages + metadata) in the
       // new language. Client components already updated via state above.
       router.refresh();

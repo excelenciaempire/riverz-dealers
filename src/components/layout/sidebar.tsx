@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { canonicalizePath } from "@/lib/i18n/routes";
 import { useEffect, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -127,7 +128,10 @@ export function Sidebar({
   collapsed = false,
   onToggleCollapsed,
 }: SidebarProps) {
-  const pathname = usePathname();
+  // usePathname() returns whatever language the URL is in (/inbox or
+  // /bandeja). Canonicalize it so the nav's active-state logic — which is
+  // written against the canonical Spanish hrefs — matches in either language.
+  const pathname = canonicalizePath(usePathname());
   const searchParams = useSearchParams();
   // Recombinar pathname + ?param=valor para que NavLink pueda
   // distinguir entre /ajustes (general) y /ajustes?tab=workspace
