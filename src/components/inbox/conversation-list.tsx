@@ -81,7 +81,7 @@ export function ConversationList({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const tz = useTimezone();
-  const { workspace } = useWorkspace();
+  const { workspace, isAdmin } = useWorkspace();
   const workspaceId = workspace?.id ?? null;
 
   // Keep the latest callback in a ref so the fetch effect below can
@@ -365,7 +365,8 @@ export function ConversationList({
               <X className="h-3.5 w-3.5" />
               {t("inbox.cancel")}
             </button>
-          ) : (
+          ) : isAdmin ? (
+            // Bulk select + delete is admin-only — it can wipe the whole inbox.
             <button
               onClick={() => setSelectMode(true)}
               className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -373,7 +374,7 @@ export function ConversationList({
               <CheckSquare className="h-3.5 w-3.5" />
               {t("inbox.select")}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -434,9 +435,26 @@ export function ConversationList({
       {/* Bulk action bar — only while selecting. */}
       {selectMode && (
         <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
-          <span className="text-xs text-muted-foreground">
-            {t("inbox.selectedCount", { n: selectedIds.size })}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                setSelectedIds((prev) =>
+                  filtered.length > 0 && prev.size >= filtered.length
+                    ? new Set()
+                    : new Set(filtered.map((c) => c.id)),
+                )
+              }
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {filtered.length > 0 && selectedIds.size >= filtered.length
+                ? t("inbox.deselectAll")
+                : t("inbox.selectAll")}
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {t("inbox.selectedCount", { n: selectedIds.size })}
+            </span>
+          </div>
           <button
             onClick={handleBulkDelete}
             disabled={selectedIds.size === 0 || bulkDeleting}

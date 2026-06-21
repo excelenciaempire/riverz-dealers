@@ -25,6 +25,8 @@ export const inbox = {
   delete: { es: "Eliminar", en: "Delete" },
   deleting: { es: "Eliminando…", en: "Deleting…" },
   actions: { es: "Acciones", en: "Actions" },
+  selectAll: { es: "Seleccionar todo", en: "Select all" },
+  deselectAll: { es: "Quitar selección", en: "Deselect all" },
   selectedCount: { es: "{n} seleccionada(s)", en: "{n} selected" },
   bulkDeleteConfirm: {
     es: "¿Eliminar {n} conversación(es)?",
