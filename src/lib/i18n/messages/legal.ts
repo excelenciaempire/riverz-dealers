@@ -135,15 +135,40 @@ export const legal = {
     en: "We encrypt access tokens, verify the signature of incoming webhooks and apply per-account access control. Even so, no system is 100% foolproof; we work to protect your information continuously.",
   },
 
-  privacy9Title: { es: "9. Cambios", en: "9. Changes" },
-  privacy9Body: {
+  privacy9Title: {
+    es: "9. Solicitudes de autoridades públicas",
+    en: "9. Government and law-enforcement requests",
+  },
+  privacy9Intro: {
+    es: "Si una autoridad pública u organismo de seguridad nos solicita datos personales (por ejemplo, en relación con solicitudes de seguridad nacional o de aplicación de la ley), aplicamos las siguientes políticas:",
+    en: "If a public authority or law-enforcement body requests personal data from us (for example, in connection with national-security or law-enforcement requests), we apply the following policies:",
+  },
+  privacy9Item1: {
+    es: "Revisamos la legalidad de cada solicitud antes de responder.",
+    en: "We carry out a required review of the legality of each request before responding.",
+  },
+  privacy9Item2: {
+    es: "Impugnamos las solicitudes que consideramos ilegales, excesivas o sin fundamento.",
+    en: "We have provisions for challenging requests that we consider unlawful, overbroad or unfounded.",
+  },
+  privacy9Item3: {
+    es: "Aplicamos minimización de datos: divulgamos únicamente la información mínima estrictamente necesaria.",
+    en: "We apply a data-minimization policy: we disclose only the minimum information strictly necessary.",
+  },
+  privacy9Item4: {
+    es: "Documentamos estas solicitudes, nuestras respuestas y el razonamiento y las personas involucradas.",
+    en: "We document these requests, our responses, and the legal reasoning and actors involved.",
+  },
+
+  privacy10Title: { es: "10. Cambios", en: "10. Changes" },
+  privacy10Body: {
     es: "Podemos actualizar esta política. Publicaremos los cambios en esta página con su fecha de actualización.",
     en: "We may update this policy. We will publish any changes on this page along with their update date.",
   },
 
-  privacy10Title: { es: "10. Contacto", en: "10. Contact" },
-  privacy10BodyPre: { es: "¿Preguntas? Escríbenos a ", en: "Questions? Write to us at " },
-  privacy10BodyEnd: { es: ".", en: "." },
+  privacy11Title: { es: "11. Contacto", en: "11. Contact" },
+  privacy11BodyPre: { es: "¿Preguntas? Escríbenos a ", en: "Questions? Write to us at " },
+  privacy11BodyEnd: { es: ".", en: "." },
 
   // ── Terms & conditions ───────────────────────────────────────────────────
   termsMetaTitle: { es: "Términos y condiciones", en: "Terms and conditions" },

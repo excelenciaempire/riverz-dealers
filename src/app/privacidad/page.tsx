@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "19 de junio de 2026";
+const UPDATED = "21 de junio de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function PrivacidadPage() {
@@ -101,16 +101,26 @@ export default async function PrivacidadPage() {
         </Section>
 
         <Section title={t("legal.privacy9Title")}>
-          <p>{t("legal.privacy9Body")}</p>
+          <p>{t("legal.privacy9Intro")}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>{t("legal.privacy9Item1")}</li>
+            <li>{t("legal.privacy9Item2")}</li>
+            <li>{t("legal.privacy9Item3")}</li>
+            <li>{t("legal.privacy9Item4")}</li>
+          </ul>
         </Section>
 
         <Section title={t("legal.privacy10Title")}>
+          <p>{t("legal.privacy10Body")}</p>
+        </Section>
+
+        <Section title={t("legal.privacy11Title")}>
           <p>
-            {t("legal.privacy10BodyPre")}
+            {t("legal.privacy11BodyPre")}
             <a href={`mailto:${CONTACT}`} className="underline">
               {CONTACT}
             </a>
-            {t("legal.privacy10BodyEnd")}
+            {t("legal.privacy11BodyEnd")}
           </p>
         </Section>
       </div>
