@@ -5,8 +5,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus } from "@/types";
+import type { Channel, Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import {
+  MESSAGE_CHANNELS,
+  COMMENT_CHANNELS,
+  type InboxTab,
+} from "@/components/inbox/inbox-tabs";
 import Link from "next/link";
 import {
   Search,
@@ -43,6 +48,20 @@ interface ConversationListProps {
   onConversationsLoaded: (conversations: Conversation[]) => void;
   onConversationDeleted?: (id: string) => void;
   /**
+   * Called after a successful bulk delete so the parent can refetch
+   * authoritative state (correct counts, drop any scope-deleted rows the
+   * client hadn't loaded) and clear the open thread if it was wiped.
+   */
+  onBulkDeleted?: () => void;
+  /**
+   * Which inbox slice this list is showing. Used so "Select all → Delete"
+   * can clear the whole tab server-side (by channel scope) instead of only
+   * the rows currently loaded. Defaults to "messages".
+   */
+  inboxTab?: InboxTab;
+  /** Active channel chip, if any — narrows the "clear all" scope to it. */
+  channelFilter?: Channel | null;
+  /**
    * Increment to force the fetch effect below to refire. The parent
    * bumps this on realtime reconnect / tab visibility → visible so the
    * list catches up on any events sent while the WS was disconnected
@@ -70,6 +89,9 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   onConversationDeleted,
+  onBulkDeleted,
+  inboxTab = "messages",
+  channelFilter = null,
   resyncToken = 0,
 }: ConversationListProps) {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -254,32 +276,71 @@ export function ConversationList({
   }, []);
 
   const handleBulkDelete = useCallback(async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || !workspaceId) return;
     if (!window.confirm(t("inbox.bulkDeleteConfirm", { n: selectedIds.size })))
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
-    // Parallelize so 50 deletes don't block for 50*RTT. `allSettled`
-    // (not `all`) lets one network error fall through without aborting
-    // the rest, and still leaves an accurate `ok` count for the toasts.
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetchWithCsrf(`/api/conversations/${id}`, { method: "DELETE" }),
-      ),
-    );
-    let ok = 0;
-    results.forEach((res, i) => {
-      if (res.status === "fulfilled" && res.value.ok) {
-        ok++;
-        onConversationDeleted?.(ids[i]);
-      }
-    });
+    // "Clearing the whole view": every row in this tab/channel is selected and
+    // nothing (status filter / search) is narrowing the list. In that case we
+    // delete by CHANNEL SCOPE on the server, which authoritatively wipes the
+    // tab — including rows the client never loaded or that raced in mid-select.
+    // That's the fix for "deleted but reappeared on reload". Any narrower
+    // selection deletes the specific ids instead.
+    const clearingAll =
+      filter === "all" &&
+      !search.trim() &&
+      filtered.length > 0 &&
+      selectedIds.size >= filtered.length;
+    const channels = channelFilter
+      ? [channelFilter]
+      : inboxTab === "comments"
+        ? COMMENT_CHANNELS
+        : MESSAGE_CHANNELS;
+    let ok = false;
+    let deleted = 0;
+    try {
+      const res = await fetchWithCsrf("/api/conversations/bulk-delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          clearingAll
+            ? { workspace_id: workspaceId, channels }
+            : { workspace_id: workspaceId, ids },
+        ),
+      });
+      const payload = await res.json().catch(() => ({}));
+      ok = res.ok;
+      deleted = payload?.deleted ?? ids.length;
+      if (!res.ok)
+        toast.error(payload.error || t("inbox.bulkDeleteFailed", { n: ids.length }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("inbox.networkError"));
+    }
     setBulkDeleting(false);
     setSelectedIds(new Set());
     setSelectMode(false);
-    if (ok > 0) toast.success(t("inbox.bulkDeleteSuccess", { n: ok }));
-    if (ok < ids.length) toast.error(t("inbox.bulkDeleteFailed", { n: ids.length - ok }));
-  }, [selectedIds, onConversationDeleted, fetchWithCsrf, t]);
+    if (ok) {
+      // Snappy local removal of what we had, then let the parent refetch
+      // authoritative state (accurate counts + drop any scope-deleted rows we
+      // hadn't loaded).
+      ids.forEach((id) => onConversationDeleted?.(id));
+      onBulkDeleted?.();
+      toast.success(t("inbox.bulkDeleteSuccess", { n: deleted || ids.length }));
+    }
+  }, [
+    selectedIds,
+    workspaceId,
+    filter,
+    search,
+    filtered,
+    channelFilter,
+    inboxTab,
+    fetchWithCsrf,
+    onConversationDeleted,
+    onBulkDeleted,
+    t,
+  ]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 

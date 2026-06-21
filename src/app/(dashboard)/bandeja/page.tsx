@@ -467,6 +467,15 @@ export default function InboxPage() {
     [activeConversation?.id],
   );
 
+  // After a bulk delete, refetch authoritative state from the DB. The list
+  // already removed the rows it knew about optimistically; this bump makes the
+  // counts (tab + channel badges) accurate again and drops any rows that were
+  // wiped by a server-side scope delete but hadn't been loaded client-side —
+  // which is what stopped deleted conversations from "reappearing" on reload.
+  const handleBulkDeleted = useCallback(() => {
+    setResyncToken((n) => n + 1);
+  }, []);
+
   // Mobile "back" — deselect the conversation so the list pane comes
   // back. Also clears the ?c= param so a refresh lands on the list
   // instead of re-opening the thread the user just backed out of.
@@ -555,12 +564,17 @@ export default function InboxPage() {
   const tabCounts = { messages: 0, comments: 0 };
   for (const c of conversations) {
     availableChannels.add(c.channel);
-    const unread = c.unread_count ?? 0;
-    unreadByChannel.all = (unreadByChannel.all ?? 0) + unread;
+    // Guard against stale/negative unread_count drifting the badges.
+    const unread = Math.max(0, c.unread_count ?? 0);
     unreadByChannel[c.channel] = (unreadByChannel[c.channel] ?? 0) + unread;
     if (COMMENT_CHANNELS.includes(c.channel)) tabCounts.comments += unread;
     else if (MESSAGE_CHANNELS.includes(c.channel)) tabCounts.messages += unread;
   }
+  // The "All" chip lives inside the active tab's filter row, so its count must
+  // be the CURRENT tab's total — not the global sum across both tabs (that made
+  // the Messages tab show comment unread too, and vice versa).
+  unreadByChannel.all =
+    inboxTab === "comments" ? tabCounts.comments : tabCounts.messages;
   // Channels that belong to the current tab — drives which chips are
   // available in the secondary filter row below the tabs.
   const tabChannels: Channel[] =
@@ -655,6 +669,9 @@ export default function InboxPage() {
                 conversations={filteredConversations}
                 onConversationsLoaded={handleConversationsLoaded}
                 onConversationDeleted={handleConversationDeleted}
+                onBulkDeleted={handleBulkDeleted}
+                inboxTab={inboxTab}
+                channelFilter={channelFilter}
                 resyncToken={resyncToken}
               />
             </div>

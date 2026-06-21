@@ -122,4 +122,10 @@ export const errInbox = {
     es: "Proveedor no configurado",
     en: "Provider not configured",
   },
+
+  // bulk-delete (clear inbox)
+  bulkDeleteNoScope: {
+    es: "Indica ids o channels para eliminar",
+    en: "Provide ids or channels to delete",
+  },
 } satisfies Namespace;
