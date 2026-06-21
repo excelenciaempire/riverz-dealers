@@ -58,6 +58,22 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
+  // bfcache guard: the browser can restore a frozen, fully-rendered
+  // snapshot of an authed page from its back/forward cache (pageshow with
+  // `persisted`). After switching accounts in the same tab, that snapshot
+  // would show the PREVIOUS session's data (e.g. another workspace's
+  // Shopify connection) until a manual reload. Force a fresh load on a
+  // bfcache restore so the page always reflects the current session. This
+  // only fires for cross-document bfcache restores, never on the SPA's
+  // own client-side navigations, so it's effectively free in normal use.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
