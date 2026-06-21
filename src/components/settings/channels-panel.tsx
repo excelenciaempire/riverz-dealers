@@ -10,7 +10,6 @@ import {
   XCircle,
   AlertCircle,
   Copy,
-  KeyRound,
   X,
   CreditCard,
 } from "lucide-react";
@@ -240,7 +239,6 @@ export function ChannelsPanel() {
     list.push(c);
     connectionsByChannel.set(c.channel, list);
   }
-  const connectedCount = connections.filter((c) => c.status === "connected").length;
 
   const anyProviderMissing =
     providers && (!providers.meta || !providers.google || !providers.microsoft);
@@ -311,17 +309,7 @@ export function ChannelsPanel() {
       )}
 
       {/* Header */}
-      <div className="flex items-end justify-between gap-4">
-        <h2 className="text-xl font-bold text-foreground">{t("settings.channels")}</h2>
-        <div className="hidden shrink-0 text-right sm:block">
-          <p className="text-3xl font-bold text-foreground">{connectedCount}</p>
-          <p className="text-xs text-muted-foreground">
-            {connectedCount === 1
-              ? t("settings.channelActive")
-              : t("settings.channelsActive")}
-          </p>
-        </div>
-      </div>
+      <h2 className="text-xl font-bold text-foreground">{t("settings.channels")}</h2>
       {!isAdmin && (
         <p className="text-xs text-muted-foreground">{t("settings.readOnly")}</p>
       )}
@@ -338,11 +326,11 @@ export function ChannelsPanel() {
         />
       )}
 
-      {/* Grid de canales — una tarjeta por plataforma. */}
-      {/* items-start: cada tarjeta toma la altura de su contenido y NO se
-          estira a la más alta de la fila (antes, una cuenta con muchas
-          páginas inflaba a WhatsApp/Instagram con espacio vacío). */}
-      <ul className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Canales — una tarjeta por plataforma, en layout de columnas
+          (masonry): cada tarjeta toma la altura de su contenido y las que
+          siguen suben para llenar el hueco, así no quedan espacios vacíos
+          debajo de las tarjetas cortas como pasaba con el grid de filas. */}
+      <ul className="columns-1 gap-3 sm:columns-2 lg:columns-3 [&>li]:mb-3 [&>li]:break-inside-avoid">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
@@ -486,19 +474,10 @@ export function ChannelsPanel() {
                   g.connectChannel === "whatsapp" &&
                   ready &&
                   process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
-                    <>
-                      <WhatsAppEmbeddedSignup
-                        workspaceId={workspace.id}
-                        onConnected={() => void fetchConnections()}
-                      />
-                      <button
-                        onClick={() => setManualOpen("whatsapp")}
-                        className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        <KeyRound className="mr-1 inline-block size-2.5" />
-                        {t("settings.orConnectPastingToken")}
-                      </button>
-                    </>
+                    <WhatsAppEmbeddedSignup
+                      workspaceId={workspace.id}
+                      onConnected={() => void fetchConnections()}
+                    />
                   ) : /* Facebook / Instagram: Facebook Login for Business via
                       the JS SDK (FB.login with config_id). Facebook rejects
                       config_id on the bare server redirect, so the SDK is the
@@ -507,22 +486,13 @@ export function ChannelsPanel() {
                     g.connectChannel !== "whatsapp" &&
                     ready &&
                     process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID ? (
-                    <>
-                      <MetaBusinessLogin
-                        workspaceId={workspace.id}
-                        channel={g.connectChannel as "messenger" | "instagram"}
-                        anyConnected={anyConnected}
-                        logoChannel={g.logoChannel as "messenger" | "instagram"}
-                        onConnected={() => void fetchConnections()}
-                      />
-                      <button
-                        onClick={() => setManualOpen(g.connectChannel as ManualChannel)}
-                        className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        <KeyRound className="mr-1 inline-block size-2.5" />
-                        {t("settings.orConnectPastingToken")}
-                      </button>
-                    </>
+                    <MetaBusinessLogin
+                      workspaceId={workspace.id}
+                      channel={g.connectChannel as "messenger" | "instagram"}
+                      anyConnected={anyConnected}
+                      logoChannel={g.logoChannel as "messenger" | "instagram"}
+                      onConnected={() => void fetchConnections()}
+                    />
                   ) : (
                     <>
                       <button
@@ -573,21 +543,6 @@ export function ChannelsPanel() {
                           </>
                         )}
                       </button>
-                      {/* Meta: keep manual token paste available as a secondary
-                          path once OAuth is the primary (config_id set). */}
-                      {isMeta &&
-                        ready &&
-                        process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID && (
-                          <button
-                            onClick={() =>
-                              setManualOpen(g.connectChannel as ManualChannel)
-                            }
-                            className="w-full text-center text-[10px] leading-snug text-muted-foreground hover:text-foreground hover:underline"
-                          >
-                            <KeyRound className="mr-1 inline-block size-2.5" />
-                            {t("settings.orConnectPastingToken")}
-                          </button>
-                        )}
                     </>
                   )}
 
