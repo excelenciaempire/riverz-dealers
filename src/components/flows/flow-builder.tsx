@@ -309,7 +309,7 @@ const NODE_META: Record<
   wait: {
     label: "flows.metaWait",
     icon: Hourglass,
-    color: "text-slate-300",
+    color: "text-slate-600 dark:text-slate-300",
     bg: "bg-slate-500/15",
   },
   ai_intent: {

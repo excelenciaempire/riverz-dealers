@@ -256,7 +256,7 @@ export function ChannelsPanel() {
               <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 {t("settings.oauthAppsMissing")}
               </h3>
-              <ul className="space-y-1 text-xs text-amber-100/70">
+              <ul className="space-y-1 text-xs text-amber-800/80 dark:text-amber-100/70">
                 <li>
                   <span className={providers.meta ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
                     {providers.meta ? "✓" : "✗"}

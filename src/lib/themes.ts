@@ -16,7 +16,29 @@ export const THEME_IDS = ["light", "dark"] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
+/**
+ * Default for the *app* surface (dashboard, auth, legal): warm cream light.
+ */
 export const DEFAULT_THEME: ThemeId = "light";
+
+/**
+ * Default for the public marketing *landing* (`/`): deep charcoal dark — the
+ * landing reads as a dark editorial surface first. This is only the default
+ * shown before the visitor makes an explicit choice; the theme preference is a
+ * single shared value (STORAGE_KEY), so once anyone toggles light/dark
+ * anywhere, that choice wins on every surface. See the path-aware boot script
+ * in `src/app/layout.tsx`.
+ */
+export const DEFAULT_LANDING_THEME: ThemeId = "dark";
+
+/**
+ * Marketing routes that default to {@link DEFAULT_LANDING_THEME} instead of
+ * {@link DEFAULT_THEME}. Currently just the landing root; kept as a list so
+ * additional public pages can opt into the dark-first default later. Matching
+ * is exact (full pathname) — duplicated literally in the boot script string,
+ * so keep the two in sync.
+ */
+export const LANDING_PATHS: ReadonlyArray<string> = ["/"];
 
 export const STORAGE_KEY = "wacrm.theme";
 

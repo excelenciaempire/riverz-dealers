@@ -7,7 +7,13 @@ import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { LocaleProvider } from "@/hooks/use-locale";
 import { getLocale } from "@/lib/i18n/server";
-import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
+import {
+  DEFAULT_LANDING_THEME,
+  DEFAULT_THEME,
+  LANDING_PATHS,
+  STORAGE_KEY,
+  THEME_IDS,
+} from "@/lib/themes";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -105,23 +111,39 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
-// Inline boot script — runs before React hydrates so the user's
-// chosen theme is on the <html> element before first paint. Without
-// this every page load flashes the default Violet for a frame before
-// the React tree mounts and applies the picked theme.
+// Inline boot script — runs before React hydrates so the right theme is on
+// the <html> element before first paint. Without this every landing load would
+// flash the app's light default for a frame before React mounts and corrects
+// it to dark.
 //
-// Kept dependency-free (no imports, no JSX) — must be a string the
-// browser can run as a single <script>. Knowledge of valid theme IDs
-// is sourced from the THEME_IDS constant so adding a theme doesn't
-// silently break the boot path.
+// Theme is ONE shared preference (STORAGE_KEY). An explicit saved choice wins
+// on every surface. Only when there is no saved choice does the *default*
+// depend on the surface: the marketing landing (LANDING_PATHS) defaults to the
+// dark editorial look, the app/auth/legal default to light. This keeps the
+// landing dark-first and the app light-first while a single toggle still flips
+// both once the visitor picks.
+//
+// Kept dependency-free (no imports, no JSX) — must be a string the browser can
+// run as a single <script>. Valid IDs / defaults / marketing paths are sourced
+// from the shared constants so they can't drift from the rest of the app.
 const THEME_BOOT_SCRIPT = `
 (function(){
   try {
     var STORAGE_KEY = ${JSON.stringify(STORAGE_KEY)};
-    var DEFAULT = ${JSON.stringify(DEFAULT_THEME)};
+    var APP_DEFAULT = ${JSON.stringify(DEFAULT_THEME)};
+    var LANDING_DEFAULT = ${JSON.stringify(DEFAULT_LANDING_THEME)};
+    var LANDING_PATHS = ${JSON.stringify(LANDING_PATHS)};
     var ALLOWED = ${JSON.stringify(THEME_IDS)};
     var saved = localStorage.getItem(STORAGE_KEY);
-    var theme = ALLOWED.indexOf(saved) !== -1 ? saved : DEFAULT;
+    var theme;
+    if (ALLOWED.indexOf(saved) !== -1) {
+      // Explicit, shared choice — applies to every surface.
+      theme = saved;
+    } else {
+      // No choice yet: dark-first on the landing, light-first everywhere else.
+      var path = location.pathname;
+      theme = LANDING_PATHS.indexOf(path) !== -1 ? LANDING_DEFAULT : APP_DEFAULT;
+    }
     document.documentElement.dataset.theme = theme;
   } catch (_e) {
     document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};

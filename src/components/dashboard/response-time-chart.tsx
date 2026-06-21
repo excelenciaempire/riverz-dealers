@@ -138,7 +138,7 @@ function Bars({
             x={PADDING.left + 4}
             y={yFor(thresholdMinutes) - 4}
             textAnchor="start"
-            className="fill-rose-300 text-[10px]"
+            className="fill-rose-600 dark:fill-rose-300 text-[10px]"
           >
             {t('dashboard.target', { value: fmt(thresholdMinutes) })}
           </text>

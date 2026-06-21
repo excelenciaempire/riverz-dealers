@@ -27,9 +27,12 @@ import {
   Heart,
   CornerDownRight,
   Headset,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useT } from "@/hooks/use-locale";
+import { useTheme } from "@/hooks/use-theme";
 import type { Channel } from "@/types";
 
 /**
@@ -244,12 +247,15 @@ export function Landing() {
           <div className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
             <a href="#funciones" className="transition-colors hover:text-foreground">{t("landing.navFeatures")}</a>
           </div>
-          <a
-            href="#lista"
-            className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
-          >
-            {t("landing.navWaitlist")}
-          </a>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <LandingThemeToggle />
+            <a
+              href="#lista"
+              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.03]"
+            >
+              {t("landing.navWaitlist")}
+            </a>
+          </div>
         </nav>
       </header>
 
@@ -310,7 +316,11 @@ export function Landing() {
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-5 py-24">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[#0b0b0a] px-6 py-20 text-center sm:px-12">
+        {/* Intentionally always-dark editorial band. In dark mode the page bg
+            (#0a0a0a) is nearly the same shade, so a faint border keeps the band
+            a defined panel instead of an edgeless blur; in light mode it just
+            reads as a subtle inner highlight on the dark block. */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b0b0a] px-6 py-20 text-center sm:px-12">
           {/* warm lime glow + faint grid */}
           <div
             aria-hidden
@@ -456,6 +466,33 @@ function ShopifyLogo({ size = 13 }: { size?: number }) {
 function MetaLogo({ size = 13 }: { size?: number }) {
   return (
     <Image src="/channels/meta.svg" alt="Meta" width={size} height={size} className="inline-block" />
+  );
+}
+
+// Light / dark switch for the landing nav. The landing defaults to dark, but
+// the choice is the same shared preference the app uses (see ThemeProvider +
+// the boot script in layout.tsx), so flipping it here carries into the app and
+// vice-versa. Mirrors the sidebar control: Sun when dark (→ go light), Moon
+// when light (→ go dark).
+function LandingThemeToggle() {
+  const t = useT();
+  const { theme, setTheme } = useTheme();
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      aria-label={t("nav.toggleTheme")}
+      title={t("nav.toggleTheme")}
+      className="flex size-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+    >
+      {/* Icon is driven purely by the live data-theme via the `dark:` CSS
+          variant, so the markup is identical on server and client (no
+          hydration mismatch even though the landing boots to dark while the
+          server rendered the light default): Moon in light (→ go dark), Sun in
+          dark (→ go light). */}
+      <Moon className="size-4 dark:hidden" />
+      <Sun className="hidden size-4 dark:block" />
+    </button>
   );
 }
 

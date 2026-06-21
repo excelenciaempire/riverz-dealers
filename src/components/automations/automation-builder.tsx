@@ -172,7 +172,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     icon: Hourglass,
     border: "border-l-slate-500",
     iconBg: "bg-slate-500/15",
-    iconText: "text-slate-300",
+    iconText: "text-slate-600 dark:text-slate-400",
   },
   condition: {
     label: "automations.stepCondition",
@@ -186,7 +186,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
     icon: Webhook,
     border: "border-l-indigo-500",
     iconBg: "bg-indigo-500/15",
-    iconText: "text-indigo-400",
+    iconText: "text-indigo-600 dark:text-indigo-400",
   },
   close_conversation: {
     label: "automations.stepCloseConversation",

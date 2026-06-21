@@ -1150,7 +1150,7 @@ export function MessageThread({
                 className={cn(
                   "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                   conversation.channel === "fb_comment"
-                    ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
+                    ? "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30"
                     : "bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-1 ring-pink-500/30",
                 )}
               >

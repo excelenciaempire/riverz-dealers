@@ -48,6 +48,7 @@ export const nav = {
   collapseMenu: { es: "Contraer menú", en: "Collapse menu" },
   switchToLight: { es: "Cambiar a tema claro", en: "Switch to light theme" },
   switchToDark: { es: "Cambiar a tema oscuro", en: "Switch to dark theme" },
+  toggleTheme: { es: "Cambiar tema", en: "Toggle theme" },
   lightTheme: { es: "Tema claro", en: "Light theme" },
   darkTheme: { es: "Tema oscuro", en: "Dark theme" },
 } satisfies Namespace;
