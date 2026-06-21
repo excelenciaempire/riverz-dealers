@@ -34,6 +34,7 @@ import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { useTheme } from "@/hooks/use-theme";
 import { LOCALES } from "@/lib/i18n/config";
+import { localizePath } from "@/lib/i18n/routes";
 import type { Channel } from "@/types";
 
 /**
@@ -239,7 +240,7 @@ const SECTIONS: {
 ];
 
 export function Landing() {
-  const t = useT();
+  const { t, locale } = useLocale();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
@@ -373,9 +374,9 @@ export function Landing() {
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             <a href="#funciones" className="hover:text-foreground">{t("landing.footerFeatures")}</a>
-            <Link href="/terminos" className="hover:text-foreground">{t("landing.footerTerms")}</Link>
-            <Link href="/privacidad" className="hover:text-foreground">{t("landing.footerPrivacy")}</Link>
-            <Link href="/eliminar-datos" className="hover:text-foreground">{t("landing.footerDeleteData")}</Link>
+            <Link href={localizePath("/terminos", locale)} className="hover:text-foreground">{t("landing.footerTerms")}</Link>
+            <Link href={localizePath("/privacidad", locale)} className="hover:text-foreground">{t("landing.footerPrivacy")}</Link>
+            <Link href={localizePath("/eliminar-datos", locale)} className="hover:text-foreground">{t("landing.footerDeleteData")}</Link>
           </div>
         </div>
         <div className="border-t border-border/40 py-4 text-center text-[11px] text-muted-foreground">
