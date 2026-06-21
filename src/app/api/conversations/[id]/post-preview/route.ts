@@ -42,6 +42,9 @@ export async function GET(
     .from("conversations")
     .select("*")
     .eq("id", id)
+    // Treat a soft-deleted thread (migración 085) as not found — defense in
+    // depth so a deep link can't pull a deleted conversation's data.
+    .is("deleted_at", null)
     .maybeSingle();
   if (!conv)
     return NextResponse.json(

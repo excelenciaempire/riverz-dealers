@@ -55,7 +55,11 @@ export async function GET(
   const { data: convs } = await supabase
     .from('conversations')
     .select('id')
-    .eq('contact_id', id);
+    .eq('contact_id', id)
+    // Soft-delete (migración 085): exclude threads deleted from the bandeja so
+    // their preserved messages don't feed the AI segment or the recent-activity
+    // preview in the contact sidebar.
+    .is('deleted_at', null);
   const convIds = (convs ?? []).map((x: { id: string }) => x.id);
 
   let messages: string[] = [];

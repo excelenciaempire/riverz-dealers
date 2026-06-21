@@ -34,11 +34,17 @@ export async function recordBroadcastConversation(
   } = args;
 
   // Find an existing open WhatsApp conversation for this contact, else create.
+  // Soft-delete (migración 085): never reuse a thread the user deleted from
+  // the bandeja — without this filter the send would land in an invisible
+  // (deleted) row, or, when that row is `closed`, slip past `.neq(status)` and
+  // resurrect the contact as a fresh live thread. Skipping deleted rows makes
+  // the broadcast open a new VISIBLE thread instead, matching findOrCreate.
   const { data: existing } = await db
     .from('conversations')
     .select('id')
     .eq('contact_id', contactId)
     .eq('channel', 'whatsapp')
+    .is('deleted_at', null)
     .neq('status', 'closed')
     .limit(1)
     .maybeSingle();

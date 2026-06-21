@@ -391,6 +391,9 @@ async function sendAiOrderConfirmation(
       .eq('workspace_id', workspaceId)
       .eq('contact_id', contactId)
       .in('channel', ['whatsapp', 'instagram', 'messenger'])
+      // Soft-delete (migración 085): skip threads deleted from the bandeja so
+      // the order-confirmation message doesn't land in an invisible row.
+      .is('deleted_at', null)
       .order('last_message_at', { ascending: false })
       .limit(10)
     const convs = (convsRaw ?? []) as Conversation[]

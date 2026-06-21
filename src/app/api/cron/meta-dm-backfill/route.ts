@@ -8,6 +8,13 @@ import type { ChannelConnection, Contact } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
+// Only backfill recent external agent replies. Meta returns messages newest
+// first, so we stop paging a thread once we cross this window. Re-pulling
+// months of ancient one-sided history every run just re-confirms messages we
+// already have (createIfMissing:false won't recreate deleted threads anyway) —
+// the value is surfacing replies a human just sent from Business Suite.
+const BACKFILL_WINDOW_DAYS = 30;
+
 /**
  * GET /api/cron/meta-dm-backfill
  *
@@ -133,10 +140,12 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
 
   // 2. Page through messages, newest first. We cap at 200 to keep this
   //    bounded for chatty contacts; the unique index makes overlap free.
+  const cutoffMs = Date.now() - BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   let url: string | null =
     `${GRAPH}/${threadId}/messages?fields=id,from,message,created_time&limit=50&access_token=${encodeURIComponent(args.token)}`;
   let pages = 0;
   let ingested = 0;
+  let reachedCutoff = false;
   const admin = supabaseAdmin();
   while (url && pages < 4) {
     // `paging.next` carries no proof — re-attach each page.
@@ -152,6 +161,12 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
       paging?: { next?: string };
     };
     for (const m of j.data ?? []) {
+      // Newest-first: the first message older than the window means every
+      // remaining message (this page + later pages) is older too — stop.
+      if (m.created_time && new Date(m.created_time).getTime() < cutoffMs) {
+        reachedCutoff = true;
+        break;
+      }
       if (!m.id) continue;
       const fromId = m.from?.id;
       // Outbound = the page / IG account itself sent it.
@@ -176,6 +191,7 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
       });
       ingested++;
     }
+    if (reachedCutoff) break;
     url = j.paging?.next ?? null;
     pages++;
   }

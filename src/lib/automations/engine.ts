@@ -567,6 +567,10 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
     .select('id')
     .eq('workspace_id', args.automation.workspace_id)
     .eq('contact_id', args.contactId)
+    // Soft-delete (migración 085): don't resolve to a thread deleted from the
+    // bandeja — the automation reply would vanish into an invisible row. Skip
+    // it so we reuse a live thread or create a fresh visible one below.
+    .is('deleted_at', null)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()

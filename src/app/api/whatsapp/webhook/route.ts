@@ -976,15 +976,23 @@ async function findOrCreateContact(
 }
 
 async function findOrCreateConversation(userId: string, contactId: string) {
-  // Look for existing conversation
-  const { data: existing, error: findError } = await supabaseAdmin()
+  // Look for an existing LIVE conversation. Soft-delete (migración 085): if the
+  // contact's only thread was deleted from the bandeja, we must NOT reuse it —
+  // the inbound message would land in an invisible row and disappear from the
+  // inbox. Skipping deleted rows makes a brand-new message open a fresh visible
+  // thread, exactly like inbox-writer.findOrCreateConversation. order+limit so a
+  // stray duplicate never makes maybeSingle error.
+  const { data: existing } = await supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('user_id', userId)
     .eq('contact_id', contactId)
-    .single()
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  if (!findError && existing) {
+  if (existing) {
     return existing
   }
 
@@ -1062,6 +1070,9 @@ async function findOrCreateConversation(userId: string, contactId: string) {
         .select('*')
         .eq('user_id', userId)
         .eq('contact_id', contactId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
       if (winner) return winner
     }

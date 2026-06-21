@@ -269,10 +269,16 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
   const s = iso(range.start)
   const e = iso(range.end)
   const [msgs, contacts, broadcasts, autoLogs] = await Promise.all([
+    // `conversations!inner` + the deleted_at filter drop messages whose
+    // conversation was soft-deleted from the bandeja (migración 085) — otherwise
+    // a deleted chat keeps surfacing in the /panel activity feed as "Nuevo
+    // mensaje de X". Messages are preserved on soft-delete, so we scope by the
+    // parent conversation's deleted_at, not the message (which has none).
     db
       .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
+      .select('id, content_text, sender_type, created_at, conversation_id, conversations!inner(deleted_at, contact_id, contacts(name, phone))')
       .eq('sender_type', 'customer')
+      .is('conversations.deleted_at', null)
       .gte('created_at', s)
       .lt('created_at', e)
       .order('created_at', { ascending: false })

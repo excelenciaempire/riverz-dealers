@@ -335,7 +335,7 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/meta-dm-backfill
-    schedule: "0 */6 * * *"
+    schedule: "0 5 * * *"
     envVars:
       - key: BASE_URL
         sync: false
