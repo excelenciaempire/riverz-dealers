@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/dialog"
 import {
   listTemplates,
+  automationTemplateNameKey,
+  automationTemplateDescKey,
   type AutomationTemplateDefinition,
   type TemplateIconName,
 } from "@/lib/automations/templates"
@@ -351,10 +353,10 @@ function TemplateCard({
       </div>
 
       <div className="mt-3 text-sm font-semibold text-foreground">
-        {template.name}
+        {t(automationTemplateNameKey(template.slug))}
       </div>
       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-        {template.description}
+        {t(automationTemplateDescKey(template.slug))}
       </p>
 
       <div className="mt-4 flex items-end justify-end gap-2 pt-1">

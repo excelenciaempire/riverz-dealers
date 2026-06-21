@@ -3,7 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
-import { getTemplate } from '@/lib/automations/templates'
+import {
+  getTemplate,
+  automationTemplateNameKey,
+  automationTemplateDescKey,
+} from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 import {
   validateStepsForActivation,
@@ -102,8 +106,10 @@ export async function POST(request: Request) {
   if (template && (!steps || steps.length === 0)) {
     const t = getTemplate(template)
     if (t) {
-      effectiveName = effectiveName ?? t.name
-      effectiveDescription = effectiveDescription ?? t.description
+      effectiveName =
+        effectiveName ?? translate(locale, automationTemplateNameKey(t.slug))
+      effectiveDescription =
+        effectiveDescription ?? translate(locale, automationTemplateDescKey(t.slug))
       effectiveTriggerType = effectiveTriggerType ?? t.trigger_type
       effectiveTriggerConfig = effectiveTriggerConfig ?? t.trigger_config
       effectiveSteps = t.steps as unknown as BuilderStepInput[]

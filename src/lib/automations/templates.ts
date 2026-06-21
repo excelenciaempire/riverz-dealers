@@ -241,6 +241,20 @@ export function getTemplate(slug: string): AutomationTemplateDefinition | null {
   return AUTOMATION_TEMPLATES[slug as TemplateSlug] ?? null
 }
 
+/**
+ * i18n keys for a template's gallery name / pitch, resolved by the UI
+ * (`useT`) so the gallery follows the active locale. The literal
+ * `name`/`description` on the definition are the Spanish source-of-truth
+ * fallback. `suggested_template_body` and step copy are NOT keyed here —
+ * those are customer-facing message bodies the merchant edits.
+ */
+export function automationTemplateNameKey(slug: string): string {
+  return `automations.tpl_${slug}_name`
+}
+export function automationTemplateDescKey(slug: string): string {
+  return `automations.tpl_${slug}_desc`
+}
+
 export function listTemplates(): AutomationTemplateDefinition[] {
   const seen = new Set<TemplateSlug>()
   const out: AutomationTemplateDefinition[] = []

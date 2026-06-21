@@ -7,7 +7,11 @@ import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { Button } from "@/components/ui/button";
 import { FlowBuilder } from "@/components/flows/flow-builder";
 import { useT } from "@/hooks/use-locale";
-import { getFlowTemplate } from "@/lib/flows/templates";
+import {
+  getFlowTemplate,
+  flowTemplateNameKey,
+  flowTemplateDescKey,
+} from "@/lib/flows/templates";
 import {
   DEFAULT_FALLBACK_POLICY,
   type FlowRow,
@@ -39,8 +43,8 @@ export default function NewFlowFromTemplatePage() {
     const flow: FlowRow = {
       id: "preview",
       workspace_id: "",
-      name: template.name,
-      description: template.description ?? null,
+      name: t(flowTemplateNameKey(template.slug)),
+      description: t(flowTemplateDescKey(template.slug)),
       status: "draft",
       trigger_type: template.trigger_type,
       trigger_config: template.trigger_config,
@@ -66,7 +70,7 @@ export default function NewFlowFromTemplatePage() {
       created_at: stamp,
     }));
     return { initialFlow: flow, initialNodes: nodes };
-  }, [template]);
+  }, [template, t]);
 
   if (!template || !initialFlow) {
     return (

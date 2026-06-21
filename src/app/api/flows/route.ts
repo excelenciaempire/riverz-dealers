@@ -3,7 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { csrfGuard } from '@/lib/csrf'
-import { getFlowTemplate } from '@/lib/flows/templates'
+import {
+  getFlowTemplate,
+  flowTemplateNameKey,
+  flowTemplateDescKey,
+} from '@/lib/flows/templates'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 
@@ -121,8 +125,10 @@ export async function POST(request: Request) {
       .insert({
         user_id: userId,
         workspace_id: workspaceId,
-        name: body.name?.trim() || template.name,
-        description: template.description,
+        name:
+          body.name?.trim() ||
+          translate(locale, flowTemplateNameKey(template.slug)),
+        description: translate(locale, flowTemplateDescKey(template.slug)),
         status: 'draft',
         trigger_type: template.trigger_type,
         trigger_config: template.trigger_config,

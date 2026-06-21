@@ -653,6 +653,21 @@ export function getFlowTemplate(slug: string): FlowTemplate | null {
   return TEMPLATES[slug] ?? null;
 }
 
+/**
+ * i18n keys for a template's gallery name / pitch, resolved by the UI
+ * (`useT`) and the clone route (`translate`) so the gallery follows the
+ * active locale. The literal `name`/`description` on the template object
+ * are the Spanish source-of-truth fallback. Seed node CONTENT is NOT
+ * keyed here — those are customer-facing message bodies the merchant
+ * edits after cloning.
+ */
+export function flowTemplateNameKey(slug: string): string {
+  return `flows.tpl_${slug}_name`;
+}
+export function flowTemplateDescKey(slug: string): string {
+  return `flows.tpl_${slug}_desc`;
+}
+
 export function listFlowTemplates(): FlowTemplate[] {
   return Object.values(TEMPLATES);
 }

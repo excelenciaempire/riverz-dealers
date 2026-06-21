@@ -40,6 +40,26 @@ export const flows = {
   view: { es: "Ver", en: "View" },
   useTemplate: { es: "Usar plantilla", en: "Use template" },
 
+  // Flow-template gallery: display name + pitch per template (keyed by
+  // slug as `tpl_<slug>_name` / `tpl_<slug>_desc`). Only the gallery
+  // metadata is translated — the seed node message bodies stay in the
+  // catalog (customer-facing copy the merchant edits after cloning).
+  "tpl_ventas_asesor_name": { es: "Ventas · asesor de compra", en: "Sales · shopping advisor" },
+  "tpl_ventas_asesor_desc": {
+    es: "Convierte conversaciones en ventas: entiende qué busca el cliente, le recomienda productos, resuelve dudas de envío, pago y garantía, y lo lleva al checkout. Ideal para tráfico de anuncios y para no perder a quien pregunta y no compra.",
+    en: "Turn conversations into sales: understand what the customer is after, recommend products, clear up shipping, payment and warranty questions, and take them to checkout. Ideal for ad traffic and for not losing people who ask but don't buy.",
+  },
+  "tpl_atencion_24_7_name": { es: "Atención al cliente 24/7", en: "Customer support 24/7" },
+  "tpl_atencion_24_7_desc": {
+    es: "Responde al instante las dudas que más llegan: estado del pedido, envíos, cambios, pagos y tallas. Resuelve la mayoría sin tu equipo y pasa a un humano solo cuando hace falta. Baja la carga de soporte y mejora la satisfacción.",
+    en: "Instantly answers the questions that come up most: order status, shipping, returns, payments and sizes. Resolves the bulk of them without your team and hands off to a human only when needed. Lowers your support load and lifts satisfaction.",
+  },
+  "tpl_post_venta_name": { es: "Post-venta / seguimiento", en: "Post-purchase / follow-up" },
+  "tpl_post_venta_desc": {
+    es: "Acompaña después de la compra: da seguimiento del envío, detecta problemas a tiempo y pide reseña a los clientes contentos. Sube tu reputación, evita malas experiencias y genera recompra.",
+    en: "Stays with the customer after the sale: tracks the shipment, catches problems early and asks happy customers for a review. Builds your reputation, heads off bad experiences and drives repeat purchases.",
+  },
+
   // Node-type labels in template preview outline
   nodeMessage: { es: "Mensaje", en: "Message" },
   nodeButtons: { es: "Botones", en: "Buttons" },

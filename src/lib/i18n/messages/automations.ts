@@ -39,6 +39,36 @@ export const automations = {
   viewTemplate: { es: "Ver plantilla", en: "View template" },
   viewStats: { es: "Ver estadísticas", en: "View stats" },
 
+  // Automation-template gallery: display name + pitch per template
+  // (keyed by slug as `tpl_<slug>_name` / `tpl_<slug>_desc`). Only the
+  // gallery metadata is translated — the suggested_template_body / step
+  // copy stay in the catalog (customer-facing copy the merchant edits).
+  "tpl_carrito-abandonado_name": { es: "Carrito abandonado", en: "Abandoned cart" },
+  "tpl_carrito-abandonado_desc": {
+    es: "Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.",
+    en: "Recover sales: when a customer abandons their cart, we send them the link to pick it back up 2 hours later.",
+  },
+  "tpl_nuevo-pedido_name": { es: "Nuevo pedido", en: "New order" },
+  "tpl_nuevo-pedido_desc": {
+    es: "Confirmamos al cliente apenas hace un pedido en Shopify. Le mandamos un resumen con el número de orden, el total y un agradecimiento.",
+    en: "We confirm with the customer the moment they place an order on Shopify. We send a summary with the order number, the total and a thank-you.",
+  },
+  "tpl_enviar-tracking_name": { es: "Enviar tracking", en: "Send tracking" },
+  "tpl_enviar-tracking_desc": {
+    es: "Cuando despachamos un pedido, le mandamos al cliente el número de seguimiento y el link del courier.",
+    en: "When an order ships, we send the customer the tracking number and the courier link.",
+  },
+  "tpl_post-survey_name": { es: "Encuesta post-compra", en: "Post-purchase survey" },
+  "tpl_post-survey_desc": {
+    es: "Tres días después de que llega el pedido, le preguntamos al cliente cómo le fue. La respuesta queda registrada en la conversación para revisar.",
+    en: "Three days after the order arrives, we ask the customer how it went. Their reply is saved in the conversation for you to review.",
+  },
+  "tpl_recompras_name": { es: "Recompras", en: "Repeat purchases" },
+  "tpl_recompras_desc": {
+    es: "Cuando un cliente lleva 45 días desde su último pedido, le mandamos un recordatorio suave por si quiere reponer stock. Solo dispara una vez por ciclo de recompra.",
+    en: "When a customer hasn't ordered in 45 days, we send a gentle reminder in case they want to restock. It only fires once per repurchase cycle.",
+  },
+
   // List page — card actions / menu
   openMenu: { es: "Abrir menú", en: "Open menu" },
   edit: { es: "Editar", en: "Edit" },

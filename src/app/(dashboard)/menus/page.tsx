@@ -43,7 +43,12 @@ import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
-import { listFlowTemplates, type FlowTemplate } from "@/lib/flows/templates";
+import {
+  listFlowTemplates,
+  flowTemplateNameKey,
+  flowTemplateDescKey,
+  type FlowTemplate,
+} from "@/lib/flows/templates";
 
 /**
  * Flows list page.
@@ -496,14 +501,14 @@ function TemplateCard({
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 shrink-0 text-accent-ink" />
           <h4 className="truncate text-sm font-medium text-foreground">
-            {template.name}
+            {t(flowTemplateNameKey(template.slug))}
           </h4>
           <Badge variant="outline" className="border-border text-[10px]">
             {t("flows.stepsCount", { n: template.nodes.length })}
           </Badge>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {template.description}
+          {t(flowTemplateDescKey(template.slug))}
         </p>
       </div>
       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity group-hover:opacity-100">
@@ -533,13 +538,13 @@ function TemplatePreview({
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">{template.name}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t(flowTemplateNameKey(template.slug))}</h3>
             <Badge variant="outline" className="border-border text-[10px]">
               {t("flows.stepsCount", { n: template.nodes.length })}
             </Badge>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {template.description}
+            {t(flowTemplateDescKey(template.slug))}
           </p>
         </div>
       </div>

@@ -4,7 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
-import { getTemplate } from '@/lib/automations/templates'
+import {
+  getTemplate,
+  automationTemplateNameKey,
+  automationTemplateDescKey,
+} from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
@@ -97,8 +101,8 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       workspace_id: workspaceId,
-      name: template.name,
-      description: template.description,
+      name: translate(locale, automationTemplateNameKey(template.slug)),
+      description: translate(locale, automationTemplateDescKey(template.slug)),
       trigger_type: template.trigger_type,
       trigger_config: template.trigger_config ?? {},
       // Templates always land paused. The user has to fill in template
