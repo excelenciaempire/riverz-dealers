@@ -147,8 +147,8 @@ export const assistant = {
   shopDomainPlaceholder: { es: "tu-tienda.myshopify.com", en: "your-store.myshopify.com" },
   businessInfoTitle: { es: "Información del negocio", en: "Business information" },
   businessInfoHint: {
-    es: "Datos transversales (envíos, políticas, horarios). Lo del producto ya lo aprende solo; esto es opcional.",
-    en: "Cross-cutting details (shipping, policies, hours). It already learns product info on its own; this is optional.",
+    es: "Envíos, políticas, horarios. Opcional.",
+    en: "Shipping, policies, hours. Optional.",
   },
   businessInfoPlaceholder: {
     es: "Envíos en 2 días hábiles a todo el país.\nDevoluciones dentro de 15 días.\nPagos: tarjeta, PSE, contraentrega.",
@@ -282,8 +282,8 @@ export const assistant = {
   },
   followupDelayLabel: { es: "Horas de espera", en: "Hours to wait" },
   followupDelayHelp: {
-    es: "Silencio del cliente antes del primer seguimiento.",
-    en: "Customer silence before the first follow-up.",
+    es: "Silencio del cliente antes del seguimiento. Máx. 23 h: Meta solo permite escribir dentro de las 24 h posteriores al último mensaje del cliente.",
+    en: "Customer silence before the follow-up. Max 23h: Meta only allows free messages within 24h of the customer's last message.",
   },
   followupMaxLabel: { es: "Máximo de seguimientos", en: "Maximum follow-ups" },
   followupMaxHelp: {

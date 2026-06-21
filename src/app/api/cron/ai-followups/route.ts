@@ -26,6 +26,10 @@ import type { ChannelConnection, Contact, Conversation } from '@/types';
  */
 
 const DM_CHANNELS = ['whatsapp', 'instagram', 'messenger'] as const;
+// Ventana de servicio al cliente de Meta: pasado este tiempo desde el último
+// mensaje del cliente, solo se permiten plantillas (no texto libre), así que
+// el follow-up de la IA queda fuera de cumplimiento y no se envía.
+const META_SESSION_WINDOW_HOURS = 24;
 // No seguimos conversaciones más viejas que esto (evita revivir hilos muertos).
 const MAX_STALE_DAYS = 30;
 // Tope por corrida y por workspace.
@@ -142,6 +146,16 @@ async function processWorkspace(
       ? new Date(conv.followup_last_at).getTime()
       : 0;
     const lastCustomerMs = new Date(lastCustomerAt).getTime();
+
+    // Cumplimiento Meta: fuera de la ventana de 24 h desde el ÚLTIMO mensaje
+    // del cliente, WhatsApp / Instagram / Messenger solo permiten plantillas
+    // aprobadas, no texto libre. El follow-up que redacta la IA es texto
+    // libre, así que NO lo enviamos pasada la ventana — lo descartamos en vez
+    // de arriesgar un rechazo de la API o una sanción de la plataforma. (El
+    // delay del agente está topado a 23 h en la UI para que el follow-up
+    // alcance a salir dentro de la ventana.)
+    if ((nowMs - lastCustomerMs) / 3_600_000 >= META_SESSION_WINDOW_HOURS) continue;
+
     const effectiveCount =
       followLastMs > lastCustomerMs ? conv.followup_count ?? 0 : 0;
     if (effectiveCount >= (Number(agent.followup_max_count) || 1)) continue;

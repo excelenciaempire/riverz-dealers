@@ -144,4 +144,10 @@ export const errAi = {
     es: "No hay contactos de Instagram todavía. Conecta Instagram y deja que lleguen interacciones primero.",
     en: "There are no Instagram contacts yet. Connect Instagram and let interactions come in first.",
   },
+
+  // One active assistant per channel
+  channelConflict: {
+    es: 'El asistente "{agent}" ya está activo en {channels}. Solo puede haber un asistente activo por canal: pausa el otro o ajusta los canales.',
+    en: 'The assistant "{agent}" is already active on {channels}. Only one assistant can be active per channel: pause the other one or adjust the channels.',
+  },
 } satisfies Namespace;

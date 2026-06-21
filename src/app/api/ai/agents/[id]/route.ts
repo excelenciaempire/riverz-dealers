@@ -6,6 +6,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
 import type { AiAgent, AiScope } from '@/lib/ai/types';
 
 async function requireMember(agentId: string, userId: string) {
@@ -99,6 +100,47 @@ export async function PATCH(
   }
   if (typeof body.api_key === 'string') {
     update.api_key_encrypted = body.api_key.trim() ? encrypt(body.api_key.trim()) : null;
+  }
+
+  // Un solo chatbot activo por canal. Resolvemos el estado FINAL del agente
+  // (mezcla de lo que llega en el body con lo ya guardado) y, si va a quedar
+  // activo y choca con otro agente activo, bloqueamos antes de tocar nada.
+  const willBeActive =
+    'is_active' in update ? Boolean(update.is_active) : undefined;
+  if (willBeActive !== false) {
+    const { data: cur } = await admin
+      .from('ai_agents')
+      .select('is_active, scope, ai_agent_channels(channel)')
+      .eq('id', id)
+      .maybeSingle();
+    const curRow = cur as
+      | { is_active: boolean; scope: string; ai_agent_channels?: { channel: string }[] }
+      | null;
+    const finalActive =
+      willBeActive ?? Boolean(curRow?.is_active);
+    if (finalActive) {
+      const finalScope = (update.scope as string | undefined) ?? curRow?.scope ?? 'workspace';
+      const finalChannels = Array.isArray(body.channels)
+        ? body.channels
+        : (curRow?.ai_agent_channels ?? []).map((c) => c.channel);
+      const conflict = await findChannelConflict(admin, {
+        workspaceId: target.workspace_id,
+        agentId: id,
+        scope: finalScope,
+        channels: finalScope === 'channels' ? finalChannels : [],
+      });
+      if (conflict) {
+        return NextResponse.json(
+          {
+            error: translate(locale, 'errAi.channelConflict', {
+              agent: conflict.agentName,
+              channels: channelLabels(conflict.channels),
+            }),
+          },
+          { status: 409 },
+        );
+      }
+    }
   }
 
   if (Object.keys(update).length) {

@@ -6,6 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -104,6 +105,28 @@ export async function POST(request: Request) {
       { error: translate(locale, 'errAi.forbidden') },
       { status: 403 },
     );
+
+  // Un solo chatbot activo por canal: si este nace activo y pisa los canales
+  // de otro agente activo, lo bloqueamos con un mensaje claro.
+  if (body.is_active) {
+    const conflict = await findChannelConflict(admin, {
+      workspaceId: body.workspace_id,
+      agentId: null,
+      scope: body.scope ?? 'workspace',
+      channels: body.scope === 'channels' ? (body.channels ?? []) : [],
+    });
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: translate(locale, 'errAi.channelConflict', {
+            agent: conflict.agentName,
+            channels: channelLabels(conflict.channels),
+          }),
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const payload: Record<string, unknown> = {
     workspace_id: body.workspace_id,

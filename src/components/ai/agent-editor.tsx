@@ -9,7 +9,6 @@ import {
   Send,
   Sparkles,
   X,
-  KeyRound,
   Eye,
   EyeOff,
   Search,
@@ -230,7 +229,6 @@ export function AgentEditor({
   // mantiene aunque la generación con IA persista el row a medio camino
   // —por eso NO usamos currentAgentId—, para seguir exigiendo producto.
   const isNew = !agent;
-  const hasApiKey = agent?.has_api_key ?? false;
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
@@ -269,8 +267,10 @@ export function AgentEditor({
   const [followupEnabled, setFollowupEnabled] = useState<boolean>(
     agent?.followup_enabled ?? false,
   );
+  // Tope 23 h por cumplimiento Meta (ventana de 24 h). Agentes viejos con 24
+  // se muestran como 23 y se corrigen al guardar.
   const [followupDelayHours, setFollowupDelayHours] = useState<number>(
-    agent?.followup_delay_hours ?? 24,
+    Math.min(23, agent?.followup_delay_hours ?? 23),
   );
   const [followupMaxCount, setFollowupMaxCount] = useState<number>(
     agent?.followup_max_count ?? 1,
@@ -318,8 +318,6 @@ export function AgentEditor({
   // Al elegir el primer producto de un asistente nuevo, preparamos una
   // plantilla (persona + conocimiento) desde su info e investigación.
   const [applyingProduct, setApplyingProduct] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [testMessage, setTestMessage] = useState('');
@@ -399,19 +397,23 @@ export function AgentEditor({
    */
   function applyProductTemplate(p: ProductDetail) {
     setName((cur) => cur.trim() || t('assistant.defaultAgentName', { title: p.title }).slice(0, 60));
+    // System prompt: lo arma el código a partir del producto (título +
+    // cliente ideal + beneficios + objeciones si hay investigación). Solo
+    // pisa el persona por defecto / vacío, nunca lo que el usuario escribió.
     setPersona((cur) =>
       cur.trim() === '' || cur.trim() === DEFAULT_PERSONA
-        ? `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
-          `con calidez: resuelves dudas con la información del producto, manejas ` +
-          `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
-          `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`
+        ? buildPersonaFromProduct(p)
         : cur,
     );
-    // "Información del negocio": la rellenamos con un resumen del producto
-    // (cliente ideal + beneficios o descripción) SOLO si está vacía, para
-    // que el agente quede pre-armado al elegir el producto. No pisa lo que
-    // el usuario haya escrito.
-    setKnowledge((cur) => (cur.trim() ? cur : buildBusinessInfoFromProduct(p, t) || cur));
+    // "Información del negocio": SIEMPRE queda rellena al elegir el producto
+    // (si está vacía) — con el resumen del producto cuando hay investigación,
+    // o un andamiaje base (envíos/políticas/pagos) que el merchant edita. Así
+    // las dos cajas quedan pre-armadas, nunca una llena y la otra en blanco.
+    setKnowledge((cur) =>
+      cur.trim()
+        ? cur
+        : buildBusinessInfoFromProduct(p, t) || t('assistant.businessInfoPlaceholder'),
+    );
   }
 
   async function prefillFromProduct(productId: string) {
@@ -587,7 +589,6 @@ export function AgentEditor({
       workspace_id?: string;
       channels?: string[];
       product_ids?: string[];
-      api_key?: string;
     } = {
       workspace_id: workspaceId,
       name: name.trim(),
@@ -630,7 +631,6 @@ export function AgentEditor({
       product_scope: productScope,
       product_ids: productScope === 'specific' ? selectedProducts : [],
     };
-    if (apiKey.trim()) payload.api_key = apiKey.trim();
 
     const url = currentAgentId
       ? `/api/ai/agents/${currentAgentId}`
@@ -996,9 +996,6 @@ export function AgentEditor({
                         </button>
                       ))}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {t('assistant.toneHelp')}
-                    </p>
                   </Field>
                   <Field label={t('assistant.languageLabel')}>
                     <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
@@ -1320,11 +1317,15 @@ export function AgentEditor({
                           <Input
                             type="number"
                             min={1}
+                            max={23}
                             value={followupDelayHours}
                             onChange={(e) => {
                               const n = Number(e.target.value);
+                              // Tope 23 h: el follow-up es texto libre y Meta
+                              // solo lo permite dentro de la ventana de 24 h
+                              // desde el último mensaje del cliente.
                               setFollowupDelayHours(
-                                Number.isFinite(n) ? Math.max(1, n) : 24,
+                                Number.isFinite(n) ? Math.max(1, Math.min(23, n)) : 23,
                               );
                             }}
                             className="bg-background"
@@ -1448,33 +1449,6 @@ export function AgentEditor({
                     )
                   )}
                 </SectionCard>
-
-                <Field label={t('assistant.apiKeyLabel')}>
-                  <div className="relative">
-                    <KeyRound className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      type={showKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={
-                        hasApiKey
-                          ? t('assistant.apiKeyPlaceholderSaved')
-                          : 'sk-ant-...'
-                      }
-                      className="bg-background pl-8 pr-9 font-mono text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey((s) => !s)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                    >
-                      {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('assistant.apiKeyHelp')}
-                  </p>
-                </Field>
               </>
             )}
           </div>
@@ -1702,6 +1676,41 @@ function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
     if (d) lines.push(d);
   }
   return lines.join('\n');
+}
+
+/**
+ * System prompt (persona) armado a partir del producto. Base = asesor de
+ * ventas del producto; si el producto ya tiene investigación, inyecta el
+ * cliente ideal, los beneficios y las objeciones para que el prompt salga
+ * afinado desde el primer momento. El persona NO se traduce (sigue el idioma
+ * del agente como el resto de prompts), por eso queda en español.
+ */
+function buildPersonaFromProduct(p: ProductDetail): string {
+  const arr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+  const sr =
+    p.structured_research && typeof p.structured_research === 'object'
+      ? (p.structured_research as Record<string, unknown>)
+      : null;
+  const lines: string[] = [
+    `Eres un asesor de ventas experto en ${p.title}. Atiendes por WhatsApp ` +
+      `con calidez: resuelves dudas con la información del producto, manejas ` +
+      `objeciones con honestidad y guías a la compra (o recompra) sin presionar. ` +
+      `Una pregunta por turno, mensajes cortos. Nunca admites ser una IA.`,
+  ];
+  if (sr) {
+    const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
+    if (audience) lines.push(`Tu cliente típico: ${audience}.`);
+    const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
+    if (benefits.length) {
+      lines.push(`Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`);
+    }
+    const objections = arr(sr.objections).slice(0, 4);
+    if (objections.length) {
+      lines.push(`Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`);
+    }
+  }
+  return lines.join(' ');
 }
 
 async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
