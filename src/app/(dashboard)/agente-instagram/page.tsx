@@ -53,10 +53,18 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
   done: 'igAgent.statusDone',
 };
 
+/** Examples paired with the engagement signal each one taps into. */
 const EXAMPLES = [
-  'igAgent.example1',
-  'igAgent.example2',
-  'igAgent.example3',
+  { key: 'igAgent.example1', icon: MessageCircle },
+  { key: 'igAgent.example2', icon: ShoppingBag },
+  { key: 'igAgent.example3', icon: TrendingUp },
+];
+
+/** The agent's job, in three editorial beats (empty-state explainer). */
+const HOW_STEPS = [
+  { icon: Target, t: 'igAgent.howStep1Title', d: 'igAgent.howStep1Desc' },
+  { icon: Sparkles, t: 'igAgent.howStep2Title', d: 'igAgent.howStep2Desc' },
+  { icon: TrendingUp, t: 'igAgent.howStep3Title', d: 'igAgent.howStep3Desc' },
 ];
 
 export default function InstagramAgentPage() {
@@ -176,83 +184,142 @@ export default function InstagramAgentPage() {
       )
     : '';
 
+  const showEmptyState = !plan && !loading;
+
   return (
-    <div className="space-y-5">
-      {/* Cabecera */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="app-page-title flex items-center gap-2">
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Cabecera editorial — eyebrow + glifo IG con degradado de marca */}
+      <header className="space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
             <InstagramIcon className="h-5 w-5" />
-            {t('igAgent.title')}
-          </h1>
+          </span>
+          <div>
+            <p className="app-eyebrow">{t('igAgent.eyebrow')}</p>
+            <h1 className="app-page-title">{t('igAgent.title')}</h1>
+          </div>
+        </div>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {t('igAgent.subtitle')}
+        </p>
+      </header>
+
+      {/* Compositor de objetivo — la pieza central */}
+      <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
+        {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c13584]/60 to-transparent" />
+        <div className="p-5 sm:p-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <label
+              htmlFor="goal"
+              className="flex items-center gap-2 text-sm font-medium text-foreground"
+            >
+              <Target className="h-4 w-4 text-accent-ink" />
+              {t('igAgent.goalLabel')}
+            </label>
+            <span className="hidden items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:inline-flex">
+              <Sparkles className="h-3 w-3 text-accent-ink" />
+              {t('igAgent.poweredByAi')}
+            </span>
+          </div>
+
+          <Textarea
+            id="goal"
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder={t('igAgent.goalPlaceholder')}
+            className="resize-none border-0 bg-transparent px-0 text-[15px] leading-relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                if (!loading) generate();
+              }
+            }}
+          />
+
+          {/* Pie: señales reales (audiencia + catálogo) + CTA */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {context ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    </span>
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {fmt.number(context.total_contacts)}
+                    </span>
+                    {t('igAgent.reachablePeople')}
+                  </span>
+                  {context.has_catalog && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                      <ShoppingBag className="h-3.5 w-3.5" />
+                      {t('igAgent.catalogConnected')}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  {t('igAgent.groundedInAudience')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                {t('igAgent.generateHint')}
+              </span>
+              <Button size="lg" onClick={generate} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('igAgent.designing')}
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4" />
+                    {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Caja de objetivo */}
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <label
-          htmlFor="goal"
-          className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground"
-        >
-          <Target className="h-4 w-4 text-accent-ink" />
-          {t('igAgent.goalLabel')}
-        </label>
-        <Textarea
-          id="goal"
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          rows={3}
-          maxLength={2000}
-          placeholder={t('igAgent.goalPlaceholder')}
-          className="resize-none"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              if (!loading) generate();
-            }
-          }}
-        />
-
-        {/* Ejemplos rápidos */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {EXAMPLES.map((exKey, i) => {
-            const ex = t(exKey);
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setGoal(ex)}
-                className="rounded-full border border-border bg-background px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
-              >
-                {ex.length > 56 ? ex.slice(0, 56) + '…' : ex}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-[11px] text-muted-foreground">
-            {context
-              ? `${context.total_contacts} ${t('igAgent.reachablePeople')}${
-                  context.has_catalog ? ` · ${t('igAgent.catalogConnected')}` : ''
-                }`
-              : t('igAgent.groundedInAudience')}
+      {/* Sugerencias de ejemplo — solo en el estado inicial */}
+      {showEmptyState && (
+        <section>
+          <p className="app-eyebrow mb-3 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-accent-ink" />
+            {t('igAgent.startFromExample')}
           </p>
-          <Button onClick={generate} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('igAgent.designing')}
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-4 w-4" />
-                {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {EXAMPLES.map(({ key, icon: Icon }, i) => {
+              const ex = t(key);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setGoal(ex)}
+                  className="group/ex flex h-full flex-col gap-2.5 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent-ink/40 hover:shadow-md"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent/50 text-accent-ink transition-colors group-hover/ex:bg-accent">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-[13px] leading-relaxed text-muted-foreground transition-colors group-hover/ex:text-foreground">
+                    {ex}
+                  </span>
+                  <ArrowRight className="mt-auto h-3.5 w-3.5 text-accent-ink opacity-0 transition-all group-hover/ex:translate-x-0.5 group-hover/ex:opacity-100" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* El agente trabajando — estados en vivo, al estilo Blueberry. */}
       {loading && (
@@ -266,14 +333,14 @@ export default function InstagramAgentPage() {
       {plan && (
         <div className="space-y-4">
           {/* Encabezado de campaña + embudo */}
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="app-eyebrow">{t('igAgent.proposedCampaign')}</p>
                 <h2 className="mt-1 text-lg font-semibold text-foreground">
                   {plan.campaign_name}
                 </h2>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Users className="h-3.5 w-3.5" />
                   {plan.audience.description}
                 </p>
@@ -326,12 +393,25 @@ export default function InstagramAgentPage() {
 
           <div className="grid gap-4 lg:grid-cols-5">
             {/* Vista previa del DM de Instagram */}
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm lg:col-span-3">
               <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
                 <InstagramIcon className="h-4 w-4" />
                 {t('igAgent.instagramDm')}
               </p>
               <div className="rounded-xl bg-[#0b0b0f] p-3">
+                {/* Cabecera de chat tipo Instagram para que la vista previa
+                    se lea como una conversación real. */}
+                <div className="mb-2.5 flex items-center gap-2 border-b border-white/10 pb-2.5">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-[11px] font-semibold text-white">
+                    {plan.message.preview_name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-white">
+                      {plan.message.preview_name}
+                    </p>
+                    <p className="text-[10px] text-white/40">Instagram · DM</p>
+                  </div>
+                </div>
                 <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] leading-relaxed text-white whitespace-pre-wrap">
                   {messagePreview}
                 </div>
@@ -378,7 +458,7 @@ export default function InstagramAgentPage() {
             {/* Oferta + productos + pasos */}
             <div className="space-y-4 lg:col-span-2">
               {plan.offer && (
-                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <Tag className="h-4 w-4 text-accent-ink" />
                     {t('igAgent.offer')}
@@ -398,7 +478,7 @@ export default function InstagramAgentPage() {
               )}
 
               {plan.recommended_products.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <ShoppingBag className="h-4 w-4 text-accent-ink" />
                     {t('igAgent.productsToFeature')}
@@ -413,7 +493,7 @@ export default function InstagramAgentPage() {
                 </div>
               )}
 
-              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
                   <Target className="h-4 w-4 text-accent-ink" />
                   {t('igAgent.nextSteps')}
@@ -436,7 +516,7 @@ export default function InstagramAgentPage() {
           </div>
 
           {/* Acciones */}
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
             <label className="mr-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <span>{t('igAgent.controlHoldout')}</span>
               <select
@@ -478,7 +558,7 @@ export default function InstagramAgentPage() {
 
       {/* Mis campañas guardadas */}
       {campaigns.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
             <Radio className="h-4 w-4 text-accent-ink" />
             {t('igAgent.myCampaigns')}
@@ -534,48 +614,34 @@ export default function InstagramAgentPage() {
       )}
 
       {/* Estado vacío / cómo funciona */}
-      {!plan && !loading && (
-        <div className="rounded-xl border border-dashed border-border bg-card/50 p-5">
-          <p className="text-sm font-medium text-foreground">
-            {t('igAgent.howItWorks')}
-          </p>
-          <ol className="mt-3 grid gap-3 sm:grid-cols-3">
-            {[
-              {
-                icon: <Target className="h-4 w-4" />,
-                t: 'igAgent.howStep1Title',
-                d: 'igAgent.howStep1Desc',
-              },
-              {
-                icon: <Sparkles className="h-4 w-4" />,
-                t: 'igAgent.howStep2Title',
-                d: 'igAgent.howStep2Desc',
-              },
-              {
-                icon: <TrendingUp className="h-4 w-4" />,
-                t: 'igAgent.howStep3Title',
-                d: 'igAgent.howStep3Desc',
-              },
-            ].map((step, i) => (
-              <li
-                key={i}
-                className={cn(
-                  'rounded-lg border border-border bg-background p-3',
-                )}
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/50 text-accent-ink">
-                  {step.icon}
-                </span>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {t(step.t)}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {t(step.d)}
-                </p>
-              </li>
-            ))}
+      {showEmptyState && (
+        <section className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6">
+          <p className="app-eyebrow mb-4">{t('igAgent.howItWorks')}</p>
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {HOW_STEPS.map((step, i) => {
+              const Icon = step.icon;
+              return (
+                <li
+                  key={i}
+                  className="relative overflow-hidden rounded-xl border border-border bg-background p-4"
+                >
+                  <span className="pointer-events-none absolute -right-1 -top-2 text-4xl font-bold tabular-nums text-muted-foreground/10">
+                    {`0${i + 1}`}
+                  </span>
+                  <span className="relative grid h-8 w-8 place-items-center rounded-lg bg-accent/50 text-accent-ink">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <p className="relative mt-3 text-sm font-medium text-foreground">
+                    {t(step.t)}
+                  </p>
+                  <p className="relative mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {t(step.d)}
+                  </p>
+                </li>
+              );
+            })}
           </ol>
-        </div>
+        </section>
       )}
     </div>
   );
@@ -625,9 +691,12 @@ function AgentThinking({
   }, [active, steps.length]);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <p className="app-eyebrow flex items-center gap-1.5">
-        <Radio className="h-3.5 w-3.5 text-accent-ink" />
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-ink/50" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-ink" />
+        </span>
         {t('igAgent.agentWorking')}
       </p>
       <ul className="mt-3 space-y-2">

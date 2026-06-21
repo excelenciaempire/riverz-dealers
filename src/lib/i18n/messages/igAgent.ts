@@ -5,9 +5,16 @@ export const igAgent = {
   // Page header
   eyebrow: { es: "Marketing con IA", en: "AI marketing" },
   title: { es: "Agente de Instagram", en: "Instagram Agent" },
+  subtitle: {
+    es: "Describe un objetivo y el agente diseña una campaña de DMs 1:1 — audiencia, copy y oferta — lista para revisar y lanzar.",
+    en: "Describe a goal and the agent designs a 1:1 DM campaign — audience, copy and offer — ready to review and launch.",
+  },
 
   // Goal box
   goalLabel: { es: "¿Cuál es tu objetivo?", en: "What's your goal?" },
+  startFromExample: { es: "Empieza con un ejemplo", en: "Start from an example" },
+  generateHint: { es: "⌘ Enter para generar", en: "⌘ Enter to generate" },
+  poweredByAi: { es: "Diseñado por IA", en: "Designed by AI" },
   goalPlaceholder: {
     es: "Describe lo que quieres lograr. Ej: reactivar a quienes comentaron mi último reel con un 15% de descuento.",
     en: "Describe what you want to achieve. E.g.: re-engage everyone who commented on my last reel with 15% off.",
