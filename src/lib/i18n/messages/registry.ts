@@ -15,6 +15,7 @@ import { flows } from "./flows";
 import { igAgent } from "./igAgent";
 import { inbox } from "./inbox";
 import { landing } from "./landing";
+import { legal } from "./legal";
 import { layout } from "./layout";
 import { metrics } from "./metrics";
 import { nav } from "./nav";
@@ -35,6 +36,7 @@ const NAMESPACES: Record<string, Namespace> = {
   igAgent,
   inbox,
   landing,
+  legal,
   layout,
   metrics,
   nav,

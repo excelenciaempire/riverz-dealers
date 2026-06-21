@@ -1,167 +1,131 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Política de privacidad",
-  description: "Cómo riverz recopila, usa y protege tus datos.",
-  // Public + indexable so Meta can verify the URL during App Review.
-  robots: { index: true, follow: true },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return {
+    title: t("legal.privacyMetaTitle"),
+    description: t("legal.privacyMetaDescription"),
+    // Public + indexable so Meta can verify the URL during App Review.
+    robots: { index: true, follow: true },
+  };
+}
 
 const UPDATED = "19 de junio de 2026";
 const CONTACT = "info@riverzai.com";
 
-export default function PrivacidadPage() {
+export default async function PrivacidadPage() {
+  const t = await getT();
   return (
     <main className="mx-auto max-w-2xl px-5 py-12 sm:py-16">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        riverz
+        {t("legal.brand")}
       </p>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-        Política de privacidad
+        {t("legal.privacyTitle")}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Última actualización: {UPDATED}
+        {t("legal.updatedLabel", { date: UPDATED })}
       </p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-foreground/90">
-        <Section title="1. Quiénes somos">
+        <Section title={t("legal.privacy1Title")}>
           <p>
-            riverz es una plataforma de atención y CRM omnicanal que permite a
-            comercios y empresas centralizar y responder, desde una sola bandeja,
-            las conversaciones de sus clientes en WhatsApp, Instagram, Messenger y
-            correo electrónico. El servicio se presta a través de{" "}
+            {t("legal.privacy1BodyPre")}
             <a href="https://riverz.co" className="underline">
               riverz.co
             </a>
-            . Para cualquier consulta sobre privacidad escríbenos a{" "}
+            {t("legal.privacy1BodyMid")}
             <a href={`mailto:${CONTACT}`} className="underline">
               {CONTACT}
             </a>
-            .
+            {t("legal.privacy1BodyEnd")}
           </p>
         </Section>
 
-        <Section title="2. Qué datos tratamos">
-          <p>Tratamos dos tipos de información:</p>
+        <Section title={t("legal.privacy2Title")}>
+          <p>{t("legal.privacy2Intro")}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
-              <strong>Datos del comercio (nuestro cliente):</strong> nombre,
-              correo, datos de la cuenta y de la empresa, y los tokens de acceso
-              de las cuentas que conecta (WhatsApp, Páginas de Facebook, cuentas
-              de Instagram, Shopify, correo). Los tokens se guardan cifrados.
+              <strong>{t("legal.privacy2Item1Strong")}</strong>
+              {t("legal.privacy2Item1Rest")}
             </li>
             <li>
-              <strong>Datos de los clientes finales del comercio:</strong> cuando
-              un comercio conecta sus cuentas, procesamos en su nombre los
-              mensajes, comentarios, nombre de perfil público, identificadores de
-              usuario y metadatos de las conversaciones que esas personas le
-              envían, para mostrarlos en la bandeja y permitir responderlos.
+              <strong>{t("legal.privacy2Item2Strong")}</strong>
+              {t("legal.privacy2Item2Rest")}
             </li>
           </ul>
         </Section>
 
-        <Section title="3. Para qué usamos los datos">
+        <Section title={t("legal.privacy3Title")}>
+          <p>{t("legal.privacy3Body")}</p>
+        </Section>
+
+        <Section title={t("legal.privacy4Title")}>
           <p>
-            Usamos los datos únicamente para prestar el servicio: recibir y
-            mostrar mensajes y comentarios, permitir que el comercio responda,
-            ofrecer respuestas asistidas por IA cuando el comercio lo activa,
-            generar estadísticas de atención y mantener la seguridad del sistema.
-            No vendemos datos personales ni los usamos para publicidad de
-            terceros.
+            {t("legal.privacy4BodyPre")}
+            <strong>{t("legal.privacy4BodyStrong")}</strong>
+            {t("legal.privacy4BodyEnd")}
           </p>
         </Section>
 
-        <Section title="4. Plataformas de Meta">
-          <p>
-            riverz utiliza las APIs de Meta (WhatsApp Business, Messenger
-            Platform e Instagram). Cuando un comercio conecta su Página de
-            Facebook o su cuenta de Instagram, accedemos a sus mensajes y
-            comentarios <strong>solo</strong> en las cuentas que él mismo
-            autoriza, y exclusivamente para que pueda gestionarlos desde riverz.
-            El uso de la información obtenida de Meta cumple con las Políticas de
-            la Plataforma de Meta. No accedemos a cuentas de terceros que el
-            comercio no haya conectado.
-          </p>
-        </Section>
-
-        <Section title="5. Con quién compartimos datos (subencargados)">
-          <p>
-            Nos apoyamos en proveedores que tratan datos por cuenta nuestra, bajo
-            contrato y solo para operar el servicio:
-          </p>
+        <Section title={t("legal.privacy5Title")}>
+          <p>{t("legal.privacy5Intro")}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Meta Platforms (APIs de WhatsApp, Messenger e Instagram).</li>
-            <li>Supabase (base de datos y almacenamiento).</li>
-            <li>Render (alojamiento de la aplicación).</li>
-            <li>Anthropic (modelos de IA, solo cuando el comercio activa el asistente).</li>
-            <li>Shopify (cuando el comercio conecta su tienda).</li>
+            <li>{t("legal.privacy5ItemMeta")}</li>
+            <li>{t("legal.privacy5ItemSupabase")}</li>
+            <li>{t("legal.privacy5ItemRender")}</li>
+            <li>{t("legal.privacy5ItemAnthropic")}</li>
+            <li>{t("legal.privacy5ItemShopify")}</li>
           </ul>
         </Section>
 
-        <Section title="6. Conservación">
-          <p>
-            Conservamos los datos mientras la cuenta del comercio esté activa y
-            sean necesarios para prestar el servicio. Cuando una cuenta se
-            elimina, o cuando se recibe una solicitud de eliminación válida,
-            borramos o anonimizamos los datos asociados en un plazo razonable.
-          </p>
+        <Section title={t("legal.privacy6Title")}>
+          <p>{t("legal.privacy6Body")}</p>
         </Section>
 
-        <Section title="7. Tus derechos y eliminación de datos">
-          <p>
-            Puedes solicitar acceso, corrección o eliminación de tus datos. Si
-            eres un usuario que interactuó con un comercio que usa riverz, puedes
-            pedir la eliminación de tus datos en cualquier momento.
-          </p>
+        <Section title={t("legal.privacy7Title")}>
+          <p>{t("legal.privacy7Body1")}</p>
           <p className="mt-2">
-            Consulta cómo en{" "}
+            {t("legal.privacy7Body2Pre")}
             <Link href="/eliminar-datos" className="underline">
               riverz.co/eliminar-datos
             </Link>
-            . Las solicitudes automáticas de Meta (al eliminar la app) se
-            procesan a través de nuestro callback de eliminación de datos.
+            {t("legal.privacy7Body2End")}
           </p>
         </Section>
 
-        <Section title="8. Seguridad">
-          <p>
-            Ciframos los tokens de acceso, verificamos la firma de los webhooks
-            entrantes y aplicamos control de acceso por cuenta. Aun así, ningún
-            sistema es 100% infalible; trabajamos para proteger tu información de
-            forma continua.
-          </p>
+        <Section title={t("legal.privacy8Title")}>
+          <p>{t("legal.privacy8Body")}</p>
         </Section>
 
-        <Section title="9. Cambios">
-          <p>
-            Podemos actualizar esta política. Publicaremos los cambios en esta
-            página con su fecha de actualización.
-          </p>
+        <Section title={t("legal.privacy9Title")}>
+          <p>{t("legal.privacy9Body")}</p>
         </Section>
 
-        <Section title="10. Contacto">
+        <Section title={t("legal.privacy10Title")}>
           <p>
-            ¿Preguntas? Escríbenos a{" "}
+            {t("legal.privacy10BodyPre")}
             <a href={`mailto:${CONTACT}`} className="underline">
               {CONTACT}
             </a>
-            .
+            {t("legal.privacy10BodyEnd")}
           </p>
         </Section>
       </div>
 
       <footer className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
         <Link href="/terminos" className="underline">
-          Términos y condiciones
+          {t("legal.footerTerms")}
         </Link>
         <span className="mx-2">·</span>
         <Link href="/eliminar-datos" className="underline">
-          Eliminar mis datos
+          {t("legal.footerDeleteData")}
         </Link>
         <span className="mx-2">·</span>
         <a href="https://riverz.co" className="underline">
-          riverz.co
+          {t("legal.footerSite")}
         </a>
       </footer>
     </main>
