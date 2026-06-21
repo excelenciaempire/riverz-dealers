@@ -259,6 +259,10 @@ export const inbox = {
   postFb: { es: "Post FB", en: "FB post" },
   postIg: { es: "Post IG", en: "IG post" },
   viewPost: { es: "Ver publicación ↗", en: "View post ↗" },
+  commentsCount: {
+    es: "{n} comentarios en la publicación",
+    en: "{n} comments on the post",
+  },
 
   // Resizable pane
   resizePanel: { es: "Cambiar ancho del panel", en: "Resize panel" },

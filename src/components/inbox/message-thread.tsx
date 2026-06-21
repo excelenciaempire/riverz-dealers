@@ -231,6 +231,7 @@ export function MessageThread({
     isAd?: boolean;
     adId?: string;
   } | null>(null);
+  const [commentCount, setCommentCount] = useState<number | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -292,6 +293,29 @@ export function MessageThread({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!cancelled && data) setPostPreview(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.id, conversation?.channel]);
+
+  // Read the customer comments on this post/media straight from Graph
+  // (user-generated content). This live call exercises
+  // pages_read_user_content (FB) / instagram_manage_comments (IG) and
+  // surfaces how many comments the post has. Best-effort: the thread still
+  // renders if it fails.
+  useEffect(() => {
+    setCommentCount(null);
+    const convId = conversation?.id;
+    const ch = conversation?.channel;
+    if (!convId || (ch !== "fb_comment" && ch !== "ig_comment")) return;
+    let cancelled = false;
+    fetch(`/api/conversations/${convId}/comment-context`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.comments))
+          setCommentCount(data.comments.length);
       })
       .catch(() => {});
     return () => {
@@ -1170,6 +1194,11 @@ export function MessageThread({
             )}
             <div className="min-w-0 flex-1">
               <p className="mt-0.5 line-clamp-2 text-foreground">{caption}</p>
+              {commentCount !== null && commentCount > 0 && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {t("inbox.commentsCount", { n: commentCount })}
+                </p>
+              )}
               {postUrl && (
                 <a
                   href={postUrl}

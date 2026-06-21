@@ -92,9 +92,17 @@ export function metaProvider(): ProviderConfig {
       process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID ||
       undefined,
     scopes: [
+      "public_profile",
       "pages_messaging",
       "pages_show_list",
       "pages_read_engagement",
+      // Reading user-generated content (the customer's comments) on the
+      // Page; Meta requires it alongside pages_manage_engagement to reply
+      // to / hide comments. NOTE: production connect uses Facebook Login
+      // for Business via config_id, so this list is the fallback only —
+      // the same permission must also be added to the config in the Meta
+      // dashboard for it to be granted on the config_id path.
+      "pages_read_user_content",
       "pages_manage_engagement",
       "pages_manage_metadata",
       "instagram_basic",

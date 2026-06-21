@@ -66,6 +66,64 @@ export function withAppsecretProofBody<T extends Record<string, unknown>>(
   return { ...body, appsecret_proof: proof };
 }
 
+export interface CommentItem {
+  id: string;
+  text: string;
+  from: string | null;
+  /** ISO-ish timestamp as returned by Graph (FB: created_time, IG: timestamp). */
+  createdAt: string | null;
+}
+
+/**
+ * Read the customer comments left on a Page post (FB) or IG media — i.e.
+ * user-generated content — straight from the Graph API. This is the live
+ * read that exercises `pages_read_user_content` (FB) and
+ * `instagram_manage_comments` (IG); the inbox uses it to show the comment
+ * thread in context next to the reply box.
+ *
+ * `postOrMediaId` is the conversation's `thread_external_id` (set to the
+ * comment's post/media id by inbox-writer). Best-effort: returns null on
+ * any failure so the thread view never breaks.
+ */
+export async function fetchPostComments(
+  accessToken: string,
+  postOrMediaId: string,
+  channel: "fb_comment" | "ig_comment",
+  limit = 25,
+): Promise<CommentItem[] | null> {
+  try {
+    const fields =
+      channel === "ig_comment"
+        ? "id,text,username,timestamp"
+        : "id,message,from,created_time";
+    const url = withAppsecretProof(
+      `${GRAPH}/${postOrMediaId}/comments?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`,
+      accessToken,
+    );
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      data?: Array<{
+        id?: string;
+        message?: string;
+        text?: string;
+        from?: { name?: string };
+        username?: string;
+        created_time?: string;
+        timestamp?: string;
+      }>;
+    };
+    return (j.data ?? []).map((c) => ({
+      id: String(c.id ?? ""),
+      text: String(c.message ?? c.text ?? ""),
+      from: c.from?.name ?? c.username ?? null,
+      createdAt: c.created_time ?? c.timestamp ?? null,
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export interface MetaPage {
   id: string;
   name: string;
