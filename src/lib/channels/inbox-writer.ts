@@ -81,6 +81,8 @@ export async function ingestInboundEvent(
     subject: event.subject,
     thread_external_id: event.externalThreadId ?? event.comment?.postId ?? null,
     firstMessageText: event.text,
+    lastMessageAt: event.receivedAt,
+    lastSenderType: event.outbound ? "agent" : "customer",
   });
   if (!conversation) return null;
 
@@ -348,8 +350,15 @@ interface FindOrCreateConversationInput {
   connection_id: string;
   subject?: string;
   thread_external_id: string | null;
-  /** Inbound text — feeds the by_keyword assignment rule. */
+  /** Inbound text — feeds the by_keyword assignment rule AND seeds the
+   *  conversation's last_message_text so a NEW conversation shows its
+   *  preview immediately instead of flashing "No messages" until step 5's
+   *  update lands. */
   firstMessageText?: string;
+  /** Timestamp + sender of the first message, so a new conversation sorts +
+   *  previews correctly the instant it's created. */
+  lastMessageAt?: string;
+  lastSenderType?: "agent" | "customer";
 }
 
 async function findOrCreateConversation(
@@ -399,6 +408,15 @@ async function findOrCreateConversation(
       thread_external_id: input.thread_external_id,
       assigned_agent_id: assignedAgentId,
       status: "open",
+      // Seed the preview + sort fields so the conversation shows its last
+      // message the instant it appears (no "No messages" flash). unread_count
+      // stays 0 here — step 5 in ingestInboundEvent bumps it to 1 so we don't
+      // double-count.
+      last_message_text: input.firstMessageText
+        ? input.firstMessageText.slice(0, 200)
+        : null,
+      last_message_at: input.lastMessageAt ?? new Date().toISOString(),
+      last_sender_type: input.lastSenderType ?? "customer",
       unread_count: 0,
     })
     .select()
