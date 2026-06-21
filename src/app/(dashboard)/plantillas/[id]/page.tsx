@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -60,7 +61,7 @@ function StatusPill({ status, t }: { status: string; t: TFn }) {
 
 export default function TemplateDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const templateId = params.id;
   const t = useT();
   const fmt = useFormat();
@@ -198,7 +199,6 @@ export default function TemplateDetailPage() {
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{t('templates.whatsappTemplate')}</p>
             <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
               {template.name}
             </h1>

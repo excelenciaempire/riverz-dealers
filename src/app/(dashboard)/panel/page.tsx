@@ -172,8 +172,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="app-eyebrow">{t('dashboard.home')}</p>
-          <h1 className="app-page-title mt-1.5">{t('dashboard.overview')}</h1>
+          <h1 className="app-page-title">{t('dashboard.overview')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <LiveIndicator connected={isConnected} t={t} />

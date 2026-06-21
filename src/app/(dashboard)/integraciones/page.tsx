@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
 import { useT } from '@/hooks/use-locale';
@@ -22,13 +20,6 @@ export default function IntegracionesPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('settings.integrations')}</h1>
-        <Link
-          href="/ajustes"
-          className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" />
-          {t('settings.backToSettings')}
-        </Link>
       </div>
 
       <ChannelsPanel />

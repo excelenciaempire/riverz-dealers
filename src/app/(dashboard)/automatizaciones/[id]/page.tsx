@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -172,7 +173,7 @@ function StatusBreakdown({
 
 export default function AutomationDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const t = useT();
   const automationId = params.id;
 
@@ -309,7 +310,6 @@ export default function AutomationDetailPage() {
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{t('automations.eyebrow')}</p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
                 {automation.name}

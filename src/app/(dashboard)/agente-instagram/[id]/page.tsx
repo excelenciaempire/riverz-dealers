@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/i18n/locale-link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -150,11 +150,7 @@ export default function CampaignDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="app-eyebrow flex items-center gap-1.5">
-            <InstagramIcon className="h-3.5 w-3.5" />
-            {t('igAgent.instagramCampaign')}
-          </p>
-          <h1 className="app-page-title mt-1.5">{campaign.name}</h1>
+          <h1 className="app-page-title">{campaign.name}</h1>
           <p className="mt-1 text-xs text-muted-foreground">{campaign.goal}</p>
         </div>
         <Badge

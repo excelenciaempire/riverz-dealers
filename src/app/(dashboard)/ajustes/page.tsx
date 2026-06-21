@@ -1,8 +1,8 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { User, Palette, Building2, Blocks, ArrowRight, GitBranch } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
+import { User, Palette, Building2, GitBranch } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
@@ -24,7 +24,7 @@ function isTabValue(v: string | null): v is TabValue {
 }
 
 export default function SettingsPage() {
-  const router = useRouter();
+  const router = useLocalizedRouter();
   const searchParams = useSearchParams();
   const t = useT();
 
@@ -41,16 +41,8 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
         <h1 className="text-2xl font-bold text-foreground">{t('settings.title')}</h1>
-        <Link
-          href="/integraciones"
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <Blocks className="size-4" />
-          {t('settings.integrations')}
-          <ArrowRight className="size-3.5" />
-        </Link>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>

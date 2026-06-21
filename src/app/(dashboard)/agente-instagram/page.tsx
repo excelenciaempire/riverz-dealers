@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import {
   Sparkles,
@@ -181,8 +181,7 @@ export default function InstagramAgentPage() {
       {/* Cabecera */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="app-eyebrow">{t('igAgent.eyebrow')}</p>
-          <h1 className="app-page-title mt-1.5 flex items-center gap-2">
+          <h1 className="app-page-title flex items-center gap-2">
             <InstagramIcon className="h-5 w-5" />
             {t('igAgent.title')}
           </h1>

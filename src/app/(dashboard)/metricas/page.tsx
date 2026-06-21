@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
-import Link from 'next/link';
+import Link from '@/components/i18n/locale-link';
 import {
   Megaphone,
   Workflow,
@@ -125,8 +125,7 @@ export default function MetricasPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="app-eyebrow">{t('metrics.eyebrow')}</p>
-          <h1 className="app-page-title mt-1.5">{t('metrics.title')}</h1>
+          <h1 className="app-page-title">{t('metrics.title')}</h1>
         </div>
         <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>
