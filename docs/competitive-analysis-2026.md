@@ -1,14 +1,14 @@
 # Análisis competitivo Riverz 2026 — Meta Business Agent + 22 competidores
 
 > **Fecha:** 2026-06-22 · **Autor:** Estrategia (research multi-agente) · **Estado:** vivo
-> **Origen:** análisis del video *"Meta volvió obsoletos a los que venden chatbots de WhatsApp… ¿y ahora?"* (`youtube.com/watch?v=I1wE_WzGRCE`, t=728s) + investigación exhaustiva de competidores.
-> **Método:** workflow de 30 agentes (deep-dive del video y la amenaza Meta, 22 competidores perfilados con fuentes primarias, verificación adversarial en 3 lentes, síntesis). Cada afirmación sobre Riverz está verificada contra el código.
+> **Origen:** análisis del video *"Meta volvió obsoletos a los que venden chatbots de WhatsApp… ¿y ahora?"* de **Kevin Beller** (`youtube.com/watch?v=I1wE_WzGRCE`, t=728s) + investigación exhaustiva de competidores.
+> **Método:** el video se analizó con **Gemini 3.1 Pro** (`gemini-3.1-pro-preview`, ingiriendo el YouTube directo — audio + pantalla, 92.6k tokens de video) → ver §1.0 y Anexo A. La competencia, con un workflow de 30 agentes (22 competidores con fuentes primarias + verificación adversarial en 3 lentes). Cada afirmación sobre Riverz está verificada contra el código.
 
 ---
 
 ## TL;DR
 
-**¿Meta nos volvió obsoletos? No.** El video confunde dos cosas. Meta lanzó **Meta Business Agent** (3-jun-2026, global, gratis para empezar) y endureció sus términos el **15-ene-2026** prohibiendo **chatbots de propósito general** (ChatGPT, Copilot, Perplexity montados sobre la WhatsApp Business API). Pero ese ban **no toca** a un CRM de comercio cuya IA contesta por *un* negocio sobre *ese* negocio — que es exactamente Riverz. Estamos **del lado permitido** del ban; de hecho es viento a favor porque extermina a los competidores commodity.
+**¿Meta nos volvió obsoletos? No — y el propio video lo dice.** El video de **Kevin Beller** (analizado con Gemini 3.1 Pro) tiene un título alarmista pero una tesis **optimista y sofisticada**: Meta **commoditiza el bot simple** con su *Meta Business Agent Platform*, pero *"el negocio apenas empieza"*; hay que **evolucionar hacia la capa de orquestación / integración / consultoría que Meta no puede cubrir** — que es, casi literalmente, lo que Riverz ya es. Y enumera **3 "grietas" de Meta** que son nuestras 3 aperturas estratégicas (ver §1.0). Por separado, el ban de Meta del **15-ene-2026** prohíbe **chatbots de propósito general** (ChatGPT, Copilot, Perplexity sobre la WABA), **no** a un CRM cuya IA contesta por *un* negocio sobre *ese* negocio — Riverz está **del lado permitido** (viento a favor que extermina a la competencia commodity).
 
 **Lo que sí muere:** el pitch *"te pongo una IA en tu WhatsApp"*. Eso ahora es gratis dentro de la app. Nuestro módulo de agente de IA es la parte **más expuesta** de Riverz.
 
@@ -22,15 +22,46 @@
 
 ## 1. Veredicto sobre Meta — ¿nos volvió obsoletos?
 
+### 1.0 Lo que realmente dice el video (analizado con Gemini 3.1 Pro)
+
+El video es de **Kevin Beller** (comunidad "Vibe Community VIP" en Skool; enseña a construir SaaS/agencias con *Vibe Coding* y *Spec-Driven Development*). Va dirigido a **Tech Providers, agencias de automatización, freelancers y creadores de SaaS** que venden chatbots/integraciones de WhatsApp. Capítulos (timestamps reales):
+
+- **00:00–01:04** — El "susto": Meta lanza su agente embebido; cae de peso a las agencias. Promete análisis honesto.
+- **01:04–01:51** — El agente **actúa**, no solo responde: usa catálogo, **cierra ventas y cobra en el chat**, se integra con plataformas y hace *handoff* a humano.
+- **01:51–02:55** — **Jugada maestra: Usernames en WhatsApp** (como Telegram) + **buscador interno** para descubrir negocios sin tener su número. Meta quiere que los negocios dependan menos de FB/IG para ser descubiertos.
+- **02:55–04:32** — **No será gratis**: hoy gratis como gancho; pronto cobran por **consumo de tokens** (LLM de Meta) + suscripciones, encima del costo de mensajes de plantilla.
+- **04:32–08:07** — **Las 3 grietas de Meta** (ver tabla abajo).
+- **08:07–10:57** — *"¿Se acabó? No, apenas empieza."* El **99%** de los negocios aún no automatiza; Meta **normaliza** el uso de IA → sube la demanda general; pero el dueño promedio no sabrá configurarlo.
+- **10:57–13:08** — **El cambio de juego:** el bot simple de Q&A muere; la demanda sube hacia **automatizar procesos internos, conectar sistemas complejos (CRMs/ERPs) y consultoría de IA.**
+- **13:08–15:51** — Meta **no eliminó a los Tech Providers** porque no puede cubrir los procesos difíciles (muestra la curva de adopción: aún falta entrar la mayoría del mercado).
+- **15:51–16:58** — Promo de su comunidad.
+
+**El minuto 12:08 (t=728s, a donde apunta el enlace que mandaste):** sección titulada en pantalla **"Conectar todo el negocio a la IA"**. Kevin argumenta que las empresas necesitan a alguien que **conecte los sistemas externos fuera del ecosistema de Meta** — CRMs, ERPs, inventarios, voz, omnicanalidad — y define al profesional de IA como un **"gran director de orquesta"** de todas las herramientas/microservicios. **Esto es, palabra por palabra, la tesis de Riverz.** El usuario marcó justo este punto.
+
+**Las 3 grietas de Meta (del video) = nuestras 3 aperturas estratégicas:**
+
+| Grieta que el video le ve a Meta | Apertura para Riverz |
+|---|---|
+| **1. Caja cerrada, sin MCP abierto** — solo integraciones preconstruidas (Shopify, Zendesk, **Shopee**) | Riverz es la capa **abierta** que integra lo que el negocio ya usa (Shopify hoy; Dropi/CRMs/ERPs en roadmap). El "director de orquesta". |
+| **2. Privacidad — Meta usa las conversaciones para su máquina de ads** (política en pantalla **18-dic-2025**) | **Ángulo de privacidad nuevo:** con Riverz, los datos del cliente **no alimentan los ads de Meta**; el merchant es dueño de su data (DPA con Anthropic, sin uso publicitario). Mensaje fuerte para negocios con data sensible. |
+| **3. No es a medida + la data debe vivir en Meta** — hay que subir el catálogo a Meta; negocios con miles de SKUs en CRMs externos no pueden sincronizar (ejemplo: **ferretería** con precios que cambian a diario) | Riverz **sincroniza el catálogo Shopify** y mantiene la data en el sistema del negocio; maneja catálogos grandes/complejos y conocimiento product-first compilado. |
+
+**Conclusión del video aplicada a nosotros:** Kevin literalmente le dice a su audiencia que se conviertan en lo que Riverz ya es (orquestador/integrador, no vendedor de bots simples). El video **no es una amenaza para Riverz: es una validación de tesis** — y de paso nos regala el guión de ventas (las 3 grietas) y confirma que el mercado *apenas empieza*.
+
+> ⚠️ Matiz: el video habla del producto **"Meta Business Agent Platform"** y de la política de datos del **18-dic-2025**; el **ban de chatbots de propósito general del 15-ene-2026** (ChatGPT/Copilot/Perplexity) es un evento **distinto** que encontramos en la investigación y que refuerza nuestro lado-permitido (§1.2). Ambos coexisten.
+
 ### 1.1 Qué lanzó Meta (los hechos)
 
 **Meta Business Agent** — anunciado/desplegado globalmente el **3 de junio de 2026** en la conferencia *Conversations 2026* (Londres), tras ~2 años de pruebas (India, México). Es un agente de IA **nativo** dentro de WhatsApp/Messenger (Instagram en expansión) que:
 
 - responde preguntas del negocio, recomienda productos del catálogo, agenda citas, califica leads, cierra ventas y hace **handoff a humano**;
 - se configura en ~10 min, **gratis para empezar**, entrenado con chats pasados + página de Facebook + catálogo + FAQs + sitio web;
-- tiene una **Meta Business Agent Platform** (enterprise) para construir/personalizar/desplegar agentes a escala, conectando a *"cientos de sistemas como Shopify y Zendesk"*;
+- tiene una **Meta Business Agent Platform** (enterprise) para construir/personalizar/desplegar agentes a escala, con integraciones nativas preconstruidas a **Shopify, Zendesk y Shopee**;
+- **cobra dentro del chat** de WhatsApp (cierra la venta y procesa el pago en la conversación);
+- **WhatsApp Usernames + buscador interno** (per el video): los usuarios podrán encontrar negocios por nombre de usuario, sin tener el número — Meta reduce la dependencia de FB/IG para el descubrimiento;
 - escala declarada: **1M+ negocios** ya lo usan; 1B+ conversaciones negocio-cliente diarias;
-- precio: gratis ahora; luego suscripción **WhatsApp Business Premium** (pymes) + facturación por consumo/tokens (grandes), sin tarifas publicadas aún.
+- precio: gratis ahora; luego **consumo de tokens** (LLM de Meta) + suscripción **WhatsApp Business Premium** (pymes), encima del costo de mensajes de plantilla; sin tarifas publicadas aún;
+- **uso de datos:** política de Meta (en pantalla en el video, **18-dic-2025**) indica que las conversaciones con su IA alimentan la personalización/segmentación de **anuncios**.
 
 **El ban del 15-ene-2026** — Meta actualizó los *WhatsApp Business Solution Terms* para prohibir que proveedores externos usen la API para **distribuir chatbots de propósito general**. Afectados confirmados: Microsoft Copilot, ChatGPT (OpenAI), Perplexity, Poke, Dola/Yestoki. Razón declarada de Meta: la API existe para **comunicación negocio-cliente** (soporte, notificaciones, reservas, estados), y los asistentes de "pregúntame lo que sea" caen fuera de ese marco.
 
@@ -225,6 +256,7 @@ Dejamos de vender *"un chatbot de WhatsApp"* (commodity gratis de Meta) y vendem
 3. **Conocimiento de marca, no FAQ pegado** — catálogo + scrape + research con barreras por producto, IA managed incluida. *(Lucid Bot: BYOK; ManyChat: una URL.)*
 4. **Atribución honesta de pesos** — incrementalidad con holdout + atribución de ingresos Shopify por campaña + (próximo) CTWA. *(Nadie del Tier A mide lift causal.)*
 5. **Compliant by design en la era post-ban de Meta** — agente task-specific server-enforced sobre Cloud API oficial, del lado permitido del ban que extermina a los wrappers genéricos y bots QR/SIM.
+6. **Tu data no alimenta los ads de Meta** *(grieta #2 del video)* — el agente nativo de Meta usa las conversaciones para su máquina publicitaria (política 18-dic-2025); con Riverz el merchant es dueño de su data (Anthropic como subprocesador, sin uso publicitario). Ángulo fuerte para negocios con información sensible.
 
 ### Narrativa de una línea para ventas
 
@@ -248,9 +280,19 @@ Las primeras cuatro son **P0** porque cada una es, por sí sola, una razón de "
 
 ---
 
-## Anexo A — Nota sobre el video
+## Anexo A — Análisis del video con Gemini 3.1 Pro
 
-El transcript verbatim de `I1wE_WzGRCE` **no fue recuperable** (servicios de transcripción devolvieron 403/404/405; la página de YouTube solo expone el título). La tesis se reconstruyó desde el título + el lanzamiento documentado de Meta Business Agent (3-jun-2026) + reporting es/en. **Tesis reconstruida:** Meta convirtió el modelo de negocio "vendo bots de WhatsApp / agencia de automatización" en commodity con un agente nativo gratis; los wrappers genéricos y resellers de acceso se comoditizan; el "¿y ahora?" recomienda subir en la cadena de valor (integración profunda, verticalización, orquestación/estrategia, datos propios) en vez de vender un bot crudo. **Esa recomendación describe exactamente lo que Riverz ya es** — una plataforma de comercio, no un reseller de bots genéricos.
+El video se analizó con **Gemini 3.1 Pro** (`gemini-3.1-pro-preview`) ingiriendo el YouTube directamente (audio + pantalla; 92.6k tokens de video procesados, no un transcript de texto). Resumen de los hallazgos (detalle completo en §1.0):
+
+- **Creador:** Kevin Beller (comunidad "Vibe Community VIP" en Skool).
+- **Tesis real:** título alarmista, mensaje optimista — *"el bot simple muere, pero el negocio apenas empieza"*. Recomienda pivotar a **consultoría de IA + automatización de procesos internos + integraciones a medida (CRMs/ERPs/voz) + aprender MCP/microservicios/Vibe Coding/SDD**, convirtiéndose en el **"director de orquesta"** que conecta todo (justo lo que se discute en el t=728s que marcó el usuario).
+- **Las 3 grietas de Meta** que enumera (caja cerrada sin MCP / privacidad-ads / data debe vivir en Meta) son aperturas directas para Riverz (mapeadas en §1.0).
+- **Productos/datos citados:** Meta Business Agent Platform; integraciones Shopify/Zendesk/Shopee; Usernames+buscador en WhatsApp; cobro en el chat; política de datos-para-ads del 18-dic-2025; el 99% de negocios aún sin automatizar; curva de adopción; ejemplos renta de autos (demo de Meta) y ferretería con miles de SKUs.
+- **Herramientas mencionadas:** n8n, Obsidian ("segundo cerebro"), Twilio (voz), Skool, Zoom, Claude (el modelo transcribe "OpenClou"), MCP.
+
+> **Por qué importa:** el video NO declara obsoleto a un producto como Riverz; declara obsoleto al *bot simple de Q&A*. Su prescripción ("vuélvete el orquestador/integrador que Meta no puede ser") **valida la tesis de Riverz** y nos da un guión de ventas listo (las 3 grietas + el ángulo de privacidad).
+
+La salida cruda de Gemini quedó en `C:\tmp\gemini_video_analysis.md` (local, no commiteado).
 
 ## Anexo B — Fuentes clave
 
