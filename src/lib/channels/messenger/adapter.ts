@@ -43,8 +43,21 @@ export const messengerAdapter: ChannelAdapter = {
     if (!encrypted) throw new Error("[messenger] connection missing access_token");
     const accessToken = decrypt(encrypted);
 
-    if (!input.contact.external_id) {
-      throw new Error("[messenger] contact missing external_id (page-scoped PSID)");
+    // Two recipient shapes (mirrors the Instagram adapter):
+    //  - PRIVATE REPLY to a comment: `recipient: { comment_id }`. Required to
+    //    DM someone who only commented on a post/ad — we don't have their PSID
+    //    until they reply, so a plain `{ id }` send is impossible. This is what
+    //    powers comment-to-DM (Settings › Comentario a DM).
+    //  - Normal DM (the user messaged us first): `recipient: { id: PSID }`.
+    const recipient = input.commentId
+      ? { comment_id: input.commentId }
+      : input.contact.external_id
+        ? { id: input.contact.external_id }
+        : null;
+    if (!recipient) {
+      throw new Error(
+        "[messenger] no recipient — contact missing external_id (PSID) and no comment_id",
+      );
     }
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/messages`, {
@@ -53,7 +66,7 @@ export const messengerAdapter: ChannelAdapter = {
       body: JSON.stringify(
         withAppsecretProofBody(
           {
-            recipient: { id: input.contact.external_id },
+            recipient,
             messaging_type: "RESPONSE",
             message: { text: input.text },
             access_token: accessToken,

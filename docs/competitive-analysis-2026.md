@@ -18,6 +18,8 @@
 
 **Movimiento:** dejar de vender "un chatbot" y vender **el sistema operativo de comercio conversacional para tiendas Shopify de LatAm**, coexistiendo **encima** de Meta. Cerrar 6 brechas P0 antes de lanzar.
 
+> **Estado de implementación (2026-06-22):** ya shipeados de este análisis — **P0 #1 Comment-to-DM auto-trigger** (migración 086 + `src/lib/comment-to-dm/engine.ts` + tab Ajustes › Comentario a DM; IG y FB) y **P0 #3 scope-lock server-enforced** (`src/lib/ai/guardrails.ts` aplicado en runner/follow-up/test + test de regresión). Investigada la conectividad COD (Dropi/Rocketfy/Mastershop/Effi) → ver **Anexo C**.
+
 ---
 
 ## 1. Veredicto sobre Meta — ¿nos volvió obsoletos?
@@ -197,7 +199,7 @@ Effort: **S** (días) / **M** (1-3 sem) / **L** (1-2 meses).
 |---|---|---|---|---|
 | 7 | Story-reply automation + "Say Hi to New Followers" | Completa el set IG-growth de ManyChat/Lucid Bot | M | Alto |
 | 8 | **White-label / "Marca Blanca"** para agencias | Lucid Bot; abre canal reseller (las agencias que Meta "exprimió") | M | **Alto** (distribución multiplicadora) |
-| 9 | **Integraciones COD LatAm: Dropi** (prioridad), Effi, Mastershop, Rocketfy | Chatea PRO/Lucid Bot; Dropi domina el dropshipping COD | L | **Alto** (desbloquea el dropshipper) |
+| 9 | **Integraciones COD LatAm: Dropi/Rocketfy/Mastershop** (→ Anexo C) | Chatea PRO/Lucid Bot; Dropi domina el dropshipping COD | L | **Alto** (desbloquea el dropshipper) |
 | 10 | **Atribución de ventas manuales/cash** (no solo Shopify) | Hueco fatal: somos plataforma contra-entrega con atribución solo-tarjeta-Shopify | M | **Alto** (credibilidad + foso) |
 | 11 | Botón explícito de takeover humano (1 click, no por keyword/count) | UX de equipo vs todos | S | Medio-alto |
 | 12 | Cablear `first_inbound` flow trigger | Brecha interna conocida | S | Medio |
@@ -300,6 +302,21 @@ La salida cruda de Gemini quedó en `C:\tmp\gemini_video_analysis.md` (local, no
 - Ban del 15-ene-2026 (propósito general): [Semana](https://www.semana.com/tecnologia/articulo/adios-a-los-chatbots-en-whatsapp-meta-anuncia-radical-cambio-en-la-aplicacion-de-mensajeria-para-2026/202504/) · [Agentify](https://www.agentify.uy/blog/post/meta-cambia-las-reglas-para-whatsapp-adios-a-los-chatbots-de-ia-de-proposito-general-a-partir-del-15-de-enero-de-2026/) · [Infobae (salida de ChatGPT/Copilot)](https://www.infobae.com/tecno/2025/12/06/chatgpt-copilot-y-otras-ia-se-retiran-de-whatsapp-la-razon-detras-de-su-salida-de-la-plataforma/)
 - Orden antitrust UE (reabrir a rivales): [Infobae 2026-06-10](https://www.infobae.com/tecno/2026/06/10/meta-enfrenta-una-nueva-presion-de-europa-debera-hacer-compatible-whatsapp-con-chatbots-de-ia-de-terceros/)
 - Competidores: sitios oficiales + pricing pages + G2/Capterra/Shopify App Store + reviews (2025-2026). Datos crudos en el research del workflow `wf_ebe23e2d-a3f`.
+
+---
+
+## Anexo C — ¿Podemos conectarnos a Dropi y las otras plataformas COD?
+
+Investigación técnica (jun-2026) sobre conectar Riverz a las plataformas de dropshipping/fulfillment contra-entrega de LatAm, igual que hoy con Shopify. **Respuesta corta: sí para Dropi y Rocketfy** (APIs REST reales que crean pedidos COD y leen estado); Mastershop es viable pero sin docs; Effi no tiene API pública (entrar vía Shopify). **Ninguna es self-serve** — todas requieren una solicitud de acceso/partner.
+
+| Plataforma | API | Crear pedido COD | Leer estado | Webhooks | Países | Self-serve | Veredicto |
+|---|---|---|---|---|---|---|---|
+| **Rocketfy** | REST oficial **documentada** ([GitBook](https://rocketfy-1.gitbook.io/api-publica)) | ✅ `payment_method:"cod"` nativo | ✅ enum + guía PDF | ✅ `webhook/subscribe` (`shippings.new/update`) | CO (+MX/PE?) | partnerID+api_key (comercial) | **MEDIO — el build más fácil; 1:1 con nuestro wiring de Shopify** |
+| **Dropi** | REST real + "Integrations Core" (host `api.dropi.co`) | ✅ (`saveOrder`/import) | ✅ (poll `getNovedades`/`last-movement`) | ⚠️ débil → **polling** | **12 mercados** (CO, MX, EC, PE, CL, PA, PY…) | token en panel **+ whitelist IP/dominio con Dropi IT** | **MEDIO — mayor alcance + precedente probado (Chatea PRO ya crea pedidos COD desde chat vía esta API)** |
+| **Mastershop** | Semi-privada (API key + webhooks en panel, **sin docs públicas**) | ✅ (plantilla "Crear Orden") | ✅ (webhooks, ~22 eventos) | ✅ | **solo CO** | semi (revelar key, sin referencia) | **MEDIO — funciona pero a ciegas; pedir docs de partner** |
+| **Effi** | **Sin API pública** (solo receptores webhook con forma de Shopify) | ⚠️ solo vía payload tipo-Shopify | ❌ no verificable | ❌ | CO + otros | No (white-glove) | **DIFÍCIL — ir vía nuestro conector Shopify existente; abrir conversación de partner** |
+
+**Orden de ataque sugerido:** (1) **Rocketfy** primero — API documentada y limpia, valida todo el loop "IA → pedido COD → estado". (2) **Dropi** en paralelo — es la prioridad y la de mayor leverage (12 países + Chatea PRO demuestra que un CRM de WhatsApp hace exactamente esto), pero **iniciar ya la solicitud de acceso/whitelist con Dropi IT** porque el onboarding está gated. (3) **Mastershop** — contactar para docs de partner. (4) **Effi** — no construir integración directa; aprovechar el conector Shopify ya existente. **Presupuestar una conversación de BD/partnership por plataforma** junto al trabajo de ingeniería. Arquitectónicamente, cada una replica el patrón Shopify que ya tenemos (crear pedido → guardar `external_id` → reflejar estado), así que el reuso de `create-order.ts`/atribución es alto.
 
 ---
 

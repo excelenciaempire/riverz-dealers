@@ -508,4 +508,62 @@ export const settings = {
   targetChannelLabel: { es: "Canal objetivo", en: "Target channel" },
   selectPlaceholder: { es: "Selecciona", en: "Select" },
   save: { es: "Guardar", en: "Save" },
+
+  // ── Comentario a DM (auto-DM on comments, migration 086) ──
+  tabCommentToDm: { es: "Comentario a DM", en: "Comment to DM" },
+  c2dmTitle: { es: "Comentario a DM", en: "Comment to DM" },
+  c2dmDescription: {
+    es: "Cuando alguien comenta en tu post o anuncio de Instagram/Facebook, respóndele en público y mándale un DM privado automáticamente.",
+    en: "When someone comments on your Instagram/Facebook post or ad, auto-reply publicly and send them a private DM.",
+  },
+  c2dmNew: { es: "Nueva regla", en: "New rule" },
+  c2dmNoneYet: { es: "Aún no hay reglas", en: "No rules yet" },
+  c2dmNoneYetDesc: {
+    es: "Crea una regla para convertir comentarios en conversaciones por DM.",
+    en: "Create a rule to turn comments into DM conversations.",
+  },
+  c2dmCreateFirst: { es: "Crear primera regla", en: "Create first rule" },
+  c2dmChannelLabel: { es: "Canal", en: "Channel" },
+  c2dmIgComment: { es: "Comentarios de Instagram", en: "Instagram comments" },
+  c2dmFbComment: { es: "Comentarios de Facebook", en: "Facebook comments" },
+  c2dmPostIdLabel: { es: "ID del post (opcional)", en: "Post ID (optional)" },
+  c2dmPostIdHint: {
+    es: "Déjalo vacío para aplicar a cualquier post o anuncio del canal.",
+    en: "Leave empty to apply to any post or ad on this channel.",
+  },
+  c2dmKeywordsLabel: { es: "Palabras clave", en: "Keywords" },
+  c2dmKeywordsHint: {
+    es: "Separadas por coma. Vacío = cualquier comentario dispara la regla.",
+    en: "Comma-separated. Empty = any comment triggers the rule.",
+  },
+  c2dmKeywordsPlaceholder: { es: "precio, info, quiero", en: "price, info, want" },
+  c2dmKeywordsAny: { es: "cualquier comentario", en: "any comment" },
+  c2dmMatchTypeLabel: { es: "Coincidencia", en: "Match" },
+  c2dmMatchContains: { es: "Contiene", en: "Contains" },
+  c2dmMatchExact: { es: "Exacta", en: "Exact" },
+  c2dmCaseSensitive: { es: "Distinguir mayúsculas", en: "Case sensitive" },
+  c2dmPublicReplyEnabled: { es: "Responder en público", en: "Reply publicly" },
+  c2dmPublicReplyTemplatesLabel: {
+    es: "Respuestas públicas (una por línea)",
+    en: "Public replies (one per line)",
+  },
+  c2dmPublicReplyHint: {
+    es: "Rotamos al azar entre estas respuestas para que se vea natural.",
+    en: "We rotate randomly between these so it looks natural.",
+  },
+  c2dmDmMessageLabel: { es: "Mensaje del DM", en: "DM message" },
+  c2dmDmMessagePlaceholder: {
+    es: "¡Hola! Gracias por comentar 🙌 Te paso la info por aquí…",
+    en: "Hi! Thanks for commenting 🙌 Here's the info you asked for…",
+  },
+  c2dmDmMessageRequired: {
+    es: "Escribe el mensaje del DM",
+    en: "Write the DM message",
+  },
+  c2dmButtonLabelLabel: { es: "Texto del enlace (opcional)", en: "Link text (optional)" },
+  c2dmButtonUrlLabel: { es: "Enlace (opcional)", en: "Link URL (optional)" },
+  c2dmActiveLabel: { es: "Activa", en: "Active" },
+  c2dmDmSentCount: { es: "{count} DM enviados", en: "{count} DMs sent" },
+  c2dmCreated: { es: "Regla creada", en: "Rule created" },
+  c2dmUpdated: { es: "Regla actualizada", en: "Rule updated" },
 } satisfies Namespace;

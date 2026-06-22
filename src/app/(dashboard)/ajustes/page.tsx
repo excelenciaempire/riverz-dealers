@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
-import { User, Palette, Building2, GitBranch } from 'lucide-react';
+import { User, Palette, Building2, GitBranch, MessageSquareReply } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
@@ -10,13 +10,14 @@ import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
 import { AssignmentRulesPanel } from '@/components/settings/assignment-rules-panel';
+import { CommentToDmPanel } from '@/components/settings/comment-to-dm-panel';
 
 /**
  * Ajustes — sólo cosas que NO son integraciones. Canales y apps externas
  * viven en /integraciones (es su propia página, no un tab acá). Las
  * etiquetas se gestionan donde se usan: en Contactos y en el chat.
  */
-const TAB_VALUES = ['profile', 'workspace', 'rules', 'appearance'] as const;
+const TAB_VALUES = ['profile', 'workspace', 'rules', 'comments', 'appearance'] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 function isTabValue(v: string | null): v is TabValue {
@@ -69,6 +70,13 @@ export default function SettingsPage() {
             {t('settings.tabRules')}
           </TabsTrigger>
           <TabsTrigger
+            value="comments"
+            className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
+          >
+            <MessageSquareReply className="size-4" />
+            {t('settings.tabCommentToDm')}
+          </TabsTrigger>
+          <TabsTrigger
             value="appearance"
             className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
           >
@@ -88,6 +96,10 @@ export default function SettingsPage() {
 
         <TabsContent value="rules">
           <AssignmentRulesPanel />
+        </TabsContent>
+
+        <TabsContent value="comments">
+          <CommentToDmPanel />
         </TabsContent>
 
         <TabsContent value="appearance">

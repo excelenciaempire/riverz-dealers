@@ -14,6 +14,7 @@ import {
   maybeInstantOutreach,
   maybeRunCloser,
 } from "@/lib/instagram-agent/realtime";
+import { processCommentForDmRules } from "@/lib/comment-to-dm/engine";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -215,6 +216,32 @@ export async function ingestInboundEvent(
         .update({ is_ad: true })
         .eq("id", conversation.id);
     }
+  }
+
+  // Comment-to-DM (ManyChat-style growth tool): a public comment that matches
+  // an active rule gets a public reply + a private DM. Covers BOTH IG and FB
+  // comment surfaces. Fire-and-forget so a slow Graph call never blocks the
+  // webhook ack; no matching rule → no-op.
+  if (
+    event.comment &&
+    message &&
+    !event.outbound &&
+    (channel === "ig_comment" || channel === "fb_comment")
+  ) {
+    void processCommentForDmRules(db, {
+      workspaceId,
+      channel,
+      connection: event.connection,
+      contact: {
+        id: contact.id,
+        external_id: contact.external_id ?? null,
+        name: contact.name ?? null,
+      },
+      commentId: event.externalMessageId ?? null,
+      postId: event.comment.postId ?? null,
+      parentCommentId: event.comment.parentCommentId ?? null,
+      text: event.text,
+    }).catch((err) => console.error("[comment-to-dm] failed:", err));
   }
 
   // Real-time outreach: an Instagram comment is peak intent. Enroll the

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
+import { appendBusinessScopeGuardrails } from './guardrails';
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from './types';
@@ -79,6 +80,10 @@ function buildSystem(agent: AiAgent, silenceHours: number): string {
       '- Si NO hay nada útil ni natural que agregar (la conversación ya cerró, fue una despedida, o un follow-up sería molesto), responde EXACTAMENTE con la palabra SKIP y nada más.',
     ].join('\n'),
   );
+  // Same server-enforced business-scope guardrails as the main runner: the
+  // follow-up is still a customer-facing message, so it must stay in business
+  // scope and in character regardless of the merchant's persona.
+  appendBusinessScopeGuardrails(parts, agent.name);
   return parts.join('\n');
 }
 

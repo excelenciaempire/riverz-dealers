@@ -9,6 +9,7 @@ import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { splitReplyForMode } from '@/lib/ai/runner';
+import { appendBusinessScopeGuardrails } from '@/lib/ai/guardrails';
 import {
   buildCheckoutTool,
   buildOrderTool,
@@ -120,6 +121,9 @@ export async function POST(
       lines.push('Contexto adicional:');
       lines.push(a.knowledge.trim());
     }
+    // Same server-enforced business-scope guardrails the prod runner appends,
+    // so the test panel mirrors live behavior (incl. off-topic refusals).
+    appendBusinessScopeGuardrails(lines, a.name);
     const system = lines.filter(Boolean).join('\n\n');
 
     // ── Shopify tool (opcional) ──
