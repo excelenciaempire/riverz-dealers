@@ -3,6 +3,7 @@ import {
   isRecipientNotAllowedError,
   isValidE164,
   normalizePhone,
+  normalizeToWhatsApp,
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
@@ -33,6 +34,40 @@ describe("normalizePhone", () => {
     for (const s of samples) {
       expect(normalizePhone(s)).toBe(sanitizePhoneForMeta(s));
     }
+  });
+});
+
+describe("normalizeToWhatsApp", () => {
+  it("adds the country code to a bare LOCAL number using the purchase country", () => {
+    // Real cases from the Pilar (AR) contacts list — stored without +54,
+    // so today they're unreachable on WhatsApp. With country='AR' they
+    // become full international numbers.
+    expect(normalizeToWhatsApp("1156309090", "AR")).toMatch(/^54/); // Buenos Aires
+    expect(normalizeToWhatsApp("3516501221", "AR")).toMatch(/^54/); // Córdoba
+    // Colombian mobile (10 digits) → +57…
+    expect(normalizeToWhatsApp("3046281680", "CO")).toBe("573046281680");
+  });
+
+  it("lowercases/uppercases the country code robustly", () => {
+    expect(normalizeToWhatsApp("3046281680", "co")).toBe("573046281680");
+  });
+
+  it("passes through an already-international number without a country hint", () => {
+    expect(normalizeToWhatsApp("+54 9 11 2657-4333", "")).toBe("5491126574333");
+    expect(normalizeToWhatsApp("+57 304 628 1680", undefined)).toBe(
+      "573046281680",
+    );
+  });
+
+  it("returns '' for empty input", () => {
+    expect(normalizeToWhatsApp("", "AR")).toBe("");
+    expect(normalizeToWhatsApp(null, "AR")).toBe("");
+    expect(normalizeToWhatsApp(undefined, "AR")).toBe("");
+  });
+
+  it("never regresses: falls back to digits-only when unparseable", () => {
+    // No country, not parseable as international → legacy sanitize.
+    expect(normalizeToWhatsApp("5491126574333", "")).toBe("5491126574333");
   });
 });
 

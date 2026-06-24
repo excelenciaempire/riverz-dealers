@@ -46,6 +46,16 @@ export async function markShopifyConnectionExpired(
   }
 }
 
+/** Extract the `page_info` cursor for rel="next" out of a Shopify Link header. */
+export function nextPageInfo(link: string | null): string | null {
+  if (!link) return null
+  for (const part of link.split(',')) {
+    const m = part.match(/<[^>]*[?&]page_info=([^&>]+)[^>]*>\s*;\s*rel="next"/)
+    if (m) return decodeURIComponent(m[1])
+  }
+  return null
+}
+
 export class ShopifyAdminClient {
   constructor(
     private readonly shop: string,
@@ -81,6 +91,33 @@ export class ShopifyAdminClient {
       throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 300)}`)
     }
     return res.json() as Promise<T>
+  }
+
+  /**
+   * Like `rest` but also returns Shopify's `Link` header so callers can
+   * cursor-paginate (REST `page_info` pagination). Used by the historical
+   * backfill to walk ALL orders / abandoned checkouts since the store opened.
+   */
+  async restPaged<T = unknown>(
+    path: string,
+  ): Promise<{ data: T; link: string | null }> {
+    const res = await fetch(`${this.base()}${path}`, {
+      headers: {
+        'X-Shopify-Access-Token': this.token,
+        'Content-Type': 'application/json',
+      },
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (res.status === 401) {
+        void markShopifyConnectionExpired(this.shop)
+        throw new ShopifyUnauthorizedError(
+          `Shopify Admin API 401: ${text.slice(0, 300)}`,
+        )
+      }
+      throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 300)}`)
+    }
+    return { data: (await res.json()) as T, link: res.headers.get('link') }
   }
 
   async getShopInfo(): Promise<{ name: string; domain: string }> {

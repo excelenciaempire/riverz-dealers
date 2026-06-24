@@ -4,16 +4,19 @@ import { verifyWebhookHmac } from '@/lib/shopify/oauth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import {
+  extractShopifyLegacyPhone,
   extractShopifyName,
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
+import { applyCategoryTags } from '@/lib/contacts/tags'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
 import { captureWebhookFailure } from '@/lib/webhooks/capture'
 import { getAdapter } from '@/lib/channels/registry'
 import { fmtMoney } from '@/lib/shopify/create-checkout'
+import { resolveOfferChosen } from '@/lib/shopify/offers'
 import type {
   AutomationTriggerType,
   Channel,
@@ -192,6 +195,7 @@ export async function POST(request: Request) {
       phone,
       name,
       email: (order.email as string) || undefined,
+      legacyExternalId: extractShopifyLegacyPhone(order),
     })
     if (!contactId) return NextResponse.json({ ok: true })
 
@@ -224,6 +228,24 @@ export async function POST(request: Request) {
         .eq('id', contactId)
       if (offerErr)
         console.error('[shopify] last_offer update failed:', offerErr)
+    }
+
+    // Categorize the buyer so they're selectable in segments / broadcasts /
+    // automations: comprador (o comprador-recurrente) + la oferta elegida +
+    // el rango de unidades. Idempotente; no envía nada.
+    try {
+      const ordersCount = Number(
+        (order.customer as Record<string, unknown> | undefined)?.orders_count ??
+          1,
+      )
+      await applyCategoryTags(admin, workspaceId, contactId, {
+        ordersCount: ordersCount > 0 ? ordersCount : 1,
+        isAbandoned: false,
+        offerLabel: offer.label,
+        units: offer.units,
+      })
+    } catch (e) {
+      console.error('[shopify] categorize order contact failed:', e)
     }
 
     // Atribución por pedido: si el pedido vino del asistente (link con
@@ -485,86 +507,8 @@ async function sendAiOrderConfirmation(
   await admin.from('conversations').update(convUpdate).eq('id', conv.id)
 }
 
-/**
- * Deriva QUÉ oferta eligió el cliente en este pedido, por NÚMERO DE
- * UNIDADES. Matchea el total de unidades del pedido contra las ofertas
- * configuradas (con `units`) en los productos del pedido —
- * `shopify_products.allowed_offers`, editable en la sección Productos—.
- * Cae a `workspace_checkout_config.offers` (campo `qty`) para los workspaces
- * que usan el checkout del asistente.
- *
- * Devuelve la etiqueta de la oferta + las unidades totales. Si ninguna
- * oferta matchea las unidades, `label` queda vacío (pero `units` se reporta
- * igual, p. ej. para tiendas sin ofertas fijas).
- */
-async function resolveOfferChosen(
-  admin: ReturnType<typeof supabaseAdmin>,
-  workspaceId: string,
-  order: Record<string, unknown>,
-): Promise<{ label: string; units: number }> {
-  const lineItems = Array.isArray(order.line_items)
-    ? (order.line_items as Record<string, unknown>[])
-    : []
-  const totalUnits = lineItems.reduce(
-    (sum, li) => sum + (Number(li.quantity) || 0),
-    0,
-  )
-  if (totalUnits <= 0) return { label: '', units: 0 }
-
-  const candidates: { label: string; units: number }[] = []
-
-  // 1) Ofertas por producto (allowed_offers con `units`) de los productos
-  //    presentes en el pedido. external_id = product_id de Shopify.
-  const productIds = [
-    ...new Set(
-      lineItems
-        .map((li) => (li.product_id != null ? String(li.product_id) : ''))
-        .filter(Boolean),
-    ),
-  ]
-  if (productIds.length > 0) {
-    const { data } = await admin
-      .from('shopify_products')
-      .select('allowed_offers')
-      .eq('workspace_id', workspaceId)
-      .in('external_id', productIds)
-    for (const row of data ?? []) {
-      const offers = Array.isArray(
-        (row as Record<string, unknown>).allowed_offers,
-      )
-        ? ((row as Record<string, unknown>)
-            .allowed_offers as Record<string, unknown>[])
-        : []
-      for (const o of offers) {
-        const units = Number(o?.units)
-        if (Number.isFinite(units) && units > 0)
-          candidates.push({ label: String(o?.label ?? ''), units })
-      }
-    }
-  }
-
-  // 2) Fallback: ofertas del checkout del asistente (campo `qty`).
-  if (!candidates.some((c) => c.units === totalUnits)) {
-    const { data: cfg } = await admin
-      .from('workspace_checkout_config')
-      .select('offers')
-      .eq('workspace_id', workspaceId)
-      .maybeSingle()
-    const offers = Array.isArray(
-      (cfg as Record<string, unknown> | null)?.offers,
-    )
-      ? ((cfg as Record<string, unknown>).offers as Record<string, unknown>[])
-      : []
-    for (const o of offers) {
-      const units = Number(o?.qty)
-      if (Number.isFinite(units) && units > 0)
-        candidates.push({ label: String(o?.label ?? ''), units })
-    }
-  }
-
-  const match = candidates.find((c) => c.units === totalUnits && c.label)
-  return { label: match?.label ?? '', units: totalUnits }
-}
+// resolveOfferChosen lives in '@/lib/shopify/offers' (shared with the
+// historical backfill so both compute the chosen offer identically).
 
 function buildVarsForOrder(
   trigger: AutomationTriggerType,

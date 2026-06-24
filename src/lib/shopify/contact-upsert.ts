@@ -1,12 +1,33 @@
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { normalizeToWhatsApp, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
+ * The ISO country the customer bought from, used to add the right country
+ * code to a bare local phone. Tries shipping → billing → customer default
+ * address. Returns '' when Shopify didn't send one (then normalization falls
+ * back to parsing any already-international form).
+ */
+export function extractShopifyCountry(payload: Record<string, unknown>): string {
+  const customer = payload.customer as Record<string, unknown> | undefined
+  const ship = payload.shipping_address as Record<string, unknown> | undefined
+  const bill = payload.billing_address as Record<string, unknown> | undefined
+  const custAddr = customer?.default_address as Record<string, unknown> | undefined
+  return String(
+    ship?.country_code ||
+      bill?.country_code ||
+      custAddr?.country_code ||
+      customer?.country_code ||
+      '',
+  )
+}
+
+/**
  * Pull the best WhatsApp-reachable phone number out of a Shopify payload.
  * Tries the order/checkout's own phone first, then customer, then ship/bill
- * addresses. Returns a sanitized E.164 string or null when no usable phone
- * exists — without one there's nothing WhatsApp can do.
+ * addresses, and normalizes it to E.164 USING THE PURCHASE COUNTRY so bare
+ * local numbers (e.g. an AR "3516501221") get the right country code instead
+ * of being stored unreachable. Returns null when no usable phone exists.
  */
 export function extractShopifyPhone(payload: Record<string, unknown>): string | null {
   const customer = payload.customer as Record<string, unknown> | undefined
@@ -19,7 +40,7 @@ export function extractShopifyPhone(payload: Record<string, unknown>): string | 
     (bill?.phone as string) ||
     ''
   if (!raw) return null
-  const phone = sanitizePhoneForMeta(raw)
+  const phone = normalizeToWhatsApp(raw, extractShopifyCountry(payload))
   return isValidE164(phone) ? phone : null
 }
 
@@ -34,14 +55,44 @@ export function extractShopifyName(payload: Record<string, unknown>): string | u
   return composed || (payload.name as string) || undefined
 }
 
+/**
+ * The legacy digits-only form (what `sanitizePhoneForMeta` produced BEFORE
+ * country-aware normalization). Used only to find + migrate a contact that
+ * was created under the broken local key (e.g. AR "1156309090" with no +54),
+ * so the backfill/webhooks fix it in place instead of duplicating it.
+ */
+export function extractShopifyLegacyPhone(payload: Record<string, unknown>): string {
+  const customer = payload.customer as Record<string, unknown> | undefined
+  const ship = payload.shipping_address as Record<string, unknown> | undefined
+  const bill = payload.billing_address as Record<string, unknown> | undefined
+  const raw =
+    (payload.phone as string) ||
+    (customer?.phone as string) ||
+    (ship?.phone as string) ||
+    (bill?.phone as string) ||
+    ''
+  return sanitizePhoneForMeta(raw)
+}
+
 /** Find-or-create a WhatsApp contact in the unified inbox keyed by phone.
  *  Marks `is_shopify_customer=true` siempre que se llame desde un
  *  webhook Shopify — la lista de Contactos lo usa para mostrar el
  *  badge "Cliente Shopify". Si el contacto ya existía sin la marca,
- *  la levantamos con un update separado. */
+ *  la levantamos con un update separado.
+ *
+ *  `legacyExternalId` (optional): the pre-normalization key for the same
+ *  buyer. When the canonical slot is empty but a contact exists under the
+ *  legacy key, we MOVE that row to the canonical phone in place — preserving
+ *  its conversations + tags — instead of creating a duplicate. */
 export async function upsertWhatsappContact(
   admin: SupabaseClient,
-  args: { workspaceId: string; phone: string; name?: string; email?: string },
+  args: {
+    workspaceId: string
+    phone: string
+    name?: string
+    email?: string
+    legacyExternalId?: string
+  },
 ): Promise<string | null> {
   // Sanitize to the canonical E.164-digits form BEFORE lookup/insert. Callers
   // pass phones in mixed shapes — the orders webhook pre-sanitizes, but the
@@ -52,13 +103,36 @@ export async function upsertWhatsappContact(
   const phone = sanitizePhoneForMeta(args.phone)
   if (!isValidE164(phone)) return null
 
-  const { data: existing } = await admin
+  let { data: existing } = await admin
     .from('contacts')
     .select('id, is_shopify_customer')
     .eq('workspace_id', args.workspaceId)
     .eq('channel', 'whatsapp')
     .eq('external_id', phone)
     .maybeSingle()
+
+  // Migrate a contact stored under the legacy (pre-country-code) key to the
+  // canonical phone, but only when the canonical slot is free (no merge).
+  const legacy = args.legacyExternalId
+    ? sanitizePhoneForMeta(args.legacyExternalId)
+    : ''
+  if (!existing?.id && legacy && legacy !== phone) {
+    const { data: legacyRow } = await admin
+      .from('contacts')
+      .select('id, is_shopify_customer')
+      .eq('workspace_id', args.workspaceId)
+      .eq('channel', 'whatsapp')
+      .eq('external_id', legacy)
+      .maybeSingle()
+    if (legacyRow?.id) {
+      await admin
+        .from('contacts')
+        .update({ external_id: phone, phone })
+        .eq('id', legacyRow.id)
+      existing = legacyRow
+    }
+  }
+
   if (existing?.id) {
     if (!(existing as { is_shopify_customer?: boolean }).is_shopify_customer) {
       // No esperamos al resultado — fire-and-forget para no demorar

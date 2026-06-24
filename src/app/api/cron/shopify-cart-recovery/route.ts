@@ -4,6 +4,7 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
+import { applyCategoryTags } from '@/lib/contacts/tags'
 import { pingCron } from '@/lib/cron/heartbeat'
 import { getLogger } from '@/lib/log/logger'
 
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('shopify_checkouts')
     .select(
-      'id, workspace_id, shop_domain, checkout_id, customer_email, customer_phone, customer_name, total_price, currency, abandoned_checkout_url, created_at',
+      'id, workspace_id, shop_domain, checkout_id, customer_email, customer_phone, customer_name, total_price, currency, abandoned_checkout_url, line_items, created_at',
     )
     .is('completed_at', null)
     .is('recovery_dispatched_at', null)
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
       total_price: number | null
       currency: string | null
       abandoned_checkout_url: string | null
+      line_items: unknown
     }
 
     // Reclamamos el row primero: el siguiente tick no vuelve a tocarlo
@@ -110,6 +112,25 @@ export async function GET(request: Request) {
       if (!contactId) {
         processed++
         continue
+      }
+
+      // Tag the abandoner so they're selectable in segments / broadcasts:
+      // carrito-abandonado + rango de unidades. Data-only, no send.
+      try {
+        const items = Array.isArray(r.line_items)
+          ? (r.line_items as Record<string, unknown>[])
+          : []
+        const units = items.reduce(
+          (sum, li) => sum + (Number(li.quantity) || 0),
+          0,
+        )
+        await applyCategoryTags(admin, r.workspace_id, contactId, {
+          ordersCount: 0,
+          isAbandoned: true,
+          units,
+        })
+      } catch (e) {
+        log.captureException(e, { checkoutId: r.id })
       }
 
       await runAutomationsForTrigger({

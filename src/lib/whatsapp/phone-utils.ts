@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
+
 /**
  * Sanitize phone number for Meta WhatsApp API.
  * Meta requires digits only — no + prefix, no spaces, no dashes.
@@ -6,6 +8,57 @@
 export function sanitizePhoneForMeta(phone: string): string {
   if (!phone) return ''
   return phone.replace(/\D/g, '')
+}
+
+/**
+ * Normalize a raw phone (any format, possibly a bare LOCAL number with no
+ * country code) into the WhatsApp-ready digits-only E.164 form (no `+`),
+ * using `defaultCountry` as the region when the number lacks a country code.
+ *
+ * This is the fix for numbers that came from Shopify in local format. e.g. an
+ * Argentine buyer who typed "3516501221" (Córdoba) or "11 5630-9090" (Buenos
+ * Aires) — `sanitizePhoneForMeta` would leave those at 10 digits with NO `+54`,
+ * so WhatsApp can never reach them. With `defaultCountry='AR'` libphonenumber
+ * resolves them to the full international number (incl. the AR mobile `9`).
+ *
+ * Strategy, in order, so we never regress an already-working number:
+ *   1. Parse WITH `defaultCountry` — handles bare local numbers.
+ *   2. Parse WITHOUT a country — handles already-international input
+ *      ("+54 9 351…", "0054…").
+ *   3. Fall back to the legacy digits-only sanitize.
+ *
+ * @param raw            phone string from the source (Shopify / CSV / form)
+ * @param defaultCountry ISO-3166 alpha-2 of where they bought ('AR','CO','MX'…),
+ *                       usually the order's shipping/billing `country_code`.
+ * @returns digits-only E.164 (no `+`), or '' when nothing usable.
+ */
+export function normalizeToWhatsApp(
+  raw: string | null | undefined,
+  defaultCountry?: string | null,
+): string {
+  if (!raw) return ''
+  const region = (defaultCountry || '').trim().toUpperCase()
+
+  const tryParse = (country?: CountryCode): string => {
+    try {
+      const parsed = parsePhoneNumberFromString(String(raw), country)
+      if (parsed && parsed.isValid()) return parsed.number.replace(/^\+/, '')
+    } catch {
+      /* malformed input — fall through */
+    }
+    return ''
+  }
+
+  // 1) With the purchase country (best for bare local numbers).
+  if (region.length === 2) {
+    const withCountry = tryParse(region as CountryCode)
+    if (withCountry) return withCountry
+  }
+  // 2) Without a country (already-international input).
+  const international = tryParse(undefined)
+  if (international) return international
+  // 3) Never regress: legacy digits-only form.
+  return sanitizePhoneForMeta(String(raw))
 }
 
 /**

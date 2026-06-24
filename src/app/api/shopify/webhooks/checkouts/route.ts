@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifyWebhookHmac } from '@/lib/shopify/oauth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import {
+  extractShopifyLegacyPhone,
   extractShopifyName,
   extractShopifyPhone,
   upsertWhatsappContact,
@@ -148,6 +149,7 @@ export async function POST(request: Request) {
       phone,
       name,
       email: email ?? undefined,
+      legacyExternalId: extractShopifyLegacyPhone(checkout),
     })
     if (!contactId) return NextResponse.json({ ok: true })
 
