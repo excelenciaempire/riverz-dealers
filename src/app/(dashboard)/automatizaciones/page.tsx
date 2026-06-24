@@ -279,10 +279,12 @@ export default function AutomationsPage() {
                 key={a.id}
                 automation={a}
                 onToggle={(next) => toggleActive(a, next)}
-                onView={() => router.push(`/automatizaciones/${a.id}`)}
+                // Card click opens the canvas editor (where you build/add
+                // steps). "View stats" goes to the stats/detail page.
+                onOpen={() => router.push(`/automatizaciones/${a.id}/editar`)}
                 onEdit={() => router.push(`/automatizaciones/${a.id}/editar`)}
                 onDuplicate={() => duplicate(a)}
-                onLogs={() => router.push(`/automatizaciones/${a.id}/registros`)}
+                onStats={() => router.push(`/automatizaciones/${a.id}`)}
                 onDelete={() => setPendingDelete(a)}
               />
             ))}
@@ -381,18 +383,20 @@ function TemplateCard({
 function AutomationCard({
   automation,
   onToggle,
-  onView,
+  onOpen,
   onEdit,
   onDuplicate,
-  onLogs,
+  onStats,
   onDelete,
 }: {
   automation: Automation
   onToggle: (next: boolean) => void
-  onView: () => void
+  /** Card body click → open the canvas editor. */
+  onOpen: () => void
   onEdit: () => void
   onDuplicate: () => void
-  onLogs: () => void
+  /** "View stats" → the stats/detail page. */
+  onStats: () => void
   onDelete: () => void
 }) {
   const t = useT()
@@ -401,7 +405,7 @@ function AutomationCard({
       <div className="flex items-start justify-between gap-3">
         <button
           type="button"
-          onClick={onView}
+          onClick={onOpen}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
@@ -466,7 +470,7 @@ function AutomationCard({
         </span>
         <button
           type="button"
-          onClick={onLogs}
+          onClick={onStats}
           className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity hover:opacity-100"
         >
           <BarChart3 className="h-3.5 w-3.5" />
