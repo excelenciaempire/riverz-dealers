@@ -376,6 +376,14 @@ export const contacts = {
     es: "Cuántas unidades compró en su último pedido.",
     en: "How many units they bought in their last order.",
   },
+  ruleActivityDateLabel: { es: "Fecha de actividad", en: "Activity date" },
+  ruleActivityDateDesc: {
+    es: "Última compra, última actividad o última conversación con la IA.",
+    en: "Last purchase, last activity, or last AI conversation.",
+  },
+  actFieldLastPurchase: { es: "última compra", en: "last purchase" },
+  actFieldLastActivity: { es: "última actividad", en: "last activity" },
+  actFieldLastAi: { es: "última conversación IA", en: "last AI conversation" },
 
   // Field labels (segment rules)
   segFieldName: { es: "Nombre", en: "Name" },
@@ -422,4 +430,21 @@ export const contacts = {
   valuePlaceholder: { es: "valor", en: "value" },
   offerPlaceholder: { es: "oferta…", en: "offer…" },
   unitsAndWord: { es: "y", en: "and" },
+
+  // Activity timeline (contact detail)
+  tabActivity: { es: "Actividad", en: "Activity" },
+  actEmpty: { es: "Sin actividad todavía.", en: "No activity yet." },
+  actRangeAll: { es: "Todo", en: "All" },
+  actRange7: { es: "7 días", en: "7 days" },
+  actRange30: { es: "30 días", en: "30 days" },
+  actRange90: { es: "90 días", en: "90 days" },
+  actOrder: { es: "Pedido", en: "Order" },
+  actCart: { es: "Carrito abandonado", en: "Abandoned cart" },
+  actMessageIn: { es: "Mensaje recibido", en: "Message received" },
+  actMessageOut: { es: "Mensaje enviado", en: "Message sent" },
+  actBroadcast: { es: "Campaña", en: "Campaign" },
+  actAutomation: { es: "Automatización", en: "Automation" },
+  actTag: { es: "Etiqueta añadida", en: "Tag added" },
+  actNote: { es: "Nota", en: "Note" },
+  actFlow: { es: "Flujo", en: "Flow" },
 } satisfies Namespace;

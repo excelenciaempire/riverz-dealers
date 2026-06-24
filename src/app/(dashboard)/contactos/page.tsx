@@ -101,6 +101,10 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
+    'all',
+  );
+
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
     // explicit workspace_id filter, RLS would still surface contacts
@@ -137,6 +141,16 @@ export default function ContactsPage() {
 
     if (taggedIds) {
       query = query.in('id', taggedIds);
+    }
+
+    // Date filter on created_at (Todo / 7d / 30d / 90d).
+    const dateDays =
+      datePreset === '7d' ? 7 : datePreset === '30d' ? 30 : datePreset === '90d' ? 90 : 0;
+    if (dateDays > 0) {
+      query = query.gte(
+        'created_at',
+        new Date(Date.now() - dateDays * 24 * 60 * 60 * 1000).toISOString(),
+      );
     }
 
     // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
@@ -198,7 +212,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap, selectedTagIds, workspaceId, t]);
+  }, [supabase, page, search, tagsMap, selectedTagIds, datePreset, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -354,6 +368,36 @@ export default function ContactsPage() {
           placeholder={t('contacts.searchPlaceholder')}
           className="pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground"
         />
+      </div>
+
+      {/* Date filter (created_at) */}
+      <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
+        {(['all', '7d', '30d', '90d'] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => {
+              setDatePreset(d);
+              setPage(0);
+            }}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              datePreset === d
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t(
+              d === 'all'
+                ? 'contacts.actRangeAll'
+                : d === '7d'
+                  ? 'contacts.actRange7'
+                  : d === '30d'
+                    ? 'contacts.actRange30'
+                    : 'contacts.actRange90',
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Tag filter */}

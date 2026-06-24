@@ -41,6 +41,15 @@ export type SegmentRule =
       op: 'eq' | 'gte' | 'lte' | 'between';
       value: number;
       value2?: number;
+    }
+  // Date rules on contact activity columns: última compra (last_offer_at),
+  // última actividad (last_inbound_at), última conversación IA
+  // (last_ai_conversation_at). `created` already covers created_at.
+  | {
+      type: 'activity_date';
+      field: 'last_purchase' | 'last_activity' | 'last_ai';
+      op: 'last_n_days' | 'before' | 'after';
+      value: string;
     };
 
 export type SegmentMatchMode = 'all' | 'any';
@@ -68,4 +77,5 @@ export const RULE_TYPE_LABEL: Record<SegmentRule['type'], string> = {
   shopify: 'Cliente Shopify',
   offer: 'Oferta elegida',
   units: 'Unidades compradas',
+  activity_date: 'Fecha de actividad',
 };

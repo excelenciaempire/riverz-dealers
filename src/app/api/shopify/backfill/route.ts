@@ -9,7 +9,11 @@ import {
   extractShopifyPhone,
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
-import { resolveOfferChosen } from '@/lib/shopify/offers'
+import {
+  loadOfferConfig,
+  resolveOfferFromConfig,
+  type OfferConfig,
+} from '@/lib/shopify/offers'
 import { applyCategoryTags } from '@/lib/contacts/tags'
 
 /**
@@ -64,9 +68,13 @@ export async function POST(request: Request) {
     max_checkout_pages?: number
     orders_page_info?: string
     checkouts_page_info?: string
+    page_size?: number
   }
   const maxOrderPages = Math.min(Number(body.max_order_pages) || 60, 200)
   const maxCheckoutPages = Math.min(Number(body.max_checkout_pages) || 20, 200)
+  // Smaller Shopify pages = fewer per-call DB ops = stays well under proxy
+  // timeouts on a small Render instance. Default 250; drive it lower.
+  const pageSize = Math.min(Math.max(Number(body.page_size) || PAGE, 1), 250)
 
   const admin = supabaseAdmin()
 
@@ -101,6 +109,7 @@ export async function POST(request: Request) {
       const r = await backfillStore(admin, conn, {
         maxOrderPages,
         maxCheckoutPages,
+        pageSize,
         ordersPageInfo: body.orders_page_info,
         checkoutsPageInfo: body.checkouts_page_info,
       })
@@ -122,11 +131,15 @@ async function backfillStore(
   opts: {
     maxOrderPages: number
     maxCheckoutPages: number
+    pageSize: number
     ordersPageInfo?: string
     checkoutsPageInfo?: string
   },
 ) {
   const client = new ShopifyAdminClient(conn.shop_domain, conn.access_token)
+  // Load the offer config ONCE (productId → offers + checkout offers) so we
+  // resolve each order's offer in memory instead of querying per order.
+  const offerConfig: OfferConfig = await loadOfferConfig(admin, conn.workspace_id)
   const tagCache = new Map<string, string>()
   // Most-recent order's created_at per phone, so last_offer reflects the
   // newest purchase regardless of page order.
@@ -139,8 +152,8 @@ async function backfillStore(
   let ordersContacts = 0
   let pageInfo = opts.ordersPageInfo ?? null
   let path = pageInfo
-    ? `/orders.json?limit=${PAGE}&page_info=${encodeURIComponent(pageInfo)}`
-    : `/orders.json?status=any&limit=${PAGE}&order=${encodeURIComponent('created_at desc')}`
+    ? `/orders.json?limit=${opts.pageSize}&page_info=${encodeURIComponent(pageInfo)}`
+    : `/orders.json?status=any&limit=${opts.pageSize}&order=${encodeURIComponent('created_at desc')}`
 
   while (orderPages < opts.maxOrderPages) {
     const { data, link } = await client.restPaged<{
@@ -162,7 +175,7 @@ async function backfillStore(
       ordersContacts++
       buyers.add(phone)
 
-      const offer = await resolveOfferChosen(admin, conn.workspace_id, order)
+      const offer = resolveOfferFromConfig(order, offerConfig)
       const at = String(order.created_at ?? order.processed_at ?? '')
       if (offer.label && at > (lastOfferAt.get(phone) ?? '')) {
         lastOfferAt.set(phone, at)
@@ -196,7 +209,7 @@ async function backfillStore(
     orderPages++
     pageInfo = nextPageInfo(link)
     if (!pageInfo) break
-    path = `/orders.json?limit=${PAGE}&page_info=${encodeURIComponent(pageInfo)}`
+    path = `/orders.json?limit=${opts.pageSize}&page_info=${encodeURIComponent(pageInfo)}`
     await sleep(SLEEP_MS)
   }
 
@@ -206,8 +219,8 @@ async function backfillStore(
   let abandonedContacts = 0
   let ckPageInfo = opts.checkoutsPageInfo ?? null
   let ckPath = ckPageInfo
-    ? `/checkouts.json?limit=${PAGE}&page_info=${encodeURIComponent(ckPageInfo)}`
-    : `/checkouts.json?limit=${PAGE}`
+    ? `/checkouts.json?limit=${opts.pageSize}&page_info=${encodeURIComponent(ckPageInfo)}`
+    : `/checkouts.json?limit=${opts.pageSize}`
 
   while (checkoutPages < opts.maxCheckoutPages) {
     const { data, link } = await client.restPaged<{
@@ -245,7 +258,7 @@ async function backfillStore(
     checkoutPages++
     ckPageInfo = nextPageInfo(link)
     if (!ckPageInfo) break
-    ckPath = `/checkouts.json?limit=${PAGE}&page_info=${encodeURIComponent(ckPageInfo)}`
+    ckPath = `/checkouts.json?limit=${opts.pageSize}&page_info=${encodeURIComponent(ckPageInfo)}`
     await sleep(SLEEP_MS)
   }
 

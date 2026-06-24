@@ -200,6 +200,26 @@ function evaluateRule(
       if (!Number.isFinite(b)) return false;
       return n >= Math.min(a, b) && n <= Math.max(a, b);
     }
+    case 'activity_date': {
+      const column =
+        rule.field === 'last_purchase'
+          ? 'last_offer_at'
+          : rule.field === 'last_activity'
+            ? 'last_inbound_at'
+            : 'last_ai_conversation_at';
+      const raw = (contact as unknown as Record<string, unknown>)[column];
+      if (!raw) return false; // never happened → never matches a date window
+      const ts = new Date(String(raw)).getTime();
+      if (Number.isNaN(ts)) return false;
+      if (rule.op === 'last_n_days') {
+        const n = Number(rule.value);
+        if (!Number.isFinite(n) || n < 0) return false;
+        return ts >= Date.now() - n * 24 * 60 * 60 * 1000;
+      }
+      const ref = new Date(rule.value).getTime();
+      if (Number.isNaN(ref)) return false;
+      return rule.op === 'before' ? ts < ref : ts > ref;
+    }
     default:
       return false;
   }

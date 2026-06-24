@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ContactTags } from '@/components/contacts/contact-tags';
+import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import {
@@ -326,6 +327,12 @@ export function ContactDetailView({
                   {t('contacts.detailDetails')}
                 </TabsTrigger>
                 <TabsTrigger
+                  value="activity"
+                  className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
+                >
+                  {t('contacts.tabActivity')}
+                </TabsTrigger>
+                <TabsTrigger
                   value="tags"
                   className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
                 >
@@ -396,6 +403,14 @@ export function ContactDetailView({
                     {t('contacts.save')}
                   </Button>
                 </div>
+              </TabsContent>
+
+              {/* Activity Tab */}
+              <TabsContent
+                value="activity"
+                className="flex-1 flex flex-col min-h-0 px-4 py-3"
+              >
+                {contact && <ContactActivityTimeline contact={contact} />}
               </TabsContent>
 
               {/* Tags Tab */}

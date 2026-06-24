@@ -7,6 +7,7 @@ import {
   CircleSlash,
   Database,
   Gift,
+  History,
   Layers,
   Loader2,
   MessageCircle,
@@ -125,6 +126,7 @@ const RULE_TYPES: {
   { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', descriptionKey: 'contacts.ruleShopifyDesc', Icon: ShoppingBag },
   { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
   { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
+  { type: 'activity_date', labelKey: 'contacts.ruleActivityDateLabel', descriptionKey: 'contacts.ruleActivityDateDesc', Icon: History },
 ];
 
 // Operator label i18n keys used by SelectValue.labels — shown human-readable
@@ -1018,6 +1020,63 @@ function RuleControls({
         </>
       );
     }
+    case 'activity_date': {
+      const opCreated = resolveOpLabels(OP_LABEL_KEYS.created, t);
+      const actLabels: Record<string, string> = {
+        last_purchase: t('contacts.actFieldLastPurchase'),
+        last_activity: t('contacts.actFieldLastActivity'),
+        last_ai: t('contacts.actFieldLastAi'),
+      };
+      return (
+        <>
+          <MiniSelect
+            value={rule.field}
+            labels={actLabels}
+            options={Object.entries(actLabels).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) =>
+              onChange({
+                ...rule,
+                field: v as 'last_purchase' | 'last_activity' | 'last_ai',
+              })
+            }
+          />
+          <MiniSelect
+            value={rule.op}
+            labels={opCreated}
+            options={Object.entries(opCreated).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) =>
+              onChange({
+                ...rule,
+                op: v as 'last_n_days' | 'before' | 'after',
+                value:
+                  v === 'last_n_days'
+                    ? '30'
+                    : new Date().toISOString().slice(0, 10),
+              })
+            }
+          />
+          {rule.op === 'last_n_days' ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min={1}
+                value={rule.value}
+                onChange={(e) => onChange({ ...rule, value: e.target.value })}
+                className="h-8 w-20 bg-background text-xs"
+              />
+              <span className="text-xs text-muted-foreground">{t('contacts.daysWord')}</span>
+            </div>
+          ) : (
+            <Input
+              type="date"
+              value={rule.value.slice(0, 10)}
+              onChange={(e) => onChange({ ...rule, value: e.target.value })}
+              className="h-8 w-full sm:w-40 bg-background text-xs"
+            />
+          )}
+        </>
+      );
+    }
     case 'units': {
       const opUnits = resolveOpLabels(OP_LABEL_KEYS.units, t);
       return (
@@ -1121,6 +1180,8 @@ function stubRuleFor(
       return { type: 'offer', op: 'any', value: '' };
     case 'units':
       return { type: 'units', op: 'gte', value: 1 };
+    case 'activity_date':
+      return { type: 'activity_date', field: 'last_purchase', op: 'last_n_days', value: '30' };
   }
 }
 
