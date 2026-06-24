@@ -192,6 +192,21 @@ export const automations = {
   dpHasTag: { es: "Tiene la etiqueta", en: "Has the tag" },
   dpInSegment: { es: "Está en el grupo", en: "Is in the group" },
   dpMessageText: { es: "Lo que escribió", en: "What they wrote" },
+  dpTimeOfDay: { es: "Hora del día", en: "Time of day" },
+  dpGroupOrder: { es: "Del pedido", en: "From the order" },
+  dpGroupContact: { es: "Del contacto", en: "From the contact" },
+  dpGroupMessage: { es: "Del mensaje", en: "From the message" },
+
+  // Condition picker (natural language)
+  condWhatData: { es: "¿Qué dato querés revisar?", en: "Which data to check?" },
+  condCompare: { es: "Que sea…", en: "That it is…" },
+  condAnd: { es: "y", en: "and" },
+  opEq: { es: "igual a", en: "equal to" },
+  opGte: { es: "al menos", en: "at least" },
+  opLte: { es: "como máximo", en: "at most" },
+  opGt: { es: "más de", en: "more than" },
+  opLt: { es: "menos de", en: "less than" },
+  opBetween: { es: "entre", en: "between" },
 
   // Builder — keyword match config
   keywordsLabel: {

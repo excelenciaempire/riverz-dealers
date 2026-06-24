@@ -57,7 +57,13 @@ import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
 import { extractVariables } from "@/lib/whatsapp/template-components"
-import { templateDataPoints } from "@/lib/automations/data-points"
+import {
+  DATA_POINTS,
+  templateDataPoints,
+  conditionDataPoints,
+  dataPointById,
+  type DataPoint,
+} from "@/lib/automations/data-points"
 import type { TemplateHeaderType } from "@/lib/whatsapp/template-components"
 
 /** Approved templates, shared with the send_template editor + the phone
@@ -287,24 +293,61 @@ function triggerLabel(type: AutomationTriggerType, t: TFn): string {
  * saved-segment list from SegmentsContext (the `in_segment` subject
  * needs a real dropdown, not a free-text segment-id field).
  */
-// Common order data a merchant might branch on. The `key` is the real
-// context.vars name the Shopify webhook seeds (see buildVarsForOrder in
-// the orders webhook); the label is what the user sees.
-// `label` holds an i18n key, resolved with t() inside the condition fields.
-const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
-  { key: "offer_chosen", label: "automations.orderDataOfferChosen" },
-  { key: "is_repeat_customer", label: "automations.orderDataRepeatCustomer" },
-  { key: "total_price", label: "automations.orderDataTotalPrice" },
-  { key: "item_count", label: "automations.orderDataItemCount" },
-  { key: "first_item", label: "automations.orderDataFirstItem" },
-  { key: "currency", label: "automations.orderDataCurrency" },
-  { key: "order_number", label: "automations.orderDataOrderNumber" },
-  { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
+// Natural-language operators per value kind. `op` maps to the engine's
+// ConditionStepConfig.op (numeric-coercing). `eq` is string equality.
+const NUMBER_OPS: { op: string; key: string }[] = [
+  { op: "eq", key: "automations.opEq" },
+  { op: "gte", key: "automations.opGte" },
+  { op: "lte", key: "automations.opLte" },
+  { op: "gt", key: "automations.opGt" },
+  { op: "lt", key: "automations.opLt" },
+  { op: "between", key: "automations.opBetween" },
 ]
 
-// Template-variable options now come from the canonical data-points registry
-// (src/lib/automations/data-points.ts → templateDataPoints), shared with the
-// condition picker so the two never drift.
+const GROUP_LABEL: Record<string, string> = {
+  order: "automations.dpGroupOrder",
+  contact: "automations.dpGroupContact",
+  message: "automations.dpGroupMessage",
+}
+
+const TIME_DP_ID = "time_of_day"
+
+/** Default op when a data point is first picked. */
+function defaultOpFor(dp: DataPoint): string | undefined {
+  return dp.condition.kind === 'var' || dp.condition.kind === 'contact_field'
+    ? 'eq'
+    : undefined
+}
+
+/** Reverse-map a stored condition config back to a registry data point id. */
+function dataPointIdFromCfg(
+  subject: string | undefined,
+  operand: string | undefined,
+  dps: DataPoint[],
+): string | undefined {
+  if (subject === 'time_of_day') return TIME_DP_ID
+  return dps.find((d) => {
+    const c = d.condition
+    if (subject === 'context_var') return c.kind === 'var' && c.varKey === operand
+    if (subject === 'contact_field') return c.kind === 'contact_field' && c.column === operand
+    if (subject === 'tag_presence') return c.kind === 'tag'
+    if (subject === 'in_segment') return c.kind === 'segment'
+    if (subject === 'message_content') return c.kind === 'message'
+    return false
+  })?.id
+}
+
+/** Build the condition config for a freshly-picked data point. */
+function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
+  const c = dp.condition
+  if (c.kind === 'var')
+    return { subject: 'context_var', operand: c.varKey, op: defaultOpFor(dp), value: '', value2: undefined }
+  if (c.kind === 'contact_field')
+    return { subject: 'contact_field', operand: c.column, op: defaultOpFor(dp), value: '', value2: undefined }
+  if (c.kind === 'tag') return { subject: 'tag_presence', operand: '', op: undefined, value: '', value2: undefined }
+  if (c.kind === 'segment') return { subject: 'in_segment', operand: '', op: undefined, value: '', value2: undefined }
+  return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
+}
 
 function ConditionFields({
   cfg,
@@ -314,39 +357,73 @@ function ConditionFields({
   set: (patch: Record<string, unknown>) => void
 }) {
   const t = useT()
+  const trigger = useContext(TriggerContext)
   const segments = useContext(SegmentsContext)
   const offers = useContext(OffersContext)
-  const subject = (cfg.subject as string) ?? "tag_presence"
+  const subject = cfg.subject as string | undefined
+  const operand = cfg.operand as string | undefined
+  const dps = conditionDataPoints(trigger)
+  const currentId = dataPointIdFromCfg(subject, operand, dps)
+  const dp = currentId && currentId !== TIME_DP_ID ? dataPointById(currentId) : undefined
+  const groups = ["order", "contact", "message"].filter((g) => dps.some((d) => d.group === g))
+
+  function pick(id: string) {
+    if (id === TIME_DP_ID) {
+      set({ subject: "time_of_day", operand: "", value: "", op: undefined, value2: undefined })
+      return
+    }
+    const d = dataPointById(id)
+    if (d) set(cfgForDataPoint(d))
+  }
+
   return (
     <>
-      <FieldBlock label={t("automations.conditionWhatToCheck")}>
+      <FieldBlock label={t("automations.condWhatData")}>
         <select
-          value={subject}
-          onChange={(e) => set({ subject: e.target.value, operand: "", value: "" })}
+          value={currentId ?? ""}
+          onChange={(e) => pick(e.target.value)}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
         >
-          <option value="tag_presence">{t("automations.conditionSubjectTagPresence")}</option>
-          <option value="in_segment">{t("automations.conditionSubjectInSegment")}</option>
-          <option value="contact_field">{t("automations.conditionSubjectContactField")}</option>
-          <option value="message_content">{t("automations.conditionSubjectMessageContent")}</option>
-          <option value="time_of_day">{t("automations.conditionSubjectTimeOfDay")}</option>
-          <option value="context_var">{t("automations.conditionSubjectContextVar")}</option>
+          <option value="">{t("automations.chooseData")}</option>
+          {groups.map((g) => (
+            <optgroup key={g} label={t(GROUP_LABEL[g])}>
+              {dps
+                .filter((d) => d.group === g)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {t(d.labelKey)}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+          <option value={TIME_DP_ID}>{t("automations.dpTimeOfDay")}</option>
         </select>
       </FieldBlock>
 
-      {subject === "tag_presence" && (
-        <FieldBlock label={t("automations.tag")}>
-          <TagSelect
-            value={(cfg.operand as string) ?? ""}
-            onChange={(v) => set({ operand: v })}
+      {subject === "time_of_day" && (
+        <FieldBlock label={t("automations.betweenTheseHours")}>
+          <Input
+            value={operand ?? ""}
+            onChange={(e) => set({ operand: e.target.value })}
+            placeholder="09:00-18:00"
+            className="bg-muted text-foreground"
           />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("automations.timeRangeHint")}
+          </p>
         </FieldBlock>
       )}
 
-      {subject === "in_segment" && (
-        <FieldBlock label={t("automations.segment")}>
+      {dp && dp.condition.kind === "tag" && (
+        <FieldBlock label={t("automations.dpHasTag")}>
+          <TagSelect value={operand ?? ""} onChange={(v) => set({ operand: v })} />
+        </FieldBlock>
+      )}
+
+      {dp && dp.condition.kind === "segment" && (
+        <FieldBlock label={t("automations.dpInSegment")}>
           <select
-            value={(cfg.operand as string) ?? ""}
+            value={operand ?? ""}
             onChange={(e) => set({ operand: e.target.value })}
             className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
           >
@@ -360,34 +437,8 @@ function ConditionFields({
         </FieldBlock>
       )}
 
-      {subject === "contact_field" && (
-        <>
-          <FieldBlock label={t("automations.field")}>
-            <select
-              value={(cfg.operand as string) ?? "name"}
-              onChange={(e) => set({ operand: e.target.value })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="name">{t("automations.fieldName")}</option>
-              <option value="email">{t("automations.fieldEmail")}</option>
-              <option value="company">{t("automations.fieldCompany")}</option>
-            </select>
-          </FieldBlock>
-          <FieldBlock label={t("automations.equals")}>
-            <Input
-              value={(cfg.value as string) ?? ""}
-              onChange={(e) => set({ value: e.target.value })}
-              className="bg-muted text-foreground"
-            />
-          </FieldBlock>
-        </>
-      )}
-
-      {subject === "message_content" && (
+      {dp && dp.condition.kind === "message" && (
         <FieldBlock label={t("automations.messageContains")}>
-          {/* Engine matches on `value`; we mirror it into `operand` so the
-              activation check (which requires a non-empty operand for every
-              condition) passes without a second field. */}
           <Input
             value={(cfg.value as string) ?? ""}
             onChange={(e) => set({ value: e.target.value, operand: e.target.value })}
@@ -397,87 +448,126 @@ function ConditionFields({
         </FieldBlock>
       )}
 
-      {subject === "time_of_day" && (
-        <FieldBlock label={t("automations.betweenTheseHours")}>
-          <Input
-            value={(cfg.operand as string) ?? ""}
-            onChange={(e) => set({ operand: e.target.value })}
-            placeholder="09:00-18:00"
-            className="bg-muted text-foreground"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t("automations.timeRangeHint")}
-          </p>
-        </FieldBlock>
-      )}
-
-      {subject === "context_var" && (
-        <>
-          <FieldBlock label={t("automations.orderData")}>
-            <select
-              value={(cfg.operand as string) ?? ""}
-              onChange={(e) => set({ operand: e.target.value, value: "" })}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="">{t("automations.chooseData")}</option>
-              {ORDER_DATA_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {t(o.label)}
-                </option>
-              ))}
-            </select>
-          </FieldBlock>
-          {cfg.operand === "is_repeat_customer" ? (
-            <FieldBlock label={t("automations.whenItIs")}>
-              <select
-                value={(cfg.value as string) ?? "true"}
-                onChange={(e) => set({ value: e.target.value })}
-                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-              >
-                <option value="true">{t("automations.repeatCustomerYes")}</option>
-                <option value="false">{t("automations.repeatCustomerNo")}</option>
-              </select>
-            </FieldBlock>
-          ) : cfg.operand === "offer_chosen" ? (
-            <FieldBlock label={t("automations.whichOffer")}>
-              {offers.length > 0 ? (
-                <select
-                  value={(cfg.value as string) ?? ""}
-                  onChange={(e) => set({ value: e.target.value })}
-                  className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-                >
-                  <option value="">{t("automations.chooseOffer")}</option>
-                  {offers.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <>
-                  <Input
-                    value={(cfg.value as string) ?? ""}
-                    onChange={(e) => set({ value: e.target.value })}
-                    className="bg-muted text-foreground"
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {t("automations.offerChosenNoOffersHint")}
-                  </p>
-                </>
-              )}
-            </FieldBlock>
-          ) : cfg.operand ? (
-            <FieldBlock label={t("automations.equals")}>
-              <Input
-                value={(cfg.value as string) ?? ""}
-                onChange={(e) => set({ value: e.target.value })}
-                className="bg-muted text-foreground"
-              />
-            </FieldBlock>
-          ) : null}
-        </>
+      {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
+        <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} />
       )}
     </>
+  )
+}
+
+/** Operator + value control for a var / contact_field data point, shaped by
+ *  the data point's value kind (number → operator+number(s); offer → dropdown;
+ *  bool → sí/no; text → equals). */
+function ConditionValue({
+  dp,
+  cfg,
+  set,
+  offers,
+}: {
+  dp: DataPoint
+  cfg: Record<string, unknown>
+  set: (patch: Record<string, unknown>) => void
+  offers: string[]
+}) {
+  const t = useT()
+  const op = (cfg.op as string) ?? "eq"
+  const value = (cfg.value as string) ?? ""
+  const selectCls =
+    "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+
+  if (dp.valueKind === "bool") {
+    return (
+      <FieldBlock label={t("automations.whenItIs")}>
+        <select
+          value={value || "true"}
+          onChange={(e) => set({ op: "eq", value: e.target.value })}
+          className={selectCls}
+        >
+          <option value="true">{t("automations.repeatCustomerYes")}</option>
+          <option value="false">{t("automations.repeatCustomerNo")}</option>
+        </select>
+      </FieldBlock>
+    )
+  }
+
+  if (dp.valueKind === "offer") {
+    return (
+      <FieldBlock label={t("automations.whichOffer")}>
+        {offers.length > 0 ? (
+          <select
+            value={value}
+            onChange={(e) => set({ op: "eq", value: e.target.value })}
+            className={selectCls}
+          >
+            <option value="">{t("automations.chooseOffer")}</option>
+            {offers.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <>
+            <Input
+              value={value}
+              onChange={(e) => set({ op: "eq", value: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t("automations.offerChosenNoOffersHint")}
+            </p>
+          </>
+        )}
+      </FieldBlock>
+    )
+  }
+
+  if (dp.valueKind === "number") {
+    return (
+      <FieldBlock label={t("automations.condCompare")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={op}
+            onChange={(e) => set({ op: e.target.value, value2: undefined })}
+            className="h-9 rounded-md border border-border bg-muted px-2 text-sm text-foreground"
+          >
+            {NUMBER_OPS.map((o) => (
+              <option key={o.op} value={o.op}>
+                {t(o.key)}
+              </option>
+            ))}
+          </select>
+          <Input
+            type="number"
+            value={value}
+            onChange={(e) => set({ value: e.target.value })}
+            className="h-9 w-24 bg-muted text-foreground"
+          />
+          {op === "between" && (
+            <>
+              <span className="text-xs text-muted-foreground">{t("automations.condAnd")}</span>
+              <Input
+                type="number"
+                value={(cfg.value2 as string) ?? ""}
+                onChange={(e) => set({ value2: e.target.value })}
+                className="h-9 w-24 bg-muted text-foreground"
+              />
+            </>
+          )}
+        </div>
+      </FieldBlock>
+    )
+  }
+
+  // text → equals
+  return (
+    <FieldBlock label={t("automations.opEq")}>
+      <Input
+        value={value}
+        onChange={(e) => set({ op: "eq", value: e.target.value })}
+        className="bg-muted text-foreground"
+      />
+    </FieldBlock>
   )
 }
 
@@ -582,7 +672,7 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
-      return { subject: "tag_presence", operand: "", value: "" }
+      return {} // unconfigured → the picker shows "¿Qué dato querés revisar?"
     case "send_webhook":
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
@@ -1639,14 +1729,31 @@ const WAIT_UNIT_LABELS: Record<string, [string, string]> = {
   days: ["automations.waitDayOne", "automations.waitDayOther"],
 }
 
-// i18n keys for the condition-step preview line, resolved with t().
-const CONDITION_SUBJECT_PREVIEW: Record<string, string> = {
-  tag_presence: "automations.conditionPreviewTagPresence",
-  in_segment: "automations.conditionPreviewInSegment",
-  contact_field: "automations.conditionPreviewContactField",
-  message_content: "automations.conditionPreviewMessageContent",
-  time_of_day: "automations.conditionPreviewTimeOfDay",
-  context_var: "automations.conditionPreviewContextVar",
+/** One-line natural summary of a condition, e.g. "Unidades que compró al menos 4". */
+function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
+  const subject = cfg.subject as string | undefined
+  const operand = cfg.operand as string | undefined
+  if (!subject) return t("automations.previewDefineCondition")
+  if (subject === "time_of_day")
+    return operand ? `${t("automations.dpTimeOfDay")}: ${operand}` : t("automations.previewDefineCondition")
+  const id = dataPointIdFromCfg(subject, operand, DATA_POINTS)
+  const dp = id && id !== TIME_DP_ID ? dataPointById(id) : undefined
+  if (!dp) return t("automations.previewDefineCondition")
+  const label = t(dp.labelKey)
+  const kind = dp.condition.kind
+  if (kind === "tag" || kind === "segment") return label
+  if (kind === "message") return `${label}: "${(cfg.value as string) ?? ""}"`
+  const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? "eq"))?.key
+  const opLabel = opKey ? t(opKey) : ""
+  const val =
+    dp.valueKind === "bool"
+      ? cfg.value === "false"
+        ? t("automations.repeatCustomerNo")
+        : t("automations.repeatCustomerYes")
+      : ((cfg.value as string) ?? "")
+  const v2 =
+    cfg.op === "between" && cfg.value2 ? ` ${t("automations.condAnd")} ${cfg.value2}` : ""
+  return `${label} ${dp.valueKind === "bool" ? "" : opLabel} ${val}${v2}`.replace(/\s+/g, " ").trim()
 }
 
 function previewFor(step: BuilderStep, t: TFn): string {
@@ -1662,10 +1769,8 @@ function previewFor(step: BuilderStep, t: TFn): string {
       if (!amount) return t("automations.previewDefineWait")
       return `${amount} ${amount === 1 ? (one ? t(one) : "") : many ? t(many) : ""}`
     }
-    case "condition": {
-      const key = CONDITION_SUBJECT_PREVIEW[String(step.step_config.subject ?? "")]
-      return key ? t(key) : t("automations.previewDefineCondition")
-    }
+    case "condition":
+      return conditionPreview(step.step_config, t)
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
     default:
