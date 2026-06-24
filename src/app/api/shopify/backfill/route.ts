@@ -70,8 +70,15 @@ export async function POST(request: Request) {
     checkouts_page_info?: string
     page_size?: number
   }
-  const maxOrderPages = Math.min(Number(body.max_order_pages) || 60, 200)
-  const maxCheckoutPages = Math.min(Number(body.max_checkout_pages) || 20, 200)
+  // Treat an explicit 0 as "skip this phase" (don't fall back to the default
+  // via `0 || default`, which would silently run the full phase).
+  const intParam = (v: unknown, def: number): number => {
+    if (v == null) return def
+    const n = Math.floor(Number(v))
+    return Number.isFinite(n) && n >= 0 ? n : def
+  }
+  const maxOrderPages = Math.min(intParam(body.max_order_pages, 60), 200)
+  const maxCheckoutPages = Math.min(intParam(body.max_checkout_pages, 20), 200)
   // Smaller Shopify pages = fewer per-call DB ops = stays well under proxy
   // timeouts on a small Render instance. Default 250; drive it lower.
   const pageSize = Math.min(Math.max(Number(body.page_size) || PAGE, 1), 250)
