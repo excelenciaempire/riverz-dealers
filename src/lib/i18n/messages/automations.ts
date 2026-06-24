@@ -233,7 +233,7 @@ export const automations = {
     en: "Update contact field",
   },
   stepWait: { es: "Esperar", en: "Wait" },
-  stepCondition: { es: "Condición (Si / Si no)", en: "Condition (If / Else)" },
+  stepCondition: { es: "Bifurcar (según un dato)", en: "Branch (by a data point)" },
   stepSendWebhook: { es: "Enviar webhook", en: "Send webhook" },
   stepCloseConversation: { es: "Cerrar conversación", en: "Close conversation" },
 

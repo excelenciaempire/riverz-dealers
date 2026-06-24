@@ -235,6 +235,9 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
 // 24-hour customer-service window, which is true for every automation
 // that includes a `wait` step. The type stays in the union so legacy
 // rows still load, but new steps must be a template.
+// `send_webhook` is intentionally NOT offered — it's a technical/developer
+// action that confuses merchants. The type stays in the union so any legacy
+// automation keeps loading + running its webhook step.
 const ADDABLE_STEPS: AutomationStepType[] = [
   "send_template",
   "add_tag",
@@ -243,7 +246,6 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "update_contact_field",
   "wait",
   "condition",
-  "send_webhook",
   "close_conversation",
 ]
 
@@ -1404,6 +1406,9 @@ function AddButton({
     <div
       className={cn(
         "group/add relative flex items-center",
+        // Subtle by default so the canvas isn't littered with "+ Add" pills;
+        // they come forward when you hover the gap or open the menu.
+        "opacity-30 transition-opacity hover:opacity-100 has-[[data-popup-open]]:opacity-100",
         // Top-align in horizontal mode so the line meets the card header
         // (cards grow downward when expanded / when conditions sprout
         // branches), ~28px ≈ half the collapsed header height.
