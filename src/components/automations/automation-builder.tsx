@@ -20,6 +20,7 @@ import {
   PencilLine,
   Hourglass,
   GitBranch,
+  GitFork,
   Webhook,
   CircleSlash,
   Zap,
@@ -64,6 +65,12 @@ import {
   dataPointById,
   type DataPoint,
 } from "@/lib/automations/data-points"
+import {
+  compileSwitch,
+  collapseSwitch,
+  type SwitchData,
+  type StepShape,
+} from "@/lib/automations/switch-compile"
 import type { TemplateHeaderType } from "@/lib/whatsapp/template-components"
 
 /** Approved templates, shared with the send_template editor + the phone
@@ -116,12 +123,19 @@ const SAMPLE_BY_VAR: Record<string, string> = {
 // Types (builder-local — mirror the flattened rows we POST)
 // ------------------------------------------------------------
 
+/** Builder-only step types: the real engine types + the `switch` sugar node
+ *  that compiles to nested binary conditions on save (see switch-compile.ts). */
+export type BuilderStepType = AutomationStepType | "switch"
+
 export interface BuilderStep {
   /** Client id; the API assigns real UUIDs server-side. */
   cid: string
-  step_type: AutomationStepType
+  step_type: BuilderStepType
   step_config: Record<string, unknown>
   branches?: { yes: BuilderStep[]; no: BuilderStep[] }
+  /** Multi-case "Bifurcar según…" data — only on `switch` steps. Compiled to a
+   *  nested binary-condition spine by toApiSteps; never reaches the wire. */
+  switchData?: SwitchData<BuilderStep>
 }
 
 export interface BuilderInitial {
@@ -155,7 +169,14 @@ interface StepMeta {
 }
 
 // `label` holds an i18n key, resolved with t() where the meta is rendered.
-const STEP_META: Record<AutomationStepType, StepMeta> = {
+const STEP_META: Record<BuilderStepType, StepMeta> = {
+  switch: {
+    label: "automations.stepSwitch",
+    icon: GitFork,
+    border: "border-l-amber-500",
+    iconBg: "bg-amber-500/15",
+    iconText: "text-amber-600 dark:text-amber-400",
+  },
   send_message: {
     label: "automations.stepSendMessage",
     icon: MessageSquare,
@@ -238,14 +259,29 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
 // `send_webhook` is intentionally NOT offered — it's a technical/developer
 // action that confuses merchants. The type stays in the union so any legacy
 // automation keeps loading + running its webhook step.
-const ADDABLE_STEPS: AutomationStepType[] = [
+const ADDABLE_STEPS: BuilderStepType[] = [
   "send_template",
   "add_tag",
   "remove_tag",
   "assign_conversation",
   "update_contact_field",
   "wait",
+  "switch",
   "condition",
+  "close_conversation",
+]
+
+// Steps offered INSIDE a switch case / "en otro caso" lane. Cases hold a flat
+// list of actions only — no nested branching — so the switch card stays
+// self-contained (edited via switchData, not the canvas path system). A
+// merchant who needs logic inside a case uses a standalone "Condición" instead.
+const LEAF_STEPS: BuilderStepType[] = [
+  "send_template",
+  "add_tag",
+  "remove_tag",
+  "assign_conversation",
+  "update_contact_field",
+  "wait",
   "close_conversation",
 ]
 
@@ -658,8 +694,10 @@ function cid(): string {
   )
 }
 
-function blankConfig(type: AutomationStepType): Record<string, unknown> {
+function blankConfig(type: BuilderStepType): Record<string, unknown> {
   switch (type) {
+    case "switch":
+      return {} // dpId + cases live on step.switchData (set in addStepAt)
     case "send_message":
       return { text: "" }
     case "send_template":
@@ -781,12 +819,14 @@ export function AutomationBuilder({
     setState((s) => ({ ...s, steps: mapAtPath(s.steps, path, updater) }))
   }
 
-  function addStepAt(parent: ParentScope, index: number, type: AutomationStepType) {
+  function addStepAt(parent: ParentScope, index: number, type: BuilderStepType) {
     const node: BuilderStep = {
       cid: cid(),
       step_type: type,
       step_config: blankConfig(type),
       branches: type === "condition" ? { yes: [], no: [] } : undefined,
+      switchData:
+        type === "switch" ? { dpId: undefined, cases: [], elseSteps: [] } : undefined,
     }
     setState((s) => ({ ...s, steps: insertAt(s.steps, parent, index, node) }))
     setExpandedId(node.cid)
@@ -1153,7 +1193,7 @@ interface StepListProps {
   expandedId: string | null
   setExpandedId: (id: string | null) => void
   updateStep: (path: StepPath, updater: (s: BuilderStep) => BuilderStep) => void
-  addStepAt: (parent: ParentScope, index: number, type: AutomationStepType) => void
+  addStepAt: (parent: ParentScope, index: number, type: BuilderStepType) => void
   deleteStepAt: (path: StepPath) => void
   moveStepAt: (path: StepPath, direction: -1 | 1) => void
 }
@@ -1215,10 +1255,12 @@ function StepRenderer({
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
+  const isSwitch = step.step_type === "switch"
+  const isBranch = isCondition || isSwitch
   // Card widths on mobile fill the full canvas column (max-w-2xl px-4
   // still keeps them reasonable). On sm+ the original fixed widths
   // come back so the flow visual stays recognisable.
-  const width = isCondition
+  const width = isBranch
     ? "w-full max-w-[400px] sm:w-[400px]"
     : "w-full max-w-[320px] sm:w-80"
 
@@ -1253,7 +1295,7 @@ function StepRenderer({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {isCondition
+                {isBranch
                   ? t("automations.kindCondition")
                   : step.step_type === "wait"
                     ? t("automations.kindWait")
@@ -1317,6 +1359,20 @@ function StepRenderer({
         <div className="z-10 flex items-start gap-4">
           {cardEl}
           <ConditionBranches step={step} parentPath={path} {...props} />
+        </div>
+      ) : isSwitch ? (
+        // Switch: card on the left, one lane per case + an "en otro caso"
+        // lane fanning out to the right (same visual grammar as a condition,
+        // just N lanes instead of two).
+        <div className="z-10 flex items-start gap-4">
+          {cardEl}
+          <SwitchBranches
+            step={step}
+            switchPath={path}
+            expandedId={props.expandedId}
+            setExpandedId={props.setExpandedId}
+            updateStep={props.updateStep}
+          />
         </div>
       ) : (
         <div className="z-10">{cardEl}</div>
@@ -1393,12 +1449,366 @@ function BranchLane({
   )
 }
 
+// ------------------------------------------------------------
+// Multi-case "Bifurcar según…" (switch) node. A builder-only card that
+// compiles to nested binary conditions on save (switch-compile.ts). Its cases
+// + "en otro caso" lane are edited in place on step.switchData via the switch's
+// own updateStep(path) — leaf actions only, so it never touches the canvas
+// path system. Decompiled chains with nested branching stay as conditions.
+// ------------------------------------------------------------
+
+/** A data point worth branching on with N discrete cases: a value the merchant
+ *  compares (units, total) or picks from a set (offer, text). bool/tag/segment/
+ *  message are binary → a plain "Condición" fits those better. This single
+ *  predicate gates BOTH the create-time picker AND the load-time collapse, so a
+ *  chain can never decompile into a switch the UI can't render or edit. */
+function isSwitchableDataPoint(dp: DataPoint): boolean {
+  return (
+    (dp.condition.kind === "var" || dp.condition.kind === "contact_field") &&
+    (dp.valueKind === "number" || dp.valueKind === "offer" || dp.valueKind === "text")
+  )
+}
+
+function switchDataPoints(trigger: AutomationTriggerType): DataPoint[] {
+  return conditionDataPoints(trigger).filter(isSwitchableDataPoint)
+}
+
+/** Short natural label for a case lane, e.g. "al menos 4" / "3+1 gratis". */
+function caseShortLabel(
+  dp: DataPoint | undefined,
+  cfg: Record<string, unknown>,
+  t: TFn,
+): string {
+  const value = (cfg.value as string) ?? ""
+  if (dp?.valueKind === "number") {
+    const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? "eq"))?.key
+    const opLabel = opKey ? t(opKey) : ""
+    const v2 =
+      cfg.op === "between" && cfg.value2 ? ` ${t("automations.condAnd")} ${cfg.value2}` : ""
+    return `${opLabel} ${value}${v2}`.replace(/\s+/g, " ").trim() || "—"
+  }
+  return value || "—"
+}
+
+function SwitchBranches({
+  step,
+  switchPath,
+  expandedId,
+  setExpandedId,
+  updateStep,
+}: {
+  step: BuilderStep
+  switchPath: StepPath
+  expandedId: string | null
+  setExpandedId: (id: string | null) => void
+  updateStep: (path: StepPath, updater: (s: BuilderStep) => BuilderStep) => void
+}) {
+  const t = useT()
+  const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
+  const dp = sd.dpId ? dataPointById(sd.dpId) : undefined
+
+  // Every mutation reshapes step.switchData through the switch's own path.
+  const patch = (fn: (d: SwitchData<BuilderStep>) => SwitchData<BuilderStep>) =>
+    updateStep(switchPath, (s) => ({
+      ...s,
+      switchData: fn(s.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }),
+    }))
+
+  const addCase = () =>
+    patch((d) => ({
+      ...d,
+      cases: [...d.cases, { ckey: cid(), cfg: dp ? cfgForDataPoint(dp) : {}, steps: [] }],
+    }))
+  const removeCase = (ckey: string) =>
+    patch((d) => ({ ...d, cases: d.cases.filter((c) => c.ckey !== ckey) }))
+  const patchCaseCfg = (ckey: string, p: Record<string, unknown>) =>
+    patch((d) => ({
+      ...d,
+      cases: d.cases.map((c) => (c.ckey === ckey ? { ...c, cfg: { ...c.cfg, ...p } } : c)),
+    }))
+  const mutateLane = (
+    lane: string | "else",
+    fn: (steps: BuilderStep[]) => BuilderStep[],
+  ) =>
+    patch((d) =>
+      lane === "else"
+        ? { ...d, elseSteps: fn(d.elseSteps) }
+        : { ...d, cases: d.cases.map((c) => (c.ckey === lane ? { ...c, steps: fn(c.steps) } : c)) },
+    )
+  const addStep = (lane: string | "else", type: BuilderStepType) =>
+    mutateLane(lane, (steps) => [
+      ...steps,
+      { cid: cid(), step_type: type, step_config: blankConfig(type) },
+    ])
+  const changeStep = (lane: string | "else", idx: number, next: BuilderStep) =>
+    mutateLane(lane, (steps) => steps.map((s, i) => (i === idx ? next : s)))
+  const removeStep = (lane: string | "else", idx: number) =>
+    mutateLane(lane, (steps) => steps.filter((_, i) => i !== idx))
+  const moveStep = (lane: string | "else", idx: number, dir: -1 | 1) =>
+    mutateLane(lane, (steps) => {
+      const j = idx + dir
+      if (j < 0 || j >= steps.length) return steps
+      const copy = [...steps]
+      ;[copy[idx], copy[j]] = [copy[j], copy[idx]]
+      return copy
+    })
+
+  if (!sd.dpId) {
+    return (
+      <div className="mt-7 self-start rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
+        {t("automations.switchNeedsData")}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
+      {sd.cases.map((c) => (
+        <SwitchCaseLane
+          key={c.ckey}
+          label={caseShortLabel(dp, c.cfg, t)}
+          dp={dp}
+          cfg={c.cfg}
+          onCfg={(p) => patchCaseCfg(c.ckey, p)}
+          onRemove={() => removeCase(c.ckey)}
+          steps={c.steps}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          onAdd={(type) => addStep(c.ckey, type)}
+          onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
+          onRemoveStep={(i) => removeStep(c.ckey, i)}
+          onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
+        />
+      ))}
+
+      <BranchLane
+        label={t("automations.switchElse")}
+        color="border-slate-400/40 bg-slate-400/10 text-muted-foreground"
+      >
+        <SwitchLaneSteps
+          steps={sd.elseSteps}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          onAdd={(type) => addStep("else", type)}
+          onChangeStep={(i, n) => changeStep("else", i, n)}
+          onRemoveStep={(i) => removeStep("else", i)}
+          onMoveStep={(i, dir) => moveStep("else", i, dir)}
+        />
+      </BranchLane>
+
+      <button
+        type="button"
+        onClick={addCase}
+        className="inline-flex items-center gap-1.5 self-start rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {t("automations.switchAddCase")}
+      </button>
+    </div>
+  )
+}
+
+function SwitchCaseLane({
+  label,
+  dp,
+  cfg,
+  onCfg,
+  onRemove,
+  steps,
+  expandedId,
+  setExpandedId,
+  onAdd,
+  onChangeStep,
+  onRemoveStep,
+  onMoveStep,
+}: {
+  label: string
+  dp: DataPoint | undefined
+  cfg: Record<string, unknown>
+  onCfg: (p: Record<string, unknown>) => void
+  onRemove: () => void
+  steps: BuilderStep[]
+  expandedId: string | null
+  setExpandedId: (id: string | null) => void
+  onAdd: (type: BuilderStepType) => void
+  onChangeStep: (i: number, n: BuilderStep) => void
+  onRemoveStep: (i: number) => void
+  onMoveStep: (i: number, dir: -1 | 1) => void
+}) {
+  const t = useT()
+  const offers = useContext(OffersContext)
+  return (
+    <BranchLane
+      label={label}
+      color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink"
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start gap-1 rounded-md border border-border bg-card/60 p-2">
+          <div className="min-w-[180px] flex-1">
+            {dp ? (
+              <ConditionValue dp={dp} cfg={cfg} set={onCfg} offers={offers} />
+            ) : (
+              <span className="text-[11px] text-muted-foreground">—</span>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t("automations.switchRemoveCase")}
+            onClick={onRemove}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+        <SwitchLaneSteps
+          steps={steps}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          onAdd={onAdd}
+          onChangeStep={onChangeStep}
+          onRemoveStep={onRemoveStep}
+          onMoveStep={onMoveStep}
+        />
+      </div>
+    </BranchLane>
+  )
+}
+
+function SwitchLaneSteps({
+  steps,
+  expandedId,
+  setExpandedId,
+  onAdd,
+  onChangeStep,
+  onRemoveStep,
+  onMoveStep,
+}: {
+  steps: BuilderStep[]
+  expandedId: string | null
+  setExpandedId: (id: string | null) => void
+  onAdd: (type: BuilderStepType) => void
+  onChangeStep: (i: number, n: BuilderStep) => void
+  onRemoveStep: (i: number) => void
+  onMoveStep: (i: number, dir: -1 | 1) => void
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      {steps.map((s, i) => (
+        <LeafStepCard
+          key={s.cid}
+          step={s}
+          expanded={expandedId === s.cid}
+          onToggle={() => setExpandedId(expandedId === s.cid ? null : s.cid)}
+          onChange={(n) => onChangeStep(i, n)}
+          onRemove={() => onRemoveStep(i)}
+          onMoveUp={() => onMoveStep(i, -1)}
+          onMoveDown={() => onMoveStep(i, 1)}
+          canUp={i > 0}
+          canDown={i < steps.length - 1}
+        />
+      ))}
+      <AddButton orientation="h" types={LEAF_STEPS} onPick={onAdd} />
+    </div>
+  )
+}
+
+/** Compact, self-contained card for a single leaf action inside a switch lane.
+ *  Mirrors StepRenderer's card chrome but takes plain callbacks (no path). */
+function LeafStepCard({
+  step,
+  expanded,
+  onToggle,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  canUp,
+  canDown,
+}: {
+  step: BuilderStep
+  expanded: boolean
+  onToggle: () => void
+  onChange: (s: BuilderStep) => void
+  onRemove: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  canUp: boolean
+  canDown: boolean
+}) {
+  const t = useT()
+  const meta = STEP_META[step.step_type]
+  const Icon = meta.icon
+  return (
+    <div className="flex w-full max-w-[280px] flex-col sm:w-72">
+      <div className={cn("rounded-lg border border-border border-l-4 bg-card shadow-sm", meta.border)}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+        >
+          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg, meta.iconText)}>
+            {meta.brand === "whatsapp" ? (
+              <Image src="/channels/whatsapp.svg" alt="" width={18} height={18} />
+            ) : meta.brand === "shopify" ? (
+              <Image src="/channels/shopify.svg" alt="" width={18} height={18} />
+            ) : (
+              <Icon className="h-4 w-4" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
+          </div>
+          <ChevronDown
+            className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
+          />
+        </button>
+        {expanded && (
+          <div className="border-t border-border px-3 py-3">
+            <StepEditor step={step} onChange={onChange} />
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={!canUp}
+                  aria-label={t("automations.moveBefore")}
+                  onClick={onMoveUp}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={!canDown}
+                  aria-label={t("automations.moveAfter")}
+                  onClick={onMoveDown}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="destructive" size="sm" onClick={onRemove}>
+                <Trash2 className="h-3.5 w-3.5" />
+                {t("automations.delete")}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AddButton({
   onPick,
   orientation = "v",
+  types = ADDABLE_STEPS,
 }: {
-  onPick: (t: AutomationStepType) => void
+  onPick: (t: BuilderStepType) => void
   orientation?: "h" | "v"
+  /** Which step types the menu offers (default: the full chain menu; switch
+   *  case/else lanes pass LEAF_STEPS so they can't nest branching). */
+  types?: BuilderStepType[]
 }) {
   const t = useT()
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
@@ -1435,7 +1845,7 @@ function AddButton({
           <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             {t("automations.chooseWhatToDo")}
           </div>
-          {ADDABLE_STEPS.map((stepType) => {
+          {types.map((stepType) => {
             const m = STEP_META[stepType]
             const Icon = m.icon
             return (
@@ -1685,6 +2095,55 @@ function StepEditor({
     case "condition":
       return <ConditionFields cfg={cfg} set={set} />
 
+    case "switch": {
+      const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
+      const dps = switchDataPoints(trigger)
+      const groups = ["order", "contact", "message"].filter((g) =>
+        dps.some((d) => d.group === g),
+      )
+      const pickDp = (id: string) => {
+        const d = id ? dataPointById(id) : undefined
+        const base = d ? cfgForDataPoint(d) : {}
+        onChange({
+          ...step,
+          switchData: {
+            ...sd,
+            dpId: id || undefined,
+            // Changing data point re-bases each case onto it (resets value).
+            // Clearing it drops the cases that depended on it — visibly, here —
+            // rather than leaving baseless cases that the next save would
+            // silently discard (toApiSteps persists only elseSteps with no dp).
+            cases: id ? sd.cases.map((c) => ({ ...c, cfg: { ...base } })) : [],
+          },
+        })
+      }
+      return (
+        <>
+          <FieldBlock label={t("automations.switchPickData")}>
+            <select
+              value={sd.dpId ?? ""}
+              onChange={(e) => pickDp(e.target.value)}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="">{t("automations.chooseData")}</option>
+              {groups.map((g) => (
+                <optgroup key={g} label={t(GROUP_LABEL[g])}>
+                  {dps
+                    .filter((d) => d.group === g)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {t(d.labelKey)}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </FieldBlock>
+          <p className="text-[11px] text-muted-foreground">{t("automations.switchHint")}</p>
+        </>
+      )
+    }
+
     case "send_webhook":
       return (
         <>
@@ -1776,6 +2235,12 @@ function previewFor(step: BuilderStep, t: TFn): string {
     }
     case "condition":
       return conditionPreview(step.step_config, t)
+    case "switch": {
+      const sd = step.switchData
+      if (!sd?.dpId) return t("automations.switchNeedsData")
+      const label = t(dataPointById(sd.dpId)?.labelKey ?? "")
+      return t("automations.switchSummary", { label, count: sd.cases.length })
+    }
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
     default:
@@ -1961,13 +2426,31 @@ interface ApiStep {
 }
 
 export function toApiSteps(steps: BuilderStep[]): ApiStep[] {
-  return steps.map((s) => ({
-    step_type: s.step_type,
-    step_config: s.step_config,
-    branches: s.branches
-      ? { yes: toApiSteps(s.branches.yes), no: toApiSteps(s.branches.no) }
-      : undefined,
-  }))
+  const out: ApiStep[] = []
+  for (const s of steps) {
+    if (s.step_type === "switch") {
+      // Compile the multi-case node to the nested binary-condition spine the
+      // engine runs. A half-built switch (no data point / no cases) persists
+      // only its "en otro caso" path, so the save still validates.
+      const cases = s.switchData?.cases ?? []
+      if (!s.switchData?.dpId || cases.length === 0) {
+        out.push(...toApiSteps(s.switchData?.elseSteps ?? []))
+        continue
+      }
+      const compiled = compileSwitch<BuilderStep>(s.switchData, toApiSteps)
+      if (compiled) out.push(compiled as ApiStep)
+      else out.push(...toApiSteps(s.switchData?.elseSteps ?? []))
+      continue
+    }
+    out.push({
+      step_type: s.step_type,
+      step_config: s.step_config,
+      branches: s.branches
+        ? { yes: toApiSteps(s.branches.yes), no: toApiSteps(s.branches.no) }
+        : undefined,
+    })
+  }
+  return out
 }
 
 /**
@@ -2242,17 +2725,57 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function fromServerSteps(nodes: ServerStepNode[]): BuilderStep[] {
-  return nodes.map((n) => ({
-    cid: cid(),
-    step_type: n.step_type as AutomationStepType,
-    step_config: n.step_config ?? {},
-    branches:
-      n.step_type === "condition"
-        ? {
-            yes: fromServerSteps(n.branches?.yes ?? []),
-            no: fromServerSteps(n.branches?.no ?? []),
+/** True when every step is a flat action (no branches, not a switch/condition)
+ *  → safe to render inside a self-contained switch case/else lane. */
+function allLeaf(steps: BuilderStep[]): boolean {
+  return steps.every(
+    (s) => !s.branches && s.step_type !== "switch" && s.step_type !== "condition",
+  )
+}
+
+export function fromServerSteps(nodes: StepShape[]): BuilderStep[] {
+  return nodes.map((n) => {
+    // Collapse a switch-shaped same-data-point condition chain back into one
+    // multi-case node — but only when every case + else is a flat action list.
+    // Anything with nested branching stays as plain conditions so no step is
+    // ever hidden by the leaf-only switch card.
+    if (n.step_type === "condition") {
+      const sd = collapseSwitch<BuilderStep>(n, fromServerSteps, cid)
+      if (sd && sd.cases.every((c) => allLeaf(c.steps)) && allLeaf(sd.elseSteps)) {
+        const dpId =
+          sd.dpId ??
+          dataPointIdFromCfg(
+            sd.cases[0]?.cfg.subject as string | undefined,
+            sd.cases[0]?.cfg.operand as string | undefined,
+            DATA_POINTS,
+          )
+        // Only present as a switch when the data point resolves to one the
+        // switch UI can render + edit (number/offer/text). For an unregistered
+        // var/column or a bool/legacy field the chain stays as plain conditions
+        // — never blank the card or, worse, let the next save drop every case
+        // (toApiSteps persists only elseSteps when dpId is missing).
+        const dp = dpId ? dataPointById(dpId) : undefined
+        if (dp && isSwitchableDataPoint(dp)) {
+          return {
+            cid: cid(),
+            step_type: "switch" as BuilderStepType,
+            step_config: {},
+            switchData: { ...sd, dpId },
           }
-        : undefined,
-  }))
+        }
+      }
+    }
+    return {
+      cid: cid(),
+      step_type: n.step_type as BuilderStepType,
+      step_config: n.step_config ?? {},
+      branches:
+        n.step_type === "condition"
+          ? {
+              yes: fromServerSteps(n.branches?.yes ?? []),
+              no: fromServerSteps(n.branches?.no ?? []),
+            }
+          : undefined,
+    }
+  })
 }

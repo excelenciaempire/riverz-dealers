@@ -233,9 +233,22 @@ export const automations = {
     en: "Update contact field",
   },
   stepWait: { es: "Esperar", en: "Wait" },
-  stepCondition: { es: "Bifurcar (según un dato)", en: "Branch (by a data point)" },
+  stepCondition: { es: "Condición (Sí / No)", en: "Condition (Yes / No)" },
+  stepSwitch: { es: "Bifurcar según un dato", en: "Branch by a value" },
   stepSendWebhook: { es: "Enviar webhook", en: "Send webhook" },
   stepCloseConversation: { es: "Cerrar conversación", en: "Close conversation" },
+
+  // Builder — multi-case "Bifurcar según…" node
+  switchPickData: { es: "¿Según cuál dato?", en: "Branch by which data?" },
+  switchHint: {
+    es: "Cada caso se revisa en orden; gana el primero que coincida. Si no coincide ninguno, se usa “En otro caso”.",
+    en: "Cases are checked in order; the first match wins. If none match, “Otherwise” runs.",
+  },
+  switchAddCase: { es: "Añadir caso", en: "Add case" },
+  switchRemoveCase: { es: "Quitar caso", en: "Remove case" },
+  switchElse: { es: "En otro caso", en: "Otherwise" },
+  switchNeedsData: { es: "Elige un dato para bifurcar", en: "Choose data to branch by" },
+  switchSummary: { es: "Según {label} · {count} casos", en: "By {label} · {count} cases" },
 
   // Builder — step card controls
   moveBefore: { es: "Mover antes", en: "Move before" },
