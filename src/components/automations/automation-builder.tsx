@@ -233,6 +233,30 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
   { value: "shopify_abandoned_checkout", label: "automations.triggerShopifyAbandonedCheckout" },
 ]
 
+// Friendly labels for trigger types NOT in the selectable list (legacy /
+// cron-driven). Without these, editing an existing automation with such a
+// trigger showed the raw enum in the header and the dropdown fell back to the
+// first option ("Tag added"), which read like the trigger had silently
+// changed.
+const TRIGGER_LABEL_FALLBACK: Record<string, string> = {
+  post_delivery_feedback: "automations.triggerPostDeliveryFeedback",
+  customer_inactive: "automations.triggerCustomerInactive",
+  keyword_match: "automations.triggerKeywordMatch",
+  time_based: "automations.triggerTimeBased",
+  new_message_received: "automations.triggerNewMessage",
+  first_inbound_message: "automations.triggerFirstInbound",
+  new_contact_created: "automations.triggerNewContact",
+  conversation_assigned: "automations.triggerConversationAssigned",
+}
+
+/** Friendly label for any trigger type, incl. legacy/non-selectable ones. */
+function triggerLabel(type: AutomationTriggerType, t: TFn): string {
+  const opt = TRIGGER_OPTIONS.find((o) => o.value === type)
+  if (opt) return t(opt.label)
+  const fb = TRIGGER_LABEL_FALLBACK[type]
+  return fb ? t(fb) : type
+}
+
 /**
  * Sub-bar between the header and the canvas. Lets the user scope the
  * whole automation to a saved segment — the engine will skip firing
@@ -1037,10 +1061,7 @@ function TriggerCard({
                 : t("automations.triggerEyebrow")}
             </div>
             <div className="truncate text-sm font-medium text-foreground">
-              {(() => {
-                const opt = TRIGGER_OPTIONS.find((o) => o.value === type)
-                return opt ? t(opt.label) : type
-              })()}
+              {triggerLabel(type, t)}
             </div>
           </div>
           <ChevronDown
@@ -1055,6 +1076,12 @@ function TriggerCard({
                 onChange={(e) => onTypeChange(e.target.value as AutomationTriggerType)}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
               >
+                {/* Keep a legacy/non-selectable trigger visible as the current
+                    option so the dropdown shows the real trigger instead of
+                    defaulting to the first listed one. */}
+                {!TRIGGER_OPTIONS.some((o) => o.value === type) && (
+                  <option value={type}>{triggerLabel(type, t)}</option>
+                )}
                 {TRIGGER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {t(o.label)}

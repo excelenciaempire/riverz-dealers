@@ -150,6 +150,22 @@ export const automations = {
     es: "Carrito abandonado (Shopify)",
     en: "Abandoned checkout (Shopify)",
   },
+  // Legacy / cron-driven triggers — not offered when building a NEW automation
+  // but shown with their real name when editing an existing one.
+  triggerPostDeliveryFeedback: {
+    es: "Reseña post-entrega",
+    en: "Post-delivery review",
+  },
+  triggerCustomerInactive: { es: "Cliente inactivo", en: "Inactive customer" },
+  triggerKeywordMatch: { es: "Palabra clave", en: "Keyword match" },
+  triggerTimeBased: { es: "Programado", en: "Scheduled" },
+  triggerNewMessage: { es: "Mensaje recibido", en: "Message received" },
+  triggerFirstInbound: { es: "Primer mensaje", en: "First message" },
+  triggerNewContact: { es: "Contacto nuevo", en: "New contact" },
+  triggerConversationAssigned: {
+    es: "Conversación asignada",
+    en: "Conversation assigned",
+  },
   cronOrTimePlaceholder: { es: "Expresión cron o HH:mm", en: "Cron expression or HH:mm" },
 
   // Builder — keyword match config
