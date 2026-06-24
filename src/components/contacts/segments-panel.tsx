@@ -6,11 +6,14 @@ import {
   CalendarClock,
   CircleSlash,
   Database,
+  Gift,
   Layers,
   Loader2,
   MessageCircle,
+  Package,
   Pencil,
   Plus,
+  ShoppingBag,
   Tag as TagIcon,
   Trash2,
   Type as TypeIcon,
@@ -119,6 +122,9 @@ const RULE_TYPES: {
   { type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
   { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', descriptionKey: 'contacts.ruleHasFieldDesc', Icon: CircleSlash },
   { type: 'custom_field', labelKey: 'contacts.ruleCustomFieldLabel', descriptionKey: 'contacts.ruleCustomFieldDesc', Icon: Database },
+  { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', descriptionKey: 'contacts.ruleShopifyDesc', Icon: ShoppingBag },
+  { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
+  { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
 ];
 
 // Operator label i18n keys used by SelectValue.labels — shown human-readable
@@ -141,6 +147,22 @@ const OP_LABEL_KEYS = {
     equals: 'contacts.opCustomEquals',
     not_equals: 'contacts.opCustomNotEquals',
     contains: 'contacts.opCustomContains',
+  },
+  shopify: {
+    is_customer: 'contacts.opShopifyIsCustomer',
+    is_not_customer: 'contacts.opShopifyIsNotCustomer',
+  },
+  offer: {
+    is: 'contacts.opOfferIs',
+    is_not: 'contacts.opOfferIsNot',
+    contains: 'contacts.opOfferContains',
+    any: 'contacts.opOfferAny',
+  },
+  units: {
+    eq: 'contacts.opUnitsEq',
+    gte: 'contacts.opUnitsGte',
+    lte: 'contacts.opUnitsLte',
+    between: 'contacts.opUnitsBetween',
   },
 } as const;
 
@@ -960,6 +982,80 @@ function RuleControls({
         </>
       );
     }
+    case 'shopify': {
+      const opShopify = resolveOpLabels(OP_LABEL_KEYS.shopify, t);
+      return (
+        <MiniSelect
+          value={rule.op}
+          labels={opShopify}
+          options={Object.entries(opShopify).map(([v, l]) => ({ value: v, label: l }))}
+          onChange={(v) =>
+            onChange({ ...rule, op: v as 'is_customer' | 'is_not_customer' })
+          }
+        />
+      );
+    }
+    case 'offer': {
+      const opOffer = resolveOpLabels(OP_LABEL_KEYS.offer, t);
+      return (
+        <>
+          <MiniSelect
+            value={rule.op}
+            labels={opOffer}
+            options={Object.entries(opOffer).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) =>
+              onChange({ ...rule, op: v as 'is' | 'is_not' | 'contains' | 'any' })
+            }
+          />
+          {rule.op !== 'any' && (
+            <Input
+              value={rule.value}
+              onChange={(e) => onChange({ ...rule, value: e.target.value })}
+              placeholder={t('contacts.offerPlaceholder')}
+              className="h-8 w-full sm:w-44 bg-background text-xs"
+            />
+          )}
+        </>
+      );
+    }
+    case 'units': {
+      const opUnits = resolveOpLabels(OP_LABEL_KEYS.units, t);
+      return (
+        <>
+          <MiniSelect
+            value={rule.op}
+            labels={opUnits}
+            options={Object.entries(opUnits).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) =>
+              onChange({ ...rule, op: v as 'eq' | 'gte' | 'lte' | 'between' })
+            }
+          />
+          <Input
+            type="number"
+            min={0}
+            value={rule.value}
+            onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
+            className="h-8 w-20 bg-background text-xs"
+          />
+          {rule.op === 'between' && (
+            <>
+              <span className="text-xs text-muted-foreground">
+                {t('contacts.unitsAndWord')}
+              </span>
+              <Input
+                type="number"
+                min={0}
+                value={rule.value2 ?? ''}
+                onChange={(e) =>
+                  onChange({ ...rule, value2: Number(e.target.value) })
+                }
+                className="h-8 w-20 bg-background text-xs"
+              />
+            </>
+          )}
+        </>
+      );
+    }
     default:
       return null;
   }
@@ -1019,6 +1115,12 @@ function stubRuleFor(
         op: 'equals',
         value: '',
       };
+    case 'shopify':
+      return { type: 'shopify', op: 'is_customer' };
+    case 'offer':
+      return { type: 'offer', op: 'any', value: '' };
+    case 'units':
+      return { type: 'units', op: 'gte', value: 1 };
   }
 }
 

@@ -361,6 +361,21 @@ export const contacts = {
     es: "Filtra por un campo que tú creaste.",
     en: "Filter by a field you created.",
   },
+  ruleShopifyLabel: { es: "Cliente Shopify", en: "Shopify customer" },
+  ruleShopifyDesc: {
+    es: "Si el contacto compró o no en Shopify.",
+    en: "Whether the contact is a Shopify customer.",
+  },
+  ruleOfferLabel: { es: "Oferta elegida", en: "Offer chosen" },
+  ruleOfferDesc: {
+    es: "La oferta que compró (ej. 3+1 gratis).",
+    en: "The offer they bought (e.g. 3+1 free).",
+  },
+  ruleUnitsLabel: { es: "Unidades compradas", en: "Units purchased" },
+  ruleUnitsDesc: {
+    es: "Cuántas unidades compró en su último pedido.",
+    en: "How many units they bought in their last order.",
+  },
 
   // Field labels (segment rules)
   segFieldName: { es: "Nombre", en: "Name" },
@@ -387,6 +402,16 @@ export const contacts = {
   opCustomEquals: { es: "es", en: "is" },
   opCustomNotEquals: { es: "no es", en: "is not" },
   opCustomContains: { es: "contiene", en: "contains" },
+  opShopifyIsCustomer: { es: "es cliente", en: "is a customer" },
+  opShopifyIsNotCustomer: { es: "no es cliente", en: "is not a customer" },
+  opOfferIs: { es: "es", en: "is" },
+  opOfferIsNot: { es: "no es", en: "is not" },
+  opOfferContains: { es: "contiene", en: "contains" },
+  opOfferAny: { es: "eligió alguna", en: "chose any" },
+  opUnitsEq: { es: "es igual a", en: "equals" },
+  opUnitsGte: { es: "es al menos", en: "is at least" },
+  opUnitsLte: { es: "es como máximo", en: "is at most" },
+  opUnitsBetween: { es: "entre", en: "between" },
 
   // Rule control words + placeholders
   theWord: { es: "El", en: "The" },
@@ -395,4 +420,6 @@ export const contacts = {
   fieldPlaceholder: { es: "Campo…", en: "Field…" },
   textPlaceholder: { es: "texto", en: "text" },
   valuePlaceholder: { es: "valor", en: "value" },
+  offerPlaceholder: { es: "oferta…", en: "offer…" },
+  unitsAndWord: { es: "y", en: "and" },
 } satisfies Namespace;

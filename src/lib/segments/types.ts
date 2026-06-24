@@ -30,6 +30,17 @@ export type SegmentRule =
       fieldId: string;
       op: 'equals' | 'not_equals' | 'contains';
       value: string;
+    }
+  // Shopify dimensions (populated by the orders/checkout webhooks + the
+  // historical backfill). These read columns already on the contact row
+  // (is_shopify_customer, last_offer_chosen, last_offer_units) — no aux fetch.
+  | { type: 'shopify'; op: 'is_customer' | 'is_not_customer' }
+  | { type: 'offer'; op: 'is' | 'is_not' | 'contains' | 'any'; value: string }
+  | {
+      type: 'units';
+      op: 'eq' | 'gte' | 'lte' | 'between';
+      value: number;
+      value2?: number;
     };
 
 export type SegmentMatchMode = 'all' | 'any';
@@ -54,4 +65,7 @@ export const RULE_TYPE_LABEL: Record<SegmentRule['type'], string> = {
   has_field: 'Tiene dato',
   text: 'Texto del contacto',
   custom_field: 'Campo personalizado',
+  shopify: 'Cliente Shopify',
+  offer: 'Oferta elegida',
+  units: 'Unidades compradas',
 };

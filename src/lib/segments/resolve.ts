@@ -24,51 +24,71 @@ export async function resolveSegment(
   matchMode: SegmentMatchMode,
 ): Promise<{ contacts: Contact[]; total: number }> {
   // ── Step 1: candidate pool ────────────────────────────────────
-  const { data: contactsRaw, count, error } = await supabase
-    .from('contacts')
-    .select('*', { count: 'exact' })
-    .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: false })
-    .limit(5000);
-  if (error) throw new Error(error.message);
-  const contacts = (contactsRaw ?? []) as Contact[];
+  // Page through ALL contacts so large workspaces (e.g. after the Shopify
+  // backfill imports thousands) segment PRECISELY — not just the first
+  // 5000. Capped at MAX as a runaway guard.
+  const PAGE = 1000;
+  const MAX = 100000;
+  const contacts: Contact[] = [];
+  let total = 0;
+  for (let from = 0; from < MAX; from += PAGE) {
+    const { data, count, error } = await supabase
+      .from('contacts')
+      .select('*', { count: 'exact' })
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    if (count != null) total = count;
+    const batch = (data ?? []) as Contact[];
+    contacts.push(...batch);
+    if (batch.length < PAGE) break;
+  }
   if (contacts.length === 0 || rules.length === 0) {
-    return { contacts: rules.length === 0 ? contacts : [], total: count ?? 0 };
+    return { contacts: rules.length === 0 ? contacts : [], total };
   }
 
   // ── Step 2: pull aux data only if some rule needs it ──────────
+  // Chunk the id lists — a single `.in()` over thousands of UUIDs blows
+  // past PostgREST's URL/arg limits and silently truncates.
   const needsTags = rules.some((r) => r.type === 'tag');
   const needsCustom = rules.some((r) => r.type === 'custom_field');
 
   const ids = contacts.map((c) => c.id);
+  const ID_CHUNK = 300;
   const tagsByContact = new Map<string, Set<string>>();
   const customByContact = new Map<string, Map<string, string>>();
 
   if (needsTags) {
-    const { data: ct } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_id')
-      .in('contact_id', ids);
-    for (const row of (ct ?? []) as { contact_id: string; tag_id: string }[]) {
-      const set = tagsByContact.get(row.contact_id) ?? new Set<string>();
-      set.add(row.tag_id);
-      tagsByContact.set(row.contact_id, set);
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+      const { data: ct } = await supabase
+        .from('contact_tags')
+        .select('contact_id, tag_id')
+        .in('contact_id', ids.slice(i, i + ID_CHUNK));
+      for (const row of (ct ?? []) as { contact_id: string; tag_id: string }[]) {
+        const set = tagsByContact.get(row.contact_id) ?? new Set<string>();
+        set.add(row.tag_id);
+        tagsByContact.set(row.contact_id, set);
+      }
     }
   }
 
   if (needsCustom) {
-    const { data: ccv } = await supabase
-      .from('contact_custom_values')
-      .select('contact_id, custom_field_id, value')
-      .in('contact_id', ids);
-    for (const row of (ccv ?? []) as {
-      contact_id: string;
-      custom_field_id: string;
-      value: string | null;
-    }[]) {
-      const m = customByContact.get(row.contact_id) ?? new Map<string, string>();
-      m.set(row.custom_field_id, row.value ?? '');
-      customByContact.set(row.contact_id, m);
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+      const { data: ccv } = await supabase
+        .from('contact_custom_values')
+        .select('contact_id, custom_field_id, value')
+        .in('contact_id', ids.slice(i, i + ID_CHUNK));
+      for (const row of (ccv ?? []) as {
+        contact_id: string;
+        custom_field_id: string;
+        value: string | null;
+      }[]) {
+        const m =
+          customByContact.get(row.contact_id) ?? new Map<string, string>();
+        m.set(row.custom_field_id, row.value ?? '');
+        customByContact.set(row.contact_id, m);
+      }
     }
   }
 
@@ -83,7 +103,7 @@ export async function resolveSegment(
     ),
   );
 
-  return { contacts: matched, total: count ?? 0 };
+  return { contacts: matched, total };
 }
 
 function evaluateContact(
@@ -149,6 +169,36 @@ function evaluateRule(
       if (rule.op === 'equals') return hay === needle;
       if (rule.op === 'not_equals') return hay !== needle;
       return hay.includes(needle);
+    }
+    case 'shopify': {
+      const isCustomer = Boolean(
+        (contact as unknown as Record<string, unknown>).is_shopify_customer,
+      );
+      return rule.op === 'is_customer' ? isCustomer : !isCustomer;
+    }
+    case 'offer': {
+      const v = String(
+        (contact as unknown as Record<string, unknown>).last_offer_chosen ?? '',
+      ).toLowerCase();
+      const needle = String(rule.value ?? '').toLowerCase();
+      if (rule.op === 'any') return v.length > 0;
+      if (rule.op === 'is') return v === needle;
+      if (rule.op === 'is_not') return v !== needle;
+      return v.includes(needle); // contains
+    }
+    case 'units': {
+      const n = Number(
+        (contact as unknown as Record<string, unknown>).last_offer_units,
+      );
+      if (!Number.isFinite(n)) return false;
+      const a = Number(rule.value);
+      if (!Number.isFinite(a)) return false;
+      if (rule.op === 'eq') return n === a;
+      if (rule.op === 'gte') return n >= a;
+      if (rule.op === 'lte') return n <= a;
+      const b = Number(rule.value2); // between
+      if (!Number.isFinite(b)) return false;
+      return n >= Math.min(a, b) && n <= Math.max(a, b);
     }
     default:
       return false;
