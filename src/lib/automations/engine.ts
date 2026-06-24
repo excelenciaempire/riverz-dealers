@@ -678,6 +678,37 @@ function triggerMatches(automation: Automation, ctx: AutomationContext | undefin
   })
 }
 
+/**
+ * Compare an actual value against a condition's value(s) using `cfg.op`
+ * (default 'eq' = string equality). Numeric ops coerce both sides to numbers
+ * so the "Bifurcar según…" node can branch on units >= 4, between 2 and 3, etc.
+ */
+function matchesValue(actual: unknown, cfg: ConditionStepConfig): boolean {
+  if (actual == null) return false
+  const op = cfg.op ?? 'eq'
+  if (op === 'eq') return String(actual) === String(cfg.value ?? '')
+  const a = Number(actual)
+  const b = Number(cfg.value)
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false
+  switch (op) {
+    case 'gt':
+      return a > b
+    case 'gte':
+      return a >= b
+    case 'lt':
+      return a < b
+    case 'lte':
+      return a <= b
+    case 'between': {
+      const c = Number(cfg.value2)
+      if (!Number.isFinite(c)) return false
+      return a >= Math.min(b, c) && a <= Math.max(b, c)
+    }
+    default:
+      return false
+  }
+}
+
 async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): Promise<boolean> {
   const db = supabaseAdmin()
   switch (cfg.subject) {
@@ -697,8 +728,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         .select(cfg.operand)
         .eq('id', args.contactId)
         .maybeSingle()
-      const v = (data as Record<string, unknown> | null)?.[cfg.operand]
-      return v != null && String(v) === String(cfg.value ?? '')
+      return matchesValue((data as Record<string, unknown> | null)?.[cfg.operand], cfg)
     }
     case 'message_content': {
       const text = (args.context.message_text ?? '').toString()
@@ -710,10 +740,12 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
     }
     case 'context_var': {
       // Reads from context.vars, populated by the dispatching webhook
-      // (e.g. shopify_order_created exposes is_repeat_customer here).
+      // (e.g. shopify_order_created exposes offer_units, is_repeat_customer).
       if (!cfg.operand) return false
-      const v = (args.context.vars as Record<string, unknown> | undefined)?.[cfg.operand]
-      return v != null && String(v) === String(cfg.value ?? '')
+      return matchesValue(
+        (args.context.vars as Record<string, unknown> | undefined)?.[cfg.operand],
+        cfg,
+      )
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window

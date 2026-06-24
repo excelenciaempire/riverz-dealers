@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "@/components/i18n/locale-link"
 import { useLocalizedRouter } from "@/hooks/use-localized-router"
@@ -28,7 +28,6 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  X as XIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -58,10 +57,8 @@ import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
 import { extractVariables } from "@/lib/whatsapp/template-components"
-import type {
-  TemplateButtonInput,
-  TemplateHeaderType,
-} from "@/lib/whatsapp/template-components"
+import { templateDataPoints } from "@/lib/automations/data-points"
+import type { TemplateHeaderType } from "@/lib/whatsapp/template-components"
 
 /** Approved templates, shared with the send_template editor + the phone
  *  preview without threading props through the recursive step tree. */
@@ -85,6 +82,29 @@ const AgentsContext = createContext<Profile[]>([])
  *  Powers the `offer_chosen` condition dropdown so el merchant elige la
  *  oferta exacta en vez de tipearla. */
 const OffersContext = createContext<string[]>([])
+
+/** The automation's trigger type, so each step can filter data points to what
+ *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
+const TriggerContext = createContext<AutomationTriggerType>("shopify_order_created")
+
+/** Friendly sample values for the inline template preview (so {{n}} renders a
+ *  realistic value instead of a placeholder once mapped to a data point). */
+const SAMPLE_BY_VAR: Record<string, string> = {
+  customer_name: "María",
+  order_name: "#1042",
+  order_number: "1042",
+  total_price: "49.900",
+  currency: "ARS",
+  offer_units: "3",
+  offer_chosen: "3+1 gratis",
+  item_count: "1",
+  first_item: "Serum Pilar",
+  tracking_number: "AR123456789",
+  tracking_url: "https://andreani.com/seguimiento",
+  tracking_company: "Andreani",
+  order_status_url: "https://pilar.co/pedido/1042",
+  checkout_url: "https://pilar.co/carrito",
+}
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -282,21 +302,9 @@ const ORDER_DATA_OPTIONS: { key: string; label: string }[] = [
   { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
 ]
 
-// Variables del pedido que se pueden inyectar en los {{1}}, {{2}}… de una
-// plantilla desde el paso "Enviar plantilla". El value que se guarda es el
-// placeholder {{vars.KEY}} que el motor interpola al enviar (ver
-// interpolate() en src/lib/automations/engine.ts). `label` es clave i18n.
-const TEMPLATE_VAR_OPTIONS: { key: string; label: string }[] = [
-  { key: "offer_chosen", label: "automations.orderDataOfferChosen" },
-  { key: "customer_name", label: "automations.varCustomerName" },
-  { key: "first_item", label: "automations.orderDataFirstItem" },
-  { key: "order_number", label: "automations.orderDataOrderNumber" },
-  { key: "total_price", label: "automations.orderDataTotalPrice" },
-  { key: "currency", label: "automations.orderDataCurrency" },
-  { key: "order_status_url", label: "automations.varOrderStatusUrl" },
-  { key: "tracking_number", label: "automations.orderDataTrackingNumber" },
-  { key: "tracking_url", label: "automations.varTrackingUrl" },
-]
+// Template-variable options now come from the canonical data-points registry
+// (src/lib/automations/data-points.ts → templateDataPoints), shared with the
+// condition picker so the two never drift.
 
 function ConditionFields({
   cfg,
@@ -613,7 +621,6 @@ export function AutomationBuilder({
   const [tags, setTags] = useState<ContactTag[]>([])
   const [agents, setAgents] = useState<Profile[]>([])
   const [offers, setOffers] = useState<string[]>([])
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   // Load the user's templates once — powers the send_template picker and
   // the live phone preview. Approved first so the dropdown is useful.
@@ -758,6 +765,7 @@ export function AutomationBuilder({
   }
 
   return (
+    <TriggerContext.Provider value={state.trigger_type}>
     <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
@@ -860,37 +868,8 @@ export function AutomationBuilder({
             />
           </div>
         </CanvasViewport>
-
-        {/* Live phone preview — collapsible. Only useful for steps that
-            actually render a message (send_message / send_template); we
-            tuck it away by default so the canvas gets the full width
-            and the user opens it from the floating button when needed. */}
-        {previewOpen && (
-          <aside className="hidden w-[340px] shrink-0 overflow-y-auto border-l border-border bg-card/40 px-4 py-6 lg:block">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-medium text-foreground">{t("automations.preview")}</p>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label={t("automations.closePreview")}
-              >
-                <XIcon className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <MessagePreviewRail steps={state.steps} expandedId={expandedId} />
-          </aside>
-        )}
-        {!previewOpen && (
-          <button
-            type="button"
-            onClick={() => setPreviewOpen(true)}
-            className="hidden absolute right-4 top-20 z-10 items-center gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-lg backdrop-blur transition-colors hover:bg-accent lg:inline-flex"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            {t("automations.preview")}
-          </button>
-        )}
+        {/* The WhatsApp preview now lives INLINE inside the expanded
+            "Enviar plantilla" step (see StepEditor) — no separate rail. */}
       </div>
     </div>
     </OffersContext.Provider>
@@ -898,108 +877,7 @@ export function AutomationBuilder({
     </TagsContext.Provider>
     </SegmentsContext.Provider>
     </TemplatesContext.Provider>
-  )
-}
-
-// ------------------------------------------------------------
-// Live phone preview rail
-// ------------------------------------------------------------
-
-/** Depth-first search for a step by cid across the branch tree. */
-function findStepByCid(steps: BuilderStep[], cid: string | null): BuilderStep | null {
-  if (!cid) return null
-  for (const s of steps) {
-    if (s.cid === cid) return s
-    if (s.branches) {
-      const found =
-        findStepByCid(s.branches.yes, cid) ?? findStepByCid(s.branches.no, cid)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-/** First send_message / send_template anywhere in the tree (fallback). */
-function firstMessageStep(steps: BuilderStep[]): BuilderStep | null {
-  for (const s of steps) {
-    if (s.step_type === "send_message" || s.step_type === "send_template") return s
-    if (s.branches) {
-      const found =
-        firstMessageStep(s.branches.yes) ?? firstMessageStep(s.branches.no)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function MessagePreviewRail({
-  steps,
-  expandedId,
-}: {
-  steps: BuilderStep[]
-  expandedId: string | null
-}) {
-  const t = useT()
-  const templates = useContext(TemplatesContext)
-
-  // Prefer the step being edited; otherwise show the first message step.
-  const expanded = findStepByCid(steps, expandedId)
-  const target =
-    expanded &&
-    (expanded.step_type === "send_message" || expanded.step_type === "send_template")
-      ? expanded
-      : firstMessageStep(steps)
-
-  const preview = useMemo(() => {
-    if (!target) return null
-    if (target.step_type === "send_message") {
-      return {
-        headerType: "none" as TemplateHeaderType,
-        bodyText: (target.step_config.text as string) || "",
-        footerText: undefined as string | undefined,
-        buttons: undefined as TemplateButtonInput[] | undefined,
-      }
-    }
-    // send_template → resolve the chosen template's content.
-    const name = target.step_config.template_name as string | undefined
-    const tpl = templates.find((t) => t.name === name)
-    if (!tpl) {
-      return {
-        headerType: "none" as TemplateHeaderType,
-        bodyText: name
-          ? t("automations.templateLabel", { name })
-          : t("automations.selectTemplatePlaceholder"),
-        footerText: undefined,
-        buttons: undefined,
-      }
-    }
-    return {
-      headerType: (tpl.header_type ?? "none") as TemplateHeaderType,
-      headerText: tpl.header_content ?? undefined,
-      bodyText: tpl.body_text || "",
-      footerText: tpl.footer_text ?? undefined,
-      buttons: undefined as TemplateButtonInput[] | undefined,
-    }
-  }, [target, templates, t])
-
-  return (
-    <div className="space-y-3">
-      {preview ? (
-        <WhatsappPreview
-          headerType={preview.headerType}
-          headerText={
-            "headerText" in preview ? (preview.headerText as string | undefined) : undefined
-          }
-          bodyText={preview.bodyText}
-          footerText={preview.footerText}
-          buttons={preview.buttons}
-        />
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {t("automations.addMessageStepHint")}
-        </p>
-      )}
-    </div>
+    </TriggerContext.Provider>
   )
 }
 
@@ -1507,6 +1385,7 @@ function StepEditor({
   const t = useT()
   const cfg = step.step_config
   const templates = useContext(TemplatesContext)
+  const trigger = useContext(TriggerContext)
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
 
@@ -1585,19 +1464,44 @@ function StepEditor({
                       className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
                     >
                       <option value="">{t("automations.chooseVariable")}</option>
-                      {TEMPLATE_VAR_OPTIONS.map((v) => (
-                        <option key={v.key} value={`{{vars.${v.key}}}`}>
-                          {t(v.label)}
+                      {templateDataPoints(trigger).map((dp) => (
+                        <option key={dp.id} value={`{{vars.${dp.templateVarKey}}}`}>
+                          {t(dp.labelKey)}
                         </option>
                       ))}
                     </select>
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {t("automations.templateVariablesHint")}
-              </p>
+              {varIndices.some((n) => !variables[String(n)]) ? (
+                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  {t("automations.templateVarsUnmapped")}
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {t("automations.templateVariablesHint")}
+                </p>
+              )}
             </FieldBlock>
+          )}
+          {selectedTpl && (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+                {t("automations.preview")}
+              </p>
+              <WhatsappPreview
+                headerType={(selectedTpl.header_type ?? "none") as TemplateHeaderType}
+                headerText={selectedTpl.header_content ?? undefined}
+                bodyText={(selectedTpl.body_text || "").replace(
+                  /\{\{\s*(\d+)\s*\}\}/g,
+                  (_, n) => {
+                    const m = (variables[String(n)] ?? "").match(/\{\{vars\.(\w+)\}\}/)
+                    return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`
+                  },
+                )}
+                footerText={selectedTpl.footer_text ?? undefined}
+              />
+            </div>
           )}
         </>
       )

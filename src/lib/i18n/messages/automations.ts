@@ -168,6 +168,31 @@ export const automations = {
   },
   cronOrTimePlaceholder: { es: "Expresión cron o HH:mm", en: "Cron expression or HH:mm" },
 
+  // Data points (plain-language names shared by conditions + template variables)
+  dpUnits: { es: "Unidades que compró", en: "Units they bought" },
+  dpOffer: { es: "Oferta que eligió", en: "Offer they chose" },
+  dpTotal: { es: "Total del pedido", en: "Order total" },
+  dpItemCount: { es: "Cantidad de productos distintos", en: "Number of distinct products" },
+  dpFirstItem: { es: "Primer producto", en: "First product" },
+  dpRepeatCustomer: { es: "Es cliente recurrente", en: "Is a repeat customer" },
+  dpCustomerName: { es: "Nombre del cliente", en: "Customer name" },
+  dpOrderName: { es: "Número de pedido", en: "Order number" },
+  dpOrderStatusUrl: { es: "Link de estado del pedido", en: "Order status link" },
+  dpCurrency: { es: "Moneda", en: "Currency" },
+  dpTrackingNumber: { es: "Número de seguimiento", en: "Tracking number" },
+  dpTrackingUrl: { es: "Link de seguimiento", en: "Tracking link" },
+  dpTrackingCompany: { es: "Transportista", en: "Carrier" },
+  dpCheckoutUrl: { es: "Link del carrito", en: "Cart link" },
+  dpContactName: { es: "Su nombre", en: "Their name" },
+  dpContactEmail: { es: "Su correo", en: "Their email" },
+  dpContactCompany: { es: "Su empresa", en: "Their company" },
+  dpLastOfferUnits: { es: "Unidades de su última compra", en: "Units in their last purchase" },
+  dpLastOfferChosen: { es: "Su última oferta comprada", en: "Their last purchased offer" },
+  dpIsCustomer: { es: "Ya compró alguna vez", en: "Has purchased before" },
+  dpHasTag: { es: "Tiene la etiqueta", en: "Has the tag" },
+  dpInSegment: { es: "Está en el grupo", en: "Is in the group" },
+  dpMessageText: { es: "Lo que escribió", en: "What they wrote" },
+
   // Builder — keyword match config
   keywordsLabel: {
     es: "Palabras clave (separadas por comas)",
@@ -324,8 +349,12 @@ export const automations = {
   templateVariables: { es: "Variables de la plantilla", en: "Template variables" },
   chooseVariable: { es: "Elige un dato…", en: "Choose a field…" },
   templateVariablesHint: {
-    es: "Asigná a cada {{n}} de la plantilla el dato del pedido que querés inyectar (ej. la oferta que eligió).",
-    en: "Map each {{n}} in the template to the order field you want to inject (e.g. the offer they chose).",
+    es: "El contenido de la plantilla se edita en Plantillas. Acá solo elegís qué dato va en cada espacio ({{n}}).",
+    en: "Template content is edited in Templates. Here you only choose which data fills each slot ({{n}}).",
+  },
+  templateVarsUnmapped: {
+    es: "Falta elegir el dato de algún espacio {{n}} — si lo dejás vacío, sale en blanco.",
+    en: "Some {{n}} slots have no data chosen — left empty they render blank.",
   },
   varCustomerName: { es: "Nombre del cliente", en: "Customer name" },
   varOrderStatusUrl: { es: "Link de estado del pedido", en: "Order status link" },

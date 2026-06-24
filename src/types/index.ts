@@ -547,6 +547,12 @@ export interface ConditionStepConfig {
   operand?: string;
   /** For contact_field equals / message_content contains — comparison value */
   value?: string;
+  /** Comparison operator for contact_field / context_var. Default 'eq' (string
+   *  equality). Numeric ops coerce both sides to numbers. Powers the
+   *  multi-case "Bifurcar según…" node (e.g. units >= 4, between 2 and 3). */
+  op?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
+  /** Upper bound for op 'between'. */
+  value2?: string;
 }
 
 export interface SendWebhookStepConfig {
