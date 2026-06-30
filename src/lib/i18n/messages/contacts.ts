@@ -91,6 +91,9 @@ export const contacts = {
   // Detail view
   unknown: { es: "Desconocido", en: "Unknown" },
   detailDetails: { es: "Detalles", en: "Details" },
+  lastOfferTitle: { es: "Última oferta elegida", en: "Last offer chosen" },
+  lastOfferUnits: { es: "{n} uds", en: "{n} u" },
+  lastOfferNoLabel: { es: "Sin oferta específica", en: "No specific offer" },
   detailNotes: { es: "Notas", en: "Notes" },
   detailCustomFields: { es: "Campos personalizados", en: "Custom fields" },
   save: { es: "Guardar", en: "Save" },

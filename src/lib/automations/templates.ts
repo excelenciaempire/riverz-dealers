@@ -73,9 +73,11 @@ export interface AutomationTemplateDefinition {
  *    con string vacío). El motor solo soporta `send_template` fuera
  *    de la ventana de 24h, y todas estas plantillas pueden disparar
  *    fuera de la ventana (después de wait o tiempo absoluto).
- *  - `tag_id: ''` para evitar que un slug como 'pedido-confirmado' caiga
- *    en la insert de contact_tags (FK a tags.id por UUID). El usuario
- *    debe elegir una etiqueta real antes de activar.
+ *  - Ningún paso `add_tag`: las plantillas NO etiquetan al contacto por
+ *    defecto. Antes cada receta sembraba un `add_tag` con `tag_id: ''`
+ *    que obligaba al merchant a elegir una etiqueta antes de activar;
+ *    eso generaba confusión y un catálogo de etiquetas inflado. Si el
+ *    merchant quiere etiquetar, agrega el paso a mano en el editor.
  *
  * El editor surfacea el `suggested_template_body` como pista para que
  * el merchant registre el template en Meta con el cuerpo correcto.
@@ -107,13 +109,6 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
-      {
-        // tag_id is left blank so validate.ts blocks activation until
-        // the user picks a real tag. The slug 'carrito-recuperacion' is
-        // a hint for what to call it.
-        step_type: 'add_tag',
-        step_config: { tag_id: '' },
-      },
     ],
   },
 
@@ -134,11 +129,6 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
-      {
-        // slug 'pedido-confirmado' as guidance.
-        step_type: 'add_tag',
-        step_config: { tag_id: '' },
-      },
     ],
   },
 
@@ -158,11 +148,6 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
-      },
-      {
-        // slug 'pedido-despachado' as guidance.
-        step_type: 'add_tag',
-        step_config: { tag_id: '' },
       },
     ],
   },
@@ -189,11 +174,6 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
-      {
-        // slug 'feedback-pedido' as guidance.
-        step_type: 'add_tag',
-        step_config: { tag_id: '' },
-      },
     ],
   },
 
@@ -216,11 +196,6 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
-      },
-      {
-        // slug 'recompra-recordatorio' as guidance.
-        step_type: 'add_tag',
-        step_config: { tag_id: '' },
       },
     ],
   },

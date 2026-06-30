@@ -369,7 +369,7 @@ export const automations = {
   whichOffer: { es: "Qué oferta", en: "Which offer" },
   chooseOffer: { es: "Elige una oferta…", en: "Choose an offer…" },
   offerChosenNoOffersHint: {
-    es: "No hay ofertas configuradas. Definí las unidades de cada oferta en la sección Productos, o escribí la etiqueta exacta.",
+    es: "No hay ofertas configuradas. Define las unidades de cada oferta en la sección Productos, o escribe la etiqueta exacta.",
     en: "No offers configured yet. Set the units for each offer in the Products section, or type the exact label.",
   },
 

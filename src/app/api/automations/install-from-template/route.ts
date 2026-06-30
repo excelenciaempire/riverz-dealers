@@ -19,12 +19,13 @@ import { translate } from '@/lib/i18n/translate'
 // The /automatizaciones gallery cards hit this endpoint when the user
 // clicks "Usar plantilla": we create the automation row + its step
 // tree, return the new automation id, and the UI redirects the user
-// straight to the editor where they fill in the template_name / tag_id
-// placeholders before activating.
+// straight to the editor where they fill in the template_name
+// placeholder before activating.
 //
 // All automations land as is_active=false on purpose — activation
 // would fail the validate.ts gate anyway since the template seeds
-// leave template_name and tag_id empty.
+// leave template_name empty. Templates no longer seed an add_tag step,
+// so there's no tag_id placeholder to fill.
 // ------------------------------------------------------------
 
 export async function POST(request: Request) {

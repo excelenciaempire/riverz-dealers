@@ -192,7 +192,7 @@ export const settings = {
     en: "API secret key",
   },
   shopifyTokenMissingFields: {
-    es: "Completá dominio, token y API secret key.",
+    es: "Completa el dominio, el token y la API secret key.",
     en: "Fill in the domain, token and API secret key.",
   },
   shopifyConnectedViaToken: { es: "vía custom app", en: "via custom app" },

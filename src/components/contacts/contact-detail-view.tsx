@@ -31,6 +31,7 @@ import {
   Plus,
   Trash2,
   Save,
+  Tag,
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -355,6 +356,35 @@ export function ContactDetailView({
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
+                  {(contact.last_offer_chosen || contact.last_offer_units) && (
+                    <div className="space-y-1 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-accent-ink">
+                        <Tag className="size-3.5" />
+                        {t('contacts.lastOfferTitle')}
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {[
+                          contact.last_offer_chosen || t('contacts.lastOfferNoLabel'),
+                          contact.last_offer_units
+                            ? t('contacts.lastOfferUnits', {
+                                n: contact.last_offer_units,
+                              })
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                      {contact.last_offer_at && (
+                        <p className="text-xs text-muted-foreground">
+                          {fmt.date(contact.last_offer_at, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('contacts.fieldName')}</Label>
                     <Input

@@ -470,6 +470,14 @@ export default function ProductDetailPage() {
           }
         >
           <div className="space-y-2">
+            {offers.length > 0 && (
+              <div className="flex items-center gap-2 px-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="flex-1">{t('products.offerName')}</span>
+                <span className="w-16 text-center sm:w-20">{t('products.units')}</span>
+                <span className="w-28 sm:w-40">{t('products.offerPrice')}</span>
+                <span className="w-7" />
+              </div>
+            )}
             {offers.map((o, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <Input
@@ -479,6 +487,8 @@ export default function ProductDetailPage() {
                       cur.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)),
                     )
                   }
+                  placeholder={t('products.offerNamePlaceholder')}
+                  aria-label={t('products.offerName')}
                   className="h-10 flex-1 bg-card"
                 />
                 <div className="relative w-16 sm:w-20">
@@ -514,6 +524,7 @@ export default function ProductDetailPage() {
                       )
                     }
                     inputMode="decimal"
+                    aria-label={t('products.offerPrice')}
                     className="h-10 bg-card pl-7 tabular-nums"
                   />
                 </div>
