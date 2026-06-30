@@ -248,6 +248,11 @@ export async function GET(request: Request) {
       shopName,
       accessToken: access_token,
       scope,
+      // Mark the connection authoritatively as OAuth so webhook verification
+      // uses the global secret even if this shop was previously admin_token
+      // (the leftover per-store webhook_secret is then ignored by
+      // resolveShopWebhookSecret, which keys off connection_method).
+      connectionMethod: 'oauth',
     })
 
     // 7. Register webhooks (abandoned checkout + app/uninstalled).

@@ -171,6 +171,31 @@ export const settings = {
   },
   addAnotherStore: { es: "Añadir otra tienda", en: "Add another store" },
   missingCredentials: { es: "Faltan credenciales", en: "Missing credentials" },
+  shopifyConnectToken: {
+    es: "Conectar con token (custom app)",
+    en: "Connect with token (custom app)",
+  },
+  shopifyUseTokenLink: {
+    es: "o usar token de custom app",
+    en: "or use a custom-app token",
+  },
+  shopifyTokenGuide: {
+    es: "En tu Shopify Admin → Configuración → Apps → Desarrollar apps: creá una app con permisos de lectura/escritura de pedidos, clientes y productos, instalala y copiá el Admin API access token + la API secret key.",
+    en: "In your Shopify Admin → Settings → Apps → Develop apps: create an app with read/write access to orders, customers and products, install it, and copy the Admin API access token + the API secret key.",
+  },
+  shopifyTokenAccessPlaceholder: {
+    es: "Admin API access token (shpat_…)",
+    en: "Admin API access token (shpat_…)",
+  },
+  shopifyTokenSecretPlaceholder: {
+    es: "API secret key",
+    en: "API secret key",
+  },
+  shopifyTokenMissingFields: {
+    es: "Completá dominio, token y API secret key.",
+    en: "Fill in the domain, token and API secret key.",
+  },
+  shopifyConnectedViaToken: { es: "vía custom app", en: "via custom app" },
 
   // WhatsApp embedded signup
   whatsappAccountNotReceived: {

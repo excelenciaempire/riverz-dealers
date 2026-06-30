@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import {
@@ -43,14 +43,13 @@ import type {
  * are verified and acknowledged but not dispatched.
  */
 export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) {
-    return NextResponse.json({ error: 'not configured' }, { status: 503 })
-  }
-
   const rawBody = await request.text()
   const hmac = request.headers.get('x-shopify-hmac-sha256')
-  if (!verifyWebhookHmac(rawBody, hmac, apiSecret)) {
+  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody)
+  if (verdict === 'unconfigured') {
+    return NextResponse.json({ error: 'not configured' }, { status: 503 })
+  }
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
 

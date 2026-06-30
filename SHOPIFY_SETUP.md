@@ -4,6 +4,17 @@ Permite disparar automatizaciones de WhatsApp desde eventos de Shopify
 (carrito abandonado). Clonado del patrón del app Riverz, adaptado a este
 proyecto (auth de Supabase, cifrado AES-256-GCM existente).
 
+Hay **dos formas de conectar**:
+
+- **A) Custom app (token)** — el merchant crea una app en SU PROPIO Shopify
+  Admin y pega el token + API secret key. **Sin App Store, sin review.** Ideal
+  para onboardear pocos merchants high-ticket de forma white-glove. Cada
+  conexión es self-contained por workspace (no usa `SHOPIFY_API_KEY`). Ver
+  sección **7**.
+- **B) OAuth (app global)** — un único Partner app con `SHOPIFY_API_KEY/SECRET`.
+  Para self-serve a escala hay que listarla en el App Store (review). Ver
+  secciones **1–6**.
+
 ## 1. Crear la app en el Partner Dashboard de Shopify
 
 1. https://partners.shopify.com → **Apps** → **Create app** → **Create app manually**.
@@ -42,6 +53,34 @@ los webhooks). El token se cifra con `ENCRYPTION_KEY` (ya configurada).
 
 Ajustes → Canales → tarjeta **Shopify** → escribe `tu-tienda.myshopify.com` →
 **Conectar**. Tras aceptar permisos vuelves a Ajustes con la tienda conectada.
+
+## 7. Opción A — Conectar con custom app (token), sin App Store
+
+Para cada merchant (script white-glove). En **su** Shopify Admin:
+
+1. **Configuración** → **Apps y canales de venta** → **Desarrollar apps** →
+   **Crear app** (nombre: p. ej. "Riverz").
+2. **Configuración de Admin API** → otorgar EXACTAMENTE estos scopes:
+   `read_orders, write_orders, read_checkouts, read_customers, read_products`.
+   (Sin `write_orders` la IA no puede crear pedidos; sin los `read_*` no llegan
+   los webhooks de carrito/pedido.)
+3. **Instalar app**.
+4. Copiar de **Credenciales de API**:
+   - **Admin API access token** (empieza con `shpat_…`, se muestra una sola vez).
+   - **API secret key** (la usa Riverz para verificar la firma HMAC de los
+     webhooks de ESA tienda).
+5. En Riverz: **Ajustes → Canales → Shopify → "Conectar con token (custom app)"**
+   → pegar dominio (`tienda.myshopify.com`) + token + API secret key → **Conectar**.
+
+Riverz valida el token contra `/shop.json`, persiste la conexión cifrada
+(`connection_method='admin_token'`, `webhook_secret` cifrado), registra los
+webhooks (checkout/order/uninstall) y sincroniza el catálogo. **No requiere
+`SHOPIFY_API_KEY` en el servidor** — funciona aunque la app global no esté
+configurada. Los webhooks GDPR no aplican en este modo (son solo para apps del
+App Store).
+
+Migración asociada: `087_shopify_admin_token.sql` (columnas `webhook_secret` +
+`connection_method`). Aplicar vía Management API antes de usar este path.
 
 ## 6. Flujo de carrito abandonado
 

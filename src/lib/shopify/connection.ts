@@ -12,6 +12,8 @@ export interface ShopifyConnectionRow {
   status: 'active' | 'uninstalled' | 'expired' | 'error'
   installed_at: string | null
   uninstalled_at: string | null
+  /** 'oauth' = global OAuth app; 'admin_token' = per-store custom app. */
+  connection_method: 'oauth' | 'admin_token'
 }
 
 /**
@@ -31,25 +33,39 @@ export async function persistShopifyConnection(
     shopName?: string | null
     accessToken: string
     scope?: string | null
+    /**
+     * Per-store custom app's API secret key (admin-token path), used to
+     * HMAC-verify that store's webhooks. Encrypted before persisting.
+     * Omit for the OAuth path (webhooks verify against SHOPIFY_API_SECRET).
+     */
+    webhookSecret?: string | null
+    connectionMethod?: 'oauth' | 'admin_token'
   },
 ): Promise<{ id: string }> {
+  // Only set webhook_secret / connection_method when provided, so an OAuth
+  // reconnect never wipes a prior admin-token connection's per-store secret
+  // (PostgREST upsert merges — columns absent from the payload keep their
+  // existing values).
+  const row: Record<string, unknown> = {
+    user_id: args.userId,
+    workspace_id: args.workspaceId,
+    shop_domain: args.shopDomain,
+    shop_name: args.shopName ?? null,
+    access_token: encrypt(args.accessToken),
+    scope: args.scope ?? null,
+    status: 'active',
+    last_error: null,
+    installed_at: new Date().toISOString(),
+    uninstalled_at: null,
+  }
+  if (args.connectionMethod) row.connection_method = args.connectionMethod
+  if (args.webhookSecret != null) {
+    row.webhook_secret = encrypt(args.webhookSecret)
+  }
+
   const { data, error } = await db
     .from('shopify_connections')
-    .upsert(
-      {
-        user_id: args.userId,
-        workspace_id: args.workspaceId,
-        shop_domain: args.shopDomain,
-        shop_name: args.shopName ?? null,
-        access_token: encrypt(args.accessToken),
-        scope: args.scope ?? null,
-        status: 'active',
-        last_error: null,
-        installed_at: new Date().toISOString(),
-        uninstalled_at: null,
-      },
-      { onConflict: 'user_id,shop_domain' },
-    )
+    .upsert(row, { onConflict: 'user_id,shop_domain' })
     .select('id')
     .single()
 
@@ -88,6 +104,65 @@ export async function getConnectionByShop(
 }
 
 /**
+ * How an incoming webhook for a given shop must be authenticated:
+ *  - per_store:   verify against this decrypted per-store secret (the
+ *    custom app's API secret key).
+ *  - global:      verify against process.env.SHOPIFY_API_SECRET (the global
+ *    OAuth app, or an unknown shop).
+ *  - fail_closed: the shop's newest connection is admin_token but its
+ *    per-store secret is missing/undecryptable. We must NOT silently fall
+ *    back to the global secret (that would move the trust boundary back to
+ *    the shared authority), so the caller rejects (503) until it's fixed.
+ */
+export type ShopWebhookSecret =
+  | { mode: 'per_store'; secret: string }
+  | { mode: 'global' }
+  | { mode: 'fail_closed' }
+
+/**
+ * Resolve which secret verifies an incoming webhook for `shopDomain`.
+ *
+ * The NEWEST connection row is authoritative about which app currently
+ * signs the shop's webhooks, so we read it directly by `installed_at DESC`
+ * (NOT filtered by `webhook_secret IS NOT NULL`) — otherwise a stale
+ * admin_token row could shadow a newer OAuth reconnect and 401 its
+ * legitimate deliveries. `connection_method` decides the mode, so a leftover
+ * `webhook_secret` on a row that's now OAuth is correctly ignored.
+ *
+ * NOT filtered by status: shop/redact and app/uninstalled arrive after the
+ * connection is flipped to 'uninstalled', and we still need the secret to
+ * verify them. Requires a service-role client — `webhook_secret` is
+ * column-locked from the cookie client (migration 078/087).
+ */
+export async function resolveShopWebhookSecret(
+  db: SupabaseClient,
+  shopDomain: string,
+): Promise<ShopWebhookSecret> {
+  const { data } = await db
+    .from('shopify_connections')
+    .select('connection_method, webhook_secret')
+    .eq('shop_domain', shopDomain)
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const row = data as
+    | { connection_method?: string | null; webhook_secret?: string | null }
+    | null
+  if (!row) return { mode: 'global' }
+  if (row.connection_method === 'admin_token') {
+    if (!row.webhook_secret) return { mode: 'fail_closed' }
+    try {
+      return { mode: 'per_store', secret: decrypt(row.webhook_secret) }
+    } catch {
+      // Undecryptable per-store secret (ENCRYPTION_KEY rotation / corrupt
+      // write): fail closed rather than fall back to the global authority.
+      return { mode: 'fail_closed' }
+    }
+  }
+  return { mode: 'global' }
+}
+
+/**
  * The active connection for a workspace (Settings card path).
  *
  * Prefers a deterministic workspace_id match (migration 055). Falls back
@@ -101,7 +176,7 @@ export async function getConnectionForWorkspace(
   const { data } = await db
     .from('shopify_connections')
     .select(
-      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at',
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
     )
     .eq('workspace_id', workspaceId)
     .order('installed_at', { ascending: false })
@@ -123,7 +198,7 @@ export async function getConnectionForUser(
   const { data } = await db
     .from('shopify_connections')
     .select(
-      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at',
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
     )
     .eq('user_id', userId)
     .order('installed_at', { ascending: false })

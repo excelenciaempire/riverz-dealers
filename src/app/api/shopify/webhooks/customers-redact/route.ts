@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -30,19 +30,12 @@ const log = getLogger('shopify.gdpr.customers-redact')
  * Fail-CLOSED: missing SHOPIFY_API_SECRET → 503, never accept unverified.
  */
 export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) {
+  const rawBody = await request.text()
+  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody)
+  if (verdict === 'unconfigured') {
     return new NextResponse('Webhook not configured', { status: 503 })
   }
-
-  const rawBody = await request.text()
-  if (
-    !verifyWebhookHmac(
-      rawBody,
-      request.headers.get('x-shopify-hmac-sha256'),
-      apiSecret,
-    )
-  ) {
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
 

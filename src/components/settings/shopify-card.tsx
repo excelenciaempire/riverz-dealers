@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertCircle, CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
+import { CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -13,13 +13,22 @@ interface ShopifyConnection {
   shop_domain: string;
   shop_name: string | null;
   status: string;
+  connection_method?: 'oauth' | 'admin_token';
 }
+
+type Mode = 'idle' | 'oauth' | 'token';
 
 /**
  * Settings → Canales card for Shopify. Matches the per-platform card
  * layout used in channels-panel.tsx (logo chip + label + description,
  * connection rows below, action button at the bottom) so the row of
  * cards reads as a single uniform grid no matter the provider.
+ *
+ * Two connect paths:
+ *  - OAuth (global app): only when the server has SHOPIFY_API_KEY set.
+ *  - Custom-app token: always available. The merchant creates a custom app
+ *    in their own Shopify admin and pastes the Admin API token + API secret
+ *    key — no App Store review, fully self-contained per workspace.
  */
 export function ShopifyCard() {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -29,7 +38,13 @@ export function ShopifyCard() {
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
   const [shop, setShop] = useState('');
   const [disconnecting, setDisconnecting] = useState(false);
-  const [showInput, setShowInput] = useState(false);
+  const [mode, setMode] = useState<Mode>('idle');
+
+  // Token (custom app) form
+  const [tokenShop, setTokenShop] = useState('');
+  const [tokenAccess, setTokenAccess] = useState('');
+  const [tokenSecret, setTokenSecret] = useState('');
+  const [connectingToken, setConnectingToken] = useState(false);
 
   useEffect(() => {
     void load();
@@ -62,6 +77,45 @@ export function ShopifyCard() {
       return;
     }
     window.location.href = `/api/shopify/install?shop=${encodeURIComponent(trimmed)}`;
+  }
+
+  async function handleTokenConnect() {
+    if (!tokenShop.trim() || !tokenAccess.trim() || !tokenSecret.trim()) {
+      toast.error(t('settings.shopifyTokenMissingFields'));
+      return;
+    }
+    setConnectingToken(true);
+    try {
+      const res = await fetchWithCsrf('/api/shopify/connect-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shop: tokenShop.trim(),
+          accessToken: tokenAccess.trim(),
+          apiSecret: tokenSecret.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? t('settings.shopifyConnectError', { reason: 'token' }));
+        return;
+      }
+      toast.success(t('settings.shopifyConnected'));
+      setConnection({
+        shop_domain: data.shop_domain,
+        shop_name: data.shop_name ?? null,
+        status: 'active',
+        connection_method: 'admin_token',
+      });
+      setMode('idle');
+      setTokenShop('');
+      setTokenAccess('');
+      setTokenSecret('');
+    } catch {
+      toast.error(t('settings.shopifyConnectError', { reason: 'token' }));
+    } finally {
+      setConnectingToken(false);
+    }
   }
 
   async function handleDisconnect() {
@@ -106,16 +160,17 @@ export function ShopifyCard() {
         <div className="flex items-center justify-center py-3">
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
-      ) : !configured ? (
-        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-          {t('settings.shopifyMissingCredentials')}
-        </p>
       ) : isConnected ? (
         <ul className="space-y-1">
           <li className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="flex-1 truncate text-xs text-foreground">
               {connection?.shop_name || connection?.shop_domain}
+              {connection?.connection_method === 'admin_token' && (
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  ({t('settings.shopifyConnectedViaToken')})
+                </span>
+              )}
             </span>
             <button
               onClick={handleDisconnect}
@@ -133,9 +188,9 @@ export function ShopifyCard() {
         </ul>
       ) : null}
 
-      {configured && (!isConnected || showInput) && (
+      {!isConnected && (
         <div className="mt-auto space-y-2">
-          {showInput ? (
+          {mode === 'oauth' && configured ? (
             <>
               <Input
                 placeholder={t('settings.shopifyDomainPlaceholder')}
@@ -151,7 +206,49 @@ export function ShopifyCard() {
                   {t('common.connect')}
                 </button>
                 <button
-                  onClick={() => setShowInput(false)}
+                  onClick={() => setMode('idle')}
+                  className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </>
+          ) : mode === 'token' ? (
+            <>
+              <p className="rounded-md bg-muted/50 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                {t('settings.shopifyTokenGuide')}
+              </p>
+              <Input
+                placeholder={t('settings.shopifyDomainPlaceholder')}
+                value={tokenShop}
+                onChange={(e) => setTokenShop(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <Input
+                type="password"
+                placeholder={t('settings.shopifyTokenAccessPlaceholder')}
+                value={tokenAccess}
+                onChange={(e) => setTokenAccess(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <Input
+                type="password"
+                placeholder={t('settings.shopifyTokenSecretPlaceholder')}
+                value={tokenSecret}
+                onChange={(e) => setTokenSecret(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTokenConnect}
+                  disabled={connectingToken}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {connectingToken && <Loader2 className="size-3.5 animate-spin" />}
+                  {t('common.connect')}
+                </button>
+                <button
+                  onClick={() => setMode('idle')}
                   className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
                 >
                   {t('common.cancel')}
@@ -159,25 +256,34 @@ export function ShopifyCard() {
               </div>
             </>
           ) : (
-            <button
-              onClick={() => setShowInput(true)}
-              className={cn(
-                'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isConnected
-                  ? 'border border-border bg-muted/50 text-foreground hover:bg-accent'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90',
-              )}
-            >
-              <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
-              {isConnected ? t('settings.addAnotherStore') : t('common.connect')}
-            </button>
+            <>
+              {configured ? (
+                <button
+                  onClick={() => setMode('oauth')}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
+                  {t('common.connect')}
+                </button>
+              ) : null}
+              <button
+                onClick={() => setMode('token')}
+                className={cn(
+                  'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  configured
+                    ? 'text-[11px] text-muted-foreground hover:text-foreground'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                )}
+              >
+                {!configured && (
+                  <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
+                )}
+                {configured
+                  ? t('settings.shopifyUseTokenLink')
+                  : t('settings.shopifyConnectToken')}
+              </button>
+            </>
           )}
-        </div>
-      )}
-      {!configured && (
-        <div className="mt-auto inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          <AlertCircle className="size-3.5" />
-          {t('settings.missingCredentials')}
         </div>
       )}
     </li>

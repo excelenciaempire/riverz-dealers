@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 
 /**
  * Shared handler for Shopify's three mandatory GDPR webhooks
@@ -9,21 +10,15 @@ import { verifyWebhookHmac } from '@/lib/shopify/oauth'
  * HMAC-verify and return 2xx within 5s or Shopify flags the app.
  */
 export async function handleGdprWebhook(request: Request): Promise<NextResponse> {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  // Fail-closed: si falta el secreto, NO aceptar ciegamente (503) — igual que
-  // orders/checkouts. Devolver 200 sin verificar convertiría una
-  // desconfiguración en un endpoint sin auth.
-  if (!apiSecret) {
+  const rawBody = await request.text()
+  // Fail-closed: si falta el secreto (por-tienda o global), NO aceptar
+  // ciegamente (503) — igual que orders/checkouts. Devolver 200 sin verificar
+  // convertiría una desconfiguración en un endpoint sin auth.
+  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody)
+  if (verdict === 'unconfigured') {
     return new NextResponse('Webhook not configured', { status: 503 })
   }
-  const rawBody = await request.text()
-  if (
-    !verifyWebhookHmac(
-      rawBody,
-      request.headers.get('x-shopify-hmac-sha256'),
-      apiSecret,
-    )
-  ) {
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
   return NextResponse.json({ ok: true })

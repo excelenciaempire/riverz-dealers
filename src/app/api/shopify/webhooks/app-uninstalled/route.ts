@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 
 /**
  * Shopify fires this when the merchant uninstalls the app — the access
  * token is now invalid, so flip the connection to 'uninstalled'.
  */
 export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  // Fail-closed: sin secreto no verificamos firma, así que rechazamos (503)
-  // en vez de aceptar y marcar conexiones como 'uninstalled' sin auth.
-  if (!apiSecret) {
+  const rawBody = await request.text()
+  const admin = supabaseAdmin()
+  // Fail-closed: sin secreto (ni por-tienda ni global) no verificamos firma,
+  // así que rechazamos (503) en vez de marcar conexiones 'uninstalled' sin auth.
+  const verdict = await verifyShopifyWebhook(admin, request, rawBody)
+  if (verdict === 'unconfigured') {
     return new NextResponse('Webhook not configured', { status: 503 })
   }
-
-  const rawBody = await request.text()
-  if (!verifyWebhookHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'), apiSecret)) {
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
 
   const shopDomain = request.headers.get('x-shopify-shop-domain')
   if (shopDomain) {
-    await supabaseAdmin()
+    await admin
       .from('shopify_connections')
       .update({
         status: 'uninstalled',

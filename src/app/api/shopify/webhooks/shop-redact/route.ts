@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.gdpr.shop-redact')
@@ -19,19 +19,15 @@ const log = getLogger('shopify.gdpr.shop-redact')
  * unauthenticated request.
  */
 export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) {
+  const admin = supabaseAdmin()
+  const rawBody = await request.text()
+  // Verify (reading the per-store secret, if any) BEFORE the wipe below
+  // deletes the connection that carries it.
+  const verdict = await verifyShopifyWebhook(admin, request, rawBody)
+  if (verdict === 'unconfigured') {
     return new NextResponse('Webhook not configured', { status: 503 })
   }
-
-  const rawBody = await request.text()
-  if (
-    !verifyWebhookHmac(
-      rawBody,
-      request.headers.get('x-shopify-hmac-sha256'),
-      apiSecret,
-    )
-  ) {
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
 
@@ -39,7 +35,6 @@ export async function POST(request: Request) {
   if (!shopDomain) return NextResponse.json({ ok: true })
 
   try {
-    const admin = supabaseAdmin()
 
     // Drop the connection first — it carries the encrypted token, the most
     // sensitive shop-scoped secret we hold.

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { verifyWebhookHmac } from '@/lib/shopify/oauth'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.gdpr.customers-data-request')
@@ -21,19 +22,12 @@ const log = getLogger('shopify.gdpr.customers-data-request')
  * request — same posture as the orders/checkouts receivers.
  */
 export async function POST(request: Request) {
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiSecret) {
+  const rawBody = await request.text()
+  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody)
+  if (verdict === 'unconfigured') {
     return new NextResponse('Webhook not configured', { status: 503 })
   }
-
-  const rawBody = await request.text()
-  if (
-    !verifyWebhookHmac(
-      rawBody,
-      request.headers.get('x-shopify-hmac-sha256'),
-      apiSecret,
-    )
-  ) {
+  if (verdict === 'invalid') {
     return new NextResponse('Invalid HMAC', { status: 401 })
   }
 

@@ -126,4 +126,14 @@ export const errProducts = {
     es: "No se encontró un workspace para tu usuario.",
     en: "No workspace was found for your user.",
   },
+
+  // --- /api/shopify/connect-token (custom app, admin-token path) ---
+  shopifyMissingTokenFields: {
+    es: "Faltan datos: dominio, token de Admin API y API secret key.",
+    en: "Missing fields: store domain, Admin API token and API secret key.",
+  },
+  shopifyTokenInvalid: {
+    es: "El token no funcionó con esa tienda. Verificá el dominio y que el token tenga los permisos (read/write de pedidos, clientes y productos).",
+    en: "The token didn't work for that store. Check the domain and that the token has the right scopes (read/write orders, customers, products).",
+  },
 } satisfies Namespace;
