@@ -112,11 +112,17 @@ export function shopifyCategoryTagNames(input: ShopifyCategoryInput): string[] {
   else if (input.ordersCount >= 1) tags.push('comprador')
   if (input.isAbandoned && input.ordersCount === 0) tags.push('carrito-abandonado')
 
-  const offer = (input.offerLabel ?? '').trim()
-  if (offer) tags.push(`oferta: ${offer}`)
-
-  const units = Number(input.units) || 0
-  if (units > 0) tags.push(`unidades: ${unitsBucket(units)}`)
+  // Offer OR units — never both. The offer label already encodes the quantity
+  // ("2 unidades + 1 gratis"), so a separate "unidades: 2-3" is redundant; we
+  // only bucket units when there is NO specific offer. Lowercase the offer so
+  // casing variants ("2 Unidades + 1 GRATIS") don't create duplicate tags.
+  const offer = (input.offerLabel ?? '').trim().toLowerCase()
+  if (offer) {
+    tags.push(`oferta: ${offer}`)
+  } else {
+    const units = Number(input.units) || 0
+    if (units > 0) tags.push(`unidades: ${unitsBucket(units)}`)
+  }
   return tags
 }
 

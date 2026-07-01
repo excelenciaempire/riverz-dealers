@@ -45,14 +45,16 @@ export function extractShopifyPhone(payload: Record<string, unknown>): string | 
 }
 
 /**
- * Pull the customer's display name out of a Shopify payload. Falls back to
- * the order/checkout name (e.g. "#1042") so messages aren't impersonal when
- * the buyer checks out as guest.
+ * Pull the customer's display name out of a Shopify payload: first + last name.
+ * When the buyer checked out as a guest with no name, returns undefined so the
+ * contact keeps a null name and the UI shows the phone — better than falling
+ * back to the order/checkout id, which on abandoned checkouts is a giant numeric
+ * ref ("#38443325718628") that's meaningless to the merchant.
  */
 export function extractShopifyName(payload: Record<string, unknown>): string | undefined {
   const customer = payload.customer as Record<string, unknown> | undefined
   const composed = [customer?.first_name, customer?.last_name].filter(Boolean).join(' ')
-  return composed || (payload.name as string) || undefined
+  return composed || undefined
 }
 
 /**
