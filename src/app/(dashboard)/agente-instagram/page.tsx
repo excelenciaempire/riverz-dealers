@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
+import { CommentToDmPanel } from '@/components/settings/comment-to-dm-panel';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -587,6 +588,10 @@ export default function InstagramAgentPage() {
 
       {/* DMs proactivos en espera de aprobación (modo approval/hybrid) */}
       <ApprovalsQueue />
+
+      {/* Reglas comentario → DM — antes vivían sueltas en Ajustes; ahora con la
+          funcionalidad a la que pertenecen (comentario de alta intención → DM). */}
+      <CommentToDmPanel />
 
       {/* Mis campañas guardadas */}
       {campaigns.length > 0 && (
