@@ -14,6 +14,7 @@ import {
   maybeInstantOutreach,
   maybeRunCloser,
 } from "@/lib/instagram-agent/realtime";
+import { enrichContactProfile } from "@/lib/instagram-agent/profile-enrich";
 import { processCommentForDmRules } from "@/lib/comment-to-dm/engine";
 
 /**
@@ -295,6 +296,17 @@ export async function ingestInboundEvent(
       }).catch((err) => console.error("[ai] dispatch failed:", err));
 
     if (channel === "instagram") {
+      // A DM makes this person Profile-API-eligible — enrich who they are
+      // (profile-pic vision + follow relationship + follower tier) for
+      // Blueberry-style 1:1 personalization. Fire-and-forget, TTL-guarded,
+      // fail-soft; never blocks the reply.
+      if (contact.external_id) {
+        void enrichContactProfile(db, {
+          contactId: contact.id,
+          igsid: contact.external_id,
+          connection: event.connection,
+        }).catch(() => {});
+      }
       // If this DM is a reply from a live campaign recipient, the campaign
       // closer answers in-context (their offer, code, brand voice) and we
       // suppress the generic assistant so they don't both reply. Otherwise

@@ -142,6 +142,62 @@ async function completeOpenAICompat(
   return (json.choices?.[0]?.message?.content ?? '').trim();
 }
 
+export type ImageMediaType =
+  | 'image/jpeg'
+  | 'image/png'
+  | 'image/gif'
+  | 'image/webp';
+
+/** Normalize an HTTP content-type to a media type the vision API accepts. */
+export function toImageMediaType(contentType: string | null): ImageMediaType {
+  const t = (contentType ?? '').toLowerCase();
+  if (t.includes('png')) return 'image/png';
+  if (t.includes('gif')) return 'image/gif';
+  if (t.includes('webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+/**
+ * One-shot vision description of a single image (Anthropic only — the fallback
+ * providers aren't wired for vision). Used to derive a short, non-sensitive
+ * interest hint from a contact's own profile picture. Requires an Anthropic
+ * key; callers degrade gracefully (no hint) when it's absent or errors.
+ */
+export async function describeImage(o: {
+  base64: string;
+  mediaType: ImageMediaType;
+  system: string;
+  user: string;
+  maxTokens: number;
+  anthropicKey: string;
+}): Promise<string> {
+  const client = getAnthropic(o.anthropicKey);
+  const res = await client.messages.create({
+    model: ANTHROPIC_MODELS.triage,
+    max_tokens: o.maxTokens,
+    thinking: { type: 'disabled' },
+    output_config: { effort: 'low' },
+    system: [{ type: 'text', text: o.system }],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: o.mediaType, data: o.base64 },
+          },
+          { type: 'text', text: o.user },
+        ],
+      },
+    ],
+  });
+  return res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+}
+
 /**
  * Run a single text completion, trying Anthropic first then each configured
  * fallback in priority order. Throws only if EVERY provider fails (or none is

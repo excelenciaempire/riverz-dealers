@@ -9,6 +9,8 @@ import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
 import { resolveIgAgent, needsApproval } from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
+import { loadIgProfile } from './profile-enrich';
+import { resolveIgSegment } from './segment';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -194,6 +196,23 @@ export async function maybeInstantOutreach(
   const agent = await resolveIgAgent(db, opts.workspaceId, campaign.ai_agent_id);
   const brand = await loadBrandContext(db, opts.workspaceId, agent.id);
 
+  // Who they are → segment → tailored tone/offer. Comment-only contacts aren't
+  // Profile-API-eligible yet, so profile is usually null here (segment falls
+  // back to intent); the rich signals kick in once they DM.
+  const profile = await loadIgProfile(db, opts.contact.id).catch(() => null);
+  const segment = resolveIgSegment({
+    followsBusiness: profile?.follows_business,
+    followerCount: profile?.follower_count,
+    isVerified: profile?.is_verified,
+    leadScore,
+  });
+  const personaFields = {
+    personaHint: profile?.persona_hint ?? null,
+    followsBusiness: profile?.follows_business ?? null,
+    isVerified: profile?.is_verified ?? null,
+    segment,
+  };
+
   if (needsApproval(agent.proactive_send_mode, leadScore)) {
     // Human-approval mode: draft the DM and hold it for review. Don't send and
     // don't claim the per-comment reply lock yet — that happens on approval.
@@ -206,6 +225,7 @@ export async function maybeInstantOutreach(
       products: campaign.plan.recommended_products,
       name: opts.contact.name,
       engagement: opts.engagementText,
+      ...personaFields,
     });
     await db
       .from('instagram_campaign_recipients')
@@ -285,6 +305,7 @@ export async function maybeInstantOutreach(
     products: campaign.plan.recommended_products,
     name: opts.contact.name,
     engagement: opts.engagementText,
+    ...personaFields,
   });
 
   try {
@@ -319,6 +340,7 @@ Reglas:
 - Recomienda el producto correcto del contexto (no inventes nada fuera de él).
 - Cierra con su código de descuento (si lo hay) y un siguiente paso claro (el link o "te paso el link").
 - Voz de marca, cálido, natural. Nunca admitas ser IA.
+- Nunca digas ni insinúes que revisaste su perfil o sus fotos; usa cualquier pista solo para el tono. Adapta tono y oferta al segmento.
 - Máximo 480 caracteres, 0 a 2 emojis, UNA sola llamada a la acción.
 - Devuelve SOLO el texto del DM, sin comillas ni explicaciones.`;
 
@@ -331,6 +353,9 @@ async function generateCloserReply(input: {
   name: string | null;
   inbound: string | null;
   leadScore: LeadScore | null;
+  personaHint?: string | null;
+  followsBusiness?: boolean | null;
+  segment?: { label: string; toneHint: string; offerHint: string } | null;
 }): Promise<string | null> {
   const first = (input.name ?? '').trim().split(/\s+/)[0] || null;
   const userPrompt = [
@@ -343,7 +368,16 @@ async function generateCloserReply(input: {
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',
     `PRIMER DM QUE LE ENVIAMOS (contexto): ${input.plan.message.text}`,
+    input.segment
+      ? `SEGMENTO: ${input.segment.label} → tono: ${input.segment.toneHint}; oferta: ${input.segment.offerHint}`
+      : '',
     `Nombre: ${first ?? '(desconocido)'}`,
+    input.followsBusiness != null
+      ? `Relación: ${input.followsBusiness ? 'ya te sigue' : 'aún no te sigue'}`
+      : '',
+    input.personaHint
+      ? `Pista de perfil (SOLO para el tono; no digas que viste su perfil): ${input.personaHint}`
+      : '',
     `SU RESPUESTA (responde a esto y cierra): ${
       input.inbound ? `"${input.inbound.slice(0, 500).replace(/\s+/g, ' ').trim()}"` : '(sin texto)'
     }`,
@@ -446,6 +480,14 @@ export async function maybeRunCloser(
     ? { code: rec.discount_code, discount: plan.offer?.discount ?? '' }
     : offerFrom({ plan, offer_code: camp.offer_code });
 
+  // They DM'd → enriched. Segment + persona tune the close.
+  const profile = await loadIgProfile(db, opts.contact.id).catch(() => null);
+  const segment = resolveIgSegment({
+    followsBusiness: profile?.follows_business,
+    followerCount: profile?.follower_count,
+    isVerified: profile?.is_verified,
+    leadScore: rec.lead_score,
+  });
   const reply = await generateCloserReply({
     apiKey,
     plan,
@@ -455,6 +497,9 @@ export async function maybeRunCloser(
     name: opts.contact.name,
     inbound: opts.inboundText,
     leadScore: rec.lead_score,
+    personaHint: profile?.persona_hint ?? null,
+    followsBusiness: profile?.follows_business ?? null,
+    segment,
   });
   if (reply) {
     try {

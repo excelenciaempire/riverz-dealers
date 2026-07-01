@@ -6,6 +6,8 @@ import type { InstagramCampaign } from './types';
 import { loadBrandContext } from './brand-context';
 import { latestInbound, withinMessagingWindow } from './engagement';
 import { craftPersonalizedDM } from './personalize-dm';
+import { loadIgProfile } from './profile-enrich';
+import { resolveIgSegment, type LeadScore } from './segment';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -173,6 +175,14 @@ export async function sendCampaignBatch(
       const recipientOffer = personalCode
         ? { code: personalCode, discount: offer?.discount || (pct ? `${pct}%` : '') }
         : offer;
+      // Who they are (enriched at their first DM) → segment → tailored tone/offer.
+      const profile = await loadIgProfile(db, contact.id).catch(() => null);
+      const segment = resolveIgSegment({
+        followsBusiness: profile?.follows_business,
+        followerCount: profile?.follower_count,
+        isVerified: profile?.is_verified,
+        leadScore: (r.lead_score as LeadScore | null) ?? null,
+      });
       const text = await craftPersonalizedDM({
         apiKey,
         base: campaign.plan.message.text,
@@ -182,6 +192,10 @@ export async function sendCampaignBatch(
         products: campaign.plan.recommended_products,
         name: contact.name,
         engagement: inbound.text,
+        personaHint: profile?.persona_hint ?? null,
+        followsBusiness: profile?.follows_business ?? null,
+        isVerified: profile?.is_verified ?? null,
+        segment,
       });
       return { id: r.id, contact: { id: contact.id, external_id: contact.external_id }, text };
     }),

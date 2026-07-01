@@ -21,6 +21,8 @@ Reglas (estrictas):
 - UNA sola llamada a la acción clara.
 - Si hay un código de descuento, inclúyelo tal cual.
 - No inventes productos, precios ni promesas que no estén en el contexto.
+- NUNCA digas ni insinúes que revisaste su perfil, sus fotos o sus datos; suena a vigilancia. Usa cualquier pista solo para calibrar el tono, no la menciones.
+- Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
 - Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.`;
 
 export interface CraftDMInput {
@@ -34,6 +36,14 @@ export interface CraftDMInput {
   name: string | null;
   /** Lo que la persona escribió (comentario/DM de origen). */
   engagement: string | null;
+  /** Pista de interés no sensible derivada de su foto de perfil (o null). */
+  personaHint?: string | null;
+  /** Relación de audiencia propia: ¿ya te sigue? */
+  followsBusiness?: boolean | null;
+  /** ¿Cuenta verificada / figura pública? */
+  isVerified?: boolean | null;
+  /** Clase de público (tono + oferta por segmento). */
+  segment?: { label: string; toneHint: string; offerHint: string } | null;
 }
 
 /**
@@ -55,10 +65,14 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
   };
 
   const brief = brandBrief(input.brand);
-  // Nothing to personalize on (no brand voice and no engagement) → the LLM
-  // would add little over the name-merge; skip the call and the cost. Also
-  // skip when no provider at all is configured (Anthropic or a fallback).
-  if (!hasLlm(input.apiKey) || (!brief && !input.engagement)) return fallback();
+  // Nothing to personalize on (no brand voice, no engagement, no persona hint)
+  // → the LLM would add little over the name-merge; skip the call and the cost.
+  // Also skip when no provider at all is configured (Anthropic or a fallback).
+  if (
+    !hasLlm(input.apiKey) ||
+    (!brief && !input.engagement && !input.personaHint)
+  )
+    return fallback();
 
   const first = (input.name ?? '').trim().split(/\s+/)[0] || null;
   const userPrompt = [
@@ -69,11 +83,21 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',
+    input.segment
+      ? `SEGMENTO: ${input.segment.label} → tono: ${input.segment.toneHint}; oferta: ${input.segment.offerHint}`
+      : '',
     'PERSONA:',
     `- Nombre: ${first ?? '(desconocido)'}`,
+    input.followsBusiness != null
+      ? `- Relación: ${input.followsBusiness ? 'ya te sigue' : 'aún no te sigue'}`
+      : '',
+    input.isVerified ? '- Cuenta verificada / figura pública' : '',
     `- Su interacción reciente (respóndele a esto de forma personal): ${
       input.engagement ? `"${input.engagement.slice(0, 400).replace(/\s+/g, ' ').trim()}"` : '(sin texto, sé cálido y genérico)'
     }`,
+    input.personaHint
+      ? `- Pista de perfil (SOLO para calibrar el tono; NO afirmes hechos sobre su vida ni digas que viste su perfil): ${input.personaHint}`
+      : '',
     '',
     'Escribe el DM para ESTA persona.',
   ]
