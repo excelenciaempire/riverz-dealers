@@ -7,6 +7,8 @@ import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
+import { resolveIgAgent, needsApproval } from './agent-link';
+import { claimCommentPrivateReply } from './private-reply-lock';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -36,6 +38,8 @@ interface ActiveCampaign {
   offer_code: string | null;
   shopify_price_rule_id: number | null;
   holdout_pct: number;
+  /** The linked agent (brand voice + automation mode); null = freshest active. */
+  ai_agent_id: string | null;
 }
 
 type ContactLite = { id: string; external_id: string | null; name: string | null };
@@ -46,7 +50,7 @@ async function newestActiveCampaign(
 ): Promise<ActiveCampaign | null> {
   const { data } = await db
     .from('instagram_campaigns')
-    .select('id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, holdout_pct')
+    .select('id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, holdout_pct, ai_agent_id')
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
     .order('launched_at', { ascending: false })
@@ -129,6 +133,9 @@ export async function maybeInstantOutreach(
         contact_id: opts.contact.id,
         source_external_id: opts.contact.external_id,
         source_post_id: opts.sourcePostId ?? null,
+        // Keep the comment id so an approval can still be delivered as a
+        // private reply (Meta allows one per comment within ~7 days).
+        source_comment_id: opts.commentId ?? null,
         status: 'queued',
         is_holdout: isHoldout,
       },
@@ -180,7 +187,52 @@ export async function maybeInstantOutreach(
       /* proceed unscored */
     }
   }
-  void leadScore;
+  // Automation level of the linked agent (their in-app setting): auto |
+  // hybrid_intent | approval — always within Meta policy, this decides whether
+  // the DM goes out now or waits for a human. Brand voice comes from the SAME
+  // linked agent, so proactive copy matches the reactive assistant.
+  const agent = await resolveIgAgent(db, opts.workspaceId, campaign.ai_agent_id);
+  const brand = await loadBrandContext(db, opts.workspaceId, agent.id);
+
+  if (needsApproval(agent.proactive_send_mode, leadScore)) {
+    // Human-approval mode: draft the DM and hold it for review. Don't send and
+    // don't claim the per-comment reply lock yet — that happens on approval.
+    const draft = await craftPersonalizedDM({
+      apiKey,
+      base: campaign.plan.message.text,
+      brand,
+      goal: campaign.goal,
+      offer: offerFrom(campaign),
+      products: campaign.plan.recommended_products,
+      name: opts.contact.name,
+      engagement: opts.engagementText,
+    });
+    await db
+      .from('instagram_campaign_recipients')
+      .update({ status: 'pending_review', draft_text: draft })
+      .eq('id', recipientId)
+      .eq('status', 'queued');
+    return;
+  }
+
+  // Auto mode. One private reply per comment across BOTH systems: claim the
+  // shared lock first; if the comment-to-DM engine already replied, skip.
+  if (opts.commentId) {
+    const won = await claimCommentPrivateReply(
+      db,
+      opts.workspaceId,
+      opts.commentId,
+      'campaign',
+    );
+    if (!won) {
+      await db
+        .from('instagram_campaign_recipients')
+        .update({ status: 'skipped', error: 'comment ya respondido' })
+        .eq('id', recipientId)
+        .eq('status', 'queued');
+      return;
+    }
+  }
 
   // Claim atomically so the cron worker can't also send this row.
   const { data: claimed } = await db
@@ -224,7 +276,6 @@ export async function maybeInstantOutreach(
     }
   }
 
-  const brand = await loadBrandContext(db, opts.workspaceId);
   const text = await craftPersonalizedDM({
     apiKey,
     base: campaign.plan.message.text,
@@ -359,11 +410,18 @@ export async function maybeRunCloser(
 
   const { data: campRow } = await db
     .from('instagram_campaigns')
-    .select('id, status, goal, plan, offer_code')
+    .select('id, status, goal, plan, offer_code, ai_agent_id')
     .eq('id', rec.campaign_id)
     .maybeSingle();
   const camp = campRow as
-    | { id: string; status: string; goal: string | null; plan: unknown; offer_code: string | null }
+    | {
+        id: string;
+        status: string;
+        goal: string | null;
+        plan: unknown;
+        offer_code: string | null;
+        ai_agent_id: string | null;
+      }
     | null;
   if (!camp || camp.status !== 'active') return false;
   const plan = coercePlan(camp.plan);
@@ -383,7 +441,7 @@ export async function maybeRunCloser(
     .update({ status: 'replied', replied_at: new Date().toISOString() })
     .eq('id', rec.id);
 
-  const brand = await loadBrandContext(db, opts.workspaceId);
+  const brand = await loadBrandContext(db, opts.workspaceId, camp.ai_agent_id);
   const offer = rec.discount_code
     ? { code: rec.discount_code, discount: plan.offer?.discount ?? '' }
     : offerFrom({ plan, offer_code: camp.offer_code });

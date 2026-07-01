@@ -31,6 +31,7 @@ export async function sendCampaignBatch(
   campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan' | 'offer_code'> & {
     goal?: string | null;
     shopify_price_rule_id?: number | null;
+    ai_agent_id?: string | null;
   },
   limit = 25,
 ): Promise<{ sent: number; failed: number; remaining: number; skipped?: string }> {
@@ -97,8 +98,9 @@ export async function sendCampaignBatch(
     return { sent: 0, failed: 0, remaining: 0 };
   }
 
-  // Brand voice + knowledge once per batch, so every DM sounds on-brand.
-  const brand = await loadBrandContext(db, campaign.workspace_id);
+  // Brand voice + knowledge once per batch, from the SAME linked agent that
+  // answers reactively, so every DM sounds on-brand and consistent.
+  const brand = await loadBrandContext(db, campaign.workspace_id, campaign.ai_agent_id ?? null);
   const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
   const offer = campaign.plan.offer
     ? { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount }

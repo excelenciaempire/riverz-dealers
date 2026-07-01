@@ -21,22 +21,30 @@ export interface BrandContext {
 }
 
 /**
- * Load the workspace's brand context from its AI agent. Picks the active
- * agent with the freshest knowledge; returns null when the workspace has no
- * agent yet (then the copy just falls back to catalog-only grounding).
+ * Load the workspace's brand context from its AI agent. When `agentId` is given
+ * (a campaign/rule linked to a specific agent), loads THAT agent so the
+ * proactive copy uses the same identity that answers reactively; otherwise
+ * picks the active agent with the freshest knowledge. Returns null when the
+ * workspace has no agent yet (then the copy falls back to catalog-only
+ * grounding).
  *
  * Works under RLS (authenticated client, own workspace) and service-role.
  */
 export async function loadBrandContext(
   db: SupabaseClient,
   workspaceId: string,
+  agentId?: string | null,
 ): Promise<BrandContext | null> {
-  const { data } = await db
+  const base = db
     .from('ai_agents')
     .select('name, persona, knowledge, tone, language, is_active, updated_at')
-    .eq('workspace_id', workspaceId)
-    .order('is_active', { ascending: false })
-    .order('updated_at', { ascending: false })
+    .eq('workspace_id', workspaceId);
+  const { data } = await (agentId
+    ? base.eq('id', agentId)
+    : base
+        .order('is_active', { ascending: false })
+        .order('updated_at', { ascending: false })
+  )
     .limit(1)
     .maybeSingle();
   if (!data) return null;

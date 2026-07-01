@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
+import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -103,7 +104,7 @@ export async function processCommentForDmRules(
   const logId = (claim as { id: string }).id;
   let publicReplyStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
   let publicReplyExternalId: string | null = null;
-  let dmStatus: 'sent' | 'failed' = 'failed';
+  let dmStatus: 'sent' | 'failed' | 'skipped' = 'failed';
   let dmExternalId: string | null = null;
   let errMsg: string | null = null;
 
@@ -133,26 +134,40 @@ export async function processCommentForDmRules(
     }
   }
 
-  // 2. Private DM (private reply by comment id).
+  // 2. Private DM (private reply by comment id). Gate on the shared per-comment
+  //    lock: Meta allows one private reply per comment, and the campaign
+  //    instant-outreach path can also reply to this same comment — whoever
+  //    claims first sends, the other skips.
   const dmText = composeDm(rule);
-  try {
-    const res = await getAdapter(DM_CHANNEL[ev.channel]).sendText({
-      channel: DM_CHANNEL[ev.channel],
-      connection: ev.connection,
-      conversation: { id: '' } as unknown as Conversation,
-      contact: {
-        id: ev.contact.id,
-        external_id: ev.contact.external_id,
-      } as unknown as Contact,
-      commentId: ev.commentId,
-      text: dmText,
-    } satisfies OutboundText);
-    dmStatus = 'sent';
-    dmExternalId = res.externalMessageId ?? null;
-  } catch (err) {
-    dmStatus = 'failed';
-    errMsg =
-      errMsg ?? (err instanceof Error ? err.message.slice(0, 400) : 'dm failed');
+  const wonReply = await claimCommentPrivateReply(
+    db,
+    ev.workspaceId,
+    ev.commentId,
+    'rule',
+  );
+  if (!wonReply) {
+    dmStatus = 'skipped';
+    errMsg = errMsg ?? 'private reply ya enviado para este comentario';
+  } else {
+    try {
+      const res = await getAdapter(DM_CHANNEL[ev.channel]).sendText({
+        channel: DM_CHANNEL[ev.channel],
+        connection: ev.connection,
+        conversation: { id: '' } as unknown as Conversation,
+        contact: {
+          id: ev.contact.id,
+          external_id: ev.contact.external_id,
+        } as unknown as Contact,
+        commentId: ev.commentId,
+        text: dmText,
+      } satisfies OutboundText);
+      dmStatus = 'sent';
+      dmExternalId = res.externalMessageId ?? null;
+    } catch (err) {
+      dmStatus = 'failed';
+      errMsg =
+        errMsg ?? (err instanceof Error ? err.message.slice(0, 400) : 'dm failed');
+    }
   }
 
   await db

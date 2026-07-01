@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   const { data: campaigns, error } = await db
     .from('instagram_campaigns')
-    .select('id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, status, launched_at')
+    .select('id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, status, launched_at, ai_agent_id')
     .eq('status', 'active')
     .limit(50);
   if (error) {
@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     > & {
       plan: unknown;
       shopify_price_rule_id: number | null;
+      ai_agent_id: string | null;
     }
   >) {
     const plan = coercePlan(raw.plan);
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
       plan,
       offer_code: raw.offer_code,
       shopify_price_rule_id: raw.shopify_price_rule_id,
+      ai_agent_id: raw.ai_agent_id,
     };
 
     try {

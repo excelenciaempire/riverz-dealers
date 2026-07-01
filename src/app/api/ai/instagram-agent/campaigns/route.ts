@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import { resolveIgAgent } from '@/lib/instagram-agent/agent-link';
 import { coercePlan } from '@/lib/instagram-agent/types';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -80,6 +81,13 @@ export async function POST(request: Request) {
     Math.min(50, Math.round(Number(body.holdout_pct ?? 10)) || 0),
   );
 
+  // Link the campaign to the agent whose brand voice + automation mode govern
+  // it: explicit from the UI, else the workspace's active agent — so proactive
+  // DMs match the same identity that answers reactively (one brain).
+  const explicitAgentId =
+    typeof body.ai_agent_id === 'string' ? body.ai_agent_id : null;
+  const agent = await resolveIgAgent(supabase, workspaceId, explicitAgentId);
+
   const { data, error } = await supabase
     .from('instagram_campaigns')
     .insert({
@@ -91,6 +99,7 @@ export async function POST(request: Request) {
       plan,
       offer_code: plan.offer?.code ?? null,
       holdout_pct: holdoutPct,
+      ai_agent_id: agent.id,
       metrics: {},
     })
     .select('id')
