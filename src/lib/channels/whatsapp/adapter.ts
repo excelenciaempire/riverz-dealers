@@ -186,6 +186,17 @@ export const whatsappAdapter: ChannelAdapter = {
             workspaceId: connection.workspace_id,
             externalContactId: m.from,
           });
+          const referral = m.referral
+            ? {
+                sourceType: m.referral.source_type,
+                sourceId: m.referral.source_id,
+                ctwaClid: m.referral.ctwa_clid,
+                sourceUrl: m.referral.source_url,
+                headline: m.referral.headline,
+                body: m.referral.body,
+                mediaType: m.referral.media_type,
+              }
+            : undefined;
           events.push({
             channel: "whatsapp",
             connection,
@@ -193,6 +204,7 @@ export const whatsappAdapter: ChannelAdapter = {
             contactName: nameByWaId.get(m.from) || undefined,
             externalMessageId: m.id,
             text,
+            referral,
             attachments: attachments.length ? attachments : undefined,
             // WhatsApp timestamps are Unix SECONDS as a string.
             receivedAt: m.timestamp
@@ -285,6 +297,16 @@ interface WhatsAppMessage {
     type: string;
     button_reply?: { id: string; title: string };
     list_reply?: { id: string; title: string };
+  };
+  /** Present when the message came from a Click-to-WhatsApp ad. */
+  referral?: {
+    source_type?: string;
+    source_id?: string;
+    ctwa_clid?: string;
+    source_url?: string;
+    headline?: string;
+    body?: string;
+    media_type?: string;
   };
 }
 

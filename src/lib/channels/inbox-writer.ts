@@ -108,6 +108,22 @@ export async function ingestInboundEvent(
   });
   if (!conversation) return null;
 
+  // 2b. CTWA: if this message arrived from a Click-to-WhatsApp ad, stamp the ad
+  //     source on the conversation ONCE — so the same agent/enrichment knows the
+  //     origin and attribution can tie a later sale back to the exact ad.
+  //     Best-effort; never blocks the ingest.
+  if (event.referral && !event.outbound) {
+    await db
+      .from("conversations")
+      .update({ ad_referral: event.referral })
+      .eq("id", conversation.id)
+      .is("ad_referral", null)
+      .then(
+        () => {},
+        () => {},
+      );
+  }
+
   // 3. Insert message — idempotent on external id.
   // Si el adapter trajo media, derivamos las columnas estructuradas
   // (media_type/media_mime/media_size/media_url) desde el primer

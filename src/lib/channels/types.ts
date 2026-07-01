@@ -55,6 +55,17 @@ export interface InboundEvent {
     adId?: string;
     permalink?: string;
   };
+  /** Click-to-WhatsApp / ad referral — present when the message came from an
+   *  ad (WhatsApp `referral` object). Lets attribution tie a sale to the ad. */
+  referral?: {
+    sourceType?: string;
+    sourceId?: string;
+    ctwaClid?: string;
+    sourceUrl?: string;
+    headline?: string;
+    body?: string;
+    mediaType?: string;
+  };
   /** Wall-clock timestamp at the platform. */
   receivedAt: string;
   /** When true this event is something WE sent (e.g. an email pulled
