@@ -3,12 +3,8 @@ import type { Locale } from '@/lib/i18n/config'
 import { firecrawlScrape } from '@/lib/firecrawl/client'
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning'
-import {
-  buildResearchPrompt,
-  parseResearchResponse,
-  RESEARCH_MODEL,
-  RESEARCH_MAX_TOKENS,
-} from './research'
+import { buildResearchPrompt, parseResearchResponse } from './research'
+import { anthropicModel, type ModelFn } from './model-provider'
 
 /**
  * Full per-product enrichment: scrape the page if we haven't, detect its
@@ -89,6 +85,7 @@ export async function enrichProduct(
   db: SupabaseClient,
   productId: string,
   locale: Locale,
+  opts?: { model?: ModelFn },
 ): Promise<EnrichResult> {
   const { data: product, error } = await db
     .from('shopify_products')
@@ -104,8 +101,10 @@ export async function enrichProduct(
 
   const scrapedContent = await ensureScrapedContent(db, product, locale)
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
+  // Default to the Anthropic API; callers (tests, a Claude session) can inject
+  // another model backend. Only the API path needs a key.
+  const model = opts?.model
+  if (!model && !process.env.ANTHROPIC_API_KEY) {
     await db
       .from('shopify_products')
       .update({ ai_research_status: 'failed', ai_research_error: 'ANTHROPIC_API_KEY missing' })
@@ -115,22 +114,7 @@ export async function enrichProduct(
 
   const prompt = buildResearchPrompt(product, scrapedContent, locale)
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: RESEARCH_MODEL,
-        max_tokens: RESEARCH_MAX_TOKENS,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json?.error?.message ?? `Anthropic ${res.status}`)
-    const text = json?.content?.[0]?.text ?? ''
+    const text = await (model ?? anthropicModel)(prompt)
     const { update, faqsCount } = parseResearchResponse(text, product, scrapedContent, locale)
     await db.from('shopify_products').update(update).eq('id', productId)
     return { ok: true, faqsCount }
@@ -158,6 +142,7 @@ export async function enrichProducts(
     max?: number
     locale?: Locale
     includeDone?: boolean
+    model?: ModelFn
   },
 ): Promise<{ attempted: number; enriched: number; failed: number }> {
   const max = Math.max(1, Math.min(args.max ?? 25, 200))
@@ -177,7 +162,7 @@ export async function enrichProducts(
   let enriched = 0
   let failed = 0
   for (const p of list) {
-    const r = await enrichProduct(db, p.id, args.locale ?? 'es')
+    const r = await enrichProduct(db, p.id, args.locale ?? 'es', { model: args.model })
     if (r.ok) enriched++
     else failed++
     // Gentle spacing — respect Firecrawl + Anthropic rate limits.
