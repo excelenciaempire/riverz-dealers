@@ -32,7 +32,12 @@ import { cn } from '@/lib/utils';
 import type { InstagramPlan, CampaignStatus } from '@/lib/instagram-agent/types';
 
 interface PlanContext {
-  total_contacts: number;
+  /** IG-sourced, DM-addressable contacts — the honest "reachable" number. */
+  instagram_reachable: number;
+  /** Subset inside Meta's 24h messaging window right now. */
+  in_window_24h?: number;
+  /** Total across all channels — kept for the "thinking" panel only. */
+  total_contacts?: number;
   currency: string;
   has_catalog: boolean;
   product_count?: number;
@@ -244,16 +249,33 @@ export default function InstagramAgentPage() {
             <div className="flex flex-wrap items-center gap-2">
               {context ? (
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground"
+                    title={
+                      context.in_window_24h != null
+                        ? t('igAgent.inWindowHint', {
+                            n: fmt.number(context.in_window_24h),
+                          })
+                        : undefined
+                    }
+                  >
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     </span>
                     <Users className="h-3.5 w-3.5" />
                     <span className="font-semibold text-foreground tabular-nums">
-                      {fmt.number(context.total_contacts)}
+                      {fmt.number(context.instagram_reachable)}
                     </span>
                     {t('igAgent.reachablePeople')}
+                    {context.in_window_24h != null && context.in_window_24h > 0 && (
+                      <span className="text-muted-foreground/70">
+                        ·{' '}
+                        {t('igAgent.inWindowInline', {
+                          n: fmt.number(context.in_window_24h),
+                        })}
+                      </span>
+                    )}
                   </span>
                   {context.has_catalog && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
@@ -324,7 +346,7 @@ export default function InstagramAgentPage() {
       {/* El agente trabajando — estados en vivo, al estilo Blueberry. */}
       {loading && (
         <AgentThinking
-          audience={context?.total_contacts}
+          audience={context?.instagram_reachable}
           productCount={context?.product_count}
         />
       )}

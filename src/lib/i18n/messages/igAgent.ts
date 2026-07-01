@@ -31,7 +31,15 @@ export const igAgent = {
     es: "Recupera a clientes que no compran hace más de 60 días con una oferta exclusiva.",
     en: "Win back customers who haven't bought in over 60 days with an exclusive offer.",
   },
-  reachablePeople: { es: "personas alcanzables", en: "reachable people" },
+  reachablePeople: {
+    es: "alcanzables por Instagram",
+    en: "reachable on Instagram",
+  },
+  inWindowInline: { es: "{n} en ventana", en: "{n} in window" },
+  inWindowHint: {
+    es: "Dentro de la ventana de 24h de Meta ahora mismo: {n}. Solo estas personas pueden recibir un DM libre ya; el resto, cuando vuelvan a interactuar.",
+    en: "Inside Meta's 24h window right now: {n}. Only these can receive a free-form DM immediately; the rest, when they interact again.",
+  },
   catalogConnected: { es: "catálogo conectado", en: "catalog connected" },
   groundedInAudience: {
     es: "Aterrizado en tu audiencia y catálogo reales.",

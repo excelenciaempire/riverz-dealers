@@ -64,7 +64,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin comillas tripl
 Reglas:
 - Responde en el MISMO idioma del objetivo (por defecto español).
 - No inventes productos que no estén en el catálogo. Si el catálogo está vacío, deja recommended_products en [] y haz el copy genérico.
-- estimated_reach y funnel.contacted NUNCA pueden superar el total de contactos disponibles.
+- estimated_reach y funnel.contacted NUNCA pueden superar las personas de Instagram alcanzables indicadas en el contexto.
 - El DM debe sonar a Instagram, no a email ni a plantilla rígida.
 - Sé concreto y realista; nada de relleno. Solo el JSON.`
 
@@ -137,7 +137,13 @@ export async function POST(request: Request) {
     // workspace_member, así que la consulta autenticada ya devuelve solo
     // lo del workspace del usuario.
     const workspaceId = await resolveWorkspaceId(supabase, user.id)
-    const [{ data: products }, { count: contactCount }, brand] = await Promise.all([
+    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const [
+      { data: products },
+      { count: reachableCount },
+      { count: inWindowCount },
+      brand,
+    ] = await Promise.all([
       supabase
         .from('shopify_products')
         .select(
@@ -145,12 +151,28 @@ export async function POST(request: Request) {
         )
         .order('title', { ascending: true })
         .limit(40),
-      supabase.from('contacts').select('id', { count: 'exact', head: true }),
+      // Instagram-reachable audience only: contacts sourced from an IG DM or
+      // comment WITH a usable IG id. A WhatsApp-first store has thousands of
+      // contacts the IG agent can never DM — grounding the plan on the total
+      // would inflate estimated_reach + the funnel wildly.
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .in('channel', ['instagram', 'ig_comment'])
+        .not('external_id', 'is', null),
+      // Of those, how many are inside Meta's 24h messaging window right now.
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .in('channel', ['instagram', 'ig_comment'])
+        .not('external_id', 'is', null)
+        .gt('updated_at', windowStart),
       workspaceId ? loadBrandContext(supabase, workspaceId) : Promise.resolve(null),
     ])
     const brief = brandBrief(brand)
 
-    const totalContacts = contactCount ?? 0
+    const igReachable = reachableCount ?? 0
+    const inWindow = inWindowCount ?? 0
     const rows = (products ?? []) as ProductRow[]
     const currency = rows.find((p) => p.currency)?.currency ?? 'USD'
 
@@ -176,7 +198,8 @@ export async function POST(request: Request) {
       brief ? `VOZ Y CONOCIMIENTO DE LA MARCA (usa este tono y estos datos, no inventes nada fuera de aquí):\n${brief}\n` : '',
       `CONTEXTO DEL NEGOCIO:`,
       `- Canal: Instagram (DMs + comentarios)`,
-      `- Personas/contactos disponibles para alcanzar: ${totalContacts}`,
+      `- Personas de Instagram alcanzables (comentarios + DM, con id válido): ${igReachable}`,
+      `- De ellas, dentro de la ventana de 24h de Meta ahora mismo: ${inWindow}`,
       `- Moneda del catálogo: ${currency}`,
       `- Catálogo de productos:\n${catalog}`,
       '',
@@ -232,7 +255,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       plan,
-      context: { total_contacts: totalContacts, currency, has_catalog: rows.length > 0 },
+      context: {
+        instagram_reachable: igReachable,
+        in_window_24h: inWindow,
+        currency,
+        has_catalog: rows.length > 0,
+      },
     })
   } catch (error) {
     console.error('Error generating instagram-agent plan:', error)
