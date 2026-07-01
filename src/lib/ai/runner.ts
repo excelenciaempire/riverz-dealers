@@ -31,6 +31,7 @@ import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
+import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import {
   summarizeConversationIfNeeded,
   summarizeContactIfNeeded,
@@ -1061,6 +1062,13 @@ async function generateReply(
   }
 
   const client = getAnthropic(apiKey);
+  // "One brain": on Instagram, feed the reactive agent the same per-person
+  // context the proactive engine uses (segment, persona, follow relationship,
+  // live campaign + offer) so it never answers an enriched person blind.
+  const igContext =
+    contact.channel === 'instagram' || contact.channel === 'ig_comment'
+      ? await loadInstagramContext(db, primaryContact.id).catch(() => null)
+      : null;
   const system = buildSystemPrompt(
     agent,
     contact,
@@ -1071,6 +1079,7 @@ async function generateReply(
     products,
     productMatch,
     shopify,
+    igContext,
   );
 
   // Ensure the conversation starts with a user turn — required by the API.
@@ -1328,6 +1337,7 @@ function buildSystemPrompt(
   products: ProductRow[],
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null = null,
+  igContext: string | null = null,
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(agent.persona.trim());
@@ -1415,6 +1425,9 @@ function buildSystemPrompt(
     const shopifyLine = formatShopifySnapshot(shopifySnapshot);
     if (shopifyLine) lines.push(shopifyLine);
   }
+  // Instagram per-person context ("one brain") — only present for the IG
+  // channel; already formatted + guardrailed by loadInstagramContext.
+  if (igContext) lines.push(igContext);
   // ── Oferta elegida (flujos de recompra, migration 084) ──
   // El webhook de pedidos persiste qué oferta compró el cliente (por número
   // de unidades). La inyectamos para que la IA la conozca y pueda ofrecer la
