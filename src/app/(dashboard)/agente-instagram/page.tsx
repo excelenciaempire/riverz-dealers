@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
@@ -209,6 +210,9 @@ export default function InstagramAgentPage() {
           {t('igAgent.subtitle')}
         </p>
       </header>
+
+      {/* Control del agente proactivo — interruptor de emergencia + tope diario */}
+      <ProactiveControls />
 
       {/* Compositor de objetivo — la pieza central */}
       <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
@@ -745,6 +749,94 @@ function AgentThinking({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Emergency kill-switch + daily cap for all proactive Instagram DMs. One place
+ * to stop everything, matching the trust controls (migration 093 / settings API).
+ */
+function ProactiveControls() {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [paused, setPaused] = useState(false);
+  const [cap, setCap] = useState(500);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/instagram-agent/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j) {
+          setPaused(!!j.paused);
+          setCap(Number(j.daily_cap) || 500);
+          setLoaded(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function save(next: { paused?: boolean; daily_cap?: number }) {
+    try {
+      await fetchWithCsrf('/api/ai/instagram-agent/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+    } catch {
+      /* silencioso */
+    }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-[13px] shadow-sm transition-colors',
+        paused ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
+      )}
+    >
+      <label
+        className="flex items-center gap-2"
+        title={t('igAgent.controlsPauseHint')}
+      >
+        <Switch
+          checked={paused}
+          onCheckedChange={(v) => {
+            setPaused(v);
+            save({ paused: v });
+          }}
+        />
+        <span
+          className={cn(
+            'font-medium',
+            paused ? 'text-destructive' : 'text-foreground',
+          )}
+        >
+          {paused ? t('igAgent.controlsPausedOn') : t('igAgent.controlsPause')}
+        </span>
+      </label>
+      <label
+        className="flex items-center gap-2 text-muted-foreground"
+        title={t('igAgent.controlsDailyCapHint')}
+      >
+        {t('igAgent.controlsDailyCap')}
+        <input
+          type="number"
+          min={0}
+          max={10000}
+          value={cap}
+          onChange={(e) => setCap(Number(e.target.value))}
+          onBlur={() => save({ daily_cap: cap })}
+          className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
+        />
+      </label>
     </div>
   );
 }

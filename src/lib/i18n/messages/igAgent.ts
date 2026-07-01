@@ -163,6 +163,19 @@ export const igAgent = {
     en: "Could not process the approval",
   },
 
+  // Proactive controls (kill-switch + daily cap)
+  controlsPause: { es: "Pausar todo", en: "Pause all" },
+  controlsPausedOn: { es: "Proactivo en pausa", en: "Proactive paused" },
+  controlsPauseHint: {
+    es: "Detiene al instante TODOS los DMs proactivos de Instagram (interruptor de emergencia).",
+    en: "Instantly stops ALL proactive Instagram DMs (emergency switch).",
+  },
+  controlsDailyCap: { es: "Tope diario", en: "Daily cap" },
+  controlsDailyCapHint: {
+    es: "Máximo de DMs proactivos por día (protege tu reputación de envío).",
+    en: "Max proactive DMs per day (protects your sending reputation).",
+  },
+
   // Empty state — how it works
   howItWorks: { es: "¿Cómo funciona?", en: "How does it work?" },
   howStep1Title: { es: "Describe un objetivo", en: "Describe a goal" },
