@@ -180,6 +180,12 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
+  // Proactive automation mode (auto ↔ approval), surfaced in the hub controls
+  modeLabel: { es: "Modo", en: "Mode" },
+  modeAuto: { es: "Auto", en: "Auto" },
+  modeHybrid: { es: "Híbrido", en: "Hybrid" },
+  modeApproval: { es: "Aprobación", en: "Approval" },
+
   // Order attribution ledger
   attributedOrdersTitle: {
     es: "Pedidos atribuidos a Instagram",

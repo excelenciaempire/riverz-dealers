@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import {
-  Sparkles,
   Loader2,
   Target,
   Users,
@@ -21,7 +20,6 @@ import {
   Trash2,
   Check,
   Send,
-  Mail,
   Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,19 +61,12 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
   done: 'igAgent.statusDone',
 };
 
-/** Examples paired with the engagement signal each one taps into. */
+/** Example goal prompts (empty-state chips). */
 const EXAMPLES = [
-  { key: 'igAgent.example1', icon: MessageCircle },
-  { key: 'igAgent.example2', icon: ShoppingBag },
-  { key: 'igAgent.example3', icon: TrendingUp },
-  { key: 'igAgent.example4', icon: Mail },
-];
-
-/** The agent's job, in three editorial beats (empty-state explainer). */
-const HOW_STEPS = [
-  { icon: Target, t: 'igAgent.howStep1Title', d: 'igAgent.howStep1Desc' },
-  { icon: Sparkles, t: 'igAgent.howStep2Title', d: 'igAgent.howStep2Desc' },
-  { icon: TrendingUp, t: 'igAgent.howStep3Title', d: 'igAgent.howStep3Desc' },
+  'igAgent.example1',
+  'igAgent.example2',
+  'igAgent.example3',
+  'igAgent.example4',
 ];
 
 export default function InstagramAgentPage() {
@@ -199,23 +190,15 @@ export default function InstagramAgentPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      {/* Cabecera editorial — eyebrow + glifo IG con degradado de marca */}
-      <header className="space-y-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
-            <InstagramIcon className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="app-eyebrow">{t('igAgent.eyebrow')}</p>
-            <h1 className="app-page-title">{t('igAgent.title')}</h1>
-          </div>
-        </div>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {t('igAgent.subtitle')}
-        </p>
+      {/* Cabecera minimalista — glifo + título, sin eyebrow ni subtítulo */}
+      <header className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
+          <InstagramIcon className="h-5 w-5" />
+        </span>
+        <h1 className="app-page-title">{t('igAgent.title')}</h1>
       </header>
 
-      {/* Control del agente proactivo — interruptor de emergencia + tope diario */}
+      {/* Controles: modo (auto/híbrido/aprobación) + pausar + tope */}
       <ProactiveControls />
 
       {/* Compositor de objetivo — la pieza central */}
@@ -223,20 +206,6 @@ export default function InstagramAgentPage() {
         {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c13584]/60 to-transparent" />
         <div className="p-5 sm:p-6">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <label
-              htmlFor="goal"
-              className="flex items-center gap-2 text-sm font-medium text-foreground"
-            >
-              <Target className="h-4 w-4 text-accent-ink" />
-              {t('igAgent.goalLabel')}
-            </label>
-            <span className="hidden items-center gap-1.5 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:inline-flex">
-              <Sparkles className="h-3 w-3 text-accent-ink" />
-              {t('igAgent.poweredByAi')}
-            </span>
-          </div>
-
           <Textarea
             id="goal"
             value={goal}
@@ -253,103 +222,61 @@ export default function InstagramAgentPage() {
             }}
           />
 
-          {/* Pie: señales reales (audiencia + catálogo) + CTA */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {context ? (
+            {context ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground"
+                title={
+                  context.in_window_24h != null
+                    ? t('igAgent.inWindowHint', {
+                        n: fmt.number(context.in_window_24h),
+                      })
+                    : undefined
+                }
+              >
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                </span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {fmt.number(context.instagram_reachable)}
+                </span>
+                {t('igAgent.reachablePeople')}
+              </span>
+            ) : (
+              <span />
+            )}
+            <Button size="lg" onClick={generate} disabled={loading}>
+              {loading ? (
                 <>
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground"
-                    title={
-                      context.in_window_24h != null
-                        ? t('igAgent.inWindowHint', {
-                            n: fmt.number(context.in_window_24h),
-                          })
-                        : undefined
-                    }
-                  >
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    </span>
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="font-semibold text-foreground tabular-nums">
-                      {fmt.number(context.instagram_reachable)}
-                    </span>
-                    {t('igAgent.reachablePeople')}
-                    {context.in_window_24h != null && context.in_window_24h > 0 && (
-                      <span className="text-muted-foreground/70">
-                        ·{' '}
-                        {t('igAgent.inWindowInline', {
-                          n: fmt.number(context.in_window_24h),
-                        })}
-                      </span>
-                    )}
-                  </span>
-                  {context.has_catalog && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
-                      <ShoppingBag className="h-3.5 w-3.5" />
-                      {t('igAgent.catalogConnected')}
-                    </span>
-                  )}
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('igAgent.designing')}
                 </>
               ) : (
-                <span className="text-[11px] text-muted-foreground">
-                  {t('igAgent.groundedInAudience')}
-                </span>
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
+                </>
               )}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="hidden text-[11px] text-muted-foreground sm:inline">
-                {t('igAgent.generateHint')}
-              </span>
-              <Button size="lg" onClick={generate} disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t('igAgent.designing')}
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4" />
-                    {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
-                  </>
-                )}
-              </Button>
-            </div>
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Sugerencias de ejemplo — solo en el estado inicial */}
+      {/* Ejemplos — chips ligeros, solo en el estado inicial */}
       {showEmptyState && (
-        <section>
-          <p className="app-eyebrow mb-3 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-accent-ink" />
-            {t('igAgent.startFromExample')}
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {EXAMPLES.map(({ key, icon: Icon }, i) => {
-              const ex = t(key);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setGoal(ex)}
-                  className="group/ex flex h-full flex-col gap-2.5 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent-ink/40 hover:shadow-md"
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent/50 text-accent-ink transition-colors group-hover/ex:bg-accent">
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="text-[13px] leading-relaxed text-muted-foreground transition-colors group-hover/ex:text-foreground">
-                    {ex}
-                  </span>
-                  <ArrowRight className="mt-auto h-3.5 w-3.5 text-accent-ink opacity-0 transition-all group-hover/ex:translate-x-0.5 group-hover/ex:opacity-100" />
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {EXAMPLES.map((key, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setGoal(t(key))}
+              className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-[13px] leading-snug text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
+            >
+              {t(key)}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* El agente trabajando — estados en vivo, al estilo Blueberry. */}
@@ -653,37 +580,6 @@ export default function InstagramAgentPage() {
 
       {/* Pedidos atribuidos a Instagram (ledger de atribución) */}
       <AttributedOrders />
-
-      {/* Estado vacío / cómo funciona */}
-      {showEmptyState && (
-        <section className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6">
-          <p className="app-eyebrow mb-4">{t('igAgent.howItWorks')}</p>
-          <ol className="grid gap-3 sm:grid-cols-3">
-            {HOW_STEPS.map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <li
-                  key={i}
-                  className="relative overflow-hidden rounded-xl border border-border bg-background p-4"
-                >
-                  <span className="pointer-events-none absolute -right-1 -top-2 text-4xl font-bold tabular-nums text-muted-foreground/10">
-                    {`0${i + 1}`}
-                  </span>
-                  <span className="relative grid h-8 w-8 place-items-center rounded-lg bg-accent/50 text-accent-ink">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <p className="relative mt-3 text-sm font-medium text-foreground">
-                    {t(step.t)}
-                  </p>
-                  <p className="relative mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {t(step.d)}
-                  </p>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
     </div>
   );
 }
@@ -764,15 +660,18 @@ function AgentThinking({
   );
 }
 
+type SendMode = 'auto' | 'hybrid_intent' | 'approval';
+
 /**
- * Emergency kill-switch + daily cap for all proactive Instagram DMs. One place
- * to stop everything, matching the trust controls (migration 093 / settings API).
+ * The one control strip: automation mode (auto ↔ approval — this is where you
+ * set approve/automatic), the emergency pause, and the daily cap.
  */
 function ProactiveControls() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [paused, setPaused] = useState(false);
   const [cap, setCap] = useState(500);
+  const [mode, setMode] = useState<SendMode>('auto');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -783,6 +682,7 @@ function ProactiveControls() {
         if (!cancelled && j) {
           setPaused(!!j.paused);
           setCap(Number(j.daily_cap) || 500);
+          if (j.send_mode) setMode(j.send_mode as SendMode);
           setLoaded(true);
         }
       })
@@ -792,7 +692,11 @@ function ProactiveControls() {
     };
   }, []);
 
-  async function save(next: { paused?: boolean; daily_cap?: number }) {
+  async function save(next: {
+    paused?: boolean;
+    daily_cap?: number;
+    send_mode?: SendMode;
+  }) {
     try {
       await fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
@@ -806,17 +710,41 @@ function ProactiveControls() {
 
   if (!loaded) return null;
 
+  const MODES: { v: SendMode; label: string }[] = [
+    { v: 'auto', label: t('igAgent.modeAuto') },
+    { v: 'hybrid_intent', label: t('igAgent.modeHybrid') },
+    { v: 'approval', label: t('igAgent.modeApproval') },
+  ];
+
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-[13px] shadow-sm transition-colors',
+        'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-3 py-2 text-[13px] shadow-sm transition-colors',
         paused ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
       )}
     >
-      <label
-        className="flex items-center gap-2"
-        title={t('igAgent.controlsPauseHint')}
-      >
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
+        {MODES.map((m) => (
+          <button
+            key={m.v}
+            type="button"
+            onClick={() => {
+              setMode(m.v);
+              save({ send_mode: m.v });
+            }}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+              mode === m.v
+                ? 'bg-accent text-accent-ink'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <label className="ml-auto flex items-center gap-2" title={t('igAgent.controlsPauseHint')}>
         <Switch
           checked={paused}
           onCheckedChange={(v) => {
@@ -824,30 +752,20 @@ function ProactiveControls() {
             save({ paused: v });
           }}
         />
-        <span
-          className={cn(
-            'font-medium',
-            paused ? 'text-destructive' : 'text-foreground',
-          )}
-        >
+        <span className={cn('font-medium', paused ? 'text-destructive' : 'text-foreground')}>
           {paused ? t('igAgent.controlsPausedOn') : t('igAgent.controlsPause')}
         </span>
       </label>
-      <label
-        className="flex items-center gap-2 text-muted-foreground"
+      <input
+        type="number"
+        min={0}
+        max={10000}
+        value={cap}
+        onChange={(e) => setCap(Number(e.target.value))}
+        onBlur={() => save({ daily_cap: cap })}
         title={t('igAgent.controlsDailyCapHint')}
-      >
-        {t('igAgent.controlsDailyCap')}
-        <input
-          type="number"
-          min={0}
-          max={10000}
-          value={cap}
-          onChange={(e) => setCap(Number(e.target.value))}
-          onBlur={() => save({ daily_cap: cap })}
-          className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
-        />
-      </label>
+        className="w-16 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
+      />
     </div>
   );
 }
@@ -1036,10 +954,7 @@ function ApprovalsQueue() {
           {items.length}
         </span>
       </p>
-      <p className="mb-3 text-[11px] text-muted-foreground">
-        {t('igAgent.approvalsHint')}
-      </p>
-      <ul className="space-y-3">
+      <ul className="mt-3 space-y-3">
         {items.map((it) => (
           <ApprovalItem key={it.id} item={it} onAct={act} />
         ))}
