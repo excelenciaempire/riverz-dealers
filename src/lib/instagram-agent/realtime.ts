@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
-import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -8,7 +7,6 @@ import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
-import { pickModel } from './model';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -143,7 +141,7 @@ export async function maybeInstantOutreach(
 
   // Spam / intent gate on what they actually said.
   let leadScore: LeadScore = 'medium';
-  if (apiKey && opts.engagementText) {
+  if (hasLlm(apiKey) && opts.engagementText) {
     try {
       const [s] = await scoreLeads(apiKey, [opts.engagementText]);
       if (s?.spam) {
@@ -262,7 +260,7 @@ Reglas:
 - Devuelve SOLO el texto del DM, sin comillas ni explicaciones.`;
 
 async function generateCloserReply(input: {
-  apiKey: string;
+  apiKey: string | null;
   plan: InstagramPlan;
   brand: BrandContext | null;
   goal: string | null;
@@ -293,19 +291,17 @@ async function generateCloserReply(input: {
     .join('\n\n');
 
   try {
-    const client = getAnthropic(input.apiKey);
-    const res = await client.messages.create({
-      model: pickModel('close', { leadScore: input.leadScore ?? 'medium' }),
-      max_tokens: 400,
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low' },
-      system: [{ type: 'text', text: CLOSE_SYSTEM, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userPrompt }],
-    });
-    const text = res.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
+    const text = (
+      await completeText({
+        // Hot lead → top model to close; the rest, triage.
+        tier: input.leadScore === 'high' ? 'premium' : 'triage',
+        system: CLOSE_SYSTEM,
+        user: userPrompt,
+        maxTokens: 400,
+        anthropicKey: input.apiKey,
+        effort: 'low',
+      })
+    )
       .trim()
       .replace(/^["'“”]|["'“”]$/g, '')
       .trim();
@@ -365,7 +361,7 @@ export async function maybeRunCloser(
   // If we genuinely can't close (no model / no messageable id), DON'T claim
   // this DM — return false so the generic assistant answers instead of the
   // customer getting silence.
-  if (!apiKey || !opts.contact.external_id) return false;
+  if (!hasLlm(apiKey) || !opts.contact.external_id) return false;
 
   // Mark replied inline (faster than waiting for the cron's capture pass).
   await db

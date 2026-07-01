@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic } from '@/lib/ai/anthropic-client'
+import { completeText, hasLlm } from '@/lib/ai/llm-client'
 import { createClient } from '@/lib/supabase/server'
 import {
   checkRateLimit,
@@ -107,8 +107,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
+    const anthropicKey = process.env.ANTHROPIC_API_KEY ?? null
+    if (!hasLlm(anthropicKey)) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.agentNotConfigured') },
         { status: 503 },
@@ -211,29 +211,29 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join('\n')
 
-    const client = getAnthropic(apiKey)
-    const response = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 2048,
-      // Tarea de planificación estructurada: sin thinking, esfuerzo medio.
-      // El system prompt prohíbe texto fuera del JSON.
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'medium' },
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [{ role: 'user', content: userPrompt }],
-    })
-
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim()
+    // Tarea de planificación estructurada: sin thinking, esfuerzo medio.
+    // El system prompt prohíbe texto fuera del JSON. Anthropic es el cerebro
+    // primario; si está sin créditos/caído, completeText cae a un proveedor de
+    // respaldo (Groq/OpenRouter/Gemini) para no quedar mudo.
+    let text: string
+    try {
+      text = (
+        await completeText({
+          tier: 'premium',
+          system: SYSTEM_PROMPT,
+          user: userPrompt,
+          maxTokens: 2048,
+          anthropicKey,
+          effort: 'medium',
+        })
+      ).trim()
+    } catch (err) {
+      console.error('instagram-agent plan generation failed:', err)
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.noPlanReturned') },
+        { status: 502 },
+      )
+    }
 
     if (!text) {
       return NextResponse.json(

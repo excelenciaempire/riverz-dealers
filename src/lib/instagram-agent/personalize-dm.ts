@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { pickModel } from './model';
+import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { brandBrief, type BrandContext } from './brand-context';
 
 /**
@@ -58,8 +56,9 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
 
   const brief = brandBrief(input.brand);
   // Nothing to personalize on (no brand voice and no engagement) → the LLM
-  // would add little over the name-merge; skip the call and the cost.
-  if (!input.apiKey || (!brief && !input.engagement)) return fallback();
+  // would add little over the name-merge; skip the call and the cost. Also
+  // skip when no provider at all is configured (Anthropic or a fallback).
+  if (!hasLlm(input.apiKey) || (!brief && !input.engagement)) return fallback();
 
   const first = (input.name ?? '').trim().split(/\s+/)[0] || null;
   const userPrompt = [
@@ -82,20 +81,14 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     .join('\n\n');
 
   try {
-    const client = getAnthropic(input.apiKey);
-    const res = await client.messages.create({
-      model: pickModel('close', { leadScore: 'medium' }),
-      max_tokens: 400,
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low' },
-      system: [{ type: 'text', text: DM_SYSTEM, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userPrompt }],
+    let text = await completeText({
+      tier: 'triage',
+      system: DM_SYSTEM,
+      user: userPrompt,
+      maxTokens: 400,
+      anthropicKey: input.apiKey,
+      effort: 'low',
     });
-    let text = res.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
     // Strip wrapping quotes the model sometimes adds, and any stray token.
     text = text.replace(/^["'“”]|["'“”]$/g, '').trim();
     text = personalize(text, input.name); // resolve any {{nombre}} it echoed

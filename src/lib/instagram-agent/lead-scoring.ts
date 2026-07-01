@@ -1,7 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
-import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { pickModel } from './model';
+import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { latestInboundText } from './engagement';
 
 /**
@@ -83,27 +81,22 @@ export function parseScoreResponse(text: string, count: number): ScoredLead[] {
 
 /** Llama al modelo de triage para puntuar una tanda de mensajes. */
 export async function scoreLeads(
-  apiKey: string,
+  apiKey: string | null,
   texts: string[],
 ): Promise<ScoredLead[]> {
   if (texts.length === 0) return [];
-  const client = getAnthropic(apiKey);
   const userPrompt = texts
     .map((t, i) => `${i}: ${t.slice(0, 400).replace(/\n/g, ' ')}`)
     .join('\n');
 
-  const res = await client.messages.create({
-    model: pickModel('lead_score'),
-    max_tokens: 1024,
-    thinking: { type: 'disabled' },
-    output_config: { effort: 'low' },
-    system: [{ type: 'text', text: SCORE_SYSTEM, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: userPrompt }],
+  const text = await completeText({
+    tier: 'triage',
+    system: SCORE_SYSTEM,
+    user: userPrompt,
+    maxTokens: 1024,
+    anthropicKey: apiKey,
+    effort: 'low',
   });
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
   return parseScoreResponse(text, texts.length);
 }
 
@@ -117,8 +110,8 @@ export async function scoreCampaignRecipients(
   campaignId: string,
   limit = 40,
 ): Promise<{ scored: number; spam: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { scored: 0, spam: 0 };
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  if (!hasLlm(apiKey)) return { scored: 0, spam: 0 };
 
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')
