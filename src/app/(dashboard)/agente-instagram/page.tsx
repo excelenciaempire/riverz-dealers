@@ -21,6 +21,7 @@ import {
   Trash2,
   Check,
   Send,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -65,6 +66,7 @@ const EXAMPLES = [
   { key: 'igAgent.example1', icon: MessageCircle },
   { key: 'igAgent.example2', icon: ShoppingBag },
   { key: 'igAgent.example3', icon: TrendingUp },
+  { key: 'igAgent.example4', icon: Mail },
 ];
 
 /** The agent's job, in three editorial beats (empty-state explainer). */
@@ -324,7 +326,7 @@ export default function InstagramAgentPage() {
             <Sparkles className="h-3.5 w-3.5 text-accent-ink" />
             {t('igAgent.startFromExample')}
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {EXAMPLES.map(({ key, icon: Icon }, i) => {
               const ex = t(key);
               return (

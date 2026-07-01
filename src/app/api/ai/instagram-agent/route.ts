@@ -65,6 +65,7 @@ Reglas:
 - Responde en el MISMO idioma del objetivo (por defecto español).
 - No inventes productos que no estén en el catálogo. Si el catálogo está vacío, deja recommended_products en [] y haz el copy genérico.
 - estimated_reach y funnel.contacted NUNCA pueden superar las personas de Instagram alcanzables indicadas en el contexto.
+- Si el OBJETIVO es CRECER LA LISTA (suscriptores, email, SMS, captar datos): el DM debe invitar a la persona a dejar su email o teléfono a cambio de valor (imán de leads, acceso anticipado, guía, sorteo) con opt-in claro; "offer" puede ser null (no fuerces un descuento); y next_steps debe incluir sincronizar los contactos capturados a tu lista/Klaviyo.
 - El DM debe sonar a Instagram, no a email ni a plantilla rígida.
 - Sé concreto y realista; nada de relleno. Solo el JSON.`
 

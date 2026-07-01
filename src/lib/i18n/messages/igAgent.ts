@@ -31,6 +31,10 @@ export const igAgent = {
     es: "Recupera a clientes que no compran hace más de 60 días con una oferta exclusiva.",
     en: "Win back customers who haven't bought in over 60 days with an exclusive offer.",
   },
+  example4: {
+    es: "Convierte a quienes comentan en suscriptores de tu lista con un imán de leads.",
+    en: "Turn commenters into email/SMS subscribers with a lead magnet.",
+  },
   reachablePeople: {
     es: "alcanzables por Instagram",
     en: "reachable on Instagram",
