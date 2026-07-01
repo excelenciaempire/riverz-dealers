@@ -63,6 +63,12 @@ export interface AiAgent {
   /** Máximo de follow-ups por racha de silencio (anti-spam). */
   followup_max_count: number;
 
+  /** Nivel de automatización de los DMs proactivos de Instagram (Instagram
+   *  1:1): auto (envía solo), hybrid_intent (auto para alta intención, el
+   *  resto a revisión) o approval (todo espera aprobación humana). Siempre
+   *  dentro de políticas de Meta. Migration 089. */
+  proactive_send_mode?: 'auto' | 'hybrid_intent' | 'approval';
+
   /** Si está ON, el asistente puede armar y CREAR el pedido real en
    *  Shopify (tool create_order). OFF (default): no cierra pedidos por su
    *  cuenta; deja el cierre a una persona del equipo. Migration 080.

@@ -20,6 +20,7 @@ import {
   Save,
   Trash2,
   Check,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -578,6 +579,9 @@ export default function InstagramAgentPage() {
         </div>
       )}
 
+      {/* DMs proactivos en espera de aprobación (modo approval/hybrid) */}
+      <ApprovalsQueue />
+
       {/* Mis campañas guardadas */}
       {campaigns.length > 0 && (
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -742,6 +746,156 @@ function AgentThinking({
         ))}
       </ul>
     </div>
+  );
+}
+
+interface ApprovalRow {
+  id: string;
+  draft_text: string;
+  discount_code: string | null;
+  lead_score: string | null;
+  created_at: string;
+  contact_name: string | null;
+  campaign_name: string | null;
+}
+
+/**
+ * Proactive DMs the agent drafted and held for review (agent's
+ * proactive_send_mode = approval, or hybrid for a non-high lead). The merchant
+ * edits, then approves (sends) or discards. Hidden entirely when empty.
+ */
+function ApprovalsQueue() {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [items, setItems] = useState<ApprovalRow[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai/instagram-agent/approvals', {
+        cache: 'no-store',
+      });
+      const json = await res.json();
+      if (res.ok) setItems((json.approvals ?? []) as ApprovalRow[]);
+    } catch {
+      /* la cola es secundaria */
+    }
+  }, []);
+
+  // Initial fetch — defer setState into the promise callback (not a synchronous
+  // call in the effect body) to keep renders from cascading.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/instagram-agent/approvals', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j) setItems((j.approvals ?? []) as ApprovalRow[]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function act(
+    id: string,
+    action: 'approve' | 'reject',
+    text?: string,
+  ) {
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    try {
+      const res = await fetchWithCsrf(
+        `/api/ai/instagram-agent/approvals/${id}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, text }),
+        },
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.error ?? t('igAgent.approvalError'));
+        load();
+      } else if (action === 'approve') {
+        toast.success(t('igAgent.approvalSent'));
+      }
+    } catch {
+      toast.error(t('igAgent.approvalError'));
+      load();
+    }
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.03] p-5 shadow-sm">
+      <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
+        <MessageCircle className="h-4 w-4 text-amber-500" />
+        {t('igAgent.approvalsTitle')}
+        <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-700 tabular-nums dark:text-amber-300">
+          {items.length}
+        </span>
+      </p>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        {t('igAgent.approvalsHint')}
+      </p>
+      <ul className="space-y-3">
+        {items.map((it) => (
+          <ApprovalItem key={it.id} item={it} onAct={act} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ApprovalItem({
+  item,
+  onAct,
+}: {
+  item: ApprovalRow;
+  onAct: (id: string, action: 'approve' | 'reject', text?: string) => void;
+}) {
+  const t = useT();
+  const [text, setText] = useState(item.draft_text);
+  const name = item.contact_name ?? t('igAgent.approvalUnknownContact');
+
+  return (
+    <li className="rounded-xl border border-border bg-background p-3">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="truncate text-xs font-medium text-foreground">
+          {t('igAgent.approvalTo', { name })}
+        </p>
+        {item.campaign_name && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {item.campaign_name}
+          </span>
+        )}
+      </div>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        maxLength={950}
+        className="resize-none text-[13px]"
+      />
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onAct(item.id, 'reject')}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {t('igAgent.approvalReject')}
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => onAct(item.id, 'approve', text.trim())}
+          disabled={!text.trim()}
+        >
+          <Send className="h-3.5 w-3.5" />
+          {t('igAgent.approvalApprove')}
+        </Button>
+      </div>
+    </li>
   );
 }
 

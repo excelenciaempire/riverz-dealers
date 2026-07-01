@@ -88,6 +88,7 @@ export async function PATCH(
     'followup_enabled',
     'followup_delay_hours',
     'followup_max_count',
+    'proactive_send_mode',
     'puede_crear_pedidos',
     'provider',
     'model',

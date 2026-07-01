@@ -145,6 +145,20 @@ export const errAi = {
     en: "There are no Instagram contacts yet. Connect Instagram and let interactions come in first.",
   },
 
+  // Approvals (proactive DMs held for review)
+  approvalNotPending: {
+    es: "Este mensaje ya no está pendiente de aprobación.",
+    en: "This message is no longer pending approval.",
+  },
+  approvalNoDraft: {
+    es: "No hay borrador de mensaje para enviar.",
+    en: "There's no draft message to send.",
+  },
+  instagramNotConnected: {
+    es: "Instagram no está conectado.",
+    en: "Instagram is not connected.",
+  },
+
   // One active assistant per channel
   channelConflict: {
     es: 'El asistente "{agent}" ya está activo en {channels}. Solo puede haber un asistente activo por canal: pausa el otro o ajusta los canales.',

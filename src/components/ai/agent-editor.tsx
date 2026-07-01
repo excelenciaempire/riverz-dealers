@@ -276,6 +276,10 @@ export function AgentEditor({
   const [responseMode, setResponseMode] = useState<AiResponseMode>(
     agent?.response_mode ?? 'dynamic',
   );
+  // Nivel de automatización de los DMs proactivos de Instagram (Instagram 1:1).
+  const [proactiveSendMode, setProactiveSendMode] = useState<
+    'auto' | 'hybrid_intent' | 'approval'
+  >(agent?.proactive_send_mode ?? 'auto');
   const [inboundDebounce, setInboundDebounce] = useState<number>(
     agent?.inbound_debounce_seconds ?? 15,
   );
@@ -642,6 +646,7 @@ export function AgentEditor({
       followup_enabled: followupEnabled,
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
+      proactive_send_mode: proactiveSendMode,
       puede_crear_pedidos: puedeCrearPedidos,
       model: DEFAULT_MODEL,
       scope,
@@ -1376,6 +1381,32 @@ export function AgentEditor({
                       </p>
                     </>
                   )}
+                </SectionCard>
+
+                <SectionCard
+                  title={t('assistant.proactiveModeTitle')}
+                  hint={t('assistant.proactiveModeHint')}
+                >
+                  <select
+                    value={proactiveSendMode}
+                    onChange={(e) =>
+                      setProactiveSendMode(
+                        e.target.value as 'auto' | 'hybrid_intent' | 'approval',
+                      )
+                    }
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                  >
+                    <option value="auto">{t('assistant.proactiveModeAuto')}</option>
+                    <option value="hybrid_intent">
+                      {t('assistant.proactiveModeHybrid')}
+                    </option>
+                    <option value="approval">
+                      {t('assistant.proactiveModeApproval')}
+                    </option>
+                  </select>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {t('assistant.proactiveModeFootnote')}
+                  </p>
                 </SectionCard>
 
                 <SectionCard

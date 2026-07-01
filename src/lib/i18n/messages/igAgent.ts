@@ -144,6 +144,25 @@ export const igAgent = {
   codePrefix: { es: "Código {code}", en: "Code {code}" },
   deleteCampaign: { es: "Eliminar campaña", en: "Delete campaign" },
 
+  // Approvals queue (proactive DMs held for review)
+  approvalsTitle: { es: "Pendientes de aprobación", en: "Pending approval" },
+  approvalsHint: {
+    es: "DMs que el agente preparó y esperan tu visto bueno antes de enviarse.",
+    en: "DMs the agent drafted, waiting for your go-ahead before sending.",
+  },
+  approvalTo: { es: "Para {name}", en: "To {name}" },
+  approvalUnknownContact: {
+    es: "Contacto de Instagram",
+    en: "Instagram contact",
+  },
+  approvalApprove: { es: "Aprobar y enviar", en: "Approve & send" },
+  approvalReject: { es: "Descartar", en: "Discard" },
+  approvalSent: { es: "DM enviado", en: "DM sent" },
+  approvalError: {
+    es: "No se pudo procesar la aprobación",
+    en: "Could not process the approval",
+  },
+
   // Empty state — how it works
   howItWorks: { es: "¿Cómo funciona?", en: "How does it work?" },
   howStep1Title: { es: "Describe un objetivo", en: "Describe a goal" },
