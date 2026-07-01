@@ -10,6 +10,7 @@ import { persistShopifyConnection } from '@/lib/shopify/connection'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
 import { syncShopifyProducts } from '@/lib/shopify/product-sync'
 import { learnOffersOnConnect } from '@/lib/shopify/offer-learning'
+import { enrichProducts } from '@/lib/products/enrich'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getLogger } from '@/lib/log/logger'
 
@@ -275,6 +276,12 @@ export async function GET(request: Request) {
     //    recent order history (Kaching bundles etc.) onto those products —
     //    both fire-and-forget, chained so offers attach to synced rows. Never
     //    block/fail the OAuth redirect on catalog or offer work.
+    // Auto-enrich on connect (bounded): scrape each product's page (→ detects
+    // offers, free) then generate research. The scrape+offer step works with
+    // no Anthropic balance; research lands 'failed' and re-runs once funded.
+    // Toggle with SHOPIFY_ENRICH_ON_CONNECT=0; cap with SHOPIFY_ENRICH_MAX.
+    const enrichOnConnect = process.env.SHOPIFY_ENRICH_ON_CONNECT !== '0'
+    const enrichMax = Math.max(1, Math.min(Number(process.env.SHOPIFY_ENRICH_MAX) || 25, 200))
     syncShopifyProducts(admin, {
       userId,
       workspaceId,
@@ -289,8 +296,13 @@ export async function GET(request: Request) {
           locale: 'es',
         }),
       )
+      .then(() =>
+        enrichOnConnect
+          ? enrichProducts(admin, { shopDomain: shop, max: enrichMax, locale: 'es' })
+          : undefined,
+      )
       .catch((err) =>
-        log.error('initial_product_sync_or_offer_learn_failed', {
+        log.error('initial_sync_offer_or_enrich_failed', {
           shop,
           error: err instanceof Error ? err.message : String(err),
         }),
