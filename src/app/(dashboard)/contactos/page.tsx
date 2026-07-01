@@ -53,6 +53,56 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
 
+/**
+ * Ordena las etiquetas por color para que el filtro se lea como una
+ * paleta organizada: los mismos colores quedan juntos y los matices
+ * fluyen por tono (HSL). Desempata por nombre con orden numérico
+ * natural, así "oferta: 1 / 2 / 3" y "unidades: 1 / 2-3 / 4+" mantienen
+ * su secuencia. Grises e hex inválidos van al final.
+ */
+function sortTagsByHue(tags: Tag[]): Tag[] {
+  const toHsl = (hex: string | null | undefined) => {
+    let h = String(hex ?? '').replace('#', '').trim().toLowerCase();
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    if (!/^[0-9a-f]{6}$/.test(h)) return { h: 999, s: 0, l: 0 };
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    let hue = 0;
+    let s = 0;
+    if (d !== 0) {
+      s = d / (1 - Math.abs(2 * l - 1));
+      switch (max) {
+        case r:
+          hue = ((g - b) / d) % 6;
+          break;
+        case g:
+          hue = (b - r) / d + 2;
+          break;
+        default:
+          hue = (r - g) / d + 4;
+      }
+      hue *= 60;
+      if (hue < 0) hue += 360;
+    }
+    return { h: d === 0 ? 999 : hue, s, l };
+  };
+  return [...tags].sort((a, b) => {
+    const A = toHsl(a.color);
+    const B = toHsl(b.color);
+    return (
+      A.h - B.h ||
+      A.s - B.s ||
+      A.l - B.l ||
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  });
+}
+
 interface ContactWithTags extends Contact {
   tags?: Tag[];
 }
@@ -403,8 +453,9 @@ export default function ContactsPage() {
       {/* Tag filter */}
       {Object.keys(tagsMap).length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {Object.values(tagsMap).map((tag) => {
+          {sortTagsByHue(Object.values(tagsMap)).map((tag) => {
             const active = selectedTagIds.includes(tag.id);
+            const color = tag.color ?? '#64748b';
             return (
               <button
                 key={tag.id}
@@ -416,19 +467,25 @@ export default function ContactsPage() {
                   );
                   setPage(0);
                 }}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all',
-                  active ? '' : 'opacity-60 hover:opacity-100',
-                )}
-                style={{
-                  backgroundColor: active ? `${tag.color}20` : 'transparent',
-                  color: tag.color,
-                  borderColor: `${tag.color}66`,
-                }}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all hover:-translate-y-px"
+                style={
+                  active
+                    ? {
+                        backgroundColor: `${color}33`,
+                        color,
+                        borderColor: color,
+                        boxShadow: `inset 0 0 0 1px ${color}`,
+                      }
+                    : {
+                        backgroundColor: `${color}1f`,
+                        color,
+                        borderColor: `${color}52`,
+                      }
+                }
               >
                 <span
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: tag.color }}
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: color }}
                 />
                 {tag.name}
               </button>
