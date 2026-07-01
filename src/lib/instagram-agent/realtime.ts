@@ -11,6 +11,7 @@ import { resolveIgAgent, needsApproval } from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
+import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -166,6 +167,12 @@ export async function maybeInstantOutreach(
     try {
       const [s] = await scoreLeads(apiKey, [opts.engagementText]);
       if (s?.spam) {
+        // Auto-hide spam/hate on the merchant's own post — sanctioned API,
+        // best-effort (degrades if instagram_manage_comments isn't granted yet).
+        if (opts.commentId) {
+          const conn = await igConnection(db, opts.workspaceId);
+          if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
+        }
         await db
           .from('instagram_campaign_recipients')
           .update({
