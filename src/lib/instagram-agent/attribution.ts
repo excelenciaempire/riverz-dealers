@@ -6,6 +6,7 @@ import {
   type ShopifyOrder,
 } from '@/lib/attribution/shopify';
 import { EMPTY_METRICS, type CampaignMetrics, type InstagramCampaign } from './types';
+import { recordOrderAttribution } from './order-attribution';
 
 /**
  * Cierra el loop de atribución de una campaña con INCREMENTALIDAD real (el
@@ -28,6 +29,7 @@ interface ContactRef {
 
 interface RecipientRow {
   id: string;
+  contact_id: string | null;
   status: string;
   is_holdout: boolean;
   sent_at: string | null;
@@ -108,7 +110,7 @@ export async function attributeAndRollup(
 ): Promise<CampaignMetrics> {
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')
-    .select('id, status, is_holdout, sent_at, revenue, currency, discount_code, contacts(email, phone)')
+    .select('id, contact_id, status, is_holdout, sent_at, revenue, currency, discount_code, contacts(email, phone)')
     .eq('campaign_id', campaign.id)
     .limit(5000);
   const rows = (recipients ?? []) as unknown as RecipientRow[];
@@ -178,11 +180,17 @@ async function attributeFromShopify(
   rows: RecipientRow[],
 ): Promise<{ currency: string | null; controlConversions: number }> {
   // Tratados pendientes de convertir (no holdout, enviados/respondidos).
-  const treatmentPending = new Map<string, { id: string; sentAt: number }>();
-  const treatmentPendingPhone = new Map<string, { id: string; sentAt: number }>();
+  const treatmentPending = new Map<
+    string,
+    { id: string; sentAt: number; contactId: string | null }
+  >();
+  const treatmentPendingPhone = new Map<
+    string,
+    { id: string; sentAt: number; contactId: string | null }
+  >();
   // Código único → destinatario: atribución DETERMINISTA (la orden usó SU
   // código → convirtió ESA persona), sin adivinar por email/teléfono.
-  const codeToRecipient = new Map<string, { id: string }>();
+  const codeToRecipient = new Map<string, { id: string; contactId: string | null }>();
   // Identidades del grupo de control para medir su baseline de compra.
   const controlEmails = new Set<string>();
   const controlPhones = new Set<string>();
@@ -198,12 +206,21 @@ async function attributeFromShopify(
     if (r.status === 'sent' || r.status === 'replied') {
       const sentAt = r.sent_at ? new Date(r.sent_at).getTime() : 0;
       if (r.discount_code) {
-        codeToRecipient.set(r.discount_code.trim().toLowerCase(), { id: r.id });
+        codeToRecipient.set(r.discount_code.trim().toLowerCase(), {
+          id: r.id,
+          contactId: r.contact_id,
+        });
       }
       if (!c) continue;
-      if (c.email) treatmentPending.set(c.email.toLowerCase(), { id: r.id, sentAt });
+      if (c.email)
+        treatmentPending.set(c.email.toLowerCase(), {
+          id: r.id,
+          sentAt,
+          contactId: r.contact_id,
+        });
       const np = normPhone(c.phone);
-      if (np) treatmentPendingPhone.set(np, { id: r.id, sentAt });
+      if (np)
+        treatmentPendingPhone.set(np, { id: r.id, sentAt, contactId: r.contact_id });
     }
   }
 
@@ -263,6 +280,17 @@ async function attributeFromShopify(
             currency: order.currency ?? null,
           })
           .eq('id', rec.id);
+        await recordOrderAttribution(db, {
+          workspaceId: campaign.workspace_id,
+          shopifyOrderId: String(order.id),
+          source: 'campaign',
+          campaignId: campaign.id,
+          contactId: rec.contactId,
+          channel: 'instagram',
+          code: dc.code ?? null,
+          revenue: total,
+          currency: order.currency ?? null,
+        });
         codeToRecipient.delete(key); // un código, una conversión
         matchedByCode = true;
         break;
@@ -292,6 +320,17 @@ async function attributeFromShopify(
         currency: order.currency ?? null,
       })
       .eq('id', match.id);
+    await recordOrderAttribution(db, {
+      workspaceId: campaign.workspace_id,
+      shopifyOrderId: String(order.id),
+      source: 'campaign',
+      campaignId: campaign.id,
+      contactId: match.contactId,
+      channel: 'instagram',
+      code: campaign.offer_code ?? null,
+      revenue: total,
+      currency: order.currency ?? null,
+    });
     // One recipient converts once. Drop their identities so a SECOND order
     // in the same run can't re-match and OVERWRITE the attributed revenue
     // (the code path already does this via codeToRecipient.delete).

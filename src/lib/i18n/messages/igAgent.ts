@@ -180,6 +180,22 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
+  // Order attribution ledger
+  attributedOrdersTitle: {
+    es: "Pedidos atribuidos a Instagram",
+    en: "Orders attributed to Instagram",
+  },
+  attributedOrdersHint: {
+    es: "Ventas que ocurrieron gracias al agente — campaña, DM, comentario→DM o anuncio.",
+    en: "Sales that happened thanks to the agent — campaign, DM, comment→DM or ad.",
+  },
+  attributedOrdersTotal: { es: "Total atribuido", en: "Attributed total" },
+  orderLabelName: { es: "Pedido {name}", en: "Order {name}" },
+  orderSourceCampaign: { es: "campaña", en: "campaign" },
+  orderSourceAgent: { es: "agente", en: "agent" },
+  orderSourceCommentToDm: { es: "comentario→DM", en: "comment→DM" },
+  orderSourceCtwa: { es: "anuncio", en: "ad" },
+
   // Empty state — how it works
   howItWorks: { es: "¿Cómo funciona?", en: "How does it work?" },
   howStep1Title: { es: "Describe un objetivo", en: "Describe a goal" },

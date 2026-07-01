@@ -26,6 +26,7 @@ import {
   type ShippingAddressInput,
 } from '@/lib/shopify/create-order'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
+import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
 
 export const AGENTIC_LOOP_MAX_ITERS = 3
 
@@ -499,6 +500,20 @@ export async function runTool(
           })
       } catch (err) {
         console.error('[ai] order created in Shopify but Riverz insert failed:', err)
+      }
+      // Attribute to the Instagram engine when the order came from an IG
+      // conversation → the unified order-attribution ledger (source 'agent').
+      if (shopify.channel === 'instagram' || shopify.channel === 'ig_comment') {
+        await recordOrderAttribution(supabaseAdmin(), {
+          workspaceId: shopify.workspaceId,
+          shopifyOrderId: result.shopify_order_id,
+          orderName: result.order_number,
+          source: 'agent',
+          contactId: shopify.contactId ?? null,
+          channel: shopify.channel,
+          revenue: result.total_price,
+          currency: result.currency,
+        })
       }
     }
 

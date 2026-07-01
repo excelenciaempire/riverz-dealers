@@ -22,6 +22,7 @@ import {
   Check,
   Send,
   Mail,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -650,6 +651,9 @@ export default function InstagramAgentPage() {
         </div>
       )}
 
+      {/* Pedidos atribuidos a Instagram (ledger de atribución) */}
+      <AttributedOrders />
+
       {/* Estado vacío / cómo funciona */}
       {showEmptyState && (
         <section className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6">
@@ -844,6 +848,104 @@ function ProactiveControls() {
           className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
         />
       </label>
+    </div>
+  );
+}
+
+interface AttributedOrder {
+  shopify_order_id: string;
+  order_name: string | null;
+  source: string;
+  revenue: number | null;
+  currency: string | null;
+  channel: string | null;
+  created_at: string;
+}
+
+const ORDER_SOURCE_LABEL: Record<string, string> = {
+  campaign: 'igAgent.orderSourceCampaign',
+  agent: 'igAgent.orderSourceAgent',
+  comment_to_dm: 'igAgent.orderSourceCommentToDm',
+  ctwa: 'igAgent.orderSourceCtwa',
+};
+
+/**
+ * Order-attribution ledger (migration 094): the orders that happened thanks to
+ * the Instagram engine, with source + revenue and the attributed total. Hidden
+ * when empty.
+ */
+function AttributedOrders() {
+  const t = useT();
+  const fmt = useFormat();
+  const [orders, setOrders] = useState<AttributedOrder[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currency, setCurrency] = useState('USD');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/instagram-agent/attributed-orders', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j) {
+          setOrders((j.orders ?? []) as AttributedOrder[]);
+          setTotal(Number(j.total_revenue) || 0);
+          setCurrency(j.currency ?? 'USD');
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (orders.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <Receipt className="h-4 w-4 text-accent-ink" />
+            {t('igAgent.attributedOrdersTitle')}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {t('igAgent.attributedOrdersHint')}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {t('igAgent.attributedOrdersTotal')}
+          </p>
+          <p className="text-lg font-semibold tabular-nums text-accent-ink">
+            {fmt.currency(total, currency)}
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 divide-y divide-border">
+        {orders.slice(0, 8).map((o) => (
+          <li
+            key={o.shopify_order_id}
+            className="flex items-center justify-between gap-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">
+                {o.order_name
+                  ? t('igAgent.orderLabelName', { name: o.order_name })
+                  : o.shopify_order_id}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {t(ORDER_SOURCE_LABEL[o.source] ?? 'igAgent.orderSourceAgent')} ·{' '}
+                {fmt.date(o.created_at, { day: 'numeric', month: 'numeric' })}
+              </p>
+            </div>
+            {o.revenue != null && (
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-accent-ink">
+                {fmt.currency(o.revenue, o.currency ?? currency)}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
