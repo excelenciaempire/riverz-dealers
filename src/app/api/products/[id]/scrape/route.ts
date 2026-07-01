@@ -84,6 +84,7 @@ export async function POST(
     // markdown stays bounded. A single failing URL doesn't sink the rest.
     const perUrl = Math.max(2_000, Math.floor(14_000 / sites.length));
     const chunks: string[] = [];
+    const htmlChunks: string[] = [];
     const failures: string[] = [];
     for (const site of sites) {
       try {
@@ -93,6 +94,7 @@ export async function POST(
             sites.length > 1 ? `## ${site}\n\n${scraped.markdown}` : scraped.markdown,
           );
         }
+        if (scraped.html) htmlChunks.push(scraped.html);
       } catch (e) {
         failures.push(`${site}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -120,7 +122,7 @@ export async function POST(
     const offersDetected = await detectOffersFromScrapedContent(
       supabase,
       product,
-      markdown,
+      { markdown, html: htmlChunks.join('\n') },
       locale === 'en' ? 'en' : 'es',
     );
     return NextResponse.json({

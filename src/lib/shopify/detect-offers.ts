@@ -149,6 +149,87 @@ export function offersFromText(text: string): DetectedOffer[] {
   return out
 }
 
+/** Extract a balanced `[...]`/`{...}` span starting at `start`, honoring JSON strings. */
+function extractBalanced(s: string, start: number, open: string, close: string): string | null {
+  let depth = 0
+  let inStr = false
+  let esc = false
+  for (let i = start; i < s.length; i++) {
+    const c = s[i]
+    if (inStr) {
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+    } else if (c === '"') inStr = true
+    else if (c === open) depth++
+    else if (c === close) {
+      depth--
+      if (depth === 0) return s.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+/**
+ * Parse offer tiers from a bundle app's config embedded in the page (Kaching
+ * ships its `dealBars` config as JSON in the product page — deterministic and
+ * available even without JS rendering, unlike the visible widget text). Each
+ * bar carries a `title` (label) + `quantity`/`dealBarType`; total units follow
+ * the same rule as everywhere: quantity-break → quantity, bxgy → buy + get.
+ */
+export function offersFromKachingConfig(text: string): DetectedOffer[] {
+  if (!text || typeof text !== 'string') return []
+  const out: DetectedOffer[] = []
+  const KEY = '"dealBars"'
+  let idx = 0
+  while (true) {
+    const k = text.indexOf(KEY, idx)
+    if (k < 0) break
+    const br = text.indexOf('[', k)
+    idx = k + KEY.length
+    if (br < 0) continue
+    const arr = extractBalanced(text, br, '[', ']')
+    if (!arr) continue
+    let bars: unknown
+    try {
+      bars = JSON.parse(arr)
+    } catch {
+      continue
+    }
+    if (!Array.isArray(bars)) continue
+    for (const bar of bars) {
+      const b = bar as Record<string, unknown>
+      const type = String(b?.dealBarType ?? '')
+      const title = typeof b?.title === 'string' ? b.title.trim() : ''
+      const units =
+        type === 'bxgy'
+          ? (Number(b?.buyQuantity) || 0) + (Number(b?.getQuantity) || 0)
+          : Number(b?.quantity) || 0
+      if (units > 0) out.push({ label: title, units })
+    }
+  }
+  return out
+}
+
+/**
+ * Detect offers from scraped product content: the embedded bundle config in the
+ * raw HTML (most reliable — structured, render-independent) plus the visible
+ * "X Unidades + Y GRATIS" widget text from the markdown, deduped + normalized.
+ * Config tiers are listed first so their clean labels win on a units tie; the
+ * markdown text contributes prices. Pass config parsing only the HTML (config
+ * lives in a script) and text parsing only the markdown (avoids HTML noise).
+ */
+export function detectOffers(
+  markdown: string,
+  html?: string | null,
+  locale: 'es' | 'en' = 'es',
+): DetectedOffer[] {
+  return normalizeDetectedOffers(
+    [...offersFromKachingConfig(html ?? ''), ...offersFromText(markdown ?? '')],
+    locale,
+  )
+}
+
 interface RawLineItem {
   quantity?: number | string
   properties?: unknown

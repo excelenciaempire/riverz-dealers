@@ -4,6 +4,8 @@ import {
   offersFromText,
   offersFromOrderProperties,
   offersByProductFromOrder,
+  offersFromKachingConfig,
+  detectOffers,
   normalizeDetectedOffers,
   mergeOffers,
   synthesizeLabel,
@@ -103,6 +105,40 @@ describe('offersFromOrderProperties — Kaching __kaching_bundles', () => {
   })
   it('ignores orders with no kaching property', () => {
     expect(offersFromOrderProperties({ line_items: [{ quantity: 2, properties: [] }] })).toEqual([])
+  })
+})
+
+describe('offersFromKachingConfig — embedded page config (real store shape)', () => {
+  // Mirrors the dealBars JSON pilarargentina.store embeds in the product page.
+  const html = `<html><body><script>window.__kaching = {"blockTitle":"¡Lleva más, paga menos!","dealBars":[
+    {"id":"MFN9","label":"Precio Promocional","title":"1 Unidad","quantity":1,"dealBarType":"quantity-break"},
+    {"id":"Ab12","label":"Ahorra {{saved_total}}","title":"2  Unidades + 1 GRATIS","quantity":3,"dealBarType":"quantity-break"},
+    {"id":"JGz6","label":"Ahorra {{saved_total}}","title":"3 Unidades + 1 GRATIS","quantity":4,"dealBarType":"quantity-break"}
+  ]};</script></body></html>`
+
+  it('extracts each tier with total units from quantity (render-independent)', () => {
+    const offers = normalizeDetectedOffers(offersFromKachingConfig(html), 'es')
+    expect(offers.map((o) => o.units)).toEqual([1, 3, 4])
+    expect(offers.find((o) => o.units === 4)?.label).toMatch(/3 Unidades \+ 1 GRATIS/)
+  })
+
+  it('computes bxgy total as buy + get', () => {
+    const bxgy = `x "dealBars":[{"title":"Compra 2 lleva 1","dealBarType":"bxgy","buyQuantity":2,"getQuantity":1}] y`
+    expect(offersFromKachingConfig(bxgy)).toEqual([{ label: 'Compra 2 lleva 1', units: 3 }])
+  })
+
+  it('returns nothing when there is no dealBars config', () => {
+    expect(offersFromKachingConfig('<html>no config here</html>')).toEqual([])
+  })
+})
+
+describe('detectOffers — config (html) + widget text (markdown) merged', () => {
+  it('takes clean units/labels from config and the price from the rendered text', () => {
+    const html = `"dealBars":[{"title":"2 Unidades + 1 GRATIS","quantity":3,"dealBarType":"quantity-break"}]`
+    const markdown = `2 Unidades + 1 GRATIS $69.900,00 $210.000,00`
+    const offers = detectOffers(markdown, html, 'es')
+    expect(offers).toHaveLength(1)
+    expect(offers[0]).toEqual({ label: '2 Unidades + 1 GRATIS', units: 3, total: 69900 })
   })
 })
 

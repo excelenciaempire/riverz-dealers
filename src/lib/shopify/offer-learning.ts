@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShopifyAdminClient, nextPageInfo } from './admin-client'
 import {
   offersByProductFromOrder,
-  offersFromText,
+  detectOffers,
   normalizeDetectedOffers,
   mergeOffers,
 } from './detect-offers'
@@ -44,10 +44,12 @@ interface OfferRow {
 export async function detectOffersFromScrapedContent(
   db: SupabaseClient,
   product: OfferRow,
-  markdown: string,
+  content: { markdown: string; html?: string | null } | string,
   locale: 'es' | 'en' = 'es',
 ): Promise<number> {
-  const detected = normalizeDetectedOffers(offersFromText(markdown), locale)
+  const markdown = typeof content === 'string' ? content : content.markdown
+  const html = typeof content === 'string' ? null : content.html ?? null
+  const detected = detectOffers(markdown, html, locale)
   if (detected.length === 0) return 0
   const existing = Array.isArray(product.allowed_offers) ? product.allowed_offers : []
   if (!(product.offers_auto_detected === true || existing.length === 0)) return 0

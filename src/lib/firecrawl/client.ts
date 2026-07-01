@@ -20,6 +20,9 @@ const ENDPOINT = 'https://api.firecrawl.dev/v1/scrape';
 export interface FirecrawlScrapeResult {
   /** Markdown body extracted from the page. Capped at 16 KB by us. */
   markdown: string;
+  /** Raw HTML of the page (for structured parsing, e.g. embedded bundle
+   *  config that renders client-side). Capped; null if unavailable. */
+  html: string | null;
   /** Page title (typically <title>). */
   title: string | null;
   /** Cleaned meta description. */
@@ -62,7 +65,9 @@ export async function firecrawlScrape(
 
   const body = {
     url,
-    formats: ['markdown'],
+    // rawHtml carries bundle-app config (Kaching dealBars etc.) that renders
+    // client-side and may be missing/late in the extracted markdown.
+    formats: ['markdown', 'rawHtml'],
     onlyMainContent: true,
     excludeTags: opts?.excludeTags ?? [
       'nav',
@@ -88,6 +93,7 @@ export async function firecrawlScrape(
     success?: boolean;
     data?: {
       markdown?: string;
+      rawHtml?: string;
       metadata?: {
         title?: string;
         description?: string;
@@ -123,8 +129,11 @@ export async function firecrawlScrape(
       json,
     );
   }
+  // Keep the raw HTML bounded — we only scan it for embedded offer config.
+  const html = json.data?.rawHtml ? json.data.rawHtml.slice(0, 1_500_000) : null;
   return {
     markdown,
+    html,
     title: json.data?.metadata?.title ?? null,
     description: json.data?.metadata?.description ?? null,
     sourceUrl: json.data?.metadata?.sourceURL ?? url,

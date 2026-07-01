@@ -50,12 +50,14 @@ async function ensureScrapedContent(
 
   const perUrl = Math.max(2_000, Math.floor(14_000 / valid.length))
   const chunks: string[] = []
+  const htmlChunks: string[] = []
   for (const site of valid) {
     try {
       const s = await firecrawlScrape(site, { maxChars: perUrl })
       if (s.markdown.trim()) {
         chunks.push(valid.length > 1 ? `## ${site}\n\n${s.markdown}` : s.markdown)
       }
+      if (s.html) htmlChunks.push(s.html)
     } catch {
       /* one failing URL doesn't sink the rest */
     }
@@ -71,11 +73,11 @@ async function ensureScrapedContent(
       scraped_at: new Date().toISOString(),
     })
     .eq('id', product.id as string)
-  // The page we just read also carries the offer tiers.
+  // The page we just read also carries the offer tiers (config + widget text).
   await detectOffersFromScrapedContent(
     db,
     product as { id: string },
-    scraped,
+    { markdown: scraped, html: htmlChunks.join('\n') },
     locale === 'en' ? 'en' : 'es',
   )
   return scraped
