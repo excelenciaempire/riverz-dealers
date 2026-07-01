@@ -120,11 +120,20 @@ export class ShopifyAdminClient {
     return { data: (await res.json()) as T, link: res.headers.get('link') }
   }
 
-  async getShopInfo(): Promise<{ name: string; domain: string }> {
-    const data = await this.rest<{ shop: { name: string; domain: string } }>(
-      '/shop.json',
-    )
-    return { name: data.shop?.name ?? '', domain: data.shop?.domain ?? '' }
+  async getShopInfo(): Promise<{
+    name: string
+    domain: string
+    /** ISO 4217 de la tienda (shop.currency). '' si Shopify no la devuelve. */
+    currency: string
+  }> {
+    const data = await this.rest<{
+      shop: { name: string; domain: string; currency?: string }
+    }>('/shop.json')
+    return {
+      name: data.shop?.name ?? '',
+      domain: data.shop?.domain ?? '',
+      currency: data.shop?.currency ?? '',
+    }
   }
 
   /**

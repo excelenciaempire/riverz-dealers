@@ -83,6 +83,9 @@ export interface CreateCheckoutContext {
   storefrontDomain?: string | null
   /** Config de checkout por-workspace. Si null o sin offers => AUTO MODE. */
   config?: CheckoutConfig | null
+  /** Divisa canónica del workspace ya resuelta por el runner. Fallback antes
+   *  de caer a la divisa de /shop.json cuando la config no fija una. */
+  currency?: string | null
 }
 
 export interface CreateCheckoutResult {
@@ -262,7 +265,7 @@ export async function createCheckoutLink(
 
   const { domain: storefront, currency: shopCurrency } =
     await resolveStorefront(ctx)
-  const currency = config?.currency || (bundleMode ? 'ARS' : shopCurrency)
+  const currency = config?.currency || ctx.currency || shopCurrency
   const paymentHint: PaymentHint = input.payment_hint ?? 'card_or_mp'
 
   // ── Descuento por transferencia (sólo si la config lo provee) ──────

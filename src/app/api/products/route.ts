@@ -6,6 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
 import { slugifyTitle, handleSuffix } from '@/lib/products/slug';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -111,9 +112,17 @@ export async function GET(request: Request) {
 
   const shopify_connected = !!shop;
 
+  // Divisa del workspace — para que el UI muestre precios de productos con
+  // currency=null y prellene la divisa al crear/editar. Misma resolución que
+  // usan los agentes.
+  const workspace_currency = workspaceIds.length
+    ? await resolveWorkspaceCurrency(admin, workspaceIds[0])
+    : 'COP';
+
   return NextResponse.json({
     products,
     shopify_connected,
+    workspace_currency,
   });
 }
 
@@ -171,6 +180,10 @@ export async function POST(request: Request) {
   const handle = `${slugifyTitle(title)}-${handleSuffix(externalId)}`;
   const priceMin = num(body?.price_min);
   const priceMax = num(body?.price_max) ?? priceMin;
+  // Divisa: la que mande el body, o la detectada del workspace (tienda
+  // Shopify / config / catálogo) en vez de un 'COP' hardcodeado.
+  const currency =
+    str(body?.currency) ?? (await resolveWorkspaceCurrency(admin, workspaceId));
 
   const { data, error } = await admin
     .from('shopify_products')
@@ -185,7 +198,7 @@ export async function POST(request: Request) {
       product_type: str(body?.product_type),
       price_min: priceMin,
       price_max: priceMax,
-      currency: str(body?.currency) ?? 'COP',
+      currency,
       image_url: str(body?.image_url),
       custom_notes: str(body?.custom_notes),
       scrape_status: 'done',

@@ -29,6 +29,7 @@ import {
 } from './tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
@@ -179,6 +180,10 @@ export async function runAiAgent(
     // valga igual para agentes viejos con context_messages bajo.
     const context = await loadContext(db, args.conversation, 100);
     const products = await loadProductCatalog(db, agent, args.workspaceId, productMatch);
+    // Divisa canónica del workspace — la misma que ve la feature de productos.
+    // Se la damos a TODOS los agentes (con o sin Shopify) para que coticen
+    // siempre en la moneda correcta en vez de un 'ARS' por defecto.
+    const businessCurrency = await resolveWorkspaceCurrency(db, args.workspaceId);
     const shopify = await resolveShopifyContext(
       db,
       args.workspaceId,
@@ -196,6 +201,7 @@ export async function runAiAgent(
       shopify.conversationId = args.conversation.id;
       shopify.channel = args.channel;
       shopify.contactName = args.contact.name ?? null;
+      shopify.currency = shopify.config?.currency || businessCurrency;
     }
     let reply: Awaited<ReturnType<typeof generateReply>>;
     try {
@@ -209,6 +215,7 @@ export async function runAiAgent(
         products,
         productMatch,
         shopify,
+        businessCurrency,
         db,
       );
     } catch (genErr) {
@@ -1049,6 +1056,7 @@ async function generateReply(
   products: ProductRow[],
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null,
+  businessCurrency: string,
   db: SupabaseClient,
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
@@ -1080,6 +1088,7 @@ async function generateReply(
     productMatch,
     shopify,
     igContext,
+    businessCurrency,
   );
 
   // Ensure the conversation starts with a user turn — required by the API.
@@ -1338,12 +1347,18 @@ function buildSystemPrompt(
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null = null,
   igContext: string | null = null,
+  businessCurrency: string = 'COP',
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(agent.persona.trim());
   lines.push(TONE_INSTRUCTIONS[agent.tone]);
   lines.push(`Responde en ${agent.language || 'es'}.`);
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
+  // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
+  // Detectada de la tienda Shopify / config / catálogo (resolveWorkspaceCurrency).
+  lines.push(
+    `Moneda del negocio: ${businessCurrency}. Cuando menciones precios, exprésalos siempre en ${businessCurrency}; nunca cambies de moneda ni inventes conversiones.`,
+  );
   if (agent.knowledge && agent.knowledge.trim()) {
     lines.push('Contexto adicional sobre el negocio:');
     lines.push(agent.knowledge.trim());
@@ -1368,7 +1383,7 @@ function buildSystemPrompt(
   const checkoutCfg = shopify?.config ?? null;
   const cfgOffers = checkoutCfg?.offers ?? null;
   if (checkoutCfg?.enabled && cfgOffers && cfgOffers.length > 0) {
-    const currency = checkoutCfg.currency || 'ARS';
+    const currency = checkoutCfg.currency || businessCurrency;
     const enumeration = cfgOffers
       .map((o) => `${o.label} ${fmtMoney(o.total, currency)}`)
       .join('; ');

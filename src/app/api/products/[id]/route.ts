@@ -4,6 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { slugifyTitle, handleSuffix, isUuid } from '@/lib/products/slug';
 import { buildTrainingMaterial } from '@/lib/products/training-material';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -53,8 +55,18 @@ export async function GET(
     .select('agent_id, ai_agents(id, name, persona, tone, is_active, model)')
     .eq('product_id', product.id);
 
+  // Divisa del workspace — el editor la usa para prellenar el selector
+  // cuando el producto todavía no tiene divisa propia. Admin client porque
+  // shopify_connections tiene RLS por user_id (un miembro que no instaló no
+  // la vería con el cliente RLS).
+  const workspaceId = (product as { workspace_id?: string | null }).workspace_id;
+  const workspace_currency = workspaceId
+    ? await resolveWorkspaceCurrency(supabaseAdmin(), workspaceId)
+    : 'COP';
+
   return NextResponse.json({
     product,
+    workspace_currency,
     agents: (assignments ?? [])
       .map((a: Record<string, unknown>) => a.ai_agents)
       .filter(Boolean),

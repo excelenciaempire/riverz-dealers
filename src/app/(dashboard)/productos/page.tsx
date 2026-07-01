@@ -57,6 +57,9 @@ export default function ProductosPage() {
   const fetchWithCsrf = useFetchWithCsrf();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
+  // Divisa del workspace (detectada) — fallback para mostrar precios de
+  // productos sin divisa propia.
+  const [workspaceCurrency, setWorkspaceCurrency] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
@@ -74,6 +77,7 @@ export default function ProductosPage() {
       const json = await res.json();
       setProducts(json.products ?? []);
       setShopifyConnected(!!json.shopify_connected);
+      setWorkspaceCurrency(json.workspace_currency ?? null);
     } catch (err) {
       console.error(err);
       toast.error(t('products.loadError'));
@@ -238,7 +242,7 @@ export default function ProductosPage() {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} fallbackCurrency={workspaceCurrency} />
           ))}
           {/* Tile "Nuevo producto" — al estilo de la referencia */}
           <button
@@ -260,15 +264,21 @@ export default function ProductosPage() {
   );
 }
 
-function ProductCard({ product }: { product: ProductRow }) {
+function ProductCard({
+  product,
+  fallbackCurrency,
+}: {
+  product: ProductRow;
+  fallbackCurrency: string | null;
+}) {
   const t = useT();
   const completeness = productCompleteness(product);
   const price =
     product.price_min == null
       ? null
       : product.price_min === product.price_max
-        ? formatPrice(product.price_min, product.currency)
-        : `${formatPrice(product.price_min, product.currency)} – ${formatPrice(product.price_max ?? 0, product.currency)}`;
+        ? formatPrice(product.price_min, product.currency, fallbackCurrency)
+        : `${formatPrice(product.price_min, product.currency, fallbackCurrency)} – ${formatPrice(product.price_max ?? 0, product.currency, fallbackCurrency)}`;
 
   return (
     <Link

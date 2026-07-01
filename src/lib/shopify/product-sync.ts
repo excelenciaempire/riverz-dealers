@@ -22,6 +22,27 @@ export async function syncShopifyProducts(
   },
 ): Promise<{ synced: number; deleted: number; bundlesDetected: number }> {
   const client = new ShopifyAdminClient(args.shopDomain, args.accessToken)
+
+  // Divisa real de la tienda (ISO 4217 de /shop.json). Antes NO la
+  // guardábamos: cada producto quedaba con currency=null y todo el resto
+  // (agentes, checkout) caía a un 'ARS' hardcodeado. La detectamos una vez
+  // y la estampamos en cada producto + en la conexión, para que sea la
+  // divisa canónica del workspace. Fail-open: si falla, seguimos con null
+  // (comportamiento anterior).
+  let shopCurrency: string | null = null
+  try {
+    shopCurrency = (await client.getShopInfo()).currency || null
+  } catch {
+    /* seguimos sin divisa — no bloqueamos el sync del catálogo */
+  }
+  if (shopCurrency) {
+    await db
+      .from('shopify_connections')
+      .update({ currency: shopCurrency })
+      .eq('workspace_id', args.workspaceId)
+      .eq('shop_domain', args.shopDomain)
+  }
+
   const PAGE = 250
   const MAX_PAGES = 10
   const allProducts: ShopifyProduct[] = []
@@ -38,7 +59,7 @@ export async function syncShopifyProducts(
 
   if (allProducts.length === 0) return { synced: 0, deleted: 0, bundlesDetected: 0 }
 
-  const rows = allProducts.map((p) => productToRow(p, args))
+  const rows = allProducts.map((p) => productToRow(p, args, shopCurrency))
   const bundlesDetected = rows.filter((r) => Boolean(r.is_bundle)).length
 
   // Upsert in chunks — PostgREST caps the request payload.
@@ -96,6 +117,7 @@ interface ShopifyProduct {
 function productToRow(
   p: ShopifyProduct,
   args: { userId: string; workspaceId: string; shopDomain: string },
+  shopCurrency: string | null,
 ): Record<string, unknown> {
   const prices = (p.variants ?? [])
     .map((v) => Number(v.price))
@@ -127,7 +149,7 @@ function productToRow(
     tags,
     price_min: min,
     price_max: max,
-    currency: null,
+    currency: shopCurrency,
     image_url: p.image?.src ?? p.images?.[0]?.src ?? null,
     url: `https://${args.shopDomain}/products/${p.handle}`,
     is_bundle: bundle.isBundle,

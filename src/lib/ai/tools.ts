@@ -48,6 +48,10 @@ export interface ShopifyToolContext {
   /** Config de checkout por-workspace (fila de workspace_checkout_config).
    *  Si null o sin offers, `create_checkout` corre en AUTO MODE. */
   config?: CheckoutConfig | null
+  /** Divisa canónica del workspace (ISO 4217) ya resuelta por el runner:
+   *  config de checkout → tienda Shopify detectada → catálogo → default.
+   *  Se usa como fallback de precios/pedidos en vez de un 'ARS' hardcodeado. */
+  currency?: string | null
 
   // ── Order creation (tool create_order) ──
   /** Si el agente tiene permitido crear pedidos reales (ai_agents
@@ -364,6 +368,7 @@ export async function runTool(
         pinnedVariantId: shopify.pinnedVariantId ?? null,
         storefrontDomain: shopify.storefrontDomain ?? null,
         config,
+        currency: shopify.currency ?? null,
       },
     )
     // Registrar "pago pendiente" en la conversación: hace al asistente
@@ -456,6 +461,7 @@ export async function runTool(
       customerPhone: shopify.customerPhone ?? null,
       customerEmail: shopify.customerEmail ?? null,
       config,
+      currency: shopify.currency ?? null,
     })
     if ('error' in result) {
       return JSON.stringify(result)

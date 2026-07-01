@@ -56,6 +56,7 @@ export function buildTrainingMaterial(
   const tags = (p.tags as string[] | null) ?? [];
   const priceMin = p.price_min as number | null;
   const priceMax = p.price_max as number | null;
+  const currency = ((p.currency as string | null) ?? '').trim();
   const customNotes = p.custom_notes as string | null;
   const customFaqs = (p.custom_faqs as Array<{ q: string; a: string }> | null) ?? [];
   const aiResearch = p.ai_research as string | null;
@@ -71,10 +72,11 @@ export function buildTrainingMaterial(
   if (vendor) meta.push(`${L.brand}: ${vendor}`);
   if (tags.length > 0) meta.push(`${L.tags}: ${tags.join(', ')}`);
   if (priceMin != null && priceMax != null) {
+    const cur = currency ? ` ${currency}` : '';
     meta.push(
       priceMin === priceMax
-        ? `${L.price}: ${priceMin}`
-        : `${L.price}: ${priceMin} – ${priceMax}`,
+        ? `${L.price}: ${priceMin}${cur}`
+        : `${L.price}: ${priceMin} – ${priceMax}${cur}`,
     );
   }
   if (meta.length > 0) parts.push(meta.join(' · '));

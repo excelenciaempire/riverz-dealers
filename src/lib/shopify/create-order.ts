@@ -65,6 +65,9 @@ export interface CreateOrderContext {
   customerPhone?: string | null
   customerEmail?: string | null
   config?: CheckoutConfig | null
+  /** Divisa canónica del workspace ya resuelta por el runner. Fallback de la
+   *  divisa del pedido cuando la config no fija una (evita el 'ARS' hardcodeado). */
+  currency?: string | null
 }
 
 export interface CreateOrderResult {
@@ -215,7 +218,7 @@ export async function createShopifyOrder(
   }
   const unitPrice = linePriceOverride ?? autoUnitPrice
 
-  const currency = config?.currency || 'ARS'
+  const currency = config?.currency || ctx.currency || 'ARS'
   const paymentHint: PaymentHint = input.payment_hint ?? 'card_or_mp'
 
   // ── Datos del cliente ─────────────────────────────────────────────

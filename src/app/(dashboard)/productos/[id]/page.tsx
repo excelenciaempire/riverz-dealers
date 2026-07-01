@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { CURRENCY_OPTIONS } from '@/lib/products/currency';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { localizePath, canonicalizePath } from '@/lib/i18n/routes';
@@ -89,7 +90,7 @@ interface Offer {
   units: string;
 }
 
-const CURRENCIES = ['COP', 'USD', 'ARS', 'MXN', 'CLP', 'PEN', 'EUR', 'BRL'];
+const CURRENCIES: string[] = [...CURRENCY_OPTIONS];
 
 /** Textarea (una entrada por línea) → array de strings sin vacíos. */
 function linesToArray(text: string): string[] {
@@ -161,7 +162,8 @@ export default function ProductDetailPage() {
             : [],
       );
       setDescriptionText(pr.description ?? '');
-      setCurrency(pr.currency ?? 'COP');
+      // Divisa: la del producto, o la detectada del workspace en vez de 'COP'.
+      setCurrency(pr.currency ?? prodJson.workspace_currency ?? 'COP');
       setOffers(
         (pr.allowed_offers ?? []).map((o) =>
           typeof o === 'string'
@@ -465,7 +467,10 @@ export default function ProductDetailPage() {
               className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               aria-label={t('products.currency')}
             >
-              {CURRENCIES.map((c) => (
+              {(currency && !CURRENCIES.includes(currency)
+                ? [currency, ...CURRENCIES]
+                : CURRENCIES
+              ).map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

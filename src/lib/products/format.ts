@@ -25,19 +25,23 @@ export function formatBundleApp(slug: string | null | undefined): string {
 }
 
 /**
- * Precio con currency. Cae a número decimal si no hay currency o si
- * Intl rechaza el código (la API de Shopify devuelve a veces códigos
- * que Intl no acepta en regiones extrañas).
+ * Precio con currency. Si el producto no tiene divisa propia (p. ej. filas
+ * viejas sincronizadas antes de detectar la divisa de la tienda), usa
+ * `fallbackCurrency` (la divisa del workspace) para no mostrar un número
+ * pelado. Cae a decimal si tampoco hay fallback, o a texto si Intl rechaza
+ * el código (Shopify a veces devuelve códigos que Intl no acepta).
  */
 export function formatPrice(
   amount: number | null | undefined,
   currency: string | null | undefined,
+  fallbackCurrency?: string | null,
 ): string {
   if (amount == null) return '—';
+  const cur = currency || fallbackCurrency || null;
   try {
     return new Intl.NumberFormat('es-ES', {
-      style: currency ? 'currency' : 'decimal',
-      currency: currency ?? 'USD',
+      style: cur ? 'currency' : 'decimal',
+      currency: cur ?? 'USD',
       maximumFractionDigits: 0,
     }).format(amount);
   } catch {
