@@ -185,6 +185,9 @@ export async function PATCH(
   if (body.allowed_offers !== undefined) {
     const offers = Array.isArray(body.allowed_offers) ? body.allowed_offers : [];
     patch.allowed_offers = offers;
+    // The merchant edited the offers by hand → mark the row merchant-owned so
+    // the auto-detector (scrape/backfill) never overwrites these values.
+    patch.offers_auto_detected = false;
     // "Precios de venta" lives here now — derive price_min/max for the
     // catalog + runner from the offer totals.
     const prices = offers

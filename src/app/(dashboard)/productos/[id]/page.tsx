@@ -76,6 +76,8 @@ interface Product {
       >
     | null;
   health_sensitive: boolean | null;
+  /** True when allowed_offers was auto-populated by offer detection (migration 088). */
+  offers_auto_detected: boolean | null;
 }
 
 /** Una oferta de "Precios de venta" tal como se edita en el form.
@@ -126,6 +128,7 @@ export default function ProductDetailPage() {
   const [images, setImages] = useState<string[]>([]);
   const [descriptionText, setDescriptionText] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [offersAutoDetected, setOffersAutoDetected] = useState(false);
   const [currency, setCurrency] = useState('COP');
   const [benefits, setBenefits] = useState('');
   const [websites, setWebsites] = useState<string[]>([]);
@@ -170,6 +173,7 @@ export default function ProductDetailPage() {
               },
         ),
       );
+      setOffersAutoDetected(pr.offers_auto_detected === true);
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
       setWebsites(
         Array.isArray(pr.websites) && pr.websites.length
@@ -470,6 +474,12 @@ export default function ProductDetailPage() {
           }
         >
           <div className="space-y-2">
+            {offersAutoDetected && offers.length > 0 && (
+              <div className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px] text-accent-ink">
+                <Sparkles className="size-3.5 shrink-0" />
+                {t('products.offersAutoDetectedHint')}
+              </div>
+            )}
             {offers.length > 0 && (
               <div className="flex items-center gap-2 px-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 <span className="flex-1">{t('products.offerName')}</span>
@@ -530,7 +540,10 @@ export default function ProductDetailPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOffers((cur) => cur.filter((_, i) => i !== idx))}
+                  onClick={() => {
+                    setOffers((cur) => cur.filter((_, i) => i !== idx));
+                    setOffersAutoDetected(false);
+                  }}
                   className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label={t('products.removeOffer')}
                 >
@@ -541,7 +554,10 @@ export default function ProductDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setOffers((cur) => [...cur, { label: '', total: '', units: '' }])}
+              onClick={() => {
+                setOffers((cur) => [...cur, { label: '', total: '', units: '' }]);
+                setOffersAutoDetected(false);
+              }}
               className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
             >
               <Plus className="size-3.5" />

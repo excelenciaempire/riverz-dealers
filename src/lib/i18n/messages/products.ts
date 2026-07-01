@@ -84,6 +84,10 @@ export const products = {
     es: "Crea una oferta por cada presentación que vendes. Las unidades (1, 3, 4…) deben coincidir con las del pedido: así sabemos qué oferta eligió cada comprador y disparamos el flujo de recompra correcto.",
     en: "Create one offer per pack you sell. The units (1, 3, 4…) must match those in the order: that's how we know which offer each buyer chose and trigger the right repurchase flow.",
   },
+  offersAutoDetectedHint: {
+    es: "Ofertas detectadas automáticamente desde tu página. Revísalas y ajústalas si hace falta — al guardar quedan como tuyas.",
+    en: "Offers auto-detected from your page. Review and adjust if needed — saving makes them yours.",
+  },
   offerName: { es: "Oferta", en: "Offer" },
   offerNamePlaceholder: {
     es: "Ej: 3 unidades + 1 gratis",
