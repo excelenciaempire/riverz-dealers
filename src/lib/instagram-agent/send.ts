@@ -4,7 +4,7 @@ import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import type { InstagramCampaign } from './types';
 import { loadBrandContext } from './brand-context';
-import { latestInboundText } from './engagement';
+import { latestInbound, withinMessagingWindow } from './engagement';
 import { craftPersonalizedDM } from './personalize-dm';
 import {
   getShopifyAdmin,
@@ -52,14 +52,19 @@ export async function sendCampaignBatch(
   //    (holdout) y el spam; priorizamos por lead score (high primero).
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')
-    .select('id, contact_id, lead_score, contacts(id, external_id, name)')
+    .select('id, contact_id, lead_score, contacts(id, external_id, name, opted_out)')
     .eq('campaign_id', campaign.id)
     .eq('status', 'queued')
     .eq('is_holdout', false)
     .eq('is_spam', false)
     .limit(limit * 4);
 
-  type ContactJoin = { id: string; external_id: string | null; name: string | null };
+  type ContactJoin = {
+    id: string;
+    external_id: string | null;
+    name: string | null;
+    opted_out: boolean | null;
+  };
   const allRows = (recipients ?? []) as unknown as Array<{
     id: string;
     contact_id: string | null;
@@ -67,10 +72,27 @@ export async function sendCampaignBatch(
     contacts: ContactJoin | ContactJoin[] | null;
   }>;
   const rank: Record<string, number> = { high: 0, medium: 1, low: 2 };
-  const rows = allRows
+  const ranked = allRows
     .slice()
     .sort((a, b) => (rank[a.lead_score ?? 'low'] ?? 3) - (rank[b.lead_score ?? 'low'] ?? 3))
     .slice(0, limit);
+
+  // Suppress opt-outs (STOP / unsubscribe): honor the contact's request and
+  // never DM them again — a hard compliance gate, before any code minting.
+  const rows = ranked.filter((r) => {
+    const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+    return c?.opted_out !== true;
+  });
+  const suppressed = ranked.filter((r) => {
+    const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+    return c?.opted_out === true;
+  });
+  for (const r of suppressed) {
+    await db
+      .from('instagram_campaign_recipients')
+      .update({ status: 'skipped', error: 'opted_out' })
+      .eq('id', r.id);
+  }
   if (rows.length === 0) {
     return { sent: 0, failed: 0, remaining: 0 };
   }
@@ -122,12 +144,29 @@ export async function sendCampaignBatch(
     id: string;
     contact: { id: string; external_id: string } | null;
     text: string;
+    /** Set when the row must be skipped instead of sent (e.g. outside window). */
+    skip?: string;
   };
   const prepared: Prepared[] = await Promise.all(
     rows.map(async (r): Promise<Prepared> => {
       const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
       if (!contact?.external_id) return { id: r.id, contact: null, text: '' };
-      const engagement = await latestInboundText(db, contact.id).catch(() => null);
+      const inbound = await latestInbound(db, contact.id).catch(() => ({
+        text: null,
+        at: null,
+      }));
+      // A batch DM is free-form (recipient by id), so Meta only allows it
+      // within 24h of the person's last message. Outside the window → skip
+      // rather than let Meta reject it (and don't burn the attempt). Fresh
+      // comment-driven outreach goes out in real time, within window.
+      if (!withinMessagingWindow(inbound.at)) {
+        return {
+          id: r.id,
+          contact: { id: contact.id, external_id: contact.external_id },
+          text: '',
+          skip: 'outside_24h_window',
+        };
+      }
       const personalCode = codeByRecipient.get(r.id);
       const recipientOffer = personalCode
         ? { code: personalCode, discount: offer?.discount || (pct ? `${pct}%` : '') }
@@ -140,7 +179,7 @@ export async function sendCampaignBatch(
         offer: recipientOffer,
         products: campaign.plan.recommended_products,
         name: contact.name,
-        engagement,
+        engagement: inbound.text,
       });
       return { id: r.id, contact: { id: contact.id, external_id: contact.external_id }, text };
     }),
@@ -151,6 +190,13 @@ export async function sendCampaignBatch(
 
   // Send sequentially (don't hammer the Meta API in parallel).
   for (const p of prepared) {
+    if (p.skip) {
+      await db
+        .from('instagram_campaign_recipients')
+        .update({ status: 'skipped', error: p.skip })
+        .eq('id', p.id);
+      continue;
+    }
     if (!p.contact) {
       await db
         .from('instagram_campaign_recipients')

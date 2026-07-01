@@ -59,6 +59,16 @@ async function newestActiveCampaign(
   return { ...row, plan };
 }
 
+/** Has this contact asked to stop receiving messages? (compliance gate) */
+async function isOptedOut(db: SupabaseClient, contactId: string): Promise<boolean> {
+  const { data } = await db
+    .from('contacts')
+    .select('opted_out')
+    .eq('id', contactId)
+    .maybeSingle();
+  return (data as { opted_out?: boolean } | null)?.opted_out === true;
+}
+
 async function igConnection(
   db: SupabaseClient,
   workspaceId: string,
@@ -102,6 +112,8 @@ export async function maybeInstantOutreach(
   },
 ): Promise<void> {
   if (!opts.contact.external_id) return;
+  // Respect opt-out — never re-engage a contact who asked to stop.
+  if (await isOptedOut(db, opts.contact.id)) return;
   const campaign = await newestActiveCampaign(db, opts.workspaceId);
   if (!campaign) return;
 
@@ -362,6 +374,8 @@ export async function maybeRunCloser(
   // this DM — return false so the generic assistant answers instead of the
   // customer getting silence.
   if (!hasLlm(apiKey) || !opts.contact.external_id) return false;
+  // Respect opt-out — hand back to the generic assistant rather than push a sale.
+  if (await isOptedOut(db, opts.contact.id)) return false;
 
   // Mark replied inline (faster than waiting for the cron's capture pass).
   await db
