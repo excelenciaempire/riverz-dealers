@@ -64,10 +64,6 @@ export const broadcasts = {
 
   // ── Step 2: select audience ──
   step2Title: { es: "Selecciona la audiencia", en: "Select audience" },
-  step2Subtitle: {
-    es: "Elige quién recibirá esta difusión.",
-    en: "Choose who will receive this broadcast.",
-  },
   audienceAllLabel: { es: "Todos los contactos", en: "All contacts" },
   audienceAllDesc: {
     es: "Envía a todos los contactos de tu base de datos",
@@ -156,10 +152,6 @@ export const broadcasts = {
 
   // ── Step 4: schedule & send ──
   step4Title: { es: "Revisar y enviar", en: "Review and send" },
-  step4Subtitle: {
-    es: "Nombra tu difusión, revisa los detalles y envía.",
-    en: "Name your broadcast, review the details, and send.",
-  },
   broadcastName: { es: "Nombre de la difusión", en: "Broadcast name" },
   broadcastNamePlaceholder: {
     es: "p. ej. Anuncio de rebajas de verano",

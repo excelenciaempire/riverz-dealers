@@ -80,9 +80,6 @@ export function SetupChecklist() {
               <h2 className="mt-1 text-base font-semibold text-foreground">
                 {t('dashboard.youAreLive')}
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t('dashboard.youAreLiveDesc')}
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">

@@ -990,7 +990,6 @@ export function AgentEditor({
                     con decisiones técnicas. */}
                 <SectionCard
                   title={t('assistant.identityTitle')}
-                  hint={t('assistant.identityHint')}
                 >
                   <Field label={t('assistant.agentNameLabel')}>
                     <Input

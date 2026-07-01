@@ -351,7 +351,6 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 {t('contacts.mapColumns')}
               </p>
-              <p className="text-xs text-muted-foreground">{t('contacts.mapHint')}</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {FIELDS.map((field) => (
                   <label key={field} className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5">

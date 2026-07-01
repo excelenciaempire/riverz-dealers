@@ -85,9 +85,6 @@ export function Step4ScheduleSend({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step4Title')}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('broadcasts.step4Subtitle')}
-        </p>
       </div>
 
       {/* Broadcast Name */}

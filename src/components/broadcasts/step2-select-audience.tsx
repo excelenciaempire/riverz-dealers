@@ -293,9 +293,6 @@ export function Step2SelectAudience({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step2Title')}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('broadcasts.step2Subtitle')}
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

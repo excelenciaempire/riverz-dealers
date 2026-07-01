@@ -192,7 +192,6 @@ export default function DashboardPage() {
               title={t('dashboard.openConversations')}
               value={fmt.number(metrics.activeConversations.current)}
               icon={MessageSquare}
-              subtitle={t('dashboard.inProgressNow')}
             />
             <MetricCard
               title={t('dashboard.newContacts')}

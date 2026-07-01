@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -247,9 +246,6 @@ export function MetaBusinessLogin({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("settings.chooseAccountsToConnect")}</DialogTitle>
-            <DialogDescription>
-              {t("settings.chooseAccountsDescription")}
-            </DialogDescription>
           </DialogHeader>
 
           <ul className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto">

@@ -96,10 +96,6 @@ export const assistant = {
 
   // Editor: business tab — identity
   identityTitle: { es: "Identidad del asistente", en: "Assistant identity" },
-  identityHint: {
-    es: "Cómo se llama y qué tono usa. Edítalo si quieres.",
-    en: "Its name and tone. Edit it if you like.",
-  },
   agentNameLabel: { es: "Nombre del asistente", en: "Assistant name" },
   toneLabel: { es: "Tono", en: "Tone" },
   toneHelp: {

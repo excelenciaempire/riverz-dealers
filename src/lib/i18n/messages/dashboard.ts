@@ -14,7 +14,6 @@ export const dashboard = {
 
   // Metric cards
   openConversations: { es: "Conversaciones abiertas", en: "Open conversations" },
-  inProgressNow: { es: "En curso ahora", en: "In progress now" },
   newContacts: { es: "Contactos nuevos", en: "New contacts" },
   resolved: { es: "Resueltas", en: "Resolved" },
   messagesReceived: { es: "Mensajes recibidos", en: "Messages received" },
@@ -112,10 +111,6 @@ export const dashboard = {
   // Setup checklist — success state
   setupComplete: { es: "Configuración completa", en: "Setup complete" },
   youAreLive: { es: "Ya estás en vivo", en: "You're live" },
-  youAreLiveDesc: {
-    es: "Tu canal, tu producto y tu asistente están listos para atender.",
-    en: "Your channel, product and assistant are ready to handle messages.",
-  },
   openInbox: { es: "Abrir bandeja", en: "Open inbox" },
   viewMetrics: { es: "Ver métricas", en: "View metrics" },
 

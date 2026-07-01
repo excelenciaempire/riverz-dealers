@@ -56,13 +56,10 @@ export function AppearancePanel() {
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-1">
+        <div>
           <h2 className="text-lg font-semibold text-foreground">
             {t("settings.language")}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            {t("settings.languageDescription")}
-          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

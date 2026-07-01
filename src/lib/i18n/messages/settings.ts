@@ -28,10 +28,6 @@ export const settings = {
 
   // Language
   language: { es: "Idioma", en: "Language" },
-  languageDescription: {
-    es: "Elige el idioma de la interfaz. Tu elección se guarda para la próxima vez.",
-    en: "Choose the interface language. Your choice is saved for next time.",
-  },
   useLanguage: { es: "Usar {name}", en: "Use {name}" },
 
   // Settings page header
@@ -85,10 +81,6 @@ export const settings = {
   chooseAccountsToConnect: {
     es: "Elige las cuentas a conectar",
     en: "Choose the accounts to connect",
-  },
-  chooseAccountsDescription: {
-    es: "Selecciona qué cuentas quieres conectar a este espacio de trabajo.",
-    en: "Select which accounts you want to connect to this workspace.",
   },
   connectSelected: {
     es: "Conectar seleccionadas ({n})",

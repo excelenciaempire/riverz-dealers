@@ -161,10 +161,6 @@ export const contacts = {
   downloadTemplate: { es: 'Descargar plantilla', en: 'Download template' },
   templateFileName: { es: 'plantilla-contactos.csv', en: 'contacts-template.csv' },
   mapColumns: { es: 'Asignar columnas', en: 'Map columns' },
-  mapHint: {
-    es: 'Elige qué columna de tu archivo corresponde a cada campo.',
-    en: 'Pick which column in your file maps to each field.',
-  },
   columnNone: { es: '— Ninguna —', en: '— None —' },
   importNeedPhone: {
     es: 'Asigna la columna de teléfono para continuar.',
