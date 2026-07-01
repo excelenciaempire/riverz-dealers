@@ -152,6 +152,7 @@ export function offersFromText(text: string): DetectedOffer[] {
 interface RawLineItem {
   quantity?: number | string
   properties?: unknown
+  product_id?: number | string
 }
 
 function readProperty(properties: unknown, name: string): string | null {
@@ -204,6 +205,51 @@ export function offersFromOrderProperties(order: unknown): DetectedOffer[] {
   const out: DetectedOffer[] = []
   for (const units of byDeal.values()) {
     if (units > 0) out.push({ label: '', units })
+  }
+  return out
+}
+
+/**
+ * Like `offersFromOrderProperties`, but attributes each learned tier to the
+ * PRODUCT(s) it involves, so the backfill / connect-time learner can write
+ * tiers onto the right `shopify_products` rows. Returns one `{productId,
+ * units}` per (product, distinct deal-total) seen in the order.
+ */
+export function offersByProductFromOrder(
+  order: unknown,
+): Array<{ productId: string; units: number }> {
+  const lineItems = Array.isArray((order as { line_items?: unknown })?.line_items)
+    ? ((order as { line_items: RawLineItem[] }).line_items)
+    : []
+  const deals = new Map<string, { units: number; products: Set<string> }>()
+  for (const li of lineItems) {
+    const raw = readProperty(li?.properties, '__kaching_bundles')
+    if (!raw) continue
+    let deal = ''
+    try {
+      const parsed = JSON.parse(raw) as { deal?: unknown }
+      deal = typeof parsed?.deal === 'string' ? parsed.deal : ''
+    } catch {
+      deal = raw
+    }
+    if (!deal) continue
+    const productId = li?.product_id != null ? String(li.product_id) : ''
+    const qty = Number(li?.quantity) || 0
+    const entry = deals.get(deal) ?? { units: 0, products: new Set<string>() }
+    entry.units += qty
+    if (productId) entry.products.add(productId)
+    deals.set(deal, entry)
+  }
+  const out: Array<{ productId: string; units: number }> = []
+  const seen = new Set<string>()
+  for (const { units, products } of deals.values()) {
+    if (units <= 0) continue
+    for (const productId of products) {
+      const key = `${productId}:${units}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ productId, units })
+    }
   }
   return out
 }

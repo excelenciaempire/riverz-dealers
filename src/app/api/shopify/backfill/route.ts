@@ -15,6 +15,7 @@ import {
   type OfferConfig,
 } from '@/lib/shopify/offers'
 import { applyCategoryTags } from '@/lib/contacts/tags'
+import { accumulateOrderOffers, writeLearnedOffers } from '@/lib/shopify/offer-learning'
 
 /**
  * Historical Shopify backfill — "extrae todos los contactos desde que abrió la
@@ -152,6 +153,9 @@ async function backfillStore(
   // newest purchase regardless of page order.
   const lastOfferAt = new Map<string, string>()
   const buyers = new Set<string>()
+  // Learn offer tiers from real purchases (Kaching __kaching_bundles): product
+  // external_id → set of distinct total-unit counts. Written after the walk.
+  const learnedOffers = new Map<string, Set<number>>()
 
   // ---- Orders (buyers) ----
   let orderPages = 0
@@ -169,6 +173,9 @@ async function backfillStore(
     const orders = data.orders ?? []
     for (const order of orders) {
       ordersSeen++
+      // Learn offer tiers from this order regardless of whether it has a phone
+      // (offers belong to products, not contacts).
+      accumulateOrderOffers(order, learnedOffers)
       const phone = extractShopifyPhone(order)
       if (!phone) continue
       const contactId = await upsertWhatsappContact(admin, {
@@ -218,6 +225,20 @@ async function backfillStore(
     if (!pageInfo) break
     path = `/orders.json?limit=${opts.pageSize}&page_info=${encodeURIComponent(pageInfo)}`
     await sleep(SLEEP_MS)
+  }
+
+  // Persist the tiers learned from this run's orders onto their products
+  // (idempotent; skips merchant-edited offers). Best-effort — never sink the
+  // whole backfill over an offer-write hiccup.
+  let offersLearned = 0
+  try {
+    offersLearned = await writeLearnedOffers(admin, {
+      shopDomain: conn.shop_domain,
+      learned: learnedOffers,
+      locale: 'es',
+    })
+  } catch (e) {
+    console.error('[shopify] backfill offer learning failed:', e)
   }
 
   // ---- Abandoned checkouts (non-buyers) ----
@@ -271,6 +292,7 @@ async function backfillStore(
 
   return {
     orders: { pages: orderPages, seen: ordersSeen, contacts: ordersContacts },
+    offers_learned: offersLearned,
     abandoned: {
       pages: checkoutPages,
       seen: checkoutsSeen,

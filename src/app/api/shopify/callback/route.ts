@@ -9,6 +9,7 @@ import {
 import { persistShopifyConnection } from '@/lib/shopify/connection'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
 import { syncShopifyProducts } from '@/lib/shopify/product-sync'
+import { learnOffersOnConnect } from '@/lib/shopify/offer-learning'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getLogger } from '@/lib/log/logger'
 
@@ -270,19 +271,30 @@ export async function GET(request: Request) {
     }
 
     // 8. Background-sync the product catalog so the AI assistant has
-    //    something to reason about immediately. Fire-and-forget — never
-    //    block the OAuth redirect on a 5 s catalog scan.
+    //    something to reason about immediately, THEN learn offer tiers from
+    //    recent order history (Kaching bundles etc.) onto those products —
+    //    both fire-and-forget, chained so offers attach to synced rows. Never
+    //    block/fail the OAuth redirect on catalog or offer work.
     syncShopifyProducts(admin, {
       userId,
       workspaceId,
       shopDomain: shop,
       accessToken: access_token,
-    }).catch((err) =>
-      log.error('initial_product_sync_failed', {
-        shop,
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    )
+    })
+      .then(() =>
+        learnOffersOnConnect(admin, {
+          shopDomain: shop,
+          accessToken: access_token,
+          maxPages: 2,
+          locale: 'es',
+        }),
+      )
+      .catch((err) =>
+        log.error('initial_product_sync_or_offer_learn_failed', {
+          shop,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
 
     log.info('install_success', {
       shop,

@@ -3,6 +3,7 @@ import {
   parseMoney,
   offersFromText,
   offersFromOrderProperties,
+  offersByProductFromOrder,
   normalizeDetectedOffers,
   mergeOffers,
   synthesizeLabel,
@@ -102,6 +103,30 @@ describe('offersFromOrderProperties — Kaching __kaching_bundles', () => {
   })
   it('ignores orders with no kaching property', () => {
     expect(offersFromOrderProperties({ line_items: [{ quantity: 2, properties: [] }] })).toEqual([])
+  })
+})
+
+describe('offersByProductFromOrder — attribute learned tiers to products', () => {
+  it('sums a deal per product (quantity-break, single product)', () => {
+    const order = {
+      line_items: [
+        { product_id: 111, quantity: 3, properties: [{ name: '__kaching_bundles', value: '{"deal":"d1"}' }] },
+      ],
+    }
+    expect(offersByProductFromOrder(order)).toEqual([{ productId: '111', units: 3 }])
+  })
+  it('BXGY: qualifying + free line of the same product → units 4 on that product', () => {
+    const order = {
+      line_items: [
+        { product_id: 222, quantity: 3, properties: [{ name: '__kaching_bundles', value: '{"deal":"d2","main":true}' }] },
+        { product_id: 222, quantity: 1, properties: [{ name: '__kaching_bundles', value: '{"deal":"d2"}' }] },
+      ],
+    }
+    expect(offersByProductFromOrder(order)).toEqual([{ productId: '222', units: 4 }])
+  })
+  it('ignores line items without the kaching property', () => {
+    const order = { line_items: [{ product_id: 5, quantity: 2, properties: [] }] }
+    expect(offersByProductFromOrder(order)).toEqual([])
   })
 })
 
