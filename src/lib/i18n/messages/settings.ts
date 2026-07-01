@@ -180,7 +180,7 @@ export const settings = {
     en: "or use a custom-app token",
   },
   shopifyTokenGuide: {
-    es: "En tu Shopify Admin → Configuración → Apps → Desarrollar apps: creá una app con permisos de lectura/escritura de pedidos, clientes y productos, instalala y copiá el Admin API access token + la API secret key.",
+    es: "En tu Shopify Admin → Configuración → Apps → Desarrollar apps: crea una app con permisos de lectura/escritura de pedidos, clientes y productos, instálala y copia el Admin API access token + la API secret key.",
     en: "In your Shopify Admin → Settings → Apps → Develop apps: create an app with read/write access to orders, customers and products, install it, and copy the Admin API access token + the API secret key.",
   },
   shopifyTokenAccessPlaceholder: {

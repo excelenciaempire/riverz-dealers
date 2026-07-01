@@ -198,7 +198,7 @@ export const automations = {
   dpGroupMessage: { es: "Del mensaje", en: "From the message" },
 
   // Condition picker (natural language)
-  condWhatData: { es: "¿Qué dato querés revisar?", en: "Which data to check?" },
+  condWhatData: { es: "¿Qué dato quieres revisar?", en: "Which data to check?" },
   condCompare: { es: "Que sea…", en: "That it is…" },
   condAnd: { es: "y", en: "and" },
   opEq: { es: "igual a", en: "equal to" },
@@ -377,11 +377,11 @@ export const automations = {
   templateVariables: { es: "Variables de la plantilla", en: "Template variables" },
   chooseVariable: { es: "Elige un dato…", en: "Choose a field…" },
   templateVariablesHint: {
-    es: "El contenido de la plantilla se edita en Plantillas. Acá solo elegís qué dato va en cada espacio ({{n}}).",
+    es: "El contenido de la plantilla se edita en Plantillas. Aquí solo eliges qué dato va en cada espacio ({{n}}).",
     en: "Template content is edited in Templates. Here you only choose which data fills each slot ({{n}}).",
   },
   templateVarsUnmapped: {
-    es: "Falta elegir el dato de algún espacio {{n}} — si lo dejás vacío, sale en blanco.",
+    es: "Falta elegir el dato de algún espacio {{n}} — si lo dejas vacío, sale en blanco.",
     en: "Some {{n}} slots have no data chosen — left empty they render blank.",
   },
   varCustomerName: { es: "Nombre del cliente", en: "Customer name" },
