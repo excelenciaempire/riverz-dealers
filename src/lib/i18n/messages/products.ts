@@ -81,12 +81,12 @@ export const products = {
   description: { es: "Descripción", en: "Description" },
   prices: { es: "Precios", en: "Prices" },
   pricesUnitsHint: {
-    es: "Crea una oferta por cada presentación que vendes. Las unidades (1, 3, 4…) deben coincidir con las del pedido: así sabemos qué oferta eligió cada comprador y disparamos el flujo de recompra correcto.",
-    en: "Create one offer per pack you sell. The units (1, 3, 4…) must match those in the order: that's how we know which offer each buyer chose and trigger the right repurchase flow.",
+    es: "Las unidades deben coincidir con las del pedido para reconocer la oferta de cada comprador.",
+    en: "Units must match the order to recognize each buyer's offer.",
   },
   offersAutoDetectedHint: {
-    es: "Ofertas detectadas automáticamente desde tu página. Revísalas y ajústalas si hace falta — al guardar quedan como tuyas.",
-    en: "Offers auto-detected from your page. Review and adjust if needed — saving makes them yours.",
+    es: "Detectadas de tu página. Revísalas y guarda.",
+    en: "Auto-detected from your page. Review and save.",
   },
   offerName: { es: "Oferta", en: "Offer" },
   offerNamePlaceholder: {

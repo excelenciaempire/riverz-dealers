@@ -4,6 +4,14 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Minimalista y profesional — sin texto innecesario (no-negociable)
+
+Todo lo que construyas o modifiques debe ser minimalista y profesional. No agregues texto innecesario ni redundante:
+
+- Sin hints que expliquen lo obvio o repitan lo que el label, la estructura o el placeholder ya dicen. Una línea corta gana a un párrafo; si un texto no aporta información nueva, elimínalo.
+- Copy en español neutro (sin voseo argentino).
+- **Sin caracteres incógnitos / mojibake.** Todo el texto es UTF-8 correcto: tildes, `¿` `¡`, `ñ` y emojis reales — nunca `�` ni `??`. Al escribir archivos o insertar en la DB, garantiza la codificación; nunca pases strings por un round-trip Latin-1/UTF-8 que los corrompa.
+
 # Bilingual by default (es + en) — non-negotiable
 
 Riverz ships in Spanish AND English. **Everything you build or modify from now on must work in both languages.** Never hardcode a single-language, user-facing string. This applies to every session and every contributor.
