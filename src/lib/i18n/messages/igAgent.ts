@@ -4,7 +4,7 @@ import type { Namespace } from "./types";
 export const igAgent = {
   // Page header
   eyebrow: { es: "Marketing con IA", en: "AI marketing" },
-  title: { es: "Agente de Instagram", en: "Instagram Agent" },
+  title: { es: "Instagram 1:1", en: "Instagram 1:1" },
   subtitle: {
     es: "Describe un objetivo y el agente diseña una campaña de DMs 1:1 — audiencia, copy y oferta — lista para revisar y lanzar.",
     en: "Describe a goal and the agent designs a 1:1 DM campaign — audience, copy and offer — ready to review and launch.",
@@ -135,8 +135,8 @@ export const igAgent = {
   regenerate: { es: "Regenerar", en: "Regenerate" },
   saveCampaign: { es: "Guardar campaña", en: "Save campaign" },
   activateAgentOnInstagram: {
-    es: "Activar agente en Instagram",
-    en: "Activate agent on Instagram",
+    es: "Activar respuestas con el Asistente",
+    en: "Enable replies with the Assistant",
   },
 
   // Saved campaigns list
