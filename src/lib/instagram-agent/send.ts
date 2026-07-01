@@ -8,6 +8,7 @@ import { latestInbound, withinMessagingWindow } from './engagement';
 import { craftPersonalizedDM } from './personalize-dm';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment, type LeadScore } from './segment';
+import { proactiveGate, logProactiveSend } from './controls';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -50,6 +51,12 @@ export async function sendCampaignBatch(
     return { sent: 0, failed: 0, remaining: 0, skipped: 'instagram_not_connected' };
   }
   const connection = connRow as ChannelConnection;
+
+  // Trust gate: emergency pause + rolling-24h daily cap for the workspace.
+  const gate = await proactiveGate(db, campaign.workspace_id);
+  if (!gate.ok) {
+    return { sent: 0, failed: 0, remaining: 0, skipped: gate.reason };
+  }
 
   // 2) Recipients en cola con su contacto. Excluimos el grupo de control
   //    (holdout) y el spam; priorizamos por lead score (high primero).
@@ -245,6 +252,13 @@ export async function sendCampaignBatch(
       } satisfies OutboundText);
 
       sent += 1;
+      await logProactiveSend(db, {
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+        contactId: p.contact.id,
+        kind: 'batch',
+        text: p.text,
+      });
     } catch (err) {
       await db
         .from('instagram_campaign_recipients')

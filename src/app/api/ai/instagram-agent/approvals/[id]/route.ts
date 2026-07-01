@@ -8,6 +8,8 @@ import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { latestInbound, withinMessagingWindow } from '@/lib/instagram-agent/engagement';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
+import { logProactiveSend } from '@/lib/instagram-agent/controls';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 
 /**
  * POST /api/ai/instagram-agent/approvals/[id]
@@ -196,6 +198,13 @@ export async function POST(
         error: null,
       })
       .eq('id', id);
+    await logProactiveSend(supabaseAdmin(), {
+      workspaceId,
+      campaignId: rec.campaign_id,
+      contactId: rec.contact_id,
+      kind: 'approval',
+      text,
+    });
     return NextResponse.json({ success: true, status: 'sent' });
   } catch (err) {
     await supabase

@@ -12,6 +12,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
+import { proactiveGate, logProactiveSend } from './controls';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -242,6 +243,11 @@ export async function maybeInstantOutreach(
     return;
   }
 
+  // Trust gate: emergency pause + rolling-24h daily cap. If blocked, leave the
+  // recipient queued (the cron is gated too) so nothing is lost, just deferred.
+  const trust = await proactiveGate(db, opts.workspaceId);
+  if (!trust.ok) return;
+
   // Auto mode. One private reply per comment across BOTH systems: claim the
   // shared lock first; if the comment-to-DM engine already replied, skip.
   if (opts.commentId) {
@@ -329,6 +335,13 @@ export async function maybeInstantOutreach(
       commentId: opts.commentId ?? undefined,
       text,
     } satisfies OutboundText);
+    await logProactiveSend(db, {
+      workspaceId: opts.workspaceId,
+      campaignId: campaign.id,
+      contactId: opts.contact.id,
+      kind: 'outreach',
+      text,
+    });
   } catch (err) {
     await db
       .from('instagram_campaign_recipients')
@@ -520,6 +533,13 @@ export async function maybeRunCloser(
         } as unknown as Contact,
         text: reply,
       } satisfies OutboundText);
+      await logProactiveSend(db, {
+        workspaceId: opts.workspaceId,
+        campaignId: camp.id,
+        contactId: opts.contact.id,
+        kind: 'closer',
+        text: reply,
+      });
     } catch {
       /* swallow — the recipient is already marked replied */
     }
