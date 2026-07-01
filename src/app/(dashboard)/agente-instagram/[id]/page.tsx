@@ -84,6 +84,16 @@ export default function CampaignDetailPage() {
     load();
   }, [load]);
 
+  // Live: while the campaign is active, auto-refresh the funnel every 15s so it
+  // reads like a living dashboard (attribution ticking up), not a snapshot.
+  useEffect(() => {
+    if (campaign?.status !== 'active') return;
+    const iv = setInterval(() => {
+      load();
+    }, 15000);
+    return () => clearInterval(iv);
+  }, [campaign?.status, load]);
+
   async function action(
     path: string,
     method: 'POST' | 'PATCH',
@@ -143,6 +153,12 @@ export default function CampaignDetailPage() {
     /\{\{\s*(nombre|name|1)\s*\}\}/gi,
     plan.message.preview_name,
   );
+
+  // Cumulative funnel (each recipient sits in exactly one terminal status).
+  const converted = byStatus.converted ?? 0;
+  const replied = (byStatus.replied ?? 0) + converted;
+  const contacted = (byStatus.sent ?? 0) + replied;
+  const queued = byStatus.queued ?? 0;
 
   return (
     <div className="space-y-5">
@@ -244,17 +260,44 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
-      {/* Embudo real */}
+      {/* Embudo real — vivo cuando la campaña está activa */}
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p className="app-eyebrow">{t('igAgent.realFunnel')}</p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label={t('igAgent.queued')} value={byStatus.queued ?? 0} />
-          <Stat label={t('igAgent.sent')} value={byStatus.sent ?? 0} />
-          <Stat label={t('igAgent.replies')} value={byStatus.replied ?? 0} />
-          <Stat
-            label={t('igAgent.conversions')}
-            value={byStatus.converted ?? 0}
-            highlight
+        <div className="flex items-center justify-between gap-2">
+          <p className="app-eyebrow">{t('igAgent.realFunnel')}</p>
+          {campaign.status === 'active' && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              {t('igAgent.live')}
+              {queued > 0 && (
+                <span className="text-muted-foreground/70">
+                  · {t('igAgent.queuedInline', { n: fmt.number(queued) })}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+        <div className="mt-3">
+          <FunnelWaterfall
+            steps={[
+              {
+                label: t('igAgent.funnelContacted'),
+                value: contacted,
+                color: 'bg-[#c13584]/70',
+              },
+              {
+                label: t('igAgent.funnelReplies'),
+                value: replied,
+                color: 'bg-[#5b51d8]/70',
+              },
+              {
+                label: t('igAgent.funnelConversions'),
+                value: converted,
+                color: 'bg-accent-ink',
+              },
+            ]}
           />
         </div>
         {metrics && metrics.revenue > 0 && (
@@ -416,36 +459,35 @@ function BackLink() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  highlight = false,
+/**
+ * Horizontal funnel waterfall — proportional bars showing the drop-off from
+ * contacted → replied → converted. Reads as a living funnel, not flat stats.
+ */
+function FunnelWaterfall({
+  steps,
 }: {
-  label: string;
-  value: number;
-  highlight?: boolean;
+  steps: { label: string; value: number; color: string }[];
 }) {
   const fmt = useFormat();
+  const max = Math.max(1, ...steps.map((s) => s.value));
   return (
-    <div
-      className={cn(
-        'rounded-lg border p-2.5',
-        highlight
-          ? 'border-accent-ink/30 bg-accent/30'
-          : 'border-border bg-background',
-      )}
-    >
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          'mt-1 text-base font-semibold tabular-nums',
-          highlight ? 'text-accent-ink' : 'text-foreground',
-        )}
-      >
-        {fmt.number(value)}
-      </p>
+    <div className="space-y-1.5">
+      {steps.map((s) => (
+        <div key={s.label} className="flex items-center gap-2">
+          <span className="w-28 shrink-0 truncate text-[11px] text-muted-foreground">
+            {s.label}
+          </span>
+          <div className="h-6 flex-1 overflow-hidden rounded bg-muted/40">
+            <div
+              className={cn('h-full rounded transition-all duration-500', s.color)}
+              style={{ width: `${Math.max(2, Math.round((s.value / max) * 100))}%` }}
+            />
+          </div>
+          <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+            {fmt.number(s.value)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

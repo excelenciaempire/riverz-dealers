@@ -246,6 +246,8 @@ export const igAgent = {
 
   // Campaign detail — real funnel
   realFunnel: { es: "Embudo real", en: "Real funnel" },
+  live: { es: "En vivo", en: "Live" },
+  queuedInline: { es: "{n} en cola", en: "{n} queued" },
   queued: { es: "En cola", en: "Queued" },
   sent: { es: "Enviados", en: "Sent" },
   replies: { es: "Respuestas", en: "Replies" },
