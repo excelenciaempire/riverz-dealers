@@ -23,9 +23,9 @@ import { translate } from '@/lib/i18n/translate'
 // placeholder before activating.
 //
 // All automations land as is_active=false on purpose — activation
-// would fail the validate.ts gate anyway since the template seeds
-// leave template_name empty. Templates no longer seed an add_tag step,
-// so there's no tag_id placeholder to fill.
+// would fail the validate.ts gate anyway since the template seeds leave
+// template_name empty AND the final add_tag step's tag_id empty, so the
+// user fills the template + picks/creates a tag before activating.
 // ------------------------------------------------------------
 
 export async function POST(request: Request) {

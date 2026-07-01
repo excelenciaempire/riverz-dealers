@@ -73,11 +73,11 @@ export interface AutomationTemplateDefinition {
  *    con string vacío). El motor solo soporta `send_template` fuera
  *    de la ventana de 24h, y todas estas plantillas pueden disparar
  *    fuera de la ventana (después de wait o tiempo absoluto).
- *  - Ningún paso `add_tag`: las plantillas NO etiquetan al contacto por
- *    defecto. Antes cada receta sembraba un `add_tag` con `tag_id: ''`
- *    que obligaba al merchant a elegir una etiqueta antes de activar;
- *    eso generaba confusión y un catálogo de etiquetas inflado. Si el
- *    merchant quiere etiquetar, agrega el paso a mano en el editor.
+ *  - Cada receta TERMINA con un paso `add_tag` con `tag_id: ''` (sin etiqueta
+ *    por defecto): al usar la plantilla, el merchant escribe una etiqueta nueva
+ *    o elige una existente (combobox write-or-pick en el editor). validate.ts
+ *    exige un tag real antes de activar, así todo contacto que pasa por la
+ *    automatización queda etiquetado — pedido del equipo.
  *
  * El editor surfacea el `suggested_template_body` como pista para que
  * el merchant registre el template en Meta con el cuerpo correcto.
@@ -109,6 +109,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
+      {
+        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
+        // nueva o elige una existente al usar la plantilla (validate exige un tag
+        // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+      },
     ],
   },
 
@@ -129,6 +136,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
+      {
+        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
+        // nueva o elige una existente al usar la plantilla (validate exige un tag
+        // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+      },
     ],
   },
 
@@ -148,6 +162,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
+      },
+      {
+        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
+        // nueva o elige una existente al usar la plantilla (validate exige un tag
+        // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
       },
     ],
   },
@@ -174,6 +195,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
       },
+      {
+        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
+        // nueva o elige una existente al usar la plantilla (validate exige un tag
+        // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+      },
     ],
   },
 
@@ -196,6 +224,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
+      },
+      {
+        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
+        // nueva o elige una existente al usar la plantilla (validate exige un tag
+        // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
       },
     ],
   },
