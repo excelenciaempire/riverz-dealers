@@ -267,6 +267,25 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Enriquecimiento externo de perfiles de Instagram (Apify): analiza el perfil
+  # PÚBLICO (bio + posts + fotos) para personalizar los DMs. Aislado de las
+  # credenciales de Meta; solo cuentas públicas; respeta opt-out. Ritmo lento
+  # (scraping rate-limited); no-op si falta APIFY_TOKEN.
+  - type: cron
+    name: cron-instagram-external-enrich
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/instagram-external-enrich
+    schedule: "*/10 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   - type: cron
     name: cron-gmail-watch
     runtime: node

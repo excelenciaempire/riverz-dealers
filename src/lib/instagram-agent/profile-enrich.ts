@@ -154,8 +154,22 @@ export async function loadIgProfile(
 ): Promise<IgProfileEnrichment | null> {
   const { data } = await db
     .from('contact_ig_profile')
-    .select('follower_count, is_verified, follows_business, persona_hint')
+    .select('follower_count, is_verified, follows_business, persona_hint, external_hint')
     .eq('contact_id', contactId)
     .maybeSingle();
-  return (data as IgProfileEnrichment | null) ?? null;
+  if (!data) return null;
+  const d = data as IgProfileEnrichment & { external_hint: string | null };
+  // Combine the two hint sources: the external (public feed) hint is richer;
+  // the profile-pic hint is a fallback. Merge when both exist. The DM writer
+  // reads persona_hint, so it uses the best signal with no extra plumbing.
+  const persona_hint =
+    d.external_hint && d.persona_hint
+      ? `${d.external_hint}; ${d.persona_hint}`
+      : d.external_hint ?? d.persona_hint ?? null;
+  return {
+    follower_count: d.follower_count,
+    is_verified: d.is_verified,
+    follows_business: d.follows_business,
+    persona_hint,
+  };
 }
