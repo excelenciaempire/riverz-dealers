@@ -281,6 +281,10 @@ export const automations = {
   tag: { es: "Etiqueta", en: "Tag" },
   noTagsYet: { es: "Aún no tienes etiquetas.", en: "You don't have any tags yet." },
   chooseTag: { es: "Elige una etiqueta…", en: "Choose a tag…" },
+  tagWriteOrPick: {
+    es: "Escribe una etiqueta nueva o elige una…",
+    en: "Type a new tag or pick one…",
+  },
   noTeammatesYet: {
     es: "Aún no hay nadie más en tu equipo.",
     en: "There's no one else on your team yet.",

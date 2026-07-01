@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "@/components/i18n/locale-link"
 import { useLocalizedRouter } from "@/hooks/use-localized-router"
@@ -85,6 +85,10 @@ const SegmentsContext = createContext<ContactSegment[]>([])
  *  tag steps, the tag_added trigger, the tag_presence condition) so the
  *  user chooses a name instead of pasting a raw id. */
 const TagsContext = createContext<ContactTag[]>([])
+
+/** Lets a deep TagSelect add a freshly-created tag to the shared list so it
+ *  renders + stays selected without a full reload. */
+const TagsMutateContext = createContext<((tag: ContactTag) => void) | null>(null)
 
 /** Team members. Powers the agent picker when a conversation is assigned
  *  to a specific person — name in the menu, user id under the hood. */
@@ -261,14 +265,16 @@ const STEP_META: Record<BuilderStepType, StepMeta> = {
 // automation keeps loading + running its webhook step.
 const ADDABLE_STEPS: BuilderStepType[] = [
   "send_template",
-  "add_tag",
-  "remove_tag",
   "assign_conversation",
   "update_contact_field",
   "wait",
   "switch",
   "condition",
   "close_conversation",
+  // Etiquetar al final: no aplica ninguna etiqueta por defecto — el usuario la
+  // escribe (crea una nueva) o elige una existente en el editor del paso.
+  "add_tag",
+  "remove_tag",
 ]
 
 // Steps offered INSIDE a switch case / "en otro caso" lane. Cases hold a flat
@@ -277,12 +283,12 @@ const ADDABLE_STEPS: BuilderStepType[] = [
 // merchant who needs logic inside a case uses a standalone "Condición" instead.
 const LEAF_STEPS: BuilderStepType[] = [
   "send_template",
-  "add_tag",
-  "remove_tag",
   "assign_conversation",
   "update_contact_field",
   "wait",
   "close_conversation",
+  "add_tag",
+  "remove_tag",
 ]
 
 // Selectable triggers are intentionally limited to Shopify events +
@@ -615,36 +621,113 @@ function ConditionValue({
 function TagSelect({
   value,
   onChange,
+  allowCreate = false,
 }: {
   value: string
   onChange: (v: string) => void
+  /** When true, the user can TYPE a new tag (created on commit) or pick an
+   *  existing one — for add_tag/remove_tag. Off = select-only (conditions). */
+  allowCreate?: boolean
 }) {
   const t = useT()
   const tags = useContext(TagsContext)
-  if (tags.length === 0) {
+  const addTag = useContext(TagsMutateContext)
+  const fetchWithCsrf = useFetchWithCsrf()
+  const listId = useId()
+  const [text, setText] = useState(
+    () => tags.find((x) => x.id === value)?.name ?? "",
+  )
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setText(tags.find((x) => x.id === value)?.name ?? "")
+  }, [value, tags])
+
+  // Select-only (conditions / triggers): pick from existing tags.
+  if (!allowCreate) {
+    if (tags.length === 0) {
+      return (
+        <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          {t("automations.noTagsYet")}{" "}
+          <Link href="/contactos?tab=tags" className="text-accent-ink underline hover:opacity-80">
+            {t("automations.createOne")}
+          </Link>
+          .
+        </p>
+      )
+    }
     return (
-      <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-        {t("automations.noTagsYet")}{" "}
-        <Link href="/contactos?tab=tags" className="text-accent-ink underline hover:opacity-80">
-          {t("automations.createOne")}
-        </Link>
-        .
-      </p>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+      >
+        <option value="">{t("automations.chooseTag")}</option>
+        {tags.map((tag) => (
+          <option key={tag.id} value={tag.id}>
+            {tag.name}
+          </option>
+        ))}
+      </select>
     )
   }
+
+  // Write-or-pick: type a new tag (created on commit) or choose an existing one.
+  async function commit() {
+    const name = text.trim()
+    if (!name) {
+      onChange("")
+      return
+    }
+    const existing = tags.find((x) => x.name.toLowerCase() === name.toLowerCase())
+    if (existing) {
+      onChange(existing.id)
+      setText(existing.name)
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetchWithCsrf("/api/tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.tag?.id) {
+        addTag?.(j.tag as ContactTag)
+        onChange(j.tag.id as string)
+        setText(j.tag.name as string)
+      }
+    } catch {
+      /* silencioso — el texto queda para reintentar */
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-    >
-      <option value="">{t("automations.chooseTag")}</option>
-      {tags.map((tag) => (
-        <option key={tag.id} value={tag.id}>
-          {tag.name}
-        </option>
-      ))}
-    </select>
+    <>
+      <input
+        list={listId}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault()
+            commit()
+          }
+        }}
+        placeholder={t("automations.tagWriteOrPick")}
+        disabled={busy}
+        className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+      />
+      <datalist id={listId}>
+        {tags.map((tag) => (
+          <option key={tag.id} value={tag.name} />
+        ))}
+      </datalist>
+    </>
   )
 }
 
@@ -901,6 +984,15 @@ export function AutomationBuilder({
     <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
+    <TagsMutateContext.Provider
+      value={(tag) =>
+        setTags((prev) =>
+          prev.some((x) => x.id === tag.id)
+            ? prev
+            : [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)),
+        )
+      }
+    >
     <AgentsContext.Provider value={agents}>
     <OffersContext.Provider value={offers}>
     <div className="fixed inset-0 flex flex-col bg-background">
@@ -1006,6 +1098,7 @@ export function AutomationBuilder({
     </div>
     </OffersContext.Provider>
     </AgentsContext.Provider>
+    </TagsMutateContext.Provider>
     </TagsContext.Provider>
     </SegmentsContext.Provider>
     </TemplatesContext.Provider>
@@ -1816,9 +1909,9 @@ function AddButton({
     <div
       className={cn(
         "group/add relative flex items-center",
-        // Subtle by default so the canvas isn't littered with "+ Add" pills;
-        // they come forward when you hover the gap or open the menu.
-        "opacity-30 transition-opacity hover:opacity-100 has-[[data-popup-open]]:opacity-100",
+        // Visible without hover (still lifts to full on hover / when the menu
+        // opens) so the "+ Add" affordance is always discoverable.
+        "opacity-70 transition-opacity hover:opacity-100 has-[[data-popup-open]]:opacity-100",
         // Top-align in horizontal mode so the line meets the card header
         // (cards grow downward when expanded / when conditions sprout
         // branches), ~28px ≈ half the collapsed header height.
@@ -1893,6 +1986,8 @@ function StepEditor({
   const trigger = useContext(TriggerContext)
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
+  // Template preview is collapsed by default (used only by send_template).
+  const [showPreview, setShowPreview] = useState(false)
 
   switch (step.step_type) {
     case "send_message":
@@ -1991,21 +2086,35 @@ function StepEditor({
           )}
           {selectedTpl && (
             <div className="mt-3 border-t border-border pt-3">
-              <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => setShowPreview((v) => !v)}
+                className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    showPreview ? "rotate-180" : "",
+                  )}
+                />
                 {t("automations.preview")}
-              </p>
-              <WhatsappPreview
-                headerType={(selectedTpl.header_type ?? "none") as TemplateHeaderType}
-                headerText={selectedTpl.header_content ?? undefined}
-                bodyText={(selectedTpl.body_text || "").replace(
-                  /\{\{\s*(\d+)\s*\}\}/g,
-                  (_, n) => {
-                    const m = (variables[String(n)] ?? "").match(/\{\{vars\.(\w+)\}\}/)
-                    return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`
-                  },
-                )}
-                footerText={selectedTpl.footer_text ?? undefined}
-              />
+              </button>
+              {showPreview && (
+                <div className="mt-2 origin-top scale-[0.8]">
+                  <WhatsappPreview
+                    headerType={(selectedTpl.header_type ?? "none") as TemplateHeaderType}
+                    headerText={selectedTpl.header_content ?? undefined}
+                    bodyText={(selectedTpl.body_text || "").replace(
+                      /\{\{\s*(\d+)\s*\}\}/g,
+                      (_, n) => {
+                        const m = (variables[String(n)] ?? "").match(/\{\{vars\.(\w+)\}\}/)
+                        return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`
+                      },
+                    )}
+                    footerText={selectedTpl.footer_text ?? undefined}
+                  />
+                </div>
+              )}
             </div>
           )}
         </>
@@ -2018,6 +2127,7 @@ function StepEditor({
           <TagSelect
             value={(cfg.tag_id as string) ?? ""}
             onChange={(v) => set({ tag_id: v })}
+            allowCreate
           />
         </FieldBlock>
       )
