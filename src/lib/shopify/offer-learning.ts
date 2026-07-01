@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShopifyAdminClient, nextPageInfo } from './admin-client'
 import {
   offersByProductFromOrder,
+  offersFromText,
   normalizeDetectedOffers,
   mergeOffers,
 } from './detect-offers'
@@ -24,6 +25,54 @@ import {
  */
 
 type Learned = Map<string, Set<number>>
+
+interface OfferRow {
+  id: string
+  allowed_offers?: unknown
+  offers_auto_detected?: unknown
+  bundle_metadata?: unknown
+}
+
+/**
+ * Detect offer tiers from a product's scraped page text and write them to
+ * `allowed_offers`, idempotently. Shared by every scrape path (the dedicated
+ * /scrape route and the ai-research route's inline scrape) so "detect the
+ * offers on the page" behaves identically everywhere. Only writes when the
+ * row was auto-detected or has no offers — never clobbers manual edits.
+ * Returns the number of tiers written (0 when none found or skipped).
+ */
+export async function detectOffersFromScrapedContent(
+  db: SupabaseClient,
+  product: OfferRow,
+  markdown: string,
+  locale: 'es' | 'en' = 'es',
+): Promise<number> {
+  const detected = normalizeDetectedOffers(offersFromText(markdown), locale)
+  if (detected.length === 0) return 0
+  const existing = Array.isArray(product.allowed_offers) ? product.allowed_offers : []
+  if (!(product.offers_auto_detected === true || existing.length === 0)) return 0
+
+  const update: Record<string, unknown> = {
+    allowed_offers: detected,
+    offers_auto_detected: true,
+    bundle_metadata: {
+      ...(product.bundle_metadata && typeof product.bundle_metadata === 'object'
+        ? (product.bundle_metadata as Record<string, unknown>)
+        : {}),
+      detected_offers_source: 'page_scrape',
+      detected_offers_count: detected.length,
+    },
+  }
+  const prices = detected
+    .map((o) => o.total)
+    .filter((n): n is number => typeof n === 'number')
+  if (prices.length > 0) {
+    update.price_min = Math.min(...prices)
+    update.price_max = Math.max(...prices)
+  }
+  await db.from('shopify_products').update(update).eq('id', product.id)
+  return detected.length
+}
 
 /** Fold one order's per-product tiers into the running accumulator. */
 export function accumulateOrderOffers(order: unknown, into: Learned): void {

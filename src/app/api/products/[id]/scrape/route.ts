@@ -6,7 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { offersFromText, normalizeDetectedOffers } from '@/lib/shopify/detect-offers';
+import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning';
 
 /**
  * POST /api/products/[id]/scrape
@@ -101,36 +101,6 @@ export async function POST(
       throw new Error(failures.join(' · ') || 'Sin contenido');
     }
     const markdown = chunks.join('\n\n---\n\n');
-
-    // Auto-detect offer tiers from the scraped page (bundle widgets render as
-    // plain "2 Unidades + 1 GRATIS"/"3-pack" text regardless of the app that
-    // drew them) and populate the editable "Precios" (allowed_offers). The AI
-    // reads allowed_offers live, so a detected tier reaches the agent on the
-    // next message. Idempotent: only write when the row was auto-detected or
-    // has no offers yet — never clobber offers the merchant edited by hand
-    // (they set offers_auto_detected=false when they save the editor).
-    const detected = normalizeDetectedOffers(offersFromText(markdown), locale === 'en' ? 'en' : 'es');
-    const existingOffers = Array.isArray(product.allowed_offers) ? product.allowed_offers : [];
-    const offerUpdate: Record<string, unknown> = {};
-    if (detected.length > 0 && (product.offers_auto_detected === true || existingOffers.length === 0)) {
-      offerUpdate.allowed_offers = detected;
-      offerUpdate.offers_auto_detected = true;
-      const prices = detected
-        .map((o) => o.total)
-        .filter((n): n is number => typeof n === 'number');
-      if (prices.length > 0) {
-        offerUpdate.price_min = Math.min(...prices);
-        offerUpdate.price_max = Math.max(...prices);
-      }
-      offerUpdate.bundle_metadata = {
-        ...(product.bundle_metadata && typeof product.bundle_metadata === 'object'
-          ? (product.bundle_metadata as Record<string, unknown>)
-          : {}),
-        detected_offers_source: 'page_scrape',
-        detected_offers_count: detected.length,
-      };
-    }
-
     await supabase
       .from('shopify_products')
       .update({
@@ -139,15 +109,26 @@ export async function POST(
         scraped_at: new Date().toISOString(),
         // Surface partial failures without failing the whole read.
         scrape_error: failures.length ? `Algunas URLs fallaron — ${failures.join(' · ')}` : null,
-        ...offerUpdate,
       })
       .eq('id', id);
+
+    // Auto-detect offer tiers from the scraped page (bundle widgets render as
+    // plain "2 Unidades + 1 GRATIS"/"3-pack" text regardless of the app that
+    // drew them) → the editable "Precios" (allowed_offers). The AI reads
+    // allowed_offers live, so a detected tier reaches the agent on the next
+    // message. Idempotent — never clobbers offers the merchant edited by hand.
+    const offersDetected = await detectOffersFromScrapedContent(
+      supabase,
+      product,
+      markdown,
+      locale === 'en' ? 'en' : 'es',
+    );
     return NextResponse.json({
       ok: true,
       chars: markdown.length,
       sites: chunks.length,
       failed: failures.length,
-      offers_detected: offerUpdate.allowed_offers ? detected.length : 0,
+      offers_detected: offersDetected,
     });
   } catch (err) {
     const msg =

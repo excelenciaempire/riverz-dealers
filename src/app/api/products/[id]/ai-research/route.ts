@@ -4,6 +4,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { buildTrainingMaterial } from '@/lib/products/training-material';
 import { firecrawlScrape } from '@/lib/firecrawl/client';
+import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -47,7 +48,7 @@ export async function POST(
   const { data: product, error } = await supabase
     .from('shopify_products')
     .select(
-      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, say_guidelines, never_say, escalation_triggers, websites, url',
+      'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, bundle_metadata, allowed_offers, offers_auto_detected, say_guidelines, never_say, escalation_triggers, websites, url',
     )
     .eq('id', id)
     .maybeSingle();
@@ -99,6 +100,14 @@ export async function POST(
             scraped_at: new Date().toISOString(),
           })
           .eq('id', id);
+        // Same page we just read also carries the offer tiers — detect them
+        // into allowed_offers so "the URLs fill everything" includes offers.
+        await detectOffersFromScrapedContent(
+          supabase,
+          product,
+          scrapedContent,
+          locale === 'en' ? 'en' : 'es',
+        );
       }
     }
   }
