@@ -98,6 +98,12 @@ export interface OutboundText {
    *  IGSID/PSID. Required to DM someone who only commented (their comment-author
    *  id is not a messageable id). Powers comment-to-DM. */
   commentId?: string;
+  /** True when a HUMAN agent (not the AI/automation) is sending from the inbox.
+   *  Lets the Messenger/Instagram adapters retry with the HUMAN_AGENT message
+   *  tag (7-day window) when a normal DM is rejected for being outside Meta's
+   *  24h window. MUST stay unset on every bot/automation path — the tag is only
+   *  valid for genuine human agent responses and needs the human_agent permission. */
+  humanAgent?: boolean;
 }
 
 export interface OutboundTemplate {

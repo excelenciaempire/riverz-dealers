@@ -60,23 +60,44 @@ export const messengerAdapter: ChannelAdapter = {
       );
     }
 
-    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/messages`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(
-        withAppsecretProofBody(
-          {
-            recipient,
-            messaging_type: "RESPONSE",
-            message: { text: input.text },
-            access_token: accessToken,
-          },
-          accessToken,
+    const graphUrl = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+    const send = (useHumanAgentTag: boolean): Promise<Response> =>
+      fetch(graphUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          withAppsecretProofBody(
+            {
+              recipient,
+              ...(useHumanAgentTag
+                ? { messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" }
+                : { messaging_type: "RESPONSE" }),
+              message: { text: input.text },
+              access_token: accessToken,
+            },
+            accessToken,
+          ),
         ),
-      ),
-    });
+      });
+
+    let res = await send(false);
+    let detail = res.ok ? "" : await res.text().catch(() => "");
+    // A human agent replying to a normal DM outside Meta's 24h window is
+    // rejected as outside-window. Retry once with the HUMAN_AGENT tag (7-day
+    // window) — ONLY for human sends (invalid for bot/automation) and ONLY for
+    // id-recipient DMs, never comment private replies (those carry their own
+    // 7-day window and take no tag).
+    if (!res.ok && input.humanAgent && !input.commentId) {
+      const firstErr = parseMetaError(detail);
+      if (
+        describeMetaSendError("messenger", res.status, firstErr).category ===
+        "outside_window"
+      ) {
+        res = await send(true);
+        detail = res.ok ? "" : await res.text().catch(() => "");
+      }
+    }
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
       const parsed = parseMetaError(detail);
       await handleMetaGraphError(supabaseAdmin(), input.connection, res.status, parsed);
       // Keep Meta's raw body in the server logs for debugging, but surface

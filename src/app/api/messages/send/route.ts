@@ -152,6 +152,10 @@ export async function POST(req: Request): Promise<Response> {
       contact: contact as Contact,
       text: body.text,
       replyToExternalId,
+      // This endpoint is only ever hit by an authenticated human agent typing
+      // in the inbox — so Messenger/Instagram may fall back to the HUMAN_AGENT
+      // tag (7-day window) when a reply lands outside Meta's 24h window.
+      humanAgent: true,
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
