@@ -7,8 +7,9 @@ const GRAPH = 'https://graph.facebook.com/v21.0';
 /**
  * Hide (or unhide) a comment on the merchant's OWN Instagram/Facebook post via
  * Meta's SANCTIONED moderation API — the official way, not a scrape and not
- * only the native fan-page UI. Instagram uses the `hidden` field; Facebook uses
- * `is_hidden`.
+ * only the native fan-page UI. Instagram uses the `hide` field; Facebook uses
+ * `is_hidden` (they are NOT interchangeable — sending the wrong one is silently
+ * ignored by Graph, so the call 200s without hiding anything).
  *
  * Permissions: Instagram needs `instagram_manage_comments` (Advanced Access /
  * App Review — already submitted); Facebook needs `pages_manage_engagement`
@@ -28,7 +29,7 @@ export async function setCommentHidden(
   if (!enc || !commentId) return false;
   const token = decrypt(enc);
   const param =
-    channel === 'ig_comment' ? { hidden } : { is_hidden: hidden };
+    channel === 'ig_comment' ? { hide: hidden } : { is_hidden: hidden };
   try {
     const res = await fetch(`${GRAPH}/${commentId}`, {
       method: 'POST',

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { decrypt } from "@/lib/channels/encryption";
 import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
+import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation, Message } from "@/types";
@@ -107,12 +108,15 @@ export async function POST(req: Request): Promise<Response> {
 
   const commentId = m.message_id;
   const action = body.action;
-  const result = await applyGraphAction(commentId, action, accessToken);
+  const result = await applyGraphAction(m.channel, commentId, action, accessToken);
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.detail ?? translate(locale, "errInbox.graphCallFailed") },
-      { status: 502 },
-    );
+    // Map Meta's raw JSON to a clean, localized message (e.g. "permission not
+    // approved") instead of dumping the Graph error body into the toast.
+    const parsed = parseMetaError(result.detail ?? "");
+    const message = parsed
+      ? describeMetaSendError(m.channel, 502, parsed, locale).userMessage
+      : translate(locale, "errInbox.graphCallFailed");
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 
   // Local bookkeeping — flip status when deleted, store a tag/annotation for hidden.
@@ -124,11 +128,29 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 async function applyGraphAction(
+  channel: "fb_comment" | "ig_comment",
   commentId: string,
   action: Action,
   accessToken: string,
 ): Promise<{ ok: boolean; detail?: string }> {
   const GRAPH = "https://graph.facebook.com/v21.0";
+  // Every one of these Graph writes returns {"success":true}. Treat anything
+  // else — a non-2xx, an error object, or a missing success flag — as failure,
+  // so a request Graph silently ignores never looks successful in the UI.
+  const finish = async (r: Response): Promise<{ ok: boolean; detail?: string }> => {
+    const text = await r.text().catch(() => "");
+    if (!r.ok) return { ok: false, detail: text };
+    let json: { success?: boolean; error?: unknown } | null = null;
+    try {
+      json = JSON.parse(text) as { success?: boolean; error?: unknown };
+    } catch {
+      /* non-JSON 2xx — fall through to the check below */
+    }
+    if (!json || json.error || json.success !== true) {
+      return { ok: false, detail: text || "unexpected Graph response" };
+    }
+    return { ok: true };
+  };
   try {
     if (action === "delete") {
       const r = await fetch(
@@ -138,19 +160,20 @@ async function applyGraphAction(
         ),
         { method: "DELETE" },
       );
-      if (!r.ok) return { ok: false, detail: await r.text() };
-      return { ok: true };
+      return finish(r);
     }
     if (action === "hide" || action === "unhide") {
-      const body = new URLSearchParams({
-        is_hidden: action === "hide" ? "true" : "false",
-        access_token: accessToken,
-      });
+      // Facebook comments hide via `is_hidden`; Instagram comments via `hide`
+      // (a DIFFERENT field — sending is_hidden to an IG comment is ignored).
+      const value = action === "hide" ? "true" : "false";
+      const body = new URLSearchParams(
+        channel === "ig_comment" ? { hide: value } : { is_hidden: value },
+      );
+      body.set("access_token", accessToken);
       const proof = appsecretProof(accessToken);
       if (proof) body.set("appsecret_proof", proof);
       const r = await fetch(`${GRAPH}/${commentId}`, { method: "POST", body });
-      if (!r.ok) return { ok: false, detail: await r.text() };
-      return { ok: true };
+      return finish(r);
     }
     if (action === "like") {
       const r = await fetch(
@@ -160,8 +183,7 @@ async function applyGraphAction(
         ),
         { method: "POST" },
       );
-      if (!r.ok) return { ok: false, detail: await r.text() };
-      return { ok: true };
+      return finish(r);
     }
     if (action === "unlike") {
       const r = await fetch(
@@ -171,8 +193,7 @@ async function applyGraphAction(
         ),
         { method: "DELETE" },
       );
-      if (!r.ok) return { ok: false, detail: await r.text() };
-      return { ok: true };
+      return finish(r);
     }
   } catch (err) {
     return { ok: false, detail: err instanceof Error ? err.message : "unknown error" };
