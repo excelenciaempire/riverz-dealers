@@ -220,6 +220,10 @@ export function MessageThread({
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The conversation whose messages are currently loaded — lets the fetch
+  // effect tell a real conversation switch (show spinner) from a resync
+  // refetch (stay silent) when only resyncToken changed.
+  const loadedConvRef = useRef<string | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   // Resolved publication a comment thread belongs to (thumbnail +
   // caption + permalink), fetched lazily when a comment conversation
@@ -370,15 +374,25 @@ export function MessageThread({
   // arriving while the thread is open don't trigger a full refetch —
   // they only flip hasUnread, which only the reset effect listens to.
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId) {
+      loadedConvRef.current = null;
+      return;
+    }
 
     const supabase = createClient();
     let cancelled = false;
+    // A resync (same conversation, bumped resyncToken from tab refocus / WS
+    // reconnect) refetches SILENTLY — no full-screen spinner — so returning to
+    // the tab doesn't flash. The spinner only shows on a real conversation
+    // switch or first open.
+    const isResync = loadedConvRef.current === conversationId;
 
     (async () => {
-      setLoading(true);
-      setHasMore(false);
-      setOldestLoadedAt(null);
+      if (!isResync) {
+        setLoading(true);
+        setHasMore(false);
+        setOldestLoadedAt(null);
+      }
 
       // Fetch the most recent PAGE_SIZE rows by ordering DESC + limiting,
       // then reverse client-side so the existing render loop (which
@@ -401,9 +415,10 @@ export function MessageThread({
         onMessagesLoadedRef.current(rows);
         if (rows.length > 0) setOldestLoadedAt(rows[0].created_at);
         setHasMore((data ?? []).length === PAGE_SIZE);
+        loadedConvRef.current = conversationId;
       }
 
-      if (!cancelled) setLoading(false);
+      if (!cancelled && !isResync) setLoading(false);
     })();
 
     return () => {

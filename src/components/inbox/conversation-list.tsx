@@ -116,6 +116,10 @@ export function ConversationList({
   useEffect(() => {
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
+  // Signature of the last applied list — lets a resync refetch (tab refocus /
+  // WS reconnect) skip replacing the array when nothing changed, so returning
+  // to the tab doesn't re-render/reflow the whole list.
+  const lastSigRef = useRef<string>("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -185,7 +189,20 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current((data ?? []) as unknown as Conversation[]);
+      const loaded = (data ?? []) as unknown as Conversation[];
+      // Only push into parent state when the visible list actually changed —
+      // an unchanged resync (the common tab-refocus case) is a no-op, avoiding
+      // a full re-render. Realtime keeps the list live in between.
+      const sig = loaded
+        .map(
+          (c) =>
+            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}`,
+        )
+        .join("|");
+      if (sig !== lastSigRef.current) {
+        lastSigRef.current = sig;
+        onConversationsLoadedRef.current(loaded);
+      }
       setLoading(false);
     })();
 
