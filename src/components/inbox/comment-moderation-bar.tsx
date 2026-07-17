@@ -53,15 +53,19 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
 
   return (
     <div className="mt-1 flex items-center gap-1.5 text-xs">
-      <button
-        onClick={() => act(liked ? "unlike" : "like")}
-        disabled={busy !== null}
-        title={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
-        aria-label={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
-        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
-      >
-        <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
-      </button>
+      {/* Liking a comment only exists on Facebook. Instagram's Graph API has no
+          like-comment endpoint, so the button would always fail there. */}
+      {channel === "fb_comment" && (
+        <button
+          onClick={() => act(liked ? "unlike" : "like")}
+          disabled={busy !== null}
+          title={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
+          aria-label={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
+        >
+          <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
+        </button>
+      )}
       <button
         onClick={() => act(hidden ? "unhide" : "hide")}
         disabled={busy !== null}
@@ -82,6 +86,11 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
       >
         <Trash2 className="size-3" />
       </button>
+      {hidden && (
+        <span className="ml-0.5 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+          {t("inbox.moderationHidden")}
+        </span>
+      )}
       {permalink && (
         <a
           href={permalink}
