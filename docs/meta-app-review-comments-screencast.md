@@ -124,3 +124,50 @@ The per-permission **"Get started" modal in Allowed usage cannot be automated** 
 exhaustively — the dialog mounts but its content never loads under browser automation). Fill the
 3 cards by hand: Get started → paste the description from `meta-app-review-texts.md` → upload this
 mp4 → tick the confirm checkbox → Save. Then Submit.
+
+---
+
+# How many videos do you actually need? → TWO, not four
+
+Meta shows one video-upload slot per permission, but you REUSE files:
+
+- **Video 1 — Comments** (this document). ONE file, uploaded to all **3** comment cards
+  (`pages_read_user_content`, `pages_manage_engagement`, `instagram_manage_comments`).
+- **Video 2 — Human agent** (below). ONE file for `human_agent`, in a **separate, later**
+  submission — only after the code deploy lands on Render.
+
+So right now you record exactly **one** video (comments). Video 2 comes later.
+
+---
+
+# Video 2 — human_agent (separate submission, LATER)
+
+`human_agent` extends the messaging window from 24h to **7 days** for genuine human replies.
+The code is wired (send retries with the HUMAN_AGENT tag when a human's inbox reply lands
+outside 24h). Do **not** submit it until:
+
+1. the deploy is live on Render (the reviewer tests the real app), and
+2. `human_agent` is added to the FB Login for Business config scopes, so it appears on the
+   consent screen (otherwise Meta can't see the grant step it requires).
+
+### What the video must show (~2:00)
+
+| Time | On screen | Caption (English) |
+|---|---|---|
+| 0:00 | Fresh Chrome, logged out. Sign in at `riverz.co/ingresar` | "A human support agent signs in to Riverz." |
+| 0:15 | Integrations → **Meta** card → **Connect** → Facebook login → **consent screen showing human_agent** granted | "The agent grants Riverz the human_agent permission, so they can reply to customers for up to 7 days." |
+| 0:35 | Inbox → open a Messenger/Instagram conversation whose **last customer message is clearly more than 24 hours old** (show the timestamp on screen) | "This customer last wrote more than 24 hours ago — outside Meta's standard 24-hour window." |
+| 0:55 | The **human agent types a reply** in the composer and clicks Send → message delivered | "A human agent — not an automated bot — personally replies. This is what human_agent is for." |
+| 1:15 | Switch to Messenger/Instagram, show the reply arrived on the customer's side | "The reply is delivered, even though more than 24 hours had passed." |
+| 1:30 | Optional: show it's a human by highlighting the agent is typing manually, not an AI toggle | "Riverz never uses this tag for automated messages — only for live human agents." |
+
+### The hard part: demonstrating ">24h"
+
+You can't fast-forward a real window on camera. Options:
+- Use a real conversation that genuinely went quiet >24h ago (easiest — plan a day ahead: have
+  a tester message the page, then record the reply the next day).
+- Or show the message timestamp clearly so the reviewer sees the elapsed time.
+
+Meta's rejection reason for our comment videos was exactly "didn't show the end-to-end use
+case" — for human_agent the end-to-end IS the out-of-window delivery, so that timestamp shot
+is the whole point. Don't skip it.
