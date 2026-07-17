@@ -76,7 +76,7 @@ uninterrupted end-to-end demo.
 | 1:20 | Open the conversation. **Pause on the post context banner** — thumbnail, **FB post** pill, **"{n} comments on the post"**, **View post ↗** | "Riverz reads the post and its comments so the merchant has full context. This is what pages_read_user_content is used for." |
 | 1:35 | Type a reply in the composer → **Send** → show it delivered | "The merchant replies to the customer's comment from Riverz." |
 | 1:45 | Switch to the Facebook tab, refresh → **the reply is live on the post** | "The reply is published on the Facebook post. This is pages_manage_engagement." |
-| 1:52 | Back in Riverz: **hover the eye-slash icon** under the customer's comment until the **"Hide comment"** tooltip is visible → click → toast **"Hidden"**, icon flips to an eye → click again → toast **"Visible"** | "The merchant can also hide a comment — for example spam — and unhide it. This is also pages_manage_engagement." |
+| 1:52 | Back in Riverz: **hover the eye-slash icon** under the customer's comment until the **"Hide comment"** tooltip is visible → click → toast **"Hidden"**, icon flips to an eye. **Switch to the Facebook tab, refresh → show the comment is now hidden on the post.** Back in Riverz → click again → toast **"Visible"** → refresh Facebook → comment reappears | "The merchant can hide a comment — for example spam — and unhide it, and the change takes effect on Facebook. This is pages_manage_engagement." |
 
 > The moderation bar is **icon-only**. You MUST hover long enough for the tooltip to appear and
 > stay on screen, or the reviewer sees an unexplained icon — exactly the "explain the meaning of
@@ -90,7 +90,7 @@ uninterrupted end-to-end demo.
 | 2:00 | On Instagram, **post a comment as a customer** on the merchant's post | "A customer comments on the merchant's Instagram post." |
 | 2:10 | Riverz → **Inbox** → **Comments** tab → open the IG conversation. Pause on the banner showing the **IG post** pill | "The Instagram comment and its post context appear in the same inbox." |
 | 2:25 | Reply → **Send** → switch to Instagram, refresh → **reply is live** | "The merchant replies to the Instagram comment from Riverz. This is instagram_manage_comments." |
-| 2:38 | **Hover** the eye-slash → **"Hide comment"** tooltip → click → **"Hidden"** → click → **"Visible"** | "And can hide or unhide Instagram comments the same way." |
+| 2:38 | **Hover** the eye-slash → **"Hide comment"** tooltip → click → **"Hidden"**. **Switch to Instagram, refresh → show the comment is now hidden.** Back in Riverz → click again → **"Visible"** → refresh IG → comment reappears | "And can hide or unhide Instagram comments the same way, reflected on Instagram." |
 
 ### Part 4 — Close (2:45–3:00)
 
@@ -112,11 +112,21 @@ uninterrupted end-to-end demo.
 
 ## Where the code backs each claim
 
+The manual Hide/Unhide button (both FB and IG) goes through **`/api/messages/moderate`** →
+`applyGraphAction`, which branches the Graph field per platform: FB uses `is_hidden`, IG uses
+`hide`. (The `comment-moderation.ts` helper is the separate AUTO-hide path used by the IG agent.)
+
 | Permission | UI | Graph call |
 |---|---|---|
 | `pages_read_user_content` | post context banner, `message-thread.tsx:1155-1215` | `/api/conversations/[id]/comment-context`, `post-preview` |
-| `pages_manage_engagement` | `comment-moderation-bar.tsx:65-73` (hide), reply composer | `POST /{comment-id}` `is_hidden` — `api/messages/moderate/route.ts:144-154` |
-| `instagram_manage_comments` | same bar + composer on `ig_comment` | `POST /{comment-id}` `hidden` — `lib/channels/comment-moderation.ts:31` |
+| `pages_manage_engagement` | `comment-moderation-bar.tsx` (hide), reply composer | `POST /{comment-id}` `is_hidden=true` — `api/messages/moderate/route.ts` |
+| `instagram_manage_comments` | same bar + composer on `ig_comment` | `POST /{comment-id}` `hide=true` — `api/messages/moderate/route.ts` |
+
+> **Fixed 2026-07-17 (commit below):** IG hide previously sent `is_hidden` (a Facebook-only
+> field) to Instagram comments, which Graph silently ignored — the toast said "Hidden" but the
+> comment stayed visible. IG now correctly sends `hide`, and the route requires Meta's explicit
+> `{"success":true}` before reporting success. Deploy must be live on Render before you film the
+> IG hide step.
 
 ## Uploading it
 
