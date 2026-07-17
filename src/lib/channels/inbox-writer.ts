@@ -300,7 +300,12 @@ export async function ingestInboundEvent(
   // messages. Comments are skipped — the AI flow only owns 1:1 chat
   // surfaces (DMs and email). Fire-and-forget so a slow LLM call
   // never blocks the webhook response.
-  if (!event.outbound && channel !== "fb_comment" && channel !== "ig_comment") {
+  if (
+    !event.outbound &&
+    !event.historical &&
+    channel !== "fb_comment" &&
+    channel !== "ig_comment"
+  ) {
     const dispatchGeneric = () =>
       runAiAgent(db, {
         workspaceId,

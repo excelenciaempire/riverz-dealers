@@ -74,6 +74,11 @@ export interface InboundEvent {
    * refers to the customer (the recipient), so the conversation keys
    * correctly. */
   outbound?: boolean;
+  /** When true this is a BACKFILL of past history (WhatsApp coexistence
+   * `history` sync), not a live message. Stored normally but must NOT
+   * trigger the AI agent / automations — we're importing old chats, not
+   * receiving something to answer. */
+  historical?: boolean;
   /** When false, only ingest into a conversation that ALREADY exists (and
    *  is live); never create one. Used by the Meta DM backfill, whose job is
    *  filling outbound gaps in existing threads — a piece of old history must

@@ -163,9 +163,90 @@ export const whatsappAdapter: ChannelAdapter = {
     const events: InboundEvent[] = [];
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
-        if (change.field !== "messages") continue;
         const value = change.value;
-        if (!value?.messages) continue;
+        if (!value) continue;
+
+        // --- Coexistence: echoes of messages the merchant sent from their own
+        //     phone's WhatsApp Business app. Stored OUTBOUND (agent) so the AI
+        //     never double-replies to a customer the human already answered. ---
+        if (change.field === "smb_message_echoes" && value.message_echoes) {
+          for (const e of value.message_echoes) {
+            if (!e.to || !e.id || e.type === "revoke" || e.type === "edit") continue;
+            const att = await ingestInboundMedia({
+              message: e,
+              encryptedToken,
+              workspaceId: connection.workspace_id,
+              externalContactId: e.to,
+            });
+            events.push({
+              channel: "whatsapp",
+              connection,
+              externalContactId: e.to,
+              externalMessageId: e.id,
+              text: extractText(e),
+              attachments: att.length ? att : undefined,
+              receivedAt: e.timestamp
+                ? new Date(Number(e.timestamp) * 1000).toISOString()
+                : new Date().toISOString(),
+              outbound: true,
+              raw: e,
+            });
+          }
+          continue;
+        }
+
+        // --- Coexistence: past chats synced from the app. Direction derived
+        //     from `from` vs the business number; flagged historical so old
+        //     messages never trigger the AI. ---
+        if (change.field === "history" && value.history) {
+          const bizPhone = onlyDigits(
+            value.metadata?.display_phone_number ??
+              String(
+                (connection.config as Record<string, unknown>)
+                  ?.display_phone_number ?? "",
+              ),
+          );
+          for (const chunk of value.history) {
+            for (const thread of chunk.threads ?? []) {
+              if (!thread.id) continue;
+              for (const m of thread.messages ?? []) {
+                if (!m.id || m.type === "revoke" || m.type === "edit") continue;
+                const fromBusiness =
+                  bizPhone.length >= 8 &&
+                  onlyDigits(m.from ?? "").endsWith(bizPhone.slice(-10));
+                const att = await ingestInboundMedia({
+                  message: m,
+                  encryptedToken,
+                  workspaceId: connection.workspace_id,
+                  externalContactId: thread.id,
+                });
+                events.push({
+                  channel: "whatsapp",
+                  connection,
+                  externalContactId: thread.id,
+                  externalMessageId: m.id,
+                  text: extractText(m),
+                  attachments: att.length ? att : undefined,
+                  receivedAt: m.timestamp
+                    ? new Date(Number(m.timestamp) * 1000).toISOString()
+                    : new Date().toISOString(),
+                  outbound: fromBusiness,
+                  historical: true,
+                  raw: m,
+                });
+              }
+            }
+          }
+          continue;
+        }
+
+        // --- Coexistence: the merchant's contacts synced from the app. ---
+        if (change.field === "smb_app_state_sync" && value.state_sync) {
+          await upsertCoexistenceContacts(connection.workspace_id, value.state_sync);
+          continue;
+        }
+
+        if (change.field !== "messages" || !value.messages) continue;
 
         // Map wa_id → profile name from the contacts array.
         const nameByWaId = new Map<string, string>();
@@ -234,6 +315,58 @@ export const whatsappAdapter: ChannelAdapter = {
   },
 };
 
+/** Strip everything but digits — for comparing phone numbers across formats. */
+function onlyDigits(s: string): string {
+  return (s || "").replace(/\D/g, "");
+}
+
+/**
+ * Coexistence `smb_app_state_sync`: upsert the merchant's phone contacts so the
+ * inbox shows real names. Keyed by external_id = the raw wa_id/phone (matching
+ * how inbound messages key contacts). `remove` is ignored — never delete a
+ * contact that may already have conversation history. Best-effort per item.
+ */
+async function upsertCoexistenceContacts(
+  workspaceId: string,
+  stateSync: Array<{
+    type?: string;
+    action?: string;
+    contact?: { full_name?: string; first_name?: string; phone_number?: string };
+  }>,
+): Promise<void> {
+  const db = supabaseAdmin();
+  for (const item of stateSync ?? []) {
+    if (item?.type !== "contact" || !item.contact || item.action === "remove") continue;
+    const external = onlyDigits(item.contact.phone_number ?? "");
+    if (!external) continue;
+    const name = item.contact.full_name || item.contact.first_name || "";
+    try {
+      const { data: existing } = await db
+        .from("contacts")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .eq("channel", "whatsapp")
+        .eq("external_id", external)
+        .maybeSingle();
+      if (existing) {
+        if (name && (existing as { name?: string }).name !== name) {
+          await db.from("contacts").update({ name }).eq("id", (existing as { id: string }).id);
+        }
+      } else {
+        await db.from("contacts").insert({
+          workspace_id: workspaceId,
+          channel: "whatsapp",
+          external_id: external,
+          phone: external,
+          name: name || external,
+        });
+      }
+    } catch (err) {
+      console.warn("[whatsapp] coexistence contact upsert failed:", err);
+    }
+  }
+}
+
 function extractText(m: WhatsAppMessage): string {
   switch (m.type) {
     case "text":
@@ -271,6 +404,14 @@ interface WhatsAppWebhookBody {
         metadata?: { display_phone_number?: string; phone_number_id?: string };
         contacts?: { wa_id?: string; profile?: { name?: string } }[];
         messages?: WhatsAppMessage[];
+        // Coexistence-only fields (merchant kept the WhatsApp Business app).
+        message_echoes?: WhatsAppMessage[];
+        history?: { threads?: { id?: string; messages?: WhatsAppMessage[] }[] }[];
+        state_sync?: {
+          type?: string;
+          action?: string;
+          contact?: { full_name?: string; first_name?: string; phone_number?: string };
+        }[];
       };
     }[];
   }[];
@@ -279,6 +420,8 @@ interface WhatsAppWebhookBody {
 interface WhatsAppMessage {
   id?: string;
   from?: string;
+  /** Recipient (the customer) — present on echoes / history messages. */
+  to?: string;
   timestamp?: string;
   type: string;
   text?: { body: string };
