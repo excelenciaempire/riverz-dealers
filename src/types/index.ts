@@ -291,6 +291,10 @@ export interface Message {
   created_at: string;
   reply_to_message_id?: string;
   interactive_reply_id?: string;
+  /** FB/IG comments: whether the comment is currently hidden on the platform.
+   *  Persisted (migration 095) so the state survives reloads and syncs across
+   *  panes; written by /api/messages/moderate. */
+  is_hidden?: boolean;
 }
 
 export interface CommentMeta {

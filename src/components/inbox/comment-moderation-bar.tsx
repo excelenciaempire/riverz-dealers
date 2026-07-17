@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff, Heart, Trash2, ExternalLink } from "lucide-react";
 import type { Channel, Message } from "@/types";
@@ -23,8 +23,14 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
-  const [hidden, setHidden] = useState(false);
+  // Seed from the persisted flag (migration 095) so the state is correct on
+  // load, and keep it in sync when a realtime UPDATE (e.g. hidden from another
+  // pane) refreshes the message prop.
+  const [hidden, setHidden] = useState(message.is_hidden ?? false);
   const [liked, setLiked] = useState(false);
+  useEffect(() => {
+    setHidden(message.is_hidden ?? false);
+  }, [message.is_hidden]);
 
   const act = async (action: "hide" | "unhide" | "like" | "unlike" | "delete") => {
     setBusy(action);

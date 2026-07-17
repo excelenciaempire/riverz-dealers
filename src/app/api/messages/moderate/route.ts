@@ -119,9 +119,20 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  // Local bookkeeping — flip status when deleted, store a tag/annotation for hidden.
+  // Local bookkeeping.
   if (action === "delete") {
     await admin.from("messages").update({ status: "failed", content_text: "[deleted]" }).eq("id", m.id);
+  }
+  if (action === "hide" || action === "unhide") {
+    // Persist the hidden state so it survives reloads and syncs across panes
+    // (messages is in the realtime publication → the UPDATE propagates). Best
+    // effort: if migration 095 isn't applied yet the column is missing and the
+    // update errors — don't fail the request, the Graph action already worked.
+    const { error: updErr } = await admin
+      .from("messages")
+      .update({ is_hidden: action === "hide" })
+      .eq("id", m.id);
+    if (updErr) console.warn("[moderate] persist is_hidden failed:", updErr.message);
   }
 
   return NextResponse.json({ ok: true });
