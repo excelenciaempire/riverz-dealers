@@ -39,9 +39,13 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
 export function WhatsAppEmbeddedSignup({
   workspaceId,
   onConnected,
+  mode = "default",
 }: {
   workspaceId: string;
   onConnected: () => void;
+  /** "coexistence" forces Meta's "connect my existing WhatsApp Business app"
+   *  (QR-linking) onboarding instead of the default new-number flow. */
+  mode?: "default" | "coexistence";
 }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,7 +83,14 @@ export function WhatsAppEmbeddedSignup({
       if (!event.origin.endsWith("facebook.com")) return;
       try {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-        if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.event === "FINISH") {
+        // "FINISH" = default new-number flow; "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING"
+        // = coexistence (the merchant kept their WhatsApp Business app). Both carry
+        // the waba_id + phone_number_id we need.
+        if (
+          data?.type === "WA_EMBEDDED_SIGNUP" &&
+          (data?.event === "FINISH" ||
+            data?.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
+        ) {
           sessionInfo.current = {
             waba_id: data.data?.waba_id,
             phone_number_id: data.data?.phone_number_id,
@@ -140,27 +151,44 @@ export function WhatsAppEmbeddedSignup({
         config_id: CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: "3" },
+        // featureType 'whatsapp_business_app_onboarding' (v3 name; was
+        // 'coexistence') switches the popup to the QR-linking flow that keeps
+        // the merchant's WhatsApp Business app working alongside the API.
+        extras:
+          mode === "coexistence"
+            ? {
+                setup: {},
+                featureType: "whatsapp_business_app_onboarding",
+                sessionInfoVersion: "3",
+              }
+            : { setup: {}, sessionInfoVersion: "3" },
       },
     );
-  }, [finish, t]);
+  }, [finish, t, mode]);
 
   // Without the env config we can't launch the popup — render nothing
   // so the parent falls back to the manual-paste connect button.
   if (!APP_ID || !CONFIG_ID) return null;
 
+  const coexistence = mode === "coexistence";
   return (
     <button
       onClick={launch}
       disabled={!sdkReady || busy}
-      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+      className={
+        coexistence
+          ? "flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+          : "flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+      }
     >
       {busy ? (
         <Loader2 className="size-4 animate-spin" />
       ) : (
         <ChannelLogo channel="whatsapp" size={16} />
       )}
-      {t("settings.connectWhatsappOfficial")}
+      {coexistence
+        ? t("settings.connectWhatsappCoexistence")
+        : t("settings.connectWhatsappNewNumber")}
     </button>
   );
 }

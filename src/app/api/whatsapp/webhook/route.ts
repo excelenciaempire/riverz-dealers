@@ -76,9 +76,32 @@ interface WhatsAppWebhookEntry {
         timestamp: string
         recipient_id: string
       }>
+      // ---- Coexistence-only fields (merchant kept the WhatsApp Business app) ----
+      /** Echoes of messages the merchant sends from their phone's WhatsApp
+       *  Business app after onboarding. `to` = the customer. */
+      message_echoes?: Array<CoexistenceMessage>
+      /** Past chats synced from the app in the minutes after onboarding. */
+      history?: Array<{
+        metadata?: { phase?: string | number; chunk_order?: number; progress?: string | number }
+        threads?: Array<{ id: string; messages?: CoexistenceMessage[] }>
+      }>
+      /** The merchant's contacts synced from the app. */
+      state_sync?: Array<{
+        type?: string
+        action?: string
+        contact?: { full_name?: string; first_name?: string; phone_number?: string }
+        metadata?: { timestamp?: string }
+      }>
     }
     field: string
   }>
+}
+
+/** A message inside an echo or history payload — same shape as an inbound
+ *  message plus `to` (recipient) and, for history, a status marker. */
+type CoexistenceMessage = WhatsAppMessage & {
+  to?: string
+  history_context?: { status?: string }
 }
 
 // GET - Webhook verification
@@ -206,6 +229,23 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         for (const status of value.statuses) {
           await handleStatusUpdate(status)
         }
+      }
+
+      // ---- Coexistence webhooks (merchant kept the WhatsApp Business app) ----
+      // These are separate change.field values; each is self-contained and must
+      // NOT fall through to the inbound-message path (no AI/flows/automations —
+      // echoes + history are the merchant's own messages, not fresh inbound).
+      if (change.field === 'smb_message_echoes' && value.message_echoes) {
+        await handleMessageEchoes(value.message_echoes, value.metadata.phone_number_id)
+        continue
+      }
+      if (change.field === 'history' && value.history) {
+        await handleHistorySync(value.history, value, value.metadata.phone_number_id)
+        continue
+      }
+      if (change.field === 'smb_app_state_sync' && value.state_sync) {
+        await handleContactSync(value.state_sync, value.metadata.phone_number_id)
+        continue
       }
 
       // Handle incoming messages
@@ -339,6 +379,196 @@ async function handleStatusUpdate(status: {
 
   if (recUpdateErr) {
     console.error('Error updating broadcast recipient status:', recUpdateErr)
+  }
+}
+
+// The messages.content_type CHECK constraint allows this set (migration 010).
+// Map any other WhatsApp type to the closest allowed value.
+const ALLOWED_CONTENT_TYPES = new Set([
+  'text', 'image', 'document', 'audio', 'video',
+  'location', 'template', 'interactive',
+])
+function toContentType(type: string): string {
+  return ALLOWED_CONTENT_TYPES.has(type)
+    ? type
+    : type === 'sticker'
+      ? 'image'
+      : 'text'
+}
+
+/** Resolve the legacy whatsapp_config row (user_id + token) by phone id. */
+async function getWhatsAppConfig(phoneNumberId: string) {
+  const { data: config } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('*')
+    .eq('phone_number_id', phoneNumberId)
+    .single()
+  return config ?? null
+}
+
+/**
+ * COEXISTENCE — smb_message_echoes.
+ *
+ * Messages the merchant sends from their own phone's WhatsApp Business app.
+ * We mirror each as an OUTBOUND (sender_type='agent') message so the inbox
+ * shows the reply AND the conversation reflects that a human already answered
+ * — this is what stops the AI agent from double-replying to a customer the
+ * merchant just handled from their phone. We deliberately do NOT run flows /
+ * automations / AI here (those are for fresh inbound only). Idempotent on the
+ * (conversation_id, message_id) unique index (migration 036).
+ */
+async function handleMessageEchoes(
+  echoes: CoexistenceMessage[],
+  phoneNumberId: string,
+) {
+  const config = await getWhatsAppConfig(phoneNumberId)
+  if (!config) {
+    console.error('[coexistence] no config for echoes:', phoneNumberId)
+    return
+  }
+  const token = decrypt(config.access_token)
+  for (const echo of echoes) {
+    // 'revoke'/'edit' echoes carry no reply text to show — skip for now.
+    if (!echo?.id || !echo.to || !echo.timestamp) continue
+    if (echo.type === 'revoke' || echo.type === 'edit') continue
+    const customerPhone = normalizePhone(echo.to)
+    if (!customerPhone) continue
+
+    const outcome = await findOrCreateContact(config.user_id, customerPhone, '')
+    if (!outcome) continue
+    const conversation = await findOrCreateConversation(config.user_id, outcome.contact.id)
+    if (!conversation) continue
+
+    const { contentText, mediaUrl } = await parseMessageContent(echo, token)
+    const createdIso = new Date(parseInt(echo.timestamp) * 1000).toISOString()
+    const { error } = await supabaseAdmin().from('messages').insert({
+      conversation_id: conversation.id,
+      sender_type: 'agent',
+      content_type: toContentType(echo.type),
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: echo.id,
+      status: 'sent',
+      created_at: createdIso,
+    })
+    if (error && (error as { code?: string }).code !== '23505') {
+      console.error('[coexistence] echo insert failed:', error)
+      continue
+    }
+    await supabaseAdmin()
+      .from('conversations')
+      .update({
+        last_message_text: contentText || `[${echo.type}]`,
+        last_message_at: createdIso,
+        last_sender_type: 'agent',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conversation.id)
+  }
+}
+
+/**
+ * COEXISTENCE — history.
+ *
+ * Past chats synced from the merchant's app in the minutes after onboarding.
+ * Each thread is one customer; each message's direction is derived from `from`
+ * vs the business number. Inserted idempotently, no AI/flows. The conversation
+ * summary is only advanced if a history message is newer than what the thread
+ * already shows, so importing old history never reorders a live conversation.
+ */
+async function handleHistorySync(
+  chunks: NonNullable<WhatsAppWebhookEntry['changes'][number]['value']['history']>,
+  value: WhatsAppWebhookEntry['changes'][number]['value'],
+  phoneNumberId: string,
+) {
+  const config = await getWhatsAppConfig(phoneNumberId)
+  if (!config) {
+    console.error('[coexistence] no config for history:', phoneNumberId)
+    return
+  }
+  const token = decrypt(config.access_token)
+  const businessPhone = normalizePhone(value.metadata?.display_phone_number ?? '')
+
+  for (const chunk of chunks) {
+    for (const thread of chunk.threads ?? []) {
+      const customerPhone = normalizePhone(thread.id ?? '')
+      if (!customerPhone) continue
+      const outcome = await findOrCreateContact(config.user_id, customerPhone, '')
+      if (!outcome) continue
+      const conversation = await findOrCreateConversation(config.user_id, outcome.contact.id)
+      if (!conversation) continue
+
+      let newest: { ts: number; text: string | null; type: string; sender: 'agent' | 'customer' } | null = null
+      for (const msg of thread.messages ?? []) {
+        if (!msg?.id || !msg.timestamp) continue
+        if (msg.type === 'revoke' || msg.type === 'edit') continue
+        const fromBusiness = businessPhone ? phonesMatch(msg.from ?? '', businessPhone) : false
+        const sender: 'agent' | 'customer' = fromBusiness ? 'agent' : 'customer'
+        const { contentText, mediaUrl } = await parseMessageContent(msg, token)
+        const createdIso = new Date(parseInt(msg.timestamp) * 1000).toISOString()
+        const { error } = await supabaseAdmin().from('messages').insert({
+          conversation_id: conversation.id,
+          sender_type: sender,
+          content_type: toContentType(msg.type),
+          content_text: contentText,
+          media_url: mediaUrl,
+          message_id: msg.id,
+          status: fromBusiness ? 'sent' : 'delivered',
+          created_at: createdIso,
+        })
+        if (error && (error as { code?: string }).code !== '23505') {
+          console.error('[coexistence] history insert failed:', error)
+          continue
+        }
+        const tsNum = parseInt(msg.timestamp)
+        if (!newest || tsNum > newest.ts) {
+          newest = { ts: tsNum, text: contentText, type: msg.type, sender }
+        }
+      }
+
+      if (newest) {
+        const existingTs = conversation.last_message_at
+          ? Date.parse(conversation.last_message_at)
+          : 0
+        if (newest.ts * 1000 > existingTs) {
+          await supabaseAdmin()
+            .from('conversations')
+            .update({
+              last_message_text: newest.text || `[${newest.type}]`,
+              last_message_at: new Date(newest.ts * 1000).toISOString(),
+              last_sender_type: newest.sender,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', conversation.id)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * COEXISTENCE — smb_app_state_sync.
+ *
+ * The merchant's contacts synced from the app. We upsert them (create if new,
+ * refresh the name) so the inbox shows real names. `remove` is ignored — we
+ * never delete a contact that may already have conversation history.
+ */
+async function handleContactSync(
+  stateSync: NonNullable<WhatsAppWebhookEntry['changes'][number]['value']['state_sync']>,
+  phoneNumberId: string,
+) {
+  const config = await getWhatsAppConfig(phoneNumberId)
+  if (!config) {
+    console.error('[coexistence] no config for contact sync:', phoneNumberId)
+    return
+  }
+  for (const item of stateSync) {
+    if (item?.type !== 'contact' || !item.contact) continue
+    if (item.action === 'remove') continue
+    const phone = normalizePhone(item.contact.phone_number ?? '')
+    if (!phone) continue
+    const name = item.contact.full_name || item.contact.first_name || ''
+    await findOrCreateContact(config.user_id, phone, name)
   }
 }
 
@@ -522,20 +752,9 @@ async function processMessage(
   // parseMessageContent. Silence the unused-var warning:
   void mediaType
 
-  // The messages.content_type CHECK constraint (widened in migration 010
-  // to add 'interactive' for button/list taps) allows:
-  //   text, image, document, audio, video, location, template, interactive
-  // Map incoming WhatsApp types that aren't in that list to the closest
-  // allowed value so the INSERT doesn't fail with a constraint error.
-  const ALLOWED_CONTENT_TYPES = new Set([
-    'text', 'image', 'document', 'audio', 'video',
-    'location', 'template', 'interactive',
-  ])
-  const contentType = ALLOWED_CONTENT_TYPES.has(message.type)
-    ? message.type
-    : message.type === 'sticker'
-      ? 'image'   // stickers are images
-      : 'text'    // reaction, unknown → text fallback
+  // Map incoming WhatsApp types to the messages.content_type CHECK set
+  // (widened in migration 010 to add 'interactive'). See toContentType.
+  const contentType = toContentType(message.type)
 
   // Determine whether this is the contact's very first inbound message
   // BEFORE we insert, so the count is accurate. Covers the case where

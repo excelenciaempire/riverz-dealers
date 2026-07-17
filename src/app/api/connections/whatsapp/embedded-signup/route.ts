@@ -104,8 +104,10 @@ export async function POST(req: Request): Promise<Response> {
           display_phone_number?: string;
           verified_name?: string;
           is_on_biz_app?: boolean;
+          platform_type?: string;
         })
       : {};
+    const coexistence = Boolean(phone.is_on_biz_app);
 
     // 3. Subscribe the WABA to our app so webhooks fire.
     try {
@@ -117,17 +119,19 @@ export async function POST(req: Request): Promise<Response> {
       console.warn("[whatsapp/embedded-signup] subscribe_apps failed:", err);
     }
 
-    // 4. Register the number on Cloud API (non-coexistence flow). For
-    //    coexistence (is_on_biz_app) Meta handles activation, so a 4xx
-    //    here is non-fatal.
-    try {
-      await fetch(withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", pin: "000000" }),
-      });
-    } catch {
-      // best-effort
+    // 4. Register the number on Cloud API — ONLY for the new-number flow.
+    //    Coexistence numbers stay registered on the merchant's phone; calling
+    //    /register on them can disrupt the app pairing, so skip it entirely.
+    if (!coexistence) {
+      try {
+        await fetch(withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ messaging_product: "whatsapp", pin: "000000" }),
+        });
+      } catch {
+        // best-effort
+      }
     }
 
     // 5. Persist (or refresh) the connection — one WhatsApp per
@@ -140,8 +144,9 @@ export async function POST(req: Request): Promise<Response> {
       wabaId: body.waba_id,
       displayPhoneNumber: phone.display_phone_number,
       verifiedName: phone.verified_name,
-      coexistence: Boolean(phone.is_on_biz_app),
-      onboarding: "embedded_signup",
+      coexistence,
+      platformType: phone.platform_type,
+      onboarding: coexistence ? "embedded_signup_coexistence" : "embedded_signup",
     });
 
     // Cache the WABA messaging-tier so bulk paths can gate sends without
@@ -162,7 +167,7 @@ export async function POST(req: Request): Promise<Response> {
       token,
     });
 
-    return NextResponse.json({ ok: true, label, coexistence: Boolean(phone.is_on_biz_app) });
+    return NextResponse.json({ ok: true, label, coexistence });
   } catch (err) {
     if (err instanceof WhatsAppAlreadyConnectedError) {
       return NextResponse.json(

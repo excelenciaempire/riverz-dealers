@@ -476,10 +476,22 @@ export function ChannelsPanel() {
                   g.connectChannel === "whatsapp" &&
                   ready &&
                   process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
-                    <WhatsAppEmbeddedSignup
-                      workspaceId={workspace.id}
-                      onConnected={() => void fetchConnections()}
-                    />
+                    <div className="space-y-1.5">
+                      {/* New-number flow (primary) + coexistence (keep the
+                          WhatsApp Business app on the phone, same number). */}
+                      <WhatsAppEmbeddedSignup
+                        workspaceId={workspace.id}
+                        onConnected={() => void fetchConnections()}
+                      />
+                      <WhatsAppEmbeddedSignup
+                        workspaceId={workspace.id}
+                        mode="coexistence"
+                        onConnected={() => void fetchConnections()}
+                      />
+                      <p className="text-center text-[10px] leading-snug text-muted-foreground">
+                        {t("settings.whatsappCoexistenceHint")}
+                      </p>
+                    </div>
                   ) : /* Facebook / Instagram: Facebook Login for Business via
                       the JS SDK (FB.login with config_id). Facebook rejects
                       config_id on the bare server redirect, so the SDK is the

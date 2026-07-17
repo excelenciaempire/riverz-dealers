@@ -214,6 +214,18 @@ export const settings = {
     es: "Conectar WhatsApp (oficial)",
     en: "Connect WhatsApp (official)",
   },
+  connectWhatsappNewNumber: {
+    es: "Conectar un número nuevo",
+    en: "Connect a new number",
+  },
+  connectWhatsappCoexistence: {
+    es: "Usar mi WhatsApp Business actual",
+    en: "Use my existing WhatsApp Business",
+  },
+  whatsappCoexistenceHint: {
+    es: "Sigue usando la app en tu teléfono y gestiona el mismo número aquí.",
+    en: "Keep using the app on your phone and manage the same number here.",
+  },
 
   // Workspace panel
   workspaceDeleteError: {

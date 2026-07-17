@@ -45,7 +45,10 @@ export interface UpsertWhatsAppArgs {
   displayPhoneNumber?: string;
   verifiedName?: string;
   coexistence?: boolean;
-  onboarding: "embedded_signup" | "manual";
+  /** Meta's phone platform_type (e.g. CLOUD_API, BUSINESS_APP) — persisted for
+   *  diagnostics; coexistence numbers report the business-app platform. */
+  platformType?: string;
+  onboarding: "embedded_signup" | "embedded_signup_coexistence" | "manual";
 }
 
 export interface UpsertWhatsAppResult {
@@ -89,6 +92,7 @@ export async function upsertSingleWhatsAppConnection(
     display_phone_number: args.displayPhoneNumber,
     verified_name: args.verifiedName,
     coexistence: Boolean(args.coexistence),
+    platform_type: args.platformType,
     onboarding: args.onboarding,
   };
   const secrets = { access_token: encrypt(args.token) };
