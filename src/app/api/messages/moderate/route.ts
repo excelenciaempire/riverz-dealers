@@ -145,20 +145,24 @@ async function applyGraphAction(
   accessToken: string,
 ): Promise<{ ok: boolean; detail?: string }> {
   const GRAPH = "https://graph.facebook.com/v21.0";
-  // Every one of these Graph writes returns {"success":true}. Treat anything
-  // else — a non-2xx, an error object, or a missing success flag — as failure,
-  // so a request Graph silently ignores never looks successful in the UI.
+  // Graph's reply shape varies by action/version — {"success":true}, the
+  // updated object, or a bare `true`. So DON'T require a specific success flag
+  // (that wrongly rejected valid Facebook hides). A non-2xx or a body carrying
+  // an explicit `error` is a failure; any other 2xx means the write applied.
   const finish = async (r: Response): Promise<{ ok: boolean; detail?: string }> => {
     const text = await r.text().catch(() => "");
     if (!r.ok) return { ok: false, detail: text };
-    let json: { success?: boolean; error?: unknown } | null = null;
     try {
-      json = JSON.parse(text) as { success?: boolean; error?: unknown };
+      const json = JSON.parse(text) as unknown;
+      if (
+        json &&
+        typeof json === "object" &&
+        (json as { error?: unknown }).error
+      ) {
+        return { ok: false, detail: text };
+      }
     } catch {
-      /* non-JSON 2xx — fall through to the check below */
-    }
-    if (!json || json.error || json.success !== true) {
-      return { ok: false, detail: text || "unexpected Graph response" };
+      /* non-JSON 2xx (e.g. a bare `true`) — treat as success */
     }
     return { ok: true };
   };
