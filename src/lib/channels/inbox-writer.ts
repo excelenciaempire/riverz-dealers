@@ -73,6 +73,16 @@ export async function ingestInboundEvent(
     if (already) return null;
   }
 
+  // Para ingestas HISTÓRICAS (backfill de DMs / echoes viejos / respuestas de
+  // Mercado Libre pasadas) datamos el contacto y la conversación al momento del
+  // mensaje, NO a NOW(): si no, "Contactos nuevos" del panel contaría una
+  // relación vieja como nueva de HOY, incoherente con el mensaje (que sí se
+  // fecha histórico). En webhooks en vivo receivedAt ≈ ahora → no cambia nada.
+  const nowMs = Date.now();
+  const evMs = Date.parse(event.receivedAt);
+  const historicalCreatedAt =
+    Number.isFinite(evMs) && evMs < nowMs ? event.receivedAt : undefined;
+
   // 1. Upsert contact by (workspace_id, channel, external_id).
   const contact = await upsertContact(db, {
     workspace_id: workspaceId,
@@ -82,6 +92,7 @@ export async function ingestInboundEvent(
     avatar_url: event.contactAvatarUrl,
     email: channel === "gmail" || channel === "outlook" ? event.externalContactId : undefined,
     phone: channel === "whatsapp" ? event.externalContactId : undefined,
+    created_at: historicalCreatedAt,
   });
   if (!contact) return null;
 
@@ -105,6 +116,7 @@ export async function ingestInboundEvent(
     lastMessageAt: event.receivedAt,
     lastSenderType: event.outbound ? "agent" : "customer",
     createIfMissing: event.createIfMissing,
+    created_at: historicalCreatedAt,
   });
   if (!conversation) return null;
 
@@ -326,20 +338,28 @@ export async function ingestInboundEvent(
     );
   }
 
-  // 5. Bump conversation summary fields. Outbound (our own sent mail)
-  //    must not increment the unread counter.
-  await db
-    .from("conversations")
-    .update({
-      last_message_text: event.text.slice(0, 200),
-      last_message_at: event.receivedAt,
-      last_sender_type: event.outbound ? "agent" : "customer",
-      unread_count: event.outbound
-        ? (conversation.unread_count ?? 0)
-        : (conversation.unread_count ?? 0) + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", conversation.id);
+  // 5. Bump conversation summary fields. Outbound (our own sent mail) must no
+  //    incrementar el contador de no-leídos. Los campos de resumen/orden solo
+  //    avanzan HACIA ADELANTE: un saliente histórico del backfill no debe
+  //    rebobinar last_message_at (hundiría la conversación viva en la bandeja
+  //    con un preview viejo). En vivo el evento siempre es >= el actual.
+  const evTs = Date.parse(event.receivedAt);
+  const curTs = conversation.last_message_at
+    ? Date.parse(conversation.last_message_at)
+    : NaN;
+  const isNewer = Number.isNaN(curTs) || (Number.isFinite(evTs) && evTs >= curTs);
+  const summaryPatch: Record<string, unknown> = {
+    unread_count: event.outbound
+      ? (conversation.unread_count ?? 0)
+      : (conversation.unread_count ?? 0) + 1,
+    updated_at: new Date().toISOString(),
+  };
+  if (isNewer) {
+    summaryPatch.last_message_text = event.text.slice(0, 200);
+    summaryPatch.last_message_at = event.receivedAt;
+    summaryPatch.last_sender_type = event.outbound ? "agent" : "customer";
+  }
+  await db.from("conversations").update(summaryPatch).eq("id", conversation.id);
 
   // Fire the AI customer-service agent for inbound (customer) text
   // messages. Comments are skipped — the AI flow only owns 1:1 chat
@@ -433,6 +453,9 @@ interface UpsertContactInput {
   avatar_url?: string;
   email?: string;
   phone?: string;
+  /** Momento histórico del primer mensaje visto (backfill); si se omite, la DB
+   *  usa NOW(). Solo aplica al INSERT — nunca reescribe un contacto existente. */
+  created_at?: string;
 }
 
 async function upsertContact(
@@ -484,6 +507,7 @@ async function upsertContact(
       avatar_url: input.avatar_url,
       email: input.email,
       phone: input.phone,
+      ...(input.created_at ? { created_at: input.created_at } : {}),
     })
     .select()
     .single();
@@ -513,6 +537,9 @@ interface FindOrCreateConversationInput {
   /** When false, return null instead of creating a conversation when none
    *  live exists — see InboundEvent.createIfMissing. Defaults to creating. */
   createIfMissing?: boolean;
+  /** Momento histórico del primer mensaje (backfill); si se omite, NOW(). Solo
+   *  aplica al INSERT de una conversación nueva. */
+  created_at?: string;
 }
 
 async function findOrCreateConversation(
@@ -590,6 +617,7 @@ async function findOrCreateConversation(
       last_message_at: input.lastMessageAt ?? new Date().toISOString(),
       last_sender_type: input.lastSenderType ?? "customer",
       unread_count: 0,
+      ...(input.created_at ? { created_at: input.created_at } : {}),
     })
     .select()
     .single();
