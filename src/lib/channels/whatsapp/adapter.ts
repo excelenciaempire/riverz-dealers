@@ -166,6 +166,15 @@ export const whatsappAdapter: ChannelAdapter = {
         const value = change.value;
         if (!value) continue;
 
+        // Delivery/read/FAILED status updates for our OWN outbound messages.
+        // Without this the channels route left every sent message stuck at
+        // "sent" forever AND silently dropped failures — so a message that
+        // Meta rejected looked "sent" while the customer never received it.
+        if (value.statuses) {
+          await handleWhatsappStatuses(value.statuses);
+          continue;
+        }
+
         // --- Coexistence: echoes of messages the merchant sent from their own
         //     phone's WhatsApp Business app. Stored OUTBOUND (agent) so the AI
         //     never double-replies to a customer the human already answered. ---
@@ -320,6 +329,59 @@ function onlyDigits(s: string): string {
   return (s || "").replace(/\D/g, "");
 }
 
+/** Message-status ladder — never regress a recipient back down it. `failed`
+ *  is a terminal side branch valid only from the early states. */
+const WA_STATUS_LADDER = ["sent", "delivered", "read"];
+function statusRank(s: string): number {
+  return WA_STATUS_LADDER.indexOf(s);
+}
+
+/**
+ * Apply WhatsApp delivery/read/FAILED status updates to our outbound messages
+ * (keyed by the Meta wamid = messages.message_id). Forward-only on the ladder;
+ * a `failed` status flips the message to failed and logs Meta's reason so the
+ * real cause of a "sent but never delivered" message is visible in the logs.
+ */
+async function handleWhatsappStatuses(
+  statuses: Array<{
+    id?: string;
+    status?: string;
+    timestamp?: string;
+    recipient_id?: string;
+    errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[];
+  }>,
+): Promise<void> {
+  const db = supabaseAdmin();
+  for (const s of statuses ?? []) {
+    if (!s?.id || !s.status) continue;
+    if (s.status === "failed") {
+      const e = s.errors?.[0];
+      console.error(
+        `[whatsapp] message ${s.id} FAILED — code=${e?.code} title="${e?.title}" detail="${e?.error_data?.details ?? e?.message ?? ""}"`,
+      );
+      await db
+        .from("messages")
+        .update({ status: "failed" })
+        .eq("message_id", s.id)
+        .in("status", ["sent", "pending", "delivered", "read"]);
+      continue;
+    }
+    // Forward-only: only advance sent→delivered→read, never regress.
+    const rank = statusRank(s.status);
+    if (rank < 0) continue;
+    const behind = WA_STATUS_LADDER.slice(0, rank);
+    if (behind.length === 0) {
+      await db.from("messages").update({ status: s.status }).eq("message_id", s.id).eq("status", "pending");
+    } else {
+      await db
+        .from("messages")
+        .update({ status: s.status })
+        .eq("message_id", s.id)
+        .in("status", ["pending", ...behind]);
+    }
+  }
+}
+
 /**
  * Coexistence `smb_app_state_sync`: upsert the merchant's phone contacts so the
  * inbox shows real names. Keyed by external_id = the raw wa_id/phone (matching
@@ -404,6 +466,18 @@ interface WhatsAppWebhookBody {
         metadata?: { display_phone_number?: string; phone_number_id?: string };
         contacts?: { wa_id?: string; profile?: { name?: string } }[];
         messages?: WhatsAppMessage[];
+        statuses?: {
+          id?: string;
+          status?: string;
+          timestamp?: string;
+          recipient_id?: string;
+          errors?: {
+            code?: number;
+            title?: string;
+            message?: string;
+            error_data?: { details?: string };
+          }[];
+        }[];
         // Coexistence-only fields (merchant kept the WhatsApp Business app).
         message_echoes?: WhatsAppMessage[];
         history?: { threads?: { id?: string; messages?: WhatsAppMessage[] }[] }[];
