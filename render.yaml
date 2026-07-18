@@ -45,6 +45,13 @@ services:
         sync: false
       - key: MICROSOFT_CLIENT_SECRET
         sync: false
+      # Shared secret echoed as `clientState` on every Microsoft Graph push
+      # notification (Outlook inbound). REQUIRED: without it startOutlookWatch
+      # creates no subscription AND the webhook fail-closes and drops every
+      # notification, so no Outlook email ever reaches the inbox. Set to a long
+      # random string in the Render dashboard.
+      - key: OUTLOOK_PUSH_CLIENT_STATE
+        sync: false
       # Claude API — redacción con IA del cuerpo de plantillas.
       - key: ANTHROPIC_API_KEY
         sync: false
