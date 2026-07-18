@@ -402,6 +402,12 @@ const FB_PAGE_FIELDS = [
   "message_reactions",
   "message_deliveries",
   "message_reads",
+  // Echoes of messages the merchant sends from the Messenger app / Business
+  // Suite, so those replies sync into Riverz too (multichannel). Delivered as
+  // `message.is_echo`; ingested outbound. (IG delivers echoes under `messages`
+  // already, so IG_* fields don't need this — and adding an unsupported field
+  // to the IG object would 400 the whole subscribe, like `comments`.)
+  "message_echoes",
   "feed", // FB post/ad comments arrive under the `feed` field
 ];
 // NOTE: `comments` is intentionally NOT here. IG comment webhooks are

@@ -155,12 +155,43 @@ export const instagramAdapter: ChannelAdapter = {
           | { mid?: string; text?: string; is_echo?: boolean; attachments?: Array<Record<string, unknown>> }
           | undefined;
         if (!sender?.id || !message) continue;
-        // Skip the business's OWN account. IG delivers an "echo" webhook
-        // for every DM we send (sender = our IG id); ingesting those as
-        // inbound turns the account into its own "customer" and inflates
-        // received counts. Our sends are recorded when WE send them / by
-        // the DM-backfill cron, not from echoes.
-        if (message.is_echo || selfIds.has(String(sender.id))) continue;
+        // Echo: a DM the business SENT — from the Instagram phone app, Business
+        // Suite, or our own API. IG fires one for every business send (sender =
+        // our IG/page id). Instead of dropping it we ingest it OUTBOUND, so a
+        // reply the merchant types on their phone shows up in Riverz too
+        // (multicanal: se sincroniza todo lo enviado y recibido, no solo lo que
+        // sale desde acá). Sends made from Riverz dedupe by message_id (mismo
+        // mid → inbox-writer los descarta), así que no se duplican; sólo
+        // sobreviven los mensajes escritos realmente desde el celular.
+        const isEcho = Boolean(message.is_echo) || selfIds.has(String(sender.id));
+        if (isEcho) {
+          const recipient = m.recipient as { id?: string } | undefined;
+          const customerId = recipient?.id ? String(recipient.id) : "";
+          // Sin destinatario mapeable, o eco hacia nuestra propia cuenta: nada
+          // que sincronizar.
+          if (!customerId || selfIds.has(customerId)) continue;
+          const echoAttachments = await ingestInstagramAttachments(
+            message.attachments ?? [],
+            connection.workspace_id,
+            customerId,
+            message.mid,
+          );
+          // Resolvemos también el nombre del destinatario (por si el hilo lo
+          // inició el comercio desde el celular y aún no existe en Riverz).
+          senderIds.add(customerId);
+          events.push({
+            channel: "instagram",
+            connection,
+            externalContactId: customerId,
+            externalMessageId: message.mid,
+            text: String(message.text ?? ""),
+            attachments: echoAttachments.length ? echoAttachments : undefined,
+            receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+            outbound: true,
+            raw: m,
+          });
+          continue;
+        }
         senderIds.add(sender.id);
         // Bajamos cada attachment a Storage para tener un permalink —
         // las CDN URLs de IG caducan en horas y el inbox necesita

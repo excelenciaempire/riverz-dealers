@@ -154,10 +154,38 @@ export const messengerAdapter: ChannelAdapter = {
             }
           | undefined;
         if (!sender?.id || !message) continue;
-        // Skip our own page: Messenger echoes every message we send
-        // (sender = page id). Ingesting echoes as inbound makes the page
-        // its own "customer" and inflates received counts.
-        if (message.is_echo || selfIds.has(String(sender.id))) continue;
+        // Echo: un mensaje que el negocio ENVIÓ — desde la app de Messenger, el
+        // Business Suite o nuestra propia API (sender = page id). En vez de
+        // descartarlo lo ingerimos SALIENTE, para que una respuesta escrita
+        // desde el celular también se vea en Riverz (multicanal: se sincroniza
+        // todo lo enviado y recibido). Lo enviado desde Riverz se deduplica por
+        // message_id (mismo mid), así que no se duplica; sólo sobreviven los
+        // mensajes escritos realmente desde el teléfono.
+        const isEcho = Boolean(message.is_echo) || selfIds.has(String(sender.id));
+        if (isEcho) {
+          const recipient = m.recipient as { id?: string } | undefined;
+          const customerId = recipient?.id ? String(recipient.id) : "";
+          if (!customerId || selfIds.has(customerId)) continue;
+          const echoAttachments = await ingestMessengerAttachments(
+            message.attachments ?? [],
+            connection.workspace_id,
+            customerId,
+            message.mid,
+          );
+          senderIds.add(customerId);
+          events.push({
+            channel: "messenger",
+            connection,
+            externalContactId: customerId,
+            externalMessageId: message.mid,
+            text: String(message.text ?? ""),
+            attachments: echoAttachments.length ? echoAttachments : undefined,
+            receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+            outbound: true,
+            raw: m,
+          });
+          continue;
+        }
         senderIds.add(sender.id);
         // Messenger ships attachments con `type` (image/video/audio/file)
         // y `payload.url` ya público. Lo persistimos en Storage para
