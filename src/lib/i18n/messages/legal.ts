@@ -294,6 +294,7 @@ export const legal = {
     en: "I accept the Terms and Privacy",
   },
   reconsentAccepting: { es: "Guardando…", en: "Saving…" },
+  reconsentReject: { es: "Rechazar y salir", en: "Decline and sign out" },
 
   // ── Terms & conditions ───────────────────────────────────────────────────
   termsMetaTitle: { es: "Términos y condiciones", en: "Terms and conditions" },

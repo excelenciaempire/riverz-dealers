@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
@@ -104,27 +105,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // whatsapp_config holds waba_id + encrypted access_token.
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (configError || !config) {
-      return NextResponse.json(
-        { error: translate(locale, 'errWhatsapp.whatsappNotConnectedSync') },
-        { status: 400 },
-      )
-    }
-
-    if (!config.waba_id) {
-      return NextResponse.json(
-        { error: translate(locale, 'errWhatsapp.missingWabaIdSync') },
-        { status: 400 },
-      )
-    }
-
     // message_templates.workspace_id is NOT NULL — resolve it so the
     // upserts below don't all fail the not-null constraint (which would
     // leave the local catalog permanently empty after a "successful" sync).
@@ -136,7 +116,53 @@ export async function POST(req: Request) {
       )
     }
 
-    const accessToken = decrypt(config.access_token)
+    // Resolve the WABA id + token from EITHER store. whatsapp_config
+    // (user-scoped, automations) is the legacy source, but a number connected
+    // via Embedded Signup writes ONLY channel_connections (workspace-scoped,
+    // inbox) — so for those the user's whatsapp_config is empty and the sync
+    // wrongly reported "WhatsApp no está conectado" aunque esté conectado en la
+    // bandeja. Caemos a la conexión de WhatsApp del workspace.
+    let wabaId: string | null = null
+    let accessToken: string | null = null
+
+    const { data: config } = await supabase
+      .from('whatsapp_config')
+      .select('waba_id, access_token')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (config?.waba_id && config.access_token) {
+      wabaId = String(config.waba_id)
+      accessToken = decrypt(config.access_token)
+    } else {
+      const { data: conn } = await supabaseAdmin()
+        .from('channel_connections')
+        .select('config, secrets')
+        .eq('workspace_id', workspaceId)
+        .eq('channel', 'whatsapp')
+        .neq('status', 'disconnected')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const cfg = (conn?.config ?? {}) as Record<string, unknown>
+      const secrets = (conn?.secrets ?? {}) as Record<string, unknown>
+      if (cfg.waba_id && secrets.access_token) {
+        wabaId = String(cfg.waba_id)
+        accessToken = decrypt(String(secrets.access_token))
+      }
+    }
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.whatsappNotConnectedSync') },
+        { status: 400 },
+      )
+    }
+    if (!wabaId) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.missingWabaIdSync') },
+        { status: 400 },
+      )
+    }
 
     // Paginate through every template Meta has for this WABA. Meta
     // returns at most 100 per page; `paging.next` is a full URL. Cap
@@ -145,7 +171,7 @@ export async function POST(req: Request) {
     const metaTemplates: MetaTemplate[] = []
     let nextUrl:
       | string
-      | null = `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components`
+      | null = `${META_API_BASE}/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components`
     const PAGE_CAP = 20
     let pageCount = 0
 

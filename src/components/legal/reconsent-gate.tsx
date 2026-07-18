@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useT } from "@/hooks/use-locale";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { createClient } from "@/lib/supabase/client";
 
 /**
  * Blocking re-consent modal. The dashboard layout renders it ONLY when the
@@ -27,6 +28,17 @@ export function ReconsentGate() {
       if (res.ok) setOpen(false);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Rechazar = no se puede usar la app sin aceptar los términos: cerramos
+  // sesión y volvemos al login. No se registra consentimiento.
+  const reject = async () => {
+    setSubmitting(true);
+    try {
+      await createClient().auth.signOut();
+    } finally {
+      window.location.href = "/ingresar";
     }
   };
 
@@ -65,6 +77,13 @@ export function ReconsentGate() {
           className="mt-5 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
         >
           {submitting ? t("legal.reconsentAccepting") : t("legal.reconsentAccept")}
+        </button>
+        <button
+          onClick={reject}
+          disabled={submitting}
+          className="mt-2 w-full rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
+        >
+          {t("legal.reconsentReject")}
         </button>
       </div>
     </div>
