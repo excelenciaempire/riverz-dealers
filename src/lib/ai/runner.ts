@@ -143,15 +143,23 @@ export async function runAiAgent(
     // gt(created_at) check on ties.
     const { data: laterRows } = await db
       .from('messages')
-      .select('id, created_at')
+      .select('id, content_text, media_url')
       .eq('conversation_id', args.conversation.id)
       .eq('sender_type', 'customer')
       .or(
         `created_at.gt.${inboundTs},` +
           `and(created_at.eq.${inboundTs},id.gt.${inboundId})`,
       )
-      .limit(1);
-    if ((laterRows ?? []).length > 0) {
+      .limit(20);
+    // Solo un inbound RESPONDIBLE (texto o media) cuenta como "más nuevo que
+    // cubre la ráfaga". Un story_mention/share de IG se inserta pero no dispara
+    // run (gate en inbox-writer), así que contarlo dejaría al DM real sin
+    // responder.
+    const laterAnswerable = (laterRows ?? []).some(
+      (m: { content_text?: string | null; media_url?: string | null }) =>
+        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url),
+    );
+    if (laterAnswerable) {
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'debounced_by_newer_inbound',
@@ -327,12 +335,16 @@ export async function runAiAgent(
     // also protected.
     const { data: laterRows2 } = await db
       .from('messages')
-      .select('id')
+      .select('id, content_text, media_url')
       .eq('conversation_id', args.conversation.id)
       .eq('sender_type', 'customer')
       .gt('created_at', args.inboundMessage.created_at)
-      .limit(1);
-    if ((laterRows2 ?? []).length > 0) {
+      .limit(20);
+    const laterAnswerable2 = (laterRows2 ?? []).some(
+      (m: { content_text?: string | null; media_url?: string | null }) =>
+        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url),
+    );
+    if (laterAnswerable2) {
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'stale_by_newer_inbound',

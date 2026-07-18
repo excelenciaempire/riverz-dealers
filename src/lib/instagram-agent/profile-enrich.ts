@@ -4,6 +4,7 @@ import type { ChannelConnection } from '@/types';
 import { decrypt } from '@/lib/channels/encryption';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
 import { describeImage, toImageMediaType } from '@/lib/ai/llm-client';
+import { ingestRawMedia } from '@/lib/channels/media-ingest';
 
 /**
  * Per-person Instagram enrichment — the "understand who they are" step behind
@@ -73,6 +74,38 @@ async function visionProfilePic(
 }
 
 /**
+ * Persist the IG profile picture to Supabase Storage and return a STABLE
+ * public URL. Meta's `profile_pic` is a short-lived signed CDN URL that 404s
+ * within hours — storing it raw (as this module used to) left the inbox avatar
+ * broken for the whole 30-day re-enrichment TTL. We download the bytes once and
+ * re-host them, keyed by contact, so the avatar stays valid. Best-effort:
+ * returns null on any failure (the caller then leaves avatar_url untouched).
+ */
+async function persistAvatarToStorage(
+  workspaceId: string,
+  contactId: string,
+  url: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ingested = await ingestRawMedia({
+      buffer: buf,
+      mime: res.headers.get('content-type') || 'image/jpeg',
+      workspaceId,
+      // Pseudo-scope: el path en Storage queda {workspace}/avatars/{contact}.
+      conversationId: 'avatars',
+      id: contactId,
+      hintedKind: 'image',
+    });
+    return ingested?.publicUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Enrich a contact's Instagram profile. Idempotent + TTL-guarded: safe to call
  * fire-and-forget on every inbound message; it no-ops when data is fresh.
  */
@@ -132,8 +165,19 @@ export async function enrichContactProfile(
       { onConflict: 'contact_id' },
     );
 
+    // Re-hospedar la foto en Storage y guardar una URL ESTABLE. Antes se
+    // guardaba la profile_pic cruda (URL CDN firmada de vida corta) que daba
+    // 404 a las pocas horas y dejaba el avatar roto por todo el TTL de 30 días
+    // — contradiciendo el propio contrato de este módulo (ver docstring).
     if (p.profile_pic) {
-      await db.from('contacts').update({ avatar_url: p.profile_pic }).eq('id', opts.contactId);
+      const stable = await persistAvatarToStorage(
+        opts.connection.workspace_id,
+        opts.contactId,
+        p.profile_pic,
+      );
+      if (stable) {
+        await db.from('contacts').update({ avatar_url: stable }).eq('id', opts.contactId);
+      }
     }
   } catch {
     /* fail-soft: enrichment is best-effort, never blocks messaging */

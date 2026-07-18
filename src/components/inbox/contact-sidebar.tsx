@@ -176,15 +176,20 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
-              {contact.avatar_url ? (
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
+              {/* Iniciales de base; avatar superpuesto que, si la URL está
+                  rota/expirada, onError oculta y quedan las iniciales. */}
+              {initials}
+              {contact.avatar_url && (
                 <img
+                  key={contact.avatar_url}
                   src={contact.avatar_url}
                   alt={displayName}
-                  className="h-16 w-16 rounded-full object-cover"
+                  className="absolute inset-0 h-16 w-16 rounded-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
-              ) : (
-                initials
               )}
             </div>
             <h3 className="mt-3 text-sm font-semibold text-foreground">

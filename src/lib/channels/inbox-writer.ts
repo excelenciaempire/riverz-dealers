@@ -303,9 +303,22 @@ export async function ingestInboundEvent(
   // messages. Comments are skipped — the AI flow only owns 1:1 chat
   // surfaces (DMs and email). Fire-and-forget so a slow LLM call
   // never blocks the webhook response.
+  // Instagram-only: un DM que es SOLO una mención-en-historia o un post
+  // compartido (story_mention/share) llega con texto vacío y sin adjunto
+  // bajable, y antes disparaba al agente a "responder a la nada". Acotamos el
+  // gate a instagram para no cambiar el comportamiento de otros canales (un
+  // email solo-asunto o una ubicación de Messenger SÍ deben responderse; sus
+  // adapters además emiten texto de fallback, así que no aplica).
+  const igEmptyDm =
+    channel === "instagram" &&
+    !(
+      Boolean(event.text && event.text.trim()) ||
+      Boolean(event.attachments && event.attachments.length)
+    );
   if (
     !event.outbound &&
     !event.historical &&
+    !igEmptyDm &&
     channel !== "fb_comment" &&
     channel !== "ig_comment"
   ) {
@@ -344,6 +357,19 @@ export async function ingestInboundEvent(
         },
         connection: event.connection,
         inboundText: event.text,
+        // Para respetar los controles del chat (kill-switch / toma por
+        // humano / cerrado) y el debounce anti-ráfaga dentro del cerrador.
+        conversation: {
+          id: conversation.id,
+          ai_enabled:
+            (conversation as { ai_enabled?: boolean | null }).ai_enabled ?? null,
+          assigned_agent_id: conversation.assigned_agent_id ?? null,
+          status: conversation.status ?? null,
+        },
+        inboundMessage: {
+          id: (message as Message).id,
+          created_at: (message as Message).created_at,
+        },
       })
         .then((handled) => {
           if (!handled) dispatchGeneric();

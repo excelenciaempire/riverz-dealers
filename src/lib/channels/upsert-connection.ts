@@ -60,18 +60,24 @@ async function reviveExisting(
 ): Promise<UpsertConnectionResult | null> {
   const { data } = await admin
     .from("channel_connections")
-    .select("id, config, secrets")
+    .select("id, status, config, secrets")
     .eq("workspace_id", row.workspace_id)
     .eq("channel", row.channel)
     .eq("external_account_id", row.external_account_id)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const existing = data as {
+    .order("updated_at", { ascending: false });
+  const rows = (data ?? []) as Array<{
     id: string;
+    status: string;
     config: Record<string, unknown> | null;
     secrets: Record<string, unknown> | null;
-  } | null;
+  }>;
+  // Preferir la fila ACTIVA (la que ya satisface el índice único parcial
+  // `uq_active_connection_per_account`), no la más reciente por updated_at.
+  // La migración 098 degradó los duplicados a status='disconnected' Y les
+  // puso updated_at=now(), así que "el más nuevo" pasó a ser justo el
+  // duplicado desconectado: revivirlo (status→connected) chocaría con la
+  // fila activa superviviente bajo el índice → 23505 y la reconexión fallaba.
+  const existing = rows.find((r) => r.status !== "disconnected") ?? rows[0] ?? null;
   if (!existing) return null;
 
   const { error } = await admin

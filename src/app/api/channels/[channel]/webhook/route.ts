@@ -330,11 +330,19 @@ async function routesByPayload(
 
   const body = (payload ?? {}) as { entry?: unknown };
   const entries = Array.isArray(body.entry) ? body.entry : [];
-  // Single connection or no entries to discriminate on → give it
-  // everything, exactly like the legacy single-connection path.
-  if (conns.length === 1 || entries.length === 0) {
-    return [{ connection: conns[0], payload }];
+  // Sin entries que discriminar (payload no-entry): solo es seguro adivinar
+  // el destino cuando hay exactamente una conexión.
+  if (entries.length === 0) {
+    return conns.length === 1 ? [{ connection: conns[0], payload }] : [];
   }
+  // SEGURIDAD MULTI-TENANT: con entries presentes SIEMPRE validamos por
+  // entry.id — incluso con una sola conexión. El fast path anterior
+  // (`conns.length === 1`) entregaba TODO el payload a esa conexión SIN
+  // validar el id: si otro workspace desconectó su cuenta desde la app
+  // (status='disconnected' → queda FUERA de `conns`) pero Meta sigue
+  // entregando (la suscripción es a nivel app y no se revoca), el DM de un
+  // cliente ajeno se enrutaba a la única conexión viva = fuga cross-tenant.
+  // Ahora ese entry ajeno cae en `unmatched` y se descarta + loguea.
 
   const buckets = new Map<string, DeliveryRoute & { entries: unknown[] }>();
   const unmatched: unknown[] = [];

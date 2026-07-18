@@ -662,16 +662,21 @@ const ConversationItem = memo(function ConversationItem({
           to read a separate text badge in the row. */}
       <div className="relative h-10 w-10 shrink-0">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-          {contact?.avatar_url ? (
+          {/* Iniciales de base; el avatar va superpuesto y, si la URL está
+              rota/expirada, onError lo oculta y quedan las iniciales. */}
+          {initials}
+          {contact?.avatar_url && (
             <img
+              key={contact.avatar_url}
               src={contact.avatar_url}
               alt={displayName}
               loading="lazy"
               decoding="async"
-              className="h-10 w-10 rounded-full object-cover"
+              className="absolute inset-0 h-10 w-10 rounded-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
-          ) : (
-            initials
           )}
         </div>
         <span

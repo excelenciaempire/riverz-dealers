@@ -467,6 +467,8 @@ async function generateCloserReply(input: {
  * context and return true (so the caller suppresses the generic assistant).
  * Returns false when this contact isn't a live campaign recipient.
  */
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export async function maybeRunCloser(
   db: SupabaseClient,
   opts: {
@@ -474,6 +476,16 @@ export async function maybeRunCloser(
     contact: ContactLite;
     connection: ChannelConnection;
     inboundText: string | null;
+    /** Conversación del DM — para respetar los controles a nivel chat
+     *  (kill-switch / toma por humano / cerrado) igual que el runner. */
+    conversation: {
+      id: string;
+      ai_enabled?: boolean | null;
+      assigned_agent_id?: string | null;
+      status?: string | null;
+    };
+    /** Mensaje entrante que disparó este run — para el debounce anti-ráfaga. */
+    inboundMessage: { id: string; created_at: string };
   },
 ): Promise<boolean> {
   const { data: recRow } = await db
@@ -522,11 +534,50 @@ export async function maybeRunCloser(
   // Respect opt-out — hand back to the generic assistant rather than push a sale.
   if (await isOptedOut(db, opts.contact.id)) return false;
 
-  // Mark replied inline (faster than waiting for the cron's capture pass).
-  await db
-    .from('instagram_campaign_recipients')
-    .update({ status: 'replied', replied_at: new Date().toISOString() })
-    .eq('id', rec.id);
+  // Respetar los controles a nivel conversación igual que el runner genérico
+  // (shouldSkip): kill-switch por chat (ai_enabled=false), toma por un humano
+  // (assigned_agent_id), o chat cerrado. Antes el cerrador corría ANTES del
+  // genérico y salteaba estos controles, mandando una venta automática pese a
+  // que el comercio apagó la IA o un humano tomó el chat. Devolvemos false
+  // para que el genérico tome la decisión final (su shouldSkip también skipea
+  // estos casos → silencio; y si reply_when_assigned está ON, responde el
+  // agente genérico, no el cerrador de campaña).
+  const conv = opts.conversation;
+  if (conv.ai_enabled === false || conv.assigned_agent_id || conv.status === 'closed') {
+    return false;
+  }
+
+  // Debounce anti-ráfaga (espeja el runner genérico, runner.ts): si el cliente
+  // manda varios DMs seguidos, esperamos y, si ya llegó uno más nuevo,
+  // abortamos — el cierre disparado por el DM más nuevo cubre la ráfaga.
+  // Sin esto, N DMs en ráfaga disparaban N cierres concurrentes (sin lock ni
+  // claim atómico) y el cliente recibía 2-3 mensajes de venta duplicados. El
+  // desempate (created_at,id) garantiza que exactamente un run sobreviva.
+  // ¿Llegó un inbound RESPONDIBLE más nuevo? Un mensaje no-respondible (mención
+  // -en-historia / post compartido: texto vacío y sin adjunto bajable) se
+  // inserta pero NO dispara ningún run — así que no cuenta como "el más nuevo
+  // que cubre la ráfaga". Sin este filtro, un DM real de compra seguido de una
+  // story vacía quedaba sin responder (este run cedía a la story, que no
+  // contesta nadie). Espeja el gate de inbox-writer.
+  const newerAnswerableInbound = async (): Promise<boolean> => {
+    const { data } = await db
+      .from('messages')
+      .select('id, content_text, media_url')
+      .eq('conversation_id', conv.id)
+      .eq('sender_type', 'customer')
+      .or(
+        `created_at.gt.${opts.inboundMessage.created_at},` +
+          `and(created_at.eq.${opts.inboundMessage.created_at},id.gt.${opts.inboundMessage.id})`,
+      )
+      .limit(20);
+    return (data ?? []).some(
+      (m: { content_text?: string | null; media_url?: string | null }) =>
+        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url),
+    );
+  };
+
+  await sleep(8000);
+  if (await newerAnswerableInbound()) return true; // el run del DM más nuevo cerrará
 
   const brand = await loadBrandContext(db, opts.workspaceId, camp.ai_agent_id);
   const offer = rec.discount_code
@@ -554,28 +605,61 @@ export async function maybeRunCloser(
     followsBusiness: profile?.follows_business ?? null,
     segment,
   });
-  if (reply) {
-    try {
-      await instagramAdapter.sendText({
-        channel: 'instagram',
-        connection: opts.connection,
-        conversation: { id: '' } as unknown as Conversation,
-        contact: {
-          id: opts.contact.id,
-          external_id: opts.contact.external_id,
-        } as unknown as Contact,
-        text: reply,
-      } satisfies OutboundText);
-      await logProactiveSend(db, {
-        workspaceId: opts.workspaceId,
-        campaignId: camp.id,
-        contactId: opts.contact.id,
-        kind: 'closer',
-        text: reply,
-      });
-    } catch {
-      /* swallow — the recipient is already marked replied */
-    }
+  // No pudimos generar respuesta (p.ej. Anthropic caído/sin crédito): NO
+  // reclamamos el DM — devolvemos false para que el asistente genérico dé su
+  // fallback de cortesía/handoff en vez de dejar al cliente en silencio.
+  if (!reply) return false;
+
+  // Segunda guarda (post-LLM, espeja el runner genérico): entre el debounce y
+  // el envío corrió la generación (varios segundos). Re-leemos estado FRESCO
+  // de la conversación — un humano pudo tomar el chat o apagar la IA en ese
+  // lapso (el check inicial usó un snapshot previo al sleep) — y re-chequeamos
+  // ráfaga. Si algo cambió, cedemos sin enviar.
+  const { data: freshConv } = await db
+    .from('conversations')
+    .select('ai_enabled, assigned_agent_id, status')
+    .eq('id', conv.id)
+    .maybeSingle();
+  const fc = freshConv as
+    | { ai_enabled?: boolean | null; assigned_agent_id?: string | null; status?: string | null }
+    | null;
+  if (fc && (fc.ai_enabled === false || fc.assigned_agent_id || fc.status === 'closed')) {
+    return false;
   }
+  if (await newerAnswerableInbound()) return true;
+
+  try {
+    await instagramAdapter.sendText({
+      channel: 'instagram',
+      connection: opts.connection,
+      conversation: { id: '' } as unknown as Conversation,
+      contact: {
+        id: opts.contact.id,
+        external_id: opts.contact.external_id,
+      } as unknown as Contact,
+      text: reply,
+    } satisfies OutboundText);
+  } catch (err) {
+    // NO tragar el fallo de envío: devolvemos false para que el asistente
+    // genérico intente responder (marca la conexión caída / da cortesía) en
+    // vez de dejar al cliente en silencio, y no marcamos 'replied' sobre un
+    // envío que nunca salió (antes se marcaba antes de enviar, ocultando el
+    // fallo y suprimiendo el fallback).
+    console.error('[ig-closer] send failed:', err);
+    return false;
+  }
+
+  // Éxito: recién ahora marcamos replied y logueamos el envío proactivo.
+  await db
+    .from('instagram_campaign_recipients')
+    .update({ status: 'replied', replied_at: new Date().toISOString() })
+    .eq('id', rec.id);
+  await logProactiveSend(db, {
+    workspaceId: opts.workspaceId,
+    campaignId: camp.id,
+    contactId: opts.contact.id,
+    kind: 'closer',
+    text: reply,
+  });
   return true;
 }
