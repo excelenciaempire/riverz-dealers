@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type {
   Conversation,
   Message,
@@ -802,7 +803,8 @@ export function MessageThread({
     return map;
   }, [reactions]);
 
-  const contactDisplayName = contact?.name || contact?.phone || t("inbox.customer");
+  const contactDisplayName =
+    contact?.name || (contact?.phone ? formatPhoneDisplay(contact.phone) : "") || t("inbox.customer");
 
   // Map agent user_id → full name so a teammate's message shows their
   // name instead of a flat "Tú". Populated from `profiles`, which RLS
@@ -1000,7 +1002,12 @@ export function MessageThread({
     );
   }
 
-  const displayName = contact.name || contact.email || contact.phone || contact.external_id || t("inbox.contactFallback");
+  const displayName =
+    contact.name ||
+    contact.email ||
+    (contact.phone ? formatPhoneDisplay(contact.phone) : "") ||
+    contact.external_id ||
+    t("inbox.contactFallback");
   const messageGroups = groupMessagesByDate(messages, tz);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -1043,9 +1050,10 @@ export function MessageThread({
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
               {displayName.charAt(0).toUpperCase()}
             </div>
+            {/* Solo el nombre — el teléfono vive en la barra de contacto
+                (clic aquí la abre), no pegado al nombre. */}
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-              <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
             </div>
           </button>
           {/* Session timer badge — only meaningful for WhatsApp's 24h

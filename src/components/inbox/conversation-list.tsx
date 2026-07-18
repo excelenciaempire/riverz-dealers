@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import type { Channel, Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
+import { isUnsupportedSnippet } from "@/lib/channels/display";
+import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import {
   MESSAGE_CHANNELS,
   COMMENT_CHANNELS,
@@ -702,7 +704,9 @@ const ConversationItem = memo(function ConversationItem({
             {conversation.subject && conversation.channel !== "mercadolibre" ? (
               <span className="font-medium text-foreground">{conversation.subject} · </span>
             ) : null}
-            {conversation.last_message_text || t("inbox.noMessages")}
+            {isUnsupportedSnippet(conversation.last_message_text)
+              ? t("inbox.unsupported")
+              : conversation.last_message_text || t("inbox.noMessages")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
@@ -804,7 +808,10 @@ function resolveDisplayName(
 ): string {
   if (contact?.name) return contact.name;
   if (contact?.email) return contact.email;
-  if (contact?.phone) return contact.phone;
+  // Sin nombre: el número formateado ("+54 9 11 6758 0888") es el label menos
+  // malo. Con nombre, el número NUNCA aparece en la lista (vive en la barra
+  // de contacto al abrir la conversación).
+  if (contact?.phone) return formatPhoneDisplay(contact.phone);
   const ext = contact?.external_id;
   if (ext) {
     if (channel === "instagram") return t("inbox.instagramCustomer", { id: ext.slice(-5) });

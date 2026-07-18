@@ -1115,10 +1115,11 @@ async function parseMessageContent(
     }
 
     default:
-      return {
-        ...empty,
-        contentText: `[Unsupported message type: ${message.type}]`,
-      }
+      // Tipo no renderizable (polls, eventos, view-once…): content_text null
+      // para que la burbuja muestre el label localizado (inbox.unsupported)
+      // en vez de un sentinel crudo; el snippet de la lista cae a `[<type>]`
+      // y la UI también lo traduce (isUnsupportedSnippet).
+      return { ...empty, contentText: null }
   }
 }
 

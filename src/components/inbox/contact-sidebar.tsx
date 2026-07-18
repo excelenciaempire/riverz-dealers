@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type { Contact, ContactNote } from "@/types";
 import {
   Phone,
@@ -160,7 +161,12 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.email || contact.phone || contact.external_id || t("inbox.contactFallback");
+  const displayName =
+    contact.name ||
+    contact.email ||
+    (contact.phone ? formatPhoneDisplay(contact.phone) : "") ||
+    contact.external_id ||
+    t("inbox.contactFallback");
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -196,7 +202,7 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left">{formatPhoneDisplay(contact.phone)}</span>
               {copied ? (
                 <Check className="h-3 w-3 text-accent-ink" />
               ) : (

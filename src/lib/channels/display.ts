@@ -86,6 +86,15 @@ export function channelDisplay(channel: Channel): ChannelDisplay {
   return CHANNEL_DISPLAY[channel];
 }
 
+/** True for the placeholder text stored when WhatsApp delivers a message type
+ *  we can't render ("[unsupported]", "[Unsupported message type: reaction]").
+ *  The UI swaps these for the localized `inbox.unsupported` label instead of
+ *  showing the raw sentinel. */
+export function isUnsupportedSnippet(text?: string | null): boolean {
+  if (!text) return false;
+  return /^\[unsupported(\]$| message type)/i.test(text.trim());
+}
+
 /** MercadoLibre sub-kind: a pre-sale QUESTION (public, shown on the listing)
  *  vs a post-sale MESSAGE (private, tied to an order pack). */
 export type MlThreadKind = "question" | "message";

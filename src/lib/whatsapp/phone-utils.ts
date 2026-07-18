@@ -185,3 +185,21 @@ export function classifyMetaError(message: string): MetaErrorClass {
   if (/131000|131005|rate limit|timeout|temporar/i.test(message)) return 'transient'
   return 'other'
 }
+
+/**
+ * Human-friendly phone for the UI: "+54 9 11 6758 0888" instead of the raw
+ * stored digits ("5491167580888"). Falls back to the input untouched when it
+ * can't be parsed (short codes, junk) — never returns empty for a non-empty
+ * input. Display-only: storage/APIs keep using the digits-only E.164 form.
+ */
+export function formatPhoneDisplay(raw: string | null | undefined): string {
+  if (!raw) return ''
+  const s = String(raw).trim()
+  try {
+    const parsed = parsePhoneNumberFromString(s.startsWith('+') ? s : `+${s.replace(/\D/g, '')}`)
+    if (parsed && parsed.isValid()) return parsed.formatInternational()
+  } catch {
+    /* junk in, junk out */
+  }
+  return s
+}

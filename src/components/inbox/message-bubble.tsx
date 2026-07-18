@@ -17,6 +17,7 @@ import {
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useT } from "@/hooks/use-locale";
+import { isUnsupportedSnippet } from "@/lib/channels/display";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
@@ -421,7 +422,9 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || t("inbox.unsupported")}
+          {isUnsupportedSnippet(message.content_text)
+            ? t("inbox.unsupported")
+            : message.content_text || t("inbox.unsupported")}
         </p>
       );
   }
