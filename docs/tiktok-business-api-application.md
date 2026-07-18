@@ -1,5 +1,11 @@
 # TikTok Business API — playbook de aplicación (comentarios, multi-cuenta)
 
+> **Estado 2026-07-18:** registro de developer enviado (revisión ≤3 días) y app
+> **Riverz** creada y enviada — scope `TikTok Accounts`, redirect
+> `https://riverz.co/api/tiktok/oauth/callback`, logo 512×512 (tile carbón + "r"
+> lima, misma receta de `src/app/icon.tsx`). Status en el portal: **Pending**.
+> Cuando aprueben: copiar App ID + Secret del portal → env vars en Render.
+
 Objetivo: que **Riverz quede aprobado como app de terceros en TikTok API for Business**
 para que cualquier comercio conecte su cuenta TikTok Business por OAuth (igual que hoy
 con Meta) y lea/responda/oculte los comentarios de sus videos desde la bandeja.
