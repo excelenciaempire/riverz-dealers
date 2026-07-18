@@ -365,14 +365,12 @@ export function ChannelsPanel() {
         />
       )}
 
-      {/* Canales — una tarjeta por plataforma. `items-start`: cada tarjeta
-          toma su ALTURA NATURAL, no se estira a la altura de su fila. Antes
-          usábamos items-stretch para alinear los CTA, pero una tarjeta sin
-          conexiones (p.ej. Gmail) al lado de una conectada (Outlook, con su
-          fila de cuenta) se estiraba y dejaba un gran hueco negro entre la
-          descripción y el botón. El grid sigue siendo un grid alineado (no
-          masonry): las filas se alinean arriba, sólo desaparece el relleno. */}
-      <ul className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Canales — una tarjeta por plataforma, TODAS del mismo alto por fila
+          (`items-stretch`) y con el CTA anclado abajo (mt-auto) para que los
+          botones queden alineados. Una tarjeta con poco contenido (p.ej. Gmail
+          sin conectar) muestra algo de espacio antes del botón: es el costo de
+          que todos los contenedores midan igual. */}
+      <ul className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
