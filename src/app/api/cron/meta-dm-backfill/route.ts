@@ -105,6 +105,20 @@ export async function GET(request: Request) {
         );
       }
     }
+
+    // Descubrir hilos que el COMERCIO inició desde la app (a alguien que nunca
+    // escribió), invisibles para el loop de contactos porque aún no existen en
+    // Riverz. Solo se crean si el participante NO tiene contacto todavía, así
+    // no revive conversaciones borradas (esas conservan su contacto).
+    try {
+      ingested += await discoverNewThreads({ token, pageId, selfId, platform, connection: c });
+    } catch (err) {
+      console.warn(
+        `[meta-dm-backfill] ${c.channel} discover new threads failed:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+
     results.push({ connection_id: c.id, channel: c.channel, ingested });
   }
 
@@ -126,23 +140,63 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
   // 1. Resolve the thread id for this contact. Both messenger and
   //    instagram conversations are listed off the Page id with the
   //    platform query param.
-  const convUrl = new URL(`${GRAPH}/${args.pageId}/conversations`);
-  convUrl.searchParams.set("platform", args.platform);
-  convUrl.searchParams.set("user_id", externalId);
-  convUrl.searchParams.set("access_token", args.token);
-  const proof = appsecretProof(args.token);
-  if (proof) convUrl.searchParams.set("appsecret_proof", proof);
-  const convRes = await fetch(convUrl.toString());
-  if (!convRes.ok) return 0;
-  const convJson = (await convRes.json()) as { data?: { id?: string }[] };
-  const threadId = convJson.data?.[0]?.id;
+  const threadId = await resolveThreadId(args.token, args.pageId, args.platform, externalId);
   if (!threadId) return 0;
 
-  // 2. Page through messages, newest first. We cap at 200 to keep this
-  //    bounded for chatty contacts; the unique index makes overlap free.
+  // 2. Fill outbound gaps in this EXISTING thread — createIfMissing:false so an
+  //    old outbound message never recreates a conversation the user deleted.
+  return backfillThreadMessages({
+    token: args.token,
+    selfId: args.selfId,
+    connection: args.connection,
+    threadId,
+    externalId,
+    contactName: args.contact.name ?? undefined,
+    createIfMissing: false,
+  });
+}
+
+/** Resolve the Page conversation thread id for a given user (PSID/IGSID). */
+async function resolveThreadId(
+  token: string,
+  pageId: string,
+  platform: "messenger" | "instagram",
+  userId: string,
+): Promise<string | null> {
+  const convUrl = new URL(`${GRAPH}/${pageId}/conversations`);
+  convUrl.searchParams.set("platform", platform);
+  convUrl.searchParams.set("user_id", userId);
+  convUrl.searchParams.set("access_token", token);
+  const proof = appsecretProof(token);
+  if (proof) convUrl.searchParams.set("appsecret_proof", proof);
+  const r = await fetch(convUrl.toString());
+  if (!r.ok) return null;
+  const j = (await r.json()) as { data?: { id?: string }[] };
+  return j.data?.[0]?.id ?? null;
+}
+
+interface ThreadBackfillArgs {
+  token: string;
+  selfId: string;
+  connection: ChannelConnection;
+  threadId: string;
+  externalId: string;
+  contactName?: string;
+  /** true only for genuinely new merchant-initiated threads (see
+   *  discoverNewThreads); false fills gaps in threads that already exist. */
+  createIfMissing: boolean;
+}
+
+/**
+ * Page a thread newest-first (cap 4×50=200, 30-day window) and re-ingest the
+ * OUTBOUND messages (from === our page/IG id) — the merchant's replies sent
+ * outside Riverz. Inbound already arrives via webhook, so it's skipped. The
+ * unique index on message_id makes overlap free.
+ */
+async function backfillThreadMessages(args: ThreadBackfillArgs): Promise<number> {
   const cutoffMs = Date.now() - BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   let url: string | null =
-    `${GRAPH}/${threadId}/messages?fields=id,from,message,created_time&limit=50&access_token=${encodeURIComponent(args.token)}`;
+    `${GRAPH}/${args.threadId}/messages?fields=id,from,message,created_time&limit=50&access_token=${encodeURIComponent(args.token)}`;
   let pages = 0;
   let ingested = 0;
   let reachedCutoff = false;
@@ -168,30 +222,87 @@ async function backfillContact(args: BackfillArgs): Promise<number> {
         break;
       }
       if (!m.id) continue;
-      const fromId = m.from?.id;
       // Outbound = the page / IG account itself sent it.
-      const isOutbound = fromId === args.selfId;
-      // For inbound we already have it through the webhook; only fill
-      // outbound gaps here (the whole reason for this backfill).
-      if (!isOutbound) continue;
+      if (m.from?.id !== args.selfId) continue;
       await ingestInboundEvent(admin, {
         channel: args.connection.channel,
         connection: args.connection,
-        externalContactId: externalId,
-        contactName: args.contact.name ?? undefined,
+        externalContactId: args.externalId,
+        contactName: args.contactName,
         externalMessageId: m.id,
         text: m.message ?? "",
         receivedAt: m.created_time ?? new Date().toISOString(),
         outbound: true,
-        // Only fill gaps in threads that still exist — never let an old
-        // outbound message recreate a conversation the user deleted from
-        // the inbox (that 6-hourly resurrection was the whole bug).
-        createIfMissing: false,
+        createIfMissing: args.createIfMissing,
         raw: { backfill: true },
       });
       ingested++;
     }
     if (reachedCutoff) break;
+    url = j.paging?.next ?? null;
+    pages++;
+  }
+  return ingested;
+}
+
+interface DiscoverArgs {
+  token: string;
+  pageId: string;
+  selfId: string;
+  platform: "messenger" | "instagram";
+  connection: ChannelConnection;
+}
+
+/**
+ * Discover threads the MERCHANT started from the native app to someone who
+ * never messaged us (so there's no Riverz contact yet, and the per-contact
+ * loop never sees them). Lists the page's conversations, and for each thread
+ * whose customer participant has NO contact, backfills the merchant's outbound
+ * messages with createIfMissing:true. Guard: skipping participants that
+ * already have a contact means a soft-deleted conversation (which keeps its
+ * contact) is never resurrected.
+ */
+async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
+  const admin = supabaseAdmin();
+  let url: string | null = `${GRAPH}/${args.pageId}/conversations?platform=${args.platform}&fields=id,participants&limit=50&access_token=${encodeURIComponent(args.token)}`;
+  let pages = 0;
+  let ingested = 0;
+  while (url && pages < 3) {
+    const r: Response = await fetch(withAppsecretProof(url, args.token));
+    if (!r.ok) break;
+    const j = (await r.json()) as {
+      data?: {
+        id?: string;
+        participants?: { data?: { id?: string }[] };
+      }[];
+      paging?: { next?: string };
+    };
+    for (const conv of j.data ?? []) {
+      if (!conv.id) continue;
+      // The participant that isn't us is the customer.
+      const other = (conv.participants?.data ?? [])
+        .map((p) => String(p.id ?? ""))
+        .find((id) => id && id !== args.selfId && id !== args.pageId);
+      if (!other) continue;
+      // Already known → the per-contact loop handles it (and respects any
+      // soft-delete). Only genuinely-new participants are discovered here.
+      const { data: existing } = await admin
+        .from("contacts")
+        .select("id")
+        .eq("workspace_id", args.connection.workspace_id)
+        .eq("channel", args.connection.channel)
+        .eq("external_id", other)
+        .maybeSingle();
+      if (existing) continue;
+      ingested += await backfillThreadMessages({
+        token: args.token,
+        selfId: args.selfId,
+        connection: args.connection,
+        threadId: conv.id,
+        externalId: other,
+        createIfMissing: true,
+      });
+    }
     url = j.paging?.next ?? null;
     pages++;
   }
