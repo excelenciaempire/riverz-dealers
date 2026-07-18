@@ -655,7 +655,7 @@ export function SimulatorPanel({
 
       {/* Vars panel (debajo del teléfono, no dentro). */}
       {Object.keys(state.vars).length > 0 && (
-        <div className="mt-3 w-[360px] rounded-lg border border-border bg-card px-3 py-2">
+        <div className="mt-3 w-[min(360px,calc(100vw-2rem))] rounded-lg border border-border bg-card px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {t("flows.capturedVariables")}
           </div>

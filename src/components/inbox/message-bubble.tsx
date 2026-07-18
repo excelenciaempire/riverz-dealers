@@ -164,7 +164,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none">
+        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]">
           <img
             src={src ?? ""}
             alt={alt}
@@ -198,7 +198,7 @@ function MediaVideo({ url }: { url: string }) {
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none">
+        <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]">
           <video
             src={url}
             controls

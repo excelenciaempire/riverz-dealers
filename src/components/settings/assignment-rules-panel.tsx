@@ -456,7 +456,7 @@ function RuleEditorModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs text-foreground">{t("settings.ruleTypeLabel")}</Label>
               <Select
@@ -509,7 +509,7 @@ function RuleEditorModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs text-foreground">{t("settings.rulePriorityLabel")}</Label>
               <Input
@@ -551,7 +551,7 @@ function RuleEditorModal({
           )}
 
           {draft.kind === "by_tag" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label className="text-xs text-foreground">{t("settings.tagIdLabel")}</Label>
                 <Input
@@ -582,7 +582,7 @@ function RuleEditorModal({
           )}
 
           {draft.kind === "by_keyword" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label className="text-xs text-foreground">{t("settings.keywordLabel")}</Label>
                 <Input
@@ -613,7 +613,7 @@ function RuleEditorModal({
           )}
 
           {draft.kind === "by_channel" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label className="text-xs text-foreground">{t("settings.targetChannelLabel")}</Label>
                 <Select

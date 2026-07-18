@@ -781,9 +781,14 @@ export function AgentEditor({
 
         <div
           className={cn(
-            'grid min-h-0 gap-0 overflow-hidden',
+            // Debajo del breakpoint (móvil / zoom alto) las columnas se apilan:
+            // el cuerpo debe poder scrollear o se recorta. En pantalla ancha
+            // cada columna scrollea por dentro y el cuerpo queda fijo.
+            'grid min-h-0 gap-0 overflow-y-auto sm:overflow-hidden',
             showTest
-              ? 'sm:grid-cols-[180px_minmax(0,1fr)_340px]'
+              // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
+              // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
+              ? 'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
               : 'sm:grid-cols-[180px_minmax(0,1fr)]',
           )}
         >

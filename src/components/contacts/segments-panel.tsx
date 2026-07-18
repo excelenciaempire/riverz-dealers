@@ -532,7 +532,7 @@ function SegmentEditor({
           </button>
         </div>
 
-        <div className="grid min-h-0 gap-0 overflow-hidden sm:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-h-0 gap-0 overflow-y-auto sm:overflow-hidden sm:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5 overflow-y-auto p-6">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
