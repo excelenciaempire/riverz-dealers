@@ -13,11 +13,11 @@ import {
   XCircle,
   AlertCircle,
   Activity,
-  Power,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Automation, AutomationLog } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -333,20 +333,25 @@ export default function AutomationDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggle}
-            disabled={toggling}
-            className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
-          >
-            {toggling ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Power className="size-3.5" />
-            )}
-            {automation.is_active ? t('automations.pause') : t('automations.activate')}
-          </Button>
+          {/* Mismo control que la lista principal: un Switch, para que activar/
+              pausar se vea y se entienda igual en los dos lugares. */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {automation.is_active
+                ? t('automations.active')
+                : t('automations.paused')}
+            </span>
+            <Switch
+              checked={automation.is_active}
+              onCheckedChange={handleToggle}
+              disabled={toggling}
+              aria-label={
+                automation.is_active
+                  ? t('automations.deactivate')
+                  : t('automations.activate')
+              }
+            />
+          </div>
           <Button
             variant="outline"
             size="sm"

@@ -53,6 +53,7 @@ import type { ContactSegment } from "@/lib/segments/types"
 import { createClient } from "@/lib/supabase/client"
 import { useActiveConnections } from "@/hooks/use-active-connections"
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf"
+import { useWorkspace } from "@/hooks/use-workspace"
 import { useT } from "@/hooks/use-locale"
 import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
@@ -821,6 +822,7 @@ export function AutomationBuilder({
   const t = useT()
   const router = useLocalizedRouter()
   const fetchWithCsrf = useFetchWithCsrf()
+  const { workspace } = useWorkspace()
   const connections = useActiveConnections()
   // Automations send only through WhatsApp; surface which number runs them
   // and warn right in the canvas when none is connected.
@@ -934,6 +936,10 @@ export function AutomationBuilder({
         audience_segment_id: state.audience_segment_id ?? null,
         is_active: state.is_active,
         steps: toApiSteps(state.steps),
+        // Crear en el workspace ACTIVO (el que muestra la lista), no en el
+        // primario: con varias cuentas, la automatización se creaba en otro
+        // workspace y no aparecía en "Mis automatizaciones".
+        workspace_id: isEditing ? undefined : workspace?.id,
       }
 
       const res = isEditing
