@@ -78,9 +78,18 @@ async function pollOne(
   const since = new Date(sinceMs).toISOString();
 
   const inbox = await listFolder(accessToken, "inbox", since, "receivedDateTime");
-  // Sent mail too, so the agent's own replies (including ones sent
-  // straight from Outlook) land in the thread.
-  const sent = await listFolder(accessToken, "sentitems", since, "sentDateTime");
+  // Enviados: cursor PROPIO (last_sent_at). Antes se filtraban con el mismo
+  // `since` anclado al último ENTRANTE, así que si el comercio respondía desde
+  // el celular pero el cliente no contestaba, el cursor no avanzaba y la
+  // ventana de enviados crecía sin control contra el tope de páginas.
+  const sentCursor = cfg.last_sent_at ? String(cfg.last_sent_at) : "";
+  const sentSinceMs = sentCursor ? new Date(sentCursor).getTime() : sinceMs;
+  const sent = await listFolder(
+    accessToken,
+    "sentitems",
+    new Date(sentSinceMs).toISOString(),
+    "sentDateTime",
+  );
 
   if (inbox.length === 0 && sent.length === 0) {
     await admin
@@ -114,14 +123,23 @@ async function pollOne(
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
   }
+  let maxSent = sentSinceMs;
   for (const msg of sent) {
-    const event = buildOutboundEvent(connection, msg);
+    if (msg.sentDateTime) {
+      const t = new Date(msg.sentDateTime).getTime();
+      if (t > maxSent) maxSent = t;
+    }
+    const event = await buildOutboundEvent(connection, msg, accessToken);
     if (!event) continue;
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
   }
 
-  const newConfig = { ...cfg, last_received_at: new Date(maxReceived).toISOString() };
+  const newConfig = {
+    ...cfg,
+    last_received_at: new Date(maxReceived).toISOString(),
+    last_sent_at: new Date(maxSent).toISOString(),
+  };
   await admin
     .from("channel_connections")
     .update({
@@ -213,28 +231,43 @@ async function listFolder(
   u.searchParams.set("$top", "50");
   u.searchParams.set("$orderby", `${dateField} asc`);
   u.searchParams.set("$filter", `${dateField} gt ${since}`);
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!r.ok) {
-    const detail = await r.text().catch(() => "");
-    throw new Error(`messages.list(${folder}) ${r.status}: ${detail}`);
+
+  // Seguimos @odata.nextLink hasta un tope prudente: antes $top=50 sin paginar
+  // descartaba el resto en buzones activos (se perdían entrantes y salientes).
+  const CAP = 250;
+  const out: GraphMessage[] = [];
+  let url: string | null = u.toString();
+  while (url && out.length < CAP) {
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      throw new Error(`messages.list(${folder}) ${r.status}: ${detail}`);
+    }
+    const j = (await r.json()) as {
+      value?: GraphMessage[];
+      "@odata.nextLink"?: string;
+    };
+    for (const m of j.value ?? []) out.push(m);
+    // nextLink ya trae el $filter/$orderby embebidos: se refetchea tal cual.
+    url = j["@odata.nextLink"] ?? null;
   }
-  const j = (await r.json()) as { value?: GraphMessage[] };
-  return j.value ?? [];
+  return out;
 }
 
-function buildOutboundEvent(
+async function buildOutboundEvent(
   connection: ChannelConnection,
   msg: GraphMessage,
-): InboundEvent | null {
+  accessToken: string,
+): Promise<InboundEvent | null> {
   // Sent mail is addressed TO the customer — that's the conversation
   // owner. Take the first recipient.
   const to = msg.toRecipients?.[0]?.emailAddress?.address?.toLowerCase();
   if (!to) return null;
   const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
   const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
-  return {
+  const event: InboundEvent = {
     channel: "outlook",
     connection,
     externalContactId: to,
@@ -247,6 +280,19 @@ function buildOutboundEvent(
     outbound: true,
     raw: { graphId: msg.id, sent: true },
   };
+  // Los adjuntos de una respuesta enviada desde el celular/Outlook también se
+  // re-hostean (mismo camino que el entrante), para que en Riverz se vea el
+  // archivo y no solo el texto.
+  if (msg.hasAttachments) {
+    const atts = await fetchOutlookAttachments(
+      accessToken,
+      msg.id,
+      connection.workspace_id,
+      to,
+    );
+    if (atts.length) event.attachments = atts;
+  }
+  return event;
 }
 
 interface GraphMessage {

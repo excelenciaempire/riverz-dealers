@@ -108,7 +108,12 @@ async function pollOne(
   for (const id of sentIds) {
     const msg = await fetchMessage(accessToken, id);
     if (!msg) continue;
-    const event = buildOutboundEvent(connection, msg);
+    // El cursor debe avanzar también con los enviados, no solo con la bandeja.
+    if (msg.historyId) {
+      const h = BigInt(msg.historyId);
+      if (h > maxHistoryId) maxHistoryId = h;
+    }
+    const event = await buildOutboundEvent(connection, msg, accessToken);
     if (!event) continue;
     const result = await ingestInboundEvent(admin, event);
     if (result) ingested++;
@@ -188,15 +193,30 @@ async function listMessageIdsViaQuery(
   accessToken: string,
   q: string,
 ): Promise<string[]> {
-  const u = new URL(`${GMAIL_API}/users/me/messages`);
-  u.searchParams.set("q", q);
-  u.searchParams.set("maxResults", "50");
-  const r = await fetch(u.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!r.ok) throw new Error(`messages.list ${r.status}: ${await r.text()}`);
-  const j = (await r.json()) as { messages?: { id: string }[] };
-  return (j.messages ?? []).map((m) => m.id);
+  // Paginamos siguiendo nextPageToken hasta un tope prudente: antes
+  // maxResults=50 sin paginar descartaba todo lo que excediera 50 por
+  // consulta y corrida (se perdían entrantes y salientes en buzones activos).
+  const CAP = 250;
+  const ids: string[] = [];
+  let pageToken = "";
+  while (ids.length < CAP) {
+    const u = new URL(`${GMAIL_API}/users/me/messages`);
+    u.searchParams.set("q", q);
+    u.searchParams.set("maxResults", "100");
+    if (pageToken) u.searchParams.set("pageToken", pageToken);
+    const r = await fetch(u.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) throw new Error(`messages.list ${r.status}: ${await r.text()}`);
+    const j = (await r.json()) as {
+      messages?: { id: string }[];
+      nextPageToken?: string;
+    };
+    for (const m of j.messages ?? []) ids.push(m.id);
+    if (!j.nextPageToken) break;
+    pageToken = j.nextPageToken;
+  }
+  return ids;
 }
 
 interface GmailMessage {
@@ -360,10 +380,11 @@ export async function fetchGmailAttachments(
   return out;
 }
 
-function buildOutboundEvent(
+async function buildOutboundEvent(
   connection: ChannelConnection,
   msg: GmailMessage,
-): InboundEvent | null {
+  accessToken: string,
+): Promise<InboundEvent | null> {
   const headers = msg.payload?.headers ?? [];
   const getH = (name: string): string | undefined =>
     headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
@@ -377,6 +398,19 @@ function buildOutboundEvent(
 
   const subject = getH("Subject") ?? "";
   const { text, html } = extractBody(msg.payload);
+  // Los adjuntos de una respuesta enviada desde el celular/Gmail también se
+  // re-hostean (mismo camino que el entrante), para que en Riverz se vea el
+  // archivo y no solo el texto.
+  const refs = collectGmailAttachments(msg.payload);
+  const attachments = refs.length
+    ? await fetchGmailAttachments(
+        accessToken,
+        msg.id,
+        refs,
+        connection.workspace_id,
+        email,
+      )
+    : [];
   return {
     channel: "gmail",
     connection,
@@ -393,6 +427,7 @@ function buildOutboundEvent(
       ? new Date(Number(msg.internalDate)).toISOString()
       : new Date().toISOString(),
     outbound: true,
+    attachments: attachments.length ? attachments : undefined,
     raw: { gmailId: msg.id, sent: true },
   };
 }
