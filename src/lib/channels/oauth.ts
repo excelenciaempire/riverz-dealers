@@ -142,18 +142,52 @@ export function microsoftProvider(): ProviderConfig {
   };
 }
 
+/**
+ * MercadoLibre authorize host per country. UNA sola app autoriza vendedores de
+ * CUALQUIER país — solo cambia el dominio de login/consentimiento; la token API
+ * y los webhooks son globales (api.mercadolibre.com). Las claves coinciden con
+ * los códigos de país que envía la UI de conexión.
+ */
+const ML_AUTH_HOSTS: Record<string, string> = {
+  AR: "https://auth.mercadolibre.com.ar",
+  BO: "https://auth.mercadolibre.com.bo",
+  BR: "https://auth.mercadolivre.com.br",
+  CL: "https://auth.mercadolibre.cl",
+  CO: "https://auth.mercadolibre.com.co",
+  CR: "https://auth.mercadolibre.co.cr",
+  DO: "https://auth.mercadolibre.com.do",
+  EC: "https://auth.mercadolibre.com.ec",
+  GT: "https://auth.mercadolibre.com.gt",
+  MX: "https://auth.mercadolibre.com.mx",
+  PA: "https://auth.mercadolibre.com.pa",
+  PE: "https://auth.mercadolibre.com.pe",
+  PY: "https://auth.mercadolibre.com.py",
+  UY: "https://auth.mercadolibre.com.uy",
+  VE: "https://auth.mercadolibre.com.ve",
+};
+
+/**
+ * Resuelve el host de autorización de ML para un código de país (el que manda
+ * la UI). Fallback: MERCADOLIBRE_AUTH_HOST o Argentina (sitio de origen de la
+ * app). El vendedor debe loguearse en el dominio de SU país.
+ */
+export function mercadoLibreAuthHost(country?: string | null): string {
+  const key = (country || "").trim().toUpperCase();
+  const host =
+    ML_AUTH_HOSTS[key] ||
+    process.env.MERCADOLIBRE_AUTH_HOST ||
+    "https://auth.mercadolibre.com.ar";
+  return host.replace(/\/$/, "");
+}
+
 export function mercadoLibreProvider(): ProviderConfig {
-  // Authorize host is per-country (auth.mercadolibre.com.co / .com.ar / .com.mx
-  // / .cl / auth.mercadolivre.com.br for Brazil). Default to Colombia; override
-  // with MERCADOLIBRE_AUTH_HOST per the merchant's site. Token host is global.
-  const authHost = (process.env.MERCADOLIBRE_AUTH_HOST || "https://auth.mercadolibre.com.co").replace(
-    /\/$/,
-    "",
-  );
+  // El host de autorización es por país; el /oauth/start lo sobreescribe con el
+  // país elegido por el merchant vía mercadoLibreAuthHost(). Este default solo
+  // aplica si no se pasa país. La token API es global.
   return {
     clientId: required("MERCADOLIBRE_CLIENT_ID"),
     clientSecret: required("MERCADOLIBRE_CLIENT_SECRET"),
-    authorizationUrl: `${authHost}/authorization`,
+    authorizationUrl: `${mercadoLibreAuthHost()}/authorization`,
     tokenUrl: "https://api.mercadolibre.com/oauth/token",
     // ML scopes (offline_access/read/write) are configured on the app, not
     // passed in the authorize URL — empty so the start route omits `scope`.

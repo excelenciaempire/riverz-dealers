@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { baseUrl, encodeState, loadProvider, type ProviderName } from "@/lib/channels/oauth";
+import {
+  baseUrl,
+  encodeState,
+  loadProvider,
+  mercadoLibreAuthHost,
+  type ProviderName,
+} from "@/lib/channels/oauth";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -76,7 +82,14 @@ export async function GET(
 
   const state = encodeState({ workspaceId, channel });
   const redirectUri = `${baseUrl(req)}/api/connections/${provider}/oauth/callback`;
-  const authorize = new URL(cfg.authorizationUrl);
+  // MercadoLibre es por país: el vendedor se loguea en el dominio de auth de SU
+  // país (una sola app autoriza a todos). La UI manda ?ml_country=XX y acá
+  // elegimos el host correcto; el redirect_uri y la token API son iguales.
+  const authorizeUrl =
+    provider === "mercadolibre"
+      ? `${mercadoLibreAuthHost(url.searchParams.get("ml_country"))}/authorization`
+      : cfg.authorizationUrl;
+  const authorize = new URL(authorizeUrl);
   authorize.searchParams.set("client_id", cfg.clientId);
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("response_type", "code");

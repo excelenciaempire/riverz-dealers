@@ -24,6 +24,7 @@ import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
 import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
 import { ShopifyCard } from "@/components/settings/shopify-card";
+import { MercadoLibreConnect } from "@/components/settings/mercadolibre-connect";
 import { cn } from "@/lib/utils";
 
 /**
@@ -541,6 +542,15 @@ export function ChannelsPanel() {
                       anyConnected={anyConnected}
                       logoChannel={g.logoChannel as "messenger" | "instagram"}
                       onConnected={() => void fetchConnections()}
+                    />
+                  ) : g.connectChannel === "mercadolibre" ? (
+                    // ML es por país: el vendedor elige su país (una sola app
+                    // autoriza a todos) y se loguea en el dominio correcto.
+                    <MercadoLibreConnect
+                      workspaceId={workspace.id}
+                      ready={ready}
+                      anyConnected={anyConnected}
+                      busy={busy}
                     />
                   ) : (
                     <>

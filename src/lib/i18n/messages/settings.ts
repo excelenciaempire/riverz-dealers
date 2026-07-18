@@ -389,6 +389,8 @@ export const settings = {
     en: "or connect by pasting a token manually",
   },
   configureProvider: { es: "Configura el proveedor", en: "Set up the provider" },
+  mlCountryLabel: { es: "País", en: "Country" },
+  mlCountryPlaceholder: { es: "Elige tu país", en: "Choose your country" },
   connect: { es: "Conectar", en: "Connect" },
   configureGoogleFirst: {
     es: "Configura Google Cloud OAuth Client primero (ver banner amarillo)",
