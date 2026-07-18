@@ -42,6 +42,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   fb_comment: 'assistant.channelFbComments',
   ig_comment: 'assistant.channelIgComments',
   mercadolibre: 'Mercado Libre',
+  tiktok_comment: 'assistant.channelTiktokComments',
 };
 
 export default function AiAgentsPage() {

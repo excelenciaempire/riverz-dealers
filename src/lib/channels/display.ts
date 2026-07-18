@@ -72,6 +72,14 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#FFE600",
     replyOnly: true,
   },
+  tiktok_comment: {
+    channel: "tiktok_comment",
+    label: "Comentarios TikTok",
+    shortLabel: "TT·",
+    badge: "bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/30",
+    accent: "#25F4EE",
+    replyOnly: true,
+  },
 };
 
 export function channelDisplay(channel: Channel): ChannelDisplay {

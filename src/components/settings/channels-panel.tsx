@@ -101,6 +101,15 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     members: ["mercadolibre"],
     connectChannel: "mercadolibre",
   },
+  {
+    key: "tiktok",
+    label: "TikTok",
+    descriptionKey: "settings.tiktokCardDescription",
+    logoChannel: "tiktok_comment",
+    logoSrc: "/channels/tiktok.svg",
+    members: ["tiktok_comment"],
+    connectChannel: "tiktok_comment",
+  },
 ];
 
 interface ProviderStatus {
@@ -108,6 +117,7 @@ interface ProviderStatus {
   google: boolean;
   microsoft: boolean;
   mercadolibre: boolean;
+  tiktok: boolean;
   siteUrl: string;
 }
 
@@ -134,6 +144,7 @@ export function ChannelsPanel() {
           google: false,
           microsoft: false,
           mercadolibre: false,
+          tiktok: false,
           siteUrl: "",
         }),
       );
@@ -144,6 +155,7 @@ export function ChannelsPanel() {
     if (channel === "gmail") return providers.google;
     if (channel === "outlook") return providers.microsoft;
     if (channel === "mercadolibre") return providers.mercadolibre;
+    if (channel === "tiktok_comment") return providers.tiktok;
     return providers.meta;
   };
 
@@ -185,6 +197,11 @@ export function ChannelsPanel() {
     (channel: Channel) => {
       if (!workspace) return;
       setBusy(true);
+      // TikTok usa su ruta dedicada (la URL registrada en la app de TikTok).
+      if (channel === "tiktok_comment") {
+        window.location.assign(`/api/tiktok/oauth/start?workspace_id=${workspace.id}`);
+        return;
+      }
       const provider = providerForChannel(channel);
       const url = `/api/connections/${provider}/oauth/start?workspace_id=${workspace.id}&channel=${channel}`;
       window.location.assign(url);

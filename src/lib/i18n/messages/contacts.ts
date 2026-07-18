@@ -328,6 +328,10 @@ export const contacts = {
     es: "Comentarios de Instagram",
     en: "Instagram comments",
   },
+  channelTiktokComment: {
+    es: "Comentarios de TikTok",
+    en: "TikTok comments",
+  },
 
   // Rule type labels + descriptions
   ruleTagLabel: { es: "Etiqueta", en: "Tag" },

@@ -27,6 +27,7 @@ export const assistant = {
   // Channel labels (comment channels — brand channels stay verbatim)
   channelFbComments: { es: "Comentarios FB", en: "FB comments" },
   channelIgComments: { es: "Comentarios IG", en: "IG comments" },
+  channelTiktokComments: { es: "Comentarios TikTok", en: "TikTok comments" },
 
   // Toasts / confirms (list page)
   loadError: { es: "No se cargaron los agentes", en: "Couldn't load agents" },

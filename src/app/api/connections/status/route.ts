@@ -19,6 +19,11 @@ export async function GET(): Promise<Response> {
     mercadolibre: Boolean(
       process.env.MERCADOLIBRE_CLIENT_ID && process.env.MERCADOLIBRE_CLIENT_SECRET,
     ),
+    tiktok: Boolean(
+      process.env.TIKTOK_APP_ID &&
+        process.env.TIKTOK_APP_SECRET &&
+        process.env.TIKTOK_ACCOUNT_AUTH_URL,
+    ),
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "",
   });
 }

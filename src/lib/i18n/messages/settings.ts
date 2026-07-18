@@ -324,6 +324,10 @@ export const settings = {
     es: "Preguntas de tus publicaciones y mensajes post-venta.",
     en: "Questions on your listings and post-sale messages.",
   },
+  tiktokCardDescription: {
+    es: "Comentarios de tus videos de TikTok.",
+    en: "Comments on your TikTok videos.",
+  },
 
   // Channels panel — clipboard + toasts
   copiedToClipboard: { es: "{label} copiado", en: "{label} copied" },
