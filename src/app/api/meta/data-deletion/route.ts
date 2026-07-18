@@ -41,12 +41,24 @@ export async function POST(req: Request) {
   // (FK ON DELETE CASCADE). Scope to the Meta channels so a coincidental
   // id from another channel is never touched. Never throw — Meta needs a
   // 200 with the confirmation code regardless.
+  const metaChannels = ["messenger", "instagram", "fb_comment", "ig_comment"];
   try {
+    // Tombstone PRIMERO: el hard-delete cascadea la conversación y los
+    // mensajes, así que no queda ninguna fila que impida que el backfill de
+    // DMs (meta-dm-backfill discovery) vuelva a crear a esta persona. La lista
+    // de supresión lo evita — cumple la solicitud de borrado. Solo el id opaco
+    // de Meta, sin PII.
+    await supabaseAdmin()
+      .from("deleted_meta_participants")
+      .upsert(
+        metaChannels.map((channel) => ({ channel, external_id: userId })),
+        { onConflict: "channel,external_id" },
+      );
     await supabaseAdmin()
       .from("contacts")
       .delete()
       .eq("external_id", userId)
-      .in("channel", ["messenger", "instagram", "fb_comment", "ig_comment"]);
+      .in("channel", metaChannels);
   } catch {
     // swallow — still acknowledge with a code; deletion is reconciled async.
   }

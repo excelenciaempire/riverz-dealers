@@ -264,6 +264,15 @@ interface DiscoverArgs {
  */
 async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
   const admin = supabaseAdmin();
+  // Lista de supresión (GDPR / borrados deliberados): un participante borrado
+  // sufre hard-delete (cascadea contacto+conversación+mensajes), así que sin
+  // esto el descubrimiento lo re-crearía cada 6 h. La tabla es pequeña; la
+  // traemos una vez por canal y filtramos en memoria.
+  const { data: tombs } = await admin
+    .from("deleted_meta_participants")
+    .select("external_id")
+    .eq("channel", args.connection.channel);
+  const suppressed = new Set((tombs ?? []).map((t) => String(t.external_id)));
   let url: string | null = `${GRAPH}/${args.pageId}/conversations?platform=${args.platform}&fields=id,participants&limit=50&access_token=${encodeURIComponent(args.token)}`;
   let pages = 0;
   let ingested = 0;
@@ -284,6 +293,8 @@ async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
         .map((p) => String(p.id ?? ""))
         .find((id) => id && id !== args.selfId && id !== args.pageId);
       if (!other) continue;
+      // Nunca re-descubrir a alguien borrado (GDPR / borrado deliberado).
+      if (suppressed.has(other)) continue;
       // Already known → the per-contact loop handles it (and respects any
       // soft-delete). Only genuinely-new participants are discovered here.
       const { data: existing } = await admin
