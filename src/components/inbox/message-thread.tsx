@@ -1433,6 +1433,7 @@ export function MessageThread({
           composer in "expired" state and blocked the reply. */}
       <MessageComposer
         conversationId={conversation.id}
+        channel={conversation.channel}
         sessionExpired={
           conversation.channel === "whatsapp" && sessionInfo.expired
         }

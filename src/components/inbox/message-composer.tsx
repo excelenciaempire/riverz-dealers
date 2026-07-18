@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
 import { useT } from "@/hooks/use-locale";
 import { useSnippets } from "@/hooks/use-snippets";
+import type { Channel } from "@/types";
 
 /** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -34,6 +35,9 @@ interface Snippet {
 
 interface MessageComposerProps {
   conversationId: string;
+  /** Canal de la conversación — decide qué acciones ofrece el composer
+   *  (adjuntar media, plantillas). Cada canal muestra sólo lo que soporta. */
+  channel: Channel;
   sessionExpired: boolean;
   /** Devuelve una Promise para que el composer pueda esperar al envío
    *  real antes de re-habilitar el botón. Sin esto el botón quedaba
@@ -49,6 +53,7 @@ interface MessageComposerProps {
 
 export function MessageComposer({
   conversationId,
+  channel,
   sessionExpired,
   onSend,
   onSendMedia,
@@ -57,6 +62,12 @@ export function MessageComposer({
   onClearReply,
 }: MessageComposerProps) {
   const t = useT();
+  // Capacidades por canal. Hoy sólo WhatsApp envía media (único adapter con
+  // sendMedia) y usa plantillas (HSM de WhatsApp). En Instagram/Messenger/ML/
+  // email/comentarios el envío saliente es texto: ocultamos adjuntar y
+  // plantillas para no ofrecer algo que el canal no puede hacer.
+  const canAttachMedia = channel === "whatsapp";
+  const canUseTemplates = channel === "whatsapp";
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -427,25 +438,29 @@ export function MessageComposer({
       )}
 
       <div className="flex items-end gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
-          className="hidden"
-          onChange={handleFilePick}
-        />
-        {/* "+" adjuntar (como WhatsApp). */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={sessionExpired || sending}
-          title={t("inbox.attachFile")}
-          aria-label={t("inbox.attachFile")}
-        >
-          <Plus className="h-5 w-5" />
-        </Button>
+        {canAttachMedia && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+              className="hidden"
+              onChange={handleFilePick}
+            />
+            {/* "+" adjuntar (como WhatsApp). */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sessionExpired || sending}
+              title={t("inbox.attachFile")}
+              aria-label={t("inbox.attachFile")}
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </>
+        )}
 
         <textarea
           ref={textareaRef}
@@ -462,16 +477,18 @@ export function MessageComposer({
         />
 
         {/* Plantillas aprobadas de WhatsApp (donde WhatsApp pone los stickers). */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-          onClick={onOpenTemplates}
-          title={t("inbox.sendTemplate")}
-          aria-label={t("inbox.sendTemplate")}
-        >
-          <LayoutTemplate className="h-4 w-4" />
-        </Button>
+        {canUseTemplates && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+            onClick={onOpenTemplates}
+            title={t("inbox.sendTemplate")}
+            aria-label={t("inbox.sendTemplate")}
+          >
+            <LayoutTemplate className="h-4 w-4" />
+          </Button>
+        )}
 
         <Button
           size="sm"
