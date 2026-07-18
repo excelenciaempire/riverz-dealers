@@ -109,12 +109,25 @@ export async function POST(req: Request): Promise<Response> {
       : {};
     const coexistence = Boolean(phone.is_on_biz_app);
 
-    // 3. Subscribe the WABA to our app so webhooks fire.
+    // 3. Subscribe the WABA to our app so webhooks fire. NOTA: en WhatsApp la
+    //    SELECCIÓN de campos (incl. los de coexistencia: smb_message_echoes /
+    //    history / smb_app_state_sync) es un ajuste de la app en el Dashboard de
+    //    Meta — el endpoint subscribed_apps del WABA no acepta lista de campos.
+    //    Acá solo confirmamos que la app quede suscrita y hacemos VISIBLE una
+    //    falla en vez de tragárnosla (antes un fallo dejaba la conexión sin
+    //    webhooks — y por ende sin sincronización app→Riverz — sin señal alguna).
     try {
-      await fetch(withAppsecretProof(`${GRAPH}/${body.waba_id}/subscribed_apps`, token), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const subRes = await fetch(
+        withAppsecretProof(`${GRAPH}/${body.waba_id}/subscribed_apps`, token),
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!subRes.ok) {
+        console.warn(
+          `[whatsapp/embedded-signup] subscribe_apps failed (${subRes.status}): ${await subRes
+            .text()
+            .catch(() => "")}`,
+        );
+      }
     } catch (err) {
       console.warn("[whatsapp/embedded-signup] subscribe_apps failed:", err);
     }
