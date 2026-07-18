@@ -66,8 +66,12 @@ export const mercadoLibreAdapter: ChannelAdapter = {
         const detail = await res.text().catch(() => "");
         throw new Error(`[mercadolibre] answer failed (${res.status}): ${detail}`);
       }
-      const json = (await res.json().catch(() => ({}))) as { id?: number };
-      return { externalMessageId: json.id ? `a:${json.id}` : `q:${questionId}`, status: "sent" };
+      // Guardamos el id saliente como a:<question_id> (NO el id que devuelve
+      // POST /answers) para que coincida EXACTO con el evento que emite el
+      // webhook cuando la pregunta pasa a ANSWERED — así la respuesta enviada
+      // desde Riverz se deduplica y no se duplica con la del webhook.
+      await res.json().catch(() => ({}));
+      return { externalMessageId: `a:${questionId}`, status: "sent" };
     }
 
     if (target.startsWith("pack:")) {
@@ -129,24 +133,47 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       const r = await fetch(`${ML}${n.resource}?api_version=4`, { headers: auth });
       if (!r.ok) return [];
       const q = (await r.json()) as MlQuestion;
-      // Only surface questions still awaiting an answer.
-      if (!q.id || q.status !== "UNANSWERED" || !q.text) return [];
+      if (!q.id) return [];
       const qBuyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
-      return [
-        {
+      // ML no expone el nombre real (privacidad); usamos el apodo público.
+      const buyerName = await resolveMlNickname(qBuyerId, auth);
+      const events: InboundEvent[] = [];
+      // Pregunta del comprador (entrante) — solo mientras sigue sin responder,
+      // para que dispare al agente / aparezca como pendiente una sola vez.
+      if (q.status === "UNANSWERED" && q.text) {
+        events.push({
           channel: "mercadolibre",
           connection,
           externalContactId: qBuyerId,
-          // ML no expone el nombre real (privacidad); usamos el apodo público.
-          contactName: await resolveMlNickname(qBuyerId, auth),
+          contactName: buyerName,
           externalMessageId: `q:${q.id}`,
           externalThreadId: `q:${q.id}`,
           subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
           text: q.text,
           receivedAt: q.date_created ?? new Date().toISOString(),
           raw: q,
-        },
-      ];
+        });
+      }
+      // Respuesta del vendedor (saliente) — INCLUYE las respuestas escritas
+      // desde la app de Mercado Libre, no solo las enviadas desde Riverz. Se
+      // deduplica por a:<question_id>: lo enviado desde Riverz ya guardó ese id
+      // (ver sendText), así que solo sobreviven las respuestas hechas en ML.
+      if (q.status === "ANSWERED" && q.answer?.text) {
+        events.push({
+          channel: "mercadolibre",
+          connection,
+          externalContactId: qBuyerId,
+          contactName: buyerName,
+          externalMessageId: `a:${q.id}`,
+          externalThreadId: `q:${q.id}`,
+          subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
+          text: q.answer.text,
+          receivedAt: q.answer.date_created ?? q.date_created ?? new Date().toISOString(),
+          outbound: true,
+          raw: q,
+        });
+      }
+      return events;
     }
 
     // ---- Post-sale messages ----
@@ -164,20 +191,31 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       const nickCache = new Map<string, string | undefined>();
       for (const m of conv.messages ?? []) {
         const fromId = String(m.from?.user_id ?? "");
-        // Skip our own (seller) messages — those are echoes of what we sent.
-        if (!m.id || !fromId || fromId === sellerId) continue;
-        if (!nickCache.has(fromId)) {
-          nickCache.set(fromId, await resolveMlNickname(fromId, auth));
+        const toId = String(m.to?.user_id ?? "");
+        if (!m.id || !fromId) continue;
+        // El "cliente" del hilo es SIEMPRE el comprador. Si el mensaje lo mandó
+        // el vendedor (desde Riverz o desde la app de Mercado Libre), el
+        // comprador es el destinatario y ese mensaje es SALIENTE. Antes se
+        // descartaba todo lo del vendedor, así que sus respuestas escritas
+        // desde la app de ML quedaban invisibles en Riverz.
+        const isSeller = fromId === sellerId;
+        const buyerId = isSeller ? toId : fromId;
+        if (!buyerId || buyerId === sellerId) continue;
+        if (!nickCache.has(buyerId)) {
+          nickCache.set(buyerId, await resolveMlNickname(buyerId, auth));
         }
         events.push({
           channel: "mercadolibre",
           connection,
-          externalContactId: fromId,
-          contactName: nickCache.get(fromId),
+          externalContactId: buyerId,
+          contactName: nickCache.get(buyerId),
           externalMessageId: m.id,
           externalThreadId: `pack:${packId}`,
           text: m.text ?? "",
           receivedAt: m.message_date?.created ?? new Date().toISOString(),
+          // Mensajes del vendedor = salientes (sender_type=agent). Lo enviado
+          // desde Riverz se deduplica por m.id (el mismo id que devolvió el POST).
+          outbound: isSeller,
           raw: m,
         });
       }
@@ -276,6 +314,8 @@ interface MlQuestion {
   status?: string;
   date_created?: string;
   from?: { id?: number };
+  /** Respuesta del vendedor (presente cuando status === "ANSWERED"). */
+  answer?: { text?: string; date_created?: string; status?: string };
 }
 interface MlPack {
   messages?: Array<{
