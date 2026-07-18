@@ -28,7 +28,7 @@ import {
   loadResponseTime,
 } from '@/lib/dashboard/queries'
 import {
-  previousRange,
+  previousRangeForPreset,
   rangeForPreset,
   type RangePreset,
 } from '@/lib/dashboard/date-utils'
@@ -87,7 +87,7 @@ export default function DashboardPage() {
     const db = createClient()
     const activeTz = tzRef.current
     const range = rangeForPreset(activeTz, presetRef.current, customRef.current)
-    const prev = previousRange(range)
+    const prev = previousRangeForPreset(activeTz, presetRef.current, range)
     const epoch = ++epochRef.current
     const fresh = () => epoch === epochRef.current
 
@@ -263,7 +263,7 @@ function LiveIndicator({ connected, t }: { connected: boolean; t: TFn }) {
 function deltaSuffix(preset: RangePreset, t: TFn): string {
   switch (preset) {
     case 'today':
-      return t('dashboard.vsYesterday')
+      return t('dashboard.vsYesterdaySoFar')
     case 'yesterday':
       return t('dashboard.vsPreviousDay')
     case '7d':

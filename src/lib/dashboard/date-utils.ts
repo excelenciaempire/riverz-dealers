@@ -140,6 +140,26 @@ export function previousRange(range: DateRange): DateRange {
   return { start: new Date(range.start.getTime() - span), end: range.start }
 }
 
+/**
+ * Ventana de comparación adecuada al preset. Para 'today' compara HOY-hasta-
+ * ahora contra AYER hasta la misma hora (like-for-like), no contra la franja
+ * nocturna de ayer que dejaba el abutting genérico (que hacía que "+3 vs ayer"
+ * comparara la mañana de hoy con la noche de ayer). El resto de los presets
+ * usan previousRange (la ventana equivalente inmediatamente anterior).
+ */
+export function previousRangeForPreset(
+  tz: string,
+  preset: RangePreset,
+  range: DateRange,
+): DateRange {
+  if (preset === 'today') {
+    const span = range.end.getTime() - range.start.getTime()
+    const prevStart = daysAgoStart(tz, 1)
+    return { start: prevStart, end: new Date(prevStart.getTime() + span) }
+  }
+  return previousRange(range)
+}
+
 /** Bucket granularity for a range: hourly for short spans (≤ ~2 days) so
  *  "Hoy"/"Ayer" render a useful curve; daily for longer ranges. */
 export function bucketGranularity(range: DateRange): 'hour' | 'day' {

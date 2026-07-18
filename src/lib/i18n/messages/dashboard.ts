@@ -21,6 +21,7 @@ export const dashboard = {
 
   // Delta suffixes
   vsYesterday: { es: "vs ayer", en: "vs yesterday" },
+  vsYesterdaySoFar: { es: "vs ayer a esta hora", en: "vs yesterday so far" },
   vsPreviousDay: { es: "vs día anterior", en: "vs previous day" },
   vsPrevious7d: { es: "vs 7 días previos", en: "vs previous 7 days" },
   vsPrevious30d: { es: "vs 30 días previos", en: "vs previous 30 days" },

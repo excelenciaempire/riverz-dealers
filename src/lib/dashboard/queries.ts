@@ -84,7 +84,11 @@ export async function loadMetrics(
     // Excluye las borradas de la bandeja (soft-delete) para no inflar el conteo;
     // las métricas basadas en `messages` (más abajo) SÍ conservan sus mensajes
     // aunque la conversación se borre, que es justo lo que se pidió.
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').is('deleted_at', null),
+    // `last_message_at not null` excluye las conversaciones-fantasma (una
+    // automatización de Shopify crea la fila ANTES de enviar; si el envío falla
+    // queda open + sin mensajes). La bandeja las oculta con el mismo filtro
+    // (conversation-list), así que la tarjeta debe coincidir con lo que se ve.
+    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').is('deleted_at', null).not('last_message_at', 'is', null),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', s).lt('created_at', e),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', ps).lt('created_at', pe),
     // "Resueltas" — gate on closed_at (set by code only when status actually
@@ -198,10 +202,11 @@ export async function loadResponseTime(
     conversation_id: string
     sender_type: string
     created_at: string
+    content_type: string | null
   }>((from, to) =>
     db
       .from('messages')
-      .select('conversation_id, sender_type, created_at')
+      .select('conversation_id, sender_type, created_at, content_type')
       .gte('created_at', fetchStart)
       .lt('created_at', fetchEnd)
       .order('conversation_id', { ascending: true })
@@ -227,7 +232,10 @@ export async function loadResponseTime(
     const ts = new Date(row.created_at)
     if (row.sender_type === 'customer') {
       if (!pendingCustomer) pendingCustomer = ts
-    } else if (pendingCustomer) {
+    } else if (pendingCustomer && row.content_type !== 'template') {
+      // Una plantilla/broadcast NO es una respuesta a la pregunta del cliente
+      // (es un envío masivo de marketing al mismo hilo): no debe contar como
+      // "primera respuesta" ni fabricar un tiempo de respuesta.
       samples.push({ customerAt: pendingCustomer, responseAt: ts })
       pendingCustomer = null
     }
