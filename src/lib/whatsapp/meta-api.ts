@@ -728,10 +728,11 @@ interface SendMediaArgs {
 
 async function sendMedia(
   args: SendMediaArgs,
-  kind: 'image' | 'video' | 'document',
+  kind: 'image' | 'video' | 'document' | 'audio',
 ): Promise<MetaSendResult> {
   const payload: Record<string, unknown> = { link: args.url }
-  if (args.caption) payload.caption = args.caption
+  // Audio messages (incl. voice notes) reject caption + filename per Meta.
+  if (args.caption && kind !== 'audio') payload.caption = args.caption
   if (kind === 'document' && args.filename) payload.filename = args.filename
 
   const body: Record<string, unknown> = {
@@ -770,6 +771,9 @@ export function sendVideoMessage(args: SendMediaArgs): Promise<MetaSendResult> {
 }
 export function sendDocumentMessage(args: SendMediaArgs): Promise<MetaSendResult> {
   return sendMedia(args, 'document')
+}
+export function sendAudioMessage(args: SendMediaArgs): Promise<MetaSendResult> {
+  return sendMedia(args, 'audio')
 }
 
 // ============================================================

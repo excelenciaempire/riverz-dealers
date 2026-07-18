@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash } from "lucide-react";
+import { Send, LayoutTemplate, Slash, Paperclip, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
 import { useT } from "@/hooks/use-locale";
+
+/** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 interface ReplyDraft {
   /** Internal UUID of the message being replied to — sent back through onSend. */
@@ -50,6 +54,8 @@ interface MessageComposerProps {
    *  clickeable en el mismo tick que se disparaba el envío y un
    *  spam de Enter mandaba el mismo mensaje 5 veces. */
   onSend: (text: string, replyToId?: string) => void | Promise<void>;
+  /** Send an attachment (image/video/audio/document) with an optional caption. */
+  onSendMedia?: (file: File, caption: string, replyToId?: string) => void | Promise<void>;
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
@@ -59,6 +65,7 @@ export function MessageComposer({
   conversationId,
   sessionExpired,
   onSend,
+  onSendMedia,
   onOpenTemplates,
   replyTo,
   onClearReply,
@@ -66,6 +73,8 @@ export function MessageComposer({
   const t = useT();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Ref-guard adicional: setState es async, así que si el agente
   // pulsa Enter rapidísimo el segundo handler todavía lee
   // `sending=false` del closure viejo. El ref es síncrono y bloquea
@@ -123,24 +132,43 @@ export function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || sendingRef.current || sessionExpired) return;
+    // A message is sendable if it has text OR a pending attachment.
+    if ((!trimmed && !pendingFile) || sendingRef.current || sessionExpired) return;
     sendingRef.current = true;
     setSending(true);
+    const fileToSend = pendingFile;
     setText("");
+    setPendingFile(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
     try {
       // await garantiza que el botón siga deshabilitado hasta que el
-      // POST resuelva. Antes onSend no se esperaba y setSending(false)
-      // se ejecutaba en el mismo tick que setSending(true), dejando el
-      // botón clickeable mientras el mensaje viajaba.
-      await onSend(trimmed, replyTo?.id);
+      // POST resuelva.
+      if (fileToSend && onSendMedia) {
+        await onSendMedia(fileToSend, trimmed, replyTo?.id);
+      } else {
+        await onSend(trimmed, replyTo?.id);
+      }
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [text, sessionExpired, onSend, replyTo?.id]);
+  }, [text, pendingFile, sessionExpired, onSend, onSendMedia, replyTo?.id]);
+
+  const handleFilePick = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      e.target.value = ""; // let the same file be re-picked later
+      if (!f) return;
+      if (f.size > MAX_FILE_BYTES) {
+        toast.error(t("inbox.fileTooLarge"));
+        return;
+      }
+      setPendingFile(f);
+    },
+    [t],
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -272,7 +300,43 @@ export function MessageComposer({
         </div>
       )}
 
+      {/* Adjunto pendiente: chip con nombre + quitar. */}
+      {pendingFile && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-1.5">
+          <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+            {pendingFile.name}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPendingFile(null)}
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t("inbox.removeAttachment")}
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+          className="hidden"
+          onChange={handleFilePick}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={sessionExpired || sending}
+          title={t("inbox.attachFile")}
+          aria-label={t("inbox.attachFile")}
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -301,7 +365,7 @@ export function MessageComposer({
         <Button
           size="sm"
           className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
-          disabled={!text.trim() || sessionExpired || sending}
+          disabled={(!text.trim() && !pendingFile) || sessionExpired || sending}
           onClick={handleSend}
           aria-label={t("inbox.sendMessage")}
         >

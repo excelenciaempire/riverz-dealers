@@ -208,6 +208,9 @@ export const inbox = {
     en: "↑↓ navigate · Enter inserts · Esc closes",
   },
   sendTemplate: { es: "Enviar plantilla", en: "Send template" },
+  attachFile: { es: "Adjuntar archivo", en: "Attach file" },
+  removeAttachment: { es: "Quitar adjunto", en: "Remove attachment" },
+  fileTooLarge: { es: "El archivo supera 25 MB", en: "File exceeds 25 MB" },
   sendMessage: { es: "Enviar mensaje", en: "Send message" },
   composerExpiredPlaceholder: {
     es: "Sesión expirada. Usa una plantilla.",

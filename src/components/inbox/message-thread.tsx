@@ -625,6 +625,83 @@ export function MessageThread({
     [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf, t]
   );
 
+  const handleSendMedia = useCallback(
+    async (file: File, caption: string, replyToId?: string) => {
+      if (!conversation) return;
+      const tempId = `temp-${Date.now()}`;
+      const localUrl = URL.createObjectURL(file);
+      const kind: "image" | "video" | "audio" | "document" =
+        file.type.startsWith("image/")
+          ? "image"
+          : file.type.startsWith("video/")
+            ? "video"
+            : file.type.startsWith("audio/")
+              ? "audio"
+              : "document";
+
+      // Optimistic bubble with a local blob preview while it uploads/sends.
+      const optimisticMsg: Message = {
+        id: tempId,
+        conversation_id: conversation.id,
+        channel: conversation.channel,
+        sender_type: "agent",
+        content_type: kind,
+        content_text: caption || undefined,
+        media_url: localUrl,
+        media_type: kind,
+        media_mime: file.type,
+        media_size: file.size,
+        attachments: [
+          { url: localUrl, mime_type: file.type, name: file.name, size: file.size },
+        ],
+        status: "sending",
+        created_at: new Date().toISOString(),
+        reply_to_message_id: replyToId,
+      };
+      onNewMessage(optimisticMsg);
+      setReplyTo(null);
+
+      try {
+        // 1) Upload the file to Storage.
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("conversation_id", conversation.id);
+        const up = await fetchWithCsrf("/api/messages/upload", { method: "POST", body: fd });
+        const upJson = await up.json().catch(() => ({}));
+        if (!up.ok) throw new Error(upJson?.error || `HTTP ${up.status}`);
+
+        // 2) Send it through the channel.
+        const res = await fetchWithCsrf("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation_id: conversation.id,
+            text: caption || undefined,
+            media: {
+              url: upJson.url,
+              mediaType: upJson.mediaType,
+              mime: upJson.mime,
+              name: upJson.name,
+              filename: upJson.name,
+              size: upJson.size,
+            },
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.error || `HTTP ${res.status}`);
+        // Swap the blob preview for the persisted public URL.
+        onUpdateMessage(tempId, { status: "sent", media_url: upJson.url });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : t("inbox.networkErrorReason");
+        toast.error(t("inbox.sendFailed", { reason }));
+        onUpdateMessage(tempId, { status: "failed" });
+      } finally {
+        URL.revokeObjectURL(localUrl);
+      }
+    },
+    [conversation, onNewMessage, onUpdateMessage, fetchWithCsrf, t],
+  );
+
   const handleStatusChange = useCallback(
     async (status: ConversationStatus) => {
       if (!conversation) return;
@@ -1340,6 +1417,7 @@ export function MessageThread({
           conversation.channel === "whatsapp" && sessionInfo.expired
         }
         onSend={handleSend}
+        onSendMedia={handleSendMedia}
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}

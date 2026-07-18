@@ -2,10 +2,17 @@ import type {
   ChannelAdapter,
   InboundEvent,
   OutboundText,
+  OutboundMedia,
   OutboundTemplate,
   ParsedWebhookContext,
   SendResult,
 } from "../types";
+import {
+  sendImageMessage,
+  sendVideoMessage,
+  sendDocumentMessage,
+  sendAudioMessage,
+} from "@/lib/whatsapp/meta-api";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { ingestWhatsappMedia, type MediaCategory } from "../media-ingest";
@@ -148,6 +155,66 @@ export const whatsappAdapter: ChannelAdapter = {
     await healIfRecovered(input.connection);
     const json = (await res.json()) as { messages?: { id?: string }[] };
     return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
+  },
+
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
+    const phoneNumberId = String(cfg.phone_number_id ?? "");
+    if (!phoneNumberId) throw new Error("[whatsapp] connection missing phone_number_id");
+    const secrets = (input.connection.secrets ?? {}) as Record<string, unknown>;
+    const encrypted = String(secrets.access_token ?? "");
+    if (!encrypted) throw new Error("[whatsapp] connection missing access_token");
+    const accessToken = decrypt(encrypted);
+    const to = input.contact.phone || input.contact.external_id;
+    if (!to) throw new Error("[whatsapp] contact missing phone/wa_id");
+
+    const common = {
+      phoneNumberId,
+      accessToken,
+      to,
+      url: input.mediaUrl,
+      contextMessageId: input.replyToExternalId,
+    };
+    try {
+      let result: { messageId: string };
+      switch (input.mediaType) {
+        case "image":
+          result = await sendImageMessage({ ...common, caption: input.caption });
+          break;
+        case "video":
+          result = await sendVideoMessage({ ...common, caption: input.caption });
+          break;
+        case "document":
+          result = await sendDocumentMessage({
+            ...common,
+            caption: input.caption,
+            filename: input.filename,
+          });
+          break;
+        case "audio":
+          result = await sendAudioMessage(common);
+          break;
+      }
+      await healIfRecovered(input.connection);
+      return { externalMessageId: result.messageId, status: "sent" };
+    } catch (err) {
+      // Flip the connection to error on token death so the card shows a
+      // Reconnect CTA, mirroring sendText. The meta-api helper throws a
+      // MetaSendError carrying the HTTP status + parsed body.
+      const status = (err as { status?: number })?.status;
+      const parsed = (err as { body?: unknown })?.body ?? null;
+      if (typeof status === "number") {
+        await handleMetaGraphError(
+          supabaseAdmin(),
+          input.connection,
+          status,
+          parsed as Parameters<typeof handleMetaGraphError>[3],
+        );
+      }
+      throw new Error(
+        `[whatsapp] media send failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   },
 
   async parseWebhook(

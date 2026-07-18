@@ -111,6 +111,21 @@ export interface OutboundText {
   humanAgent?: boolean;
 }
 
+export interface OutboundMedia {
+  channel: Channel;
+  connection: ChannelConnection;
+  conversation: Conversation;
+  contact: Contact;
+  /** Public https URL Meta will fetch the asset from (kept reachable). */
+  mediaUrl: string;
+  mediaType: "image" | "video" | "audio" | "document";
+  /** Optional caption — ignored for audio (WhatsApp rejects it). */
+  caption?: string;
+  /** Filename shown to the recipient — documents only. */
+  filename?: string;
+  replyToExternalId?: string;
+}
+
 export interface OutboundTemplate {
   channel: Channel;
   connection: ChannelConnection;
@@ -146,6 +161,10 @@ export interface ChannelAdapter {
 
   /** Send a plain-text message. Throws if the channel can't deliver it. */
   sendText(input: OutboundText): Promise<SendResult>;
+
+  /** Send a media message (image/video/audio/document). Optional — only
+   *  channels that support outbound media implement it. */
+  sendMedia?(input: OutboundMedia): Promise<SendResult>;
 
   /** Optional — only WhatsApp supports HSM templates right now. */
   sendTemplate?(input: OutboundTemplate): Promise<SendResult>;

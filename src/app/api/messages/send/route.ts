@@ -30,9 +30,23 @@ export async function POST(req: Request): Promise<Response> {
     );
 
   const body = (await req.json().catch(() => null)) as
-    | { conversation_id?: string; text?: string; reply_to_external_id?: string }
+    | {
+        conversation_id?: string;
+        text?: string;
+        reply_to_external_id?: string;
+        media?: {
+          url?: string;
+          mediaType?: string;
+          mime?: string;
+          filename?: string;
+          name?: string;
+          size?: number;
+        };
+      }
     | null;
-  if (!body?.conversation_id || !body.text?.trim()) {
+  // A media attachment can be sent with or without a caption (text).
+  const media = body?.media?.url ? body.media : null;
+  if (!body?.conversation_id || (!body.text?.trim() && !media)) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.sendMissingFields") },
       { status: 400 },
@@ -99,8 +113,20 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const channel = (conversation as Conversation).channel;
-  const contentType =
-    channel === "gmail" || channel === "outlook"
+  // Outbound media: normalize the upload category to a WhatsApp send type +
+  // the messages.content_type CHECK set (voice→audio, sticker→image).
+  const mediaSendType: "image" | "video" | "audio" | "document" | null = media
+    ? media.mediaType === "video"
+      ? "video"
+      : media.mediaType === "audio" || media.mediaType === "voice"
+        ? "audio"
+        : media.mediaType === "document"
+          ? "document"
+          : "image"
+    : null;
+  const contentType = mediaSendType
+    ? mediaSendType
+    : channel === "gmail" || channel === "outlook"
       ? "email"
       : channel === "fb_comment" || channel === "ig_comment"
         ? "comment"
@@ -143,20 +169,61 @@ export async function POST(req: Request): Promise<Response> {
   // return the error detail so the composer can surface it instead of a
   // bare 500.
   const adapter = getAdapter(channel);
+  const caption = body.text?.trim() || undefined;
+  // Media fields shared by the failed + success inserts.
+  const mediaFields = media
+    ? {
+        media_url: media.url,
+        media_mime: media.mime,
+        media_size: media.size,
+        attachments: [
+          { url: media.url, mime_type: media.mime, name: media.name, size: media.size },
+        ],
+      }
+    : {};
+  const contentText = media ? (caption ?? null) : body.text;
+  const mediaEmoji =
+    mediaSendType === "image"
+      ? "🖼️"
+      : mediaSendType === "video"
+        ? "🎬"
+        : mediaSendType === "audio"
+          ? "🎤"
+          : "📄";
+  const lastText = media ? (caption ?? mediaEmoji) : (body.text ?? "");
   let result: { externalMessageId?: string; status?: string };
   try {
-    result = await adapter.sendText({
-      channel,
-      connection: connection as ChannelConnection,
-      conversation: conversation as Conversation,
-      contact: contact as Contact,
-      text: body.text,
-      replyToExternalId,
-      // This endpoint is only ever hit by an authenticated human agent typing
-      // in the inbox — so Messenger/Instagram may fall back to the HUMAN_AGENT
-      // tag (7-day window) when a reply lands outside Meta's 24h window.
-      humanAgent: true,
-    });
+    if (media && mediaSendType) {
+      if (!adapter.sendMedia) {
+        throw new Error(translate(locale, "errInbox.mediaUnsupported"));
+      }
+      result = await adapter.sendMedia({
+        channel,
+        connection: connection as ChannelConnection,
+        conversation: conversation as Conversation,
+        contact: contact as Contact,
+        mediaUrl: media.url as string,
+        mediaType: mediaSendType,
+        caption,
+        filename: media.filename || media.name,
+        // NOTE: reply-context (Meta wamid) isn't wired for WhatsApp here — the
+        // composer's replyTo is an internal UUID, not a wamid — so we don't
+        // pass it as a media context id (would 400).
+      });
+    } else {
+      result = await adapter.sendText({
+        channel,
+        connection: connection as ChannelConnection,
+        conversation: conversation as Conversation,
+        contact: contact as Contact,
+        text: body.text as string,
+        replyToExternalId,
+        // This endpoint is only ever hit by an authenticated human agent typing
+        // in the inbox — so Messenger/Instagram may fall back to the HUMAN_AGENT
+        // tag (7-day window) when a reply lands outside Meta's 24h window.
+        humanAgent: true,
+      });
+    }
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[send/${channel}] failed:`, detail);
@@ -168,7 +235,8 @@ export async function POST(req: Request): Promise<Response> {
         sender_type: "agent",
         sender_id: user.id,
         content_type: contentType,
-        content_text: body.text,
+        content_text: contentText,
+        ...mediaFields,
         status: "failed",
       })
       .select()
@@ -188,7 +256,8 @@ export async function POST(req: Request): Promise<Response> {
       sender_type: "agent",
       sender_id: user.id,
       content_type: contentType,
-      content_text: body.text,
+      content_text: contentText,
+      ...mediaFields,
       message_id: result.externalMessageId,
       status: result.status ?? "sent",
     })
@@ -198,7 +267,7 @@ export async function POST(req: Request): Promise<Response> {
   await admin
     .from("conversations")
     .update({
-      last_message_text: body.text.slice(0, 200),
+      last_message_text: lastText.slice(0, 200),
       last_message_at: new Date().toISOString(),
       last_sender_type: "agent",
       updated_at: new Date().toISOString(),
