@@ -97,12 +97,16 @@ export function MercadoLibreConnect({
       </label>
       <button
         onClick={connect}
-        disabled={busy || redirecting}
+        // Deshabilitado hasta elegir país: no se puede conectar sin país (y el
+        // gris deja claro que falta ese paso). El spinner cubre la demora.
+        disabled={busy || redirecting || !country}
         className={cn(
-          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-70",
-          anyConnected
-            ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
-            : "bg-primary text-primary-foreground hover:bg-primary/90",
+          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
+          !country
+            ? "cursor-not-allowed border border-border bg-muted/40 text-muted-foreground"
+            : anyConnected
+              ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
+              : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
         {redirecting ? (
