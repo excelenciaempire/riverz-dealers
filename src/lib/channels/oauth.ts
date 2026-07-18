@@ -15,6 +15,21 @@ export interface OAuthState {
   iat: number;
   /** Nonce, double-purposed as anti-CSRF. */
   nonce: string;
+  /** PKCE code_verifier (MercadoLibre requires PKCE). It rides in the signed
+   *  state so the callback can send it in the token exchange. The state is
+   *  HMAC-signed (tamper-proof); for a confidential client (we hold the
+   *  client_secret) carrying the verifier here is safe. */
+  codeVerifier?: string;
+}
+
+/** PKCE (RFC 7636, S256): random verifier + its SHA-256 challenge. */
+export function generatePkce(): { verifier: string; challenge: string } {
+  const verifier = crypto.randomBytes(32).toString("base64url"); // 43 chars
+  const challenge = crypto
+    .createHash("sha256")
+    .update(verifier)
+    .digest("base64url");
+  return { verifier, challenge };
 }
 
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import {
   baseUrl,
   encodeState,
+  generatePkce,
   loadProvider,
   mercadoLibreAuthHost,
   type ProviderName,
@@ -80,7 +81,14 @@ export async function GET(
     );
   }
 
-  const state = encodeState({ workspaceId, channel });
+  // MercadoLibre exige PKCE: generamos el par y hacemos viajar el verifier en
+  // el state (firmado) para que el callback lo mande en el canje del token.
+  const pkce = provider === "mercadolibre" ? generatePkce() : null;
+  const state = encodeState({
+    workspaceId,
+    channel,
+    ...(pkce ? { codeVerifier: pkce.verifier } : {}),
+  });
   const redirectUri = `${baseUrl(req)}/api/connections/${provider}/oauth/callback`;
   // MercadoLibre es por país: el vendedor se loguea en el dominio de auth de SU
   // país (una sola app autoriza a todos). La UI manda ?ml_country=XX y acá
@@ -105,6 +113,10 @@ export async function GET(
     // MercadoLibre configures scopes on the app, not in the authorize URL, so
     // its scope list is empty and we omit the param entirely.
     authorize.searchParams.set("scope", cfg.scopes.join(provider === "google" ? " " : ","));
+  }
+  if (pkce) {
+    authorize.searchParams.set("code_challenge", pkce.challenge);
+    authorize.searchParams.set("code_challenge_method", "S256");
   }
   authorize.searchParams.set("state", state);
   for (const [k, v] of Object.entries(cfg.extraAuthParams ?? {})) {

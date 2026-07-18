@@ -86,6 +86,11 @@ export async function GET(
         redirect_uri: redirectUri,
         grant_type: "authorization_code",
       });
+      // MercadoLibre exige PKCE: el code_verifier viajó en el state firmado y
+      // sin él el canje devuelve "code_verifier is a required parameter".
+      if (provider === "mercadolibre" && state.codeVerifier) {
+        params.set("code_verifier", state.codeVerifier);
+      }
       const r = await fetch(cfg.tokenUrl, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
