@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useT } from "@/hooks/use-locale";
@@ -47,6 +47,7 @@ export function MercadoLibreConnect({
 }) {
   const t = useT();
   const [country, setCountry] = useState("");
+  const [redirecting, setRedirecting] = useState(false);
 
   if (!ready) {
     return (
@@ -64,6 +65,10 @@ export function MercadoLibreConnect({
       toast.error(t("settings.mlChooseCountryFirst"));
       return;
     }
+    // Feedback inmediato: la ruta de start hace auth + chequeo de admin +
+    // redirect del lado del servidor y puede tardar unos segundos (arranque en
+    // frío), así que mostramos "Abriendo…" para que no parezca que no pasa nada.
+    setRedirecting(true);
     window.location.assign(
       `/api/connections/mercadolibre/oauth/start?workspace_id=${workspaceId}&channel=mercadolibre&ml_country=${country}`,
     );
@@ -92,16 +97,25 @@ export function MercadoLibreConnect({
       </label>
       <button
         onClick={connect}
-        disabled={busy}
+        disabled={busy || redirecting}
         className={cn(
-          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
+          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-70",
           anyConnected
             ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
             : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
-        <ChannelLogo channel="mercadolibre" size={16} />
-        {anyConnected ? t("settings.addAnotherAccount") : t("settings.connect")}
+        {redirecting ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            {t("settings.mlOpening")}
+          </>
+        ) : (
+          <>
+            <ChannelLogo channel="mercadolibre" size={16} />
+            {anyConnected ? t("settings.addAnotherAccount") : t("settings.connect")}
+          </>
+        )}
       </button>
     </div>
   );

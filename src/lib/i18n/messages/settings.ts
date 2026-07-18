@@ -395,6 +395,7 @@ export const settings = {
     es: "Elige tu país antes de conectar.",
     en: "Choose your country before connecting.",
   },
+  mlOpening: { es: "Abriendo Mercado Libre…", en: "Opening Mercado Libre…" },
   connect: { es: "Conectar", en: "Connect" },
   configureGoogleFirst: {
     es: "Configura Google Cloud OAuth Client primero (ver banner amarillo)",

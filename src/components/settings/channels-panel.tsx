@@ -372,7 +372,7 @@ export function ChannelsPanel() {
           fila de cuenta) se estiraba y dejaba un gran hueco negro entre la
           descripción y el botón. El grid sigue siendo un grid alineado (no
           masonry): las filas se alinean arriba, sólo desaparece el relleno. */}
-      <ul className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
