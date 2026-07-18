@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useT } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,12 @@ export function MercadoLibreConnect({
   }
 
   const connect = () => {
-    if (!country) return;
+    // Antes el botón se deshabilitaba sin país y el clic "no hacía nada" (sin
+    // feedback). Ahora siempre es clickeable y avisamos si falta elegir país.
+    if (!country) {
+      toast.error(t("settings.mlChooseCountryFirst"));
+      return;
+    }
     window.location.assign(
       `/api/connections/mercadolibre/oauth/start?workspace_id=${workspaceId}&channel=mercadolibre&ml_country=${country}`,
     );
@@ -86,14 +92,12 @@ export function MercadoLibreConnect({
       </label>
       <button
         onClick={connect}
-        disabled={busy || !country}
+        disabled={busy}
         className={cn(
-          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-          !country
-            ? "cursor-not-allowed border border-border bg-muted/40 text-muted-foreground"
-            : anyConnected
-              ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
-              : "bg-primary text-primary-foreground hover:bg-primary/90",
+          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
+          anyConnected
+            ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
+            : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
         <ChannelLogo channel="mercadolibre" size={16} />

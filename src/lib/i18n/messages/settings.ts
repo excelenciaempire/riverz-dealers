@@ -391,6 +391,10 @@ export const settings = {
   configureProvider: { es: "Configura el proveedor", en: "Set up the provider" },
   mlCountryLabel: { es: "País", en: "Country" },
   mlCountryPlaceholder: { es: "Elige tu país", en: "Choose your country" },
+  mlChooseCountryFirst: {
+    es: "Elige tu país antes de conectar.",
+    en: "Choose your country before connecting.",
+  },
   connect: { es: "Conectar", en: "Connect" },
   configureGoogleFirst: {
     es: "Configura Google Cloud OAuth Client primero (ver banner amarillo)",
