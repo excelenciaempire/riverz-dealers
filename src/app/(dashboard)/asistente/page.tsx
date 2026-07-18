@@ -41,6 +41,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   outlook: 'Outlook',
   fb_comment: 'assistant.channelFbComments',
   ig_comment: 'assistant.channelIgComments',
+  mercadolibre: 'Mercado Libre',
 };
 
 export default function AiAgentsPage() {

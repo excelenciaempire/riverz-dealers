@@ -320,6 +320,10 @@ export const settings = {
     es: "Bandeja para Outlook, Hotmail y Microsoft 365.",
     en: "Inbox for Outlook, Hotmail and Microsoft 365.",
   },
+  mercadolibreCardDescription: {
+    es: "Preguntas de tus publicaciones y mensajes post-venta.",
+    en: "Questions on your listings and post-sale messages.",
+  },
 
   // Channels panel — clipboard + toasts
   copiedToClipboard: { es: "{label} copiado", en: "{label} copied" },

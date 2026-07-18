@@ -30,6 +30,7 @@ const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
   outlook: { src: "/channels/microsoftoutlook.svg", alt: "Outlook" },
   fb_comment: { src: "/channels/facebook.svg", alt: "Facebook" },
   ig_comment: { src: "/channels/instagram.svg", alt: "Instagram" },
+  mercadolibre: { src: "/channels/mercadolibre.svg", alt: "Mercado Libre" },
 };
 
 export function ChannelLogo({ channel, size = 20, className, src, alt }: ChannelLogoProps) {

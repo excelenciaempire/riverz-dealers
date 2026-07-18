@@ -5,7 +5,7 @@ import { baseUrl, encodeState, loadProvider, type ProviderName } from "@/lib/cha
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
-const VALID: ProviderName[] = ["meta", "google", "microsoft"];
+const VALID: ProviderName[] = ["meta", "google", "microsoft", "mercadolibre"];
 
 /**
  * GET /api/connections/:provider/oauth/start?workspace_id=…&channel=…
@@ -88,7 +88,9 @@ export async function GET(
   // when no config_id is configured.
   if (cfg.configId) {
     authorize.searchParams.set("config_id", cfg.configId);
-  } else {
+  } else if (cfg.scopes.length > 0) {
+    // MercadoLibre configures scopes on the app, not in the authorize URL, so
+    // its scope list is empty and we omit the param entirely.
     authorize.searchParams.set("scope", cfg.scopes.join(provider === "google" ? " " : ","));
   }
   authorize.searchParams.set("state", state);

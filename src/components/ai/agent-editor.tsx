@@ -94,6 +94,7 @@ const CHANNELS: { value: Channel; label: string; icon: string }[] = [
   { value: 'messenger', label: 'Messenger', icon: '/channels/messenger.svg' },
   { value: 'gmail', label: 'Gmail', icon: '/channels/gmail.svg' },
   { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
+  { value: 'mercadolibre', label: 'Mercado Libre', icon: '/channels/mercadolibre.svg' },
 ];
 
 // label es una clave i18n resuelta con t() en el render.

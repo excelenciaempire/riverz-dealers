@@ -14,7 +14,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection } from "@/types";
 
-const VALID: ProviderName[] = ["meta", "google", "microsoft"];
+const VALID: ProviderName[] = ["meta", "google", "microsoft", "mercadolibre"];
 
 /**
  * GET /api/connections/:provider/oauth/callback?code=…&state=…
@@ -77,7 +77,7 @@ export async function GET(
 
   let tokenJson: Record<string, unknown>;
   try {
-    if (provider === "google" || provider === "microsoft") {
+    if (provider === "google" || provider === "microsoft" || provider === "mercadolibre") {
       const params = new URLSearchParams({
         client_id: cfg.clientId,
         client_secret: cfg.clientSecret,
@@ -137,8 +137,19 @@ export async function GET(
   // shows something meaningful.
   let label: string | undefined;
   let externalAccountId: string | undefined;
+  let mlSiteId: string | undefined;
   try {
-    if (provider === "google") {
+    if (provider === "mercadolibre") {
+      const r = await fetch("https://api.mercadolibre.com/users/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (r.ok) {
+        const j = (await r.json()) as { id?: number; nickname?: string; site_id?: string };
+        label = j.nickname ?? "Mercado Libre";
+        externalAccountId = j.id != null ? String(j.id) : undefined;
+        mlSiteId = j.site_id;
+      }
+    } else if (provider === "google") {
       const r = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -273,7 +284,15 @@ export async function GET(
       config:
         channel === "gmail" || channel === "outlook"
           ? { email: label ?? externalAccountId }
-          : {},
+          : channel === "mercadolibre"
+            ? {
+                seller_id: externalAccountId,
+                site_id: mlSiteId,
+                token_expires_at: tokenJson.expires_in
+                  ? new Date(Date.now() + Number(tokenJson.expires_in) * 1000).toISOString()
+                  : undefined,
+              }
+            : {},
       secrets,
       created_by: user.id,
     })

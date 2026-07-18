@@ -16,6 +16,9 @@ export async function GET(): Promise<Response> {
     microsoft: Boolean(
       process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET,
     ),
+    mercadolibre: Boolean(
+      process.env.MERCADOLIBRE_CLIENT_ID && process.env.MERCADOLIBRE_CLIENT_SECRET,
+    ),
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "",
   });
 }

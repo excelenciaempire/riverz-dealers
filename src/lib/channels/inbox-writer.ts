@@ -460,7 +460,15 @@ async function findOrCreateConversation(
     // el contacto vuelve a escribir, arranca un hilo nuevo en vez de revivir
     // el borrado. (El re-polleo del MISMO correo ya se cortó en el paso 0b.)
     .is("deleted_at", null);
-  if (input.thread_external_id && (input.channel === "gmail" || input.channel === "outlook")) {
+  if (
+    input.thread_external_id &&
+    (input.channel === "gmail" ||
+      input.channel === "outlook" ||
+      // MercadoLibre groups by resource thread ("q:<id>" question / "pack:<id>"
+      // post-sale) so each question / order pack is its own conversation and
+      // replies route to the right ML endpoint.
+      input.channel === "mercadolibre")
+  ) {
     query = query.eq("thread_external_id", input.thread_external_id);
   } else {
     query = query.neq("status", "closed");

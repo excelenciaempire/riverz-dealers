@@ -64,6 +64,14 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#C13584",
     replyOnly: true,
   },
+  mercadolibre: {
+    channel: "mercadolibre",
+    label: "Mercado Libre",
+    shortLabel: "ML",
+    badge: "bg-yellow-400/10 text-yellow-300 ring-1 ring-yellow-400/30",
+    accent: "#FFE600",
+    replyOnly: true,
+  },
 };
 
 export function channelDisplay(channel: Channel): ChannelDisplay {

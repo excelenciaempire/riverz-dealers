@@ -142,16 +142,36 @@ export function microsoftProvider(): ProviderConfig {
   };
 }
 
+export function mercadoLibreProvider(): ProviderConfig {
+  // Authorize host is per-country (auth.mercadolibre.com.co / .com.ar / .com.mx
+  // / .cl / auth.mercadolivre.com.br for Brazil). Default to Colombia; override
+  // with MERCADOLIBRE_AUTH_HOST per the merchant's site. Token host is global.
+  const authHost = (process.env.MERCADOLIBRE_AUTH_HOST || "https://auth.mercadolibre.com.co").replace(
+    /\/$/,
+    "",
+  );
+  return {
+    clientId: required("MERCADOLIBRE_CLIENT_ID"),
+    clientSecret: required("MERCADOLIBRE_CLIENT_SECRET"),
+    authorizationUrl: `${authHost}/authorization`,
+    tokenUrl: "https://api.mercadolibre.com/oauth/token",
+    // ML scopes (offline_access/read/write) are configured on the app, not
+    // passed in the authorize URL — empty so the start route omits `scope`.
+    scopes: [],
+  };
+}
+
 function required(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Environment variable ${name} is not set`);
   return v;
 }
 
-export type ProviderName = "meta" | "google" | "microsoft";
+export type ProviderName = "meta" | "google" | "microsoft" | "mercadolibre";
 export function loadProvider(name: ProviderName): ProviderConfig {
   if (name === "meta") return metaProvider();
   if (name === "google") return googleProvider();
   if (name === "microsoft") return microsoftProvider();
+  if (name === "mercadolibre") return mercadoLibreProvider();
   throw new Error(`Unknown OAuth provider: ${name}`);
 }

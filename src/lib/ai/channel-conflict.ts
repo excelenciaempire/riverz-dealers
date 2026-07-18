@@ -20,6 +20,7 @@ export const AI_CHANNELS = [
   'messenger',
   'gmail',
   'outlook',
+  'mercadolibre',
 ] as const;
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   messenger: 'Messenger',
   gmail: 'Gmail',
   outlook: 'Outlook',
+  mercadolibre: 'Mercado Libre',
 };
 
 export function channelLabels(channels: string[]): string {

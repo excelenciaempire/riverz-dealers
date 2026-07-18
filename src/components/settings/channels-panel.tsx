@@ -90,12 +90,21 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     members: ["outlook"],
     connectChannel: "outlook",
   },
+  {
+    key: "mercadolibre",
+    label: "Mercado Libre",
+    descriptionKey: "settings.mercadolibreCardDescription",
+    logoChannel: "mercadolibre",
+    members: ["mercadolibre"],
+    connectChannel: "mercadolibre",
+  },
 ];
 
 interface ProviderStatus {
   meta: boolean;
   google: boolean;
   microsoft: boolean;
+  mercadolibre: boolean;
   siteUrl: string;
 }
 
@@ -116,13 +125,22 @@ export function ChannelsPanel() {
     fetch("/api/connections/status")
       .then((r) => r.json())
       .then((j: ProviderStatus) => setProviders(j))
-      .catch(() => setProviders({ meta: false, google: false, microsoft: false, siteUrl: "" }));
+      .catch(() =>
+        setProviders({
+          meta: false,
+          google: false,
+          microsoft: false,
+          mercadolibre: false,
+          siteUrl: "",
+        }),
+      );
   }, []);
 
   const isProviderReady = (channel: Channel): boolean => {
     if (!providers) return false;
     if (channel === "gmail") return providers.google;
     if (channel === "outlook") return providers.microsoft;
+    if (channel === "mercadolibre") return providers.mercadolibre;
     return providers.meta;
   };
 

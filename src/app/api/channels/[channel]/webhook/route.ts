@@ -17,6 +17,7 @@ const VALID: Channel[] = [
   "outlook",
   "fb_comment",
   "ig_comment",
+  "mercadolibre",
 ];
 
 /**
@@ -271,6 +272,24 @@ async function routesByPayload(
     .in("status", ["connected", "error", "expired"]);
   const conns = (data ?? []) as ChannelConnection[];
   if (conns.length === 0) return [];
+
+  // MercadoLibre notifications are FLAT ({resource, user_id, topic} — no
+  // entry[]). Route by the seller user_id → the matching connection; NEVER
+  // fall back to conns[0] (that would leak one seller's messages into another
+  // workspace). Drop unmatched.
+  if (channel === "mercadolibre") {
+    const uid = String((payload as { user_id?: unknown })?.user_id ?? "");
+    const conn = conns.find(
+      (c) =>
+        String(c.external_account_id ?? "") === uid ||
+        String((c.config as Record<string, unknown> | null)?.seller_id ?? "") === uid,
+    );
+    if (!conn) {
+      log.warn("mercadolibre notification matched no seller connection — DROPPED", { uid });
+      return [];
+    }
+    return [{ connection: conn, payload }];
+  }
 
   const body = (payload ?? {}) as { entry?: unknown };
   const entries = Array.isArray(body.entry) ? body.entry : [];

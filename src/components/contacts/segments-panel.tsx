@@ -74,6 +74,7 @@ const CHANNEL_LABEL_KEYS: Record<Channel, string> = {
   outlook: 'Outlook',
   fb_comment: 'contacts.channelFbComment',
   ig_comment: 'contacts.channelIgComment',
+  mercadolibre: 'Mercado Libre',
 };
 
 /** Resolve channel labels for the current locale (brand names pass through). */

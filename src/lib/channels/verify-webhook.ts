@@ -106,6 +106,21 @@ export async function verifyChannelWebhook(
     return { ok: true };
   }
 
+  if (channel === "mercadolibre") {
+    // ML notifications aren't signed. If a shared secret is configured, enforce
+    // it as a ?secret= query on the callback URL; otherwise accept — the adapter
+    // re-fetches the resource with the seller token (the real authenticity gate)
+    // and routing already requires a known seller user_id.
+    const expected = process.env.MERCADOLIBRE_WEBHOOK_SECRET;
+    if (expected) {
+      const supplied = new URL(request.url).searchParams.get("secret") ?? "";
+      if (!timingSafeStringEqual(supplied, expected)) {
+        return { ok: false, reason: "mercadolibre secret mismatch" };
+      }
+    }
+    return { ok: true };
+  }
+
   return { ok: false, reason: `no verifier for channel ${channel}` };
 }
 
