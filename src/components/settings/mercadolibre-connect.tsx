@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useT } from "@/hooks/use-locale";
@@ -48,6 +48,7 @@ export function MercadoLibreConnect({
   const t = useT();
   const [country, setCountry] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   if (!ready) {
     return (
@@ -59,8 +60,6 @@ export function MercadoLibreConnect({
   }
 
   const connect = () => {
-    // Antes el botón se deshabilitaba sin país y el clic "no hacía nada" (sin
-    // feedback). Ahora siempre es clickeable y avisamos si falta elegir país.
     if (!country) {
       toast.error(t("settings.mlChooseCountryFirst"));
       return;
@@ -74,6 +73,24 @@ export function MercadoLibreConnect({
     );
   };
 
+  // Ya conectado y sin intención de agregar otra: mostramos SOLO el botón
+  // "+ Añadir otra cuenta". Antes se veía el selector de país + un botón
+  // deshabilitado, que confundía como si fuera un paso pendiente de la cuenta
+  // ya conectada — el selector es solo para la cuenta NUEVA.
+  if (anyConnected && !adding) {
+    return (
+      <button
+        onClick={() => setAdding(true)}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+      >
+        <Plus className="size-4" />
+        {t("settings.addAnotherAccount")}
+      </button>
+    );
+  }
+
+  // Formulario de conexión: primera cuenta, o al elegir "Añadir otra cuenta".
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
@@ -104,9 +121,7 @@ export function MercadoLibreConnect({
           "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
           !country
             ? "cursor-not-allowed border border-border bg-muted/40 text-muted-foreground"
-            : anyConnected
-              ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
-              : "bg-primary text-primary-foreground hover:bg-primary/90",
+            : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
         {redirecting ? (
@@ -117,10 +132,22 @@ export function MercadoLibreConnect({
         ) : (
           <>
             <ChannelLogo channel="mercadolibre" size={16} />
-            {anyConnected ? t("settings.addAnotherAccount") : t("settings.connect")}
+            {t("settings.connect")}
           </>
         )}
       </button>
+      {anyConnected && (
+        <button
+          onClick={() => {
+            setAdding(false);
+            setCountry("");
+          }}
+          disabled={redirecting}
+          className="w-full rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
+        >
+          {t("settings.mlCancelAdd")}
+        </button>
+      )}
     </div>
   );
 }
