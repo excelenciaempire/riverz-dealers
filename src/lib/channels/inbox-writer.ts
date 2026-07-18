@@ -124,6 +124,48 @@ export async function ingestInboundEvent(
       );
   }
 
+  // 2c. Reconciliar "enviado pero marcado fallido". Si un envío desde Riverz
+  //     falló en HTTP DESPUÉS de que la plataforma ya lo entregó, quedó una
+  //     fila placeholder (sender_type='agent', status='failed', message_id
+  //     NULL). El echo/backfill trae ahora el id real: sin esto se insertaría
+  //     una SEGUNDA fila y el mensaje saldría DUPLICADO (una 'failed' + una
+  //     'sent'). Reconciliamos la placeholder (le ponemos el id real y status
+  //     'sent') en vez de insertar. Solo para salientes con texto — un match
+  //     por (conversación, agente, message_id NULL, mismo texto, reciente) es
+  //     inequívoco (los envíos exitosos ya traen message_id y no matchean).
+  if (event.outbound && event.externalMessageId && event.text.trim()) {
+    const sinceIso = new Date(
+      Date.parse(event.receivedAt) - 10 * 60_000,
+    ).toISOString();
+    const { data: placeholder } = await db
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversation.id)
+      .eq("sender_type", "agent")
+      .is("message_id", null)
+      .eq("content_text", event.text)
+      .in("status", ["failed", "sending", "sent"])
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (placeholder) {
+      await db
+        .from("messages")
+        .update({ message_id: event.externalMessageId, status: "sent" })
+        .eq("id", (placeholder as { id: string }).id);
+      return {
+        contact,
+        conversation,
+        message: {
+          ...(placeholder as Message),
+          message_id: event.externalMessageId,
+          status: "sent",
+        },
+      };
+    }
+  }
+
   // 3. Insert message — idempotent on external id.
   // Si el adapter trajo media, derivamos las columnas estructuradas
   // (media_type/media_mime/media_size/media_url) desde el primer
