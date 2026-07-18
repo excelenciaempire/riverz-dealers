@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "21 de junio de 2026";
+const UPDATED = "18 de julio de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function PrivacidadPage() {
@@ -63,6 +63,7 @@ export default async function PrivacidadPage() {
               {t("legal.privacy2Item2Rest")}
             </li>
           </ul>
+          <p className="mt-2">{t("legal.privacy2Isolation")}</p>
         </Section>
 
         <Section title={t("legal.privacy3Title")}>
@@ -75,6 +76,7 @@ export default async function PrivacidadPage() {
             <strong>{t("legal.privacy4BodyStrong")}</strong>
             {t("legal.privacy4BodyEnd")}
           </p>
+          <p className="mt-2">{t("legal.privacy4MlBody")}</p>
         </Section>
 
         <Section title={t("legal.privacy5Title")}>
@@ -85,6 +87,8 @@ export default async function PrivacidadPage() {
             <li>{t("legal.privacy5ItemRender")}</li>
             <li>{t("legal.privacy5ItemAnthropic")}</li>
             <li>{t("legal.privacy5ItemShopify")}</li>
+            <li>{t("legal.privacy5ItemMercadoLibre")}</li>
+            <li>{t("legal.privacy5ItemEmail")}</li>
           </ul>
         </Section>
 

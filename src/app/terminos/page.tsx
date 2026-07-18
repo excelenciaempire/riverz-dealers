@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "19 de junio de 2026";
+const UPDATED = "18 de julio de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function TerminosPage() {

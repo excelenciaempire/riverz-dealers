@@ -29,8 +29,8 @@ export const legal = {
 
   privacy1Title: { es: "1. Quiénes somos", en: "1. Who we are" },
   privacy1BodyPre: {
-    es: "riverz es una plataforma de atención y CRM omnicanal que permite a comercios y empresas centralizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger y correo electrónico. El servicio se presta a través de ",
-    en: "riverz is an omnichannel support and CRM platform that lets merchants and companies centralize and respond, from a single inbox, to their customers' conversations on WhatsApp, Instagram, Messenger and email. The service is provided through ",
+    es: "riverz es una plataforma de atención y CRM omnicanal que permite a comercios y empresas centralizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger, Mercado Libre y correo electrónico. El servicio se presta a través de ",
+    en: "riverz is an omnichannel support and CRM platform that lets merchants and companies centralize and respond, from a single inbox, to their customers' conversations on WhatsApp, Instagram, Messenger, Mercado Libre and email. The service is provided through ",
   },
   privacy1BodyMid: {
     es: ". Para cualquier consulta sobre privacidad escríbenos a ",
@@ -48,16 +48,20 @@ export const legal = {
     en: "Merchant data (our customer):",
   },
   privacy2Item1Rest: {
-    es: " nombre, correo, datos de la cuenta y de la empresa, y los tokens de acceso de las cuentas que conecta (WhatsApp, Páginas de Facebook, cuentas de Instagram, Shopify, correo). Los tokens se guardan cifrados.",
-    en: " name, email, account and company details, and the access tokens of the accounts they connect (WhatsApp, Facebook Pages, Instagram accounts, Shopify, email). Tokens are stored encrypted.",
+    es: " nombre, correo, datos de la cuenta y de la empresa, y los tokens de acceso de las cuentas que conecta (WhatsApp, Páginas de Facebook, cuentas de Instagram, Mercado Libre, Shopify y correo — Gmail y Outlook). Los tokens se guardan cifrados.",
+    en: " name, email, account and company details, and the access tokens of the accounts they connect (WhatsApp, Facebook Pages, Instagram accounts, Mercado Libre, Shopify and email — Gmail and Outlook). Tokens are stored encrypted.",
   },
   privacy2Item2Strong: {
     es: "Datos de los clientes finales del comercio:",
     en: "Data of the merchant's end customers:",
   },
   privacy2Item2Rest: {
-    es: " cuando un comercio conecta sus cuentas, procesamos en su nombre los mensajes, comentarios, nombre de perfil público, identificadores de usuario y metadatos de las conversaciones que esas personas le envían, para mostrarlos en la bandeja y permitir responderlos.",
-    en: " when a merchant connects their accounts, we process on their behalf the messages, comments, public profile name, user identifiers and conversation metadata that those people send them, in order to display them in the inbox and allow replies.",
+    es: " cuando un comercio conecta sus cuentas, procesamos en su nombre los mensajes, comentarios, preguntas y mensajes post-venta, nombre de perfil público, identificadores de usuario y metadatos de las conversaciones que esas personas le envían, para mostrarlos en la bandeja y permitir responderlos.",
+    en: " when a merchant connects their accounts, we process on their behalf the messages, comments, questions and post-sale messages, public profile name, user identifiers and conversation metadata that those people send them, in order to display them in the inbox and allow replies.",
+  },
+  privacy2Isolation: {
+    es: "Como operador de la plataforma, riverz almacena y procesa técnicamente los datos de todas las cuentas que los comercios conectan (los tokens —cifrados— y las conversaciones), porque es imprescindible para prestar el servicio. Sin embargo, cada comercio solo puede ver y gestionar SUS propias cuentas: los datos están aislados por comercio y ningún comercio accede a los datos de otro. Nuestro personal accede a esos datos solo cuando es estrictamente necesario para operar el servicio, brindar soporte o cumplir la ley, bajo obligaciones de confidencialidad.",
+    en: "As the platform operator, riverz technically stores and processes the data of all the accounts that merchants connect (the —encrypted— tokens and the conversations), because it is essential to provide the service. However, each merchant can only see and manage THEIR OWN accounts: data is isolated per merchant and no merchant accesses another merchant's data. Our staff access this data only when strictly necessary to operate the service, provide support or comply with the law, under confidentiality obligations.",
   },
 
   privacy3Title: {
@@ -69,7 +73,10 @@ export const legal = {
     en: "We use the data solely to provide the service: receive and display messages and comments, allow the merchant to respond, offer AI-assisted replies when the merchant enables them, generate support statistics and maintain system security. We do not sell personal data nor use it for third-party advertising.",
   },
 
-  privacy4Title: { es: "4. Plataformas de Meta", en: "4. Meta platforms" },
+  privacy4Title: {
+    es: "4. Plataformas conectadas (Meta y Mercado Libre)",
+    en: "4. Connected platforms (Meta and Mercado Libre)",
+  },
   privacy4BodyPre: {
     es: "riverz utiliza las APIs de Meta (WhatsApp Business, Messenger Platform e Instagram). Cuando un comercio conecta su Página de Facebook o su cuenta de Instagram, accedemos a sus mensajes y comentarios ",
     en: "riverz uses Meta's APIs (WhatsApp Business, Messenger Platform and Instagram). When a merchant connects their Facebook Page or Instagram account, we access their messages and comments ",
@@ -78,6 +85,10 @@ export const legal = {
   privacy4BodyEnd: {
     es: " en las cuentas que él mismo autoriza, y exclusivamente para que pueda gestionarlos desde riverz. El uso de la información obtenida de Meta cumple con las Políticas de la Plataforma de Meta. No accedemos a cuentas de terceros que el comercio no haya conectado.",
     en: " on the accounts they themselves authorize, and exclusively so they can manage them from riverz. Our use of information obtained from Meta complies with the Meta Platform Policies. We do not access third-party accounts that the merchant has not connected.",
+  },
+  privacy4MlBody: {
+    es: "Cuando un comercio conecta su cuenta de Mercado Libre, accedemos únicamente a los datos de SU propia tienda que autoriza —preguntas, mensajes post-venta, pedidos e identificadores necesarios— y solo para que pueda gestionarlos desde riverz. Cada vendedor autoriza el acceso a su propia cuenta mediante el inicio de sesión de Mercado Libre, y el token resultante solo da acceso a los datos de ese vendedor. El uso de la información obtenida de Mercado Libre cumple con los términos de su API. No accedemos a tiendas ni cuentas que el comercio no haya conectado.",
+    en: "When a merchant connects their Mercado Libre account, we access only the data of THEIR OWN store that they authorize —questions, post-sale messages, orders and the necessary identifiers— and solely so they can manage it from riverz. Each seller authorizes access to their own account through the Mercado Libre login, and the resulting token only grants access to that seller's data. Our use of information obtained from Mercado Libre complies with its API terms. We do not access stores or accounts the merchant has not connected.",
   },
 
   privacy5Title: {
@@ -107,6 +118,14 @@ export const legal = {
   privacy5ItemShopify: {
     es: "Shopify (cuando el comercio conecta su tienda).",
     en: "Shopify (when the merchant connects their store).",
+  },
+  privacy5ItemMercadoLibre: {
+    es: "Mercado Libre (cuando el comercio conecta su cuenta).",
+    en: "Mercado Libre (when the merchant connects their account).",
+  },
+  privacy5ItemEmail: {
+    es: "Google y Microsoft (correo Gmail y Outlook, cuando el comercio conecta su bandeja).",
+    en: "Google and Microsoft (Gmail and Outlook email, when the merchant connects their inbox).",
   },
 
   privacy6Title: { es: "6. Conservación", en: "6. Retention" },
@@ -296,8 +315,8 @@ export const legal = {
     en: "2. Description of the service",
   },
   terms2Body: {
-    es: "riverz es una plataforma de atención y CRM omnicanal que permite a comercios y empresas centralizar, automatizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger y correo electrónico, así como gestionar campañas, productos y respuestas asistidas por IA. Podemos modificar, ampliar o suspender funciones del Servicio en cualquier momento.",
-    en: "riverz is an omnichannel support and CRM platform that lets merchants and companies centralize, automate and respond, from a single inbox, to their customers' conversations on WhatsApp, Instagram, Messenger and email, as well as manage campaigns, products and AI-assisted replies. We may modify, expand or suspend features of the Service at any time.",
+    es: "riverz es una plataforma de atención y CRM omnicanal que permite a comercios y empresas centralizar, automatizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger, Mercado Libre y correo electrónico, así como gestionar campañas, productos y respuestas asistidas por IA. Podemos modificar, ampliar o suspender funciones del Servicio en cualquier momento.",
+    en: "riverz is an omnichannel support and CRM platform that lets merchants and companies centralize, automate and respond, from a single inbox, to their customers' conversations on WhatsApp, Instagram, Messenger, Mercado Libre and email, as well as manage campaigns, products and AI-assisted replies. We may modify, expand or suspend features of the Service at any time.",
   },
 
   terms3Title: {
@@ -340,8 +359,8 @@ export const legal = {
     en: "5. Third-party channels and services",
   },
   terms5Body: {
-    es: "El Servicio se integra con plataformas de terceros (Meta/WhatsApp, Instagram, Messenger, Shopify, proveedores de correo y modelos de IA). El uso de esas integraciones está sujeto a los términos y políticas de cada proveedor. No somos responsables de cambios, interrupciones o decisiones de esas plataformas que afecten el Servicio.",
-    en: "The Service integrates with third-party platforms (Meta/WhatsApp, Instagram, Messenger, Shopify, email providers and AI models). Use of those integrations is subject to the terms and policies of each provider. We are not responsible for changes, interruptions or decisions by those platforms that affect the Service.",
+    es: "El Servicio se integra con plataformas de terceros (Meta/WhatsApp, Instagram, Messenger, Mercado Libre, Shopify, proveedores de correo y modelos de IA). El uso de esas integraciones está sujeto a los términos y políticas de cada proveedor. Al conectar una cuenta declaras que estás autorizado a hacerlo y nos autorizas a acceder a los datos de esa cuenta que sean necesarios para prestar el Servicio, únicamente con ese fin. No somos responsables de cambios, interrupciones o decisiones de esas plataformas que afecten el Servicio.",
+    en: "The Service integrates with third-party platforms (Meta/WhatsApp, Instagram, Messenger, Mercado Libre, Shopify, email providers and AI models). Use of those integrations is subject to the terms and policies of each provider. By connecting an account you represent that you are authorized to do so and you authorize us to access the data of that account necessary to provide the Service, solely for that purpose. We are not responsible for changes, interruptions or decisions by those platforms that affect the Service.",
   },
 
   terms6Title: {
