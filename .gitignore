@@ -45,3 +45,8 @@ next-env.d.ts
 
 # claude code (per-developer tool settings — keep local)
 .claude/
+
+# Screen recordings / demo videos (never commit binaries)
+*.mp4
+*.mov
+*.mkv
