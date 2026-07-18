@@ -23,10 +23,6 @@ const SECURITY_HEADERS = [
     value: "max-age=63072000; includeSubDomains; preload",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Superconductor's embedded live preview runs in a cross-origin iframe.
-  ...(process.env.NODE_ENV === "development"
-    ? []
-    : [{ key: "X-Frame-Options", value: "DENY" }]),
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
@@ -181,6 +177,19 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...SECURITY_HEADERS],
       },
+      // Clickjacking hardening for legacy browsers without CSP
+      // frame-ancestors support. /shopify/embedded is excluded: it must
+      // render inside the Shopify admin iframe (the proxy serves it with
+      // frame-ancestors pinned to admin.shopify.com + the shop). In dev,
+      // Superconductor's live preview frames the app, so no XFO at all.
+      ...(process.env.NODE_ENV === "development"
+        ? []
+        : [
+            {
+              source: "/((?!shopify/embedded).*)",
+              headers: [{ key: "X-Frame-Options", value: "DENY" }],
+            },
+          ]),
     ];
   },
 };

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { IdleGuard } from "@/components/auth/idle-guard";
+import { ShopifyClaimGuard } from "@/components/settings/shopify-claim-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { useT } from "@/hooks/use-locale";
 
@@ -105,6 +106,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
       <IdleGuard />
+      <ShopifyClaimGuard />
     </div>
   );
 }

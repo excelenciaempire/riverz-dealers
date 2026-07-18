@@ -188,6 +188,29 @@ export const settings = {
     en: "Fill in the domain, token and API secret key.",
   },
   shopifyConnectedViaToken: { es: "vía custom app", en: "via custom app" },
+  shopifyStoreClaimed: {
+    es: "Tienda {shop} conectada",
+    en: "Store {shop} connected",
+  },
+
+  // Shopify embedded admin surface (App Bridge page inside Shopify admin)
+  shopifyEmbeddedConnected: {
+    es: "Tienda conectada a Riverz",
+    en: "Store connected to Riverz",
+  },
+  shopifyEmbeddedPending: {
+    es: "Falta vincular tu cuenta Riverz",
+    en: "Riverz account not linked yet",
+  },
+  shopifyEmbeddedOpen: { es: "Abrir Riverz", en: "Open Riverz" },
+  shopifyEmbeddedFinish: {
+    es: "Completar instalación",
+    en: "Complete installation",
+  },
+  shopifyEmbeddedError: {
+    es: "No se pudo verificar la sesión de Shopify.",
+    en: "Couldn't verify the Shopify session.",
+  },
 
   // WhatsApp embedded signup
   whatsappAccountNotReceived: {

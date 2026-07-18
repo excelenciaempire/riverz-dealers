@@ -24,6 +24,10 @@ export const auth = {
 
   // Signup
   signupTitle: { es: "Crear cuenta", en: "Create account" },
+  shopifyPendingNotice: {
+    es: "Instalaste Riverz en {shop}. Crea tu cuenta para conectar tu tienda.",
+    en: "You installed Riverz on {shop}. Create your account to connect your store.",
+  },
   passwordsDontMatch: { es: "Las contraseñas no coinciden", en: "Passwords don't match" },
   passwordMin6: {
     es: "La contraseña debe tener al menos 6 caracteres",

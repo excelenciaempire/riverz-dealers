@@ -6,49 +6,49 @@ import {
   verifyOAuthHmac,
   exchangeCodeForToken,
 } from '@/lib/shopify/oauth'
-import { persistShopifyConnection } from '@/lib/shopify/connection'
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
-import { syncShopifyProducts } from '@/lib/shopify/product-sync'
-import { learnOffersOnConnect } from '@/lib/shopify/offer-learning'
-import { enrichProducts } from '@/lib/products/enrich'
+import { completeShopifyConnection } from '@/lib/shopify/complete-connection'
+import {
+  createPendingInstall,
+  CLAIM_COOKIE,
+  CLAIM_HINT_COOKIE,
+} from '@/lib/shopify/pending-install'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { getLocale } from '@/lib/i18n/server'
+import { localizePath } from '@/lib/i18n/routes'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.callback')
 
 /**
  * Complete Shopify OAuth: verify HMAC + state + shop, exchange the code for
- * a token, persist (encrypted), register webhooks, then bounce back to
- * Settings. Mirrors the Riverz callback, adapted to Supabase (no Clerk) and
- * this app's single-string encryption.
- *
- * This callback supports TWO install flows:
+ * a token, then either bind it to the installer's workspace or park it as a
+ * pending install. This callback supports THREE install flows:
  *
  *  (a) App-initiated (our /api/shopify/install endpoint).
  *      The user is signed in to our app, /install set httpOnly cookies
- *      (`shopify_oauth_state`, `shopify_oauth_shop`, `shopify_oauth_user`),
- *      and we validate the CSRF `state` round-trip + bind the OAuth result
- *      to the authenticated user via the user-id cookie.
+ *      (`shopify_oauth_state`, `shopify_oauth_shop`, `shopify_oauth_user`,
+ *      `shopify_oauth_workspace`), and we validate the CSRF `state`
+ *      round-trip + bind the OAuth result to the authenticated user.
  *
- *  (b) Shopify-initiated custom-app distribution.
- *      The merchant clicks "Install" inside admin.shopify.com and is
- *      redirected straight to this callback with NO cookies on the
- *      request. There is no state to validate (we never issued one) and
- *      no user-id cookie to bind to.
+ *  (b) Shopify-initiated with a resolvable owner.
+ *      The merchant clicks "Install"/"Open" inside admin.shopify.com and
+ *      lands here with no cookies. There is no state to validate (we never
+ *      issued one — the /oauth/start bootstrap sets its own) and no user
+ *      cookie. Ownership falls back to SHOPIFY_DEFAULT_OWNER_ID or the
+ *      newest prior connection for the shop (reinstall case).
  *
- *      Skipping the state check in flow (b) is safe because Shopify signs
- *      every callback query string with an HMAC of (shared secret, params).
- *      `verifyOAuthHmac` is the authoritative security gate: if the HMAC
- *      verifies, the `shop`, `code`, and `timestamp` params came from
- *      Shopify and were not tampered with. State is an extra CSRF guard
- *      for browser-initiated flows we kicked off ourselves; when Shopify
- *      itself is the initiator there is no CSRF surface to defend.
+ *      Skipping the state check here is safe because Shopify signs every
+ *      callback query string: `verifyOAuthHmac` is the authoritative
+ *      security gate. State is an extra CSRF guard for flows we kicked off
+ *      ourselves; when Shopify is the initiator there is no CSRF surface.
  *
- *      For ownership, flow (b) falls back to (in order):
- *        1. `SHOPIFY_DEFAULT_OWNER_ID` env var, then
- *        2. the oldest `auth.users` row (workspace owner / Pilar).
- *      A warning is logged so the install can be reassigned later if
- *      multi-tenant.
+ *  (c) Shopify-initiated, brand-new merchant (App Store install).
+ *      No session, no env override, no prior connection. The App Store
+ *      requires OAuth to run BEFORE any Riverz login, so we exchange the
+ *      code, park the encrypted token in `shopify_pending_installs`, hand
+ *      the browser a single-use claim cookie, and send the merchant to
+ *      sign up / sign in. The dashboard auto-claims the store on first
+ *      load (POST /api/shopify/claim).
  */
 function bounce(request: Request, params: Record<string, string>): NextResponse {
   const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
@@ -62,7 +62,10 @@ function bounce(request: Request, params: Record<string, string>): NextResponse 
  *
  *  1. cookie set by /install (the authenticated installer)
  *  2. SHOPIFY_DEFAULT_OWNER_ID env var (ops override)
- *  3. oldest auth.users row — the workspace owner
+ *  3. newest prior connection for this shop (cookie-less reinstall)
+ *
+ * Returns null for a brand-new Shopify-initiated install — the caller
+ * then takes the pending-install path instead of failing.
  */
 async function resolveOwnerUserId(
   cookieUserId: string | undefined,
@@ -76,10 +79,6 @@ async function resolveOwnerUserId(
     return envOwner
   }
 
-  // Reinstall path: Shopify admin → Apps → reinstall has no cookies,
-  // but we already have a previous connection for this shop. Reuse
-  // that user_id deterministically — this is the only case that
-  // legitimately has no cookies, and the answer is unambiguous.
   try {
     const admin = supabaseAdmin()
     const { data: existing } = await admin
@@ -103,11 +102,6 @@ async function resolveOwnerUserId(
     })
   }
 
-  // First-time install with no cookies AND no env override AND no
-  // prior connection → fail closed. Picking the "oldest auth.user" is
-  // never a correct multi-tenant default. The merchant should start
-  // from /api/shopify/install (which sets the cookies).
-  log.error('owner_resolution_unavailable', { shop })
   return null
 }
 
@@ -120,7 +114,7 @@ export async function GET(request: Request) {
     return bounce(request, { shopify: 'error', reason: 'not_configured' })
   }
 
-  // 1. HMAC over the query string. This is the security gate for BOTH flows.
+  // 1. HMAC over the query string. This is the security gate for ALL flows.
   if (!verifyOAuthHmac(params, apiSecret)) {
     // Solo diagnóstico NO sensible. No recomputamos ni logueamos el HMAC, el
     // mensaje firmado, el raw_query ni fragmento/longitud del secreto —
@@ -152,32 +146,24 @@ export async function GET(request: Request) {
     return bounce(request, { shopify: 'error', reason: 'no_code' })
   }
 
-  // 3. Branch on whether this is our /install round-trip or a custom-app
-  //    distribution install kicked off from admin.shopify.com.
+  // 3. Branch on whether this is our /install round-trip or a Shopify-
+  //    initiated install (App Store / admin / custom-app distribution).
   const isAppInitiated = Boolean(expectedState)
 
   if (isAppInitiated) {
     // Flow (a) — strict checks.
     if (!state || state !== expectedState) {
       log.error('state_mismatch', { shop, hasState: Boolean(state) })
-      return bounce(request, {
-        shopify: 'error',
-        reason: 'state',
-        shop,
-      })
+      return bounce(request, { shopify: 'error', reason: 'state', shop })
     }
     if (expectedShop && shop !== expectedShop) {
       log.error('shop_mismatch', { shop, expectedShop })
-      return bounce(request, {
-        shopify: 'error',
-        reason: 'bad_shop',
-        shop,
-      })
+      return bounce(request, { shopify: 'error', reason: 'bad_shop', shop })
     }
   } else {
-    // Flow (b) — Shopify-initiated. State is absent (we never issued one).
-    // If the caller sent a `state` query param anyway, that's unusual — refuse
-    // rather than silently accept, so we can spot a misconfigured install.
+    // Flows (b)/(c). The /oauth/start bootstrap issues its own state cookie;
+    // if it's absent AND the caller still sent a `state` param, that's a
+    // misconfigured install — refuse rather than silently accept.
     if (state) {
       log.error('state_with_custom_install', { shop })
       return bounce(request, {
@@ -186,133 +172,92 @@ export async function GET(request: Request) {
         shop,
       })
     }
-    log.info('custom_app_distribution_install', {
+    log.info('shopify_initiated_install', {
       shop,
-      userId: null,
       scope: params.get('scope') ?? null,
     })
   }
 
-  // 4. Resolve which user owns this connection.
-  const userId = await resolveOwnerUserId(cookieUserId, shop)
-  if (!userId) {
-    log.error('no_user_resolved', { shop })
-    return bounce(request, {
-      shopify: 'error',
-      reason: 'no_user',
-      shop,
-    })
-  }
-
-  // 4b. Resolve the workspace this connection lives in. Prefer the
-  //     cookie value set by /install (deterministic, captured before
-  //     consent so it can't drift). Fall back to the legacy owner_id
-  //     resolution for Shopify-initiated installs where no cookie was
-  //     issued. Migration 055 requires this to be non-null.
-  const admin = supabaseAdmin()
-  const workspaceId =
-    cookieWorkspaceId ||
-    (await resolveWorkspaceIdForUser(admin, userId))
-  if (!workspaceId) {
-    log.error('no_workspace_resolved', { shop, userId })
-    return bounce(request, {
-      shopify: 'error',
-      reason: 'no_workspace',
-      shop,
-    })
-  }
-
+  // 4. Exchange code → token FIRST. The single-use code must be consumed
+  //    on every path (binding or pending) or the install dead-ends.
+  let accessToken: string
+  let grantedScope: string
   try {
-    // 5. Exchange code → token.
-    const { access_token, scope } = await exchangeCodeForToken({
+    const exchanged = await exchangeCodeForToken({ shop, code, apiKey, apiSecret })
+    accessToken = exchanged.access_token
+    grantedScope = exchanged.scope
+  } catch (err) {
+    log.error('exchange_failed', {
       shop,
-      code,
-      apiKey,
-      apiSecret,
+      error: err instanceof Error ? err.message : String(err),
     })
+    return bounce(request, { shopify: 'error', reason: 'exchange', shop })
+  }
 
-    // 6. Resolve shop name (best-effort) + persist (service role).
-    const client = new ShopifyAdminClient(shop, access_token)
-    let shopName: string | null = null
+  const admin = supabaseAdmin()
+  const callbackBase =
+    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+
+  // 5. Resolve which user/workspace owns this connection.
+  const userId = await resolveOwnerUserId(cookieUserId, shop)
+  const workspaceId = userId
+    ? cookieWorkspaceId || (await resolveWorkspaceIdForUser(admin, userId))
+    : null
+
+  // 5b. Flow (c): brand-new merchant with no Riverz identity. Park the
+  //     token and send them to create/sign into an account; the dashboard
+  //     claims the store right after auth.
+  if (!userId || !workspaceId) {
     try {
-      shopName = (await client.getShopInfo()).name || null
+      const { claimToken } = await createPendingInstall(admin, {
+        shopDomain: shop,
+        accessToken,
+        scope: grantedScope,
+      })
+      log.info('install_parked_pending_claim', { shop })
+
+      const locale = await getLocale()
+      const url = new URL(localizePath('/registro', locale), callbackBase)
+      url.searchParams.set('shopify', 'pending')
+      url.searchParams.set('shop', shop)
+      const res = NextResponse.redirect(url)
+      const cookieOpts = {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        maxAge: 24 * 60 * 60,
+        path: '/',
+      }
+      res.cookies.set(CLAIM_COOKIE, claimToken, { ...cookieOpts, httpOnly: true })
+      // JS-readable hint (domain only, no secret) so the dashboard knows
+      // to auto-claim after sign-in.
+      res.cookies.set(CLAIM_HINT_COOKIE, shop, { ...cookieOpts, httpOnly: false })
+      return res
     } catch (err) {
-      log.warn('shop_info_failed', {
+      log.error('pending_install_failed', {
         shop,
         error: err instanceof Error ? err.message : String(err),
       })
+      return bounce(request, { shopify: 'error', reason: 'pending', shop })
     }
+  }
 
-    await persistShopifyConnection(admin, {
+  // 6. Flows (a)/(b): bind now — persist, register webhooks, kick off the
+  //    background catalog sync chain.
+  try {
+    await completeShopifyConnection(admin, {
       userId,
       workspaceId,
       shopDomain: shop,
-      shopName,
-      accessToken: access_token,
-      scope,
-      // Mark the connection authoritatively as OAuth so webhook verification
-      // uses the global secret even if this shop was previously admin_token
-      // (the leftover per-store webhook_secret is then ignored by
-      // resolveShopWebhookSecret, which keys off connection_method).
-      connectionMethod: 'oauth',
+      accessToken,
+      scope: grantedScope,
+      callbackBase,
     })
-
-    // 7. Register webhooks (abandoned checkout + app/uninstalled).
-    const callbackBase =
-      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-    try {
-      await client.registerWebhooks(callbackBase)
-    } catch (err) {
-      // Non-fatal — log and continue. The connection is already persisted,
-      // and webhook registration can be retried out-of-band.
-      log.error('webhook_register_failed', {
-        shop,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-
-    // 8. Background-sync the product catalog so the AI assistant has
-    //    something to reason about immediately, THEN learn offer tiers from
-    //    recent order history (Kaching bundles etc.) onto those products —
-    //    both fire-and-forget, chained so offers attach to synced rows. Never
-    //    block/fail the OAuth redirect on catalog or offer work.
-    // Auto-enrich on connect (bounded): scrape each product's page (→ detects
-    // offers, free) then generate research. The scrape+offer step works with
-    // no Anthropic balance; research lands 'failed' and re-runs once funded.
-    // Toggle with SHOPIFY_ENRICH_ON_CONNECT=0; cap with SHOPIFY_ENRICH_MAX.
-    const enrichOnConnect = process.env.SHOPIFY_ENRICH_ON_CONNECT !== '0'
-    const enrichMax = Math.max(1, Math.min(Number(process.env.SHOPIFY_ENRICH_MAX) || 25, 200))
-    syncShopifyProducts(admin, {
-      userId,
-      workspaceId,
-      shopDomain: shop,
-      accessToken: access_token,
-    })
-      .then(() =>
-        learnOffersOnConnect(admin, {
-          shopDomain: shop,
-          accessToken: access_token,
-          maxPages: 2,
-          locale: 'es',
-        }),
-      )
-      .then(() =>
-        enrichOnConnect
-          ? enrichProducts(admin, { shopDomain: shop, max: enrichMax, locale: 'es' })
-          : undefined,
-      )
-      .catch((err) =>
-        log.error('initial_sync_offer_or_enrich_failed', {
-          shop,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      )
 
     log.info('install_success', {
       shop,
       userId,
-      scope,
-      flow: isAppInitiated ? 'app_initiated' : 'custom_app_distribution',
+      scope: grantedScope,
+      flow: isAppInitiated ? 'app_initiated' : 'shopify_initiated',
     })
 
     const res = bounce(request, { shopify: 'connected', shop })
@@ -322,14 +267,10 @@ export async function GET(request: Request) {
     res.cookies.delete('shopify_oauth_shop')
     return res
   } catch (err) {
-    log.error('exchange_failed', {
+    log.error('persist_failed', {
       shop,
       error: err instanceof Error ? err.message : String(err),
     })
-    return bounce(request, {
-      shopify: 'error',
-      reason: 'exchange',
-      shop,
-    })
+    return bounce(request, { shopify: 'error', reason: 'exchange', shop })
   }
 }

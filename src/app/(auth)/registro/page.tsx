@@ -22,6 +22,11 @@ function SignupForm() {
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
   const prefillEmail = searchParams.get("email");
+  // Set by the Shopify OAuth callback when the merchant installed the app
+  // from Shopify admin without having a Riverz account yet — the store is
+  // parked and auto-connects right after this signup (dashboard claim).
+  const pendingShop =
+    searchParams.get("shopify") === "pending" ? searchParams.get("shop") : null;
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(prefillEmail ?? "");
@@ -128,6 +133,11 @@ function SignupForm() {
             riverz
           </span>
           <CardTitle className="text-xl text-foreground">{t("auth.signupTitle")}</CardTitle>
+          {pendingShop && (
+            <CardDescription className="text-muted-foreground">
+              {t("auth.shopifyPendingNotice", { shop: pendingShop })}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="flex flex-col gap-4">

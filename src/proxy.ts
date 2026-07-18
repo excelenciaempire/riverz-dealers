@@ -14,14 +14,31 @@ import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 //
 // Dev keeps `'unsafe-eval'` because React's RSC stack reconstructs
 // server stacks in the browser via `eval`. Prod ships without it.
-function buildCsp(nonce: string): string {
+function buildCsp(
+  nonce: string,
+  opts?: { shopifyEmbedded?: { shop: string | null } },
+): string {
   const isDev = process.env.NODE_ENV === 'development'
+  // /shopify/embedded renders inside the Shopify admin iframe: allow that
+  // ancestry (pinned to the requesting shop when known) and the App Bridge
+  // CDN script. Every other route keeps frame-ancestors 'none'.
+  const shopifyEmbedded = opts?.shopifyEmbedded
+  const frameAncestors = shopifyEmbedded
+    ? `frame-ancestors https://admin.shopify.com${
+        shopifyEmbedded.shop
+          ? ` https://${shopifyEmbedded.shop}`
+          : ' https://*.myshopify.com'
+      }`
+    : isDev
+      ? // Superconductor's embedded live preview runs in a cross-origin iframe.
+        "frame-ancestors 'self' https://superconductor.com https://*.superconductor.com"
+      : "frame-ancestors 'none'"
   const directives = [
     "default-src 'self'",
     // object-src 'none' explícito: <object>/<embed> pueden cargar plugins
     // legacy que evaden 'self' y no están cubiertos por strict-dynamic.
     "object-src 'none'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}${shopifyEmbedded ? ' https://cdn.shopify.com' : ''}`,
     "style-src 'self' 'unsafe-inline'",
     // Any https image source. The inbox renders real email bodies in a
     // sandboxed (script-free) <iframe srcdoc>, which inherits THIS policy;
@@ -31,11 +48,8 @@ function buildCsp(nonce: string): string {
     // by script-src, so this doesn't widen the XSS surface.
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com",
-    // Superconductor's embedded live preview runs in a cross-origin iframe.
-    isDev
-      ? "frame-ancestors 'self' https://superconductor.com https://*.superconductor.com"
-      : "frame-ancestors 'none'",
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com${shopifyEmbedded ? ' https://cdn.shopify.com' : ''}`,
+    frameAncestors,
     "base-uri 'self'",
     "form-action 'self'",
     'upgrade-insecure-requests',
@@ -47,14 +61,30 @@ function buildCsp(nonce: string): string {
 // security headers (HSTS, X-Frame-Options, etc.) come from
 // next.config.ts so they apply uniformly even to responses that bypass
 // the proxy.
-function applyCsp(response: NextResponse, nonce: string): NextResponse {
-  response.headers.set('Content-Security-Policy', buildCsp(nonce))
+function applyCsp(response: NextResponse, csp: string): NextResponse {
+  response.headers.set('Content-Security-Policy', csp)
   return response
 }
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
-  const csp = buildCsp(nonce)
+  // The Shopify embedded page must be frameable by the merchant's admin;
+  // pin frame-ancestors to their shop when the query names one.
+  const isShopifyEmbedded = request.nextUrl.pathname === '/shopify/embedded'
+  const embeddedShopParam = request.nextUrl.searchParams.get('shop')
+  const csp = buildCsp(
+    nonce,
+    isShopifyEmbedded
+      ? {
+          shopifyEmbedded: {
+            shop:
+              embeddedShopParam && /^[\w-]+\.myshopify\.com$/i.test(embeddedShopParam)
+                ? embeddedShopParam.toLowerCase()
+                : null,
+          },
+        }
+      : undefined,
+  )
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   // Next 16 reads the CSP from the *request* headers to stamp the nonce
@@ -62,28 +92,33 @@ export async function proxy(request: NextRequest) {
   // nonce="" and the browser blocks every chunk → blank page.
   requestHeaders.set('Content-Security-Policy', csp)
 
-  // Shopify post-install bootstrap. Custom-app distribution sends the
-  // merchant to the App URL (not our redirect_uri) with `?shop=…&hmac=…`.
-  // The merchant has no Riverz session, so this must run before the
-  // demo/auth checks that would bounce them to /ingresar and drop the
-  // query string. Forward to /api/shopify/oauth/start preserving the
-  // params Shopify needs to keep the install flow signed.
+  // Shopify App URL bootstrap. Shopify sends merchants to the App URL
+  // (site root) with `?shop=…&hmac=…` in two situations, and the merchant
+  // has no Riverz session in either, so this must run before the auth
+  // checks that would bounce them to /ingresar and drop the query string:
+  //
+  //  - embedded=1 → the admin iframe is loading the app: serve the
+  //    embedded App Bridge page.
+  //  - otherwise  → top-level install/open: start OAuth immediately
+  //    (App Store review requires auth before any interstitial page).
   const shopParam = request.nextUrl.searchParams.get('shop')
   if (
     shopParam &&
     /^[\w-]+\.myshopify\.com$/i.test(shopParam) &&
-    !request.nextUrl.pathname.startsWith('/api/shopify/')
+    !request.nextUrl.pathname.startsWith('/api/shopify/') &&
+    !isShopifyEmbedded
   ) {
     const url = request.nextUrl.clone()
-    url.pathname = '/api/shopify/oauth/start'
-    const next = new URLSearchParams()
-    next.set('shop', shopParam)
-    for (const key of ['host', 'hmac', 'timestamp', 'embedded', 'session']) {
-      const value = request.nextUrl.searchParams.get(key)
-      if (value) next.set(key, value)
-    }
-    url.search = `?${next.toString()}`
-    return applyCsp(NextResponse.redirect(url), nonce)
+    const isEmbeddedLoad = request.nextUrl.searchParams.get('embedded') === '1'
+    url.pathname = isEmbeddedLoad ? '/shopify/embedded' : '/api/shopify/oauth/start'
+    // Forward the query VERBATIM: Shopify's hmac signs every param, so
+    // dropping any of them would break downstream signature checks.
+    // Chrome enforces frame-ancestors on redirect responses inside
+    // iframes, so the embedded hop must already be frameable.
+    const redirectCsp = isEmbeddedLoad
+      ? buildCsp(nonce, { shopifyEmbedded: { shop: shopParam.toLowerCase() } })
+      : csp
+    return applyCsp(NextResponse.redirect(url), redirectCsp)
   }
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
@@ -122,7 +157,7 @@ export async function proxy(request: NextRequest) {
   const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()
     url.pathname = localizePath(path, locale)
-    return applyCsp(NextResponse.redirect(url), nonce)
+    return applyCsp(NextResponse.redirect(url), csp)
   }
 
   // Auth pages - redirect to dashboard if already logged in. /nueva-clave
@@ -162,7 +197,7 @@ export async function proxy(request: NextRequest) {
   // API routes that need auth (not webhooks)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
-    return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), nonce)
+    return applyCsp(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), csp)
   }
 
   // First-visit locale default: if no locale cookie yet, assign one "por IP".
@@ -179,7 +214,7 @@ export async function proxy(request: NextRequest) {
     })
   }
 
-  return applyCsp(supabaseResponse, nonce)
+  return applyCsp(supabaseResponse, csp)
 }
 
 export const config = {

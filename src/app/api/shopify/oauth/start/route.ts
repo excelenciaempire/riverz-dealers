@@ -4,6 +4,7 @@ import {
   normalizeShopDomain,
   buildAuthorizeUrl,
   shopifyScopes,
+  verifyOAuthHmac,
 } from '@/lib/shopify/oauth'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
@@ -35,6 +36,19 @@ export async function GET(request: Request) {
       { error: translate(locale, 'errProducts.invalidShopDomain') },
       { status: 400 },
     )
+  }
+
+  // Shopify-initiated hits (App URL bootstrap) arrive signed. When the
+  // signature is present, verify it — a forged/tampered query then fails
+  // instead of silently starting OAuth for an attacker-chosen shop.
+  const apiSecret = process.env.SHOPIFY_API_SECRET
+  if (url.searchParams.get('hmac') && apiSecret) {
+    if (!verifyOAuthHmac(url.searchParams, apiSecret)) {
+      return NextResponse.json(
+        { error: translate(locale, 'errProducts.invalidShopDomain') },
+        { status: 400 },
+      )
+    }
   }
 
   const redirectUri =

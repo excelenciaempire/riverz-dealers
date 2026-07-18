@@ -132,6 +132,16 @@ export const errProducts = {
     es: "Faltan datos: dominio, token de Admin API y API secret key.",
     en: "Missing fields: store domain, Admin API token and API secret key.",
   },
+  // --- /api/shopify/claim (App Store install-first flow) ---
+  shopifyClaimExpired: {
+    es: "La instalación de Shopify expiró. Vuelve a abrir Riverz desde tu admin de Shopify.",
+    en: "The Shopify install expired. Open Riverz again from your Shopify admin.",
+  },
+  shopifyClaimFailed: {
+    es: "No se pudo conectar la tienda. Intenta de nuevo desde tu admin de Shopify.",
+    en: "Couldn't connect the store. Try again from your Shopify admin.",
+  },
+
   shopifyTokenInvalid: {
     es: "El token no funcionó con esa tienda. Verificá el dominio y que el token tenga los permisos (read/write de pedidos, clientes y productos).",
     en: "The token didn't work for that store. Check the domain and that the token has the right scopes (read/write orders, customers, products).",
