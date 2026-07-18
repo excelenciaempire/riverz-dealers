@@ -7,6 +7,7 @@ import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
 import type { Channel, Conversation, ConversationStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
+import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import {
   MESSAGE_CHANNELS,
   COMMENT_CHANNELS,
@@ -686,12 +687,19 @@ const ConversationItem = memo(function ConversationItem({
             <span className="truncate text-sm font-medium text-foreground">
               {displayName}
             </span>
+            {/* ML: marca pregunta (pública) vs mensaje (post-venta) */}
+            <MlKindBadge
+              channel={conversation.channel}
+              threadExternalId={conversation.thread_external_id}
+            />
           </div>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-muted-foreground">
-            {conversation.subject ? (
+            {/* En ML el prefijo del subject ("Pregunta · <id>") repetiría el
+                badge de arriba y el id crudo no aporta — lo omitimos ahí. */}
+            {conversation.subject && conversation.channel !== "mercadolibre" ? (
               <span className="font-medium text-foreground">{conversation.subject} · </span>
             ) : null}
             {conversation.last_message_text || t("inbox.noMessages")}
@@ -728,6 +736,7 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.status === b.conversation.status &&
   a.conversation.last_sender_type === b.conversation.last_sender_type &&
   a.conversation.subject === b.conversation.subject &&
+  a.conversation.thread_external_id === b.conversation.thread_external_id &&
   a.conversation.is_ad === b.conversation.is_ad &&
   a.conversation.contact?.name === b.conversation.contact?.name &&
   a.conversation.contact?.avatar_url === b.conversation.contact?.avatar_url &&

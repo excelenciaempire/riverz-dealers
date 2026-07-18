@@ -10,6 +10,7 @@ import {
 } from "@/lib/channels/meta-graph";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { startOutlookWatch } from "@/lib/channels/outlook/watch";
+import { upsertConnectionRow } from "@/lib/channels/upsert-connection";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection } from "@/types";
@@ -231,22 +232,18 @@ export async function GET(
         access_token: encrypt(account.page_access_token),
         user_access_token: encrypt(accessToken),
       };
-      const { error: insErr } = await admin.from("channel_connections").insert({
+      const up = await upsertConnectionRow(admin, {
         workspace_id: state.workspaceId,
         channel,
         label: account.label,
-        status: "connected",
         external_account_id: account.external_account_id,
         config: account.config,
         secrets,
         created_by: user.id,
       });
-      if (insErr) {
-        // 23505 duplicate is fine — admin reconnected.
-        if (insErr.code !== "23505") {
-          console.error(`[oauth/meta] insert failed for ${account.label}:`, insErr);
-          continue;
-        }
+      if (up.error) {
+        console.error(`[oauth/meta] upsert failed for ${account.label}:`, up.error);
+        continue;
       }
       saved++;
 
@@ -271,36 +268,65 @@ export async function GET(
     return redirectWithStatus(req, "ok", `${saved} saved, ${subscribed} subscribed`);
   }
 
-  // Non-Meta providers (Google, Microsoft) — single connection per OAuth flow.
+  // Non-Meta providers (Google, Microsoft, MercadoLibre) — single
+  // connection per OAuth flow. Reconnecting the same mailbox/seller
+  // revives its existing row instead of stacking a duplicate.
   const secrets: Record<string, unknown> = { ...baseSecrets, access_token: encrypt(accessToken) };
-  const { data: inserted, error: upsertErr } = await admin
-    .from("channel_connections")
-    .insert({
+  const rowConfig =
+    channel === "gmail" || channel === "outlook"
+      ? { email: label ?? externalAccountId }
+      : channel === "mercadolibre"
+        ? {
+            seller_id: externalAccountId,
+            site_id: mlSiteId,
+            token_expires_at: tokenJson.expires_in
+              ? new Date(Date.now() + Number(tokenJson.expires_in) * 1000).toISOString()
+              : undefined,
+          }
+        : {};
+  let inserted: ChannelConnection | null = null;
+  if (externalAccountId) {
+    const up = await upsertConnectionRow(admin, {
       workspace_id: state.workspaceId,
       channel,
       label: label ?? channelLabel(channel),
-      status: "connected",
       external_account_id: externalAccountId,
-      config:
-        channel === "gmail" || channel === "outlook"
-          ? { email: label ?? externalAccountId }
-          : channel === "mercadolibre"
-            ? {
-                seller_id: externalAccountId,
-                site_id: mlSiteId,
-                token_expires_at: tokenJson.expires_in
-                  ? new Date(Date.now() + Number(tokenJson.expires_in) * 1000).toISOString()
-                  : undefined,
-              }
-            : {},
+      config: rowConfig,
       secrets,
       created_by: user.id,
-    })
-    .select("*")
-    .maybeSingle();
-  if (upsertErr) {
-    console.error(`[oauth/${provider}] persist failed:`, upsertErr);
-    return redirectWithStatus(req, "error", upsertErr.message);
+    });
+    if (up.error || !up.id) {
+      console.error(`[oauth/${provider}] persist failed:`, up.error);
+      return redirectWithStatus(req, "error", up.error ?? "persist failed");
+    }
+    const { data: fullRow } = await admin
+      .from("channel_connections")
+      .select("*")
+      .eq("id", up.id)
+      .maybeSingle();
+    inserted = (fullRow as ChannelConnection | null) ?? null;
+  } else {
+    // Identity unknown (provider didn't return one) — plain insert; the
+    // unique index ignores NULL external_account_id.
+    const { data, error: insErr } = await admin
+      .from("channel_connections")
+      .insert({
+        workspace_id: state.workspaceId,
+        channel,
+        label: label ?? channelLabel(channel),
+        status: "connected",
+        external_account_id: externalAccountId,
+        config: rowConfig,
+        secrets,
+        created_by: user.id,
+      })
+      .select("*")
+      .maybeSingle();
+    if (insErr) {
+      console.error(`[oauth/${provider}] persist failed:`, insErr);
+      return redirectWithStatus(req, "error", insErr.message);
+    }
+    inserted = (data as ChannelConnection | null) ?? null;
   }
 
   // Gmail: arm the Pub/Sub watch right away so the user gets real-time

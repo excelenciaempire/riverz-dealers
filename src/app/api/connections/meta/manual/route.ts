@@ -10,6 +10,7 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
+import { upsertConnectionRow } from "@/lib/channels/upsert-connection";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel } from "@/types";
@@ -207,36 +208,20 @@ async function connectPageChannel(
       ? { page_id: pageId, page_name: pageName, ig_user_id: igUserId }
       : { page_id: pageId, page_name: pageName };
 
-    const { error: insErr } = await admin.from("channel_connections").insert({
+    const up = await upsertConnectionRow(admin, {
       workspace_id: args.workspaceId,
       channel: ch,
       label: rowLabel,
-      status: "connected",
       external_account_id: externalAccountId,
       config,
       secrets: { access_token: encryptedToken },
       created_by: args.userId,
     });
-    if (insErr) {
-      if (insErr.code === "23505") {
-        // Already connected — refresh its token + reactivate instead.
-        await admin
-          .from("channel_connections")
-          .update({
-            secrets: { access_token: encryptedToken },
-            status: "connected",
-            last_error: null,
-          })
-          .eq("workspace_id", args.workspaceId)
-          .eq("channel", ch)
-          .eq("external_account_id", externalAccountId);
-        already.push(ch);
-      } else {
-        throw new Error(`insert failed (${ch}): ${insErr.message}`);
-      }
-    } else {
-      created.push(ch);
+    if (up.error) {
+      throw new Error(`upsert failed (${ch}): ${up.error}`);
     }
+    if (up.revived) already.push(ch);
+    else created.push(ch);
     label = rowLabel;
 
     // Webhook subscription is best-effort.

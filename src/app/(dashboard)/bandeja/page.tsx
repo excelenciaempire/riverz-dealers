@@ -9,6 +9,8 @@ import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
+import { MlSubFilter, type MlKindFilter } from "@/components/inbox/ml-subfilter";
+import { mlThreadKind } from "@/lib/channels/display";
 import {
   InboxTabs,
   type InboxTab,
@@ -40,6 +42,8 @@ export default function InboxPage() {
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [channelFilter, setChannelFilter] = useState<Channel | null>(null);
+  // Secondary filter within the MercadoLibre chip: all / questions / messages.
+  const [mlKindFilter, setMlKindFilter] = useState<MlKindFilter>("all");
   const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
@@ -620,8 +624,35 @@ export default function InboxPage() {
     if (channelFilter) {
       list = list.filter((c) => c.channel === channelFilter);
     }
+    // Tertiary filter — only under MercadoLibre: pregunta vs mensaje.
+    if (channelFilter === "mercadolibre" && mlKindFilter !== "all") {
+      list = list.filter(
+        (c) => mlThreadKind(c.channel, c.thread_external_id) === mlKindFilter,
+      );
+    }
     return list;
-  }, [conversations, inboxTab, channelFilter]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter]);
+
+  // Counts for the ML sub-filter chips (question vs message), across all
+  // loaded ML conversations regardless of the active sub-filter so the
+  // chip totals stay stable while the user toggles between them.
+  const mlCounts = useMemo(() => {
+    let question = 0;
+    let message = 0;
+    for (const c of conversations) {
+      const kind = mlThreadKind(c.channel, c.thread_external_id);
+      if (kind === "question") question++;
+      else if (kind === "message") message++;
+    }
+    return { question, message };
+  }, [conversations]);
+
+  // Switching the channel chip resets the ML sub-filter so a stale
+  // "solo preguntas" doesn't hide everything under another channel.
+  const handleChannelChange = useCallback((next: Channel | null) => {
+    setChannelFilter(next);
+    setMlKindFilter("all");
+  }, []);
 
   // Switching tab clears any channel filter that no longer applies, so
   // the user doesn't get an empty list because a stale chip is still
@@ -629,6 +660,7 @@ export default function InboxPage() {
   const handleTabChange = useCallback(
     (next: InboxTab) => {
       setInboxTab(next);
+      setMlKindFilter("all");
       if (channelFilter && !channelBelongsToTab(channelFilter, next)) {
         setChannelFilter(null);
       }
@@ -679,10 +711,17 @@ export default function InboxPage() {
             />
             <ChannelFilter
               value={channelFilter}
-              onChange={setChannelFilter}
+              onChange={handleChannelChange}
               available={visibleAvailableChannels}
               unread={unreadByChannel}
             />
+            {channelFilter === "mercadolibre" && (
+              <MlSubFilter
+                value={mlKindFilter}
+                onChange={setMlKindFilter}
+                counts={mlCounts}
+              />
+            )}
             <div className="flex-1 overflow-hidden">
               <ConversationList
                 activeConversationId={activeConversation?.id ?? null}

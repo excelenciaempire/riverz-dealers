@@ -275,6 +275,9 @@ export async function ingestInboundEvent(
       sourcePostId: event.comment?.postId ?? null,
       // The comment id — lets us DM as a private reply to the comment.
       commentId: event.externalMessageId ?? null,
+      // The account that received the comment — the DM/hide must go out
+      // through it, not through "the workspace's newest IG connection".
+      connection: event.connection,
       engagementText: event.text,
     }).catch((err) =>
       console.error("[ig-agent] instant outreach failed:", err),

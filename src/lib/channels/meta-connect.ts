@@ -1,5 +1,6 @@
 import { encrypt } from "./encryption";
 import { discoverMetaAccounts, subscribePageToWebhooks } from "./meta-graph";
+import { upsertConnectionRow } from "./upsert-connection";
 import type { supabaseAdmin } from "./admin-client";
 import type { Channel } from "@/types";
 
@@ -63,19 +64,17 @@ export async function persistMetaConnections(
       access_token: encrypt(account.page_access_token),
       user_access_token: encrypt(accessToken),
     };
-    const { error: insErr } = await admin.from("channel_connections").insert({
+    const up = await upsertConnectionRow(admin, {
       workspace_id: workspaceId,
       channel,
       label: account.label,
-      status: "connected",
       external_account_id: account.external_account_id,
       config: account.config,
       secrets,
       created_by: userId,
     });
-    if (insErr && insErr.code !== "23505") {
-      // 23505 (duplicate) is fine — admin reconnected the same account.
-      console.error(`[meta-connect] insert failed for ${account.label}:`, insErr);
+    if (up.error) {
+      console.error(`[meta-connect] upsert failed for ${account.label}:`, up.error);
       continue;
     }
     saved++;
@@ -92,20 +91,19 @@ export async function persistMetaConnections(
           ? "ig_comment"
           : null;
     if (commentSibling) {
-      const { error: cErr } = await admin.from("channel_connections").insert({
+      const cUp = await upsertConnectionRow(admin, {
         workspace_id: workspaceId,
         channel: commentSibling,
         label: account.label,
-        status: "connected",
         external_account_id: account.external_account_id,
         config: account.config,
         secrets,
         created_by: userId,
       });
-      if (cErr && cErr.code !== "23505") {
+      if (cUp.error) {
         console.error(
-          `[meta-connect] comment-sibling insert failed for ${account.label}:`,
-          cErr,
+          `[meta-connect] comment-sibling upsert failed for ${account.label}:`,
+          cUp.error,
         );
       }
     }

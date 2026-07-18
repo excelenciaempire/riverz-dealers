@@ -78,6 +78,27 @@ export function channelDisplay(channel: Channel): ChannelDisplay {
   return CHANNEL_DISPLAY[channel];
 }
 
+/** MercadoLibre sub-kind: a pre-sale QUESTION (public, shown on the listing)
+ *  vs a post-sale MESSAGE (private, tied to an order pack). */
+export type MlThreadKind = "question" | "message";
+
+/**
+ * Derive the ML sub-kind from a conversation's thread_external_id. ML encodes
+ * it as a string prefix — `q:<id>` for questions, `pack:<id>` for post-sale
+ * messages (see mercadolibre/adapter.ts). There is no typed column, so the UI
+ * parses the prefix here, in ONE place, so the row badge, thread header and
+ * sub-filter can't drift. Returns null for any non-ML conversation.
+ */
+export function mlThreadKind(
+  channel: Channel,
+  threadExternalId?: string | null,
+): MlThreadKind | null {
+  if (channel !== "mercadolibre" || !threadExternalId) return null;
+  if (threadExternalId.startsWith("q:")) return "question";
+  if (threadExternalId.startsWith("pack:")) return "message";
+  return null;
+}
+
 import type { TFn } from "@/lib/i18n/translate";
 
 /**

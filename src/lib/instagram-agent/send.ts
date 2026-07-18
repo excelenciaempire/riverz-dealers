@@ -38,19 +38,22 @@ export async function sendCampaignBatch(
   },
   limit = 25,
 ): Promise<{ sent: number; failed: number; remaining: number; skipped?: string }> {
-  // 1) Conexión de Instagram del workspace.
-  const { data: connRow } = await db
+  // 1) Conexiones de Instagram del workspace — TODAS. Con más de una cuenta
+  //    conectada, cada DM debe salir por la cuenta con la que la persona
+  //    interactuó (se resuelve por destinatario más abajo); la más reciente
+  //    queda solo como fallback para filas sin conversación rastreable.
+  const { data: connRows } = await db
     .from('channel_connections')
     .select('*')
     .eq('workspace_id', campaign.workspace_id)
     .eq('channel', 'instagram')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!connRow) {
+    .neq('status', 'disconnected')
+    .order('updated_at', { ascending: false });
+  const igConns = (connRows ?? []) as ChannelConnection[];
+  if (igConns.length === 0) {
     return { sent: 0, failed: 0, remaining: 0, skipped: 'instagram_not_connected' };
   }
-  const connection = connRow as ChannelConnection;
+  const connection = igConns[0];
 
   // Trust gate: emergency pause + rolling-24h daily cap for the workspace.
   const gate = await proactiveGate(db, campaign.workspace_id);
@@ -106,6 +109,18 @@ export async function sendCampaignBatch(
   if (rows.length === 0) {
     return { sent: 0, failed: 0, remaining: 0 };
   }
+
+  // Con varias cuentas IG conectadas: resolver por destinatario la cuenta con
+  // la que interactuó (vía la conversación que el webhook ya atribuyó), para
+  // que el DM salga por la identidad correcta. Una sola cuenta → sin costo.
+  const connByContact =
+    igConns.length > 1
+      ? await resolveRecipientConnections(
+          db,
+          rows.map((r) => r.contact_id).filter((id): id is string => Boolean(id)),
+          igConns,
+        )
+      : new Map<string, ChannelConnection>();
 
   // Brand voice + knowledge once per batch, from the SAME linked agent that
   // answers reactively, so every DM sounds on-brand and consistent.
@@ -243,7 +258,7 @@ export async function sendCampaignBatch(
     try {
       await instagramAdapter.sendText({
         channel: 'instagram',
-        connection,
+        connection: connByContact.get(p.contact.id) ?? connection,
         // El adapter de Instagram no usa `conversation` para enviar; basta
         // con un objeto mínimo para satisfacer el contrato del tipo.
         conversation: { id: '' } as unknown as Conversation,
@@ -281,4 +296,60 @@ export async function sendCampaignBatch(
     .eq('is_spam', false);
 
   return { sent, failed, remaining: remaining ?? 0 };
+}
+
+/**
+ * Cuenta IG real de cada contacto: su conversación más reciente (instagram o
+ * ig_comment) ya lleva el connection_id que el webhook atribuyó al ingresar.
+ * Si esa fila es la hermana ig_comment, se prefiere la fila instagram de la
+ * MISMA cuenta (mismo external_account_id — comparten token); la hermana en sí
+ * sirve de último recurso. Contactos sin conversación rastreable no entran al
+ * mapa y caen al fallback del caller.
+ */
+async function resolveRecipientConnections(
+  db: SupabaseClient,
+  contactIds: string[],
+  igConns: ChannelConnection[],
+): Promise<Map<string, ChannelConnection>> {
+  const out = new Map<string, ChannelConnection>();
+  if (contactIds.length === 0) return out;
+
+  const { data } = await db
+    .from('conversations')
+    .select('contact_id, connection_id, last_message_at')
+    .in('contact_id', contactIds)
+    .in('channel', ['instagram', 'ig_comment'])
+    .not('connection_id', 'is', null)
+    .order('last_message_at', { ascending: false });
+  const newestConnByContact = new Map<string, string>();
+  for (const row of (data ?? []) as Array<{ contact_id: string; connection_id: string }>) {
+    if (!newestConnByContact.has(row.contact_id)) {
+      newestConnByContact.set(row.contact_id, row.connection_id);
+    }
+  }
+  if (newestConnByContact.size === 0) return out;
+
+  const byId = new Map<string, ChannelConnection>(igConns.map((c) => [c.id, c]));
+  const missing = [...new Set(newestConnByContact.values())].filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    const { data: extra } = await db
+      .from('channel_connections')
+      .select('*')
+      .in('id', missing);
+    for (const c of (extra ?? []) as ChannelConnection[]) byId.set(c.id, c);
+  }
+
+  for (const [contactId, connId] of newestConnByContact) {
+    const src = byId.get(connId);
+    if (!src) continue;
+    if (src.channel === 'instagram') {
+      out.set(contactId, src);
+      continue;
+    }
+    const sibling = igConns.find(
+      (c) => String(c.external_account_id ?? '') === String(src.external_account_id ?? ''),
+    );
+    out.set(contactId, sibling ?? src);
+  }
+  return out;
 }

@@ -34,6 +34,7 @@ import type { TFn } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/config";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import { Badge } from "@/components/ui/badge";
+import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1063,6 +1064,14 @@ export function MessageThread({
               {sessionInfo.remaining}
             </Badge>
           )}
+          {/* ML: al responder importa saber si es una pregunta pública (la
+              respuesta se publica en la publicación) o un mensaje privado. */}
+          <MlKindBadge
+            channel={conversation.channel}
+            threadExternalId={conversation.thread_external_id}
+            variant="header"
+            className="ml-1 hidden sm:inline-flex sm:ml-2"
+          />
         </div>
 
         <div className="flex items-center gap-2">

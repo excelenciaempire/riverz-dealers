@@ -92,6 +92,33 @@ async function igConnection(
   return (data as ChannelConnection) ?? null;
 }
 
+/**
+ * Conexión para MANDAR el DM: la cuenta que recibió el comentario, nunca
+ * "la IG más reciente del workspace" (con 2 cuentas conectadas eso enviaba
+ * por la equivocada y Meta rechazaba el private reply). Si la fuente es la
+ * fila ig_comment, se prefiere su hermana `instagram` (misma cuenta, mismo
+ * token); la propia fila sirve como último recurso porque comparte secrets.
+ */
+async function dmConnectionFor(
+  db: SupabaseClient,
+  workspaceId: string,
+  source: ChannelConnection | null | undefined,
+): Promise<ChannelConnection | null> {
+  if (!source) return igConnection(db, workspaceId);
+  if (source.channel === 'instagram') return source;
+  const { data } = await db
+    .from('channel_connections')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'instagram')
+    .eq('external_account_id', source.external_account_id ?? '')
+    .neq('status', 'disconnected')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as ChannelConnection | null) ?? source;
+}
+
 function offerFrom(
   campaign: Pick<ActiveCampaign, 'plan' | 'offer_code'>,
 ): { code: string; discount: string } | null {
@@ -116,6 +143,10 @@ export async function maybeInstantOutreach(
     /** The comment id, so we can DM as a private reply (required for
      *  comment-sourced contacts whose external_id isn't messageable). */
     commentId?: string | null;
+    /** The connection that RECEIVED the comment (the ig_comment row) —
+     *  pins the outreach to the right account when the workspace has
+     *  more than one Instagram connected. */
+    connection?: ChannelConnection | null;
     engagementText: string | null;
   },
 ): Promise<void> {
@@ -171,7 +202,9 @@ export async function maybeInstantOutreach(
         // Auto-hide spam/hate on the merchant's own post — sanctioned API,
         // best-effort (degrades if instagram_manage_comments isn't granted yet).
         if (opts.commentId) {
-          const conn = await igConnection(db, opts.workspaceId);
+          // Hide it on the account that OWNS the comment (the connection
+          // the webhook attributed it to), not an arbitrary IG row.
+          const conn = opts.connection ?? (await igConnection(db, opts.workspaceId));
           if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
         }
         await db
@@ -276,7 +309,7 @@ export async function maybeInstantOutreach(
     .select('id');
   if (!(claimed as Array<{ id: string }> | null)?.length) return; // lost the race
 
-  const connection = await igConnection(db, opts.workspaceId);
+  const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
   if (!connection) {
     await db
       .from('instagram_campaign_recipients')

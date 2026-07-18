@@ -25,10 +25,13 @@ export async function replyToComments(
   const text = campaign.plan.comment_reply?.trim();
   if (!text) return { replied: 0, failed: 0, skipped: 'no_comment_reply' };
 
-  const connection = await loadCommentConnection(db, campaign.workspace_id);
-  if (!connection) {
+  // Fallback cuando el comentario no trae conexión rastreable; cada respuesta
+  // intenta primero la conexión de SU conversación (multi-cuenta correcto).
+  const fallback = await loadCommentConnection(db, campaign.workspace_id);
+  if (!fallback) {
     return { replied: 0, failed: 0, skipped: 'instagram_not_connected' };
   }
+  const connCache = new Map<string, ChannelConnection>();
 
   // Destinatarios cuyo contacto es comentarista y aún sin respuesta pública.
   const { data: recipients } = await db
@@ -58,8 +61,28 @@ export async function replyToComments(
   let failed = 0;
 
   for (const r of commenters) {
-    const commentId = await latestCommentId(db, r.contact_id);
-    if (!commentId) continue; // sin comentario rastreable: lo cubre el DM
+    const found = await latestComment(db, r.contact_id);
+    if (!found) continue; // sin comentario rastreable: lo cubre el DM
+    const { commentId, connectionId } = found;
+
+    // La cuenta que POSEE el comentario: la conexión de su conversación.
+    let connection = fallback;
+    if (connectionId) {
+      const cached = connCache.get(connectionId);
+      if (cached) {
+        connection = cached;
+      } else {
+        const { data: cRow } = await db
+          .from('channel_connections')
+          .select('*')
+          .eq('id', connectionId)
+          .maybeSingle();
+        if (cRow) {
+          connection = cRow as ChannelConnection;
+          connCache.set(connectionId, connection);
+        }
+      }
+    }
 
     try {
       const result = await igCommentAdapter.sendText({
@@ -106,27 +129,35 @@ async function loadCommentConnection(
   return null;
 }
 
-/** Id del comentario más reciente del contacto (messages.message_id ig_comment). */
-async function latestCommentId(
+/** Comentario más reciente del contacto (messages.message_id ig_comment) +
+ *  la conexión de su conversación (la cuenta que posee el comentario). */
+async function latestComment(
   db: SupabaseClient,
   contactId: string,
-): Promise<string | null> {
+): Promise<{ commentId: string; connectionId: string | null } | null> {
   const { data: convs } = await db
     .from('conversations')
-    .select('id')
+    .select('id, connection_id')
     .eq('contact_id', contactId)
     .eq('channel', 'ig_comment');
-  const convIds = (convs ?? []).map((c) => (c as { id: string }).id);
-  if (convIds.length === 0) return null;
+  const convRows = (convs ?? []) as Array<{ id: string; connection_id: string | null }>;
+  if (convRows.length === 0) return null;
+  const connByConv = new Map(convRows.map((c) => [c.id, c.connection_id]));
 
   const { data: msgs } = await db
     .from('messages')
-    .select('message_id')
-    .in('conversation_id', convIds)
+    .select('message_id, conversation_id')
+    .in('conversation_id', convRows.map((c) => c.id))
     .eq('sender_type', 'customer')
     .not('message_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1);
-  const top = (msgs ?? [])[0] as { message_id: string | null } | undefined;
-  return top?.message_id ?? null;
+  const top = (msgs ?? [])[0] as
+    | { message_id: string | null; conversation_id: string | null }
+    | undefined;
+  if (!top?.message_id) return null;
+  return {
+    commentId: top.message_id,
+    connectionId: top.conversation_id ? (connByConv.get(top.conversation_id) ?? null) : null,
+  };
 }

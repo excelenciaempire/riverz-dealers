@@ -250,10 +250,11 @@ async function routesForExplicitId(
 /**
  * No connection_id in the URL — route by payload. Loads every connected
  * connection for the channel and attributes each top-level `entry[]` to
- * the connection whose page_id / ig_user_id (or WhatsApp
- * phone_number_id) it carries. One connection → whole payload (the
- * common case, zero overhead). Entries we can't attribute fall back to
- * the first connected row so nothing is silently dropped.
+ * EVERY connection whose page_id / ig_user_id (or WhatsApp
+ * phone_number_id) it carries — the same account in two workspaces gets
+ * both copies. One connection → whole payload (the common case, zero
+ * overhead). Entries we can't attribute are dropped (never guessed) to
+ * avoid cross-tenant leakage.
  */
 async function routesByPayload(
   channel: Channel,
@@ -274,21 +275,57 @@ async function routesByPayload(
   if (conns.length === 0) return [];
 
   // MercadoLibre notifications are FLAT ({resource, user_id, topic} — no
-  // entry[]). Route by the seller user_id → the matching connection; NEVER
+  // entry[]). Route by the seller user_id → EVERY matching connection (the
+  // same seller may legitimately live in more than one workspace); NEVER
   // fall back to conns[0] (that would leak one seller's messages into another
   // workspace). Drop unmatched.
   if (channel === "mercadolibre") {
     const uid = String((payload as { user_id?: unknown })?.user_id ?? "");
-    const conn = conns.find(
+    const matches = conns.filter(
       (c) =>
         String(c.external_account_id ?? "") === uid ||
         String((c.config as Record<string, unknown> | null)?.seller_id ?? "") === uid,
     );
-    if (!conn) {
+    if (matches.length === 0) {
       log.warn("mercadolibre notification matched no seller connection — DROPPED", { uid });
       return [];
     }
-    return [{ connection: conn, payload }];
+    return matches.map((conn) => ({ connection: conn, payload }));
+  }
+
+  // Outlook Graph notifications are FLAT too ({value:[…]} — no entry[]).
+  // Each item carries the subscriptionId we stored on the connection at
+  // watch time; route every item to ITS mailbox instead of conns[0]
+  // (which with 2+ mailboxes fetched the message with the wrong token
+  // and silently dropped it).
+  if (channel === "outlook") {
+    const items = Array.isArray((payload as { value?: unknown })?.value)
+      ? ((payload as { value: unknown[] }).value as Array<Record<string, unknown>>)
+      : [];
+    if (items.length > 0) {
+      const routes: DeliveryRoute[] = [];
+      for (const c of conns) {
+        const subId = String(
+          (c.config as Record<string, unknown> | null)?.subscription_id ?? "",
+        );
+        if (!subId) continue;
+        const mine = items.filter((n) => String(n.subscriptionId ?? "") === subId);
+        if (mine.length > 0) {
+          routes.push({
+            connection: c,
+            payload: { ...(payload as object), value: mine },
+          });
+        }
+      }
+      if (routes.length > 0) return routes;
+      // No subscription matched (e.g. rows armed before subscription_id was
+      // stored): only safe to guess when there is exactly one mailbox.
+      if (conns.length === 1) return [{ connection: conns[0], payload }];
+      log.warn("outlook notification matched no subscription_id — DROPPED", {
+        subscriptionIds: items.map((n) => String(n.subscriptionId ?? "")),
+      });
+      return [];
+    }
   }
 
   const body = (payload ?? {}) as { entry?: unknown };
@@ -302,14 +339,20 @@ async function routesByPayload(
   const buckets = new Map<string, DeliveryRoute & { entries: unknown[] }>();
   const unmatched: unknown[] = [];
   for (const entry of entries) {
-    const conn = conns.find((c) => connectionMatchesEntry(channel, c, entry));
-    if (!conn) {
+    // EVERY matching connection gets the entry — the same page/IG account
+    // can legitimately be connected in more than one workspace, and
+    // first-match-wins silently starved all but one of them. Within one
+    // workspace duplicates can't happen (uq_active_connection_per_account).
+    const matches = conns.filter((c) => connectionMatchesEntry(channel, c, entry));
+    if (matches.length === 0) {
       unmatched.push(entry);
       continue;
     }
-    const existing = buckets.get(conn.id);
-    if (existing) existing.entries.push(entry);
-    else buckets.set(conn.id, { connection: conn, payload: null, entries: [entry] });
+    for (const conn of matches) {
+      const existing = buckets.get(conn.id);
+      if (existing) existing.entries.push(entry);
+      else buckets.set(conn.id, { connection: conn, payload: null, entries: [entry] });
+    }
   }
 
   const routes: DeliveryRoute[] = [...buckets.values()].map((b) => ({

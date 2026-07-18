@@ -354,4 +354,13 @@ export const inbox = {
   fulfillmentPartial: { es: "Enviado parcial", en: "Partially fulfilled" },
   fulfillmentRestocked: { es: "Repuesto", en: "Restocked" },
   fulfillmentUnfulfilled: { es: "Sin enviar", en: "Unfulfilled" },
+
+  // Mercado Libre — pregunta (pública) vs mensaje (post-venta)
+  mlQuestion: { es: "Pregunta", en: "Question" },
+  mlMessage: { es: "Mensaje", en: "Message" },
+  mlQuestionPublic: { es: "Pregunta pública", en: "Public question" },
+  mlMessagePostSale: { es: "Mensaje post-venta", en: "Post-sale message" },
+  mlFilterAll: { es: "Todas", en: "All" },
+  mlFilterQuestions: { es: "Preguntas", en: "Questions" },
+  mlFilterMessages: { es: "Mensajes", en: "Messages" },
 } satisfies Namespace;

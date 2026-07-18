@@ -72,28 +72,36 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ ok: true, ingested: 0 });
   }
 
-  // Match the mailbox to a connection. We compare against config.email
-  // (set by the OAuth callback) and external_account_id as fallback.
-  const connection = (rows as ChannelConnection[]).find((c) => {
+  // Match the mailbox to EVERY connection that holds it (the same mailbox
+  // may live in more than one workspace — each gets its own delivery). We
+  // compare against config.email (set by the OAuth callback) and
+  // external_account_id as fallback.
+  const connections = (rows as ChannelConnection[]).filter((c) => {
     const cfg = (c.config ?? {}) as Record<string, unknown>;
     return (
       String(cfg.email ?? "").toLowerCase() === emailAddress.toLowerCase() ||
       String(c.external_account_id ?? "").toLowerCase() === emailAddress.toLowerCase()
     );
   });
-  if (!connection) {
+  if (connections.length === 0) {
     return NextResponse.json({ ok: true, note: "no matching connection" });
   }
 
-  try {
-    const ingested = await processHistory(admin, connection, historyId);
-    return NextResponse.json({ ok: true, ingested });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[gmail/push]", msg);
-    // Still 200 — see comment above.
-    return NextResponse.json({ ok: true, error: msg });
+  let ingested = 0;
+  let lastError: string | null = null;
+  for (const connection of connections) {
+    try {
+      ingested += await processHistory(admin, connection, historyId);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error("[gmail/push]", lastError);
+      // Keep going — one workspace's failure must not starve the other.
+    }
   }
+  // Still 200 — see comment above.
+  return NextResponse.json(
+    lastError ? { ok: true, ingested, error: lastError } : { ok: true, ingested },
+  );
 }
 
 async function processHistory(
