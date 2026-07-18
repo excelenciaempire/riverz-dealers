@@ -71,6 +71,13 @@ export default function DashboardPage() {
   useEffect(() => {
     tzRef.current = tz
   }, [tz])
+  // `t` en un ref: loadActivity arma el texto del feed y `refresh` es estable
+  // (deps []), así que sin el ref quedaría capturado el `t` inicial y el feed
+  // no cambiaría de idioma al vuelo.
+  const tRef = useRef(t)
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
 
   // Epoch guard: switching the range (or a realtime tick) bumps the epoch so
   // a slower earlier response can never land its stale data on a newer one.
@@ -111,7 +118,7 @@ export default function DashboardPage() {
         if (fresh()) setResponseTimeLoading(false)
       })
 
-    void loadActivity(db, range, 50)
+    void loadActivity(db, range, tRef.current, 50)
       .then((a) => {
         if (fresh()) setActivity(a)
       })

@@ -13,6 +13,8 @@ import type {
   ResponseTimeBucket,
   ResponseTimeSummary,
 } from './types'
+import type { TFn } from '@/lib/i18n/translate'
+import { contactLabel } from '@/lib/contacts/display-name'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -265,9 +267,18 @@ export async function loadResponseTime(
 
 // --- 4. Activity feed --------------------------------------------------
 
-export async function loadActivity(db: DB, range: DateRange, limit = 20): Promise<ActivityItem[]> {
+export async function loadActivity(
+  db: DB,
+  range: DateRange,
+  t: TFn,
+  limit = 20,
+): Promise<ActivityItem[]> {
   const s = iso(range.start)
   const e = iso(range.end)
+  // Los joins de contacto traen channel + external_id + email para que el
+  // fallback por canal (contactLabel) muestre "Cliente Instagram · …id" en vez
+  // de "null"/"Desconocido" cuando el contacto aún no resolvió su nombre real.
+  const contactCols = 'name, phone, email, channel, external_id'
   const [msgs, contacts, broadcasts, autoLogs] = await Promise.all([
     // `conversations!inner` + the deleted_at filter drop messages whose
     // conversation was soft-deleted from the bandeja (migración 085) — otherwise
@@ -276,7 +287,7 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
     // parent conversation's deleted_at, not the message (which has none).
     db
       .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations!inner(deleted_at, contact_id, contacts(name, phone))')
+      .select(`id, content_text, sender_type, created_at, conversation_id, conversations!inner(deleted_at, contact_id, contacts(${contactCols}))`)
       .eq('sender_type', 'customer')
       .is('conversations.deleted_at', null)
       .gte('created_at', s)
@@ -285,7 +296,7 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
       .limit(limit),
     db
       .from('contacts')
-      .select('id, name, phone, created_at')
+      .select(`id, ${contactCols}, created_at`)
       .gte('created_at', s)
       .lt('created_at', e)
       .order('created_at', { ascending: false })
@@ -299,7 +310,7 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
       .limit(limit),
     db
       .from('automation_logs')
-      .select('id, trigger_event, status, created_at, automation:automations(name), contact:contacts(name, phone)')
+      .select(`id, trigger_event, status, created_at, automation:automations(name), contact:contacts(${contactCols})`)
       .gte('created_at', s)
       .lt('created_at', e)
       .order('created_at', { ascending: false })
@@ -308,38 +319,64 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
 
   const items: ActivityItem[] = []
 
+  type ContactRow = {
+    name: string | null
+    phone: string | null
+    email: string | null
+    channel: string | null
+    external_id: string | null
+  }
+
   // PostgREST returns nested selections as arrays by default, even when
   // the foreign key is 1:1. We normalise by taking [0] on each level.
   for (const m of (msgs.data ?? []) as unknown as Array<{
     id: string
-    content_text: string | null
     created_at: string
     conversation_id: string
     conversations:
-      | { contact_id: string | null; contacts: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null }[]
-      | { contact_id: string | null; contacts: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null }
+      | { contacts: ContactRow[] | ContactRow | null }[]
+      | { contacts: ContactRow[] | ContactRow | null }
       | null
   }>) {
     const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations
     const contact = Array.isArray(conv?.contacts) ? conv?.contacts[0] : conv?.contacts
-    const who = contact?.name || contact?.phone || 'Desconocido'
+    const who = contact
+      ? contactLabel(t, contact)
+      : t('dashboard.activityUnknownContact')
     items.push({
       id: `msg-${m.id}`,
       kind: 'message',
-      text: `Nuevo mensaje de ${who}`,
+      text: t('dashboard.activityNewMessage', { who }),
       at: m.created_at,
       href: `/bandeja?c=${m.conversation_id}`,
     })
   }
 
-  for (const c of (contacts.data ?? []) as Array<{ id: string; name: string | null; phone: string; created_at: string }>) {
+  for (const c of (contacts.data ?? []) as Array<ContactRow & { id: string; created_at: string }>) {
     items.push({
       id: `contact-${c.id}`,
       kind: 'contact',
-      text: `Nuevo contacto: ${c.name || c.phone}`,
+      text: t('dashboard.activityNewContact', { who: contactLabel(t, c) }),
       at: c.created_at,
       href: '/contactos',
     })
+  }
+
+  const statusWord = (status: string): string => {
+    switch (status) {
+      case 'draft':
+        return t('dashboard.broadcastStatusDraft')
+      case 'scheduled':
+        return t('dashboard.broadcastStatusScheduled')
+      case 'sending':
+        return t('dashboard.broadcastStatusSending')
+      case 'sent':
+        return t('dashboard.broadcastStatusSent')
+      case 'failed':
+        return t('dashboard.broadcastStatusFailed')
+      default:
+        return status
+    }
   }
 
   for (const b of (broadcasts.data ?? []) as Array<{
@@ -349,21 +386,18 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
     total_recipients: number
     created_at: string
   }>) {
-    const STATUS_ES: Record<string, string> = {
-      draft: 'borrador',
-      scheduled: 'programada',
-      sending: 'enviando',
-      sent: 'enviada',
-      failed: 'fallida',
-    }
-    const label =
+    const text =
       b.status === 'sent'
-        ? `enviada a ${b.total_recipients} contactos`
-        : `${STATUS_ES[b.status] ?? b.status} (${b.total_recipients} destinatarios)`
+        ? t('dashboard.activityBroadcastSent', { name: b.name, n: b.total_recipients })
+        : t('dashboard.activityBroadcastStatus', {
+            name: b.name,
+            status: statusWord(b.status),
+            n: b.total_recipients,
+          })
     items.push({
       id: `broadcast-${b.id}`,
       kind: 'broadcast',
-      text: `Campaña "${b.name}" ${label}`,
+      text,
       at: b.created_at,
       href: '/campanas',
     })
@@ -371,20 +405,22 @@ export async function loadActivity(db: DB, range: DateRange, limit = 20): Promis
 
   for (const l of (autoLogs.data ?? []) as unknown as Array<{
     id: string
-    trigger_event: string
     status: string
     created_at: string
     automation: { name: string }[] | { name: string } | null
-    contact: { name: string | null; phone: string }[] | { name: string | null; phone: string } | null
+    contact: ContactRow[] | ContactRow | null
   }>) {
     const automation = Array.isArray(l.automation) ? l.automation[0] : l.automation
     const contact = Array.isArray(l.contact) ? l.contact[0] : l.contact
-    const who = contact?.name || contact?.phone || 'un contacto'
-    const autoName = automation?.name || 'Automatización'
+    const who = contact ? contactLabel(t, contact) : t('dashboard.activitySomeContact')
+    const autoName = automation?.name || t('dashboard.activityAutomationName')
     items.push({
       id: `auto-${l.id}`,
       kind: 'automation',
-      text: `Automatización "${autoName}" ${l.status === 'failed' ? 'falló para' : 'se ejecutó para'} ${who}`,
+      text:
+        l.status === 'failed'
+          ? t('dashboard.activityAutomationFailed', { name: autoName, who })
+          : t('dashboard.activityAutomationRan', { name: autoName, who }),
       at: l.created_at,
     })
   }

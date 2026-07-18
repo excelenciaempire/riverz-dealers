@@ -61,6 +61,34 @@ export const dashboard = {
   recentActivity: { es: "Actividad reciente", en: "Recent activity" },
   viewAll: { es: "Ver todo", en: "View all" },
   noActivity: { es: "Sin actividad", en: "No activity" },
+
+  // Activity feed — item text
+  activityNewMessage: { es: "Nuevo mensaje de {who}", en: "New message from {who}" },
+  activityNewContact: { es: "Nuevo contacto: {who}", en: "New contact: {who}" },
+  activityUnknownContact: { es: "Desconocido", en: "Unknown" },
+  activitySomeContact: { es: "un contacto", en: "a contact" },
+  activityBroadcastSent: {
+    es: 'Campaña "{name}" enviada a {n} contactos',
+    en: 'Campaign "{name}" sent to {n} contacts',
+  },
+  activityBroadcastStatus: {
+    es: 'Campaña "{name}" {status} ({n} destinatarios)',
+    en: 'Campaign "{name}" {status} ({n} recipients)',
+  },
+  activityAutomationRan: {
+    es: 'Automatización "{name}" se ejecutó para {who}',
+    en: 'Automation "{name}" ran for {who}',
+  },
+  activityAutomationFailed: {
+    es: 'Automatización "{name}" falló para {who}',
+    en: 'Automation "{name}" failed for {who}',
+  },
+  activityAutomationName: { es: "Automatización", en: "Automation" },
+  broadcastStatusDraft: { es: "borrador", en: "draft" },
+  broadcastStatusScheduled: { es: "programada", en: "scheduled" },
+  broadcastStatusSending: { es: "enviando", en: "sending" },
+  broadcastStatusSent: { es: "enviada", en: "sent" },
+  broadcastStatusFailed: { es: "fallida", en: "failed" },
   showingOf: { es: "Mostrando {shown} de {total}", en: "Showing {shown} of {total}" },
   agoSeconds: { es: "hace {n}s", en: "{n}s ago" },
   agoMinutes: { es: "hace {n}m", en: "{n}m ago" },
