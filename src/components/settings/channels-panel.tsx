@@ -628,7 +628,7 @@ export function ChannelsPanel() {
                     >
                       <RefreshCcw className="size-4" />
                       {accounts.length > 1
-                        ? t("settings.disconnectAll")
+                        ? t("settings.disconnectAllN", { n: accounts.length })
                         : t("settings.disconnectAction")}
                     </button>
                   )}

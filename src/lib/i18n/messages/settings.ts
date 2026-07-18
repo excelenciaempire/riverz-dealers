@@ -415,6 +415,10 @@ export const settings = {
     en: "Disconnect the {n} {label} accounts?",
   },
   disconnectAll: { es: "Desconectar todas", en: "Disconnect all" },
+  disconnectAllN: {
+    es: "Desconectar las {n} cuentas",
+    en: "Disconnect all {n} accounts",
+  },
 
   // Channels panel — manual token modal
   manualLabelWhatsapp: { es: "WhatsApp", en: "WhatsApp" },
