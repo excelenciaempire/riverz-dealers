@@ -15,7 +15,7 @@ interface RecordConsentArgs {
   /** Version string the user accepted; defaults to the current docs. */
   version?: string | null;
   /** Where the acceptance happened. */
-  context: "signup" | "invite";
+  context: "signup" | "invite" | "reconsent";
   /** The incoming request — used to capture IP + user-agent for proof. */
   req: Request;
 }

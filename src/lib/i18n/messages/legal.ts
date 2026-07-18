@@ -280,6 +280,21 @@ export const legal = {
   privacy11BodyPre: { es: "¿Preguntas? Escríbenos a ", en: "Questions? Write to us at " },
   privacy11BodyEnd: { es: ".", en: "." },
 
+  // ── Re-consent gate (shown when the docs change) ─────────────────────────
+  reconsentTitle: {
+    es: "Actualizamos los Términos y la Privacidad",
+    en: "We updated our Terms and Privacy",
+  },
+  reconsentBody: {
+    es: "Cambiamos los Términos y condiciones y la Política de privacidad — incluye cómo tratamos las cuentas que conectas (Mercado Libre, Meta, correo, Shopify). Para seguir usando riverz, revisa y acepta la versión actualizada.",
+    en: "We changed our Terms and Conditions and Privacy Policy — this covers how we handle the accounts you connect (Mercado Libre, Meta, email, Shopify). To keep using riverz, please review and accept the updated version.",
+  },
+  reconsentAccept: {
+    es: "Acepto los Términos y la Privacidad",
+    en: "I accept the Terms and Privacy",
+  },
+  reconsentAccepting: { es: "Guardando…", en: "Saving…" },
+
   // ── Terms & conditions ───────────────────────────────────────────────────
   termsMetaTitle: { es: "Términos y condiciones", en: "Terms and conditions" },
   termsMetaDescription: {

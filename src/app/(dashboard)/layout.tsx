@@ -3,6 +3,8 @@ import { DashboardShell } from "./dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { ensureWorkspace } from "@/lib/workspaces/ensure";
+import { needsReconsent } from "@/lib/legal/version";
+import { ReconsentGate } from "@/components/legal/reconsent-gate";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -40,6 +42,7 @@ export default async function DashboardLayout({
   // only writes when a membership is missing (one cheap membership query
   // in the common case). A failure here must NOT block the dashboard from
   // rendering — the bootstrap route remains as a manual retry path.
+  let mustReconsent = false;
   try {
     const supabase = await createClient();
     const {
@@ -52,10 +55,27 @@ export default async function DashboardLayout({
         user.email,
         user.user_metadata,
       );
+      // Re-consent gate: if the Terms/Privacy changed since this user last
+      // accepted (LEGAL_VERSION bumped), block the app until they accept the
+      // new version. Fail-soft — any read error defaults to NOT gating so a
+      // hiccup can never lock a user out of their inbox.
+      const { data: profile } = await supabaseAdmin()
+        .from("profiles")
+        .select("terms_version")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      mustReconsent = needsReconsent(
+        (profile as { terms_version?: string | null } | null)?.terms_version ?? null,
+      );
     }
   } catch (err) {
-    console.error("[dashboard/layout] ensureWorkspace failed:", err);
+    console.error("[dashboard/layout] bootstrap failed:", err);
   }
 
-  return <DashboardShell>{children}</DashboardShell>;
+  return (
+    <>
+      {mustReconsent && <ReconsentGate />}
+      <DashboardShell>{children}</DashboardShell>
+    </>
+  );
 }

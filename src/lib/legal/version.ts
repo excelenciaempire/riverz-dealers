@@ -16,3 +16,12 @@
  * Format: ISO date (YYYY-MM-DD) of the update.
  */
 export const LEGAL_VERSION = "2026-07-18";
+
+/**
+ * True when a user's recorded consent version is missing or older than the
+ * current docs — i.e. they must re-accept before continuing. LEGAL_VERSION is
+ * an ISO date, so a lexicographic string compare is also chronological.
+ */
+export function needsReconsent(acceptedVersion?: string | null): boolean {
+  return !acceptedVersion || acceptedVersion < LEGAL_VERSION;
+}
