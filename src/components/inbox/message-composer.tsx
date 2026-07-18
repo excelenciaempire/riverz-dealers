@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash, Paperclip, X } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
+import { Send, LayoutTemplate, Slash, Paperclip, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
 import { useT } from "@/hooks/use-locale";
+import { useSnippets } from "@/hooks/use-snippets";
 
 /** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -19,32 +20,17 @@ interface ReplyDraft {
 }
 
 /**
- * Snippets de texto del operador. El asesor tipea "/saludo" + Enter
- * y se inserta el texto completo. Por ahora hardcodeados; la próxima
- * iteración los lleva a Ajustes → Snippets para que cada workspace
- * defina los suyos. Solo incluimos atajos genéricos (saludo de
- * bienvenida y agradecimiento) que no asumen ninguna política de
- * negocio del merchant.
+ * Snippets de texto del operador. El asesor tipea "/saludo" + Enter y se
+ * inserta el texto completo. La lista = 2 atajos base (saludo/gracias) + los
+ * que cada workspace crea (tabla message_snippets, via useSnippets). Desde el
+ * mismo picker se puede crear un atajo nuevo tipeando "/loquesea" + "Crear".
+ * Todos se normalizan a { trigger, label, body } literales antes del picker.
  */
 interface Snippet {
   trigger: string;
-  /** i18n key for the snippet's display label, resolved at render. */
-  labelKey: string;
-  /** i18n key for the snippet's inserted body text, resolved at insert. */
-  bodyKey: string;
+  label: string;
+  body: string;
 }
-const SNIPPETS: Snippet[] = [
-  {
-    trigger: "saludo",
-    labelKey: "inbox.snippetGreetingLabel",
-    bodyKey: "inbox.snippetGreetingBody",
-  },
-  {
-    trigger: "gracias",
-    labelKey: "inbox.snippetThanksLabel",
-    bodyKey: "inbox.snippetThanksBody",
-  },
-];
 
 interface MessageComposerProps {
   conversationId: string;
@@ -91,19 +77,53 @@ export function MessageComposer({
     start: number; // posición del "/" en el textarea
   } | null>(null);
   const [snippetActiveIdx, setSnippetActiveIdx] = useState(0);
+  // Inline "create shortcut" form state (opened from the picker footer).
+  const [creating, setCreating] = useState(false);
+  const [createBody, setCreateBody] = useState("");
+
+  const { snippets: wsSnippets, create: createSnippet } = useSnippets();
+  // 2 built-in defaults (translated) + workspace snippets (literal), keyed by
+  // trigger so a workspace snippet can override a default.
+  const allSnippets = useMemo<Snippet[]>(() => {
+    const byTrigger = new Map<string, Snippet>();
+    byTrigger.set("saludo", {
+      trigger: "saludo",
+      label: t("inbox.snippetGreetingLabel"),
+      body: t("inbox.snippetGreetingBody"),
+    });
+    byTrigger.set("gracias", {
+      trigger: "gracias",
+      label: t("inbox.snippetThanksLabel"),
+      body: t("inbox.snippetThanksBody"),
+    });
+    for (const s of wsSnippets) {
+      const trigger = s.shortcut.toLowerCase();
+      byTrigger.set(trigger, { trigger, label: s.title ?? "", body: s.body });
+    }
+    return [...byTrigger.values()];
+  }, [t, wsSnippets]);
+
   const filteredSnippets = snippetMenu
-    ? SNIPPETS.filter((s) =>
+    ? allSnippets.filter((s) =>
         s.trigger.toLowerCase().startsWith(snippetMenu.query.toLowerCase()),
       )
     : [];
+  // The typed query already exists as a snippet? Then don't offer to create it.
+  const exactExists =
+    !!snippetMenu &&
+    allSnippets.some((s) => s.trigger === snippetMenu.query.toLowerCase());
   useEffect(() => {
     setSnippetActiveIdx(0);
   }, [snippetMenu?.query]);
+  // Closing the picker also closes any open "create shortcut" form.
+  useEffect(() => {
+    if (!snippetMenu) setCreating(false);
+  }, [snippetMenu]);
 
   const insertSnippet = useCallback(
     (snippet: Snippet) => {
       if (!snippetMenu) return;
-      const body = t(snippet.bodyKey);
+      const body = snippet.body;
       const before = text.slice(0, snippetMenu.start);
       const after = text.slice(snippetMenu.start + 1 + snippetMenu.query.length);
       const next = `${before}${body}${after}`;
@@ -121,6 +141,31 @@ export function MessageComposer({
     },
     [snippetMenu, text, t],
   );
+
+  const submitCreate = useCallback(async () => {
+    if (!snippetMenu) return;
+    const body = createBody.trim();
+    if (!body) return;
+    const shortcut = snippetMenu.query;
+    // Persist (fail-soft if the table isn't there yet) then insert into the
+    // composer, replacing the "/query".
+    await createSnippet(shortcut, body).catch(() => ({}));
+    const before = text.slice(0, snippetMenu.start);
+    const after = text.slice(snippetMenu.start + 1 + snippetMenu.query.length);
+    setText(`${before}${body}${after}`);
+    setCreating(false);
+    setCreateBody("");
+    setSnippetMenu(null);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      const pos = before.length + body.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+    });
+  }, [snippetMenu, createBody, createSnippet, text]);
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -255,50 +300,107 @@ export function MessageComposer({
         </div>
       )}
 
-      {/* Picker de snippets: flota sobre el textarea cuando hay match. */}
-      {snippetMenu && filteredSnippets.length > 0 && (
-        <div className="mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg shadow-black/20">
-          <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            {t("inbox.quickSnippets")}
+      {/* Picker de snippets: flota sobre el textarea. Muestra la lista, la
+          opción de crear un atajo nuevo, o el formulario de creación. */}
+      {snippetMenu &&
+        (filteredSnippets.length > 0 || creating || (!!snippetMenu.query && !exactExists)) && (
+          <div className="mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg shadow-black/20">
+            <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              {t("inbox.quickSnippets")}
+            </div>
+
+            {creating ? (
+              <div className="space-y-2 p-3">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Slash className="size-3" />
+                  <code className="font-medium text-foreground">/{snippetMenu.query || "atajo"}</code>
+                </div>
+                <textarea
+                  value={createBody}
+                  onChange={(e) => setCreateBody(e.target.value)}
+                  placeholder={t("inbox.snippetBodyPlaceholder")}
+                  rows={2}
+                  autoFocus
+                  className="w-full resize-none rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setCreating(false);
+                    }}
+                    className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      void submitCreate();
+                    }}
+                    disabled={!createBody.trim()}
+                    className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                  >
+                    {t("inbox.createSnippet")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <ul className="max-h-60 overflow-y-auto py-1">
+                  {filteredSnippets.map((s, i) => (
+                    <li key={s.trigger}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertSnippet(s);
+                        }}
+                        onMouseEnter={() => setSnippetActiveIdx(i)}
+                        className={cn(
+                          "flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors",
+                          i === snippetActiveIdx ? "bg-accent" : "hover:bg-muted",
+                        )}
+                      >
+                        <Slash className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <code className="text-xs font-medium text-foreground">/{s.trigger}</code>
+                            {s.label && (
+                              <span className="text-[10px] text-muted-foreground">{s.label}</span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            {s.body}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {!!snippetMenu.query && !exactExists && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setCreateBody("");
+                      setCreating(true);
+                    }}
+                    className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-xs text-primary hover:bg-muted"
+                  >
+                    <Plus className="size-3.5 shrink-0" />
+                    {t("inbox.createSnippetCta", { shortcut: snippetMenu.query })}
+                  </button>
+                )}
+                <div className="border-t border-border bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
+                  {t("inbox.snippetHints")}
+                </div>
+              </>
+            )}
           </div>
-          <ul className="max-h-60 overflow-y-auto py-1">
-            {filteredSnippets.map((s, i) => (
-              <li key={s.trigger}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    insertSnippet(s);
-                  }}
-                  onMouseEnter={() => setSnippetActiveIdx(i)}
-                  className={cn(
-                    "flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors",
-                    i === snippetActiveIdx ? "bg-accent" : "hover:bg-muted",
-                  )}
-                >
-                  <Slash className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs font-medium text-foreground">
-                        /{s.trigger}
-                      </code>
-                      <span className="text-[10px] text-muted-foreground">
-                        {t(s.labelKey)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {t(s.bodyKey)}
-                    </p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
-            {t("inbox.snippetHints")}
-          </div>
-        </div>
-      )}
+        )}
 
       {/* Adjunto pendiente: chip con nombre + quitar. */}
       {pendingFile && (

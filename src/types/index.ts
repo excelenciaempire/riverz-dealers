@@ -381,6 +381,17 @@ export interface MessageTemplate {
   created_at: string;
 }
 
+/** A free-text "/" canned reply (migration 096). Distinct from MessageTemplate
+ *  (Meta HSM) — plain text inserted into the composer, no approval/variables. */
+export interface MessageSnippet {
+  id: string;
+  workspace_id: string;
+  shortcut: string;
+  title?: string | null;
+  body: string;
+  created_at: string;
+}
+
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 

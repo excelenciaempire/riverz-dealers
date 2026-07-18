@@ -207,6 +207,12 @@ export const inbox = {
     es: "↑↓ navega · Enter inserta · Esc cierra",
     en: "↑↓ navigate · Enter inserts · Esc closes",
   },
+  createSnippetCta: { es: 'Crear atajo "/{shortcut}"', en: 'Create shortcut "/{shortcut}"' },
+  createSnippet: { es: "Crear atajo", en: "Create shortcut" },
+  snippetBodyPlaceholder: {
+    es: "Texto que se insertará…",
+    en: "Text to insert…",
+  },
   sendTemplate: { es: "Enviar plantilla", en: "Send template" },
   attachFile: { es: "Adjuntar archivo", en: "Attach file" },
   removeAttachment: { es: "Quitar adjunto", en: "Remove attachment" },
