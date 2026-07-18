@@ -79,6 +79,7 @@ export function MessageComposer({
   const [snippetActiveIdx, setSnippetActiveIdx] = useState(0);
   // Inline "create shortcut" form state (opened from the picker footer).
   const [creating, setCreating] = useState(false);
+  const [createShortcut, setCreateShortcut] = useState("");
   const [createBody, setCreateBody] = useState("");
 
   const { snippets: wsSnippets, create: createSnippet } = useSnippets();
@@ -145,16 +146,17 @@ export function MessageComposer({
   const submitCreate = useCallback(async () => {
     if (!snippetMenu) return;
     const body = createBody.trim();
-    if (!body) return;
-    const shortcut = snippetMenu.query;
-    // Persist (fail-soft if the table isn't there yet) then insert into the
-    // composer, replacing the "/query".
+    const shortcut = createShortcut.trim().replace(/^\/+/, "");
+    if (!body || !shortcut) return;
+    // Persist (fail-soft if the table isn't there yet) then insert the body
+    // into the composer, replacing the typed "/query".
     await createSnippet(shortcut, body).catch(() => ({}));
     const before = text.slice(0, snippetMenu.start);
     const after = text.slice(snippetMenu.start + 1 + snippetMenu.query.length);
     setText(`${before}${body}${after}`);
     setCreating(false);
     setCreateBody("");
+    setCreateShortcut("");
     setSnippetMenu(null);
     requestAnimationFrame(() => {
       const el = textareaRef.current;
@@ -165,7 +167,7 @@ export function MessageComposer({
       el.style.height = "auto";
       el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
     });
-  }, [snippetMenu, createBody, createSnippet, text]);
+  }, [snippetMenu, createBody, createShortcut, createSnippet, text]);
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -300,56 +302,58 @@ export function MessageComposer({
         </div>
       )}
 
-      {/* Picker de snippets: flota sobre el textarea. Muestra la lista, la
-          opción de crear un atajo nuevo, o el formulario de creación. */}
-      {snippetMenu &&
-        (filteredSnippets.length > 0 || creating || (!!snippetMenu.query && !exactExists)) && (
-          <div className="mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg shadow-black/20">
-            <div className="border-b border-border bg-muted/30 px-3 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              {t("inbox.quickSnippets")}
-            </div>
-
-            {creating ? (
-              <div className="space-y-2 p-3">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Slash className="size-3" />
-                  <code className="font-medium text-foreground">/{snippetMenu.query || "atajo"}</code>
-                </div>
-                <textarea
-                  value={createBody}
-                  onChange={(e) => setCreateBody(e.target.value)}
-                  placeholder={t("inbox.snippetBodyPlaceholder")}
-                  rows={2}
+      {/* Picker de atajos: lista + crear atajo. Sin título ni hints. */}
+      {snippetMenu && !sessionExpired && (
+        <div className="mb-2 overflow-hidden rounded-lg border border-border bg-popover shadow-lg shadow-black/20">
+          {creating ? (
+            <div className="space-y-2 p-3">
+              <div className="relative">
+                <Slash className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={createShortcut}
+                  onChange={(e) =>
+                    setCreateShortcut(e.target.value.replace(/^\/+/, "").replace(/\s/g, ""))
+                  }
+                  placeholder={t("inbox.snippetShortcutPlaceholder")}
                   autoFocus
-                  className="w-full resize-none rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
+                  className="w-full rounded-md border border-border bg-muted pl-6 pr-2 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
                 />
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setCreating(false);
-                    }}
-                    className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-                  >
-                    {t("common.cancel")}
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      void submitCreate();
-                    }}
-                    disabled={!createBody.trim()}
-                    className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-                  >
-                    {t("inbox.createSnippet")}
-                  </button>
-                </div>
               </div>
-            ) : (
-              <>
-                <ul className="max-h-60 overflow-y-auto py-1">
+              <textarea
+                value={createBody}
+                onChange={(e) => setCreateBody(e.target.value)}
+                placeholder={t("inbox.snippetBodyPlaceholder")}
+                rows={2}
+                className="w-full resize-none rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary/50"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setCreating(false);
+                  }}
+                  className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    void submitCreate();
+                  }}
+                  disabled={!createBody.trim() || !createShortcut.trim()}
+                  className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                >
+                  {t("inbox.createSnippet")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {filteredSnippets.length > 0 && (
+                <ul className="max-h-56 overflow-y-auto py-1">
                   {filteredSnippets.map((s, i) => (
                     <li key={s.trigger}>
                       <button
@@ -380,27 +384,29 @@ export function MessageComposer({
                     </li>
                   ))}
                 </ul>
-                {!!snippetMenu.query && !exactExists && (
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setCreateBody("");
-                      setCreating(true);
-                    }}
-                    className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-xs text-primary hover:bg-muted"
-                  >
-                    <Plus className="size-3.5 shrink-0" />
-                    {t("inbox.createSnippetCta", { shortcut: snippetMenu.query })}
-                  </button>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setCreateShortcut(snippetMenu.query);
+                  setCreateBody("");
+                  setCreating(true);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-primary hover:bg-muted",
+                  filteredSnippets.length > 0 && "border-t border-border",
                 )}
-                <div className="border-t border-border bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground">
-                  {t("inbox.snippetHints")}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+              >
+                <Plus className="size-3.5 shrink-0" />
+                {snippetMenu.query && !exactExists
+                  ? t("inbox.createSnippetCta", { shortcut: snippetMenu.query })
+                  : t("inbox.newSnippet")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Adjunto pendiente: chip con nombre + quitar. */}
       {pendingFile && (
@@ -428,6 +434,7 @@ export function MessageComposer({
           className="hidden"
           onChange={handleFilePick}
         />
+        {/* "+" adjuntar (como WhatsApp). */}
         <Button
           variant="ghost"
           size="sm"
@@ -437,8 +444,24 @@ export function MessageComposer({
           title={t("inbox.attachFile")}
           aria-label={t("inbox.attachFile")}
         >
-          <Paperclip className="h-4 w-4" />
+          <Plus className="h-5 w-5" />
         </Button>
+
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={sessionExpired ? t("inbox.composerExpiredPlaceholder") : t("inbox.typeMessage")}
+          disabled={sessionExpired}
+          rows={1}
+          className={cn(
+            "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
+            sessionExpired && "cursor-not-allowed opacity-50"
+          )}
+        />
+
+        {/* Plantillas aprobadas de WhatsApp (donde WhatsApp pone los stickers). */}
         <Button
           variant="ghost"
           size="sm"
@@ -449,20 +472,6 @@ export function MessageComposer({
         >
           <LayoutTemplate className="h-4 w-4" />
         </Button>
-
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={sessionExpired ? t("inbox.composerExpiredPlaceholder") : ""}
-          disabled={sessionExpired}
-          rows={1}
-          className={cn(
-            "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-            sessionExpired && "cursor-not-allowed opacity-50"
-          )}
-        />
 
         <Button
           size="sm"

@@ -209,10 +209,13 @@ export const inbox = {
   },
   createSnippetCta: { es: 'Crear atajo "/{shortcut}"', en: 'Create shortcut "/{shortcut}"' },
   createSnippet: { es: "Crear atajo", en: "Create shortcut" },
+  newSnippet: { es: "Nuevo atajo", en: "New shortcut" },
+  snippetShortcutPlaceholder: { es: "atajo", en: "shortcut" },
   snippetBodyPlaceholder: {
     es: "Texto que se insertará…",
     en: "Text to insert…",
   },
+  typeMessage: { es: "Escribe un mensaje", en: "Type a message" },
   sendTemplate: { es: "Enviar plantilla", en: "Send template" },
   attachFile: { es: "Adjuntar archivo", en: "Attach file" },
   removeAttachment: { es: "Quitar adjunto", en: "Remove attachment" },
