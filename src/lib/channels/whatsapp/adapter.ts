@@ -286,7 +286,13 @@ export const whatsappAdapter: ChannelAdapter = {
             for (const thread of chunk.threads ?? []) {
               if (!thread.id) continue;
               for (const m of thread.messages ?? []) {
-                if (!m.id || m.type === "revoke" || m.type === "edit") continue;
+                if (
+                  !m.id ||
+                  m.type === "revoke" ||
+                  m.type === "edit" ||
+                  m.type === "reaction"
+                )
+                  continue;
                 const fromBusiness =
                   bizPhone.length >= 8 &&
                   onlyDigits(m.from ?? "").endsWith(bizPhone.slice(-10));
@@ -332,6 +338,14 @@ export const whatsappAdapter: ChannelAdapter = {
 
         for (const m of value.messages) {
           if (!m.from || !m.id) continue;
+          // Las reacciones NO son mensajes: se guardan en message_reactions y se
+          // muestran adjuntas a la burbuja del mensaje reaccionado (como
+          // WhatsApp real), no como un mensaje "[reaction]". Antes caían al
+          // default de extractText y ensuciaban el hilo.
+          if (m.type === "reaction") {
+            await handleWhatsappReaction(connection, m);
+            continue;
+          }
           const text = extractText(m);
           // Si el mensaje trae media, bajamos los bytes ahora y los
           // subimos a Supabase Storage para tener una URL pública
@@ -487,12 +501,73 @@ async function upsertCoexistenceContacts(
           channel: "whatsapp",
           external_id: external,
           phone: external,
-          name: name || external,
+          // Sin nombre de perfil dejamos name=null: la UI muestra el teléfono
+          // FORMATEADO ("+54 9 …") en vez del wa_id crudo pegado como nombre.
+          name: name || null,
         });
       }
     } catch (err) {
       console.warn("[whatsapp] coexistence contact upsert failed:", err);
     }
+  }
+}
+
+/**
+ * Persist an inbound WhatsApp reaction. Reactions aren't messages — they're
+ * per-(target, actor) state — so we upsert/delete on `message_reactions` and
+ * the bubble renders the emoji, exactly like the legacy webhook does. Empty
+ * emoji = removal (Meta spec). Best-effort: a missing parent is skipped.
+ */
+async function handleWhatsappReaction(
+  connection: ChannelConnection,
+  m: WhatsAppMessage,
+): Promise<void> {
+  const reaction = m.reaction;
+  if (!reaction?.message_id || !m.from) return;
+  const db = supabaseAdmin();
+  try {
+    const { data: target } = await db
+      .from("messages")
+      .select("id, conversation_id")
+      .eq("channel", "whatsapp")
+      .eq("message_id", reaction.message_id)
+      .limit(1)
+      .maybeSingle();
+    const t = target as { id: string; conversation_id: string } | null;
+    if (!t) return; // el mensaje reaccionado aún no está ingerido
+
+    const { data: contact } = await db
+      .from("contacts")
+      .select("id")
+      .eq("workspace_id", connection.workspace_id)
+      .eq("channel", "whatsapp")
+      .eq("external_id", m.from)
+      .limit(1)
+      .maybeSingle();
+    const c = contact as { id: string } | null;
+    if (!c) return;
+
+    if (!reaction.emoji) {
+      await db
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", t.id)
+        .eq("actor_type", "customer")
+        .eq("actor_id", c.id);
+      return;
+    }
+    await db.from("message_reactions").upsert(
+      {
+        message_id: t.id,
+        conversation_id: t.conversation_id,
+        actor_type: "customer",
+        actor_id: c.id,
+        emoji: reaction.emoji,
+      },
+      { onConflict: "message_id,actor_type,actor_id" },
+    );
+  } catch (err) {
+    console.warn("[whatsapp] reaction handling failed:", err);
   }
 }
 
@@ -582,6 +657,8 @@ interface WhatsAppMessage {
     button_reply?: { id: string; title: string };
     list_reply?: { id: string; title: string };
   };
+  /** Emoji reaction to a previously-exchanged message (not a new message). */
+  reaction?: { message_id?: string; emoji?: string };
   /** Present when the message came from a Click-to-WhatsApp ad. */
   referral?: {
     source_type?: string;
