@@ -95,6 +95,9 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     label: "Mercado Libre",
     descriptionKey: "settings.mercadolibreCardDescription",
     logoChannel: "mercadolibre",
+    // El isotipo oficial es amarillo con anillo azul: va en caja blanca
+    // para que el azul contraste con la tarjeta oscura.
+    logoSrc: "/channels/mercadolibre.svg",
     members: ["mercadolibre"],
     connectChannel: "mercadolibre",
   },
@@ -344,13 +347,14 @@ export function ChannelsPanel() {
         />
       )}
 
-      {/* Canales — una tarjeta por plataforma en un grid de filas de igual
-          altura: cada tarjeta se estira a la altura de su fila y el CTA va
-          anclado abajo (mt-auto), de modo que las tarjetas quedan alineadas
-          y los botones de acción a la misma altura, tengan o no conexiones
-          vinculadas. El masonry de columnas anterior dejaba las tarjetas
-          escalonadas/desordenadas porque cada una tomaba su propia altura. */}
-      <ul className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Canales — una tarjeta por plataforma. `items-start`: cada tarjeta
+          toma su ALTURA NATURAL, no se estira a la altura de su fila. Antes
+          usábamos items-stretch para alinear los CTA, pero una tarjeta sin
+          conexiones (p.ej. Gmail) al lado de una conectada (Outlook, con su
+          fila de cuenta) se estiraba y dejaba un gran hueco negro entre la
+          descripción y el botón. El grid sigue siendo un grid alineado (no
+          masonry): las filas se alinean arriba, sólo desaparece el relleno. */}
+      <ul className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CHANNEL_GROUPS.map((g) => {
           // Aggregate connections across the group's member channels,
           // then collapse to one row per connected account (page / IG /
