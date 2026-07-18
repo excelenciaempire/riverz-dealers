@@ -58,7 +58,7 @@ export default function AutomationLogsPage({
         setAutomation(autRes.data as Automation | null)
         setLogs((logRes.data ?? []) as AutomationLog[])
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("automations.logsLoadFailed"))
+        setError(t("automations.logsLoadFailed"))
       }
     }
     load()

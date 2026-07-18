@@ -279,7 +279,7 @@ export default function ProductDetailPage() {
       await saveProduct();
       toast.success(t('products.saved'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('products.saveError'));
+      toast.error(t('products.saveError'));
     } finally {
       setSaving(false);
     }
@@ -307,7 +307,7 @@ export default function ProductDetailPage() {
       } = supabase.storage.from('product-media').getPublicUrl(path);
       setImages((cur) => [...cur, publicUrl]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('products.uploadImageError'));
+      toast.error(t('products.uploadImageError'));
     } finally {
       setUploading(false);
     }
@@ -331,7 +331,7 @@ export default function ProductDetailPage() {
       );
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('products.readPagesErrorDot'));
+      toast.error(t('products.readPagesErrorDot'));
     } finally {
       setScraping(false);
     }
@@ -350,7 +350,7 @@ export default function ProductDetailPage() {
       toast.success(t('products.researchReady', { count: json.faqs_count }));
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('products.researchErrorDot'));
+      toast.error(t('products.researchErrorDot'));
     } finally {
       setResearching(false);
     }

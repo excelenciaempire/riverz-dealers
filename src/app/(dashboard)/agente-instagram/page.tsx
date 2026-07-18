@@ -129,7 +129,7 @@ export default function InstagramAgentPage() {
       toast.success(t('igAgent.toastCampaignSaved'));
       loadCampaigns();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('igAgent.errorNetwork'));
+      toast.error(t('igAgent.errorNetwork'));
     } finally {
       setSaving(false);
     }
@@ -172,7 +172,7 @@ export default function InstagramAgentPage() {
       setPlan(json.plan as InstagramPlan);
       setContext(json.context as PlanContext);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('igAgent.errorNetwork'));
+      toast.error(t('igAgent.errorNetwork'));
     } finally {
       setLoading(false);
     }

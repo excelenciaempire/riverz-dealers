@@ -226,7 +226,7 @@ export default function BroadcastDetailPage() {
         if (recsError) throw recsError;
         setRecipients(recs ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t('broadcasts.detailLoadError'));
+        setError(t('broadcasts.detailLoadError'));
       } finally {
         setLoading(false);
       }

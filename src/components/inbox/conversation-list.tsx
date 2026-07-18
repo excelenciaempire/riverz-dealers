@@ -328,7 +328,7 @@ export function ConversationList({
       if (!res.ok)
         toast.error(payload.error || t("inbox.bulkDeleteFailed", { n: ids.length }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("inbox.networkError"));
+      toast.error(t("inbox.networkError"));
     }
     setBulkDeleting(false);
     setSelectedIds(new Set());
@@ -578,7 +578,7 @@ const ConversationItem = memo(function ConversationItem({
         onDelete?.(conversation.id);
         toast.success(t("inbox.deleted"));
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("inbox.networkError"));
+        toast.error(t("inbox.networkError"));
       } finally {
         setDeleting(false);
       }

@@ -101,7 +101,7 @@ export default function TemplateDetailPage() {
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : t('templates.genericError'));
+        setError(t('templates.genericError'));
       } finally {
         setLoading(false);
       }
@@ -126,7 +126,7 @@ export default function TemplateDetailPage() {
       toast.success(t('templates.templateDeleted'));
       router.push('/plantillas');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('templates.deleteFailed'));
+      toast.error(t('templates.deleteFailed'));
     } finally {
       setDeleting(false);
     }

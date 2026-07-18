@@ -323,7 +323,7 @@ export default function NewBroadcastPage() {
       );
       router.push(`/campanas/${broadcastId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('broadcasts.sendFailed'));
+      toast.error(t('broadcasts.sendFailed'));
     }
   }
 
@@ -348,7 +348,7 @@ export default function NewBroadcastPage() {
         toast.error(data?.error ?? t('broadcasts.testFailed'));
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('broadcasts.testFailed'));
+      toast.error(t('broadcasts.testFailed'));
     } finally {
       setSendingTest(false);
     }

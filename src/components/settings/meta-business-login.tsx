@@ -132,7 +132,7 @@ export function MetaBusinessLogin({
         setCred(null);
         onConnected();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
+        toast.error(t("settings.networkError"));
       } finally {
         setBusy(false);
       }
@@ -178,7 +178,7 @@ export function MetaBusinessLogin({
         setChecked(new Set(found.map((a) => a.id)));
         setPickerOpen(true);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
+        toast.error(t("settings.networkError"));
       } finally {
         setBusy(false);
       }

@@ -714,7 +714,7 @@ export function AgentEditor({
         { role: 'assistant', chunks, stamp: nowStamp() },
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('assistant.genericError'));
+      toast.error(t('assistant.genericError'));
     } finally {
       setTesting(false);
     }

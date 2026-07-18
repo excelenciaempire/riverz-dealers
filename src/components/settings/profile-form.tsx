@@ -187,7 +187,7 @@ export function ProfileForm() {
           : t('common.saved'),
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t('settings.genericError');
+      const msg = t('settings.genericError');
       toast.error(msg);
     } finally {
       setSaving(false);

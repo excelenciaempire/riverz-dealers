@@ -35,12 +35,12 @@ export function SessionsCard() {
       // triggers the usual redirect.
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
-        toast.error(error.message);
+        toast.error(t("settings.genericError"));
         return;
       }
       window.location.href = '/ingresar';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t('settings.genericError');
+      const msg = t('settings.genericError');
       toast.error(msg);
     } finally {
       setSigningOut(false);

@@ -210,7 +210,7 @@ export default function AutomationDetailPage() {
         setAutomation(autRes.data as Automation);
         setLogs((logRes.data ?? []) as AutomationLog[]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t('automations.genericError'));
+        setError(t('automations.genericError'));
       } finally {
         setLoading(false);
       }
@@ -266,7 +266,7 @@ export default function AutomationDetailPage() {
           : t('automations.automationActivated'),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('automations.updateFailed'));
+      toast.error(t('automations.updateFailed'));
     } finally {
       setToggling(false);
     }

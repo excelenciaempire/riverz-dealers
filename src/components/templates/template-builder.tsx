@@ -257,7 +257,7 @@ export function TemplateBuilder() {
       toast.success(t('templates.templateSent'));
       router.push('/plantillas');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('templates.createFailed'));
+      toast.error(t('templates.createFailed'));
     } finally {
       setSubmitting(false);
     }

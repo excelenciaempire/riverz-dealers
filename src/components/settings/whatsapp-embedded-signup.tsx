@@ -126,7 +126,7 @@ export function WhatsAppEmbeddedSignup({
         );
         onConnected();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("settings.networkError"));
+        toast.error(t("settings.networkError"));
       } finally {
         setBusy(false);
       }

@@ -225,7 +225,7 @@ export function ChannelsPanel() {
         .update({ status: "disconnected" })
         .in("id", ids);
       if (error) {
-        toast.error(error.message);
+        toast.error(t("settings.genericError"));
         return;
       }
       // Quitar de la vista al instante (no solo marcar disconnected): el
@@ -246,7 +246,7 @@ export function ChannelsPanel() {
         .delete()
         .in("id", ids);
       if (error) {
-        toast.error(error.message);
+        toast.error(t("settings.genericError"));
         return;
       }
       setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));

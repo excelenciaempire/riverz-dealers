@@ -152,7 +152,7 @@ export function ContactForm({
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('contacts.saveContactError');
+      const message = t('contacts.saveContactError');
       toast.error(message);
     } finally {
       setSaving(false);

@@ -129,7 +129,7 @@ export function WorkspacePanel() {
       .eq("id", workspace.id);
     setSaving(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(t("settings.genericError"));
       return;
     }
     toast.success(t("settings.workspaceRenamed"));
@@ -147,7 +147,7 @@ export function WorkspacePanel() {
       .eq("id", workspace.id);
     setSavingTz(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(t("settings.genericError"));
       return;
     }
     // Prime the cache so the inbox + dashboard pick up the new zone on the
@@ -185,7 +185,7 @@ export function WorkspacePanel() {
       const supabase = createClient();
       const { error } = await supabase.from("workspace_members").delete().eq("id", id);
       if (error) {
-        toast.error(error.message);
+        toast.error(t("settings.genericError"));
         return;
       }
       toast.success(t("settings.memberRemoved"));
@@ -199,7 +199,7 @@ export function WorkspacePanel() {
       const supabase = createClient();
       const { error } = await supabase.from("workspace_members").update({ role }).eq("id", id);
       if (error) {
-        toast.error(error.message);
+        toast.error(t("settings.genericError"));
         return;
       }
       await fetchMembersAndInvites();

@@ -123,7 +123,7 @@ export default function TemplatesPage() {
       );
       await fetchTemplates(user.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('templates.syncCouldNot'));
+      toast.error(t('templates.syncCouldNot'));
     } finally {
       setSyncing(false);
     }
@@ -139,7 +139,7 @@ export default function TemplatesPage() {
       toast.success(t('templates.templateDeleted'));
       setTemplates((prev) => prev.filter((tpl) => tpl.id !== id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('templates.deleteFailed'));
+      toast.error(t('templates.deleteFailed'));
     }
   }
 

@@ -63,7 +63,7 @@ export function FlowVersionsDialog({
       const data = (await res.json()) as { versions: FlowVersion[] };
       setVersions(data.versions ?? []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("flows.genericError"));
+      toast.error(t("flows.genericError"));
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export function FlowVersionsDialog({
       onRestored();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("flows.genericError"));
+      toast.error(t("flows.genericError"));
     } finally {
       setRestoringId(null);
     }

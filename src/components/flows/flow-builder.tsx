@@ -1049,7 +1049,7 @@ export function FlowBuilder({
       if (canActivate) setShowValidation(false);
       toast.success(t("flows.saved"));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t("flows.couldNotSave");
+      const msg = t("flows.couldNotSave");
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -1090,7 +1090,7 @@ export function FlowBuilder({
               : t("flows.draftToast"),
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : t("flows.couldNotUpdateStatus");
+        const msg = t("flows.couldNotUpdateStatus");
         toast.error(msg);
       } finally {
         setActivating(false);
@@ -1111,7 +1111,7 @@ export function FlowBuilder({
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       router.push("/menus");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t("flows.couldNotDelete");
+      const msg = t("flows.couldNotDelete");
       toast.error(msg);
     }
   }, [templatePreview, initialFlow.id, router, state.name, fetchWithCsrf, t]);

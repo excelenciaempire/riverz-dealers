@@ -619,7 +619,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send message:", err);
-        const reason = err instanceof Error ? err.message : t("inbox.networkErrorReason");
+        const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
@@ -694,7 +694,7 @@ export function MessageThread({
         // Swap the blob preview for the persisted public URL.
         onUpdateMessage(tempId, { status: "sent", media_url: upJson.url });
       } catch (err) {
-        const reason = err instanceof Error ? err.message : t("inbox.networkErrorReason");
+        const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       } finally {
@@ -776,7 +776,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send template:", err);
-        const reason = err instanceof Error ? err.message : t("inbox.networkErrorReason");
+        const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
@@ -904,7 +904,7 @@ export function MessageThread({
           throw new Error(payload?.error || `HTTP ${res.status}`);
         }
       } catch (err) {
-        const reason = err instanceof Error ? err.message : t("inbox.networkErrorReason");
+        const reason = t("inbox.networkErrorReason");
         toast.error(t("inbox.reactFailed", { reason }));
         setReactions(snapshot);
       }

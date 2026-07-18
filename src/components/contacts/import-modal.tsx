@@ -284,7 +284,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
         toast.error(t('contacts.importFailedToast', { count: failed }));
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('contacts.importFailed');
+      const message = t('contacts.importFailed');
       toast.error(message);
     } finally {
       setImporting(false);

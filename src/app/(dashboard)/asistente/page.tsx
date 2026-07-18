@@ -64,7 +64,7 @@ export default function AiAgentsPage() {
       if (res.ok) setAgents((json.agents ?? []) as AgentSummary[]);
       else toast.error(json.error ?? t('assistant.loadError'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('assistant.genericError'));
+      toast.error(t('assistant.genericError'));
     } finally {
       setLoading(false);
     }

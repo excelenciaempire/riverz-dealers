@@ -146,7 +146,7 @@ export function AiBuilderPanel({
         },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t("flows.couldNotConnect");
+      const msg = t("flows.couldNotConnect");
       toast.error(msg);
       setTurns((prev) => [
         ...prev,
