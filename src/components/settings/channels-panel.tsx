@@ -477,15 +477,11 @@ export function ChannelsPanel() {
                   ready &&
                   process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
                     <div className="space-y-1.5">
-                      {/* New-number flow (primary) + coexistence (keep the
-                          WhatsApp Business app on the phone, same number). */}
+                      {/* One entry point → Meta's "Select your setup" screen,
+                          which offers both a new number and coexistence (keep
+                          the WhatsApp Business app on the phone, same number). */}
                       <WhatsAppEmbeddedSignup
                         workspaceId={workspace.id}
-                        onConnected={() => void fetchConnections()}
-                      />
-                      <WhatsAppEmbeddedSignup
-                        workspaceId={workspace.id}
-                        mode="coexistence"
                         onConnected={() => void fetchConnections()}
                       />
                       <p className="text-center text-[10px] leading-snug text-muted-foreground">
