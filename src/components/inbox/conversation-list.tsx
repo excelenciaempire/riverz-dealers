@@ -821,6 +821,8 @@ function resolveDisplayName(
   if (ext) {
     if (channel === "instagram") return t("inbox.instagramCustomer", { id: ext.slice(-5) });
     if (channel === "messenger") return t("inbox.messengerCustomer", { id: ext.slice(-5) });
+    if (channel === "mercadolibre")
+      return t("inbox.mercadolibreCustomer", { id: ext.slice(-5) });
     return ext;
   }
   return t("inbox.noName");

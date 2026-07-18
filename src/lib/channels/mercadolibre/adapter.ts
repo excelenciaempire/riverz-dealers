@@ -131,11 +131,14 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       const q = (await r.json()) as MlQuestion;
       // Only surface questions still awaiting an answer.
       if (!q.id || q.status !== "UNANSWERED" || !q.text) return [];
+      const qBuyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
       return [
         {
           channel: "mercadolibre",
           connection,
-          externalContactId: String(q.from?.id ?? q.buyer_id ?? "ml"),
+          externalContactId: qBuyerId,
+          // ML no expone el nombre real (privacidad); usamos el apodo público.
+          contactName: await resolveMlNickname(qBuyerId, auth),
           externalMessageId: `q:${q.id}`,
           externalThreadId: `q:${q.id}`,
           subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
@@ -158,14 +161,19 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       if (!r.ok) return [];
       const conv = (await r.json()) as MlPack;
       const events: InboundEvent[] = [];
+      const nickCache = new Map<string, string | undefined>();
       for (const m of conv.messages ?? []) {
         const fromId = String(m.from?.user_id ?? "");
         // Skip our own (seller) messages — those are echoes of what we sent.
         if (!m.id || !fromId || fromId === sellerId) continue;
+        if (!nickCache.has(fromId)) {
+          nickCache.set(fromId, await resolveMlNickname(fromId, auth));
+        }
         events.push({
           channel: "mercadolibre",
           connection,
           externalContactId: fromId,
+          contactName: nickCache.get(fromId),
           externalMessageId: m.id,
           externalThreadId: `pack:${packId}`,
           text: m.text ?? "",
@@ -231,6 +239,26 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
     })
     .eq("id", connection.id);
   return json.access_token;
+}
+
+/**
+ * Resolve a MercadoLibre user's PUBLIC nickname (ML never exposes the real
+ * name). Best-effort: returns undefined on any failure so ingest still works
+ * and the UI falls back to "Cliente Mercado Libre · …id".
+ */
+async function resolveMlNickname(
+  userId: string,
+  auth: Record<string, string>,
+): Promise<string | undefined> {
+  if (!userId || userId === "ml") return undefined;
+  try {
+    const r = await fetch(`${ML}/users/${userId}`, { headers: auth });
+    if (!r.ok) return undefined;
+    const u = (await r.json()) as { nickname?: string };
+    return u.nickname || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Pull the pack id from a resource path like "/messages/packs/123/sellers/456". */

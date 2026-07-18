@@ -53,6 +53,13 @@ export function MessageActions({
   // Emails render as full-width cards (often a 600px marketing layout), not
   // chat bubbles — the 75% cap squeezes them so headings wrap mid-word.
   const isEmail = message.channel === "gmail" || message.channel === "outlook";
+  // Reaccionar y responder-a-un-mensaje son propios de los chats de mensajería.
+  // En Mercado Libre (preguntas/mensajes), email y comentarios no existen esas
+  // acciones — se contesta desde el composer / la barra de moderación. Copiar
+  // sí aplica a todos.
+  const canQuickAct = ["whatsapp", "instagram", "messenger"].includes(
+    message.channel,
+  );
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -136,38 +143,42 @@ export function MessageActions({
           isAgent ? "right-3" : "left-3",
         )}
       >
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger
+        {canQuickAct && (
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger
+              className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
+              aria-label={t("inbox.react")}
+            >
+              <SmilePlus className="h-3.5 w-3.5" />
+            </PopoverTrigger>
+            <PopoverContent
+              className="flex w-auto flex-row gap-1 p-1.5"
+              sideOffset={6}
+            >
+              {QUICK_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => handlePickEmoji(e)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125 hover:bg-accent"
+                  aria-label={t("inbox.reactWith", { emoji: e })}
+                >
+                  {e}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        )}
+        {canQuickAct && (
+          <button
+            type="button"
+            onClick={handleReply}
             className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("inbox.react")}
+            aria-label={t("inbox.reply")}
           >
-            <SmilePlus className="h-3.5 w-3.5" />
-          </PopoverTrigger>
-          <PopoverContent
-            className="flex w-auto flex-row gap-1 p-1.5"
-            sideOffset={6}
-          >
-            {QUICK_EMOJIS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => handlePickEmoji(e)}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none transition-transform hover:scale-125 hover:bg-accent"
-                aria-label={t("inbox.reactWith", { emoji: e })}
-              >
-                {e}
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-        <button
-          type="button"
-          onClick={handleReply}
-          className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
-          aria-label={t("inbox.reply")}
-        >
-          <CornerUpLeft className="h-3.5 w-3.5" />
-        </button>
+            <CornerUpLeft className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}

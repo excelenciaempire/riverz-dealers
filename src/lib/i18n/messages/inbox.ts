@@ -87,6 +87,10 @@ export const inbox = {
     es: "Cliente Messenger · …{id}",
     en: "Messenger customer · …{id}",
   },
+  mercadolibreCustomer: {
+    es: "Cliente Mercado Libre · …{id}",
+    en: "Mercado Libre customer · …{id}",
+  },
 
   // Conversation list — empty states
   noResults: { es: "Sin resultados", en: "No results" },

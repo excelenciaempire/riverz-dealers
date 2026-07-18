@@ -1006,6 +1006,9 @@ export function MessageThread({
     contact.name ||
     contact.email ||
     (contact.phone ? formatPhoneDisplay(contact.phone) : "") ||
+    (conversation.channel === "mercadolibre" && contact.external_id
+      ? t("inbox.mercadolibreCustomer", { id: contact.external_id.slice(-5) })
+      : "") ||
     contact.external_id ||
     t("inbox.contactFallback");
   const messageGroups = groupMessagesByDate(messages, tz);
