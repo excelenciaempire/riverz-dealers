@@ -1,12 +1,34 @@
-# Shopify App Store — plan de publicación de "Riverz Inbox"
+# Shopify App Store — plan de publicación
 
 Objetivo: que cualquier tienda Shopify instale Riverz en 2 clics desde el App Store
 (o vía link directo con listing *unlisted*), sin custom apps ni tokens pegados a mano.
 
-Estado del código (2026-07-18): **listo para review en lo técnico.** Este documento
-recoge lo que ya está resuelto en el repo y el paso a paso manual que falta en el
-Dev Dashboard (dev.shopify.com, org 216526489, app "Riverz Inbox" 382541529089,
-cuenta riverzoficial@gmail.com).
+## Arquitectura de DOS apps (decidida 2026-07-18)
+
+El app original **"Riverz Inbox"** (382541529089, client `c5240cc4…`) quedó
+**irreversiblemente en custom distribution** (ligado al Plus org de la tienda de
+Pilar) — Shopify no permite cambiar el método de distribución. Por eso existe un
+segundo app:
+
+| App | Client ID | Distribución | Rol |
+|---|---|---|---|
+| **Riverz** (399553527809) | `57bf672c…` | **Pública (App Store)** — elegida, irreversible | App primario: nuevas instalaciones, listing, review |
+| Riverz Inbox (382541529089) | `c5240cc4…` | Custom (Plus org de j9kgap-kn) | Legacy: la tienda de Pilar sigue aquí hasta la aprobación |
+
+Prod (Render) corre con el par primario en `SHOPIFY_API_KEY/SECRET` y el legacy en
+`SHOPIFY_API_KEY_LEGACY/SECRET_LEGACY`; el código verifica webhooks, session tokens
+y callbacks OAuth contra ambos (commit f22ec35). **Tras la aprobación del App
+Store, reconectar la tienda de Pilar** (visitar riverz.co/?shop=j9kgap-kn.myshopify.com
+con su sesión de Shopify) para migrarla al app público; después el par legacy puede
+retirarse.
+
+Ojo: el app público **no puede instalarse en tiendas reales hasta ser aprobado** —
+solo en tiendas de desarrollo del Partner org. Onboarding de merchants reales
+mientras tanto: camino admin_token (SHOPIFY_SETUP.md §7).
+
+Estado (2026-07-18): **código listo + configuración del Dev Dashboard hecha + datos
+protegidos completos.** Cuenta riverzoficial@gmail.com, org Dev Dashboard 216526489,
+org Partners 4896758.
 
 ## 1. Lo que el código ya cumple
 
@@ -31,30 +53,25 @@ Flujo de instalación resultante (App Store):
    `/registro?shopify=pending&shop=…` y al entrar al panel la tienda se reclama sola (toast + Integraciones).
 4. Dentro del admin (iframe, `embedded=1`) se sirve `/shopify/embedded`: estado de conexión + botón para abrir Riverz o completar la vinculación.
 
-## 2. Configuración del app en el Dev Dashboard (manual, ~30 min)
+## 2. Configuración del app en el Dev Dashboard — ✅ HECHA (2026-07-18, ambos apps)
 
-- [ ] **App URL**: `https://riverz.co` (el proxy resuelve instalación vs. carga embebida).
-- [ ] **Allowed redirection URL(s)**: `https://riverz.co/api/shopify/oauth/callback` (alias del canónico `/api/shopify/callback` — dejar ambos listados no hace daño).
-- [ ] **Embedded = enabled** (App Bridge). La página embebida ya existe.
-- [ ] **Scopes** solicitados = los del código: `read_orders, write_orders, read_checkouts, read_customers, read_products` (env `SHOPIFY_SCOPES` puede sobreescribir; que coincidan).
-- [ ] **Compliance webhooks** (GDPR):
-  - customers/data_request → `https://riverz.co/api/shopify/webhooks/customers-data-request`
-  - customers/redact → `https://riverz.co/api/shopify/webhooks/customers-redact`
-  - shop/redact → `https://riverz.co/api/shopify/webhooks/shop-redact`
-- [ ] Crear **versión nueva y release** tras cada cambio de config.
+- [x] **App URL**: `https://riverz.co`.
+- [x] **Redirects**: `https://riverz.co/api/shopify/oauth/callback` + `https://riverz.co/api/shopify/callback`.
+- [x] **Embedded = true** (App Bridge).
+- [x] **Scopes**: `read_checkouts,read_customers,read_orders,write_orders,read_products`.
+- [x] **Compliance webhooks (GDPR)** → riverz.co (customers-data-request / customers-redact / shop-redact). Aplicados vía Shopify CLI (`shopify app deploy`, el form web no los expone) — versión `compliance-webhooks` en Riverz Inbox y `appstore-base` en Riverz.
+- Nota operativa: config por CLI con token de automatización (env `SHOPIFY_CLI_PARTNERS_TOKEN`, tokens `atkn_…` creados en Settings de cada app). TOML de referencia en el scratchpad o regenerar con `shopify app config link`.
 
-## 3. Protected Customer Data (gate real, formulario)
+## 3. Protected Customer Data — ✅ HECHA para el app público (2026-07-18)
 
-Riverz lee clientes y pedidos (nombre, email, teléfono, dirección) → requiere
-aprobación de **Protected Customer Data nivel 2** en el Dev Dashboard
-(API access → Protected customer data access):
-
-- [ ] Declarar propósitos: atención al cliente multicanal (inbox), enriquecimiento de
-  contactos, automatizaciones de carrito/pedido, atribución de ventas.
-- [ ] Cuestionario de protección de datos: cifrado en reposo (tokens y webhook secrets ya
-  van cifrados; Supabase cifra el storage), TLS en tránsito, retención limitada
-  (borrado vía webhooks GDPR), acceso por workspace (RLS).
-- [ ] Las tiendas de desarrollo están exentas → se puede probar todo antes de la aprobación.
+- [x] Uso de datos + motivos: Customer service, Store management, Personalization, Marketing or advertising.
+- [x] Campos nivel 2: Nombre, Email, Teléfono, Dirección (mismos motivos).
+- [x] Cuestionario de protección de datos: **16/16** (todo "Sí" salvo venta de datos y
+  decisiones automatizadas con efecto legal → "No aplicable").
+- Estado "Preliminar": Shopify lo revisa recién al someter el listing. Las tiendas de
+  desarrollo están exentas → se puede probar todo ya.
+- ⚠️ Pendiente honesto: tener por escrito una política de respuesta a incidentes
+  (una página basta) — el cuestionario declara que existe.
 
 ## 4. Billing
 
@@ -86,8 +103,11 @@ Riverz cobra su SaaS fuera de Shopify (multicanal; Shopify es una integración m
 - El camino admin_token (SHOPIFY_SETUP.md §7) sigue disponible para onboarding
   white-glove mientras el listing no esté aprobado.
 
-## 8. Env requeridas en Render (prod)
+## 8. Env en Render (prod) — ✅ SETEADAS 2026-07-18
 
-`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET` (los del app del Dev Dashboard),
-`NEXT_PUBLIC_SITE_URL=https://riverz.co`. Opcionales: `SHOPIFY_SCOPES`,
-`SHOPIFY_OAUTH_REDIRECT_URI`, `SHOPIFY_ENRICH_ON_CONNECT`, `SHOPIFY_ENRICH_MAX`.
+- `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` = app público "Riverz" (`57bf672c…`).
+- `SHOPIFY_API_KEY_LEGACY` / `SHOPIFY_API_SECRET_LEGACY` = app legacy "Riverz Inbox"
+  (`c5240cc4…`) — mantiene vivos los webhooks/session tokens de las tiendas ya
+  instaladas (Pilar). Retirar tras migrarlas al app público.
+- Ya existentes: `NEXT_PUBLIC_SITE_URL=https://riverz.co`, `SHOPIFY_OAUTH_REDIRECT_URI`.
+- Opcionales: `SHOPIFY_SCOPES`, `SHOPIFY_ENRICH_ON_CONNECT`, `SHOPIFY_ENRICH_MAX`.
