@@ -36,11 +36,16 @@ export function SetupChecklist() {
   const status = useSetupStatus();
   const t = useT();
 
-  // Leído en efecto (no en render) para no romper la hidratación SSR.
+  // Leído en un efecto (no en el initializer) a propósito: servidor y cliente
+  // arrancan en `false` y recién tras montar el efecto oculta el checklist si
+  // estaba descartado, evitando una desalineación de hidratación.
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     try {
-      if (localStorage.getItem(DISMISS_KEY) === '1') setDismissed(true);
+      if (localStorage.getItem(DISMISS_KEY) === '1') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura client-only post-montaje (hidratación segura)
+        setDismissed(true);
+      }
     } catch {
       /* localStorage bloqueado: mostramos el checklist igual */
     }
