@@ -215,6 +215,10 @@ export interface Conversation {
   /** Sender type of the most recent message — drives the "needs reply"
    * dot in the inbox row. Maintained by inbox-writer + send-route. */
   last_sender_type?: SenderType;
+  /** Estado de entrega del último mensaje si es SALIENTE (sent/delivered/read/
+   *  failed), o null si el último es del cliente. Mantiene el tick estilo
+   *  WhatsApp en el preview de la bandeja. Trigger, migración 102. */
+  last_message_status?: MessageStatus | null;
   unread_count: number;
   /** Resumen rodante del historial viejo de esta conversación.
    *  Migration 048. */
