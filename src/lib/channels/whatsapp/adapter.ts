@@ -248,6 +248,13 @@ export const whatsappAdapter: ChannelAdapter = {
         if (change.field === "smb_message_echoes" && value.message_echoes) {
           for (const e of value.message_echoes) {
             if (!e.to || !e.id || e.type === "revoke" || e.type === "edit") continue;
+            // Una reacción NO es un mensaje: la reacción que el comercio mandó
+            // desde el celular va a message_reactions y se muestra SOBRE el
+            // mensaje objetivo (como WhatsApp), no como un bubble "[reaction]".
+            if (e.type === "reaction") {
+              await handleWhatsappReactionEcho(connection, e);
+              continue;
+            }
             const att = await ingestInboundMedia({
               message: e,
               encryptedToken,
@@ -568,6 +575,55 @@ async function handleWhatsappReaction(
     );
   } catch (err) {
     console.warn("[whatsapp] reaction handling failed:", err);
+  }
+}
+
+/**
+ * Persist a reaction the MERCHANT sent from their phone (coexistence echo). Es
+ * el negocio reaccionando, así que actor_type='agent' + actor_id=workspace_id
+ * — se muestra sobre el mensaje objetivo como WhatsApp, en vez de caer como un
+ * bubble "[reaction]". Emoji vacío = quitó la reacción. Best-effort: si el
+ * mensaje objetivo aún no está ingerido, se omite.
+ */
+async function handleWhatsappReactionEcho(
+  connection: ChannelConnection,
+  e: WhatsAppMessage,
+): Promise<void> {
+  const reaction = e.reaction;
+  if (!reaction?.message_id) return;
+  const db = supabaseAdmin();
+  try {
+    const { data: target } = await db
+      .from("messages")
+      .select("id, conversation_id")
+      .eq("channel", "whatsapp")
+      .eq("message_id", reaction.message_id)
+      .limit(1)
+      .maybeSingle();
+    const t = target as { id: string; conversation_id: string } | null;
+    if (!t) return;
+    const actorId = connection.workspace_id;
+    if (!reaction.emoji) {
+      await db
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", t.id)
+        .eq("actor_type", "agent")
+        .eq("actor_id", actorId);
+      return;
+    }
+    await db.from("message_reactions").upsert(
+      {
+        message_id: t.id,
+        conversation_id: t.conversation_id,
+        actor_type: "agent",
+        actor_id: actorId,
+        emoji: reaction.emoji,
+      },
+      { onConflict: "message_id,actor_type,actor_id" },
+    );
+  } catch (err) {
+    console.warn("[whatsapp] reaction echo handling failed:", err);
   }
 }
 

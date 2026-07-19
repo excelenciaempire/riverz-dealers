@@ -439,6 +439,14 @@ async function handleMessageEchoes(
     const conversation = await findOrCreateConversation(config.user_id, outcome.contact.id)
     if (!conversation) continue
 
+    // Una reacción que el comercio mandó desde el celular NO es un mensaje: va
+    // a message_reactions sobre el mensaje objetivo (como WhatsApp), no como un
+    // bubble "[reaction]".
+    if (echo.type === 'reaction') {
+      await handleReactionEcho(echo, conversation.id, config.user_id)
+      continue
+    }
+
     const { contentText, mediaUrl } = await parseMessageContent(echo, token)
     const createdIso = new Date(parseInt(echo.timestamp) * 1000).toISOString()
     const { error } = await supabaseAdmin().from('messages').insert({
@@ -501,7 +509,9 @@ async function handleHistorySync(
       let newest: { ts: number; text: string | null; type: string; sender: 'agent' | 'customer' } | null = null
       for (const msg of thread.messages ?? []) {
         if (!msg?.id || !msg.timestamp) continue
-        if (msg.type === 'revoke' || msg.type === 'edit') continue
+        // revoke/edit no traen texto que mostrar; reaction no es un mensaje
+        // (evita "[reaction]" en el historial importado).
+        if (msg.type === 'revoke' || msg.type === 'edit' || msg.type === 'reaction') continue
         const fromBusiness = businessPhone ? phonesMatch(msg.from ?? '', businessPhone) : false
         const sender: 'agent' | 'customer' = fromBusiness ? 'agent' : 'customer'
         const { contentText, mediaUrl } = await parseMessageContent(msg, token)
@@ -686,6 +696,46 @@ async function handleReaction(
     )
   if (upsertError) {
     console.error('[webhook] reaction upsert failed:', upsertError.message)
+  }
+}
+
+/**
+ * Coexistence: persist a reaction the MERCHANT sent from their phone as a
+ * business reaction (actor_type='agent') on the target message — like WhatsApp,
+ * instead of a "[reaction]" bubble in the thread. Empty emoji = removal.
+ */
+async function handleReactionEcho(
+  echo: WhatsAppMessage,
+  conversationId: string,
+  actorId: string
+) {
+  const reaction = echo.reaction
+  if (!reaction?.message_id) return
+  const targetInternalId = await lookupInternalIdByMetaId(reaction.message_id, conversationId)
+  if (!targetInternalId) return
+  if (!reaction.emoji) {
+    await supabaseAdmin()
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', targetInternalId)
+      .eq('actor_type', 'agent')
+      .eq('actor_id', actorId)
+    return
+  }
+  const { error } = await supabaseAdmin()
+    .from('message_reactions')
+    .upsert(
+      {
+        message_id: targetInternalId,
+        conversation_id: conversationId,
+        actor_type: 'agent',
+        actor_id: actorId,
+        emoji: reaction.emoji,
+      },
+      { onConflict: 'message_id,actor_type,actor_id' }
+    )
+  if (error) {
+    console.error('[coexistence] reaction echo upsert failed:', error.message)
   }
 }
 
