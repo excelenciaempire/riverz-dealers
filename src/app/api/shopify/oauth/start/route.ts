@@ -40,10 +40,15 @@ export async function GET(request: Request) {
 
   // Shopify-initiated hits (App URL bootstrap) arrive signed. When the
   // signature is present, verify it — a forged/tampered query then fails
-  // instead of silently starting OAuth for an attacker-chosen shop.
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (url.searchParams.get('hmac') && apiSecret) {
-    if (!verifyOAuthHmac(url.searchParams, apiSecret)) {
+  // instead of silently starting OAuth for an attacker-chosen shop. Both
+  // app identities share the App URL, so accept either secret (primary
+  // public app / legacy custom-distribution app).
+  const secrets = [
+    process.env.SHOPIFY_API_SECRET,
+    process.env.SHOPIFY_API_SECRET_LEGACY,
+  ].filter((s): s is string => Boolean(s))
+  if (url.searchParams.get('hmac') && secrets.length) {
+    if (!secrets.some((s) => verifyOAuthHmac(url.searchParams, s))) {
       return NextResponse.json(
         { error: translate(locale, 'errProducts.invalidShopDomain') },
         { status: 400 },

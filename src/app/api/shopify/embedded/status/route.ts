@@ -20,16 +20,32 @@ const log = getLogger('shopify.embedded-status')
  *   none      — not installed / uninstalled
  */
 export async function GET(request: Request) {
-  const apiKey = process.env.SHOPIFY_API_KEY
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiKey || !apiSecret) {
+  // Two app identities can mint session tokens during the App Store
+  // transition: the public "Riverz" app (primary) and the legacy
+  // custom-distribution app that existing stores still have installed.
+  const pairs = [
+    {
+      apiKey: process.env.SHOPIFY_API_KEY,
+      apiSecret: process.env.SHOPIFY_API_SECRET,
+    },
+    {
+      apiKey: process.env.SHOPIFY_API_KEY_LEGACY,
+      apiSecret: process.env.SHOPIFY_API_SECRET_LEGACY,
+    },
+  ].filter((p): p is { apiKey: string; apiSecret: string } =>
+    Boolean(p.apiKey && p.apiSecret),
+  )
+  if (!pairs.length) {
     return NextResponse.json({ error: 'not_configured' }, { status: 503 })
   }
 
   const auth = request.headers.get('authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   const verified = token
-    ? verifySessionToken(token, { apiKey, apiSecret })
+    ? pairs.reduce<ReturnType<typeof verifySessionToken>>(
+        (acc, pair) => acc ?? verifySessionToken(token, pair),
+        null,
+      )
     : null
   if (!verified) {
     log.warn('session_token_rejected', { hasToken: Boolean(token) })

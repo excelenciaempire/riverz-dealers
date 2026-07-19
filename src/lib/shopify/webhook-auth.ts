@@ -9,7 +9,13 @@ import { resolveShopWebhookSecret } from './connection'
  * Two connection models coexist:
  *  - admin_token: the merchant's own custom app signs its webhooks with
  *    THAT app's API secret key, stored (encrypted) per connection.
- *  - oauth: the global app signs with SHOPIFY_API_SECRET.
+ *  - oauth: the global app signs with SHOPIFY_API_SECRET. During the App
+ *    Store transition TWO global apps coexist — the new public "Riverz"
+ *    app (primary env pair) and the legacy custom-distribution "Riverz
+ *    Inbox" app that existing stores (Pilar) are still installed on. A
+ *    webhook registered under the legacy app signs with ITS secret, so we
+ *    verify against SHOPIFY_API_SECRET first and fall back to
+ *    SHOPIFY_API_SECRET_LEGACY.
  *
  * The shop's NEWEST connection decides which secret to use (see
  * resolveShopWebhookSecret). An admin_token store NEVER falls back to the
@@ -33,12 +39,19 @@ export async function verifyShopifyWebhook(
     : ({ mode: 'global' } as const)
   if (resolution.mode === 'fail_closed') return 'unconfigured'
 
-  const secret =
-    resolution.mode === 'per_store'
-      ? resolution.secret
-      : process.env.SHOPIFY_API_SECRET
-  if (!secret) return 'unconfigured'
-
   const hmac = request.headers.get('x-shopify-hmac-sha256')
-  return verifyWebhookHmac(rawBody, hmac, secret) ? 'ok' : 'invalid'
+
+  if (resolution.mode === 'per_store') {
+    return verifyWebhookHmac(rawBody, hmac, resolution.secret) ? 'ok' : 'invalid'
+  }
+
+  const secrets = [
+    process.env.SHOPIFY_API_SECRET,
+    process.env.SHOPIFY_API_SECRET_LEGACY,
+  ].filter((s): s is string => Boolean(s))
+  if (!secrets.length) return 'unconfigured'
+
+  return secrets.some((s) => verifyWebhookHmac(rawBody, hmac, s))
+    ? 'ok'
+    : 'invalid'
 }

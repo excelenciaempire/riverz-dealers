@@ -107,15 +107,30 @@ async function resolveOwnerUserId(
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
-  const apiKey = process.env.SHOPIFY_API_KEY
-  const apiSecret = process.env.SHOPIFY_API_SECRET
-  if (!apiKey || !apiSecret) {
+  // Two app identities during the App Store transition: the public
+  // "Riverz" app (primary) and the legacy custom-distribution app. The
+  // HMAC tells us which app signed this callback, and the code exchange
+  // MUST use that same app's credentials.
+  const pairs = [
+    {
+      apiKey: process.env.SHOPIFY_API_KEY,
+      apiSecret: process.env.SHOPIFY_API_SECRET,
+    },
+    {
+      apiKey: process.env.SHOPIFY_API_KEY_LEGACY,
+      apiSecret: process.env.SHOPIFY_API_SECRET_LEGACY,
+    },
+  ].filter((p): p is { apiKey: string; apiSecret: string } =>
+    Boolean(p.apiKey && p.apiSecret),
+  )
+  if (!pairs.length) {
     log.error('not_configured', {})
     return bounce(request, { shopify: 'error', reason: 'not_configured' })
   }
 
   // 1. HMAC over the query string. This is the security gate for ALL flows.
-  if (!verifyOAuthHmac(params, apiSecret)) {
+  const pair = pairs.find((p) => verifyOAuthHmac(params, p.apiSecret))
+  if (!pair) {
     // Solo diagnóstico NO sensible. No recomputamos ni logueamos el HMAC, el
     // mensaje firmado, el raw_query ni fragmento/longitud del secreto —
     // filtraría material sensible a stdout/Sentry.
@@ -183,7 +198,12 @@ export async function GET(request: Request) {
   let accessToken: string
   let grantedScope: string
   try {
-    const exchanged = await exchangeCodeForToken({ shop, code, apiKey, apiSecret })
+    const exchanged = await exchangeCodeForToken({
+      shop,
+      code,
+      apiKey: pair.apiKey,
+      apiSecret: pair.apiSecret,
+    })
     accessToken = exchanged.access_token
     grantedScope = exchanged.scope
   } catch (err) {
