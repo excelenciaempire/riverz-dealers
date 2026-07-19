@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from "@/components/i18n/locale-link";
 import {
   ArrowRight,
@@ -8,11 +9,16 @@ import {
   Inbox,
   LineChart,
   RefreshCw,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSetupStatus } from '@/hooks/use-setup-status';
 import { useT } from '@/hooks/use-locale';
+
+// El merchant puede ocultar el checklist aunque no lo haya completado; la
+// preferencia se guarda por navegador (reaparece igual solo, no molesta).
+const DISMISS_KEY = 'riverz.setupChecklistDismissed';
 
 /**
  * Stepper guiado de onboarding en /panel. Lleva al merchant nuevo por el
@@ -30,7 +36,25 @@ export function SetupChecklist() {
   const status = useSetupStatus();
   const t = useT();
 
-  if (status.loading) return null;
+  // Leído en efecto (no en render) para no romper la hidratación SSR.
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === '1') setDismissed(true);
+    } catch {
+      /* localStorage bloqueado: mostramos el checklist igual */
+    }
+  }, []);
+  const dismiss = () => {
+    try {
+      localStorage.setItem(DISMISS_KEY, '1');
+    } catch {
+      /* no-op */
+    }
+    setDismissed(true);
+  };
+
+  if (status.loading || dismissed) return null;
 
   const steps: Array<{
     label: string;
@@ -91,6 +115,16 @@ export function SetupChecklist() {
               <LineChart className="size-3.5" aria-hidden />
               {t('dashboard.viewMetrics')}
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={dismiss}
+              className="text-muted-foreground"
+              aria-label={t('dashboard.hideChecklist')}
+              title={t('dashboard.hideChecklist')}
+            >
+              <X className="size-4" aria-hidden />
+            </Button>
           </div>
         </div>
       </section>
@@ -138,6 +172,16 @@ export function SetupChecklist() {
           >
             <RefreshCw className="size-3" aria-hidden />
             {t('dashboard.refreshStatus')}
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={dismiss}
+            className="text-muted-foreground"
+            aria-label={t('dashboard.hideChecklist')}
+            title={t('dashboard.hideChecklist')}
+          >
+            <X className="size-3.5" aria-hidden />
           </Button>
         </div>
       </header>

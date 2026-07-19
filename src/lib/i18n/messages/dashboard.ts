@@ -152,6 +152,7 @@ export const dashboard = {
     en: "Follow the order. Each step takes you straight to where it's completed.",
   },
   refreshStatus: { es: "Actualizar estado", en: "Refresh status" },
+  hideChecklist: { es: "Ocultar", en: "Hide" },
   done: { es: "Listo", en: "Done" },
   later: { es: "Más adelante", en: "Later" },
 } satisfies Namespace;

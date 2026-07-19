@@ -177,17 +177,18 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="app-page-title">{t('dashboard.overview')}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <LiveIndicator connected={isConnected} t={t} />
-          <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
-        </div>
+        <h1 className="app-page-title">{t('dashboard.overview')}</h1>
+        <LiveIndicator connected={isConnected} t={t} />
       </div>
 
-      {/* Checklist de onboarding. Solo aparece mientras falte algo. */}
+      {/* Checklist de onboarding. Solo aparece mientras falte algo (o se oculte). */}
       <SetupChecklist />
+
+      {/* Filtro de fecha — debajo del checklist. Si el checklist se oculta,
+          queda justo bajo el header. */}
+      <div className="flex justify-end">
+        <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
+      </div>
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
