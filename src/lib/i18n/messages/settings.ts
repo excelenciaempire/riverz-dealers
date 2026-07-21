@@ -229,6 +229,10 @@ export const settings = {
     es: "WhatsApp conectado: {label}",
     en: "WhatsApp connected: {label}",
   },
+  channelCannotSend: {
+    es: "Recibes mensajes, pero Meta aún no habilita el envío en esta cuenta.",
+    en: "You're receiving messages, but Meta hasn't enabled sending on this account yet.",
+  },
   whatsappConnectedInReview: {
     es: "WhatsApp conectado: ya recibes mensajes, pero Meta tiene la cuenta en revisión y aún no puedes enviar. Completa la información del negocio en WhatsApp Manager para que se apruebe.",
     en: "WhatsApp connected: you can already receive messages, but Meta has the account under review and you can't send yet. Complete your business info in WhatsApp Manager to get it approved.",
