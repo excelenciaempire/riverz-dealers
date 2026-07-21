@@ -124,7 +124,13 @@ export async function ingestWhatsappMedia(opts: {
       downloadUrl: url,
       accessToken,
     });
-    const mime = contentType || mimeType || "application/octet-stream";
+    // El mime declarado por Graph gana sobre el header del CDN: la CDN
+    // lookaside devuelve "application/octet-stream" para muchas notas de
+    // voz, y con eso la nota se guardaba como documento y se mostraba como
+    // link de descarga en vez de reproductor. Solo caemos al header cuando
+    // Graph no declara nada útil.
+    const declared = mimeType && mimeType !== "application/octet-stream" ? mimeType : null;
+    const mime = declared || contentType || mimeType || "application/octet-stream";
     const category = opts.hintedKind ?? mimeToCategory(mime);
     const ext = mimeToExtension(mime);
     const path = buildStoragePath(

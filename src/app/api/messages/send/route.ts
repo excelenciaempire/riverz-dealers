@@ -288,13 +288,21 @@ export async function POST(req: Request): Promise<Response> {
     .select()
     .single();
 
+  // Ojo con el reloj: `last_message_at` debe ser el created_at REAL de la fila
+  // recién insertada. Si se usa un new Date() tomado después, queda unos ms por
+  // delante del mensaje y el trigger que mantiene el tick del preview
+  // (migración 103) descarta cada update de estado posterior — el chat se
+  // quedaba con una sola raya aunque Meta confirmara la entrega.
+  const sentAt =
+    ((message as Message | null)?.created_at as string | undefined) ??
+    new Date().toISOString();
   await admin
     .from("conversations")
     .update({
       last_message_text: lastText.slice(0, 200),
-      last_message_at: new Date().toISOString(),
+      last_message_at: sentAt,
       last_sender_type: "agent",
-      updated_at: new Date().toISOString(),
+      updated_at: sentAt,
     })
     .eq("id", (conversation as Conversation).id);
 

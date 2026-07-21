@@ -220,6 +220,15 @@ function safeMediaUrl(u?: string): string | undefined {
   return u && /^(https?:|blob:|\/)/i.test(u.trim()) ? u : undefined;
 }
 
+/** Los adaptadores guardan un marcador tipo "[Audio]" / "[Imagen]" como
+ *  content_text para que el preview de la lista tenga algo que mostrar. En
+ *  la burbuja ese texto sobra: ya se ve el reproductor o la imagen, así que
+ *  imprimirlo debajo solo agrega ruido. Un pie real jamás es exactamente un
+ *  token entre corchetes. */
+function isTypePlaceholder(caption: string): boolean {
+  return /^\[[^\]]+\]$/.test(caption.trim());
+}
+
 /** Normalize an attachment's mime to a coarse kind. Handles both the
  *  new real mimes ("image/jpeg") and the legacy channel-type tags
  *  ("image", "video", "audio", "file") older rows stored. */
@@ -280,7 +289,7 @@ function AttachmentList({
           </a>
         );
       })}
-      {caption && (
+      {caption && !isTypePlaceholder(caption) && (
         <p className="mt-1 whitespace-pre-wrap break-words text-sm">{caption}</p>
       )}
     </div>

@@ -292,6 +292,12 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 // delivered or the user has read or replied, a later "failed" status
 // event is a bug in Meta's pipeline or a spoof attempt and must be
 // ignored.
+// Escalera de `messages.status`. Ojo: NO es la misma que la de
+// broadcast_recipients — messages no tiene 'replied' y sí tiene 'sending'
+// (el estado optimista del composer), así que se derivan por separado del
+// CHECK de la tabla en la migración 001.
+const MESSAGE_STATUS_LADDER = ['sent', 'delivered', 'read'] as const
+
 const RECIPIENT_STATUS_LADDER = [
   'pending',
   'sent',
@@ -333,16 +339,33 @@ async function handleStatusUpdate(status: {
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
-  //    `.neq(...)` skips no-op writes so replayed status events don't
-  //    bump updated_at or emit a phantom realtime change for the inbox.
-  const { error: msgErr } = await supabaseAdmin()
-    .from('messages')
-    .update({ status: status.status })
-    .eq('message_id', status.id)
-    .neq('status', status.status)
+  //
+  //    Forward-only, igual que broadcast_recipients abajo. Meta entrega
+  //    sent/delivered/read como POSTs separados y este handler corre sin
+  //    await desde el POST, así que se procesan en paralelo: sin este
+  //    guard, un `sent` que termina tarde pisaba el `delivered`/`read` que
+  //    ya había llegado y el mensaje se quedaba en una sola raya para
+  //    siempre. El `.in(...)` hace que la regresión no encuentre fila.
+  //    `sent` es el primer peldaño y las filas ya nacen ahí, así que solo
+  //    hay trabajo que hacer desde 'delivered' en adelante (o 'failed').
+  const allowedFrom =
+    status.status === 'failed'
+      ? ['sending', 'sent']
+      : (MESSAGE_STATUS_LADDER as readonly string[]).slice(
+          0,
+          (MESSAGE_STATUS_LADDER as readonly string[]).indexOf(status.status),
+        )
 
-  if (msgErr) {
-    console.error('Error updating message status:', msgErr)
+  if (allowedFrom.length > 0) {
+    const { error: msgErr } = await supabaseAdmin()
+      .from('messages')
+      .update({ status: status.status })
+      .eq('message_id', status.id)
+      .in('status', allowedFrom)
+
+    if (msgErr) {
+      console.error('Error updating message status:', msgErr)
+    }
   }
 
   // 2) Mirror onto broadcast_recipients via whatsapp_message_id

@@ -451,22 +451,20 @@ async function handleWhatsappStatuses(
         .from("messages")
         .update({ status: "failed" })
         .eq("message_id", s.id)
-        .in("status", ["sent", "pending", "delivered", "read"]);
+        .in("status", ["sending", "sent"]);
       continue;
     }
     // Forward-only: only advance sent→delivered→read, never regress.
     const rank = statusRank(s.status);
     if (rank < 0) continue;
+    // "pending" no existe en el CHECK de messages.status (migración 001):
+    // el estado previo real es "sending", el optimista del composer.
     const behind = WA_STATUS_LADDER.slice(0, rank);
-    if (behind.length === 0) {
-      await db.from("messages").update({ status: s.status }).eq("message_id", s.id).eq("status", "pending");
-    } else {
-      await db
-        .from("messages")
-        .update({ status: s.status })
-        .eq("message_id", s.id)
-        .in("status", ["pending", ...behind]);
-    }
+    await db
+      .from("messages")
+      .update({ status: s.status })
+      .eq("message_id", s.id)
+      .in("status", ["sending", ...behind]);
   }
 }
 

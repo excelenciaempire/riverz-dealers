@@ -47,6 +47,12 @@ function buildCsp(
     // broken. Images can't execute code, and scripts stay fully blocked
     // by script-src, so this doesn't widen the XSS surface.
     "img-src 'self' data: blob: https:",
+    // Sin esta directiva, <audio>/<video> caen a default-src 'self' y el
+    // navegador bloquea TODO el media entrante: las notas de voz y los
+    // videos que ingestamos viven en Supabase Storage (otro origen), así
+    // que el reproductor quedaba en 0:00 sin fuente. Mismo criterio que
+    // img-src: el media no ejecuta código y script-src sigue cerrado.
+    "media-src 'self' data: blob: https:",
     "font-src 'self' data:",
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://graph.facebook.com https://*.myshopify.com https://api.anthropic.com${shopifyEmbedded ? ' https://cdn.shopify.com' : ''}`,
     frameAncestors,

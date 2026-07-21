@@ -183,28 +183,39 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   const content_text = input.kind === 'text' ? input.text : null
   const template_name = input.kind === 'template' ? input.templateName : null
 
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: input.conversationId,
-    sender_type: 'bot',
-    content_type,
-    content_text,
-    template_name,
-    message_id: waMessageId,
-    status: 'sent',
-  })
+  const { data: inserted, error: msgErr } = await db
+    .from('messages')
+    .insert({
+      conversation_id: input.conversationId,
+      sender_type: 'bot',
+      content_type,
+      content_text,
+      template_name,
+      message_id: waMessageId,
+      status: 'sent',
+    })
+    .select('created_at')
+    .single()
   if (msgErr) {
     // Meta already has the message; record the DB error but don't pretend
     // the send failed. The engine wraps this in a log line.
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
   }
 
+  // `last_message_at` toma el created_at REAL de la fila insertada, no un
+  // new Date() posterior: si queda por delante del mensaje, el trigger que
+  // sincroniza el tick del preview descarta todo update de estado siguiente.
+  // `last_sender_type` es obligatorio para que la lista dibuje el tick — sin
+  // él la conversación queda como 'customer' y no muestra ninguno.
+  const sentAt = (inserted?.created_at as string | undefined) ?? new Date().toISOString()
   await db
     .from('conversations')
     .update({
       last_message_text:
         input.kind === 'template' ? `[template:${input.templateName}]` : input.text,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_message_at: sentAt,
+      last_sender_type: 'bot',
+      updated_at: sentAt,
     })
     .eq('id', input.conversationId)
 
