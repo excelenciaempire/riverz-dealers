@@ -20,14 +20,14 @@ import { supabaseAdmin } from './admin-client'
 // ------------------------------------------------------------
 
 interface SendTextArgs {
-  userId: string
+  workspaceId: string
   conversationId: string
   contactId: string
   text: string
 }
 
 interface SendTemplateArgs {
-  userId: string
+  workspaceId: string
   conversationId: string
   contactId: string
   templateName: string
@@ -52,22 +52,26 @@ type SendInput =
 async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
-  // Scope the contact lookup by user_id. The engine uses the
-  // service-role client (bypassing RLS), and the public
-  // /api/automations/engine endpoint accepts contact_id from the
-  // request body — without this filter, an authenticated user could
-  // fire their own automations against another tenant's contact UUID
-  // and send via their own WhatsApp config to that contact's phone.
-  // Practical risk is low (UUIDs are unguessable) but the check is
-  // cheap defense-in-depth.
+  // Scope the contact lookup to the automation's workspace. The engine uses
+  // the service-role client (bypassing RLS), and the public
+  // /api/automations/engine endpoint accepts contact_id from the request
+  // body — without this filter, an authenticated user could fire their own
+  // automations against another tenant's contact UUID and send to that
+  // contact's phone.
+  //
+  // This used to scope by `contacts.user_id`, but that legacy column is left
+  // null by every modern ingest path (inbox-writer, the channel adapters, CSV
+  // import), so the lookup matched zero rows and every Shopify automation
+  // died with "contact not found for this user". `workspace_id` is the real
+  // tenant boundary and is always populated.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
     .select('id, phone')
     .eq('id', input.contactId)
-    .eq('user_id', input.userId)
+    .eq('workspace_id', input.workspaceId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
-    throw new Error('contact not found for this user')
+    throw new Error('contact not found in this workspace')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)
@@ -75,21 +79,39 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('user_id', input.userId)
-    .single()
-  if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
+  // Credentials come from the workspace's WhatsApp connection — the same
+  // store the inbox sends from. The legacy per-user `whatsapp_config` row is
+  // only a mirror (see channels/whatsapp/connect.ts syncLegacyWhatsAppConfig)
+  // and is missing entirely for any workspace the owner didn't personally
+  // connect, so it can't be the source of truth.
+  const { data: connection, error: connErr } = await db
+    .from('channel_connections')
+    .select('config, secrets, external_account_id')
+    .eq('workspace_id', input.workspaceId)
+    .eq('channel', 'whatsapp')
+    .eq('status', 'connected')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const phoneNumberId = String(
+    (connection?.config as Record<string, unknown> | null)?.phone_number_id ??
+      connection?.external_account_id ??
+      '',
+  )
+  const encryptedToken = String(
+    (connection?.secrets as Record<string, unknown> | null)?.access_token ?? '',
+  )
+  if (connErr || !phoneNumberId || !encryptedToken) {
+    throw new Error('WhatsApp not connected for this workspace')
   }
 
-  const accessToken = decrypt(config.access_token)
+  const accessToken = decrypt(encryptedToken)
 
   const sendOnce = async (phone: string): Promise<string> => {
     if (input.kind === 'template') {
       const r = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: phone,
         templateName: input.templateName,
@@ -99,7 +121,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       return r.messageId
     }
     const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
+      phoneNumberId,
       accessToken,
       to: phone,
       text: input.text,

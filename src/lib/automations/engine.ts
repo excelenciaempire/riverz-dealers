@@ -401,12 +401,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
-      if (!args.ownerUserId) throw new Error('send_message needs a workspace owner')
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
       const { whatsapp_message_id } = await engineSendText({
-        userId: args.ownerUserId,
+        workspaceId: args.automation.workspace_id,
         conversationId,
         contactId: args.contactId,
         text,
@@ -417,7 +416,6 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_template': {
       const cfg = step.step_config as SendTemplateStepConfig
       if (!args.contactId) throw new Error('send_template needs a contact')
-      if (!args.ownerUserId) throw new Error('send_template needs a workspace owner')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
@@ -445,7 +443,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             .map((k) => interpolate(String(cfg.variables![k]), args))
         : []
       const { whatsapp_message_id } = await engineSendTemplate({
-        userId: args.ownerUserId,
+        workspaceId: args.automation.workspace_id,
         conversationId,
         contactId: args.contactId,
         templateName: cfg.template_name,
