@@ -181,9 +181,17 @@ export async function POST(req: Request): Promise<Response> {
   const text = body?.text?.trim();
   const templateName = body?.template_name?.trim();
 
+  // The inbox selects the returned conversation straight into the thread, so
+  // it must carry the same `contact` join the list query uses — otherwise the
+  // thread opens contactless and only fills in once realtime rehydrates it.
+  const conversationWithContact = { ...conversation, contact };
+
   // Phase 1: resolve only.
   if (!text && !templateName) {
-    return NextResponse.json({ conversation, window_open: windowOpen });
+    return NextResponse.json({
+      conversation: conversationWithContact,
+      window_open: windowOpen,
+    });
   }
 
   // Phase 2: send. A cold number (window closed) can only get a template.
@@ -260,15 +268,25 @@ export async function POST(req: Request): Promise<Response> {
     .select()
     .single();
 
+  const lastMessageText = (contentText || `[${contentType}]`).slice(0, 200);
+  const sentAt = new Date().toISOString();
   await admin
     .from("conversations")
     .update({
-      last_message_text: (contentText || `[${contentType}]`).slice(0, 200),
-      last_message_at: new Date().toISOString(),
+      last_message_text: lastMessageText,
+      last_message_at: sentAt,
       last_sender_type: "agent",
-      updated_at: new Date().toISOString(),
+      updated_at: sentAt,
     })
     .eq("id", conversation.id);
 
-  return NextResponse.json({ conversation, message });
+  return NextResponse.json({
+    conversation: {
+      ...conversationWithContact,
+      last_message_text: lastMessageText,
+      last_message_at: sentAt,
+      last_sender_type: "agent",
+    },
+    message,
+  });
 }

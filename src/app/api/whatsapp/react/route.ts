@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
@@ -55,8 +56,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve target message + its conversation; verify ownership.
-    const { data: targetMessage, error: msgError } = await supabase
+    // Resolve target message + its conversation; membership is verified below,
+    // before anything is sent or written.
+    const admin = supabaseAdmin();
+    const { data: targetMessage, error: msgError } = await admin
       .from('messages')
       .select('id, message_id, conversation_id')
       .eq('id', message_id)
@@ -78,17 +81,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: conversation, error: convError } = await supabase
+    // Conversations are workspace-scoped; the legacy `user_id` column is left
+    // null by every current writer, so authorize through workspace membership.
+    const { data: conversation, error: convError } = await admin
       .from('conversations')
-      .select('id, user_id, contact:contacts(phone)')
+      .select('id, workspace_id, connection_id, contact:contacts(phone)')
       .eq('id', targetMessage.conversation_id)
-      .eq('user_id', user.id)
       .maybeSingle();
 
     if (convError || !conversation) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.conversationNotFound') },
         { status: 404 },
+      );
+    }
+
+    const { data: membership } = await admin
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', conversation.workspace_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!membership) {
+      return NextResponse.json(
+        { error: translate(locale, 'errInbox.forbidden') },
+        { status: 403 },
       );
     }
 
@@ -102,26 +119,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // WhatsApp config + access token
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token')
-      .eq('user_id', user.id)
-      .single();
+    // Credentials come from the conversation's own connection — the inbox
+    // store — so this works for every workspace member, not just the user who
+    // happened to fill in the legacy per-user `whatsapp_config` row.
+    const { data: connection } = await admin
+      .from('channel_connections')
+      .select('config, secrets, external_account_id')
+      .eq('id', conversation.connection_id)
+      .maybeSingle();
 
-    if (configError || !config) {
+    const phoneNumberId = String(
+      (connection?.config as Record<string, unknown> | null)?.phone_number_id ??
+        connection?.external_account_id ??
+        '',
+    );
+    const encryptedToken = String(
+      (connection?.secrets as Record<string, unknown> | null)?.access_token ?? '',
+    );
+
+    if (!phoneNumberId || !encryptedToken) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.whatsappNotConfigured') },
         { status: 400 },
       );
     }
 
-    const accessToken = decrypt(config.access_token);
+    const accessToken = decrypt(encryptedToken);
     const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
 
     try {
       await sendReactionMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: sanitizedPhone,
         targetMessageId: targetMessage.message_id,
@@ -139,7 +167,7 @@ export async function POST(request: Request) {
 
     // Mirror into DB. Empty emoji = removal.
     if (emoji === '') {
-      const { error: delError } = await supabase
+      const { error: delError } = await admin
         .from('message_reactions')
         .delete()
         .eq('message_id', targetMessage.id)
@@ -156,7 +184,7 @@ export async function POST(request: Request) {
     } else {
       // Upsert. The unique constraint (message_id, actor_type, actor_id)
       // lets us swap emoji in a single statement.
-      const { error: upsertError } = await supabase.from('message_reactions').upsert(
+      const { error: upsertError } = await admin.from('message_reactions').upsert(
         {
           message_id: targetMessage.id,
           conversation_id: targetMessage.conversation_id,

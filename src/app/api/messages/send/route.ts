@@ -34,6 +34,9 @@ export async function POST(req: Request): Promise<Response> {
         conversation_id?: string;
         text?: string;
         reply_to_external_id?: string;
+        template_name?: string;
+        template_language?: string;
+        template_params?: string[];
         media?: {
           url?: string;
           mediaType?: string;
@@ -46,7 +49,11 @@ export async function POST(req: Request): Promise<Response> {
     | null;
   // A media attachment can be sent with or without a caption (text).
   const media = body?.media?.url ? body.media : null;
-  if (!body?.conversation_id || (!body.text?.trim() && !media)) {
+  // A template send carries no free text: the body is rendered by Meta from
+  // the approved template + positional params. `text` still arrives as the
+  // rendered preview so the thread shows what the customer received.
+  const templateName = body?.template_name?.trim() || null;
+  if (!body?.conversation_id || (!body.text?.trim() && !media && !templateName)) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.sendMissingFields") },
       { status: 400 },
@@ -124,7 +131,9 @@ export async function POST(req: Request): Promise<Response> {
           ? "document"
           : "image"
     : null;
-  const contentType = mediaSendType
+  const contentType = templateName
+    ? "template"
+    : mediaSendType
     ? mediaSendType
     : channel === "gmail" || channel === "outlook"
       ? "email"
@@ -193,7 +202,20 @@ export async function POST(req: Request): Promise<Response> {
   const lastText = media ? (caption ?? mediaEmoji) : (body.text ?? "");
   let result: { externalMessageId?: string; status?: string };
   try {
-    if (media && mediaSendType) {
+    if (templateName) {
+      if (!adapter.sendTemplate) {
+        throw new Error(translate(locale, "errInbox.templateUnsupported"));
+      }
+      result = await adapter.sendTemplate({
+        channel,
+        connection: connection as ChannelConnection,
+        conversation: conversation as Conversation,
+        contact: contact as Contact,
+        templateName,
+        language: body.template_language,
+        params: Array.isArray(body.template_params) ? body.template_params : [],
+      });
+    } else if (media && mediaSendType) {
       if (!adapter.sendMedia) {
         throw new Error(translate(locale, "errInbox.mediaUnsupported"));
       }
@@ -236,6 +258,7 @@ export async function POST(req: Request): Promise<Response> {
         sender_id: user.id,
         content_type: contentType,
         content_text: contentText,
+        template_name: templateName,
         ...mediaFields,
         status: "failed",
       })
@@ -257,6 +280,7 @@ export async function POST(req: Request): Promise<Response> {
       sender_id: user.id,
       content_type: contentType,
       content_text: contentText,
+      template_name: templateName,
       ...mediaFields,
       message_id: result.externalMessageId,
       status: result.status ?? "sent",

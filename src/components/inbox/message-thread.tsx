@@ -751,15 +751,16 @@ export function MessageThread({
       onNewMessage(optimisticMsg);
 
       try {
-        const res = await fetchWithCsrf("/api/whatsapp/send", {
+        const res = await fetchWithCsrf("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversation_id: conversation.id,
-            message_type: "template",
             template_name: template.name,
+            template_language: template.language,
             template_params: params,
-            content_text: renderedBody,
+            // Rendered preview — what the thread shows for the sent template.
+            text: renderedBody,
           }),
         });
 

@@ -56,6 +56,10 @@ export const errInbox = {
     en: "conversation_id and text are required",
   },
   conversationNotFound: { es: "Conversación no encontrada", en: "Conversation not found" },
+  templateUnsupported: {
+    es: "Este canal no admite plantillas",
+    en: "This channel does not support templates",
+  },
   contactNotFound: { es: "Contacto no encontrado", en: "Contact not found" },
   uploadInvalid: { es: "Archivo o conversación inválidos", en: "Invalid file or conversation" },
   uploadTooLarge: { es: "El archivo supera 25 MB", en: "File exceeds 25 MB" },
