@@ -119,11 +119,25 @@ export function WhatsAppEmbeddedSignup({
           toast.error(j.error || t("settings.whatsappConnectError"));
           return;
         }
-        toast.success(
-          j.coexistence
-            ? t("settings.whatsappConnectedCoexistence", { label: j.label })
-            : t("settings.whatsappConnectedLabel", { label: j.label }),
-        );
+        // Conectado NO es lo mismo que "puede enviar". El servidor comprueba
+        // contra Meta si la cuenta está habilitada; si no lo está, decirlo acá
+        // en vez de dejar que el comerciante lo descubra cuando su primera
+        // campaña no salga. La recepción sí funciona, así que la conexión se
+        // mantiene: es un aviso, no un error.
+        if (j.can_send === false) {
+          toast.warning(
+            j.review_status && j.review_status !== "APPROVED"
+              ? t("settings.whatsappConnectedInReview")
+              : t("settings.whatsappConnectedCannotSend"),
+            { duration: 12000 },
+          );
+        } else {
+          toast.success(
+            j.coexistence
+              ? t("settings.whatsappConnectedCoexistence", { label: j.label })
+              : t("settings.whatsappConnectedLabel", { label: j.label }),
+          );
+        }
         onConnected();
       } catch (err) {
         toast.error(t("settings.networkError"));

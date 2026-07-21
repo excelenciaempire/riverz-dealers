@@ -229,6 +229,14 @@ export const settings = {
     es: "WhatsApp conectado: {label}",
     en: "WhatsApp connected: {label}",
   },
+  whatsappConnectedInReview: {
+    es: "WhatsApp conectado: ya recibes mensajes, pero Meta tiene la cuenta en revisión y aún no puedes enviar. Completa la información del negocio en WhatsApp Manager para que se apruebe.",
+    en: "WhatsApp connected: you can already receive messages, but Meta has the account under review and you can't send yet. Complete your business info in WhatsApp Manager to get it approved.",
+  },
+  whatsappConnectedCannotSend: {
+    es: "WhatsApp conectado: ya recibes mensajes, pero Meta aún no habilita el envío. Revisa el estado de la cuenta en WhatsApp Manager.",
+    en: "WhatsApp connected: you can already receive messages, but Meta hasn't enabled sending yet. Check the account status in WhatsApp Manager.",
+  },
   whatsappOnboardingCancelled: {
     es: "Onboarding cancelado",
     en: "Onboarding cancelled",

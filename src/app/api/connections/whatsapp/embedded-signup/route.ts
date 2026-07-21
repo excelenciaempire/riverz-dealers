@@ -9,10 +9,17 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
+import { fetchWhatsAppAccountHealth } from "@/lib/whatsapp/account-health";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
+
+/** PIN de dos pasos para /register (solo en el alta de número nuevo).
+ *  Ojo: es fijo por ahora, igual que antes. Si el comerciante ya tenía
+ *  verificación en dos pasos con OTRO PIN, Meta rechaza el registro — y por eso
+ *  ahora ese fallo se reporta en vez de tragarse. */
+const REGISTER_PIN = "000000";
 
 /**
  * POST /api/connections/whatsapp/embedded-signup
@@ -135,15 +142,32 @@ export async function POST(req: Request): Promise<Response> {
     // 4. Register the number on Cloud API — ONLY for the new-number flow.
     //    Coexistence numbers stay registered on the merchant's phone; calling
     //    /register on them can disrupt the app pairing, so skip it entirely.
+    //    El resultado SÍ se mira. Antes esto era un `try {} catch {}` vacío que
+    //    no leía `res.ok` ni el cuerpo: un /register rechazado (PIN de dos
+    //    pasos ya configurado por el comerciante, número no elegible) era
+    //    indistinguible de un éxito y la conexión se guardaba igual como
+    //    "connected". Así se fabricaban cuentas que decían estar conectadas y
+    //    no podían enviar ni un mensaje.
+    let registerError: string | null = null;
     if (!coexistence) {
       try {
-        await fetch(withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token), {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-          body: JSON.stringify({ messaging_product: "whatsapp", pin: "000000" }),
-        });
-      } catch {
-        // best-effort
+        const regRes = await fetch(
+          withAppsecretProof(`${GRAPH}/${body.phone_number_id}/register`, token),
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({ messaging_product: "whatsapp", pin: REGISTER_PIN }),
+          },
+        );
+        if (!regRes.ok) {
+          registerError = await regRes.text().catch(() => `HTTP ${regRes.status}`);
+          console.error(
+            `[whatsapp/embedded-signup] register failed (${regRes.status}): ${registerError}`,
+          );
+        }
+      } catch (err) {
+        registerError = err instanceof Error ? err.message : String(err);
+        console.error("[whatsapp/embedded-signup] register threw:", registerError);
       }
     }
 
@@ -180,7 +204,43 @@ export async function POST(req: Request): Promise<Response> {
       token,
     });
 
-    return NextResponse.json({ ok: true, label, coexistence });
+    // 6. Comprobar que la cuenta PUEDA enviar antes de decir que quedó lista.
+    //    Se lee después de conectar a propósito: asignar nuestra app como
+    //    partner del WABA puede meter la cuenta en revisión, y ese estado solo
+    //    se ve una vez terminado el signup. Nunca bloquea la conexión — la
+    //    recepción funciona igual — pero el resultado viaja al front para que
+    //    el comerciante sepa que todavía no puede enviar, en vez de descubrirlo
+    //    cuando su primera campaña no sale.
+    const health = await fetchWhatsAppAccountHealth({
+      phoneNumberId: body.phone_number_id,
+      wabaId: body.waba_id,
+      accessToken: token,
+    });
+
+    if (!health.canSend || registerError) {
+      await admin
+        .from("channel_connections")
+        .update({
+          last_error: registerError
+            ? `register: ${registerError.slice(0, 400)}`
+            : `no puede enviar (review=${health.reviewStatus ?? "?"}): ${health.blockers
+                .map((b) => `${b.entity}${b.code ? ` ${b.code}` : ""} ${b.description}`)
+                .join(" | ")
+                .slice(0, 400)}`,
+        })
+        .eq("id", connectionId);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      label,
+      coexistence,
+      can_send: health.canSend && !registerError,
+      review_status: health.reviewStatus,
+      blockers: health.blockers,
+      notices: health.notices,
+      register_error: registerError,
+    });
   } catch (err) {
     if (err instanceof WhatsAppAlreadyConnectedError) {
       return NextResponse.json(
