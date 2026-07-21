@@ -100,21 +100,59 @@ export async function POST(req: Request): Promise<Response> {
     if (!token) throw new Error("no access_token in exchange response");
 
     // 2. Read the phone number details (label + coexistence flag).
-    const phoneRes = await fetch(
-      withAppsecretProof(
-        `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(token)}`,
-        token,
-      ),
-    );
-    const phone = phoneRes.ok
-      ? ((await phoneRes.json()) as {
-          display_phone_number?: string;
-          verified_name?: string;
-          is_on_biz_app?: boolean;
-          platform_type?: string;
-        })
-      : {};
-    const coexistence = Boolean(phone.is_on_biz_app);
+    //
+    //    Este probe decide si el número es de COEXISTENCIA (ya vive en la app
+    //    de WhatsApp Business del comercio) o un número NUEVO. La distinción es
+    //    crítica: en un número de coexistencia NO se debe llamar /register —
+    //    ese registro lo migra a Cloud API puro, rompe el emparejamiento con la
+    //    app y mete la cuenta en revisión de Meta.
+    //
+    //    Antes, si el probe fallaba por cualquier motivo (error transitorio,
+    //    rate-limit, Meta no devuelve is_on_biz_app), `phone` quedaba en `{}` y
+    //    `Boolean(undefined)` colapsaba a coexistence=false → se llamaba
+    //    /register sobre un número de coexistencia. Un solo probe fallido
+    //    bastaba para romper el número. Por eso: reintento, y ante CUALQUIER
+    //    duda se asume coexistencia (no registrar es seguro; registrar por
+    //    error no lo es).
+    type PhoneInfo = {
+      display_phone_number?: string;
+      verified_name?: string;
+      is_on_biz_app?: boolean;
+      platform_type?: string;
+    };
+    const probePhone = async (): Promise<PhoneInfo | null> => {
+      try {
+        const res = await fetch(
+          withAppsecretProof(
+            `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(token)}`,
+            token,
+          ),
+        );
+        return res.ok ? ((await res.json()) as PhoneInfo) : null;
+      } catch {
+        return null;
+      }
+    };
+    let phone = await probePhone();
+    if (phone === null) phone = await probePhone(); // un reintento
+    const probeFailed = phone === null;
+    phone = phone ?? {};
+
+    // Coexistencia = el número está en la app del comercio. `is_on_biz_app`
+    // es la señal primaria; `platform_type` de coexistencia (no CLOUD_API) es
+    // respaldo. Si el probe falló del todo, asumimos coexistencia para NO
+    // registrar a ciegas — el flujo del front siempre entra por
+    // whatsapp_business_app_onboarding, donde coexistencia es lo esperado.
+    const explicitlyNewNumber =
+      !probeFailed &&
+      phone.is_on_biz_app === false &&
+      (phone.platform_type ?? "").toUpperCase() !== "SMB_APP";
+    const coexistence = !explicitlyNewNumber;
+    if (probeFailed) {
+      console.warn(
+        `[whatsapp/embedded-signup] phone probe failed for ${body.phone_number_id}; assuming coexistence, skipping /register`,
+      );
+    }
 
     // 3. Subscribe the WABA to our app so webhooks fire. NOTA: en WhatsApp la
     //    SELECCIÓN de campos (incl. los de coexistencia: smb_message_echoes /

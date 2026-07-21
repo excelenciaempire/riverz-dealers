@@ -59,7 +59,11 @@ export function WhatsAppEmbeddedSignup({
       return;
     }
     window.fbAsyncInit = () => {
-      window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v22.0" });
+      // v23.0: alinea con el SDK que usan otras plataformas de coexistencia
+      // (bitbybit va en v25) — versiones viejas del SDK muestran una pantalla
+      // de Embedded Signup distinta y pueden onboardear el número de forma que
+      // no coincide con el flujo de coexistencia actual de Meta.
+      window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v23.0" });
       setSdkReady(true);
     };
     const id = "facebook-jssdk";
