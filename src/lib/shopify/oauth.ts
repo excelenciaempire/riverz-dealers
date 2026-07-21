@@ -22,9 +22,25 @@ const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10'
 // (src/lib/shopify/create-order.ts). Las tiendas conectadas con el set
 // viejo (solo lectura) deben RECONECTAR para otorgarlo — hasta entonces
 // la tool create_order devuelve missing_write_scope y no crea nada.
+//
+// Fulfillments: el tracking que usa la automatización "Enviar tracking" ya
+// viene dentro del webhook orders/updated, así que para LEERLO no hace falta
+// scope extra. Los de fulfillment habilitan además despachar desde Riverz y
+// poder validar el flujo end-to-end contra una tienda real (sin ellos la
+// Admin API responde 403 al crear el fulfillment).
 const DEFAULT_SCOPES =
   process.env.SHOPIFY_SCOPES ||
-  'read_orders,write_orders,read_checkouts,read_customers,read_products'
+  [
+    'read_orders',
+    'write_orders',
+    'read_checkouts',
+    'read_customers',
+    'read_products',
+    'read_fulfillments',
+    'write_fulfillments',
+    'read_merchant_managed_fulfillment_orders',
+    'write_merchant_managed_fulfillment_orders',
+  ].join(',')
 
 export function shopifyApiVersion(): string {
   return API_VERSION
