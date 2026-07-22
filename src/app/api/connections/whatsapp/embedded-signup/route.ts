@@ -13,7 +13,10 @@ import { fetchWhatsAppAccountHealth } from "@/lib/whatsapp/account-health";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
-const GRAPH = "https://graph.facebook.com/v22.0";
+// v25.0 para COINCIDIR con la versión del SDK que emite el `code` (FB.login
+// va en v25). El canje del code debe hacerse en la misma versión o superior a
+// la que lo emitió; canjearlo en una versión menor falla.
+const GRAPH = "https://graph.facebook.com/v25.0";
 
 /** PIN de dos pasos para /register (solo en el alta de número nuevo).
  *  Ojo: es fijo por ahora, igual que antes. Si el comerciante ya tenía
