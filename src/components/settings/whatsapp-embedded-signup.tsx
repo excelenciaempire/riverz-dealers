@@ -59,11 +59,16 @@ export function WhatsAppEmbeddedSignup({
       return;
     }
     window.fbAsyncInit = () => {
-      // v23.0: alinea con el SDK que usan otras plataformas de coexistencia
-      // (bitbybit va en v25) — versiones viejas del SDK muestran una pantalla
-      // de Embedded Signup distinta y pueden onboardear el número de forma que
-      // no coincide con el flujo de coexistencia actual de Meta.
-      window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v23.0" });
+      // v25.0: MISMA versión que usa bitbybit. Es crítico para coexistencia:
+      // con SDK viejo (v22) la pantalla de selección de WABA NO se reemplaza
+      // por la de "conectar tu WhatsApp Business App existente", aunque se pase
+      // featureType=whatsapp_business_app_onboarding. Sin ese reemplazo, el
+      // número se onboardea por el flujo GENÉRICO (número nuevo / asset) en
+      // vez de coexistencia pura, y queda en un estado que Meta bloquea con
+      // 131031. Doc: developers.facebook.com/docs/whatsapp/embedded-signup/
+      // custom-flows/onboarding-business-app-users — "if the WABA selection
+      // screen has been replaced ... the feature is enabled".
+      window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v25.0" });
       setSdkReady(true);
     };
     const id = "facebook-jssdk";
