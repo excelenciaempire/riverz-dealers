@@ -128,18 +128,20 @@ export function WhatsAppEmbeddedSignup({
           toast.error(j.error || t("settings.whatsappConnectError"));
           return;
         }
-        // Conectado NO es lo mismo que "puede enviar". El servidor comprueba
-        // contra Meta si la cuenta está habilitada; si no lo está, decirlo acá
-        // en vez de dejar que el comerciante lo descubra cuando su primera
-        // campaña no salga. La recepción sí funciona, así que la conexión se
-        // mantiene: es un aviso, no un error.
+        // Tres desenlaces:
+        //  - can_send=false → Meta rechazó/bloqueó el envío o falló /register.
+        //    Es un aviso (la recepción sí funciona), no un error.
+        //  - review_pending → conectado y YA puede enviar; Meta revisa el
+        //    negocio en segundo plano (hasta 24 h). Mensaje positivo, no alarma.
+        //  - resto → conectado y habilitado.
         if (j.can_send === false) {
-          toast.warning(
-            j.review_status && j.review_status !== "APPROVED"
-              ? t("settings.whatsappConnectedInReview")
-              : t("settings.whatsappConnectedCannotSend"),
-            { duration: 12000 },
-          );
+          toast.warning(t("settings.whatsappConnectedCannotSend"), {
+            duration: 12000,
+          });
+        } else if (j.review_pending) {
+          toast.success(t("settings.whatsappConnectedInReview"), {
+            duration: 10000,
+          });
         } else {
           toast.success(
             j.coexistence

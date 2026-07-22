@@ -249,9 +249,9 @@ export async function POST(req: Request): Promise<Response> {
     //    Se lee después de conectar a propósito: asignar nuestra app como
     //    partner del WABA puede meter la cuenta en revisión, y ese estado solo
     //    se ve una vez terminado el signup. Nunca bloquea la conexión — la
-    //    recepción funciona igual — pero el resultado viaja al front para que
-    //    el comerciante sepa que todavía no puede enviar, en vez de descubrirlo
-    //    cuando su primera campaña no sale.
+    //    recepción funciona igual — pero el resultado viaja al front.
+    //    OJO: revisión PENDING NO es "no puede enviar" (canSend sigue true);
+    //    solo REJECTED / BLOCKED o un /register fallido marcan last_error.
     const health = await fetchWhatsAppAccountHealth({
       phoneNumberId: body.phone_number_id,
       wabaId: body.waba_id,
@@ -278,6 +278,7 @@ export async function POST(req: Request): Promise<Response> {
       coexistence,
       can_send: health.canSend && !registerError,
       review_status: health.reviewStatus,
+      review_pending: health.reviewPending,
       blockers: health.blockers,
       notices: health.notices,
       register_error: registerError,

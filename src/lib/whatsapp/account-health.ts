@@ -9,10 +9,15 @@
  *
  * Dos señales, distintas y ambas necesarias:
  *
- *  - `account_review_status` del WABA. Mientras no sea APPROVED la Cloud API
- *    no envía, aunque el teléfono del comerciante siga funcionando (la app del
- *    celular no pasa por la API). Asignar un partner al WABA puede meter la
- *    cuenta en revisión, así que esto hay que releerlo DESPUÉS de conectar.
+ *  - `account_review_status` del WABA. Solo REJECTED impide enviar y exige
+ *    acción del comercio. PENDING es el estado NORMAL tras conectar por
+ *    coexistencia — Meta revisa el negocio en segundo plano (hasta 24 h) y
+ *    permite enviar mientras tanto (los mensajes iniciados por el cliente
+ *    siempre; los iniciados por el negocio pueden esperar a que termine).
+ *    Tratar PENDING como bloqueo dejaba el canal "conectado pero sin enviar"
+ *    justo en la ventana en que la competencia (y Meta) ya deja mandar.
+ *    Asignar un partner al WABA puede meter la cuenta en revisión, así que
+ *    esto hay que releerlo DESPUÉS de conectar.
  *  - `health_status`, que desglosa por entidad (número / WABA / negocio / app)
  *    y trae el código de error y la solución sugerida por Meta.
  */
@@ -37,6 +42,9 @@ export interface HealthEntity {
 export interface WhatsAppAccountHealth {
   /** APPROVED | PENDING | REJECTED | null si Meta no lo devuelve. */
   reviewStatus: string | null;
+  /** Meta está revisando la cuenta (PENDING). NO bloquea el envío — es un
+   *  aviso: se puede mandar mientras la revisión termina (hasta 24 h). */
+  reviewPending: boolean;
   /** Veredicto agregado de Meta para el número. */
   canSendMessage: "AVAILABLE" | "LIMITED" | "BLOCKED" | null;
   /** ¿Puede enviar por Cloud API ahora mismo? */
@@ -65,6 +73,7 @@ export async function fetchWhatsAppAccountHealth(args: {
 }): Promise<WhatsAppAccountHealth> {
   const empty: WhatsAppAccountHealth = {
     reviewStatus: null,
+    reviewPending: false,
     canSendMessage: null,
     canSend: true,
     blockers: [],
@@ -114,10 +123,13 @@ export async function fetchWhatsAppAccountHealth(args: {
     }
   }
 
-  // Una WABA que no está APPROVED no envía por Cloud API, por más que el
-  // desglose de entidades venga limpio.
-  const reviewBlocks = reviewStatus !== null && reviewStatus !== "APPROVED";
-  if (reviewBlocks) {
+  // Solo REJECTED es bloqueante: la revisión de Meta rechazó la cuenta y el
+  // comercio debe resolverlo. PENDING NO bloquea — Meta revisa en segundo
+  // plano y deja enviar mientras tanto (así arranca la coexistencia en todas
+  // las plataformas). Tratar PENDING como bloqueo era el bug que dejaba el
+  // canal "conectado pero sin enviar".
+  const reviewRejected = reviewStatus === "REJECTED";
+  if (reviewRejected) {
     blockers.push({
       entity: "WABA",
       code: null,
@@ -125,12 +137,15 @@ export async function fetchWhatsAppAccountHealth(args: {
       solution: null,
     });
   }
+  const reviewPending =
+    reviewStatus !== null && reviewStatus !== "APPROVED" && !reviewRejected;
 
   return {
     ...empty,
     reviewStatus,
+    reviewPending,
     canSendMessage,
-    canSend: !reviewBlocks && canSendMessage !== "BLOCKED",
+    canSend: !reviewRejected && canSendMessage !== "BLOCKED",
     blockers,
     notices,
   };
