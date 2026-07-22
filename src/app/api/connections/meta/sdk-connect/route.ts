@@ -7,9 +7,9 @@ import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel } from "@/types";
 
-// v22.0 para que coincida con la versión del SDK que emitió el code
-// (FB.login usa v22.0); un code emitido en v22 fallaba al canjearlo en v21.
-const GRAPH = "https://graph.facebook.com/v22.0";
+// v25.0 para que coincida con la versión del SDK que emitió el code
+// (FB.login usa v25.0); un code debe canjearse en la misma versión o superior.
+const GRAPH = "https://graph.facebook.com/v25.0";
 const VALID_CHANNELS = ["messenger", "instagram", "fb_comment", "ig_comment"];
 
 /**

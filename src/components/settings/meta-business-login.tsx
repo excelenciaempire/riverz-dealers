@@ -82,7 +82,13 @@ export function MetaBusinessLogin({
     window.fbAsyncInit = () => {
       prev?.();
       try {
-        window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v22.0" });
+        // v25.0 — DEBE coincidir con la versión que usa whatsapp-embedded-signup.
+        // Ambos componentes se renderizan en la misma página de Canales y
+        // COMPARTEN el mismo script del SDK (id="facebook-jssdk"). FB.init solo
+        // aplica una vez: el que carga primero fija la versión para todos. Si
+        // este quedaba en v22, el popup de WhatsApp salía en v22 aunque su
+        // propio init pidiera v25 → la coexistencia no se activaba.
+        window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v25.0" });
       } catch {
         /* init is idempotent; ignore double-init */
       }
