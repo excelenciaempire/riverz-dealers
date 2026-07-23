@@ -43,6 +43,10 @@ import {
   type ButtonUrlVariable,
 } from '@/lib/whatsapp/dynamic-links';
 import {
+  allTemplateDataPoints,
+  sampleForTemplateVar,
+} from '@/lib/automations/data-points';
+import {
   validateTemplate,
   type TemplateIssue,
 } from '@/lib/whatsapp/template-validate';
@@ -103,13 +107,10 @@ const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
   product: 'templates.linkVarProduct',
 };
 
+// URL primero: en un CRM de comercio el botón más usado es el enlace (carrito,
+// pedido, tracking). "Respuesta rápida" queda al final porque requiere un flujo
+// que atienda la respuesta.
 const BUTTON_TYPES = [
-  {
-    value: 'QUICK_REPLY',
-    labelKey: 'templates.buttonQuickReply',
-    hintKey: 'templates.buttonQuickReplyHint',
-    Icon: Reply,
-  },
   {
     value: 'URL',
     labelKey: 'templates.buttonUrl',
@@ -121,6 +122,12 @@ const BUTTON_TYPES = [
     labelKey: 'templates.buttonPhone',
     hintKey: 'templates.buttonPhoneHint',
     Icon: Phone,
+  },
+  {
+    value: 'QUICK_REPLY',
+    labelKey: 'templates.buttonQuickReply',
+    hintKey: 'templates.buttonQuickReplyHint',
+    Icon: Reply,
   },
 ] as const;
 
@@ -157,7 +164,21 @@ export function TemplateBuilder() {
   const [buttonsOn, setButtonsOn] = useState(false);
   const [buttons, setButtons] = useState<TemplateButtonInput[]>([]);
   const [samples, setSamples] = useState<Record<number, string>>({});
+  // Campo dinámico elegido por cada variable {{n}} (p. ej. "customer_name").
+  // Vacío = valor personalizado (se escribe el ejemplo a mano).
+  const [fields, setFields] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const dataPoints = useMemo(() => allTemplateDataPoints(), []);
+  const fieldLabels = useMemo(
+    () => ({
+      custom: t('templates.variableCustom'),
+      ...Object.fromEntries(
+        dataPoints.map((dp) => [dp.templateVarKey as string, t(dp.labelKey)]),
+      ),
+    }),
+    [dataPoints, t],
+  );
   // Validation only surfaces AFTER the user tries to save — never on a
   // pristine/empty form.
   const [attempted, setAttempted] = useState(false);
@@ -208,13 +229,13 @@ export function TemplateBuilder() {
   function toggleButtons(on: boolean) {
     setButtonsOn(on);
     if (on && buttons.length === 0) {
-      setButtons([{ type: 'QUICK_REPLY', text: '' }]);
+      setButtons([{ type: 'URL', text: '' }]);
     }
     if (!on) setButtons([]);
   }
   function addButton() {
     if (buttons.length >= 10) return;
-    setButtons((prev) => [...prev, { type: 'QUICK_REPLY', text: '' }]);
+    setButtons((prev) => [...prev, { type: 'URL', text: '' }]);
   }
   function updateButton(i: number, patch: Partial<TemplateButtonInput>) {
     setButtons((prev) => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
@@ -262,7 +283,16 @@ export function TemplateBuilder() {
           bodyText,
           footerText,
           buttons: buttonsOn ? normalizeButtons(buttons) : [],
-          bodySamples: variables.map((v) => samples[v] ?? ''),
+          bodySamples: variables.map((v) =>
+            fields[v] ? sampleForTemplateVar(fields[v]) : samples[v] ?? '',
+          ),
+          // Campo dinámico declarado por variable (índice → clave). Las
+          // automatizaciones lo usan para pre-mapear sin configurar a mano.
+          variableFields: Object.fromEntries(
+            variables
+              .filter((v) => fields[v])
+              .map((v) => [String(v), fields[v]]),
+          ),
         }),
       });
       const data = await res.json();
@@ -424,19 +454,57 @@ export function TemplateBuilder() {
                   {variables.map((v) => (
                     <div
                       key={v}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5"
+                      className="flex flex-col gap-2 rounded-lg border border-border bg-background px-2 py-2 sm:flex-row sm:items-center"
                     >
-                      <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                      <span className="w-fit rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
                         {`{{${v}}}`}
                       </span>
-                      <Input
-                        placeholder={t('templates.variableSamplePlaceholder')}
-                        value={samples[v] ?? ''}
-                        onChange={(e) =>
-                          setSamples((prev) => ({ ...prev, [v]: e.target.value }))
-                        }
-                        className="h-8 flex-1 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
-                      />
+                      <Select
+                        value={fields[v] ?? 'custom'}
+                        onValueChange={(val) => {
+                          if (!val || val === 'custom') {
+                            setFields((prev) => {
+                              const next = { ...prev };
+                              delete next[v];
+                              return next;
+                            });
+                          } else {
+                            setFields((prev) => ({ ...prev, [v]: val }));
+                            // Rellenar el ejemplo con un valor realista del campo.
+                            setSamples((prev) => ({
+                              ...prev,
+                              [v]: sampleForTemplateVar(val),
+                            }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-full bg-background sm:flex-1">
+                          <SelectValue labels={fieldLabels} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="custom">
+                            {t('templates.variableCustom')}
+                          </SelectItem>
+                          {dataPoints.map((dp) => (
+                            <SelectItem
+                              key={dp.templateVarKey}
+                              value={dp.templateVarKey as string}
+                            >
+                              {t(dp.labelKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!fields[v] && (
+                        <Input
+                          placeholder={t('templates.variableSamplePlaceholder')}
+                          value={samples[v] ?? ''}
+                          onChange={(e) =>
+                            setSamples((prev) => ({ ...prev, [v]: e.target.value }))
+                          }
+                          className="h-8 w-full bg-background text-sm sm:flex-1"
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

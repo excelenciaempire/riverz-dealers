@@ -430,6 +430,52 @@ export function templateDataPoints(trigger: AutomationTriggerType): DataPoint[] 
   return DATA_POINTS.filter((dp) => dp.templateVarKey && exposed(dp, trigger))
 }
 
+/**
+ * Todos los campos dinámicos que un {{n}} de plantilla puede representar (unión
+ * de todos los disparadores). Lo usa el editor de plantillas, que no está atado
+ * a un disparador: la plantilla declara qué representa cada variable y la
+ * automatización que la use lo mapea solo.
+ */
+export function allTemplateDataPoints(): DataPoint[] {
+  return DATA_POINTS.filter((dp) => dp.templateVarKey)
+}
+
+/** Valor de ejemplo realista por campo (para el `example` que Meta exige). */
+export const TEMPLATE_VAR_SAMPLES: Record<string, string> = {
+  customer_name: 'María',
+  contact_first_name: 'María',
+  contact_last_name: 'González',
+  contact_email: 'maria@correo.com',
+  contact_phone: '+54 9 11 1234 5678',
+  order_name: '#1042',
+  order_number: '1042',
+  total_price: '49.900',
+  subtotal_price: '45.900',
+  total_discounts: '4.000',
+  currency: 'ARS',
+  offer_units: '3',
+  offer_chosen: '3+1 gratis',
+  item_count: '1',
+  first_item: 'Serum Pilar',
+  financial_status: 'paid',
+  fulfillment_status: 'fulfilled',
+  shipping_address: 'Av. Corrientes 1234',
+  shipping_city: 'Buenos Aires',
+  shipping_province: 'CABA',
+  shipping_zip: '1043',
+  shipping_country: 'Argentina',
+  tracking_number: 'AR123456789',
+  tracking_url: 'https://andreani.com/seguimiento',
+  tracking_company: 'Andreani',
+  order_status_url: 'https://pilar.co/pedido/1042',
+  checkout_url: 'https://pilar.co/carrito',
+}
+
+/** Ejemplo para un campo (cae a un genérico si no hay uno específico). */
+export function sampleForTemplateVar(key: string): string {
+  return TEMPLATE_VAR_SAMPLES[key] ?? 'ejemplo'
+}
+
 /** Lookup a data point by the `{{vars.KEY}}` stored in a template mapping. */
 export function dataPointByTemplateVar(varKey: string): DataPoint | undefined {
   return DATA_POINTS.find((dp) => dp.templateVarKey === varKey)

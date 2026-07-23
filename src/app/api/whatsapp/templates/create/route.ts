@@ -222,6 +222,10 @@ export async function POST(request: Request) {
       status: 'Pending' as const,
       meta_template_id: metaResult.id,
       variable_samples: form.bodySamples ?? null,
+      variable_fields:
+        body.variableFields && Object.keys(body.variableFields).length > 0
+          ? body.variableFields
+          : null,
       rejected_reason: null,
       updated_at: new Date().toISOString(),
     }

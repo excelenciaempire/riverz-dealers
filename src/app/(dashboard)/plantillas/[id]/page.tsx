@@ -9,6 +9,8 @@ import {
   Loader2,
   Trash2,
   ExternalLink,
+  Phone,
+  Reply,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -275,6 +277,32 @@ export default function TemplateDetailPage() {
               )}
               <p className="text-right text-[10px] text-[#667781]">12:00 ✓✓</p>
             </div>
+
+            {/* Botones — filas tappables bajo la burbuja, como en WhatsApp */}
+            {Array.isArray(template.buttons) &&
+              (template.buttons as { type?: string; text?: string }[]).filter(
+                (b) => b.text?.trim(),
+              ).length > 0 && (
+                <div className="mt-1 max-w-sm space-y-0.5">
+                  {(template.buttons as { type?: string; text?: string }[])
+                    .filter((b) => b.text?.trim())
+                    .map((b, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm"
+                      >
+                        {b.type === 'URL' ? (
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        ) : b.type === 'PHONE_NUMBER' ? (
+                          <Phone className="h-3.5 w-3.5" />
+                        ) : (
+                          <Reply className="h-3.5 w-3.5" />
+                        )}
+                        {b.text}
+                      </div>
+                    ))}
+                </div>
+              )}
           </div>
 
           {varNums.length > 0 && (

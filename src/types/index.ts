@@ -389,6 +389,9 @@ export interface MessageTemplate {
   /** WABA the template belongs to (templates are WABA-scoped in Meta). Stamped
    *  on sync so switching numbers hides the previous WABA's catalog. */
   waba_id?: string | null;
+  /** Campo dinámico declarado por cada variable {{n}}: { "1": "customer_name" }.
+   *  Las automatizaciones lo usan para pre-mapear las variables. */
+  variable_fields?: Record<string, string> | null;
   created_at: string;
 }
 

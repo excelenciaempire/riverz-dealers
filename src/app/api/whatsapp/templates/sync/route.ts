@@ -43,10 +43,18 @@ import { translate } from '@/lib/i18n/translate'
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
 
+interface MetaTemplateButton {
+  type: string
+  text?: string
+  url?: string
+  phone_number?: string
+}
+
 interface MetaTemplateComponent {
   type: string
   text?: string
   format?: string
+  buttons?: MetaTemplateButton[]
 }
 
 interface MetaTemplate {
@@ -216,6 +224,18 @@ export async function POST(req: Request) {
       const body = (t.components ?? []).find((c) => c.type === 'BODY')
       const header = (t.components ?? []).find((c) => c.type === 'HEADER')
       const footer = (t.components ?? []).find((c) => c.type === 'FOOTER')
+      const buttonsComp = (t.components ?? []).find((c) => c.type === 'BUTTONS')
+      // Conservar los botones para que la vista previa (bandeja, plantillas,
+      // automatizaciones) los muestre. Meta los da con url/phone estáticos; los
+      // dinámicos (url_variable) solo existen en las creadas desde Riverz.
+      const syncedButtons = (buttonsComp?.buttons ?? [])
+        .filter((b) => b.text?.trim())
+        .map((b) => {
+          const base: Record<string, unknown> = { type: b.type, text: b.text }
+          if (b.url) base.url = b.url
+          if (b.phone_number) base.phone_number = b.phone_number
+          return base
+        })
 
       const row = {
         user_id: user.id,
@@ -228,13 +248,14 @@ export async function POST(req: Request) {
         header_content: header?.text ?? null,
         body_text: body?.text ?? '',
         footer_text: footer?.text ?? null,
+        buttons: syncedButtons.length > 0 ? syncedButtons : null,
         status: normalizeStatus(t.status),
         updated_at: new Date().toISOString(),
       }
 
       const { data: existing, error: lookupErr } = await supabase
         .from('message_templates')
-        .select('id')
+        .select('id, buttons')
         .eq('user_id', user.id)
         .eq('name', t.name)
         .eq('language', t.language)
@@ -250,6 +271,21 @@ export async function POST(req: Request) {
       }
 
       if (existing?.id) {
+        // Preservar `url_variable` de un botón URL dinámico creado en Riverz:
+        // Meta lo devuelve como URL estática (dominio/{{1}}) sin esa marca, y
+        // sobrescribirla dejaría al motor sin saber qué link llenar al enviar.
+        const prevButtons = Array.isArray(existing.buttons)
+          ? (existing.buttons as { type?: string; text?: string; url_variable?: string }[])
+          : []
+        if (Array.isArray(row.buttons)) {
+          row.buttons = row.buttons.map((b) => {
+            if ((b as { type?: string }).type !== 'URL') return b
+            const prev = prevButtons.find(
+              (p) => p.type === 'URL' && p.text === (b as { text?: string }).text && p.url_variable,
+            )
+            return prev?.url_variable ? { ...b, url_variable: prev.url_variable } : b
+          })
+        }
         const { error: updErr } = await supabase
           .from('message_templates')
           .update(row)

@@ -58,7 +58,10 @@ import { useT } from "@/hooks/use-locale"
 import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
-import { extractVariables } from "@/lib/whatsapp/template-components"
+import {
+  extractVariables,
+  type TemplateButtonInput,
+} from "@/lib/whatsapp/template-components"
 import {
   DATA_POINTS,
   templateDataPoints,
@@ -2042,12 +2045,18 @@ function StepEditor({
                 value={(cfg.template_name as string) ?? ""}
                 onChange={(e) => {
                   const tpl = templates.find((tp) => tp.name === e.target.value)
-                  // Cambiar de plantilla descarta el mapeo de variables previo
-                  // (los {{n}} de la nueva plantilla no se corresponden).
+                  // Cambiar de plantilla descarta el mapeo previo (los {{n}} de
+                  // la nueva no se corresponden) y PRE-MAPEA desde el campo que
+                  // la plantilla declaró para cada variable ({ "1": "customer_name" }
+                  // → {{vars.customer_name}}). Así no hay que mapear a mano.
+                  const declared = (tpl?.variable_fields ?? {}) as Record<string, string>
+                  const seeded = Object.fromEntries(
+                    Object.entries(declared).map(([n, key]) => [n, `{{vars.${key}}}`]),
+                  )
                   set({
                     template_name: e.target.value,
                     language: tpl?.language ?? "es",
-                    variables: {},
+                    variables: seeded,
                   })
                 }}
                 className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
@@ -2131,6 +2140,10 @@ function StepEditor({
                       },
                     )}
                     footerText={selectedTpl.footer_text ?? undefined}
+                    buttons={
+                      (selectedTpl.buttons as unknown as TemplateButtonInput[] | null) ??
+                      undefined
+                    }
                   />
                 </div>
               )}
