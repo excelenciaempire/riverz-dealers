@@ -138,6 +138,7 @@ const SAMPLE_BY_VAR: Record<string, string> = {
   contact_last_name: "González",
   contact_email: "maria@correo.com",
   contact_phone: "+54 9 11 1234 5678",
+  last_product: "Serum Pilar",
 }
 
 // ------------------------------------------------------------

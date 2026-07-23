@@ -209,7 +209,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'recompras',
     name: 'Recompras',
     description:
-      'Cuando un cliente lleva 45 días desde su último pedido, le mandamos un recordatorio suave por si quiere reponer stock. Solo dispara una vez por ciclo de recompra.',
+      'A los 45 días del último pedido, reactivamos al cliente — pero con un mensaje distinto según cuánto compró: a quien llevó por volumen (3+ unidades) le proponemos reponer con una oferta de volumen; a quien compró individual, volver a pedir su producto. Dispara una vez por ciclo.',
     category: 'retencion',
     icon: 'repeat-2',
     tags: ['Retención', 'Recompras'],
@@ -220,17 +220,49 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_config: { days_threshold: 45 },
     suggested_template_body:
       'Hola {{customer_name}}, hace un tiempo de tu último pedido. ¿Quieres reponer? Te dejo el link para volver a comprar.',
+    // Flujo ramificado: el camino se elige según las UNIDADES de la última
+    // compra (last_offer_units, que el webhook de pedidos guarda en el
+    // contacto). El merchant puede cambiar la condición por la oferta elegida
+    // (last_offer_chosen) o el producto (last_product) desde el editor. Cada
+    // rama termina etiquetando para segmentar después.
     steps: [
       {
-        step_type: 'send_template',
-        step_config: { template_name: '', language: 'es', variables: {} },
+        // 0 — ¿Compró por volumen (3+ unidades) la última vez?
+        step_type: 'condition',
+        step_config: {
+          subject: 'contact_field',
+          operand: 'last_offer_units',
+          op: 'gte',
+          value: '3',
+        },
       },
       {
-        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
-        // nueva o elige una existente al usar la plantilla (validate exige un tag
-        // real antes de activar).
+        // 1 — Sí (comprador de volumen): reponer con oferta de volumen.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+        parent_index: 0,
+        branch: 'yes',
+      },
+      {
+        // 2 — etiqueta de la rama de volumen.
         step_type: 'add_tag',
         step_config: { tag_id: '' },
+        parent_index: 0,
+        branch: 'yes',
+      },
+      {
+        // 3 — No (comprador individual): volver a pedir su producto.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+        parent_index: 0,
+        branch: 'no',
+      },
+      {
+        // 4 — etiqueta de la rama individual.
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+        parent_index: 0,
+        branch: 'no',
       },
     ],
   },

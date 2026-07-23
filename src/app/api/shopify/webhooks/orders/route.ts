@@ -251,17 +251,28 @@ export async function POST(request: Request) {
     // recompra. Se calcula para todos los pedidos (también los del asistente)
     // y se inyecta como var {{vars.offer_chosen}} más abajo.
     const offer = await resolveOfferChosen(admin, workspaceId, order)
-    if (triggerType === 'shopify_order_created' && offer.label) {
-      const { error: offerErr } = await admin
-        .from('contacts')
-        .update({
-          last_offer_chosen: offer.label,
-          last_offer_units: offer.units,
-          last_offer_at: new Date().toISOString(),
-        })
-        .eq('id', contactId)
-      if (offerErr)
-        console.error('[shopify] last_offer update failed:', offerErr)
+    if (triggerType === 'shopify_order_created') {
+      // Producto comprado = título del primer ítem del pedido. Se guarda en el
+      // contacto para poder ramificar/personalizar recompras por producto.
+      const lineItems = Array.isArray(order.line_items) ? order.line_items : []
+      const firstItemTitle = String(
+        (lineItems[0] as Record<string, unknown> | undefined)?.title ?? '',
+      ).trim()
+      const contactUpdate: Record<string, unknown> = {}
+      if (offer.label) {
+        contactUpdate.last_offer_chosen = offer.label
+        contactUpdate.last_offer_units = offer.units
+        contactUpdate.last_offer_at = new Date().toISOString()
+      }
+      if (firstItemTitle) contactUpdate.last_product = firstItemTitle
+      if (Object.keys(contactUpdate).length > 0) {
+        const { error: offerErr } = await admin
+          .from('contacts')
+          .update(contactUpdate)
+          .eq('id', contactId)
+        if (offerErr)
+          console.error('[shopify] last_offer/product update failed:', offerErr)
+      }
     }
 
     // Categorize the buyer so they're selectable in segments / broadcasts /

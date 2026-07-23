@@ -431,7 +431,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       {
         const { data: c } = await db
           .from('contacts')
-          .select('name, email, phone')
+          .select('name, email, phone, last_product')
           .eq('id', args.contactId)
           .maybeSingle()
         if (c) {
@@ -446,6 +446,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           setIfAbsent('contact_last_name', rest.join(' '))
           setIfAbsent('contact_email', String(c.email ?? ''))
           setIfAbsent('contact_phone', String(c.phone ?? ''))
+          setIfAbsent('last_product', String(c.last_product ?? ''))
         }
       }
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so

@@ -65,8 +65,8 @@ export const automations = {
   },
   "tpl_recompras_name": { es: "Recompras", en: "Repeat purchases" },
   "tpl_recompras_desc": {
-    es: "Cuando un cliente lleva 45 días desde su último pedido, le mandamos un recordatorio suave por si quiere reponer stock. Solo dispara una vez por ciclo de recompra.",
-    en: "When a customer hasn't ordered in 45 days, we send a gentle reminder in case they want to restock. It only fires once per repurchase cycle.",
+    es: "A los 45 días del último pedido reactivamos al cliente con un mensaje distinto según cuánto compró: por volumen (3+ unidades) le proponemos reponer con oferta de volumen; individual, volver a pedir su producto. El camino se puede cambiar por la oferta o el producto elegido. Dispara una vez por ciclo.",
+    en: "45 days after the last order we re-engage with a different message based on how much they bought: bulk buyers (3+ units) get a volume-restock offer; single buyers, a reorder nudge. The path can be switched to the chosen offer or product. Fires once per cycle.",
   },
 
   // List page — card actions / menu
@@ -218,6 +218,7 @@ export const automations = {
   dpContactCompany: { es: "Su empresa", en: "Their company" },
   dpLastOfferUnits: { es: "Unidades de su última compra", en: "Units in their last purchase" },
   dpLastOfferChosen: { es: "Su última oferta comprada", en: "Their last purchased offer" },
+  dpLastProduct: { es: "Su último producto comprado", en: "Their last purchased product" },
   dpIsCustomer: { es: "Ya compró alguna vez", en: "Has purchased before" },
   dpHasTag: { es: "Tiene la etiqueta", en: "Has the tag" },
   dpInSegment: { es: "Está en el grupo", en: "Is in the group" },
