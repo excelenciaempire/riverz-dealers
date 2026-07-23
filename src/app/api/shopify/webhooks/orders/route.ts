@@ -140,6 +140,25 @@ export async function POST(request: Request) {
           .eq('shop_domain', shopDomain)
           .eq('checkout_id', checkoutToken)
       }
+
+      // Sembrar el estado inicial del pedido (sin disparar) para que la primera
+      // actualización real compute transiciones correctas (pagado/cancelado/…)
+      // en vez de disparar en el primer avistamiento. No pisa si ya existe.
+      if (orderId > 0) {
+        await admin
+          .from('shopify_order_fulfillment_state')
+          .upsert(
+            {
+              shop_domain: shopDomain,
+              order_id: orderId,
+              fulfillment_status: incomingFulfillment,
+              financial_status: (order.financial_status as string | null) ?? null,
+              cancelled: !!order.cancelled_at,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'shop_domain,order_id', ignoreDuplicates: true },
+          )
+      }
     } else {
       // orders/updated: only dispatch when fulfillment_status flips to
       // 'fulfilled' (from null/partial). Anything else (status edits,
@@ -165,6 +184,8 @@ export async function POST(request: Request) {
             p_fulfillment_status: incomingFulfillment,
             p_shipment_status: shipmentStatus,
             p_just_delivered: justDelivered,
+            p_financial_status: (order.financial_status as string | null) ?? null,
+            p_cancelled: !!order.cancelled_at,
           },
         )
         const row = Array.isArray(transition)
@@ -172,11 +193,25 @@ export async function POST(request: Request) {
               | {
                   transitioned_to_fulfilled?: boolean
                   transitioned_to_delivered?: boolean
+                  transitioned_to_paid?: boolean
+                  transitioned_to_cancelled?: boolean
+                  transitioned_to_refunded?: boolean
                 }
               | undefined)
           : null
-        if (row?.transitioned_to_fulfilled) {
+        // Una sola actualización solo dispara UN evento (el más relevante).
+        // Prioridad: cancelado/reembolsado (excepciones) > pagado > despachado
+        // > entregado.
+        if (row?.transitioned_to_cancelled) {
+          triggerType = 'shopify_order_cancelled'
+        } else if (row?.transitioned_to_refunded) {
+          triggerType = 'shopify_order_refunded'
+        } else if (row?.transitioned_to_paid) {
+          triggerType = 'shopify_order_paid'
+        } else if (row?.transitioned_to_fulfilled) {
           triggerType = 'shopify_order_fulfilled'
+        } else if (row?.transitioned_to_delivered) {
+          triggerType = 'shopify_order_delivered'
         }
       }
     }
@@ -545,7 +580,7 @@ function buildVarsForOrder(
     shipping_country: String(shipping?.country ?? ''),
   }
 
-  if (trigger === 'shopify_order_fulfilled') {
+  if (trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered') {
     const fulfillments = Array.isArray(order.fulfillments)
       ? (order.fulfillments as Record<string, unknown>[])
       : []

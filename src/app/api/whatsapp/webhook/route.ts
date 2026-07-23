@@ -52,6 +52,14 @@ interface WhatsAppMessage {
     button_reply?: { id: string; title: string }
     list_reply?: { id: string; title: string; description?: string }
   }
+  /**
+   * Set when the customer taps a QUICK-REPLY button on a TEMPLATE we sent
+   * (distinct from `interactive`, which is for interactive messages). Meta
+   * sends `button.text` (the visible label) and `button.payload` (equal to the
+   * label unless a custom payload was set). We surface the text so keyword
+   * automations react and stash the payload for flow routing.
+   */
+  button?: { text?: string; payload?: string }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
 }
@@ -1167,6 +1175,19 @@ async function parseMessageContent(
 
     case 'reaction':
       return { ...empty, contentText: message.reaction?.emoji || null }
+
+    case 'button': {
+      // Quick-reply button tapped on a TEMPLATE we sent. El texto va como
+      // contentText para que se vea en la bandeja Y para que las
+      // automatizaciones por palabra clave reaccionen; el payload queda como
+      // interactive_reply_id para enrutar en flujos.
+      const text = message.button?.text || message.button?.payload || null
+      return {
+        ...empty,
+        contentText: text,
+        interactiveReplyId: message.button?.payload || message.button?.text || null,
+      }
+    }
 
     case 'interactive': {
       // The customer tapped a reply button or a list row on a message

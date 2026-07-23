@@ -39,9 +39,17 @@ export interface DataPoint {
 
 const ORDER_TRIGGERS: AutomationTriggerType[] = [
   'shopify_order_created',
+  'shopify_order_paid',
   'shopify_order_fulfilled',
+  'shopify_order_delivered',
+  'shopify_order_cancelled',
+  'shopify_order_refunded',
 ]
-const FULFILLED: AutomationTriggerType[] = ['shopify_order_fulfilled']
+// Datos de envío/tracking: existen al despachar y al entregar.
+const FULFILLED: AutomationTriggerType[] = [
+  'shopify_order_fulfilled',
+  'shopify_order_delivered',
+]
 
 export const DATA_POINTS: DataPoint[] = [
   // ── Order data (set by buildVarsForOrder + offer_* in the orders webhook) ──
@@ -70,7 +78,7 @@ export const DATA_POINTS: DataPoint[] = [
     labelKey: 'automations.dpTotal',
     group: 'order',
     valueKind: 'number',
-    triggers: ['shopify_order_created', 'shopify_order_fulfilled', 'shopify_abandoned_checkout'],
+    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout'],
     usableInConditions: true,
     templateVarKey: 'total_price',
     condition: { kind: 'var', varKey: 'total_price' },
@@ -182,7 +190,7 @@ export const DATA_POINTS: DataPoint[] = [
     labelKey: 'automations.dpCurrency',
     group: 'order',
     valueKind: 'text',
-    triggers: ['shopify_order_created', 'shopify_order_fulfilled', 'shopify_abandoned_checkout'],
+    triggers: [...ORDER_TRIGGERS, 'shopify_abandoned_checkout'],
     usableInConditions: false,
     templateVarKey: 'currency',
     condition: { kind: 'var', varKey: 'currency' },

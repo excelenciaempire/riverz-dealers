@@ -43,9 +43,25 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Nuevo pedido (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
   },
+  shopify_order_paid: {
+    label: 'Pedido pagado (Shopify)',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
   shopify_order_fulfilled: {
     label: 'Pedido despachado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
+  shopify_order_delivered: {
+    label: 'Pedido entregado (Shopify)',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
+  shopify_order_cancelled: {
+    label: 'Pedido cancelado (Shopify)',
+    pillClass: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+  },
+  shopify_order_refunded: {
+    label: 'Pedido reembolsado (Shopify)',
+    pillClass: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
   },
   post_delivery_feedback: {
     label: 'Feedback post-entrega',

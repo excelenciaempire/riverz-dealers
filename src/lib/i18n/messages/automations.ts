@@ -142,9 +142,25 @@ export const automations = {
   triggerEyebrowShopify: { es: "Activador · Shopify", en: "Trigger · Shopify" },
   triggerTagAdded: { es: "Etiqueta añadida", en: "Tag added" },
   triggerShopifyOrderCreated: { es: "Nuevo pedido (Shopify)", en: "New order (Shopify)" },
+  triggerShopifyOrderPaid: {
+    es: "Pedido pagado (Shopify)",
+    en: "Order paid (Shopify)",
+  },
   triggerShopifyOrderFulfilled: {
     es: "Pedido despachado (Shopify)",
     en: "Order fulfilled (Shopify)",
+  },
+  triggerShopifyOrderDelivered: {
+    es: "Pedido entregado (Shopify)",
+    en: "Order delivered (Shopify)",
+  },
+  triggerShopifyOrderCancelled: {
+    es: "Pedido cancelado (Shopify)",
+    en: "Order cancelled (Shopify)",
+  },
+  triggerShopifyOrderRefunded: {
+    es: "Pedido reembolsado (Shopify)",
+    en: "Order refunded (Shopify)",
   },
   triggerShopifyAbandonedCheckout: {
     es: "Carrito abandonado (Shopify)",

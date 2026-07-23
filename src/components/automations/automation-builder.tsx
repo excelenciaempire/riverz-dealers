@@ -316,7 +316,11 @@ const LEAF_STEPS: BuilderStepType[] = [
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
   { value: "tag_added", label: "automations.triggerTagAdded" },
   { value: "shopify_order_created", label: "automations.triggerShopifyOrderCreated" },
+  { value: "shopify_order_paid", label: "automations.triggerShopifyOrderPaid" },
   { value: "shopify_order_fulfilled", label: "automations.triggerShopifyOrderFulfilled" },
+  { value: "shopify_order_delivered", label: "automations.triggerShopifyOrderDelivered" },
+  { value: "shopify_order_cancelled", label: "automations.triggerShopifyOrderCancelled" },
+  { value: "shopify_order_refunded", label: "automations.triggerShopifyOrderRefunded" },
   { value: "shopify_abandoned_checkout", label: "automations.triggerShopifyAbandonedCheckout" },
 ]
 
@@ -1931,9 +1935,9 @@ function AddButton({
     <div
       className={cn(
         "group/add relative flex items-center",
-        // Visible without hover (still lifts to full on hover / when the menu
-        // opens) so the "+ Add" affordance is always discoverable.
-        "opacity-70 transition-opacity hover:opacity-100 has-[[data-popup-open]]:opacity-100",
+        // Siempre a full opacidad: el "+ Añadir" es la acción principal para
+        // construir el flujo, así que tiene que verse sin buscarlo.
+        "opacity-100",
         // Top-align in horizontal mode so the line meets the card header
         // (cards grow downward when expanded / when conditions sprout
         // branches), ~28px ≈ half the collapsed header height.
@@ -1944,9 +1948,11 @@ function AddButton({
       <DropdownMenu>
         <DropdownMenuTrigger
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-all",
-            "hover:border-primary hover:bg-primary/10 hover:text-accent-ink",
-            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/15 data-[popup-open]:text-accent-ink",
+            // Resaltado con el color de marca (no apagado): borde y texto de
+            // acento + fondo tenue, para que la acción de agregar se vea.
+            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-primary bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-accent-ink transition-all",
+            "hover:bg-primary/20",
+            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-accent-ink",
           )}
           aria-label={t("automations.addStep")}
         >

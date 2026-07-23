@@ -467,7 +467,11 @@ export type AutomationTriggerType =
   | 'time_based'
   | 'shopify_abandoned_checkout'
   | 'shopify_order_created'
+  | 'shopify_order_paid'
   | 'shopify_order_fulfilled'
+  | 'shopify_order_delivered'
+  | 'shopify_order_cancelled'
+  | 'shopify_order_refunded'
   // Time-based variants discovered by the dedicated cron jobs, NOT by
   // a generic time_based scheduler. Both use trigger_config.days_after
   // (post_delivery_feedback) or days_threshold (customer_inactive) as
