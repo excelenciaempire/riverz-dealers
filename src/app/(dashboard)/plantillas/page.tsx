@@ -84,9 +84,33 @@ export default function TemplatesPage() {
       setLoading(false);
       return;
     }
-    void fetchTemplates(user.id);
+    void (async () => {
+      // Mostramos lo que hay al instante y sincronizamos con Meta en segundo
+      // plano (silencioso) para que el catálogo esté siempre fresco sin que el
+      // usuario tenga que apretar "Sincronizar".
+      await fetchTemplates(user.id);
+      void autoSync(user.id);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
+
+  // Auto-sync al entrar, con throttle: evita golpear la API de Meta si el
+  // usuario navega dentro/fuera de Plantillas varias veces seguidas.
+  async function autoSync(userId: string) {
+    try {
+      const KEY = 'templatesAutoSyncAt';
+      const last = Number(sessionStorage.getItem(KEY) ?? 0);
+      if (Date.now() - last < 30_000) return;
+      sessionStorage.setItem(KEY, String(Date.now()));
+      const res = await fetchWithCsrf('/api/whatsapp/templates/sync', {
+        method: 'POST',
+      });
+      if (!res.ok) return; // silencioso: si Meta falla, dejamos el catálogo local
+      await fetchTemplates(userId);
+    } catch {
+      // Silencioso: el auto-sync es una mejora, no debe molestar con errores.
+    }
+  }
 
   async function fetchTemplates(userId: string) {
     try {
