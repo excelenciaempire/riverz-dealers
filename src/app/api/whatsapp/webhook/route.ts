@@ -15,6 +15,11 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { metaErrorText, metaErrorCode } from '@/lib/whatsapp/delivery-errors'
+import {
+  handleTemplateStatusUpdate,
+  handleTemplateQualityUpdate,
+  type TemplateWebhookValue,
+} from '@/lib/whatsapp/template-webhooks'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,11 +275,11 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       // UNKNOWN). Sin esto, el comercio no sabía que su plantilla nueva quedó
       // retenida o pausada. entry.id es el WABA.
       if (change.field === 'message_template_status_update') {
-        await handleTemplateStatusUpdate(entry.id, change.value as unknown as TemplateWebhookValue)
+        await handleTemplateStatusUpdate(supabaseAdmin(), entry.id, change.value as unknown as TemplateWebhookValue)
         continue
       }
       if (change.field === 'message_template_quality_update') {
-        await handleTemplateQualityUpdate(entry.id, change.value as unknown as TemplateWebhookValue)
+        await handleTemplateQualityUpdate(supabaseAdmin(), entry.id, change.value as unknown as TemplateWebhookValue)
         continue
       }
 
@@ -457,68 +462,6 @@ async function handleStatusUpdate(status: {
   if (recUpdateErr) {
     console.error('Error updating broadcast recipient status:', recUpdateErr)
   }
-}
-
-interface TemplateWebhookValue {
-  event?: string
-  message_template_id?: number | string
-  message_template_name?: string
-  message_template_language?: string
-  reason?: string
-  previous_quality_score?: string
-  new_quality_score?: string
-}
-
-/** Estado crudo de Meta → status reducido (CHECK Draft/Pending/Approved/Rejected).
- *  PAUSED sigue siendo "Approved" (solo pausado); DISABLED sí es inutilizable. */
-function normalizeTemplateStatusEvent(event?: string): string | null {
-  switch ((event ?? '').toUpperCase()) {
-    case 'APPROVED':
-      return 'Approved'
-    case 'REJECTED':
-    case 'DISABLED':
-      return 'Rejected'
-    case 'PENDING':
-    case 'IN_APPEAL':
-    case 'PENDING_DELETION':
-      return 'Pending'
-    case 'PAUSED':
-    case 'FLAGGED':
-      return 'Approved'
-    default:
-      return null
-  }
-}
-
-/** message_template_status_update: guarda el estado crudo (meta_status, preserva
- *  PAUSED/DISABLED) y actualiza el status reducido. */
-async function handleTemplateStatusUpdate(wabaId: string, value: TemplateWebhookValue) {
-  const name = value.message_template_name
-  if (!name) return
-  const patch: Record<string, unknown> = { meta_status: value.event ?? null }
-  const status = normalizeTemplateStatusEvent(value.event)
-  if (status) patch.status = status
-  let q = supabaseAdmin().from('message_templates').update(patch).eq('name', name)
-  if (value.message_template_language) q = q.eq('language', value.message_template_language)
-  if (wabaId) q = q.eq('waba_id', wabaId)
-  const { error } = await q
-  if (error) console.error('[webhook] template status update failed:', error.message)
-}
-
-/** message_template_quality_update: guarda el nuevo quality_score
- *  (UNKNOWN/GREEN/YELLOW/RED) — UNKNOWN = plantilla nueva elegible a pacing. */
-async function handleTemplateQualityUpdate(wabaId: string, value: TemplateWebhookValue) {
-  const name = value.message_template_name
-  const score = value.new_quality_score
-  if (!name || !score) return
-  let q = supabaseAdmin()
-    .from('message_templates')
-    .update({ quality_score: score })
-    .eq('name', name)
-  if (value.message_template_language) q = q.eq('language', value.message_template_language)
-  if (wabaId) q = q.eq('waba_id', wabaId)
-  const { error } = await q
-  if (error) console.error('[webhook] template quality update failed:', error.message)
 }
 
 // The messages.content_type CHECK constraint allows this set (migration 010).

@@ -24,6 +24,16 @@ import {
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
+import {
+  handleTemplateStatusUpdate,
+  handleTemplateQualityUpdate,
+  type TemplateWebhookValue,
+} from "@/lib/whatsapp/template-webhooks";
+import {
+  fetchWhatsAppAccountHealth,
+  persistWhatsAppHealthSnapshot,
+} from "@/lib/whatsapp/account-health";
+import { verifyPhoneNumber } from "@/lib/whatsapp/meta-api";
 
 /** After a successful Meta call, restore a connection that was
  *  previously flagged dead (status='error'/'expired') so a recovered
@@ -33,6 +43,34 @@ async function healIfRecovered(connection: ChannelConnection): Promise<void> {
   if (connection.status !== "connected") {
     await clearMetaConnectionError(supabaseAdmin(), connection);
   }
+}
+
+/**
+ * Refresca el snapshot de salud de la conexión (can_send / review / blockers +
+ * quality_rating) desde Meta. Lo dispara un webhook de calidad de número o de
+ * cuenta — refrescamos desde la fuente de verdad en vez de parsear el payload,
+ * que no trae el color de calidad directo. Best-effort: nunca lanza al caller.
+ */
+async function refreshConnectionHealth(connection: ChannelConnection): Promise<void> {
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
+  const phoneNumberId = String(
+    cfg.phone_number_id ?? connection.external_account_id ?? "",
+  );
+  const wabaId = String(cfg.waba_id ?? "");
+  const enc = String(secrets.access_token ?? "");
+  if (!phoneNumberId || !wabaId || !enc) return;
+  const accessToken = decrypt(enc);
+  const [health, phoneInfo] = await Promise.all([
+    fetchWhatsAppAccountHealth({ phoneNumberId, wabaId, accessToken }),
+    verifyPhoneNumber({ phoneNumberId, accessToken }).catch(() => null),
+  ]);
+  await persistWhatsAppHealthSnapshot(
+    supabaseAdmin(),
+    connection.id,
+    health,
+    phoneInfo?.quality_rating,
+  );
 }
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -258,6 +296,40 @@ export const whatsappAdapter: ChannelAdapter = {
         // Meta rejected looked "sent" while the customer never received it.
         if (value.statuses) {
           await handleWhatsappStatuses(value.statuses);
+          continue;
+        }
+
+        // --- Plantillas: estado + calidad (visibilidad de pacing) ---
+        // Esta ES la ruta activa (el callback configurado en la app de Meta),
+        // así que los webhooks de plantilla suscritos se procesan acá. entry.id
+        // es el WABA. Best-effort; nunca rompe el parseo del resto.
+        if (change.field === "message_template_status_update") {
+          await handleTemplateStatusUpdate(
+            supabaseAdmin(),
+            entry.id ?? "",
+            value as unknown as TemplateWebhookValue,
+          ).catch((e) => console.error("[whatsapp] template status webhook:", e));
+          continue;
+        }
+        if (change.field === "message_template_quality_update") {
+          await handleTemplateQualityUpdate(
+            supabaseAdmin(),
+            entry.id ?? "",
+            value as unknown as TemplateWebhookValue,
+          ).catch((e) => console.error("[whatsapp] template quality webhook:", e));
+          continue;
+        }
+        // --- Salud de la cuenta / calidad del número: refrescamos el snapshot
+        //     desde la fuente de verdad en vez de parsear el payload (que no
+        //     trae el color de calidad directo). Best-effort. ---
+        if (
+          change.field === "phone_number_quality_update" ||
+          change.field === "account_update" ||
+          change.field === "account_review_update"
+        ) {
+          await refreshConnectionHealth(connection).catch((e) =>
+            console.error("[whatsapp] health refresh webhook:", e),
+          );
           continue;
         }
 
