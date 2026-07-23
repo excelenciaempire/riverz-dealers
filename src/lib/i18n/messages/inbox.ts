@@ -332,6 +332,10 @@ export const inbox = {
     es: "Sincroniza desde Ajustes → Plantillas.",
     en: "Sync from Settings → Templates.",
   },
+  templateAutoOnly: {
+    es: "Se envía automáticamente (botón con enlace dinámico).",
+    en: "Sent automatically (dynamic-link button).",
+  },
   preview: { es: "Vista previa", en: "Preview" },
   variableLabel: { es: "Variable {{{n}}}", en: "Variable {{{n}}}" },
   variableExample: { es: "· ej. {sample}", en: "· e.g. {sample}" },
