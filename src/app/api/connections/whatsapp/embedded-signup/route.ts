@@ -245,6 +245,24 @@ export async function POST(req: Request): Promise<Response> {
       token,
     });
 
+    // Purgar plantillas de un WABA ANTERIOR. Las plantillas viven a nivel de
+    // WABA en Meta; al conectar un número nuevo (otro WABA), el catálogo del
+    // anterior no debe seguir apareciendo. Borramos las de origen Meta
+    // (Approved/Pending/Rejected) que no pertenezcan a este WABA; los
+    // borradores locales (status 'Draft') se conservan. Las plantillas del
+    // WABA nuevo entran en la próxima sincronización (estampadas con su
+    // waba_id). Best-effort: un fallo aquí no debe tumbar la conexión.
+    try {
+      await admin
+        .from("message_templates")
+        .delete()
+        .eq("user_id", user.id)
+        .neq("status", "Draft")
+        .or(`waba_id.is.null,waba_id.neq.${body.waba_id}`);
+    } catch (err) {
+      console.warn("[whatsapp/embedded-signup] template purge failed:", err);
+    }
+
     // 6. Comprobar que la cuenta PUEDA enviar antes de decir que quedó lista.
     //    Se lee después de conectar a propósito: asignar nuestra app como
     //    partner del WABA puede meter la cuenta en revisión, y ese estado solo

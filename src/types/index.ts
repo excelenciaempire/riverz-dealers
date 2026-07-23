@@ -386,6 +386,9 @@ export interface MessageTemplate {
    *  previews so the user knows what each variable represents. */
   variable_samples?: (string | null)[];
   meta_template_id?: string;
+  /** WABA the template belongs to (templates are WABA-scoped in Meta). Stamped
+   *  on sync so switching numbers hides the previous WABA's catalog. */
+  waba_id?: string | null;
   created_at: string;
 }
 

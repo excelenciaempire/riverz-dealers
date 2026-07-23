@@ -31,9 +31,13 @@ import { translate } from '@/lib/i18n/translate'
  *   - Only approved templates are surfaced by default. We return
  *     everything Meta returns and let the UI filter — so the user can
  *     see their Pending / Rejected templates and understand why.
- *   - Locally-created templates (no Meta counterpart) are NOT deleted —
- *     they remain visible so the user can notice drift and clean up
- *     manually.
+ *   - Locally-created templates (status 'Draft', no Meta counterpart) are
+ *     NOT deleted — they remain visible so the user can notice drift and
+ *     clean up manually.
+ *   - Meta templates from a DIFFERENT WABA are purged: templates belong to
+ *     a WABA, so after switching numbers the previous WABA's templates must
+ *     not linger. We stamp `waba_id` on the current WABA's templates and
+ *     delete any Meta-origin row tied to another WABA.
  */
 
 const META_API_VERSION = 'v21.0'
@@ -216,6 +220,7 @@ export async function POST(req: Request) {
       const row = {
         user_id: user.id,
         workspace_id: workspaceId,
+        waba_id: wabaId,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,
@@ -274,11 +279,30 @@ export async function POST(req: Request) {
       }
     }
 
+    // Purga de plantillas de OTRO WABA. Las plantillas viven a nivel de WABA
+    // en Meta; al cambiar de número (nuevo WABA) las del anterior seguían
+    // apareciendo porque nada las ataba a su WABA. Ya que arriba estampamos
+    // `waba_id` en todas las del WABA actual, las que quedan con otro waba_id
+    // (o null, de una sincronización previa al scoping) y con estado de Meta
+    // (Approved/Pending/Rejected) son de un WABA viejo → se eliminan. Los
+    // borradores locales (status 'Draft', sin contraparte en Meta) se
+    // conservan siempre.
+    let purged = 0
+    const { data: purgedRows, error: purgeErr } = await supabase
+      .from('message_templates')
+      .delete()
+      .eq('user_id', user.id)
+      .neq('status', 'Draft')
+      .or(`waba_id.is.null,waba_id.neq.${wabaId}`)
+      .select('id')
+    if (!purgeErr && purgedRows) purged = purgedRows.length
+
     return NextResponse.json({
       success: errors.length === 0,
       total: metaTemplates.length,
       inserted,
       updated,
+      purged,
       errors,
       truncated: pageCount >= PAGE_CAP && nextUrl !== null,
     })
