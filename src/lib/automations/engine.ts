@@ -423,6 +423,31 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (!args.contactId) throw new Error('send_template needs a contact')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
+
+      // Enriquecer el contexto con los datos del cliente para que las variables
+      // "Correo/Teléfono/Nombre del cliente" se resuelvan en cualquier
+      // disparador (el webhook de Shopify no siempre los trae). No pisamos un
+      // valor que el disparador ya haya puesto.
+      {
+        const { data: c } = await db
+          .from('contacts')
+          .select('name, email, phone')
+          .eq('id', args.contactId)
+          .maybeSingle()
+        if (c) {
+          const vars = (args.context.vars ??= {})
+          const full = String(c.name ?? '').trim()
+          const [first, ...rest] = full.split(/\s+/)
+          const setIfAbsent = (k: string, v: string) => {
+            if (v && !(k in vars)) vars[k] = v
+          }
+          setIfAbsent('customer_name', full)
+          setIfAbsent('contact_first_name', first ?? '')
+          setIfAbsent('contact_last_name', rest.join(' '))
+          setIfAbsent('contact_email', String(c.email ?? ''))
+          setIfAbsent('contact_phone', String(c.phone ?? ''))
+        }
+      }
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
       // of "1", "2", …, "10" yields "1", "10", "2", … which silently
