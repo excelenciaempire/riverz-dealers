@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   createMessageTemplate,
@@ -105,26 +106,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: buildError }, { status: 400 })
     }
 
-    // whatsapp_config holds waba_id + the encrypted access token.
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (configError || !config) {
-      return NextResponse.json(
-        { error: translate(locale, 'errWhatsapp.whatsappNotConnected') },
-        { status: 400 },
-      )
-    }
-    if (!config.waba_id) {
-      return NextResponse.json(
-        { error: translate(locale, 'errWhatsapp.missingWabaId') },
-        { status: 400 },
-      )
-    }
-
     // message_templates.workspace_id is NOT NULL. Resolve it now so the
     // local mirror actually persists — without it the INSERT below fails
     // the not-null constraint and the template silently never appears in
@@ -137,12 +118,58 @@ export async function POST(request: Request) {
       )
     }
 
-    const accessToken = decrypt(config.access_token)
+    // Resolver WABA + token igual que el sync: `whatsapp_config` (legacy, por
+    // user_id) es la fuente vieja, pero un número conectado por Embedded Signup
+    // escribe SOLO `channel_connections` (por workspace). Si nos quedáramos con
+    // whatsapp_config, un número conectado en la bandeja daría "WhatsApp no
+    // conectado" al crear plantillas aunque esté conectado. Caemos a la conexión
+    // del workspace.
+    let wabaId: string | null = null
+    let accessToken: string | null = null
+
+    const { data: config } = await supabase
+      .from('whatsapp_config')
+      .select('waba_id, access_token')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (config?.waba_id && config.access_token) {
+      wabaId = String(config.waba_id)
+      accessToken = decrypt(config.access_token)
+    } else {
+      const { data: conn } = await supabaseAdmin()
+        .from('channel_connections')
+        .select('config, secrets')
+        .eq('workspace_id', workspaceId)
+        .eq('channel', 'whatsapp')
+        .neq('status', 'disconnected')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const cfg = (conn?.config ?? {}) as Record<string, unknown>
+      const secrets = (conn?.secrets ?? {}) as Record<string, unknown>
+      if (cfg.waba_id && secrets.access_token) {
+        wabaId = String(cfg.waba_id)
+        accessToken = decrypt(String(secrets.access_token))
+      }
+    }
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.whatsappNotConnected') },
+        { status: 400 },
+      )
+    }
+    if (!wabaId) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.missingWabaId') },
+        { status: 400 },
+      )
+    }
 
     let metaResult
     try {
       metaResult = await createMessageTemplate({
-        wabaId: config.waba_id,
+        wabaId,
         accessToken,
         name,
         language,
