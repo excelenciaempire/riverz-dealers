@@ -9,7 +9,10 @@ import {
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
 } from "@/lib/channels/whatsapp/connect";
-import { fetchWhatsAppAccountHealth } from "@/lib/whatsapp/account-health";
+import {
+  fetchWhatsAppAccountHealth,
+  persistWhatsAppHealthSnapshot,
+} from "@/lib/whatsapp/account-health";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -122,12 +125,13 @@ export async function POST(req: Request): Promise<Response> {
       verified_name?: string;
       is_on_biz_app?: boolean;
       platform_type?: string;
+      quality_rating?: string;
     };
     const probePhone = async (): Promise<PhoneInfo | null> => {
       try {
         const res = await fetch(
           withAppsecretProof(
-            `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(token)}`,
+            `${GRAPH}/${body.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type,quality_rating&access_token=${encodeURIComponent(token)}`,
             token,
           ),
         );
@@ -275,6 +279,15 @@ export async function POST(req: Request): Promise<Response> {
       wabaId: body.waba_id,
       accessToken: token,
     });
+
+    // Persistir el snapshot sobre la conexión para el panel "Estado de
+    // WhatsApp" (antes se leía una vez y se tiraba en un toast).
+    await persistWhatsAppHealthSnapshot(
+      admin,
+      connectionId,
+      health,
+      phone.quality_rating,
+    );
 
     if (!health.canSend || registerError) {
       await admin

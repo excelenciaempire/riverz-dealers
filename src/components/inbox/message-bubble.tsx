@@ -8,6 +8,7 @@ import {
   Check,
   CheckCheck,
   XCircle,
+  AlertTriangle,
   FileText,
   MapPin,
   LayoutTemplate,
@@ -17,6 +18,7 @@ import {
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useT } from "@/hooks/use-locale";
+import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import { isUnsupportedSnippet } from "@/lib/channels/display";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
@@ -35,14 +37,57 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
 }
 
-function StatusIcon({
-  status,
-  errorReason,
-}: {
-  status: Message["status"];
-  errorReason?: string | null;
-}) {
-  switch (status) {
+/**
+ * Motivo de entrega legible y LOCALIZADO para un mensaje saliente:
+ *  - failed → texto del código de Meta (deliveryErrors), o el crudo, o el
+ *    honesto "no informó el motivo" cuando Meta calla.
+ *  - sent + delivery_unconfirmed_at → "enviado pero sin confirmar" (watchdog).
+ *  - held_for_quality → "en revisión de calidad" (pacing de plantilla nueva).
+ * Devuelve null cuando no hay nada que explicar (entrega normal).
+ */
+function deliveryReasonText(
+  message: Pick<
+    Message,
+    "status" | "error_reason" | "error_code" | "held_for_quality" | "delivery_unconfirmed_at"
+  >,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | null {
+  const confirmed = message.status === "delivered" || message.status === "read";
+  if (message.status === "failed") {
+    const key = deliveryErrorKey(message.error_code);
+    if (key) return t(key, { code: message.error_code ?? "" });
+    if (message.error_reason) return message.error_reason;
+    return t("deliveryErrors.noReason");
+  }
+  if (!confirmed && message.held_for_quality) return t("deliveryErrors.held");
+  if (message.status === "sent" && message.delivery_unconfirmed_at) {
+    return t("deliveryErrors.unconfirmed");
+  }
+  return null;
+}
+
+function StatusIcon({ message }: { message: Message }) {
+  const t = useT();
+  const reason = deliveryReasonText(message, t);
+  const confirmed = message.status === "delivered" || message.status === "read";
+  // Retención por pacing: la fila sigue en 'sent' pero mostramos un reloj ámbar
+  // (no un check gris mudo) para señalar "en revisión de calidad".
+  if (!confirmed && message.held_for_quality) {
+    return (
+      <span title={reason ?? undefined} className="inline-flex">
+        <Clock className="h-3 w-3 text-amber-500" />
+      </span>
+    );
+  }
+  // Enviado pero sin confirmar (watchdog): triángulo ámbar de alerta suave.
+  if (message.status === "sent" && message.delivery_unconfirmed_at) {
+    return (
+      <span title={reason ?? undefined} className="inline-flex">
+        <AlertTriangle className="h-3 w-3 text-amber-500" />
+      </span>
+    );
+  }
+  switch (message.status) {
     case "sending":
       return <Clock className="h-3 w-3 text-muted-foreground" />;
     case "sent":
@@ -53,7 +98,7 @@ function StatusIcon({
       return <CheckCheck className="h-3 w-3 text-blue-600 dark:text-blue-400" />;
     case "failed":
       return (
-        <span title={errorReason ?? undefined} className="inline-flex">
+        <span title={reason ?? undefined} className="inline-flex">
           <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
         </span>
       );
@@ -752,7 +797,7 @@ export function MessageBubble({
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}
               {isAgent && (
-                <StatusIcon status={message.status} errorReason={message.error_reason} />
+                <StatusIcon message={message} />
               )}
             </span>
           </div>
@@ -818,16 +863,30 @@ export function MessageBubble({
             {time}
           </span>
           {isAgent && (
-            <StatusIcon status={message.status} errorReason={message.error_reason} />
+            <StatusIcon message={message} />
           )}
         </div>
-        {/* Motivo del fallo visible (no solo tooltip): el comercio ve POR QUÉ no
-            se entregó, sin adivinar. */}
-        {isAgent && message.status === "failed" && message.error_reason && (
-          <p className="mt-0.5 text-[10px] leading-tight text-red-600 dark:text-red-400">
-            {message.error_reason}
-          </p>
-        )}
+        {/* Motivo visible (no solo tooltip): el comercio ve POR QUÉ no se
+            entregó (o por qué está sin confirmar / en revisión), sin adivinar.
+            Localizado y en ámbar para estados no-terminales. */}
+        {isAgent &&
+          (() => {
+            const reason = deliveryReasonText(message, t);
+            if (!reason) return null;
+            const failed = message.status === "failed";
+            return (
+              <p
+                className={cn(
+                  "mt-0.5 text-[10px] leading-tight",
+                  failed
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-amber-600 dark:text-amber-400",
+                )}
+              >
+                {reason}
+              </p>
+            );
+          })()}
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (
         <MessageReactions

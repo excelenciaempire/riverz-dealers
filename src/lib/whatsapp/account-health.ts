@@ -22,6 +22,7 @@
  *    y trae el código de error y la solución sugerida por Meta.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -162,4 +163,32 @@ export async function fetchWhatsAppAccountHealth(args: {
     blockers,
     notices,
   };
+}
+
+/**
+ * Persiste el snapshot de salud sobre la conexión (migración 111) para que el
+ * panel "Estado de WhatsApp" y el refresco periódico lo muestren sin volver a
+ * pegarle a Meta en cada render. Best-effort: nunca lanza. `messaging_limit_tier`
+ * se refresca aparte (refreshMessagingLimitTier).
+ */
+export async function persistWhatsAppHealthSnapshot(
+  db: SupabaseClient,
+  connectionId: string,
+  health: WhatsAppAccountHealth,
+  qualityRating?: string | null,
+): Promise<void> {
+  try {
+    const patch: Record<string, unknown> = {
+      health_can_send: health.canSendMessage,
+      health_review_status: health.reviewStatus,
+      health_blockers: health.blockers,
+      health_checked_at: new Date().toISOString(),
+    };
+    if (qualityRating != null && qualityRating !== "") {
+      patch.quality_rating = qualityRating;
+    }
+    await db.from("channel_connections").update(patch).eq("id", connectionId);
+  } catch (err) {
+    console.warn("[whatsapp] persist health snapshot failed:", err);
+  }
 }

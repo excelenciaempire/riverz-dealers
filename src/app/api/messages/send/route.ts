@@ -200,7 +200,12 @@ export async function POST(req: Request): Promise<Response> {
           ? "🎤"
           : "📄";
   const lastText = media ? (caption ?? mediaEmoji) : (body.text ?? "");
-  let result: { externalMessageId?: string; status?: string };
+  let result: {
+    externalMessageId?: string;
+    status?: string;
+    heldForQuality?: boolean;
+    waId?: string;
+  };
   try {
     if (templateName) {
       if (!adapter.sendTemplate) {
@@ -249,6 +254,10 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[send/${channel}] failed:`, detail);
+    // Persistir el motivo del fallo síncrono (antes se guardaba 'failed' pelado
+    // y la burbuja quedaba con una X sin explicación). error_code se extrae del
+    // cuerpo crudo de Meta cuando viene; error_reason guarda el detalle.
+    const codeMatch = /"code"\s*:\s*(\d+)/.exec(detail);
     const { data: failedMsg } = await admin
       .from("messages")
       .insert({
@@ -261,6 +270,8 @@ export async function POST(req: Request): Promise<Response> {
         template_name: templateName,
         ...mediaFields,
         status: "failed",
+        error_reason: detail.slice(0, 500),
+        error_code: codeMatch ? Number(codeMatch[1]) : null,
       })
       .select()
       .single();
@@ -284,9 +295,22 @@ export async function POST(req: Request): Promise<Response> {
       ...mediaFields,
       message_id: result.externalMessageId,
       status: result.status ?? "sent",
+      // Retención por PACING (plantilla nueva/sin GREEN): la burbuja mostrará
+      // "en revisión de calidad" en vez de un 'sent' mudo.
+      held_for_quality: result.heldForQuality ?? false,
     })
     .select()
     .single();
+
+  // Guardar el wa_id normalizado que devolvió Meta sobre el contacto (identidad
+  // real; el "+54 9" argentino resuelve al mismo wa_id con o sin el 9).
+  if (result.waId && (contact as Contact).id) {
+    await admin
+      .from("contacts")
+      .update({ wa_id: result.waId })
+      .eq("id", (contact as Contact).id)
+      .is("wa_id", null);
+  }
 
   // Ojo con el reloj: `last_message_at` debe ser el created_at REAL de la fila
   // recién insertada. Si se usa un new Date() tomado después, queda unos ms por

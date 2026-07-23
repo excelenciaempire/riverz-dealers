@@ -12,6 +12,7 @@ import {
   Copy,
   X,
   CreditCard,
+  ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { whatsappPaymentUrl } from "@/lib/whatsapp/billing";
@@ -179,7 +180,7 @@ export function ChannelsPanel() {
     const { data } = await supabase
       .from("channel_connections")
       .select(
-        "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at",
+        "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at, messaging_limit_tier, quality_rating, health_can_send, health_review_status, health_blockers, health_checked_at",
       )
       .eq("workspace_id", workspace.id)
       // Las conexiones desconectadas no se muestran: al desconectar, la fila
@@ -473,6 +474,13 @@ export function ChannelsPanel() {
                             {errText}
                           </p>
                         )}
+                        {/* Estado de entrega de WhatsApp: puede-enviar / cupo /
+                            calidad + nota honesta de verificación. Lo que Meta
+                            expone y antes se leía una vez y se tiraba. */}
+                        {g.connectChannel === "whatsapp" &&
+                          primary.status === "connected" && (
+                            <WhatsAppHealth connection={primary} />
+                          )}
                         {/* WhatsApp business-initiated sends (plantillas) need a
                             valid payment method on the WABA, or Meta blocks them
                             (error 141006). Surface a direct link so the merchant
@@ -680,6 +688,89 @@ const MANUAL_HINT: Record<
     tipKey: "settings.manualTipIgComment",
   },
 };
+
+/** Cupo del WABA legible: TIER_1K → "1K". */
+function tierLabel(tier?: string | null): string | null {
+  if (!tier) return null;
+  const map: Record<string, string> = {
+    TIER_50: "50",
+    TIER_250: "250",
+    TIER_1K: "1K",
+    TIER_10K: "10K",
+    TIER_100K: "100K",
+    TIER_UNLIMITED: "∞",
+  };
+  return map[tier] ?? tier.replace(/^TIER_/, "");
+}
+
+/**
+ * Estado de entrega de WhatsApp para la tarjeta del canal. Muestra, en el
+ * idioma del comercio y de forma minimalista, lo que Meta expone y Riverz antes
+ * descartaba: puede-enviar (AVAILABLE/LIMITED/BLOCKED), cupo, calidad del número,
+ * y una nota HONESTA sobre verificar el negocio (sube el cupo, no destraba la
+ * entrega a números fríos). Sin snapshot todavía, no renderiza nada.
+ */
+function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
+  const t = useT();
+  const canSend = connection.health_can_send;
+  const tier = tierLabel(connection.messaging_limit_tier);
+  const quality = connection.quality_rating;
+  if (!canSend && !tier && !quality) return null;
+
+  const sendMeta =
+    canSend === "AVAILABLE"
+      ? { label: t("settings.healthAvailable"), dot: "bg-emerald-500" }
+      : canSend === "LIMITED"
+        ? { label: t("settings.healthLimited"), dot: "bg-amber-500" }
+        : canSend === "BLOCKED"
+          ? { label: t("settings.healthBlocked"), dot: "bg-red-500" }
+          : null;
+
+  const qualityDot =
+    quality === "GREEN"
+      ? "bg-emerald-500"
+      : quality === "YELLOW"
+        ? "bg-amber-500"
+        : quality === "RED"
+          ? "bg-red-500"
+          : null;
+
+  // Nota de verificación: si el número está LIMITED/BLOCKED, verificar el
+  // negocio sube el cupo (pero NO destraba la entrega a fríos — honestidad).
+  const showVerify = canSend === "LIMITED" || canSend === "BLOCKED";
+
+  return (
+    <div className="mt-1 pl-6 space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+        {sendMeta && (
+          <span className="inline-flex items-center gap-1">
+            <span className={cn("size-1.5 rounded-full", sendMeta.dot)} />
+            {sendMeta.label}
+          </span>
+        )}
+        {tier && <span>{t("settings.healthTier", { tier })}</span>}
+        {qualityDot && (
+          <span className="inline-flex items-center gap-1">
+            <span className={cn("size-1.5 rounded-full", qualityDot)} />
+            {t("settings.healthQuality")}
+          </span>
+        )}
+      </div>
+      {showVerify && (
+        <a
+          href="https://business.facebook.com/settings/security-center"
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("settings.healthVerifyNote")}
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ShieldCheck className="size-3" />
+          {t("settings.verifyBusiness")}
+        </a>
+      )}
+    </div>
+  );
+}
 
 function ManualTokenModal({
   channel,

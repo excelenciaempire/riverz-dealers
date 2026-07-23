@@ -143,6 +143,13 @@ export interface SendResult {
   externalMessageId?: string;
   /** Initial status returned by the platform (often `sent`). */
   status?: Message["status"];
+  /** WhatsApp: the send response's `message_status` was
+   *  `held_for_quality_assessment` (template pacing hold). Persisted so the
+   *  bubble shows "in quality review" instead of a mute `sent`. */
+  heldForQuality?: boolean;
+  /** WhatsApp: normalized `wa_id` Meta returned for the recipient. Used to key
+   *  the contact by real identity (kills the AR "+54 9" duplicate split). */
+  waId?: string;
 }
 
 /**

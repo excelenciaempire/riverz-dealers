@@ -63,7 +63,17 @@ interface MetaTemplate {
   language: string
   status: 'APPROVED' | 'PENDING' | 'REJECTED' | 'PAUSED'
   category: string
+  /** UNKNOWN/GREEN/YELLOW/RED. UNKNOWN = plantilla nueva sin historial →
+   *  elegible a pacing (retención). Meta lo devuelve como objeto o string. */
+  quality_score?: string | { score?: string }
   components?: MetaTemplateComponent[]
+}
+
+/** El quality_score de Meta llega como { score: "GREEN" } o como "GREEN". */
+function readQualityScore(q?: string | { score?: string }): string | null {
+  if (!q) return null
+  const raw = typeof q === 'string' ? q : q.score
+  return raw ? String(raw).toUpperCase() : null
 }
 
 /**
@@ -183,7 +193,7 @@ export async function POST(req: Request) {
     const metaTemplates: MetaTemplate[] = []
     let nextUrl:
       | string
-      | null = `${META_API_BASE}/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components`
+      | null = `${META_API_BASE}/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,quality_score,components`
     const PAGE_CAP = 20
     let pageCount = 0
 
@@ -250,6 +260,10 @@ export async function POST(req: Request) {
         footer_text: footer?.text ?? null,
         buttons: syncedButtons.length > 0 ? syncedButtons : null,
         status: normalizeStatus(t.status),
+        // Estado crudo de Meta (preserva PAUSED/DISABLED que `status` colapsa) +
+        // calidad de la plantilla (UNKNOWN = nueva, elegible a pacing).
+        meta_status: t.status,
+        quality_score: readQualityScore(t.quality_score),
         updated_at: new Date().toISOString(),
       }
 

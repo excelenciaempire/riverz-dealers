@@ -1,11 +1,18 @@
-import { sendTextMessage, sendTemplateMessage, MetaApiError } from '@/lib/whatsapp/meta-api'
+import {
+  sendTextMessage,
+  sendTemplateMessage,
+  MetaApiError,
+  type MetaSendResult,
+} from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
+  isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
+import { US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -92,6 +99,36 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
+  // Gate: Meta NO entrega plantillas de MARKETING a números de EE.UU. (pausa
+  // vigente desde 2025-04-01) — quedarían en 'sent' para siempre, sin error.
+  // Lo registramos como fallido con motivo claro (el comercio ve por qué) en
+  // vez de mandarlo al vacío. Solo aplica a plantillas de categoría Marketing.
+  if (input.kind === 'template') {
+    const { data: tplCat } = await db
+      .from('message_templates')
+      .select('category')
+      .eq('workspace_id', input.workspaceId)
+      .eq('name', input.templateName)
+      .limit(1)
+      .maybeSingle()
+    const isMarketing =
+      String((tplCat as { category?: string } | null)?.category ?? '').toLowerCase() ===
+      'marketing'
+    if (isMarketing && isUsPhone(sanitized)) {
+      await db.from('messages').insert({
+        conversation_id: input.conversationId,
+        sender_type: 'bot',
+        content_type: 'template',
+        content_text: null,
+        template_name: input.templateName,
+        status: 'failed',
+        error_code: US_MARKETING_BLOCKED_CODE,
+      })
+      // No es un fallo de sistema: no se envió nada a Meta. Devolvemos sin id.
+      return { whatsapp_message_id: '' }
+    }
+  }
+
   // Credentials come from the workspace's WhatsApp connection — the same
   // store the inbox sends from. The legacy per-user `whatsapp_config` row is
   // only a mirror (see channels/whatsapp/connect.ts syncLegacyWhatsAppConfig)
@@ -121,9 +158,9 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
 
   const accessToken = decrypt(encryptedToken)
 
-  const sendOnce = async (phone: string): Promise<string> => {
+  const sendOnce = async (phone: string): Promise<MetaSendResult> => {
     if (input.kind === 'template') {
-      const r = await sendTemplateMessage({
+      return sendTemplateMessage({
         phoneNumberId,
         accessToken,
         to: phone,
@@ -133,15 +170,13 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         buttonUrlParam: input.buttonUrlParam,
         buttonUrlIndex: input.buttonUrlIndex,
       })
-      return r.messageId
     }
-    const r = await sendTextMessage({
+    return sendTextMessage({
       phoneNumberId,
       accessToken,
       to: phone,
       text: input.text,
     })
-    return r.messageId
   }
 
   // Retry ONLY on transient Meta failures (HTTP 429 / 5xx), where Meta
@@ -151,7 +186,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // recording status='failed' and silently never reaching the customer.
   // Permanent errors (bad template, invalid recipient) and network
   // timeouts (where the send may have landed) throw on the first try.
-  const attempt = async (phone: string): Promise<string> => {
+  const attempt = async (phone: string): Promise<MetaSendResult> => {
     const MAX = 3
     for (let i = 1; i <= MAX; i++) {
       try {
@@ -171,11 +206,11 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // reliably land a message.
   const variants = phoneVariants(sanitized)
   let workingPhone = sanitized
-  let waMessageId = ''
+  let sendResult: MetaSendResult | null = null
   let lastError: unknown = null
   for (const v of variants) {
     try {
-      waMessageId = await attempt(v)
+      sendResult = await attempt(v)
       workingPhone = v
       lastError = null
       break
@@ -185,10 +220,17 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError || !sendResult) throw lastError ?? new Error('send failed')
+  const waMessageId = sendResult.messageId
 
-  if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+  // Guardar el número que funcionó y el wa_id normalizado que devolvió Meta
+  // (identidad real; el "+54 9" argentino resuelve al mismo wa_id con o sin
+  // el 9, así que deduplicar por wa_id evita el split de contactos).
+  const contactPatch: Record<string, unknown> = {}
+  if (workingPhone !== sanitized) contactPatch.phone = workingPhone
+  if (sendResult.waId) contactPatch.wa_id = sendResult.waId
+  if (Object.keys(contactPatch).length > 0) {
+    await db.from('contacts').update(contactPatch).eq('id', contact.id)
   }
 
   // Persist the sent message so it appears in the inbox with a real
@@ -225,6 +267,10 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       template_name,
       message_id: waMessageId,
       status: 'sent',
+      // Retención por PACING (plantilla nueva / sin calidad GREEN): Meta acepta
+      // pero no dispara 'sent' hasta liberar. La bandeja lo muestra como "en
+      // revisión de calidad" en vez de un 'sent' mudo.
+      held_for_quality: sendResult.messageStatus === 'held_for_quality_assessment',
     })
     .select('created_at')
     .single()

@@ -137,6 +137,15 @@ export const templates = {
   statusPending: { es: "Pendiente", en: "Pending" },
   statusApproved: { es: "Aprobada", en: "Approved" },
   statusRejected: { es: "Rechazada", en: "Rejected" },
+  // Calidad / pacing de la plantilla
+  paused: { es: "Pausada", en: "Paused" },
+  qualityRed: { es: "Calidad baja", en: "Low quality" },
+  qualityYellow: { es: "Calidad media", en: "Medium quality" },
+  qualityUnknown: { es: "Sin datos", en: "No data yet" },
+  pacingHint: {
+    es: "Plantilla nueva: WhatsApp puede retener los primeros envíos para evaluar su calidad.",
+    en: "New template: WhatsApp may hold the first sends to assess its quality.",
+  },
   whatsappTemplates: { es: "Plantillas de WhatsApp", en: "WhatsApp templates" },
   syncing: { es: "Sincronizando…", en: "Syncing…" },
   sync: { es: "Sincronizar", en: "Sync" },

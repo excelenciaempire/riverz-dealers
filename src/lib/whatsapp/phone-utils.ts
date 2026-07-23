@@ -94,6 +94,37 @@ export function isValidE164(phone: string): boolean {
 }
 
 /**
+ * Códigos de área canadienses (NANP comparte +1 con EE.UU.). Se usan para NO
+ * tratar a Canadá como EE.UU. en el gate de marketing — la pausa de marketing
+ * de Meta es SOLO para números de EE.UU.
+ */
+const CA_AREA_CODES = new Set([
+  '204', '226', '236', '249', '250', '257', '263', '289', '306', '343', '354',
+  '365', '367', '368', '382', '403', '416', '418', '431', '437', '438', '450',
+  '468', '474', '506', '514', '519', '548', '579', '581', '584', '587', '600',
+  '604', '613', '639', '647', '672', '683', '705', '709', '742', '753', '778',
+  '780', '782', '807', '819', '825', '867', '873', '879', '902', '905',
+])
+
+/**
+ * ¿El número es de EE.UU. (+1 con área de EE.UU.)? Meta NO entrega plantillas de
+ * MARKETING a números de EE.UU. desde el 2025-04-01 (quedan en 'sent' para
+ * siempre, sin error). Este gate del lado del cliente evita ese envío fantasma.
+ *
+ * Aproximación: cualquier +1 de 11 dígitos es EE.UU. SALVO que el código de área
+ * sea canadiense. No excluye territorios del Caribe con +1 (809, 787, etc.);
+ * son raros para este caso y sobre-bloquear su marketing es aceptable.
+ *
+ * @param phone dígitos o E.164 (con o sin +).
+ */
+export function isUsPhone(phone: string): boolean {
+  const d = (phone || '').replace(/\D/g, '')
+  if (d.length !== 11 || !d.startsWith('1')) return false
+  const areaCode = d.slice(1, 4)
+  return !CA_AREA_CODES.has(areaCode)
+}
+
+/**
  * Generate plausible phone number variants for retry when Meta's
  * sandbox rejects a number with error #131030 ("not in allowed list").
  *

@@ -23,6 +23,7 @@ import {
 } from "../meta-auth";
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
 
 /** After a successful Meta call, restore a connection that was
  *  previously flagged dead (status='error'/'expired') so a recovered
@@ -98,8 +99,17 @@ export const whatsappAdapter: ChannelAdapter = {
       throw new Error(`[whatsapp] send failed (${res.status}): ${detail}`);
     }
     await healIfRecovered(input.connection);
-    const json = (await res.json()) as { messages?: { id?: string }[] };
-    return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
+    const json = (await res.json()) as {
+      messages?: { id?: string; message_status?: string }[];
+      contacts?: { wa_id?: string }[];
+    };
+    return {
+      externalMessageId: json.messages?.[0]?.id,
+      status: "sent",
+      heldForQuality:
+        json.messages?.[0]?.message_status === "held_for_quality_assessment",
+      waId: json.contacts?.[0]?.wa_id,
+    };
   },
 
   async sendTemplate(input: OutboundTemplate): Promise<SendResult> {
@@ -153,8 +163,17 @@ export const whatsappAdapter: ChannelAdapter = {
       throw new Error(`[whatsapp] template send failed (${res.status}): ${detail}`);
     }
     await healIfRecovered(input.connection);
-    const json = (await res.json()) as { messages?: { id?: string }[] };
-    return { externalMessageId: json.messages?.[0]?.id, status: "sent" };
+    const json = (await res.json()) as {
+      messages?: { id?: string; message_status?: string }[];
+      contacts?: { wa_id?: string }[];
+    };
+    return {
+      externalMessageId: json.messages?.[0]?.id,
+      status: "sent",
+      heldForQuality:
+        json.messages?.[0]?.message_status === "held_for_quality_assessment",
+      waId: json.contacts?.[0]?.wa_id,
+    };
   },
 
   async sendMedia(input: OutboundMedia): Promise<SendResult> {
@@ -447,9 +466,18 @@ async function handleWhatsappStatuses(
       console.error(
         `[whatsapp] message ${s.id} FAILED — code=${e?.code} title="${e?.title}" detail="${e?.error_data?.details ?? e?.message ?? ""}"`,
       );
+      // Persistir el motivo REAL (código + texto + payload crudo) para que la
+      // bandeja lo muestre traducido — este handler antes marcaba 'failed' a
+      // secas y el comercio se quedaba sin explicación.
       await db
         .from("messages")
-        .update({ status: "failed" })
+        .update({
+          status: "failed",
+          error_reason: metaErrorText(s.errors),
+          error_code: metaErrorCode(s.errors),
+          meta_status_raw: s,
+          delivery_unconfirmed_at: null,
+        })
         .eq("message_id", s.id)
         .in("status", ["sending", "sent"]);
       continue;
@@ -460,9 +488,15 @@ async function handleWhatsappStatuses(
     // "pending" no existe en el CHECK de messages.status (migración 001):
     // el estado previo real es "sending", el optimista del composer.
     const behind = WA_STATUS_LADDER.slice(0, rank);
+    const patch: Record<string, unknown> = { status: s.status };
+    if (s.status === "delivered" || s.status === "read") {
+      // Entrega confirmada: limpiar marcas de "no confirmada" / retención.
+      patch.delivery_unconfirmed_at = null;
+      patch.held_for_quality = false;
+    }
     await db
       .from("messages")
-      .update({ status: s.status })
+      .update(patch)
       .eq("message_id", s.id)
       .in("status", ["sending", ...behind]);
   }

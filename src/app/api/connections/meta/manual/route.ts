@@ -6,6 +6,10 @@ import { encrypt } from "@/lib/channels/encryption";
 import { subscribePageToWebhooks, withAppsecretProof } from "@/lib/channels/meta-graph";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import {
+  fetchWhatsAppAccountHealth,
+  persistWhatsAppHealthSnapshot,
+} from "@/lib/whatsapp/account-health";
+import {
   upsertSingleWhatsAppConnection,
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
@@ -267,7 +271,7 @@ async function connectWhatsApp(
   // hard block here.
   const probe = await fetch(
     withAppsecretProof(
-      `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type&access_token=${encodeURIComponent(args.token)}`,
+      `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type,quality_rating&access_token=${encodeURIComponent(args.token)}`,
       args.token,
     ),
   );
@@ -279,6 +283,7 @@ async function connectWhatsApp(
     verified_name?: string;
     is_on_biz_app?: boolean;
     platform_type?: string;
+    quality_rating?: string;
   };
 
   // One WhatsApp per workspace; reconnecting the same number updates in
@@ -313,6 +318,36 @@ async function connectWhatsApp(
     wabaId: args.waba_id,
     token: args.token,
   });
+
+  // Comprobar y persistir la salud de la cuenta — el connect manual la saltaba,
+  // así que un número token-pegado quedaba "conectado" sin saber si Meta lo deja
+  // enviar. Best-effort: nunca bloquea la conexión.
+  try {
+    const health = await fetchWhatsAppAccountHealth({
+      phoneNumberId: args.phone_number_id,
+      wabaId: args.waba_id,
+      accessToken: args.token,
+    });
+    await persistWhatsAppHealthSnapshot(
+      admin,
+      connectionId,
+      health,
+      phone.quality_rating,
+    );
+    if (!health.canSend) {
+      await admin
+        .from("channel_connections")
+        .update({
+          last_error: `no puede enviar (review=${health.reviewStatus ?? "?"}): ${health.blockers
+            .map((b) => `${b.entity}${b.code ? ` ${b.code}` : ""} ${b.description}`)
+            .join(" | ")
+            .slice(0, 400)}`,
+        })
+        .eq("id", connectionId);
+    }
+  } catch (err) {
+    console.warn("[whatsapp/manual] health check failed:", err);
+  }
 
   return NextResponse.json({ ok: true, connection_id: connectionId, label });
 }

@@ -12,6 +12,7 @@ import {
   phoneVariants,
   isRecipientNotAllowedError,
   classifyMetaError,
+  isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { assertCronAuth } from '@/lib/auth/cron'
@@ -130,6 +131,19 @@ async function sendOneBroadcast(
   const accessToken = decrypt(config.access_token as string)
   const phoneNumberId = config.phone_number_id as string
 
+  // Categoría de la plantilla, para el gate de marketing a EE.UU. (Meta no
+  // entrega marketing a +1 US; quedaría en 'sent' para siempre).
+  const { data: tplRow } = await admin
+    .from('message_templates')
+    .select('category')
+    .eq('user_id', userId)
+    .eq('name', templateName)
+    .limit(1)
+    .maybeSingle()
+  const isMarketingTemplate =
+    String((tplRow as { category?: string } | null)?.category ?? '').toLowerCase() ===
+    'marketing'
+
   // Fetch ALL pending recipients first, then derive the workspace scope
   // from the actual recipients. This is safer than guessing via
   // workspace_members.earliest-joined — a legacy broadcast may belong
@@ -234,6 +248,21 @@ async function sendOneBroadcast(
         await admin
           .from('broadcast_recipients')
           .update({ status: 'failed', error_message: 'Invalid phone number' })
+          .eq('id', recipient.id)
+        continue
+      }
+
+      // Gate de marketing a EE.UU.: Meta no lo entrega (quedaría en 'sent' para
+      // siempre). Marcamos el destinatario como fallido con motivo claro en vez
+      // de quemar cupo y ensuciar la calidad con un envío fantasma.
+      if (isMarketingTemplate && isUsPhone(sanitized)) {
+        failed++
+        await admin
+          .from('broadcast_recipients')
+          .update({
+            status: 'failed',
+            error_message: 'Marketing no se entrega a números de EE.UU.',
+          })
           .eq('id', recipient.id)
         continue
       }

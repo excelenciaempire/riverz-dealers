@@ -14,6 +14,7 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { metaErrorText, metaErrorCode } from '@/lib/whatsapp/delivery-errors'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -263,6 +264,20 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         continue
       }
 
+      // ---- Plantillas: estado + calidad (visibilidad de pacing) ----
+      // Meta avisa por webhook cuando una plantilla cambia de estado
+      // (APPROVED/REJECTED/PAUSED/DISABLED) o de calidad (GREEN/YELLOW/RED/
+      // UNKNOWN). Sin esto, el comercio no sabía que su plantilla nueva quedó
+      // retenida o pausada. entry.id es el WABA.
+      if (change.field === 'message_template_status_update') {
+        await handleTemplateStatusUpdate(entry.id, change.value as unknown as TemplateWebhookValue)
+        continue
+      }
+      if (change.field === 'message_template_quality_update') {
+        await handleTemplateQualityUpdate(entry.id, change.value as unknown as TemplateWebhookValue)
+        continue
+      }
+
       // Handle incoming messages
       if (!value.messages || !value.contacts) continue
 
@@ -346,22 +361,6 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
-/** Motivo legible del fallo, a partir del array `errors` de Meta. */
-function formatStatusError(
-  errors?: Array<{
-    code?: number
-    title?: string
-    message?: string
-    error_data?: { details?: string }
-  }>,
-): string | null {
-  const e = errors?.[0]
-  if (!e) return null
-  const details = e.error_data?.details
-  const text = details || e.message || e.title || 'Error desconocido'
-  return e.code ? `[${e.code}] ${text}` : text
-}
-
 async function handleStatusUpdate(status: {
   id: string
   status: string
@@ -395,15 +394,22 @@ async function handleStatusUpdate(status: {
 
   if (allowedFrom.length > 0) {
     const patch: Record<string, unknown> = { status: status.status }
-    // Guardar el motivo REAL cuando Meta rechaza, para mostrarlo en la burbuja
-    // ("en cada error, el por qué"). Solo en 'failed'; los demás lo dejan intacto.
     if (status.status === 'failed') {
-      // Si Meta manda el motivo, lo mostramos ([código] descripción). Algunas
-      // fallas de entrega llegan SIN código (Meta no informa la razón) — ahí
-      // damos un texto honesto en vez de dejar la burbuja sin explicación.
-      patch.error_reason =
-        formatStatusError(status.errors) ??
-        'WhatsApp no entregó el mensaje y no informó el motivo (posible filtrado de Meta).'
+      // Capturamos el motivo REAL, ya desglosado: el texto crudo de Meta va a
+      // error_reason (o null si Meta calló), el código a error_code, y el
+      // payload completo a meta_status_raw para forense posterior. La bandeja
+      // traduce esto al idioma del comercio (deliveryErrors); cuando NO hay
+      // código ni texto muestra el aviso honesto "no informó el motivo".
+      patch.error_reason = metaErrorText(status.errors)
+      patch.error_code = metaErrorCode(status.errors)
+      patch.meta_status_raw = status
+      // Una falla terminal cancela cualquier sospecha de "no confirmada".
+      patch.delivery_unconfirmed_at = null
+    } else if (status.status === 'delivered' || status.status === 'read') {
+      // Meta confirmó la entrega: limpiar marcas de "no confirmada" / retención
+      // por calidad que el watchdog o el pacing hubieran dejado.
+      patch.delivery_unconfirmed_at = null
+      patch.held_for_quality = false
     }
     const { error: msgErr } = await supabaseAdmin()
       .from('messages')
@@ -451,6 +457,68 @@ async function handleStatusUpdate(status: {
   if (recUpdateErr) {
     console.error('Error updating broadcast recipient status:', recUpdateErr)
   }
+}
+
+interface TemplateWebhookValue {
+  event?: string
+  message_template_id?: number | string
+  message_template_name?: string
+  message_template_language?: string
+  reason?: string
+  previous_quality_score?: string
+  new_quality_score?: string
+}
+
+/** Estado crudo de Meta → status reducido (CHECK Draft/Pending/Approved/Rejected).
+ *  PAUSED sigue siendo "Approved" (solo pausado); DISABLED sí es inutilizable. */
+function normalizeTemplateStatusEvent(event?: string): string | null {
+  switch ((event ?? '').toUpperCase()) {
+    case 'APPROVED':
+      return 'Approved'
+    case 'REJECTED':
+    case 'DISABLED':
+      return 'Rejected'
+    case 'PENDING':
+    case 'IN_APPEAL':
+    case 'PENDING_DELETION':
+      return 'Pending'
+    case 'PAUSED':
+    case 'FLAGGED':
+      return 'Approved'
+    default:
+      return null
+  }
+}
+
+/** message_template_status_update: guarda el estado crudo (meta_status, preserva
+ *  PAUSED/DISABLED) y actualiza el status reducido. */
+async function handleTemplateStatusUpdate(wabaId: string, value: TemplateWebhookValue) {
+  const name = value.message_template_name
+  if (!name) return
+  const patch: Record<string, unknown> = { meta_status: value.event ?? null }
+  const status = normalizeTemplateStatusEvent(value.event)
+  if (status) patch.status = status
+  let q = supabaseAdmin().from('message_templates').update(patch).eq('name', name)
+  if (value.message_template_language) q = q.eq('language', value.message_template_language)
+  if (wabaId) q = q.eq('waba_id', wabaId)
+  const { error } = await q
+  if (error) console.error('[webhook] template status update failed:', error.message)
+}
+
+/** message_template_quality_update: guarda el nuevo quality_score
+ *  (UNKNOWN/GREEN/YELLOW/RED) — UNKNOWN = plantilla nueva elegible a pacing. */
+async function handleTemplateQualityUpdate(wabaId: string, value: TemplateWebhookValue) {
+  const name = value.message_template_name
+  const score = value.new_quality_score
+  if (!name || !score) return
+  let q = supabaseAdmin()
+    .from('message_templates')
+    .update({ quality_score: score })
+    .eq('name', name)
+  if (value.message_template_language) q = q.eq('language', value.message_template_language)
+  if (wabaId) q = q.eq('waba_id', wabaId)
+  const { error } = await q
+  if (error) console.error('[webhook] template quality update failed:', error.message)
 }
 
 // The messages.content_type CHECK constraint allows this set (migration 010).
@@ -828,6 +896,16 @@ async function processMessage(
   )
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
+
+  // Guardar el wa_id normalizado que Meta ya trae en el webhook (identidad real
+  // del contacto). Best-effort e idempotente (solo si aún no lo tiene).
+  if (contact.wa_id && !contactRecord.wa_id) {
+    await supabaseAdmin()
+      .from('contacts')
+      .update({ wa_id: contact.wa_id })
+      .eq('id', contactRecord.id)
+      .is('wa_id', null)
+  }
 
   // Find or create conversation
   const conversation = await findOrCreateConversation(

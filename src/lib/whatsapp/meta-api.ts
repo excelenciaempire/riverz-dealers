@@ -10,12 +10,23 @@
  */
 
 import { withAppsecretProof } from '@/lib/channels/meta-graph'
+import { TRANSIENT_META_CODES } from '@/lib/whatsapp/delivery-errors'
 
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
 
 export interface MetaSendResult {
   messageId: string
+  /**
+   * `message_status` de la respuesta de envío de Meta: 'accepted' (procesado
+   * normal) o 'held_for_quality_assessment' (retenido por PACING — plantilla
+   * nueva / sin calidad GREEN). Un mensaje retenido NO dispara webhook 'sent'
+   * hasta liberarse, así que sin capturar esto quedaba como un 'sent' mudo.
+   */
+  messageStatus?: string
+  /** wa_id normalizado que Meta devolvió para el destinatario (la identidad
+   *  real: el "+54 9" argentino resuelve al mismo wa_id con o sin el 9). */
+  waId?: string
 }
 
 export interface MetaPhoneInfo {
@@ -26,7 +37,16 @@ export interface MetaPhoneInfo {
 }
 
 interface MetaErrorResponse {
-  error?: { message?: string; code?: number; type?: string }
+  error?: {
+    message?: string
+    code?: number
+    error_subcode?: number
+    type?: string
+    error_data?: { details?: string; messaging_product?: string }
+    error_user_title?: string
+    error_user_msg?: string
+    fbtrace_id?: string
+  }
 }
 
 /**
@@ -35,34 +55,61 @@ interface MetaErrorResponse {
  * did NOT accept the request) apart from a permanent one (bad template,
  * invalid recipient). Retrying is only safe on the transient kind; a
  * naive retry on a network timeout could double-send.
+ *
+ * Además del `code`, captura `subcode`, `detail` (error_data.details /
+ * error_user_msg) y `fbtraceId` — Meta pone el motivo REAL en esos campos y
+ * antes se descartaban, dejando solo un `message` genérico.
  */
 export class MetaApiError extends Error {
   status: number
   code?: number
-  constructor(message: string, status: number, code?: number) {
+  subcode?: number
+  detail?: string
+  fbtraceId?: string
+  constructor(
+    message: string,
+    status: number,
+    code?: number,
+    opts?: { subcode?: number; detail?: string; fbtraceId?: string },
+  ) {
     super(message)
     this.name = 'MetaApiError'
     this.status = status
     this.code = code
+    this.subcode = opts?.subcode
+    this.detail = opts?.detail
+    this.fbtraceId = opts?.fbtraceId
   }
   /** HTTP 429 (rate limit) or 5xx — Meta rejected the request before
-   *  acting on it, so re-sending won't duplicate. */
+   *  acting on it — OR a transient Meta code (throughput / service
+   *  unavailable). Re-sending is safe in all these cases because Meta
+   *  did not accept the request. */
   get isTransient(): boolean {
-    return this.status === 429 || this.status >= 500
+    if (this.status === 429 || this.status >= 500) return true
+    return this.code != null && TRANSIENT_META_CODES.has(this.code)
   }
 }
 
 async function throwMetaError(response: Response, fallback: string): Promise<never> {
   let message = fallback
   let code: number | undefined
+  let subcode: number | undefined
+  let detail: string | undefined
+  let fbtraceId: string | undefined
   try {
     const data = (await response.json()) as MetaErrorResponse
-    if (data.error?.message) message = data.error.message
-    code = data.error?.code
+    const err = data.error
+    if (err?.message) message = err.message
+    code = err?.code
+    subcode = err?.error_subcode
+    // Meta pone la explicación accionable en error_data.details o
+    // error_user_msg; preferimos esa al `message` genérico.
+    detail = err?.error_data?.details || err?.error_user_msg || undefined
+    fbtraceId = err?.fbtrace_id
   } catch {
     // response body wasn't JSON — keep the fallback
   }
-  throw new MetaApiError(message, response.status, code)
+  throw new MetaApiError(message, response.status, code, { subcode, detail, fbtraceId })
 }
 
 // ============================================================
@@ -140,7 +187,11 @@ export async function sendTextMessage(
     await throwMetaError(response, `Meta API error: ${response.status}`)
   }
   const data = await response.json()
-  return { messageId: data.messages[0].id }
+  return {
+    messageId: data.messages[0].id,
+    messageStatus: data.messages?.[0]?.message_status,
+    waId: data.contacts?.[0]?.wa_id,
+  }
 }
 
 export interface SendTemplateMessageArgs {
@@ -228,7 +279,11 @@ export async function sendTemplateMessage(
     await throwMetaError(response, `Meta API error: ${response.status}`)
   }
   const data = await response.json()
-  return { messageId: data.messages[0].id }
+  return {
+    messageId: data.messages[0].id,
+    messageStatus: data.messages?.[0]?.message_status,
+    waId: data.contacts?.[0]?.wa_id,
+  }
 }
 
 // ============================================================

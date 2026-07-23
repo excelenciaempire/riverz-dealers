@@ -88,6 +88,10 @@ export interface Contact {
    * (fb_comment/ig_comment). */
   external_id?: string;
   phone?: string;
+  /** wa_id normalizado que Meta devuelve para este número (identidad real de
+   *  WhatsApp; el "+54 9" argentino resuelve al mismo wa_id con o sin el 9).
+   *  Migración 111. Se usa para deduplicar por identidad. */
+  wa_id?: string | null;
   name?: string;
   email?: string;
   company?: string;
@@ -296,8 +300,17 @@ export interface Message {
   template_name?: string;
   message_id?: string;
   status: MessageStatus;
-  /** Motivo del fallo (código + descripción de Meta) cuando status='failed'. */
+  /** Texto crudo del motivo que informó Meta cuando status='failed' (o null si
+   *  Meta no informó). La bandeja lo traduce vía error_code (deliveryErrors). */
   error_reason?: string | null;
+  /** Código de error de Meta cuando status='failed' (migración 111). */
+  error_code?: number | null;
+  /** Retenido por pacing de plantilla (held_for_quality_assessment): aún no
+   *  entregado ni fallado. Migración 111. */
+  held_for_quality?: boolean | null;
+  /** Marcado por el watchdog cuando quedó en 'sent' pasado el TTL sin que Meta
+   *  confirme entrega ni informe fallo. Migración 111. */
+  delivery_unconfirmed_at?: string | null;
   created_at: string;
   reply_to_message_id?: string;
   interactive_reply_id?: string;
@@ -355,6 +368,24 @@ export interface ChannelConnection {
   created_by?: string;
   created_at: string;
   updated_at: string;
+  // ── Salud de WhatsApp (migraciones 058 + 111) ──
+  /** Tier de mensajería del WABA (TIER_50 … TIER_UNLIMITED). */
+  messaging_limit_tier?: string | null;
+  /** Calidad del número (GREEN/YELLOW/RED). */
+  quality_rating?: string | null;
+  /** Veredicto agregado de Meta: AVAILABLE / LIMITED / BLOCKED. */
+  health_can_send?: string | null;
+  /** account_review_status del WABA. */
+  health_review_status?: string | null;
+  /** Motivos bloqueantes legibles del último chequeo de salud. */
+  health_blockers?: {
+    entity: string;
+    code: number | null;
+    description: string;
+    solution: string | null;
+  }[] | null;
+  /** Cuándo se leyó por última vez la salud. */
+  health_checked_at?: string | null;
 }
 
 /**
@@ -384,6 +415,12 @@ export interface MessageTemplate {
   footer_text?: string;
   buttons?: Record<string, unknown>[];
   status?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
+  /** Estado crudo de Meta (APPROVED/PAUSED/DISABLED/…) — preserva PAUSED/DISABLED
+   *  que `status` colapsa a Rejected. Migración 111. */
+  meta_status?: string | null;
+  /** Calidad de la plantilla: UNKNOWN/GREEN/YELLOW/RED. UNKNOWN = nueva sin
+   *  historial (elegible a pacing). Migración 111. */
+  quality_score?: string | null;
   /** Example value for each {{n}} variable (index 0 = {{1}}). Shown in
    *  previews so the user knows what each variable represents. */
   variable_samples?: (string | null)[];

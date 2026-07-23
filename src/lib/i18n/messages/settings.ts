@@ -410,6 +410,18 @@ export const settings = {
     en: "WhatsApp Manager → Settings → Payment methods",
   },
 
+  // Channels panel — estado de entrega de WhatsApp
+  healthAvailable: { es: "Envío disponible", en: "Sending available" },
+  healthLimited: { es: "Envío limitado", en: "Sending limited" },
+  healthBlocked: { es: "Envío bloqueado", en: "Sending blocked" },
+  healthTier: { es: "Cupo: {tier}/24 h", en: "Limit: {tier}/24 h" },
+  healthQuality: { es: "Calidad", en: "Quality" },
+  healthVerifyNote: {
+    es: "Verificar el negocio sube el cupo. No destraba la entrega a números fríos.",
+    en: "Verifying the business raises your limit. It doesn't unblock delivery to cold numbers.",
+  },
+  verifyBusiness: { es: "Verificar negocio", en: "Verify business" },
+
   // Channels panel — CTAs
   oneWhatsappPerAccount: {
     es: "Un WhatsApp por cuenta. Desconéctalo para cambiar de número.",

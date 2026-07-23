@@ -65,6 +65,51 @@ function StatusPill({ status, t }: { status: string; t: TFn }) {
   );
 }
 
+/**
+ * Insignia de calidad / pausa. Solo aparece cuando hay algo que el comercio
+ * debe notar: plantilla PAUSADA por Meta, calidad media/baja, o UNKNOWN en una
+ * aprobada (nueva sin historial → WhatsApp puede retenerla por pacing). GREEN
+ * no muestra nada (reduce ruido).
+ */
+function QualityPill({ template, t }: { template: MessageTemplate; t: TFn }) {
+  const paused = (template.meta_status ?? '').toUpperCase() === 'PAUSED';
+  const q = (template.quality_score ?? '').toUpperCase();
+  const base =
+    'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium';
+  if (paused) {
+    return (
+      <span className={cn(base, 'border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300')}>
+        {t('templates.paused')}
+      </span>
+    );
+  }
+  if (q === 'RED') {
+    return (
+      <span className={cn(base, 'border-red-600/30 bg-red-500/10 text-red-600 dark:text-red-300')}>
+        {t('templates.qualityRed')}
+      </span>
+    );
+  }
+  if (q === 'YELLOW') {
+    return (
+      <span className={cn(base, 'border-amber-600/25 bg-amber-500/10 text-amber-700 dark:text-amber-300')}>
+        {t('templates.qualityYellow')}
+      </span>
+    );
+  }
+  if (q === 'UNKNOWN' && template.status === 'Approved') {
+    return (
+      <span
+        title={t('templates.pacingHint')}
+        className={cn(base, 'border-border bg-muted text-muted-foreground')}
+      >
+        {t('templates.qualityUnknown')}
+      </span>
+    );
+  }
+  return null;
+}
+
 export default function TemplatesPage() {
   const supabase = createClient();
   const router = useLocalizedRouter();
@@ -281,7 +326,10 @@ export default function TemplatesPage() {
                         {template.body_text}
                       </TableCell>
                       <TableCell>
-                        <StatusPill status={template.status || 'Draft'} t={t} />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusPill status={template.status || 'Draft'} t={t} />
+                          <QualityPill template={template} t={t} />
+                        </div>
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground sm:table-cell">
                         {fmt.date(template.created_at, { day: '2-digit', month: 'short' })}

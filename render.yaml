@@ -401,6 +401,24 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Watchdog de entrega: marca los mensajes que Meta dejó en 'sent' para
+  # siempre (nunca mandó 'delivered' ni 'failed') como "sin confirmar", para
+  # que la bandeja no mienta que llegaron. Usa AUTOMATION_CRON_SECRET.
+  - type: cron
+    name: cron-delivery-watchdog
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/delivery-watchdog
+    schedule: "*/30 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
 # Note: if the team prefers the dashboard for cron config, the legacy
 # documentation is preserved here for reference:
 #   - Cart recovery: schedule "0 * * * *"
