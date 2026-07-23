@@ -140,12 +140,25 @@ export async function fetchWhatsAppAccountHealth(args: {
   const reviewPending =
     reviewStatus !== null && reviewStatus !== "APPROVED" && !reviewRejected;
 
+  // Los errores de MÉTODO DE PAGO (141006 / 131042) bloquean SOLO los mensajes
+  // iniciados por el negocio (plantillas, campañas) — NO los de sesión, que el
+  // número puede seguir respondiendo. Además ya se avisan con el link directo
+  // "configurar método de pago" en la tarjeta del canal. Tratarlos como "no
+  // puede enviar" era un falso negativo: dejaba el canal marcado en rojo aunque
+  // recibiera y respondiera con normalidad, y el aviso quedaba pegado a un
+  // snapshot viejo aunque el comercio ya hubiera cargado la tarjeta.
+  const PAYMENT_CODES = new Set([141006, 131042]);
+  const hardBlockers = blockers.filter((b) => !PAYMENT_CODES.has(b.code ?? -1));
+
   return {
     ...empty,
     reviewStatus,
     reviewPending,
     canSendMessage,
-    canSend: !reviewRejected && canSendMessage !== "BLOCKED",
+    // Solo un bloqueo REAL (review rechazado, número no registrado, cuenta
+    // restringida) marca el canal como "no puede enviar". El pago se maneja
+    // aparte con su propio link.
+    canSend: hardBlockers.length === 0,
     blockers,
     notices,
   };

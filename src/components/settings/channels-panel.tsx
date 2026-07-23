@@ -430,16 +430,11 @@ export function ChannelsPanel() {
                     const primary =
                       conns.find((c) => c.status === "connected") ?? conns[0];
                     const ids = conns.map((c) => c.id);
-                    const lastError = (
-                      primary as ChannelConnection & { last_error?: string }
-                    ).last_error;
-                    const errText = primary.status === "error" ? lastError : null;
-                    // Conectada y recibiendo, pero Meta no habilita el envío
-                    // (cuenta en revisión, número no registrado…). Antes esto
-                    // era invisible: la tarjeta decía "conectado" en verde y el
-                    // comerciante lo descubría cuando su campaña no salía.
-                    const cannotSend =
-                      primary.status === "connected" && Boolean(lastError);
+                    const errText =
+                      primary.status === "error"
+                        ? (primary as ChannelConnection & { last_error?: string })
+                            .last_error
+                        : null;
                     return (
                       <li
                         key={primary.id}
@@ -476,11 +471,6 @@ export function ChannelsPanel() {
                         {errText && (
                           <p className="mt-1 pl-6 text-[10px] leading-snug text-red-600 dark:text-red-400">
                             {errText}
-                          </p>
-                        )}
-                        {cannotSend && (
-                          <p className="mt-1 pl-6 text-[10px] leading-snug text-amber-600 dark:text-amber-500">
-                            {t("settings.channelCannotSend")}
                           </p>
                         )}
                         {/* WhatsApp business-initiated sends (plantillas) need a
