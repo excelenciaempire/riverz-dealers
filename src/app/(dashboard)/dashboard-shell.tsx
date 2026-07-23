@@ -5,6 +5,7 @@ import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { NavProgress } from "@/components/layout/nav-progress";
 import { IdleGuard } from "@/components/auth/idle-guard";
 import { ShopifyClaimGuard } from "@/components/settings/shopify-claim-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
@@ -94,6 +95,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     // clipping the app's bottom under the browser chrome. dvh tracks the
     // real visible height; identical to 100vh on desktop.
     <div className="flex h-dvh overflow-hidden bg-background">
+      <NavProgress />
       <Sidebar
         open={sidebarOpen}
         onClose={closeSidebar}
