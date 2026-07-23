@@ -398,7 +398,12 @@ async function handleStatusUpdate(status: {
     // Guardar el motivo REAL cuando Meta rechaza, para mostrarlo en la burbuja
     // ("en cada error, el por qué"). Solo en 'failed'; los demás lo dejan intacto.
     if (status.status === 'failed') {
-      patch.error_reason = formatStatusError(status.errors)
+      // DIAGNÓSTICO TEMPORAL: si Meta no manda `errors`, guardamos el status
+      // crudo para ver EXACTAMENTE qué envía (algunas fallas silenciosas no
+      // traen código). Revertir a solo formatStatusError tras diagnosticar.
+      patch.error_reason =
+        formatStatusError(status.errors) ??
+        'RAW:' + JSON.stringify(status).slice(0, 400)
     }
     const { error: msgErr } = await supabaseAdmin()
       .from('messages')
