@@ -168,6 +168,18 @@ export async function POST(request: Request) {
     const footerComponent = components.find((c) => c.type === 'FOOTER')
     const buttonsComponent = components.find((c) => c.type === 'BUTTONS')
 
+    // Los botones que se guardan localmente mantienen la forma que Meta recibe,
+    // PERO le re-adjuntamos `url_variable` (que Meta no acepta): el motor de
+    // automatizaciones lo lee al enviar para llenar el link dinámico por cliente.
+    // El orden coincide porque ambos filtran botones por texto no vacío.
+    const formButtons = (form.buttons ?? []).filter((b) => b.text?.trim())
+    const dbButtons = (buttonsComponent?.buttons ?? []).map((mb, i) => {
+      const fb = formButtons[i]
+      return fb?.type === 'URL' && fb.url_variable
+        ? { ...mb, url_variable: fb.url_variable }
+        : mb
+    })
+
     const row = {
       user_id: user.id,
       workspace_id: workspaceId,
@@ -179,7 +191,7 @@ export async function POST(request: Request) {
       header_content: headerComponent?.text ?? null,
       body_text: form.bodyText.trim(),
       footer_text: footerComponent?.text ?? null,
-      buttons: buttonsComponent?.buttons ?? null,
+      buttons: dbButtons.length > 0 ? dbButtons : null,
       status: 'Pending' as const,
       meta_template_id: metaResult.id,
       variable_samples: form.bodySamples ?? null,

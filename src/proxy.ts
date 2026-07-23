@@ -127,6 +127,14 @@ export async function proxy(request: NextRequest) {
     return applyCsp(NextResponse.redirect(url), redirectCsp)
   }
 
+  // Redirector público de short links (`/r/:token`). Es un endpoint sin sesión
+  // que abre el cliente desde WhatsApp; saltamos la carga de sesión de Supabase
+  // y la lógica de idioma para que la redirección sea rápida y no dependa de
+  // cookies. La ruta resuelve el token y hace 302 al link real.
+  if (request.nextUrl.pathname.startsWith('/r/')) {
+    return applyCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp)
+  }
+
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(

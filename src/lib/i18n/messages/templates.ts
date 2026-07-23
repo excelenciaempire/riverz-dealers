@@ -81,6 +81,20 @@ export const templates = {
   urlPlaceholder: { es: "tu-pagina.com/oferta", en: "your-site.com/offer" },
   phonePlaceholder: { es: "+57 300 000 0000", en: "+1 555 000 0000" },
 
+  // ── Botón URL: enlace fijo vs link variable de Shopify ──
+  buttonUrlModeCustom: { es: "Enlace fijo", en: "Fixed link" },
+  buttonUrlVariableHint: {
+    es: "Se completa con el link de cada cliente al enviar.",
+    en: "Filled with each customer's link on send.",
+  },
+  linkVarAbandonedCheckout: {
+    es: "Recuperar carrito",
+    en: "Recover cart",
+  },
+  linkVarOrderStatus: { es: "Estado del pedido", en: "Order status" },
+  linkVarTracking: { es: "Seguimiento del envío", en: "Shipment tracking" },
+  linkVarProduct: { es: "Producto", en: "Product" },
+
   // ── Builder toasts / validation ──
   fixErrorsBeforeSending: {
     es: "Corrige {count} {errorWord} antes de enviar a Meta.",

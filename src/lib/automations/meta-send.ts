@@ -33,6 +33,10 @@ interface SendTemplateArgs {
   templateName: string
   language?: string
   params?: string[]
+  /** Token del short link que llena {{1}} de un botón URL dinámico. */
+  buttonUrlParam?: string
+  /** Índice del botón dinámico dentro del bloque BUTTONS (0-based). */
+  buttonUrlIndex?: number
 }
 
 export async function engineSendText(args: SendTextArgs): Promise<{ whatsapp_message_id: string }> {
@@ -117,6 +121,8 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         templateName: input.templateName,
         language: input.language,
         params: input.params,
+        buttonUrlParam: input.buttonUrlParam,
+        buttonUrlIndex: input.buttonUrlIndex,
       })
       return r.messageId
     }

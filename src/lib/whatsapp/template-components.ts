@@ -12,6 +12,11 @@ import type {
   MetaTemplateCategory,
   MetaTemplateComponentInput,
 } from './meta-api'
+import {
+  dynamicButtonTemplateUrl,
+  dynamicButtonExampleUrl,
+  type ButtonUrlVariable,
+} from './dynamic-links'
 
 export type TemplateHeaderType = 'none' | 'text' | 'image' | 'video' | 'document'
 
@@ -20,6 +25,11 @@ export interface TemplateButtonInput {
   text: string
   /** For URL buttons. */
   url?: string
+  /** For a DYNAMIC URL button: which per-customer link fills it at send time
+   *  (carrito abandonado, estado del pedido, tracking...). Cuando está presente
+   *  el botón se manda a Meta como URL dinámica `dominio/{{1}}` y `url` se
+   *  ignora. */
+  url_variable?: ButtonUrlVariable
   /** For PHONE_NUMBER buttons (E.164). */
   phone_number?: string
 }
@@ -180,10 +190,22 @@ export function buildTemplateComponents(
         return { components, error: `El texto del botón "${b.text}" supera 25 caracteres.` }
       }
       if (b.type === 'URL') {
-        if (!b.url?.trim()) {
-          return { components, error: `El botón "${b.text}" necesita una URL.` }
+        if (b.url_variable) {
+          // Botón dinámico: dominio fijo + {{1}}. Meta exige un `example` con
+          // una URL completa de muestra. El valor real de {{1}} (el token del
+          // short link) se pasa al ENVIAR, no acá.
+          metaButtons.push({
+            type: 'URL',
+            text: b.text,
+            url: dynamicButtonTemplateUrl(),
+            example: [dynamicButtonExampleUrl()],
+          })
+        } else {
+          if (!b.url?.trim()) {
+            return { components, error: `El botón "${b.text}" necesita una URL.` }
+          }
+          metaButtons.push({ type: 'URL', text: b.text, url: b.url.trim() })
         }
-        metaButtons.push({ type: 'URL', text: b.text, url: b.url.trim() })
       } else if (b.type === 'PHONE_NUMBER') {
         if (!b.phone_number?.trim()) {
           return { components, error: `El botón "${b.text}" necesita un teléfono.` }

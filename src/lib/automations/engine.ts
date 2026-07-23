@@ -15,6 +15,11 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { createShortLink } from '@/lib/links/short-link'
+import {
+  resolveButtonUrlFromVars,
+  isButtonUrlVariable,
+} from '@/lib/whatsapp/dynamic-links'
 import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import type { ContactSegment } from '@/lib/segments/types'
@@ -442,6 +447,43 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             // instead of the literal "{{vars.customer_name}}" string.
             .map((k) => interpolate(String(cfg.variables![k]), args))
         : []
+
+      // Botón URL DINÁMICO: si la plantilla tiene un botón con `url_variable`,
+      // resolvemos el link real de ESTE cliente desde el contexto del disparador
+      // (p. ej. checkout_url del carrito abandonado), creamos un short link y
+      // pasamos su token para llenar {{1}}. Sin esto, Meta rechaza el envío por
+      // falta del parámetro del botón.
+      let buttonUrlParam: string | undefined
+      let buttonUrlIndex: number | undefined
+      const tplQuery = db
+        .from('message_templates')
+        .select('buttons')
+        .eq('workspace_id', args.automation.workspace_id)
+        .eq('name', cfg.template_name)
+      if (cfg.language) tplQuery.eq('language', cfg.language)
+      const { data: tplRow } = await tplQuery.limit(1).maybeSingle()
+      const tplButtons = (tplRow?.buttons as Array<Record<string, unknown>> | null) ?? []
+      const dynIdx = tplButtons.findIndex(
+        (b) => b?.type === 'URL' && isButtonUrlVariable(b?.url_variable),
+      )
+      if (dynIdx >= 0) {
+        const urlVar = tplButtons[dynIdx].url_variable
+        if (isButtonUrlVariable(urlVar)) {
+          const target = resolveButtonUrlFromVars(urlVar, args.context.vars)
+          if (!target) {
+            throw new Error(
+              `send_template: falta el link para el botón dinámico (${urlVar}) — no llegó en el contexto`,
+            )
+          }
+          buttonUrlParam = await createShortLink(db, {
+            workspaceId: args.automation.workspace_id,
+            targetUrl: target,
+            contactId: args.contactId,
+          })
+          buttonUrlIndex = dynIdx
+        }
+      }
+
       const { whatsapp_message_id } = await engineSendTemplate({
         workspaceId: args.automation.workspace_id,
         conversationId,
@@ -449,6 +491,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         templateName: cfg.template_name,
         language: cfg.language,
         params,
+        buttonUrlParam,
+        buttonUrlIndex,
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }

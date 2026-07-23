@@ -47,6 +47,8 @@ export interface TemplateInput {
     type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
     text: string;
     url?: string;
+    /** Botón URL dinámico (link por cliente): no lleva URL fija. */
+    url_variable?: string;
     phone_number?: string;
   }>;
   bodySamples?: string[];
@@ -302,7 +304,9 @@ export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] 
       });
     }
     if (b.type === 'URL') {
-      if (!b.url || !/^https:\/\//.test(b.url)) {
+      // Un botón dinámico (link por cliente) no tiene URL fija: la URL la
+      // gestiona Riverz (dominio + {{1}}), así que no se valida el https.
+      if (!b.url_variable && (!b.url || !/^https:\/\//.test(b.url))) {
         issues.push({
           field: `button.${i}`,
           severity: 'error',

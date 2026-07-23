@@ -39,6 +39,10 @@ import {
   type TemplateHeaderType,
 } from '@/lib/whatsapp/template-components';
 import {
+  BUTTON_URL_VARIABLES,
+  type ButtonUrlVariable,
+} from '@/lib/whatsapp/dynamic-links';
+import {
   validateTemplate,
   type TemplateIssue,
 } from '@/lib/whatsapp/template-validate';
@@ -89,6 +93,15 @@ const LANGUAGES: { code: string; labelKey: string }[] = [
   { code: 'de', labelKey: 'templates.languageDe' },
   { code: 'it', labelKey: 'templates.languageIt' },
 ];
+
+// Link variable de Shopify que puede llenar un botón URL (por cliente, al
+// enviar). El valor 'custom' representa un enlace fijo escrito a mano.
+const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
+  abandoned_checkout: 'templates.linkVarAbandonedCheckout',
+  order_status: 'templates.linkVarOrderStatus',
+  tracking: 'templates.linkVarTracking',
+  product: 'templates.linkVarProduct',
+};
 
 const BUTTON_TYPES = [
   {
@@ -563,6 +576,12 @@ function ButtonRow({
   const buttonTypeLabels = Object.fromEntries(
     BUTTON_TYPES.map((b) => [b.value, t(b.labelKey)]),
   );
+  const urlModeLabels: Record<string, string> = {
+    custom: t('templates.buttonUrlModeCustom'),
+    ...Object.fromEntries(
+      BUTTON_URL_VARIABLES.map((v) => [v, t(URL_VARIABLE_KEYS[v])]),
+    ),
+  };
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
@@ -602,14 +621,42 @@ function ButtonRow({
         </Button>
       </div>
       {button.type === 'URL' && (
-        <Input
-          placeholder={t('templates.urlPlaceholder')}
-          value={button.url ?? ''}
-          onChange={(e) => onChange({ url: e.target.value })}
-          // Auto-add https:// so the user never has to type the scheme.
-          onBlur={() => button.url && onChange({ url: withHttps(button.url) })}
-          className="mt-2 bg-background"
-        />
+        <div className="mt-2 space-y-2">
+          <Select
+            value={button.url_variable ?? 'custom'}
+            onValueChange={(v) =>
+              v === 'custom'
+                ? onChange({ url_variable: undefined })
+                : onChange({ url_variable: v as ButtonUrlVariable, url: '' })
+            }
+          >
+            <SelectTrigger className="w-full bg-background">
+              <SelectValue labels={urlModeLabels} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="custom">{t('templates.buttonUrlModeCustom')}</SelectItem>
+              {BUTTON_URL_VARIABLES.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {t(URL_VARIABLE_KEYS[v])}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {button.url_variable ? (
+            <p className="text-xs text-muted-foreground">
+              {t('templates.buttonUrlVariableHint')}
+            </p>
+          ) : (
+            <Input
+              placeholder={t('templates.urlPlaceholder')}
+              value={button.url ?? ''}
+              onChange={(e) => onChange({ url: e.target.value })}
+              // Auto-add https:// so the user never has to type the scheme.
+              onBlur={() => button.url && onChange({ url: withHttps(button.url) })}
+              className="bg-background"
+            />
+          )}
+        </div>
       )}
       {button.type === 'PHONE_NUMBER' && (
         <Input
