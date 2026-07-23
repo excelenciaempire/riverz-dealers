@@ -407,6 +407,12 @@ export const automations = {
     es: "No hay ofertas configuradas. Define las unidades de cada oferta en la sección Productos, o escribe la etiqueta exacta.",
     en: "No offers configured yet. Set the units for each offer in the Products section, or type the exact label.",
   },
+  whichProduct: { es: "Qué producto", en: "Which product" },
+  chooseProduct: { es: "Elige un producto…", en: "Choose a product…" },
+  productNoProductsHint: {
+    es: "No hay productos sincronizados. Sincroniza tu tienda en la sección Productos, o escribe el nombre exacto.",
+    en: "No products synced yet. Sync your store in the Products section, or type the exact name.",
+  },
 
   // Builder — send_template variables editor
   templateVariables: { es: "Variables de la plantilla", en: "Template variables" },

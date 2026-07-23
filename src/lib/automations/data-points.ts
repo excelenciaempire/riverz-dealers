@@ -12,7 +12,7 @@ import type { AutomationTriggerType } from '@/types'
  * orders webhook, the cart-recovery cron, etc.).
  */
 
-export type ValueKind = 'number' | 'text' | 'bool' | 'offer' | 'tag' | 'segment'
+export type ValueKind = 'number' | 'text' | 'bool' | 'offer' | 'product' | 'tag' | 'segment'
 
 /** How a condition on this data point maps onto the engine's condition subjects. */
 export type ConditionSource =
@@ -388,7 +388,9 @@ export const DATA_POINTS: DataPoint[] = [
     id: 'last_product',
     labelKey: 'automations.dpLastProduct',
     group: 'contact',
-    valueKind: 'text',
+    // Dropdown de productos sincronizados con Shopify (mira shopify_products.title),
+    // en vez de texto libre — el merchant elige de sus productos reales.
+    valueKind: 'product',
     triggers: 'all',
     usableInConditions: true,
     templateVarKey: 'last_product',

@@ -104,6 +104,11 @@ const AgentsContext = createContext<Profile[]>([])
  *  oferta exacta en vez de tipearla. */
 const OffersContext = createContext<string[]>([])
 
+/** Títulos de los productos sincronizados de Shopify (shopify_products.title).
+ *  Powers el dropdown de la condición `last_product` para que el merchant elija
+ *  de sus productos reales en vez de tipear el nombre. */
+const ProductsContext = createContext<string[]>([])
+
 /** The automation's trigger type, so each step can filter data points to what
  *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
 const TriggerContext = createContext<AutomationTriggerType>("shopify_order_created")
@@ -315,6 +320,13 @@ const LEAF_STEPS: BuilderStepType[] = [
 // TRIGGER_META), they're just not offered when building a new one.
 // `label` holds an i18n key, resolved with t() inside the trigger card.
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
+  // Conversación / contacto (los despacha el webhook de entrada). Antes solo
+  // vivían en el fallback y no se ofrecían al crear — ahora seleccionables.
+  { value: "new_contact_created", label: "automations.triggerNewContact" },
+  { value: "first_inbound_message", label: "automations.triggerFirstInbound" },
+  { value: "new_message_received", label: "automations.triggerNewMessage" },
+  { value: "keyword_match", label: "automations.triggerKeywordMatch" },
+  { value: "conversation_assigned", label: "automations.triggerConversationAssigned" },
   { value: "tag_added", label: "automations.triggerTagAdded" },
   { value: "shopify_order_created", label: "automations.triggerShopifyOrderCreated" },
   { value: "shopify_order_paid", label: "automations.triggerShopifyOrderPaid" },
@@ -426,6 +438,7 @@ function ConditionFields({
   const trigger = useContext(TriggerContext)
   const segments = useContext(SegmentsContext)
   const offers = useContext(OffersContext)
+  const products = useContext(ProductsContext)
   const subject = cfg.subject as string | undefined
   const operand = cfg.operand as string | undefined
   const dps = conditionDataPoints(trigger)
@@ -515,7 +528,7 @@ function ConditionFields({
       )}
 
       {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
-        <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} />
+        <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} products={products} />
       )}
     </>
   )
@@ -529,11 +542,13 @@ function ConditionValue({
   cfg,
   set,
   offers,
+  products,
 }: {
   dp: DataPoint
   cfg: Record<string, unknown>
   set: (patch: Record<string, unknown>) => void
   offers: string[]
+  products: string[]
 }) {
   const t = useT()
   const op = (cfg.op as string) ?? "eq"
@@ -581,6 +596,38 @@ function ConditionValue({
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
               {t("automations.offerChosenNoOffersHint")}
+            </p>
+          </>
+        )}
+      </FieldBlock>
+    )
+  }
+
+  if (dp.valueKind === "product") {
+    return (
+      <FieldBlock label={t("automations.whichProduct")}>
+        {products.length > 0 ? (
+          <select
+            value={value}
+            onChange={(e) => set({ op: "eq", value: e.target.value })}
+            className={selectCls}
+          >
+            <option value="">{t("automations.chooseProduct")}</option>
+            {products.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <>
+            <Input
+              value={value}
+              onChange={(e) => set({ op: "eq", value: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t("automations.productNoProductsHint")}
             </p>
           </>
         )}
@@ -857,6 +904,7 @@ export function AutomationBuilder({
   const [tags, setTags] = useState<ContactTag[]>([])
   const [agents, setAgents] = useState<Profile[]>([])
   const [offers, setOffers] = useState<string[]>([])
+  const [products, setProducts] = useState<string[]>([])
 
   // Load the user's templates once — powers the send_template picker and
   // the live phone preview. Approved first so the dropdown is useful.
@@ -887,8 +935,9 @@ export function AutomationBuilder({
           supabase.from("profiles").select("*").order("full_name", { ascending: true }),
           // Offers: per-product allowed_offers + the assistant checkout
           // config. Both RLS-scoped to the workspace. Powers the
-          // `offer_chosen` condition dropdown.
-          supabase.from("shopify_products").select("allowed_offers"),
+          // `offer_chosen` condition dropdown. `title` alimenta el dropdown
+          // de la condición `last_product`.
+          supabase.from("shopify_products").select("title, allowed_offers"),
           supabase.from("workspace_checkout_config").select("offers").maybeSingle(),
         ])
       setTemplates((tpl as MessageTemplate[]) ?? [])
@@ -920,6 +969,15 @@ export function AutomationBuilder({
         addLabel(o?.label)
       }
       setOffers([...byKey.values()].sort((a, b) => a.localeCompare(b)))
+
+      // Títulos de productos (sincronizados de Shopify) para el dropdown de la
+      // condición `last_product`. Dedupe + orden alfabético.
+      const titles = new Set<string>()
+      for (const row of (prods as { title?: unknown }[] | null) ?? []) {
+        const title = String(row?.title ?? "").trim()
+        if (title) titles.add(title)
+      }
+      setProducts([...titles].sort((a, b) => a.localeCompare(b)))
     })()
   }, [])
 
@@ -1030,6 +1088,7 @@ export function AutomationBuilder({
     >
     <AgentsContext.Provider value={agents}>
     <OffersContext.Provider value={offers}>
+    <ProductsContext.Provider value={products}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -1131,6 +1190,7 @@ export function AutomationBuilder({
             "Enviar plantilla" step (see StepEditor) — no separate rail. */}
       </div>
     </div>
+    </ProductsContext.Provider>
     </OffersContext.Provider>
     </AgentsContext.Provider>
     </TagsMutateContext.Provider>
@@ -1598,7 +1658,10 @@ function BranchLane({
 function isSwitchableDataPoint(dp: DataPoint): boolean {
   return (
     (dp.condition.kind === "var" || dp.condition.kind === "contact_field") &&
-    (dp.valueKind === "number" || dp.valueKind === "offer" || dp.valueKind === "text")
+    (dp.valueKind === "number" ||
+      dp.valueKind === "offer" ||
+      dp.valueKind === "product" ||
+      dp.valueKind === "text")
   )
 }
 
@@ -1770,6 +1833,7 @@ function SwitchCaseLane({
 }) {
   const t = useT()
   const offers = useContext(OffersContext)
+  const products = useContext(ProductsContext)
   return (
     <BranchLane
       label={label}
@@ -1779,7 +1843,7 @@ function SwitchCaseLane({
         <div className="flex items-start gap-1 rounded-md border border-border bg-card/60 p-2">
           <div className="min-w-[180px] flex-1">
             {dp ? (
-              <ConditionValue dp={dp} cfg={cfg} set={onCfg} offers={offers} />
+              <ConditionValue dp={dp} cfg={cfg} set={onCfg} offers={offers} products={products} />
             ) : (
               <span className="text-[11px] text-muted-foreground">—</span>
             )}
