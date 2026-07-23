@@ -19,6 +19,15 @@ import { supabaseAdmin } from './admin-client'
 // converge in a later refactor.
 // ------------------------------------------------------------
 
+/** Reemplaza los {{1}}, {{2}}… del cuerpo de una plantilla por sus valores
+ *  posicionales, para guardar/mostrar el texto real que recibió el cliente. */
+function renderTemplateBody(body: string, params: string[]): string {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => {
+    const v = params[Number(n) - 1]
+    return v != null && String(v).trim() ? String(v) : `{{${n}}}`
+  })
+}
+
 interface SendTextArgs {
   workspaceId: string
   conversationId: string
@@ -185,9 +194,26 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // Persist the sent message so it appears in the inbox with a real
   // Meta message id. sender_type='bot' distinguishes automation sends
   // from manual agent sends.
+  //
+  // Para plantillas guardamos el CUERPO RENDERIZADO (body con las variables
+  // reemplazadas), no null: antes la bandeja mostraba una burbuja vacía porque
+  // no había texto que renderizar. Reconstruimos el body desde message_templates
+  // + los params posicionales que ya tenemos a mano.
   const content_type = input.kind === 'template' ? 'template' : 'text'
-  const content_text = input.kind === 'text' ? input.text : null
   const template_name = input.kind === 'template' ? input.templateName : null
+  let content_text: string | null = input.kind === 'text' ? input.text : null
+  if (input.kind === 'template') {
+    const { data: tplRows } = await db
+      .from('message_templates')
+      .select('body_text, language')
+      .eq('workspace_id', input.workspaceId)
+      .eq('name', input.templateName)
+    const rows = (tplRows ?? []) as { body_text?: string; language?: string }[]
+    const tpl = rows.find((r) => r.language === (input.language ?? 'es')) ?? rows[0]
+    if (tpl?.body_text) {
+      content_text = renderTemplateBody(tpl.body_text, input.params ?? [])
+    }
+  }
 
   const { data: inserted, error: msgErr } = await db
     .from('messages')
@@ -217,8 +243,12 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   await db
     .from('conversations')
     .update({
+      // Preview de la lista: el cuerpo renderizado (o el nombre de la plantilla
+      // si no se pudo reconstruir) en vez del crudo "[template:...]".
       last_message_text:
-        input.kind === 'template' ? `[template:${input.templateName}]` : input.text,
+        input.kind === 'template'
+          ? content_text ?? `[${input.templateName}]`
+          : input.text,
       last_message_at: sentAt,
       last_sender_type: 'bot',
       updated_at: sentAt,

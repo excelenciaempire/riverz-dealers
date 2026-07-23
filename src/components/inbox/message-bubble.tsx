@@ -391,7 +391,12 @@ function MessageContent({ message }: { message: Message }) {
         <div>
           <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-accent-ink">
             <LayoutTemplate className="h-3 w-3" />
-            {t("inbox.template")}
+            {/* Muestra el NOMBRE de la plantilla junto al chip: así una fila sin
+                cuerpo guardado (envíos viejos) igual identifica qué se mandó,
+                en vez de una burbuja "vacía". */}
+            {message.template_name
+              ? `${t("inbox.template")} · ${message.template_name}`
+              : t("inbox.template")}
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">

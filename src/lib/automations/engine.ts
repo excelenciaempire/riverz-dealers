@@ -754,7 +754,16 @@ function triggerMatches(automation: Automation, ctx: AutomationContext | undefin
 function matchesValue(actual: unknown, cfg: ConditionStepConfig): boolean {
   if (actual == null) return false
   const op = cfg.op ?? 'eq'
-  if (op === 'eq') return String(actual) === String(cfg.value ?? '')
+  // Comparación de igualdad tolerante: trim + minúsculas. Las ofertas se
+  // guardan con casing variable (la del sitio vs la manual: "2 Unidades + 1
+  // GRATIS" vs "2 unidades + 1 gratis"), y estados como 'paid' son
+  // consistentes igual — así el camino elegido matchea aunque cambie el casing.
+  if (op === 'eq') {
+    return (
+      String(actual).trim().toLowerCase() ===
+      String(cfg.value ?? '').trim().toLowerCase()
+    )
+  }
   const a = Number(actual)
   const b = Number(cfg.value)
   if (!Number.isFinite(a) || !Number.isFinite(b)) return false

@@ -896,22 +896,30 @@ export function AutomationBuilder({
       setTags((tg as ContactTag[]) ?? [])
       setAgents((ag as Profile[]) ?? [])
 
-      // Flatten + dedupe offer labels from both sources.
-      const labels = new Set<string>()
+      // Flatten + dedupe offer labels de ambas fuentes. Dedupe por clave
+      // NORMALIZADA (trim + minúsculas) para que "1 unidad"/"1 Unidad" y
+      // "2 unidades + 1 gratis"/"2 Unidades + 1 GRATIS" no salgan repetidas —
+      // el auto-detect del sitio guarda el casing de la página y el manual suele
+      // ir en minúsculas. Se conserva una etiqueta canónica (la primera vista).
+      const byKey = new Map<string, string>()
+      const addLabel = (raw: unknown) => {
+        const label = String(raw ?? "").trim()
+        if (!label) return
+        const key = label.toLowerCase()
+        if (!byKey.has(key)) byKey.set(key, label)
+      }
       type OfferRow = { label?: unknown }
       for (const row of (prods as { allowed_offers?: unknown }[] | null) ?? []) {
         const list = Array.isArray(row?.allowed_offers) ? row.allowed_offers : []
         for (const o of list as OfferRow[]) {
-          const label = typeof o === "string" ? o : String(o?.label ?? "").trim()
-          if (label) labels.add(label)
+          addLabel(typeof o === "string" ? o : o?.label)
         }
       }
       const cfgOffers = (checkoutCfg as { offers?: unknown } | null)?.offers
       for (const o of (Array.isArray(cfgOffers) ? cfgOffers : []) as OfferRow[]) {
-        const label = String(o?.label ?? "").trim()
-        if (label) labels.add(label)
+        addLabel(o?.label)
       }
-      setOffers([...labels].sort((a, b) => a.localeCompare(b)))
+      setOffers([...byKey.values()].sort((a, b) => a.localeCompare(b)))
     })()
   }, [])
 
@@ -1498,10 +1506,15 @@ function StepRenderer({
         <div className="z-10">{cardEl}</div>
       )}
 
-      <AddButton
-        orientation="h"
-        onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
-      />
+      {/* La continuación de una condición/switch vive DENTRO de sus ramas, no
+          después. Mostrar aquí un "+ Añadir" además del de cada rama daba dos
+          botones pegados y confundía — se omite para condición/switch. */}
+      {!isCondition && !isSwitch && (
+        <AddButton
+          orientation="h"
+          onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+        />
+      )}
     </>
   )
 }
