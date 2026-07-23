@@ -30,11 +30,18 @@ export function isButtonUrlVariable(x: unknown): x is ButtonUrlVariable {
   return typeof x === 'string' && (BUTTON_URL_VARIABLES as string[]).includes(x);
 }
 
-/** Dominio público del CRM (mismo que sirve el redirector `/r/:token`). */
-const SITE_BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co').replace(
-  /\/+$/,
-  '',
-);
+/**
+ * Dominio público del CRM (mismo que sirve el redirector `/r/:token`). Meta
+ * exige que los botones URL sean https y con dominio real, así que NO se usa
+ * NEXT_PUBLIC_SITE_URL cuando apunta a localhost o http (config de desarrollo):
+ * en ese caso el botón dinámico saldría con un dominio inválido y Meta
+ * rechazaría la plantilla. Se cae a riverz.co, que es el dominio del CRM.
+ */
+const SITE_BASE = (() => {
+  const env = (process.env.NEXT_PUBLIC_SITE_URL || '').trim().replace(/\/+$/, '');
+  if (/^https:\/\//i.test(env) && !/localhost|127\.0\.0\.1/i.test(env)) return env;
+  return 'https://riverz.co';
+})();
 
 /** URL que se manda a Meta como base del botón: dominio fijo + `{{1}}`. */
 export function dynamicButtonTemplateUrl(): string {

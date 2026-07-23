@@ -270,7 +270,11 @@ export function TemplateBuilder() {
       toast.success(t('templates.templateSent'));
       router.push('/plantillas');
     } catch (err) {
-      toast.error(t('templates.createFailed'));
+      // Mostrar el motivo REAL (Meta suele explicar por qué rechaza: nombre
+      // duplicado, variable inválida, botón mal formado). Tragarlo con un
+      // genérico dejaba al comerciante sin saber qué corregir.
+      const msg = err instanceof Error && err.message ? err.message : t('templates.createFailed');
+      toast.error(msg, { duration: 10000 });
     } finally {
       setSubmitting(false);
     }
