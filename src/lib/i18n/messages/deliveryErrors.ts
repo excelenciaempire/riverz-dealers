@@ -60,8 +60,8 @@ export const deliveryErrors = {
     en: "Messaging limit reached due to template classification violations.",
   },
   code131042: {
-    es: "Hay un problema con el método de pago de WhatsApp. Configúralo en WhatsApp Manager.",
-    en: "There's a problem with the WhatsApp payment method. Set it up in WhatsApp Manager.",
+    es: "Falta completar la información de pago o fiscal de tu cuenta de WhatsApp. Complétala en WhatsApp Manager para poder enviar.",
+    en: "Your WhatsApp account's payment or tax information is incomplete. Complete it in WhatsApp Manager to send.",
   },
   code131045: {
     es: "El número no está registrado correctamente para enviar.",
