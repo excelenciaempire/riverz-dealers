@@ -12,7 +12,6 @@ import {
   MousePointerClick,
   ExternalLink,
   Phone,
-  Reply,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,9 +106,11 @@ const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
   product: 'templates.linkVarProduct',
 };
 
-// URL primero: en un CRM de comercio el botón más usado es el enlace (carrito,
-// pedido, tracking). "Respuesta rápida" queda al final porque requiere un flujo
-// que atienda la respuesta.
+// Solo botones CTA autocontenidos: enlace y llamada. "Respuesta rápida" se
+// omite a propósito: su tap llega al webhook como type:'button' y Riverz aún no
+// enruta esa respuesta a flujos/automatizaciones, así que sería un botón que no
+// hace nada. Reincorporar cuando se maneje esa respuesta. URL va primero: en
+// comercio el enlace (carrito, pedido, tracking) es lo más usado.
 const BUTTON_TYPES = [
   {
     value: 'URL',
@@ -122,12 +123,6 @@ const BUTTON_TYPES = [
     labelKey: 'templates.buttonPhone',
     hintKey: 'templates.buttonPhoneHint',
     Icon: Phone,
-  },
-  {
-    value: 'QUICK_REPLY',
-    labelKey: 'templates.buttonQuickReply',
-    hintKey: 'templates.buttonQuickReplyHint',
-    Icon: Reply,
   },
 ] as const;
 
