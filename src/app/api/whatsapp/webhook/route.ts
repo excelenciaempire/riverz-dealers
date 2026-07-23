@@ -398,12 +398,12 @@ async function handleStatusUpdate(status: {
     // Guardar el motivo REAL cuando Meta rechaza, para mostrarlo en la burbuja
     // ("en cada error, el por qué"). Solo en 'failed'; los demás lo dejan intacto.
     if (status.status === 'failed') {
-      // DIAGNÓSTICO TEMPORAL: si Meta no manda `errors`, guardamos el status
-      // crudo para ver EXACTAMENTE qué envía (algunas fallas silenciosas no
-      // traen código). Revertir a solo formatStatusError tras diagnosticar.
+      // Si Meta manda el motivo, lo mostramos ([código] descripción). Algunas
+      // fallas de entrega llegan SIN código (Meta no informa la razón) — ahí
+      // damos un texto honesto en vez de dejar la burbuja sin explicación.
       patch.error_reason =
         formatStatusError(status.errors) ??
-        'RAW:' + JSON.stringify(status).slice(0, 400)
+        'WhatsApp no entregó el mensaje y no informó el motivo (posible filtrado de Meta).'
     }
     const { error: msgErr } = await supabaseAdmin()
       .from('messages')

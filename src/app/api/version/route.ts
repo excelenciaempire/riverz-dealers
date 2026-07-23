@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   return NextResponse.json({
-    marker: 'errcap-v2',
+    marker: 'errcap-v3',
     commit: process.env.RENDER_GIT_COMMIT ?? null,
     ts: new Date().toISOString(),
   })
