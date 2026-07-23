@@ -328,14 +328,6 @@ export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] 
   });
 
   // Reglas por categoría
-  if (input.category === 'MARKETING' && input.buttons.length === 0) {
-    issues.push({
-      field: 'buttons',
-      severity: 'warning',
-      code: 'marketing_no_cta',
-      message: t('templates.tplValidate_marketing_no_cta'),
-    });
-  }
   if (
     input.category === 'AUTHENTICATION' &&
     !/[0-9]{3,}/.test(input.bodyText)

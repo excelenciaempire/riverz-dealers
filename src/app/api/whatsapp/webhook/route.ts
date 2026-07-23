@@ -83,6 +83,13 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        /** Presente cuando status='failed': el motivo real de Meta. */
+        errors?: Array<{
+          code?: number
+          title?: string
+          message?: string
+          error_data?: { details?: string }
+        }>
       }>
       // ---- Coexistence-only fields (merchant kept the WhatsApp Business app) ----
       /** Echoes of messages the merchant sends from their phone's WhatsApp
@@ -339,11 +346,33 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
+/** Motivo legible del fallo, a partir del array `errors` de Meta. */
+function formatStatusError(
+  errors?: Array<{
+    code?: number
+    title?: string
+    message?: string
+    error_data?: { details?: string }
+  }>,
+): string | null {
+  const e = errors?.[0]
+  if (!e) return null
+  const details = e.error_data?.details
+  const text = details || e.message || e.title || 'Error desconocido'
+  return e.code ? `[${e.code}] ${text}` : text
+}
+
 async function handleStatusUpdate(status: {
   id: string
   status: string
   timestamp: string
   recipient_id: string
+  errors?: Array<{
+    code?: number
+    title?: string
+    message?: string
+    error_data?: { details?: string }
+  }>
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
@@ -365,9 +394,15 @@ async function handleStatusUpdate(status: {
         )
 
   if (allowedFrom.length > 0) {
+    const patch: Record<string, unknown> = { status: status.status }
+    // Guardar el motivo REAL cuando Meta rechaza, para mostrarlo en la burbuja
+    // ("en cada error, el por qué"). Solo en 'failed'; los demás lo dejan intacto.
+    if (status.status === 'failed') {
+      patch.error_reason = formatStatusError(status.errors)
+    }
     const { error: msgErr } = await supabaseAdmin()
       .from('messages')
-      .update({ status: status.status })
+      .update(patch)
       .eq('message_id', status.id)
       .in('status', allowedFrom)
 

@@ -35,7 +35,13 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
 }
 
-function StatusIcon({ status }: { status: Message["status"] }) {
+function StatusIcon({
+  status,
+  errorReason,
+}: {
+  status: Message["status"];
+  errorReason?: string | null;
+}) {
   switch (status) {
     case "sending":
       return <Clock className="h-3 w-3 text-muted-foreground" />;
@@ -46,7 +52,11 @@ function StatusIcon({ status }: { status: Message["status"] }) {
     case "read":
       return <CheckCheck className="h-3 w-3 text-blue-600 dark:text-blue-400" />;
     case "failed":
-      return <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />;
+      return (
+        <span title={errorReason ?? undefined} className="inline-flex">
+          <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+        </span>
+      );
     default:
       return null;
   }
@@ -741,7 +751,9 @@ export function MessageBubble({
             </span>
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               {fullTime}
-              {isAgent && <StatusIcon status={message.status} />}
+              {isAgent && (
+                <StatusIcon status={message.status} errorReason={message.error_reason} />
+              )}
             </span>
           </div>
           <div className="px-3 py-2 text-sm text-foreground">
@@ -805,8 +817,17 @@ export function MessageBubble({
           >
             {time}
           </span>
-          {isAgent && <StatusIcon status={message.status} />}
+          {isAgent && (
+            <StatusIcon status={message.status} errorReason={message.error_reason} />
+          )}
         </div>
+        {/* Motivo del fallo visible (no solo tooltip): el comercio ve POR QUÉ no
+            se entregó, sin adivinar. */}
+        {isAgent && message.status === "failed" && message.error_reason && (
+          <p className="mt-0.5 text-[10px] leading-tight text-red-600 dark:text-red-400">
+            {message.error_reason}
+          </p>
+        )}
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (
         <MessageReactions
