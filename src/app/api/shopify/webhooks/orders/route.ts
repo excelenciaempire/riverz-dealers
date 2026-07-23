@@ -519,16 +519,30 @@ function buildVarsForOrder(
   const lineItems = Array.isArray(order.line_items) ? order.line_items : []
   const firstItem = lineItems[0] as Record<string, unknown> | undefined
 
+  const shipping = order.shipping_address as Record<string, unknown> | undefined
+
   const base: Record<string, string> = {
     customer_name: name ?? '',
     order_name: String(order.name ?? ''),
     order_number: String(order.order_number ?? ''),
     total_price: String(order.total_price ?? ''),
+    subtotal_price: String(order.subtotal_price ?? ''),
+    total_discounts: String(order.total_discounts ?? ''),
     currency: String(order.currency ?? order.presentment_currency ?? ''),
     item_count: String(lineItems.length),
     first_item: String(firstItem?.title ?? ''),
     is_repeat_customer: ordersCount > 1 ? 'true' : 'false',
     order_status_url: String(order.order_status_url ?? ''),
+    financial_status: String(order.financial_status ?? ''),
+    fulfillment_status: String(order.fulfillment_status ?? ''),
+    // Dirección de envío (la manda Shopify en shipping_address).
+    shipping_address: [shipping?.address1, shipping?.address2]
+      .filter((p) => p && String(p).trim())
+      .join(', '),
+    shipping_city: String(shipping?.city ?? ''),
+    shipping_province: String(shipping?.province ?? ''),
+    shipping_zip: String(shipping?.zip ?? ''),
+    shipping_country: String(shipping?.country ?? ''),
   }
 
   if (trigger === 'shopify_order_fulfilled') {

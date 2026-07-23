@@ -122,6 +122,19 @@ const SAMPLE_BY_VAR: Record<string, string> = {
   tracking_company: "Andreani",
   order_status_url: "https://pilar.co/pedido/1042",
   checkout_url: "https://pilar.co/carrito",
+  subtotal_price: "45.900",
+  total_discounts: "4.000",
+  financial_status: "paid",
+  fulfillment_status: "fulfilled",
+  shipping_address: "Av. Corrientes 1234",
+  shipping_city: "Buenos Aires",
+  shipping_province: "CABA",
+  shipping_zip: "1043",
+  shipping_country: "Argentina",
+  contact_first_name: "María",
+  contact_last_name: "González",
+  contact_email: "maria@correo.com",
+  contact_phone: "+54 9 11 1234 5678",
 }
 
 // ------------------------------------------------------------
