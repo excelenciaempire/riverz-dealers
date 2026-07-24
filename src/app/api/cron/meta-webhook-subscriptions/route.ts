@@ -7,6 +7,8 @@ import {
   subscribePageToWebhooks,
   getSubscribedFields,
   pageFieldsForChannel,
+  getAppWebhookSubscriptions,
+  appSubscriptionGaps,
 } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
 
@@ -135,12 +137,37 @@ export async function GET(request: Request) {
     });
   }
 
-  // Flip the Render cron red (207) ONLY on a CONFIRMED missing field, so a
-  // transient verify failure doesn't cry wolf. Matches the gmail/outlook
-  // polls' use of 207 for partial failure.
+  // APP-LEVEL subscription check. Per-page subscribed_apps (above) covers FB
+  // `feed` + DM fields, but IG `comments` is subscribed ONLY at the app level
+  // (one global toggle for every merchant) and is invisible to the per-page
+  // verify. If that toggle breaks, EVERY merchant silently stops receiving IG
+  // comments — so we read the app subscriptions directly and flag any gap.
+  const appSubs = await getAppWebhookSubscriptions();
+  const appGaps = appSubs ? appSubscriptionGaps(appSubs) : [];
+  if (appSubs === null) {
+    log.warn("could not read app-level webhook subscriptions (no creds or transient)");
+  } else if (appGaps.length > 0) {
+    log.warn("app-level webhook subscription GAPS — some channels stop receiving for ALL merchants", {
+      gaps: appGaps,
+    });
+  }
+
+  // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient
+  // verify failure doesn't cry wolf. Matches the gmail/outlook polls' use of
+  // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
+  // most severe case (all merchants), never a false alarm (we read it live).
   const anyMissing = results.some((r) => r.verified && r.missing.length > 0);
+  const anyAppGap = appGaps.length > 0;
   return NextResponse.json(
-    { ok: !anyMissing, checked: list.length, healthy, skipped, results },
-    { status: anyMissing ? 207 : 200 },
+    {
+      ok: !anyMissing && !anyAppGap,
+      checked: list.length,
+      healthy,
+      skipped,
+      results,
+      appSubscriptions: appSubs,
+      appGaps,
+    },
+    { status: anyMissing || anyAppGap ? 207 : 200 },
   );
 }

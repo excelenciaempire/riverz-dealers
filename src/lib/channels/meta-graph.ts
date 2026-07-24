@@ -424,6 +424,82 @@ const FB_PAGE_FIELDS = [
 const IG_PAGE_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
 const IG_USER_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
 
+/**
+ * App-level webhook subscriptions (`GET /{app-id}/subscriptions`). These are
+ * the GLOBAL per-object subscriptions (one callback for the whole app),
+ * DISTINCT from per-page `subscribed_apps`. IG comment delivery depends
+ * ENTIRELY on the app-level `instagram`→`comments` subscription — it can't be
+ * set per page — so if that toggle is off, EVERY merchant silently loses all IG
+ * comments and nothing detects it. Read-only; uses the app access token
+ * (`{app_id}|{app_secret}`). Returns object→{active,fields} or null when the
+ * check can't run (no creds / transient error) so callers treat it as "unknown"
+ * rather than "broken".
+ */
+export async function getAppWebhookSubscriptions(): Promise<Record<
+  string,
+  { active: boolean; fields: string[] }
+> | null> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return null;
+  try {
+    const r = await fetch(
+      `${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`,
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      data?: Array<{
+        object?: string;
+        active?: boolean;
+        fields?: Array<{ name?: string } | string>;
+      }>;
+    };
+    const out: Record<string, { active: boolean; fields: string[] }> = {};
+    for (const o of j.data ?? []) {
+      if (!o.object) continue;
+      const fields: string[] = [];
+      for (const f of o.fields ?? []) {
+        if (typeof f === "string") fields.push(f);
+        else if (f && typeof f === "object" && typeof f.name === "string") {
+          fields.push(f.name);
+        }
+      }
+      out[o.object] = { active: Boolean(o.active), fields };
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** Expected app-level subscription object→fields. A missing/inactive entry here
+ *  means an entire inbound surface stops for ALL merchants at once. */
+export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
+  instagram: ["comments", "messages"], // IG comments + IG DMs
+  page: ["feed", "messages"], // FB comments (feed) + Messenger DMs
+  whatsapp_business_account: ["messages"], // WhatsApp inbound
+};
+
+/** Diff the live app-level subscriptions against what we require. Returns the
+ *  per-object gaps (missing fields / inactive object); empty array = healthy. */
+export function appSubscriptionGaps(
+  subs: Record<string, { active: boolean; fields: string[] }>,
+): Array<{ object: string; missing: string[]; inactive: boolean }> {
+  const gaps: Array<{ object: string; missing: string[]; inactive: boolean }> = [];
+  for (const [object, expected] of Object.entries(APP_WEBHOOK_EXPECTATIONS)) {
+    const sub = subs[object];
+    if (!sub) {
+      gaps.push({ object, missing: expected, inactive: true });
+      continue;
+    }
+    const missing = expected.filter((f) => !sub.fields.includes(f));
+    if (missing.length > 0 || !sub.active) {
+      gaps.push({ object, missing, inactive: !sub.active });
+    }
+  }
+  return gaps;
+}
+
 /** The full set of page-level webhook fields to subscribe when connecting
  *  any channel in the page's family (FB page vs IG). Exported so the
  *  re-subscribe/verify cron applies the exact same set. */

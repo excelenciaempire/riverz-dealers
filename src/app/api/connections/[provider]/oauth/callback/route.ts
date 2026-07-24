@@ -3,11 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { baseUrl, decodeState, loadProvider, type ProviderName } from "@/lib/channels/oauth";
 import { encrypt } from "@/lib/channels/encryption";
-import {
-  discoverMetaAccounts,
-  subscribePageToWebhooks,
-  withAppsecretProof,
-} from "@/lib/channels/meta-graph";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { persistMetaConnections, MetaConnectError } from "@/lib/channels/meta-connect";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { startOutlookWatch } from "@/lib/channels/outlook/watch";
 import { upsertConnectionRow } from "@/lib/channels/upsert-connection";
@@ -211,66 +208,30 @@ export async function GET(
   // subscribe each one to the right webhook fields automatically (this
   // is what business.facebook.com does under the hood — no manual
   // webhook setup in developers.facebook.com required).
+  //
+  // Delegate to the SHARED persistMetaConnections helper — the same one the
+  // Facebook-Login SDK flow uses — so both paths stay identical. Critically it
+  // also creates the COMMENT sibling row (messenger→fb_comment,
+  // instagram→ig_comment); the old inline loop here omitted it, so a merchant
+  // connected via this redirect flow received DMs but their comment webhooks
+  // matched no connection and were silently dropped.
   if (provider === "meta") {
-    let discovered;
     try {
-      discovered = await discoverMetaAccounts(accessToken, channel);
-    } catch (err) {
-      console.error(`[oauth/meta] discovery failed:`, err);
-      return redirectWithStatus(req, "error", "could not list pages/accounts");
-    }
-    if (discovered.length === 0) {
-      return redirectWithStatus(
-        req,
-        "error",
-        channel === "instagram" || channel === "ig_comment"
-          ? "no IG Professional accounts found on your pages"
-          : "no manageable pages or WhatsApp numbers found",
-      );
-    }
-
-    let saved = 0;
-    let subscribed = 0;
-    for (const account of discovered) {
-      const secrets = {
-        ...baseSecrets,
-        access_token: encrypt(account.page_access_token),
-        user_access_token: encrypt(accessToken),
-      };
-      const up = await upsertConnectionRow(admin, {
-        workspace_id: state.workspaceId,
+      const { saved, subscribed } = await persistMetaConnections(admin, {
+        accessToken,
         channel,
-        label: account.label,
-        external_account_id: account.external_account_id,
-        config: account.config,
-        secrets,
-        created_by: user.id,
+        workspaceId: state.workspaceId,
+        userId: user.id,
+        baseSecrets,
       });
-      if (up.error) {
-        console.error(`[oauth/meta] upsert failed for ${account.label}:`, up.error);
-        continue;
+      return redirectWithStatus(req, "ok", `${saved} saved, ${subscribed} subscribed`);
+    } catch (err) {
+      if (err instanceof MetaConnectError) {
+        return redirectWithStatus(req, "error", err.message);
       }
-      saved++;
-
-      // Subscribe to the relevant webhook fields (skip for whatsapp;
-      // WhatsApp Cloud subscribes at the app level via developers UI).
-      if (channel !== "whatsapp") {
-        const pageId = String(account.config.page_id ?? account.external_account_id);
-        const igUserId = account.config.ig_user_id as string | undefined;
-        try {
-          await subscribePageToWebhooks({
-            channel,
-            pageId,
-            pageAccessToken: account.page_access_token,
-            igUserId,
-          });
-          subscribed++;
-        } catch (err) {
-          console.warn(`[oauth/meta] subscribe failed for ${account.label}:`, err);
-        }
-      }
+      console.error(`[oauth/meta] persist failed:`, err);
+      return redirectWithStatus(req, "error", "could not connect Meta account");
     }
-    return redirectWithStatus(req, "ok", `${saved} saved, ${subscribed} subscribed`);
   }
 
   // Non-Meta providers (Google, Microsoft, MercadoLibre) — single

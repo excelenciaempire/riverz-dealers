@@ -102,8 +102,16 @@ export async function replyToComments(
         })
         .eq('id', r.id);
       replied += 1;
-    } catch {
+    } catch (err) {
       failed += 1;
+      // Don't swallow it — the usual cause is Meta Advanced Access not being
+      // approved for instagram_manage_comments (works for the owner's own
+      // app-role account, fails for other merchants until App Review). Log the
+      // reason so it's diagnosable instead of a silent "0 replied".
+      console.warn(
+        `[ig-agent] public comment reply failed (comment ${commentId}):`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
 
