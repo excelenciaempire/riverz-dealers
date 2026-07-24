@@ -27,8 +27,39 @@ import {
 } from '@/lib/shopify/create-order'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
+import { enqueueCall } from '@/lib/voice/queue'
 
 export const AGENTIC_LOOP_MAX_ITERS = 3
+
+/** Context the chat agent needs to escalate a conversation to a phone call. */
+export interface VoiceEscalationContext {
+  workspaceId: string
+  agentId: string
+  contactId: string
+}
+
+/**
+ * Tool: the CHAT agent decides, mid-conversation, to place a phone call when
+ * that serves the customer better than text (they ask for it, they're stuck,
+ * high-value/urgent). Only exposed when the agent has voice + "AI decides"
+ * enabled and the contact has a phone. The call still respects calling hours,
+ * opt-out and limits (enqueueCall), so the model can't force an off-hours call.
+ */
+export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
+  name: 'escalate_to_call',
+  description:
+    'Programá una LLAMADA telefónica de vos (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Usala con criterio — la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasá un motivo corto.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      reason: {
+        type: 'string',
+        description: 'Por qué conviene llamar (una frase corta).',
+      },
+    },
+    required: ['reason'],
+  },
+}
 
 /** Contexto de Shopify resuelto por el caller (runner o test endpoint). */
 export interface ShopifyToolContext {
@@ -297,7 +328,53 @@ export async function runTool(
   toolName: string,
   toolInput: unknown,
   shopify: ShopifyToolContext | null,
+  voice: VoiceEscalationContext | null = null,
 ): Promise<string> {
+  if (toolName === 'escalate_to_call') {
+    if (!voice) {
+      return JSON.stringify({
+        error: 'voice_not_available',
+        message: 'No podés programar llamadas en este agente. Seguí ayudando por texto.',
+      })
+    }
+    const input = (toolInput ?? {}) as { reason?: string }
+    // Dedupe: una sola llamada por IA en la última hora para este contacto,
+    // así el modelo no encola varias si insiste.
+    const db = supabaseAdmin()
+    const since = new Date(Date.now() - 60 * 60_000).toISOString()
+    const { count } = await db
+      .from('voice_calls')
+      .select('id', { count: 'exact', head: true })
+      .eq('contact_id', voice.contactId)
+      .eq('call_type', 'followup')
+      .gte('created_at', since)
+    if ((count ?? 0) > 0) {
+      return JSON.stringify({
+        scheduled: false,
+        message: 'Ya hay una llamada programada hace poco. Seguí ayudando por texto.',
+      })
+    }
+    const res = await enqueueCall({
+      workspaceId: voice.workspaceId,
+      agentId: voice.agentId,
+      contactId: voice.contactId,
+      callType: 'followup',
+      context: { reason: input.reason ?? '', escalated_by_ai: true },
+    })
+    if (!res.enqueued) {
+      return JSON.stringify({
+        scheduled: false,
+        reason: res.reason,
+        message:
+          'No se pudo programar la llamada ahora (horario, opt-out o límite). Seguí ayudando por texto.',
+      })
+    }
+    return JSON.stringify({
+      scheduled: true,
+      message:
+        'Llamada programada. Avisale al cliente con naturalidad que lo vas a llamar en breve.',
+    })
+  }
   if (toolName === 'lookup_order') {
     if (!shopify) {
       return JSON.stringify({
@@ -543,6 +620,8 @@ export async function runWithTools(
     messages: Anthropic.MessageParam[]
     tools: Anthropic.Tool[]
     shopify: ShopifyToolContext | null
+    /** Present → the escalate_to_call tool can place a phone call. */
+    voice?: VoiceEscalationContext | null
   },
 ): Promise<{
   text: string
@@ -626,7 +705,7 @@ export async function runWithTools(
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
-      const result = await runTool(block.name, block.input, args.shopify)
+      const result = await runTool(block.name, block.input, args.shopify, args.voice ?? null)
       toolResults.push({
         type: 'tool_result',
         tool_use_id: block.id,

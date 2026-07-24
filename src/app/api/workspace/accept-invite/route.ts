@@ -138,6 +138,8 @@ export async function POST(req: Request): Promise<Response> {
       role: invite.role,
       invited_email: invite.email,
       invited_by: invite.invited_by,
+      // RBAC: carry the pre-assigned menu access from the invite.
+      allowed_sections: invite.allowed_sections ?? null,
     });
     if (insErr) {
       log.error("workspace_members insert failed", {

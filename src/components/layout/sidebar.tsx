@@ -10,6 +10,8 @@ import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/hooks/use-locale";
 import { useSetupStatus } from "@/hooks/use-setup-status";
+import { useWorkspace } from "@/hooks/use-workspace";
+import { canAccessSection } from "@/lib/rbac/sections";
 import {
   Home,
   Inbox,
@@ -143,10 +145,25 @@ export function Sidebar({
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
   const { profile, signOut } = useAuth();
+  const { membership } = useWorkspace();
   const totalUnread = useTotalUnread();
   const { theme, setTheme } = useTheme();
   const setup = useSetupStatus();
   const t = useT();
+
+  // RBAC: which sidebar sections this member may see. Admins/owners (and legacy
+  // members with no grant) get null = full access; a restricted agent gets only
+  // their assigned sections. Hides nav items; the SectionGuard blocks direct
+  // navigation. Not a security boundary — data is RLS-scoped to membership.
+  const allowedSections =
+    membership?.role === "admin" ? null : (membership?.allowed_sections ?? null);
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canAccessSection(allowedSections, item.href)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const canSeeIntegrations = canAccessSection(allowedSections, "/integraciones");
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -254,7 +271,7 @@ export function Sidebar({
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.title} className="mb-4">
               <h3
                 className={cn(
@@ -288,17 +305,19 @@ export function Sidebar({
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          <NavLink
-            item={{
-              href: "/integraciones",
-              label: "nav.integrations",
-              icon: Blocks,
-            }}
-            pathname={pathname} fullPath={fullPath}
-            collapsed={collapsed}
-            totalUnread={0}
-            setupPending={!setup.ready}
-          />
+          {canSeeIntegrations && (
+            <NavLink
+              item={{
+                href: "/integraciones",
+                label: "nav.integrations",
+                icon: Blocks,
+              }}
+              pathname={pathname} fullPath={fullPath}
+              collapsed={collapsed}
+              totalUnread={0}
+              setupPending={!setup.ready}
+            />
+          )}
           <NavLink
             item={{ href: "/ajustes", label: "nav.settings", icon: Settings }}
             pathname={pathname} fullPath={fullPath}

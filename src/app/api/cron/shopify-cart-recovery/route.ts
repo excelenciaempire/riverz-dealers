@@ -3,6 +3,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
 import { pingCron } from '@/lib/cron/heartbeat'
@@ -172,19 +173,26 @@ export async function GET(request: Request) {
         log.captureException(e, { checkoutId: r.id })
       }
 
+      const cartVars = {
+        checkout_url: r.abandoned_checkout_url ?? '',
+        total_price: String(r.total_price ?? ''),
+        currency: r.currency ?? '',
+        customer_name: r.customer_name ?? '',
+        checkout_token: r.checkout_id,
+      }
       await runAutomationsForTrigger({
         workspaceId: r.workspace_id,
         triggerType: 'shopify_abandoned_checkout',
         contactId,
-        context: {
-          vars: {
-            checkout_url: r.abandoned_checkout_url ?? '',
-            total_price: String(r.total_price ?? ''),
-            currency: r.currency ?? '',
-            customer_name: r.customer_name ?? '',
-            checkout_token: r.checkout_id,
-          },
-        },
+        context: { vars: cartVars },
+      })
+      // Voice AI: si un agente activó "llamar para recuperar carrito", se encola
+      // la llamada sin automatización. Respeta horario/opt-out/límites/dedup.
+      void maybeAutoVoiceCall(admin, {
+        workspaceId: r.workspace_id,
+        contactId,
+        callType: 'cart_recovery',
+        context: cartVars,
       })
       dispatched++
     } catch (err) {

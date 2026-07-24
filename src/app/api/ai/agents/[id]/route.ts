@@ -95,8 +95,9 @@ export async function PATCH(
     'scope',
     'product_scope',
     'priority',
-    // Voice AI (migration 113)
+    // Voice AI (migration 113 + 115)
     'voice_enabled',
+    'voice_ai_decides',
     'voice_provider',
     'voice_id',
     'voice_greeting',

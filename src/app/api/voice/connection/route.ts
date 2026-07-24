@@ -79,6 +79,8 @@ export async function PUT(request: Request) {
         ? Number(body.config.monthly_minutes_limit)
         : null,
     kill_switch: Boolean(body.config?.kill_switch),
+    recording_enabled: Boolean(body.config?.recording_enabled),
+    transfer_number: body.config?.transfer_number?.trim() || undefined,
   };
   const status = cfg.phone_number ? 'connected' : 'pending';
 

@@ -48,6 +48,25 @@ export const voice = {
   retries: { es: "Reintentos si no contesta", en: "Retries if no answer" },
   retryDelay: { es: "Espera entre reintentos (min)", en: "Wait between retries (min)" },
 
+  // AI-assisted setup + "AI decides"
+  setupTitle: { es: "Configurar con IA", en: "Set up with AI" },
+  setupHint: {
+    es: "Describe en tus palabras cuándo querés que el agente llame y armamos todo por vos.",
+    en: "Describe in your words when the agent should call and we set it all up for you.",
+  },
+  setupPlaceholder: {
+    es: "Ej: que llame para confirmar cada pedido y para recuperar carritos si no responden por chat.",
+    en: "E.g. call to confirm every order and to recover carts if they don't reply on chat.",
+  },
+  setupApply: { es: "Generar", en: "Generate" },
+  setupApplied: { es: "Configuración aplicada", en: "Configuration applied" },
+  setupError: { es: "No se pudo generar la configuración", en: "Couldn't generate the setup" },
+  aiDecides: { es: "Dejar que la IA decida cuándo llamar", en: "Let the AI decide when to call" },
+  aiDecidesHint: {
+    es: "En medio del chat, el agente puede llamar si conviene (cliente lo pide, urgente, alto valor). Respeta horario y 'no llamar'.",
+    en: "Mid-chat, the agent can call when it helps (customer asks, urgent, high value). Respects hours and 'do not call'.",
+  },
+
   // ── Weekday short labels (ISO 1=Mon … 7=Sun) ──
   dayMon: { es: "Lun", en: "Mon" },
   dayTue: { es: "Mar", en: "Tue" },
@@ -113,6 +132,16 @@ export const voice = {
   killSwitchHint: {
     es: "Detiene de inmediato las llamadas salientes y entrantes.",
     en: "Immediately stops outbound and inbound calls.",
+  },
+  recordingEnabled: { es: "Grabar llamadas", en: "Record calls" },
+  recordingHint: {
+    es: "Agrega un aviso hablado de grabación al saludo, por cumplimiento.",
+    en: "Adds a spoken recording disclosure to the greeting, for compliance.",
+  },
+  transferNumber: { es: "Transferir a un humano (número)", en: "Transfer to a human (number)" },
+  transferNumberHint: {
+    es: "+57 … — el agente puede pasar la llamada a este número si hace falta.",
+    en: "+1 … — the agent can hand the call to this number when needed.",
   },
   connected: { es: "Conectado", en: "Connected" },
   notConnected: { es: "Sin configurar", en: "Not set up" },

@@ -1,12 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Play, Square } from 'lucide-react';
+import { Play, Square, Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/hooks/use-locale';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
 import type { VoiceCallingHours, VoiceCallType, VoiceObjectives } from '@/types';
 import {
@@ -19,6 +21,7 @@ import {
 
 export interface VoiceState {
   voice_enabled: boolean;
+  voice_ai_decides: boolean;
   voice_id: string | null;
   voice_greeting: string;
   voice_objectives: VoiceObjectives;
@@ -30,6 +33,7 @@ export interface VoiceState {
 
 export function initialVoiceState(agent?: {
   voice_enabled?: boolean;
+  voice_ai_decides?: boolean;
   voice_id?: string | null;
   voice_greeting?: string | null;
   voice_objectives?: VoiceObjectives | null;
@@ -40,6 +44,7 @@ export function initialVoiceState(agent?: {
 }): VoiceState {
   return {
     voice_enabled: agent?.voice_enabled ?? false,
+    voice_ai_decides: agent?.voice_ai_decides ?? false,
     voice_id: agent?.voice_id ?? null,
     voice_greeting: agent?.voice_greeting ?? '',
     voice_objectives: agent?.voice_objectives ?? {},
@@ -72,16 +77,59 @@ export function VoiceSettings({
   value,
   onChange,
   language,
+  workspaceId,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
   language: string;
+  workspaceId?: string;
 }) {
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [previewing, setPreviewing] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [setupText, setSetupText] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
+
+  async function aiSetup() {
+    if (!workspaceId || !setupText.trim()) return;
+    setSetupLoading(true);
+    try {
+      const res = await fetchWithCsrf('/api/ai/agents/voice-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          description: setupText.trim(),
+          language,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? t('voice.setupError'));
+        return;
+      }
+      const c = json.config as {
+        voice_enabled: boolean;
+        voice_ai_decides: boolean;
+        voice_greeting: string;
+        objectives: VoiceObjectives;
+      };
+      onChange({
+        ...value,
+        voice_enabled: c.voice_enabled ?? true,
+        voice_ai_decides: Boolean(c.voice_ai_decides),
+        voice_greeting: c.voice_greeting || value.voice_greeting,
+        voice_objectives: { ...value.voice_objectives, ...c.objectives },
+      });
+      setSetupText('');
+      toast.success(t('voice.setupApplied'));
+    } finally {
+      setSetupLoading(false);
+    }
+  }
 
   async function preview(voiceId: string) {
     if (previewing) {
@@ -147,6 +195,35 @@ export function VoiceSettings({
 
       {value.voice_enabled && (
         <>
+          {/* AI-assisted setup — describe it in words, we fill the form. */}
+          {workspaceId && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium text-foreground">{t('voice.setupTitle')}</p>
+              </div>
+              <p className="mb-2 text-xs text-muted-foreground">{t('voice.setupHint')}</p>
+              <Textarea
+                className="min-h-16 bg-background text-foreground"
+                placeholder={t('voice.setupPlaceholder')}
+                value={setupText}
+                onChange={(e) => setSetupText(e.target.value)}
+              />
+              <div className="mt-2 flex justify-end">
+                <Button size="sm" onClick={aiSetup} disabled={setupLoading || !setupText.trim()}>
+                  {setupLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="mr-1 h-3.5 w-3.5" />
+                      {t('voice.setupApply')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Voice picker */}
           <div>
             <p className="mb-1 text-sm font-medium text-foreground">{t('voice.voiceLabel')}</p>
@@ -244,6 +321,18 @@ export function VoiceSettings({
                 );
               })}
             </div>
+          </div>
+
+          {/* AI decides when to call */}
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/40 p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">{t('voice.aiDecides')}</p>
+              <p className="text-xs text-muted-foreground">{t('voice.aiDecidesHint')}</p>
+            </div>
+            <Switch
+              checked={value.voice_ai_decides}
+              onCheckedChange={(c) => set({ voice_ai_decides: c })}
+            />
           </div>
 
           {/* Calling hours */}

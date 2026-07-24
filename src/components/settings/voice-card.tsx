@@ -29,6 +29,8 @@ export function VoiceCard() {
     inbound_enabled: false,
     monthly_minutes_limit: null,
     kill_switch: false,
+    recording_enabled: false,
+    transfer_number: '',
   });
   const [stats, setStats] = useState<{ total: number; answered: number; minutes: number } | null>(
     null,
@@ -49,6 +51,8 @@ export function VoiceCard() {
           inbound_enabled: !!json.config.inbound_enabled,
           monthly_minutes_limit: json.config.monthly_minutes_limit ?? null,
           kill_switch: !!json.config.kill_switch,
+          recording_enabled: !!json.config.recording_enabled,
+          transfer_number: json.config.transfer_number ?? '',
         });
         setConnected(json.status === 'connected');
       }
@@ -171,6 +175,28 @@ export function VoiceCard() {
             <Switch
               checked={!!cfg.inbound_enabled}
               onCheckedChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
+            />
+          </label>
+
+          <label className="flex items-center justify-between">
+            <span>
+              <span className="block text-sm text-foreground">{t('voice.recordingEnabled')}</span>
+              <span className="block text-xs text-muted-foreground">{t('voice.recordingHint')}</span>
+            </span>
+            <Switch
+              checked={!!cfg.recording_enabled}
+              onCheckedChange={(c) => setCfg({ ...cfg, recording_enabled: c })}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">
+              {t('voice.transferNumber')}
+            </span>
+            <Input
+              value={cfg.transfer_number ?? ''}
+              onChange={(e) => setCfg({ ...cfg, transfer_number: e.target.value })}
+              placeholder={t('voice.transferNumberHint')}
             />
           </label>
 

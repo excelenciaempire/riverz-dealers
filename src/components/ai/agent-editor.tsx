@@ -654,8 +654,9 @@ export function AgentEditor({
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
-      // Voice AI (migration 113)
+      // Voice AI (migration 113 + 115)
       voice_enabled: voice.voice_enabled,
+      voice_ai_decides: voice.voice_ai_decides,
       voice_id: voice.voice_id,
       voice_greeting: voice.voice_greeting.trim() || null,
       voice_objectives: voice.voice_objectives,
@@ -1276,7 +1277,12 @@ export function AgentEditor({
 
             {tab === 'voice' && (
               <SectionCard title={t('voice.tab')} hint={t('voice.enableHint')}>
-                <VoiceSettings value={voice} onChange={setVoice} language={language} />
+                <VoiceSettings
+                  value={voice}
+                  onChange={setVoice}
+                  language={language}
+                  workspaceId={workspaceId}
+                />
               </SectionCard>
             )}
 

@@ -24,8 +24,10 @@ import {
   buildCheckoutTool,
   buildOrderTool,
   LOOKUP_ORDER_TOOL,
+  ESCALATE_TO_CALL_TOOL,
   runWithTools,
   type ShopifyToolContext,
+  type VoiceEscalationContext,
 } from './tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
@@ -1161,15 +1163,31 @@ async function generateReply(
   // (offers vs cantidad) la decide la config (workspace_checkout_config).
   // create_order sólo se expone si el agente tiene el toggle ON. Cuando
   // está OFF, create_checkout (link) sigue disponible como hasta ahora.
-  const tools = shopify
-    ? [
-        LOOKUP_ORDER_TOOL,
-        buildCheckoutTool(shopify.config ?? null),
-        ...(shopify.canCreateOrders
-          ? [buildOrderTool(shopify.config ?? null)]
-          : []),
-      ]
-    : [];
+  // Voice escalation: let the chat agent place a call when it's the better
+  // move — only if voice + "AI decides" are on and we have a phone to dial.
+  const voiceCtx: VoiceEscalationContext | null =
+    agent.voice_enabled &&
+    agent.voice_ai_decides &&
+    (contact.phone || primaryContact.phone)
+      ? {
+          workspaceId: agent.workspace_id,
+          agentId: agent.id,
+          contactId: primaryContact.id,
+        }
+      : null;
+
+  const tools = [
+    ...(shopify
+      ? [
+          LOOKUP_ORDER_TOOL,
+          buildCheckoutTool(shopify.config ?? null),
+          ...(shopify.canCreateOrders
+            ? [buildOrderTool(shopify.config ?? null)]
+            : []),
+        ]
+      : []),
+    ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
+  ];
   const result = await runWithTools(client, {
     model: agent.model || 'claude-haiku-4-5-20251001',
     max_tokens: Math.max(
@@ -1180,6 +1198,7 @@ async function generateReply(
     messages: claudeMessages,
     tools,
     shopify,
+    voice: voiceCtx,
   });
 
   const trimmed =

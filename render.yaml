@@ -138,6 +138,13 @@ services:
       # (Authorization: Bearer). Set the SAME value on the voice-worker.
       - key: VOICE_WORKER_SECRET
         sync: false
+      # Platform (super) admin allowlist — who can open /admin/voz (global voice
+      # model stack). Comma-separated emails. NEXT_PUBLIC_* is the client mirror
+      # that only toggles the sidebar link (server API is the real gate).
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
+      - key: NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS
+        sync: false
 
 # ============================================================
 # Voice AI worker — LiveKit Agents (Python). Persistent background process
@@ -175,6 +182,18 @@ services:
         sync: false
       # Must match VOICE_WORKER_SECRET on the web service.
       - key: VOICE_WORKER_SECRET
+        sync: false
+      # Call recording (optional) — S3-compatible bucket (e.g. Supabase Storage)
+      # LiveKit Egress uploads to. If any is missing, recording is skipped.
+      - key: RECORDING_S3_BUCKET
+        sync: false
+      - key: RECORDING_S3_ENDPOINT
+        sync: false
+      - key: RECORDING_S3_REGION
+        sync: false
+      - key: RECORDING_S3_ACCESS_KEY
+        sync: false
+      - key: RECORDING_S3_SECRET_KEY
         sync: false
 
 # ============================================================

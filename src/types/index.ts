@@ -53,6 +53,9 @@ export interface WorkspaceMember {
   invited_email?: string;
   invited_by?: string;
   joined_at: string;
+  /** RBAC (migration 116): which sidebar sections this member may open.
+   *  null/undefined = full access (owners/admins, legacy members). */
+  allowed_sections?: string[] | null;
   user?: Profile;
 }
 
@@ -66,6 +69,9 @@ export interface WorkspaceInvite {
   expires_at: string;
   accepted_at?: string;
   created_at: string;
+  /** RBAC (migration 116): pre-assigned menu access, copied to the member on
+   *  accept. null = full access. */
+  allowed_sections?: string[] | null;
 }
 
 export interface Profile {

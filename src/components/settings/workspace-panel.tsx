@@ -13,6 +13,7 @@ import {
   Shield,
   Activity,
   AlertTriangle,
+  SlidersHorizontal,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -24,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
 import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
+import { GATEABLE_SECTIONS } from "@/lib/rbac/sections";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types";
 
 interface UsageData {
@@ -46,6 +48,11 @@ export function WorkspacePanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
   const [inviting, setInviting] = useState(false);
+  // RBAC: pre-assigned menu access for the invite (null = full access).
+  const [inviteAllowed, setInviteAllowed] = useState<string[] | null>(null);
+  // Per-member access editor (which member's access is open + its draft).
+  const [accessEdit, setAccessEdit] = useState<{ id: string; value: string[] | null } | null>(null);
+  const [savingAccess, setSavingAccess] = useState(false);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -167,6 +174,8 @@ export function WorkspacePanel() {
         workspace_id: workspace.id,
         email: inviteEmail.trim().toLowerCase(),
         role: inviteRole,
+        // Admins are always full-access; agents carry the assigned sections.
+        allowed_sections: inviteRole === "agent" ? inviteAllowed : null,
       }),
     });
     setInviting(false);
@@ -177,8 +186,27 @@ export function WorkspacePanel() {
     }
     toast.success(t("settings.inviteSent", { email: inviteEmail }));
     setInviteEmail("");
+    setInviteAllowed(null);
     await fetchMembersAndInvites();
-  }, [workspace, inviteEmail, inviteRole, fetchMembersAndInvites, fetchWithCsrf, t]);
+  }, [workspace, inviteEmail, inviteRole, inviteAllowed, fetchMembersAndInvites, fetchWithCsrf, t]);
+
+  const handleSaveAccess = useCallback(async () => {
+    if (!accessEdit) return;
+    setSavingAccess(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspace_members")
+      .update({ allowed_sections: accessEdit.value })
+      .eq("id", accessEdit.id);
+    setSavingAccess(false);
+    if (error) {
+      toast.error(t("settings.genericError"));
+      return;
+    }
+    toast.success(t("settings.accessUpdated"));
+    setAccessEdit(null);
+    await fetchMembersAndInvites();
+  }, [accessEdit, fetchMembersAndInvites, t]);
 
   const handleRemoveMember = useCallback(
     async (id: string) => {

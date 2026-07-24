@@ -167,6 +167,7 @@ export async function POST(request: Request) {
   // sensible column defaults.
   for (const k of [
     'voice_enabled',
+    'voice_ai_decides',
     'voice_provider',
     'voice_id',
     'voice_greeting',

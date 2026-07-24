@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/header";
 import { NavProgress } from "@/components/layout/nav-progress";
 import { IdleGuard } from "@/components/auth/idle-guard";
 import { ShopifyClaimGuard } from "@/components/settings/shopify-claim-guard";
+import { SectionGuard } from "@/components/layout/section-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { useT } from "@/hooks/use-locale";
 
@@ -109,6 +110,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       </div>
       <IdleGuard />
       <ShopifyClaimGuard />
+      <SectionGuard />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
+import { sanitizeSections } from "@/lib/rbac/sections";
 
 /**
  * POST /api/workspace/invite
@@ -34,7 +35,13 @@ export async function POST(req: Request): Promise<Response> {
     );
 
   const body = (await req.json().catch(() => null)) as
-    | { workspace_id?: string; email?: string; role?: "admin" | "agent" }
+    | {
+        workspace_id?: string;
+        email?: string;
+        role?: "admin" | "agent";
+        /** RBAC: pre-assigned menu sections. Omit / null = full access. */
+        allowed_sections?: string[] | null;
+      }
     | null;
   if (!body?.workspace_id || !body.email?.trim()) {
     return NextResponse.json(
@@ -70,12 +77,21 @@ export async function POST(req: Request): Promise<Response> {
 
   const token = crypto.randomBytes(24).toString("hex");
   const email = body.email.trim().toLowerCase();
+  const role = body.role ?? "agent";
+  // Admins always have full access. For agents: an explicit array restricts to
+  // those sections; null / omitted stays full access (no footgun on a plain
+  // invite). '{}' (empty, provided) means "no sections" — an explicit choice.
+  const allowedSections =
+    role === "admin" || body.allowed_sections == null
+      ? null
+      : sanitizeSections(body.allowed_sections);
   const { error } = await admin.from("workspace_invites").insert({
     workspace_id: body.workspace_id,
     email,
-    role: body.role ?? "agent",
+    role,
     token,
     invited_by: user.id,
+    allowed_sections: allowedSections,
   });
   if (error) {
     return serverError(
