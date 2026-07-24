@@ -14,6 +14,8 @@ import {
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
+  ExternalLink,
+  Phone,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -458,6 +460,7 @@ function MessageContent({ message }: { message: Message }) {
               {message.content_text}
             </p>
           )}
+          <TemplateButtons message={message} />
         </div>
       );
 
@@ -484,6 +487,7 @@ function MessageContent({ message }: { message: Message }) {
           <p className="whitespace-pre-wrap break-words text-sm">
             {message.content_text || t("inbox.interactiveReply")}
           </p>
+          <TemplateButtons message={message} />
         </div>
       );
     }
@@ -497,6 +501,52 @@ function MessageContent({ message }: { message: Message }) {
         </p>
       );
   }
+}
+
+/**
+ * Botones de un mensaje saliente (plantilla / CTA de flujo). Se guardan
+ * resueltos en `messages.buttons` (migración 112): los URL ya traen el enlace
+ * real (short link), así el agente ve y puede abrir lo mismo que recibió el
+ * cliente. Los quick-reply se muestran informativos (no accionables desde acá).
+ */
+function TemplateButtons({ message }: { message: Message }) {
+  const buttons = message.buttons;
+  if (!Array.isArray(buttons) || buttons.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-col gap-1 border-t border-border/40 pt-2">
+      {buttons.map((b, i) => {
+        const label = (b?.text || "").trim();
+        if (!label) return null;
+        if (b.type === "URL" && b.url) {
+          return (
+            <a
+              key={i}
+              href={b.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 rounded-md bg-background/60 px-2 py-1.5 text-xs font-medium text-accent-ink hover:bg-background"
+            >
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{label}</span>
+            </a>
+          );
+        }
+        return (
+          <div
+            key={i}
+            className="flex items-center justify-center gap-1.5 rounded-md bg-background/40 px-2 py-1.5 text-xs font-medium text-muted-foreground"
+          >
+            {b.type === "PHONE_NUMBER" ? (
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <CornerDownLeft className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span className="truncate">{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /**

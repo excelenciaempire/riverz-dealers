@@ -16,6 +16,7 @@ import {
 } from "@/lib/instagram-agent/realtime";
 import { enrichContactProfile } from "@/lib/instagram-agent/profile-enrich";
 import { processCommentForDmRules } from "@/lib/comment-to-dm/engine";
+import { phonesMatch, sanitizePhoneForMeta } from "@/lib/whatsapp/phone-utils";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -464,13 +465,48 @@ async function upsertContact(
 ): Promise<Contact | null> {
   // We rely on the (workspace_id, channel, external_id) unique index
   // created in migration 013 (`uq_contact_identity`).
-  const { data: existing } = await db
+  let { data: existing } = await db
     .from("contacts")
     .select("*")
     .eq("workspace_id", input.workspace_id)
     .eq("channel", input.channel)
     .eq("external_id", input.external_id)
     .maybeSingle();
+
+  // WhatsApp: the wa_id Meta sends is NOT always the phone we stored. An
+  // Argentine mobile is "54911…" as wa_id but "5411…" when normalized from a
+  // Shopify order (libphonenumber keeps the landline form), so the exact
+  // external_id lookup misses and the reply would open a SECOND contact +
+  // conversation — splitting the thread from the automation that just
+  // messaged them. Fall back to the contact's wa_id (stamped by the senders)
+  // or a phonesMatch on the stored phone before creating anything.
+  if (!existing && input.channel === "whatsapp") {
+    const waId = sanitizePhoneForMeta(input.external_id);
+    const last8 = waId.slice(-8);
+    if (waId && last8.length === 8) {
+      const { data: candidates } = await db
+        .from("contacts")
+        .select("*")
+        .eq("workspace_id", input.workspace_id)
+        .eq("channel", "whatsapp")
+        .or(`wa_id.eq.${waId},phone.like.%${last8}`)
+        .order("created_at", { ascending: true });
+      const rows = (candidates ?? []) as Contact[];
+      const match =
+        rows.find((c) => (c as { wa_id?: string | null }).wa_id === waId) ??
+        rows.find((c) => c.phone && phonesMatch(c.phone, waId));
+      if (match) {
+        // Stamp the real WhatsApp identity so the next inbound resolves on
+        // the fast wa_id path. external_id stays untouched — the Shopify
+        // upsert keys on it.
+        if (!(match as { wa_id?: string | null }).wa_id) {
+          await db.from("contacts").update({ wa_id: waId }).eq("id", match.id);
+        }
+        existing = match;
+      }
+    }
+  }
+
   if (existing) {
     // Backfill the display name / avatar once the channel resolves them.
     // Meta DMs (Messenger/Instagram) and comment channels ship only an

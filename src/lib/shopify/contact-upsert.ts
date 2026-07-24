@@ -1,4 +1,9 @@
-import { normalizeToWhatsApp, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import {
+  normalizeToWhatsApp,
+  sanitizePhoneForMeta,
+  isValidE164,
+  phonesMatch,
+} from '@/lib/whatsapp/phone-utils'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -132,6 +137,47 @@ export async function upsertWhatsappContact(
         .update({ external_id: phone, phone })
         .eq('id', legacyRow.id)
       existing = legacyRow
+    }
+  }
+
+  // Variant match: the same person may already exist under their WhatsApp
+  // identity — an AR mobile is "54911…" as wa_id/external_id (webhook-created
+  // contact) but "5411…" once normalized from the Shopify payload, so both
+  // exact lookups above miss and the order would mint a duplicate contact,
+  // splitting the customer's thread in two. Match by wa_id or phone suffix
+  // before inserting.
+  if (!existing?.id) {
+    const last8 = phone.slice(-8)
+    if (last8.length === 8) {
+      const { data: candidates } = await admin
+        .from('contacts')
+        .select('id, is_shopify_customer, phone, wa_id, name, email')
+        .eq('workspace_id', args.workspaceId)
+        .eq('channel', 'whatsapp')
+        .or(`wa_id.eq.${phone},phone.like.%${last8}`)
+        .order('created_at', { ascending: true })
+      type Cand = {
+        id: string
+        is_shopify_customer?: boolean
+        phone?: string | null
+        wa_id?: string | null
+        name?: string | null
+        email?: string | null
+      }
+      const rows = (candidates ?? []) as Cand[]
+      const match =
+        rows.find((c) => c.wa_id === phone) ??
+        rows.find((c) => c.phone && phonesMatch(c.phone, phone))
+      if (match) {
+        // Backfill what Shopify knows and the webhook didn't: full name/email.
+        const patch: Record<string, unknown> = {}
+        if (!match.name && args.name) patch.name = args.name
+        if (!match.email && args.email) patch.email = args.email
+        if (Object.keys(patch).length > 0) {
+          void admin.from('contacts').update(patch).eq('id', match.id)
+        }
+        existing = { id: match.id, is_shopify_customer: match.is_shopify_customer }
+      }
     }
   }
 

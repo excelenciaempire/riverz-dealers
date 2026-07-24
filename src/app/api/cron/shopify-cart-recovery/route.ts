@@ -67,6 +67,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ processed: 0 })
   }
 
+  // Dedupe by recipient WITHIN this run. Shopify mints a NEW checkout token
+  // every time the same customer re-enters checkout, so one abandoner routinely
+  // owns several open `shopify_checkouts` rows (same phone, different
+  // checkout_id). Without this, the cron claims each row and fires an identical
+  // "dejaste tu carrito" to the same person two or three times in a row. Keyed
+  // by the normalized phone; the first row wins, the siblings are claimed
+  // (so the next tick skips them) but never re-sent.
+  const dispatchedPhones = new Set<string>()
+
   let processed = 0
   let dispatched = 0
   for (const row of due) {
@@ -101,6 +110,36 @@ export async function GET(request: Request) {
       .select('id')
       .maybeSingle()
     if (!claim) continue
+
+    // Same person, multiple open checkout tokens → send once. The row is
+    // already claimed above, so skipping here just means "no second message".
+    const phoneKey = (r.customer_phone || '').replace(/\D/g, '')
+    if (phoneKey) {
+      if (dispatchedPhones.has(phoneKey)) {
+        processed++
+        continue
+      }
+      dispatchedPhones.add(phoneKey)
+
+      // Cross-run guard: a sibling checkout for the same phone may have been
+      // recovered in a PREVIOUS tick (within the last day). If so, don't
+      // re-message — the abandoner already got the nudge.
+      const last8 = phoneKey.slice(-8)
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: recent } = await admin
+        .from('shopify_checkouts')
+        .select('id')
+        .eq('workspace_id', r.workspace_id)
+        .neq('id', r.id)
+        .like('customer_phone', `%${last8}`)
+        .gte('recovery_dispatched_at', dayAgo)
+        .limit(1)
+        .maybeSingle()
+      if (recent) {
+        processed++
+        continue
+      }
+    }
 
     try {
       const contactId = await upsertWhatsappContact(admin, {

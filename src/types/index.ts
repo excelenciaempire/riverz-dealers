@@ -314,10 +314,26 @@ export interface Message {
   created_at: string;
   reply_to_message_id?: string;
   interactive_reply_id?: string;
+  /** Botones resueltos del mensaje saliente (plantilla/interactivo) para
+   *  renderizarlos en la bandeja. URL con destino final ya resuelto (short
+   *  link), no el placeholder {{1}}. Migración 112. */
+  buttons?: MessageButton[] | null;
   /** FB/IG comments: whether the comment is currently hidden on the platform.
    *  Persisted (migration 095) so the state survives reloads and syncs across
    *  panes; written by /api/messages/moderate. */
   is_hidden?: boolean;
+}
+
+/** Un botón resuelto de un mensaje saliente (plantilla/interactivo) tal como
+ *  se guarda en `messages.buttons` y se muestra en la burbuja. */
+export interface MessageButton {
+  /** 'URL' abre un enlace; 'QUICK_REPLY'/'PHONE_NUMBER' se muestran informativos. */
+  type: 'URL' | 'QUICK_REPLY' | 'PHONE_NUMBER' | string;
+  text: string;
+  /** Destino final (short link ya resuelto) para botones URL. */
+  url?: string;
+  /** Teléfono para botones PHONE_NUMBER. */
+  phone_number?: string;
 }
 
 export interface CommentMeta {
