@@ -71,6 +71,10 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Cliente inactivo',
     pillClass: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
   },
+  voice_call_completed: {
+    label: 'Llamada finalizada (Voz IA)',
+    pillClass: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {

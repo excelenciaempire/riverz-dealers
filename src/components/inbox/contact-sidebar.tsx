@@ -6,6 +6,7 @@ import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type { Contact, ContactNote } from "@/types";
 import {
   Phone,
+  PhoneOff,
   Mail,
   Copy,
   Check,
@@ -18,13 +19,16 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
+import { CallWithAiButton } from "@/components/inbox/voice-call-view";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 type ContactSegment = NonNullable<Contact["ai_segment"]>;
 
@@ -53,7 +57,9 @@ function CloseButton({ onClose }: { onClose?: () => void }) {
 
 export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
   const t = useT();
+  const { workspace } = useWorkspace();
   const [copied, setCopied] = useState(false);
+  const [optOut, setOptOut] = useState<boolean>(!!contact?.voice_opt_out);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [newNote, setNewNote] = useState("");
@@ -93,6 +99,22 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
     setRecentActivity(null);
     if (contact) fetchSegment(false);
   }, [contact, fetchSegment]);
+
+  // Keep the local opt-out toggle in sync with the selected contact.
+  useEffect(() => {
+    setOptOut(!!contact?.voice_opt_out);
+  }, [contact]);
+
+  const toggleOptOut = useCallback(async () => {
+    if (!contact) return;
+    const next = !optOut;
+    setOptOut(next);
+    const supabase = createClient();
+    await supabase
+      .from("contacts")
+      .update({ voice_opt_out: next })
+      .eq("id", contact.id);
+  }, [contact, optOut]);
 
   const fetchNotes = useCallback(async () => {
     if (!contact) return;
@@ -222,6 +244,27 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
               </div>
             )}
           </div>
+
+          {/* Voice AI — call this contact + do-not-call toggle. Only when we
+              have a phone to dial and a workspace context. */}
+          {contact.phone && workspace?.id && (
+            <div className="mt-3 space-y-2">
+              {!optOut && (
+                <CallWithAiButton
+                  workspaceId={workspace.id}
+                  contactId={contact.id}
+                  className="w-full justify-center"
+                />
+              )}
+              <label className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 text-foreground">
+                  <PhoneOff className="h-4 w-4 text-muted-foreground" />
+                  {t("voice.optOut")}
+                </span>
+                <Switch checked={optOut} onCheckedChange={toggleOptOut} />
+              </label>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

@@ -24,6 +24,7 @@ import {
   GitFork,
   Webhook,
   CircleSlash,
+  PhoneCall,
   Zap,
   Loader2,
   ArrowRight,
@@ -271,6 +272,13 @@ const STEP_META: Record<BuilderStepType, StepMeta> = {
     iconBg: "bg-red-500/15",
     iconText: "text-red-600 dark:text-red-400",
   },
+  voice_call: {
+    label: "automations.stepVoiceCall",
+    icon: PhoneCall,
+    border: "border-l-violet-500",
+    iconBg: "bg-violet-500/15",
+    iconText: "text-violet-600 dark:text-violet-400",
+  },
 }
 
 // `send_message` (free-text) is intentionally NOT in the picker — Meta
@@ -283,6 +291,7 @@ const STEP_META: Record<BuilderStepType, StepMeta> = {
 // automation keeps loading + running its webhook step.
 const ADDABLE_STEPS: BuilderStepType[] = [
   "send_template",
+  "voice_call",
   "assign_conversation",
   "update_contact_field",
   "wait",
@@ -330,6 +339,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
   { value: "shopify_order_cancelled", label: "automations.triggerShopifyOrderCancelled" },
   { value: "shopify_order_refunded", label: "automations.triggerShopifyOrderRefunded" },
   { value: "shopify_abandoned_checkout", label: "automations.triggerShopifyAbandonedCheckout" },
+  { value: "voice_call_completed", label: "automations.triggerVoiceCallCompleted" },
 ]
 
 // Friendly labels for trigger types NOT in the selectable list (legacy /
@@ -864,6 +874,8 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
       return {}
+    case "voice_call":
+      return { agent_id: "", call_type: "", objective_override: "" }
     default:
       return {}
   }
@@ -2440,11 +2452,104 @@ function StepEditor({
           </FieldBlock>
         </>
       )
+    case "voice_call":
+      return <VoiceCallStepEditor cfg={cfg} set={set} />
     case "close_conversation":
       return null
     default:
       return null
   }
+}
+
+/** Voice AI call step — pick the voice agent, the call script, and an
+ *  optional one-off objective. Only voice-enabled agents are offered. */
+function VoiceCallStepEditor({
+  cfg,
+  set,
+}: {
+  cfg: Record<string, unknown>
+  set: (patch: Record<string, unknown>) => void
+}) {
+  const t = useT()
+  const { workspace } = useWorkspace()
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!workspace?.id) return
+    let cancelled = false
+    ;(async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("ai_agents")
+        .select("id, name")
+        .eq("workspace_id", workspace.id)
+        .eq("voice_enabled", true)
+        .is("deleted_at", null)
+        .order("priority", { ascending: false })
+      if (!cancelled) {
+        setAgents((data ?? []) as { id: string; name: string }[])
+        setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [workspace?.id])
+
+  const CALL_TYPES: { value: string; label: string }[] = [
+    { value: "", label: t("automations.voiceCallTypeAuto") },
+    { value: "order_confirmation", label: t("automations.voiceCallTypeOrder") },
+    { value: "cart_recovery", label: t("automations.voiceCallTypeCart") },
+    { value: "followup", label: t("automations.voiceCallTypeFollowup") },
+    { value: "manual", label: t("automations.voiceCallTypeManual") },
+  ]
+
+  return (
+    <>
+      <FieldBlock label={t("automations.voiceCallAgent")}>
+        {loading ? (
+          <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
+        ) : agents.length > 0 ? (
+          <select
+            value={(cfg.agent_id as string) ?? ""}
+            onChange={(e) => set({ agent_id: e.target.value })}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="">{t("automations.voiceCallPickAgent")}</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t("automations.voiceCallNoAgents")}</p>
+        )}
+      </FieldBlock>
+      <FieldBlock label={t("automations.voiceCallType")}>
+        <select
+          value={(cfg.call_type as string) ?? ""}
+          onChange={(e) => set({ call_type: e.target.value })}
+          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+        >
+          {CALL_TYPES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </FieldBlock>
+      <FieldBlock label={t("automations.voiceCallObjective")}>
+        <Textarea
+          value={(cfg.objective_override as string) ?? ""}
+          onChange={(e) => set({ objective_override: e.target.value })}
+          placeholder={t("automations.voiceCallObjectivePlaceholder")}
+          className="min-h-16 bg-muted text-foreground"
+        />
+      </FieldBlock>
+    </>
+  )
 }
 
 function FieldBlock({
@@ -2520,6 +2625,10 @@ function previewFor(step: BuilderStep, t: TFn): string {
     }
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
+    case "voice_call":
+      return (step.step_config.agent_id as string)
+        ? t("automations.voiceCallPreview")
+        : t("automations.voiceCallPickAgent")
     default:
       return ""
   }

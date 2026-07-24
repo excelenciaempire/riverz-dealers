@@ -31,6 +31,7 @@ import { products } from "./products";
 import { settings } from "./settings";
 import { system } from "./system";
 import { templates } from "./templates";
+import { voice } from "./voice";
 
 const NAMESPACES: Record<string, Namespace> = {
   assistant,
@@ -60,6 +61,7 @@ const NAMESPACES: Record<string, Namespace> = {
   settings,
   system,
   templates,
+  voice,
 };
 
 /** Flat lookup: { "nav.inbox": { es, en }, ... } built once at module load. */

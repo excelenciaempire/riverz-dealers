@@ -1,4 +1,8 @@
-import type { Channel } from '@/types';
+import type {
+  Channel,
+  VoiceCallingHours,
+  VoiceObjectives,
+} from '@/types';
 
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
@@ -83,6 +87,26 @@ export interface AiAgent {
   scope: AiScope;
   product_scope: AiProductScope;
   priority: number;
+
+  // ── Voice AI (migration 113) ──
+  /** Master switch: this agent can place/answer phone calls. */
+  voice_enabled: boolean;
+  /** TTS provider for the call voice. MVP: 'elevenlabs'. */
+  voice_provider: 'elevenlabs';
+  /** Provider voice id (e.g. ElevenLabs voice_id). */
+  voice_id: string | null;
+  /** First line the agent speaks; supports {{contact_name}}. */
+  voice_greeting: string | null;
+  /** Per-call-type objectives/scripts. */
+  voice_objectives: VoiceObjectives;
+  /** Hard cap on call length (seconds). */
+  voice_max_call_seconds: number;
+  /** Allowed outbound calling window (workspace timezone). */
+  voice_calling_hours: VoiceCallingHours | null;
+  /** Retries when a call is not answered. */
+  voice_max_retries: number;
+  /** Minutes to wait before retrying an unanswered call. */
+  voice_retry_delay_minutes: number;
 
   created_at: string;
   updated_at: string;

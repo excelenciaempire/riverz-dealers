@@ -162,6 +162,22 @@ export async function POST(request: Request) {
     priority: body.priority ?? 0,
     created_by: user.id,
   };
+  // Voice AI (migration 113) — only override the DB defaults when the client
+  // sent a value, so agents created without touching the Voz tab keep the
+  // sensible column defaults.
+  for (const k of [
+    'voice_enabled',
+    'voice_provider',
+    'voice_id',
+    'voice_greeting',
+    'voice_objectives',
+    'voice_max_call_seconds',
+    'voice_calling_hours',
+    'voice_max_retries',
+    'voice_retry_delay_minutes',
+  ] as const) {
+    if (k in body && body[k] !== undefined) payload[k] = body[k];
+  }
   if (body.api_key && body.api_key.trim()) {
     payload.api_key_encrypted = encrypt(body.api_key.trim());
   }

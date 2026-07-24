@@ -10,7 +10,8 @@ export type Channel =
   | 'fb_comment'
   | 'ig_comment'
   | 'mercadolibre'
-  | 'tiktok_comment';
+  | 'tiktok_comment'
+  | 'voice';
 
 export const CHANNELS: Channel[] = [
   'whatsapp',
@@ -22,6 +23,7 @@ export const CHANNELS: Channel[] = [
   'ig_comment',
   'mercadolibre',
   'tiktok_comment',
+  'voice',
 ];
 
 // ============================================================
@@ -130,6 +132,9 @@ export interface Contact {
   last_offer_units?: number | null;
   /** Cuándo se registró last_offer_chosen. Migration 084. */
   last_offer_at?: string | null;
+  /** Cumplimiento Voice AI: si true, este contacto NO recibe llamadas de
+   *  IA (opt-out). Lo respeta la cola de llamadas. Migration 113. */
+  voice_opt_out?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -533,7 +538,12 @@ export type AutomationTriggerType =
   // the cadence — see /api/cron/shopify-feedback and
   // /api/cron/reengagement.
   | 'post_delivery_feedback'
-  | 'customer_inactive';
+  | 'customer_inactive'
+  // Fires after a Voice AI call finishes (any terminal status). The
+  // trigger_event carries call.outcome/status/duration/summary so a
+  // follow-up automation can branch (e.g. no_answer → WhatsApp).
+  // Emitted by the voice result endpoint, NOT by a cron scheduler.
+  | 'voice_call_completed';
 
 export type AutomationStepType =
   | 'send_message'
@@ -545,7 +555,11 @@ export type AutomationStepType =
   | 'wait'
   | 'condition'
   | 'send_webhook'
-  | 'close_conversation';
+  | 'close_conversation'
+  // Enqueue a Voice AI phone call (Telnyx + LiveKit). Does NOT dial
+  // inline — inserts a queued voice_calls row respecting the agent's
+  // calling window / limits; the voice-calls cron dispatches it.
+  | 'voice_call';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 
@@ -649,6 +663,21 @@ export interface SendWebhookStepConfig {
   body_template?: string;
 }
 
+/** Config for the `voice_call` step: enqueue a Voice AI phone call. */
+export interface VoiceCallStepConfig {
+  /** Agent that runs the call. Must have voice_enabled. */
+  agent_id: string;
+  /** Which call script/objective to use. Defaults to 'order_confirmation'
+   *  when the trigger is an order, else 'manual'. */
+  call_type?: VoiceCallType;
+  /** Optional one-off objective that overrides the agent's configured
+   *  voice_objectives[call_type].objective for this automation. */
+  objective_override?: string;
+  /** Retry policy overrides (fall back to the agent's config). */
+  max_attempts?: number;
+  retry_delay_minutes?: number;
+}
+
 export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendTemplateStepConfig
@@ -658,6 +687,7 @@ export type AutomationStepConfig =
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
+  | VoiceCallStepConfig
   | Record<string, never>
   | Record<string, unknown>;
 
@@ -706,4 +736,129 @@ export interface AutomationLog {
   error_message?: string | null;
   created_at: string;
   contact?: Contact;
+}
+
+// ============================================================
+// Voice AI — phone agents (migration 113)
+// ============================================================
+
+/** Which script/objective a voice call runs with. */
+export type VoiceCallType =
+  | 'order_confirmation'
+  | 'cart_recovery'
+  | 'followup'
+  | 'manual'
+  | 'inbound';
+
+export type VoiceCallDirection = 'outbound' | 'inbound';
+
+/** Lifecycle of a voice call (queue → dial → talk → terminal). */
+export type VoiceCallStatus =
+  | 'queued'
+  | 'dialing'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'no_answer'
+  | 'busy'
+  | 'voicemail'
+  | 'canceled';
+
+/** Statuses that mean the call never connected to a human. */
+export const VOICE_UNANSWERED_STATUSES: VoiceCallStatus[] = [
+  'no_answer',
+  'busy',
+  'voicemail',
+];
+
+/** Structured result the agent reports before hanging up. */
+export type VoiceCallOutcome =
+  | 'confirmed'
+  | 'cancelled_by_customer'
+  | 'rescheduled'
+  | 'recovered'
+  | 'declined'
+  | 'callback_requested'
+  | 'opt_out'
+  | 'no_outcome';
+
+/** Per-call-type objective config, stored in ai_agents.voice_objectives. */
+export interface VoiceObjective {
+  enabled: boolean;
+  /** What the agent should accomplish on this call. */
+  objective: string;
+  /** Extra instructions appended to the voice system prompt. */
+  extra_instructions?: string;
+}
+
+export type VoiceObjectives = Partial<Record<VoiceCallType, VoiceObjective>>;
+
+/** Allowed calling window, evaluated in the workspace timezone. */
+export interface VoiceCallingHours {
+  /** "HH:mm" 24h. */
+  start: string;
+  /** "HH:mm" 24h. */
+  end: string;
+  /** ISO weekdays allowed (1 = Monday … 7 = Sunday). */
+  days: number[];
+}
+
+/** Per-call cost breakdown (estimated in MVP, reconciled later). */
+export interface VoiceCallCost {
+  stt_usd?: number;
+  llm_usd?: number;
+  tts_usd?: number;
+  telephony_usd?: number;
+  total_usd?: number;
+  minutes?: number;
+}
+
+export interface VoiceCall {
+  id: string;
+  workspace_id: string;
+  agent_id: string;
+  contact_id: string;
+  conversation_id: string | null;
+  automation_id: string | null;
+  direction: VoiceCallDirection;
+  call_type: VoiceCallType;
+  /** E.164 destination (outbound) or caller (inbound). */
+  phone: string;
+  language: string;
+  status: VoiceCallStatus;
+  outcome: VoiceCallOutcome | null;
+  outcome_details: Record<string, unknown> | null;
+  summary: string | null;
+  /** Order/cart/objective context interpolated for the call. */
+  context: Record<string, unknown>;
+  scheduled_at: string;
+  attempt: number;
+  max_attempts: number;
+  parent_call_id: string | null;
+  room_name: string | null;
+  started_at: string | null;
+  answered_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  cost: VoiceCallCost | null;
+  recording_url: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  contact?: Contact;
+}
+
+/** Per-workspace voice connection config, stored in
+ *  channel_connections.config for the channel='voice' row. */
+export interface VoiceConnectionConfig {
+  /** Merchant's own DID in E.164 (caller ID + inbound target). */
+  phone_number?: string;
+  /** ISO country of the number (e.g. "CO", "MX"). */
+  country?: string;
+  /** Whether inbound calls are answered by the agent. */
+  inbound_enabled?: boolean;
+  /** Monthly cap of talk minutes; null/0 = unlimited. */
+  monthly_minutes_limit?: number | null;
+  /** Emergency stop: when true, no calls are dispatched. */
+  kill_switch?: boolean;
 }

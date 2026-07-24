@@ -95,6 +95,16 @@ export async function PATCH(
     'scope',
     'product_scope',
     'priority',
+    // Voice AI (migration 113)
+    'voice_enabled',
+    'voice_provider',
+    'voice_id',
+    'voice_greeting',
+    'voice_objectives',
+    'voice_max_call_seconds',
+    'voice_calling_hours',
+    'voice_max_retries',
+    'voice_retry_delay_minutes',
   ];
   for (const k of ALLOWED) {
     if (k in body) update[k] = body[k];

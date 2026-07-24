@@ -120,6 +120,62 @@ services:
         sync: false
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
+      # Voice AI (Telnyx SIP ↔ LiveKit). The web service dispatches the agent
+      # and serves the internal /api/internal/voice/* endpoints; the actual
+      # telephony/media runs in the voice-worker below. ELEVENLABS_API_KEY is
+      # shared with the worker (also used by the in-app voice preview).
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_SIP_OUTBOUND_TRUNK_ID
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      # Shared secret for the worker → web internal endpoints
+      # (Authorization: Bearer). Set the SAME value on the voice-worker.
+      - key: VOICE_WORKER_SECRET
+        sync: false
+
+# ============================================================
+# Voice AI worker — LiveKit Agents (Python). Persistent background process
+# (NOT serverless): registers with LiveKit over an outbound WSS connection,
+# receives dispatched jobs, dials via the Telnyx SIP trunk, runs the
+# STT→LLM→TTS pipeline, and reports transcripts/outcomes back to the web
+# service. No public ingress needed.
+# ============================================================
+  - type: worker
+    name: voice-worker
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./voice-worker/Dockerfile
+    dockerContext: ./voice-worker
+    envVars:
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_SIP_OUTBOUND_TRUNK_ID
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Web service base URL (https://…) the worker calls for context/result/tool.
+      - key: RIVERZ_BASE_URL
+        sync: false
+      # Must match VOICE_WORKER_SECRET on the web service.
+      - key: VOICE_WORKER_SECRET
+        sync: false
 
 # ============================================================
 # Cron jobs — Render Cron Services declared in the blueprint so the
@@ -394,6 +450,23 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/broadcasts/cron
+    schedule: "* * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  # Voice AI queue: dispatches due queued calls (respecting calling window +
+  # limits) and sweeps stuck calls. Every minute. Uses AUTOMATION_CRON_SECRET.
+  - type: cron
+    name: cron-voice-calls
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/voice-calls
     schedule: "* * * * *"
     envVars:
       - key: BASE_URL

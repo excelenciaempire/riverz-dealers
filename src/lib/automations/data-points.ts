@@ -434,6 +434,50 @@ export const DATA_POINTS: DataPoint[] = [
     usableInConditions: true,
     condition: { kind: 'message' },
   },
+
+  // ── Voice call result (voice_call_completed trigger) ──
+  // Seeded by the voice result endpoint (persistCallResult) so a follow-up
+  // automation can branch: e.g. call_status = no_answer → send a WhatsApp.
+  {
+    id: 'call_status',
+    labelKey: 'automations.dpCallStatus',
+    group: 'message',
+    valueKind: 'text',
+    triggers: ['voice_call_completed'],
+    usableInConditions: true,
+    templateVarKey: 'call_status',
+    condition: { kind: 'var', varKey: 'call_status' },
+  },
+  {
+    id: 'call_outcome',
+    labelKey: 'automations.dpCallOutcome',
+    group: 'message',
+    valueKind: 'text',
+    triggers: ['voice_call_completed'],
+    usableInConditions: true,
+    templateVarKey: 'call_outcome',
+    condition: { kind: 'var', varKey: 'call_outcome' },
+  },
+  {
+    id: 'call_duration',
+    labelKey: 'automations.dpCallDuration',
+    group: 'message',
+    valueKind: 'number',
+    triggers: ['voice_call_completed'],
+    usableInConditions: true,
+    templateVarKey: 'call_duration',
+    condition: { kind: 'var', varKey: 'call_duration' },
+  },
+  {
+    id: 'call_summary',
+    labelKey: 'automations.dpCallSummary',
+    group: 'message',
+    valueKind: 'text',
+    triggers: ['voice_call_completed'],
+    usableInConditions: false,
+    templateVarKey: 'call_summary',
+    condition: { kind: 'var', varKey: 'call_summary' },
+  },
 ]
 
 function exposed(dp: DataPoint, trigger: AutomationTriggerType): boolean {

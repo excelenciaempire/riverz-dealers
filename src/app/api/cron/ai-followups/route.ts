@@ -5,6 +5,7 @@ import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { pingCron } from '@/lib/cron/heartbeat';
 import { runFollowUp } from '@/lib/ai/followup';
+import { runVoiceFollowups } from '@/lib/voice/followup';
 import type { AiAgent, BusinessHours } from '@/lib/ai/types';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 
@@ -75,7 +76,17 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ workspaces: byWorkspace.size, processed, sent });
+  // Voice follow-ups: silent chat customers whose agent has voice follow-ups
+  // on get ONE call per silence streak. Independent of the text path above
+  // (a call isn't bound by Meta's 24h window). Fail-soft.
+  const voice = await runVoiceFollowups(admin);
+
+  return NextResponse.json({
+    workspaces: byWorkspace.size,
+    processed,
+    sent,
+    voice_calls_enqueued: voice.enqueued,
+  });
 }
 
 async function processWorkspace(

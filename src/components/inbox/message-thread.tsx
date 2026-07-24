@@ -47,6 +47,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
+import { VoiceCallCard } from "./voice-call-view";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
@@ -1483,23 +1484,29 @@ export function MessageThread({
         )}
       </div>
 
-      {/* Composer — the 24h session-window check only applies to
-          WhatsApp; for every other channel the agent can reply any
-          time (comments, DMs, emails). Without this gate, fb_comment
-          threads opened a day after a comment landed showed the
-          composer in "expired" state and blocked the reply. */}
-      <MessageComposer
-        conversationId={conversation.id}
-        channel={conversation.channel}
-        sessionExpired={
-          conversation.channel === "whatsapp" && sessionInfo.expired
-        }
-        onSend={handleSend}
-        onSendMedia={handleSendMedia}
-        onOpenTemplates={handleOpenTemplates}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-      />
+      {/* Voice conversations are a call log: show the call card + transcript,
+          no composer (you can't type a reply to a phone call). */}
+      {conversation.channel === "voice" ? (
+        <VoiceCallCard conversationId={conversation.id} />
+      ) : (
+        /* Composer — the 24h session-window check only applies to
+           WhatsApp; for every other channel the agent can reply any
+           time (comments, DMs, emails). Without this gate, fb_comment
+           threads opened a day after a comment landed showed the
+           composer in "expired" state and blocked the reply. */
+        <MessageComposer
+          conversationId={conversation.id}
+          channel={conversation.channel}
+          sessionExpired={
+            conversation.channel === "whatsapp" && sessionInfo.expired
+          }
+          onSend={handleSend}
+          onSendMedia={handleSendMedia}
+          onOpenTemplates={handleOpenTemplates}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+        />
+      )}
 
       <TemplatePicker
         open={templateModalOpen}

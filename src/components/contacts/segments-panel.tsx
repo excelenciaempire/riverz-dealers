@@ -76,6 +76,7 @@ const CHANNEL_LABEL_KEYS: Record<Channel, string> = {
   ig_comment: 'contacts.channelIgComment',
   mercadolibre: 'Mercado Libre',
   tiktok_comment: 'contacts.channelTiktokComment',
+  voice: 'Voz',
 };
 
 /** Resolve channel labels for the current locale (brand names pass through). */

@@ -15,6 +15,7 @@ import {
   Package,
   Briefcase,
   Radio,
+  PhoneCall,
   Settings as SettingsIcon,
   ChevronDown,
   ChevronRight,
@@ -40,6 +41,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import {
+  VoiceSettings,
+  initialVoiceState,
+  type VoiceState,
+} from '@/components/ai/voice-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
 import type { TFn } from '@/lib/i18n/translate';
@@ -355,11 +361,15 @@ export function AgentEditor({
   // completo; el botón del header lo abre on-demand.
   const [showTest, setShowTest] = useState(false);
 
-  type TabKey = 'business' | 'reach' | 'advanced';
+  // Voice AI config — one state object, edited by <VoiceSettings>.
+  const [voice, setVoice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
+
+  type TabKey = 'business' | 'reach' | 'voice' | 'advanced';
   const [tab, setTab] = useState<TabKey>('business');
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
     { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
     { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
+    { key: 'voice', label: t('voice.tab'), icon: PhoneCall },
     { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
   ];
 
@@ -644,6 +654,15 @@ export function AgentEditor({
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
+      // Voice AI (migration 113)
+      voice_enabled: voice.voice_enabled,
+      voice_id: voice.voice_id,
+      voice_greeting: voice.voice_greeting.trim() || null,
+      voice_objectives: voice.voice_objectives,
+      voice_max_call_seconds: voice.voice_max_call_seconds,
+      voice_calling_hours: voice.voice_calling_hours,
+      voice_max_retries: voice.voice_max_retries,
+      voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
       model: DEFAULT_MODEL,
       scope,
       channels: scope === 'channels' ? channels : [],
@@ -1253,6 +1272,12 @@ export function AgentEditor({
                   </div>
                 </Field>
               </>
+            )}
+
+            {tab === 'voice' && (
+              <SectionCard title={t('voice.tab')} hint={t('voice.enableHint')}>
+                <VoiceSettings value={voice} onChange={setVoice} language={language} />
+              </SectionCard>
             )}
 
             {tab === 'advanced' && (

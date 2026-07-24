@@ -166,6 +166,10 @@ export const automations = {
     es: "Carrito abandonado (Shopify)",
     en: "Abandoned checkout (Shopify)",
   },
+  triggerVoiceCallCompleted: {
+    es: "Llamada finalizada (Voz IA)",
+    en: "Call finished (Voice AI)",
+  },
   // Legacy / cron-driven triggers — not offered when building a NEW automation
   // but shown with their real name when editing an existing one.
   triggerPostDeliveryFeedback: {
@@ -223,6 +227,10 @@ export const automations = {
   dpHasTag: { es: "Tiene la etiqueta", en: "Has the tag" },
   dpInSegment: { es: "Está en el grupo", en: "Is in the group" },
   dpMessageText: { es: "Lo que escribió", en: "What they wrote" },
+  dpCallStatus: { es: "Estado de la llamada", en: "Call status" },
+  dpCallOutcome: { es: "Resultado de la llamada", en: "Call outcome" },
+  dpCallDuration: { es: "Duración de la llamada (seg)", en: "Call duration (sec)" },
+  dpCallSummary: { es: "Resumen de la llamada", en: "Call summary" },
   dpTimeOfDay: { es: "Hora del día", en: "Time of day" },
   dpGroupOrder: { es: "Del pedido", en: "From the order" },
   dpGroupContact: { es: "Del contacto", en: "From the contact" },
@@ -268,6 +276,27 @@ export const automations = {
   stepSwitch: { es: "Bifurcar según un dato", en: "Branch by a value" },
   stepSendWebhook: { es: "Enviar webhook", en: "Send webhook" },
   stepCloseConversation: { es: "Cerrar conversación", en: "Close conversation" },
+  stepVoiceCall: { es: "Llamar con IA", en: "Call with AI" },
+
+  // Builder — voice_call step config
+  voiceCallAgent: { es: "Agente de voz", en: "Voice agent" },
+  voiceCallPickAgent: { es: "Elige un agente…", en: "Pick an agent…" },
+  voiceCallNoAgents: {
+    es: "No hay agentes con voz activada. Actívala en Asistente → Voz.",
+    en: "No voice-enabled agents. Turn it on in Assistant → Voice.",
+  },
+  voiceCallType: { es: "Tipo de llamada", en: "Call type" },
+  voiceCallTypeAuto: { es: "Automático (según el disparador)", en: "Automatic (based on trigger)" },
+  voiceCallTypeOrder: { es: "Confirmar pedido", en: "Confirm order" },
+  voiceCallTypeCart: { es: "Recuperar carrito", en: "Recover cart" },
+  voiceCallTypeFollowup: { es: "Seguimiento", en: "Follow-up" },
+  voiceCallTypeManual: { es: "Objetivo personalizado", en: "Custom objective" },
+  voiceCallObjective: { es: "Objetivo (opcional)", en: "Objective (optional)" },
+  voiceCallObjectivePlaceholder: {
+    es: "Ej: confirmar la dirección de envío y el método de pago.",
+    en: "E.g. confirm the shipping address and payment method.",
+  },
+  voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
 
   // Builder — multi-case "Bifurcar según…" node
   switchPickData: { es: "¿Según cuál dato?", en: "Branch by which data?" },

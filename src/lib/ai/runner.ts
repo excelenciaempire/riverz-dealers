@@ -692,7 +692,7 @@ interface ContextMessage {
   } | null;
 }
 
-interface LoadedContext {
+export interface LoadedContext {
   messages: ContextMessage[];
   /** Resumen rodante de la conversación previo (migration 048).
    *  Inyectado por el caller como pseudo-system message ANTES del
@@ -809,7 +809,7 @@ interface ReplyResult {
   truncated?: boolean;
 }
 
-async function loadProductCatalog(
+export async function loadProductCatalog(
   db: SupabaseClient,
   agent: AiAgent,
   workspaceId: string | null,
@@ -890,7 +890,7 @@ async function loadProductCatalog(
   return [...pinnedRows, ...rest].slice(0, 80);
 }
 
-interface ProductRow {
+export interface ProductRow {
   id?: string;
   title: string;
   description: string | null;
@@ -1208,7 +1208,7 @@ async function generateReply(
  *
  * Devuelve null si no hay ninguna conexión activa para el workspace.
  */
-async function resolveShopifyContext(
+export async function resolveShopifyContext(
   db: SupabaseClient,
   workspaceId: string | null,
   contact: Contact,
@@ -1348,7 +1348,7 @@ async function resolveDefaultVariantId(
   }
 }
 
-function buildSystemPrompt(
+export function buildSystemPrompt(
   agent: AiAgent,
   contact: Contact,
   primaryContact: Contact,

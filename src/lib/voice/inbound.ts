@@ -1,0 +1,149 @@
+/**
+ * Voice AI — inbound call resolution.
+ *
+ * An inbound SIP job arrives with no dispatch metadata; the worker calls
+ * GET /api/internal/voice/context?did=&caller=. We resolve the workspace by
+ * the called DID, pick its voice agent, resolve/create the caller contact,
+ * and create the inbound voice_calls row — then the same context builder
+ * produces the system prompt.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type {
+  Contact,
+  VoiceCall,
+  VoiceConnectionConfig,
+} from '@/types';
+import type { AiAgent } from '@/lib/ai/types';
+import { phonesMatch } from '@/lib/whatsapp/phone-utils';
+
+function toE164(raw: string): string {
+  const t = raw.trim();
+  return t.startsWith('+') ? t : `+${t.replace(/[^\d]/g, '')}`;
+}
+
+/** Best voice-enabled agent for a workspace (highest priority). */
+export async function pickVoiceAgent(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<AiAgent | null> {
+  const { data } = await db
+    .from('ai_agents')
+    .select('*, ai_agent_channels(channel)')
+    .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
+    .eq('voice_enabled', true)
+    .is('deleted_at', null);
+  const agents = (data ?? []) as (AiAgent & {
+    ai_agent_channels?: { channel: string }[];
+  })[];
+  const matches = agents.filter(
+    (a) =>
+      a.scope === 'workspace' ||
+      (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice'),
+  );
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  return matches[0];
+}
+
+/** Resolve or create the caller contact for an inbound call. */
+async function resolveContact(
+  db: SupabaseClient,
+  workspaceId: string,
+  caller: string,
+): Promise<Contact | null> {
+  const e164 = toE164(caller);
+  const last8 = e164.slice(-8);
+  // Match any existing contact by phone (cross-channel), preferring the oldest.
+  const { data: candidates } = await db
+    .from('contacts')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .not('phone', 'is', null)
+    .like('phone', `%${last8}`)
+    .order('created_at', { ascending: true });
+  const rows = (candidates ?? []) as Contact[];
+  const match = rows.find((c) => c.phone && phonesMatch(c.phone, e164));
+  if (match) return match;
+
+  const { data: created, error } = await db
+    .from('contacts')
+    .insert({
+      workspace_id: workspaceId,
+      channel: 'voice',
+      external_id: e164,
+      phone: e164,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error('[voice] create inbound contact failed:', error);
+    return null;
+  }
+  return created as Contact;
+}
+
+export type InboundResolution =
+  | { ok: true; call: VoiceCall }
+  | { ok: false; reason: string };
+
+/**
+ * Create the inbound voice_calls row for an incoming call. Returns the row
+ * so the context builder can produce the system prompt.
+ */
+export async function resolveInboundCall(
+  db: SupabaseClient,
+  input: { did: string; caller: string },
+): Promise<InboundResolution> {
+  const did = toE164(input.did);
+
+  // Find the workspace that owns this DID.
+  const { data: conns } = await db
+    .from('channel_connections')
+    .select('workspace_id, config, status')
+    .eq('channel', 'voice');
+  const conn = ((conns ?? []) as {
+    workspace_id: string;
+    config: VoiceConnectionConfig | null;
+    status: string;
+  }[]).find((c) => {
+    const num = c.config?.phone_number;
+    return num && phonesMatch(toE164(num), did);
+  });
+  if (!conn) return { ok: false, reason: 'unknown_did' };
+  if (conn.status === 'disconnected') return { ok: false, reason: 'disconnected' };
+  const cfg = conn.config ?? {};
+  if (!cfg.inbound_enabled) return { ok: false, reason: 'inbound_disabled' };
+  if (cfg.kill_switch) return { ok: false, reason: 'kill_switch' };
+
+  const agent = await pickVoiceAgent(db, conn.workspace_id);
+  if (!agent) return { ok: false, reason: 'no_voice_agent' };
+
+  const contact = await resolveContact(db, conn.workspace_id, input.caller);
+  if (!contact) return { ok: false, reason: 'contact_failed' };
+  if (contact.voice_opt_out) return { ok: false, reason: 'opt_out' };
+
+  const { data: inserted, error } = await db
+    .from('voice_calls')
+    .insert({
+      workspace_id: conn.workspace_id,
+      agent_id: agent.id,
+      contact_id: contact.id,
+      direction: 'inbound',
+      call_type: 'inbound',
+      phone: toE164(input.caller),
+      language: agent.language || 'es',
+      status: 'in_progress',
+      context: {},
+      attempt: 1,
+      max_attempts: 1,
+      started_at: new Date().toISOString(),
+      answered_at: new Date().toISOString(),
+    })
+    .select('*')
+    .single();
+  if (error || !inserted) {
+    return { ok: false, reason: `insert_failed:${error?.message ?? 'unknown'}` };
+  }
+  return { ok: true, call: inserted as VoiceCall };
+}

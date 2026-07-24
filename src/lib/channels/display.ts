@@ -80,6 +80,15 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#25F4EE",
     replyOnly: true,
   },
+  voice: {
+    channel: "voice",
+    label: "Voz",
+    shortLabel: "Voz",
+    badge: "bg-violet-500/10 text-violet-300 ring-1 ring-violet-500/30",
+    accent: "#8B5CF6",
+    // No inbox composer — calls are placed by the voice agent, not typed.
+    replyOnly: true,
+  },
 };
 
 export function channelDisplay(channel: Channel): ChannelDisplay {

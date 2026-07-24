@@ -12,8 +12,11 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   AssignConversationStepConfig,
+  VoiceCallStepConfig,
+  VoiceCallType,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { enqueueCall } from '@/lib/voice/queue'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import { createShortLink } from '@/lib/links/short-link'
 import {
@@ -594,6 +597,35 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return `webhook ${res.status}`
     }
 
+    case 'voice_call': {
+      const cfg = step.step_config as VoiceCallStepConfig
+      if (!args.contactId) throw new Error('voice_call needs a contact')
+      if (!cfg.agent_id) throw new Error('voice_call needs agent_id')
+      // Anti-loop: a call started FROM a voice_call_completed trigger must
+      // not enqueue another call, or an unanswered → call → unanswered chain
+      // would never end.
+      if (args.automation.trigger_type === 'voice_call_completed') {
+        return 'voice_call skipped (would loop on voice_call_completed)'
+      }
+      const callType: VoiceCallType =
+        cfg.call_type ?? defaultVoiceCallType(args.automation.trigger_type)
+      // Surface the trigger's accumulated vars (order/cart payload) to the
+      // agent as call context, plus any one-off objective override.
+      const context: Record<string, unknown> = { ...(args.context.vars ?? {}) }
+      if (cfg.objective_override) context.objective_override = cfg.objective_override
+      const result = await enqueueCall({
+        workspaceId: args.automation.workspace_id,
+        agentId: cfg.agent_id,
+        contactId: args.contactId,
+        callType,
+        automationId: args.automation.id,
+        context,
+        maxAttempts: cfg.max_attempts,
+      })
+      if (!result.enqueued) return `voice_call not enqueued: ${result.reason}`
+      return `voice_call queued (${result.callId})`
+    }
+
     case 'close_conversation': {
       if (!args.contactId) throw new Error('close_conversation needs a contact')
       // closed_at is the canonical "resolved at" timestamp the
@@ -730,6 +762,22 @@ async function isContactInSegment(
   } catch (err) {
     console.error('[automations] segment resolve failed:', err)
     return false
+  }
+}
+
+/** Map a trigger to the sensible voice call script when the step omits it. */
+function defaultVoiceCallType(trigger: AutomationTriggerType): VoiceCallType {
+  switch (trigger) {
+    case 'shopify_order_created':
+    case 'shopify_order_paid':
+      return 'order_confirmation'
+    case 'shopify_abandoned_checkout':
+      return 'cart_recovery'
+    case 'customer_inactive':
+    case 'post_delivery_feedback':
+      return 'followup'
+    default:
+      return 'manual'
   }
 }
 

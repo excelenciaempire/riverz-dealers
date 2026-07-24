@@ -3,6 +3,7 @@
 import Link from '@/components/i18n/locale-link';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
+import { VoiceCard } from '@/components/settings/voice-card';
 import { useT } from '@/hooks/use-locale';
 
 /**
@@ -24,6 +25,8 @@ export default function IntegracionesPage() {
       </div>
 
       <ChannelsPanel />
+
+      <VoiceCard />
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-foreground">
