@@ -308,6 +308,15 @@ export const settings = {
   roleAdmin: { es: "Administrador", en: "Admin" },
   roleAgent: { es: "Agente", en: "Agent" },
   removeMember: { es: "Eliminar miembro", en: "Remove member" },
+
+  // Per-member menu access (RBAC)
+  menuAccess: { es: "Acceso al menú", en: "Menu access" },
+  menuAccessFull: { es: "Acceso completo", en: "Full access" },
+  menuAccessHint: {
+    es: "Elige a qué secciones del menú puede entrar.",
+    en: "Choose which menu sections they can open.",
+  },
+  accessUpdated: { es: "Acceso actualizado", en: "Access updated" },
   invite: { es: "Invitar", en: "Invite" },
   invitePlaceholder: {
     es: "compañero@email.com",

@@ -340,40 +340,80 @@ export function WorkspacePanel() {
               .user;
             const isYou = false;
             return (
-              <li key={m.id} className="flex items-center gap-3 px-5 py-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-                  {user?.full_name?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? "?"}
+              <li key={m.id} className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+                    {user?.full_name?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {user?.full_name ?? user?.email ?? t("settings.memberPending")}
+                      {isYou && <span className="ml-2 text-xs text-muted-foreground">{t("settings.memberYou")}</span>}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                  {isAdmin ? (
+                    <select
+                      value={m.role}
+                      onChange={(e) => handleChangeRole(m.id, e.target.value as "admin" | "agent")}
+                      className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
+                    >
+                      <option value="admin">{t("settings.roleAdmin")}</option>
+                      <option value="agent">{t("settings.roleAgent")}</option>
+                    </select>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      {m.role === "admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
+                      {m.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent")}
+                    </span>
+                  )}
+                  {/* Menu access — only agents can be restricted; admins are full. */}
+                  {isAdmin && m.role === "agent" && (
+                    <button
+                      onClick={() =>
+                        setAccessEdit(
+                          accessEdit?.id === m.id
+                            ? null
+                            : { id: m.id, value: m.allowed_sections ?? null },
+                        )
+                      }
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      aria-label={t("settings.menuAccess")}
+                      title={t("settings.menuAccess")}
+                    >
+                      <SlidersHorizontal className="size-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRemoveMember(m.id)}
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+                      aria-label={t("settings.removeMember")}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {user?.full_name ?? user?.email ?? t("settings.memberPending")}
-                    {isYou && <span className="ml-2 text-xs text-muted-foreground">{t("settings.memberYou")}</span>}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
-                </div>
-                {isAdmin ? (
-                  <select
-                    value={m.role}
-                    onChange={(e) => handleChangeRole(m.id, e.target.value as "admin" | "agent")}
-                    className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
-                  >
-                    <option value="admin">{t("settings.roleAdmin")}</option>
-                    <option value="agent">{t("settings.roleAgent")}</option>
-                  </select>
-                ) : (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {m.role === "admin" ? <ShieldCheck className="size-3" /> : <Shield className="size-3" />}
-                    {m.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent")}
-                  </span>
-                )}
-                {isAdmin && (
-                  <button
-                    onClick={() => handleRemoveMember(m.id)}
-                    className="ml-2 rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
-                    aria-label={t("settings.removeMember")}
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                {isAdmin && m.role === "agent" && accessEdit?.id === m.id && (
+                  <div className="mt-3">
+                    <SectionAccessEditor
+                      value={accessEdit.value}
+                      onChange={(v) => setAccessEdit({ id: m.id, value: v })}
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setAccessEdit(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveAccess}
+                        disabled={savingAccess}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        {savingAccess ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </li>
             );
@@ -410,6 +450,11 @@ export function WorkspacePanel() {
                 {inviting ? <Loader2 className="size-4 animate-spin" /> : t("settings.send")}
               </Button>
             </div>
+            {inviteRole === "agent" && (
+              <div className="mt-3">
+                <SectionAccessEditor value={inviteAllowed} onChange={setInviteAllowed} />
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -509,6 +554,64 @@ export function WorkspacePanel() {
             </Button>
           </div>
         </section>
+      )}
+    </div>
+  );
+}
+
+/** Menu-access picker: a "full access" toggle + a checklist of the gateable
+ *  sidebar sections. `value == null` means full access. */
+function SectionAccessEditor({
+  value,
+  onChange,
+}: {
+  value: string[] | null;
+  onChange: (v: string[] | null) => void;
+}) {
+  const t = useT();
+  const full = value == null;
+  const selected = new Set(value ?? []);
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-foreground">
+          {t("settings.menuAccess")}
+        </span>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={full}
+            onChange={(e) => onChange(e.target.checked ? null : [])}
+          />
+          {t("settings.menuAccessFull")}
+        </label>
+      </div>
+      {!full && (
+        <>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("settings.menuAccessHint")}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
+            {GATEABLE_SECTIONS.map((s) => (
+              <label
+                key={s.key}
+                className="flex cursor-pointer items-center gap-1.5 text-xs text-foreground"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(s.key)}
+                  onChange={(e) => {
+                    const next = new Set(selected);
+                    if (e.target.checked) next.add(s.key);
+                    else next.delete(s.key);
+                    onChange([...next]);
+                  }}
+                />
+                {t(s.labelKey)}
+              </label>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
