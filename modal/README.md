@@ -1,5 +1,13 @@
 # Riverz Voice — models on Modal
 
+> **LIVE (test profile `riverztest2`):** VoxCPM TTS deployed at
+> `https://riverztest2--voxcpm-tts.modal.run` — verified end to end (`/health` OK;
+> `/v1/audio/speech` returns a valid WAV in ~3 s warm). The global voice config
+> already points its TTS `base_url` here. **Two things remain:** (1) paste the
+> `VOXCPM_API_KEY` (Modal secret `voxcpm-auth`) into **/admin/voz → TTS → API key**;
+> (2) for production latency set `min_containers=1` (first call is a ~4 min GPU
+> cold start otherwise). This is a scale-to-zero TEST deploy on `riverztest2`.
+
 Self-hosted voice models served as **OpenAI-compatible** HTTP endpoints so the
 LiveKit voice worker (`voice-worker/`) can point its `openai.*` plugins at them
 via the global admin config (`/admin/voz`). Running models here (instead of the
