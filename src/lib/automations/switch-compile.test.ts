@@ -143,7 +143,7 @@ describe('collapseSwitch round-trip', () => {
   })
 })
 
-describe('collapseSwitch safety (never mis-collapse)', () => {
+describe('collapseSwitch structural walk', () => {
   it('collapses a marker-LESS legacy same-data-point cascade', () => {
     // The live "Nuevo pedido": 3 context_var/offer_units conditions, single-no
     // spine, terminal else — NO __switch markers.
@@ -169,39 +169,51 @@ describe('collapseSwitch safety (never mis-collapse)', () => {
     expect((sd.elseSteps[0] as N).step_config._m).toBe('Z')
   })
 
-  it('does NOT collapse a lone binary condition (cases < 2)', () => {
+  it('folds a lone binary condition into one case + else', () => {
     const lone = cond({ subject: 'context_var', operand: 'offer_units', value: '1' }, [sleaf('A')], [sleaf('Z')])
-    expect(collapseSwitch<N>(lone, fromServer, id)).toBeNull()
+    const sd = collapseSwitch<N>(lone, fromServer, id)!
+    expect(sd.cases).toHaveLength(1)
+    expect(sd.cases[0].cfg.value).toBe('1')
+    expect((sd.elseSteps[0] as N).step_config._m).toBe('Z')
   })
 
-  it('does NOT merge two conditions over DIFFERENT data points', () => {
+  it('merges conditions over DIFFERENT data points into ordered cases', () => {
     const chain = cond(
       { subject: 'context_var', operand: 'offer_units', value: '1' },
       [sleaf('A')],
       [cond({ subject: 'context_var', operand: 'total_price', value: '100' }, [sleaf('B')], [sleaf('Z')])],
     )
-    // head has 1 same-D case; the total_price condition becomes the else → < 2 cases
-    expect(collapseSwitch<N>(chain, fromServer, id)).toBeNull()
+    const sd = collapseSwitch<N>(chain, fromServer, id)!
+    expect(sd.cases.map((c) => c.cfg.operand)).toEqual(['offer_units', 'total_price'])
+    expect((sd.elseSteps[0] as N).step_config._m).toBe('Z')
   })
 
-  it('does NOT collapse when a .no lane has 2+ steps', () => {
+  it('stops the spine when a .no lane has 2+ steps (they become the else)', () => {
     const chain = cond(
       { subject: 'context_var', operand: 'offer_units', value: '1' },
       [sleaf('A')],
       [sleaf('X'), cond({ subject: 'context_var', operand: 'offer_units', value: '3' }, [sleaf('B')], [sleaf('Z')])],
     )
-    expect(collapseSwitch<N>(chain, fromServer, id)).toBeNull()
+    // A .no with a leading action isn't an `else if`, so the spine ends: one
+    // case, and the whole 2-step lane is the else. The builder's allLeaf guard
+    // then keeps this as a plain nested condition rather than one flat card.
+    const sd = collapseSwitch<N>(chain, fromServer, id)!
+    expect(sd.cases).toHaveLength(1)
+    expect(sd.elseSteps).toHaveLength(2)
   })
 
-  it('does NOT collapse a non-condition head or a tag_presence chain', () => {
-    expect(collapseSwitch<N>(sleaf('A'), fromServer, id)).toBeNull()
+  it('collapses any subject, not just numeric data points (tag cascade)', () => {
     const tagChain = cond(
       { subject: 'tag_presence', operand: 't1' },
       [sleaf('A')],
-      [cond({ subject: 'tag_presence', operand: 't1' }, [sleaf('B')], [sleaf('Z')])],
+      [cond({ subject: 'tag_presence', operand: 't2' }, [sleaf('B')], [sleaf('Z')])],
     )
-    // tag_presence is not a multi-case subject + unmarked → not collapsed
-    expect(collapseSwitch<N>(tagChain, fromServer, id)).toBeNull()
+    const sd = collapseSwitch<N>(tagChain, fromServer, id)!
+    expect(sd.cases.map((c) => c.cfg.operand)).toEqual(['t1', 't2'])
+  })
+
+  it('returns null only for a non-condition head', () => {
+    expect(collapseSwitch<N>(sleaf('A'), fromServer, id)).toBeNull()
   })
 })
 

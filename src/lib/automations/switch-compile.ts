@@ -1,5 +1,5 @@
 /**
- * Pure, React-free compile/decompile for the multi-case "Bifurcar según…"
+ * Pure, React-free compile/decompile for the unified multi-path "Condición"
  * builder node. Lives outside the "use client" builder so it's unit-testable
  * in the node-env vitest runner.
  *
@@ -14,9 +14,11 @@
  * So NOTHING in the engine, steps-tree persistence, DB schema, validate, or
  * @/types changes — `switch` is a builder-only step_type that never reaches the
  * wire. We tag each compiled condition with two marker keys the engine + the
- * validator ignore (they only read subject/operand/op/value/value2) so a
- * save→load round-trip is lossless; a structural fallback collapses
- * marker-less legacy chains (e.g. a hand-built same-data-point cascade).
+ * validator ignore (they only read subject/operand/op/value/value2). Decompile
+ * is purely structural: any condition whose `no` branch is a lone condition is
+ * an `else if`, so a whole `if/else-if/else` chain — same or mixed data points,
+ * marked or legacy — folds back into one node. This also means a plain binary
+ * condition round-trips as a single-case node.
  */
 
 export type IdFactory = () => string
@@ -96,23 +98,19 @@ export function compileSwitch<S>(
   return no[0]
 }
 
-/** Canonical "(subject|operand)" key — every link must test the SAME data point. */
-function dpKey(cfg: Record<string, unknown>): string {
-  return `${cfg.subject ?? ''}|${cfg.operand ?? ''}`
-}
-
-function isSwitchLink(node: StepShape, rootKey: string): boolean {
-  return node.step_type === 'condition' && dpKey(node.step_config) === rootKey
-}
-
 /**
- * Collapse a switch-shaped nested-condition chain rooted at `head` back into one
- * SwitchData, or return null when it isn't a switch. A chain qualifies only
- * when: head is a condition; the head is marked OR its subject is
- * context_var/contact_field (the kinds the multi-case UI supports); every link
- * shares the head's exact (subject, operand); the spine continues only while a
- * condition's `no` is exactly ONE same-data-point condition; and ≥ 2 cases
- * accrue (a lone binary condition is NEVER turned into a switch).
+ * Decompose a condition rooted at `head` into the unified "Condición" node:
+ * one ordered case per link of the right-leaning `no` spine (`if … else if …`),
+ * with the first `no` that isn't a lone condition becoming the shared
+ * "en otro caso" path. Returns null only when `head` isn't a condition.
+ *
+ * Every condition — binary or a same/mixed-data-point cascade, marked or not —
+ * decomposes here (a lone binary condition becomes a single case + else). The
+ * builder decides whether to actually PRESENT it as one multi-path card: its
+ * `allLeaf` guard keeps genuinely nested conditions (a case/else branch that
+ * itself branches) as plain binary cards instead, so no step is ever hidden.
+ * Because `if A {…} else {if B {…}}` and `if A … else if B …` execute
+ * identically, folding the no-spine into cases is a lossless re-presentation.
  */
 export function collapseSwitch<S>(
   head: StepShape,
@@ -121,18 +119,13 @@ export function collapseSwitch<S>(
   pick: (cfg: Record<string, unknown>) => CaseCfg = pickCaseCfg,
 ): SwitchData<S> | null {
   if (head.step_type !== 'condition') return null
-  const rootKey = dpKey(head.step_config)
-  const headMarked = head.step_config[SWITCH_MARKER] === true
-  const subject = String(head.step_config.subject ?? '')
-  const structuralOk = subject === 'context_var' || subject === 'contact_field'
-  if (!headMarked && !structuralOk) return null
 
   const cases: SwitchCase<S>[] = []
   let cur: StepShape | null = head
   let dpId: string | undefined
   let elseNodes: StepShape[] = []
 
-  while (cur && isSwitchLink(cur, rootKey)) {
+  while (cur && cur.step_type === 'condition') {
     if (dpId === undefined) {
       const m = cur.step_config[SWITCH_DP_MARKER]
       if (typeof m === 'string') dpId = m
@@ -143,7 +136,7 @@ export function collapseSwitch<S>(
       steps: fromServer(cur.branches?.yes ?? []),
     })
     const no: StepShape[] = cur.branches?.no ?? []
-    if (no.length === 1 && isSwitchLink(no[0], rootKey)) {
+    if (no.length === 1 && no[0].step_type === 'condition') {
       cur = no[0]
       continue
     }
@@ -151,6 +144,6 @@ export function collapseSwitch<S>(
     cur = null
   }
 
-  if (cases.length < 2) return null
+  if (cases.length < 1) return null
   return { dpId, cases, elseSteps: fromServer(elseNodes) }
 }

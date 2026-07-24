@@ -304,13 +304,17 @@ const STEP_META: Record<BuilderStepType, StepMeta> = {
 // contact field (name/email/company) with a fixed value, which is rarely what
 // a merchant wants and can clobber real data; tags already cover state. The
 // type + editor stay so any legacy automation keeps loading + running it.
+// `condition` (the old binary Sí/No) is NOT offered on its own: the `switch`
+// node IS the unified "Condición" — one card that holds N filtered paths + an
+// "en otro caso". A 1-path switch is exactly a Sí/No. The `condition` type +
+// renderer stay so any legacy binary condition keeps loading + running; on the
+// next load a flat one folds into the unified card (see collapseSwitch).
 const ADDABLE_STEPS: BuilderStepType[] = [
   "send_template",
   "voice_call",
   "assign_conversation",
   "wait",
   "switch",
-  "condition",
   "close_conversation",
   // Etiquetar al final: no aplica ninguna etiqueta por defecto — el usuario la
   // escribe (crea una nueva) o elige una existente en el editor del paso.
@@ -1042,8 +1046,13 @@ export function AutomationBuilder({
       step_type: type,
       step_config: blankConfig(type),
       branches: type === "condition" ? { yes: [], no: [] } : undefined,
+      // Start the unified "Condición" with one empty path so the if/else shape
+      // is visible immediately; the user fills its filter, adds more, or leaves
+      // just the "en otro caso".
       switchData:
-        type === "switch" ? { dpId: undefined, cases: [], elseSteps: [] } : undefined,
+        type === "switch"
+          ? { dpId: undefined, cases: [{ ckey: cid(), cfg: {}, steps: [] }], elseSteps: [] }
+          : undefined,
     }
     setState((s) => ({ ...s, steps: insertAt(s.steps, parent, index, node) }))
     setExpandedId(node.cid)
@@ -1731,35 +1740,10 @@ function BranchLane({
  *  message are binary → a plain "Condición" fits those better. This single
  *  predicate gates BOTH the create-time picker AND the load-time collapse, so a
  *  chain can never decompile into a switch the UI can't render or edit. */
-function isSwitchableDataPoint(dp: DataPoint): boolean {
-  return (
-    (dp.condition.kind === "var" || dp.condition.kind === "contact_field") &&
-    (dp.valueKind === "number" ||
-      dp.valueKind === "offer" ||
-      dp.valueKind === "product" ||
-      dp.valueKind === "text")
-  )
-}
-
-function switchDataPoints(trigger: AutomationTriggerType): DataPoint[] {
-  return conditionDataPoints(trigger).filter(isSwitchableDataPoint)
-}
-
-/** Short natural label for a case lane, e.g. "al menos 4" / "3+1 gratis". */
-function caseShortLabel(
-  dp: DataPoint | undefined,
-  cfg: Record<string, unknown>,
-  t: TFn,
-): string {
-  const value = (cfg.value as string) ?? ""
-  if (dp?.valueKind === "number") {
-    const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? "eq"))?.key
-    const opLabel = opKey ? t(opKey) : ""
-    const v2 =
-      cfg.op === "between" && cfg.value2 ? ` ${t("automations.condAnd")} ${cfg.value2}` : ""
-    return `${opLabel} ${value}${v2}`.replace(/\s+/g, " ").trim() || "—"
-  }
-  return value || "—"
+/** Short natural label for a path lane — the case's filter rendered as a
+ *  phrase (e.g. "Unidades que compró al menos 4", "Tiene la etiqueta VIP"). */
+function caseShortLabel(cfg: Record<string, unknown>, t: TFn): string {
+  return conditionPreview(cfg, t)
 }
 
 function SwitchBranches({
@@ -1777,7 +1761,6 @@ function SwitchBranches({
 }) {
   const t = useT()
   const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
-  const dp = sd.dpId ? dataPointById(sd.dpId) : undefined
 
   // Every mutation reshapes step.switchData through the switch's own path.
   const patch = (fn: (d: SwitchData<BuilderStep>) => SwitchData<BuilderStep>) =>
@@ -1789,7 +1772,9 @@ function SwitchBranches({
   const addCase = () =>
     patch((d) => ({
       ...d,
-      cases: [...d.cases, { ckey: cid(), cfg: dp ? cfgForDataPoint(dp) : {}, steps: [] }],
+      // Each path carries its own filter (edited in the lane via ConditionFields);
+      // a fresh path starts empty for the user to pick a data point.
+      cases: [...d.cases, { ckey: cid(), cfg: {}, steps: [] }],
     }))
   const removeCase = (ckey: string) =>
     patch((d) => ({ ...d, cases: d.cases.filter((c) => c.ckey !== ckey) }))
@@ -1825,21 +1810,12 @@ function SwitchBranches({
       return copy
     })
 
-  if (!sd.dpId) {
-    return (
-      <div className="mt-7 self-start rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-        {t("automations.switchNeedsData")}
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
       {sd.cases.map((c) => (
         <SwitchCaseLane
           key={c.ckey}
-          label={caseShortLabel(dp, c.cfg, t)}
-          dp={dp}
+          label={caseShortLabel(c.cfg, t)}
           cfg={c.cfg}
           onCfg={(p) => patchCaseCfg(c.ckey, p)}
           onRemove={() => removeCase(c.ckey)}
@@ -1882,7 +1858,6 @@ function SwitchBranches({
 
 function SwitchCaseLane({
   label,
-  dp,
   cfg,
   onCfg,
   onRemove,
@@ -1895,7 +1870,6 @@ function SwitchCaseLane({
   onMoveStep,
 }: {
   label: string
-  dp: DataPoint | undefined
   cfg: Record<string, unknown>
   onCfg: (p: Record<string, unknown>) => void
   onRemove: () => void
@@ -1908,8 +1882,6 @@ function SwitchCaseLane({
   onMoveStep: (i: number, dir: -1 | 1) => void
 }) {
   const t = useT()
-  const offers = useContext(OffersContext)
-  const products = useContext(ProductsContext)
   return (
     <BranchLane
       label={label}
@@ -1918,11 +1890,8 @@ function SwitchCaseLane({
       <div className="flex flex-col gap-2">
         <div className="flex items-start gap-1 rounded-md border border-border bg-card/60 p-2">
           <div className="min-w-[180px] flex-1">
-            {dp ? (
-              <ConditionValue dp={dp} cfg={cfg} set={onCfg} offers={offers} products={products} />
-            ) : (
-              <span className="text-[11px] text-muted-foreground">—</span>
-            )}
+            {/* Each path is a full condition (any data point + operator + value). */}
+            <ConditionFields cfg={cfg} set={onCfg} />
           </div>
           <Button
             variant="ghost"
@@ -2454,54 +2423,12 @@ function StepEditor({
     case "condition":
       return <ConditionFields cfg={cfg} set={set} />
 
-    case "switch": {
-      const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
-      const dps = switchDataPoints(trigger)
-      const groups = ["order", "contact", "message"].filter((g) =>
-        dps.some((d) => d.group === g),
-      )
-      const pickDp = (id: string) => {
-        const d = id ? dataPointById(id) : undefined
-        const base = d ? cfgForDataPoint(d) : {}
-        onChange({
-          ...step,
-          switchData: {
-            ...sd,
-            dpId: id || undefined,
-            // Changing data point re-bases each case onto it (resets value).
-            // Clearing it drops the cases that depended on it — visibly, here —
-            // rather than leaving baseless cases that the next save would
-            // silently discard (toApiSteps persists only elseSteps with no dp).
-            cases: id ? sd.cases.map((c) => ({ ...c, cfg: { ...base } })) : [],
-          },
-        })
-      }
+    case "switch":
+      // The paths (each with its own filter) + "en otro caso" are edited in the
+      // lanes on the canvas (SwitchBranches); here we only explain the model.
       return (
-        <>
-          <FieldBlock label={t("automations.switchPickData")}>
-            <select
-              value={sd.dpId ?? ""}
-              onChange={(e) => pickDp(e.target.value)}
-              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="">{t("automations.chooseData")}</option>
-              {groups.map((g) => (
-                <optgroup key={g} label={t(GROUP_LABEL[g])}>
-                  {dps
-                    .filter((d) => d.group === g)
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {t(d.labelKey)}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-          </FieldBlock>
-          <p className="text-[11px] text-muted-foreground">{t("automations.switchHint")}</p>
-        </>
+        <p className="text-[11px] text-muted-foreground">{t("automations.switchHint")}</p>
       )
-    }
 
     case "send_webhook":
       return (
@@ -2688,15 +2615,11 @@ function previewFor(step: BuilderStep, t: TFn): string {
     case "condition":
       return conditionPreview(step.step_config, t)
     case "switch": {
-      const sd = step.switchData
-      if (!sd?.dpId) return t("automations.switchNeedsData")
-      const label = t(dataPointById(sd.dpId)?.labelKey ?? "")
-      const n = sd.cases.length
-      const cases = t(
-        n === 1 ? "automations.switchCaseOne" : "automations.switchCaseOther",
-        { n },
-      )
-      return `${t("automations.switchSummary", { label })} · ${cases}`
+      const cases = step.switchData?.cases ?? []
+      if (cases.length === 0) return t("automations.switchNeedsData")
+      // One path reads as a plain Sí/No; several show the count.
+      if (cases.length === 1) return conditionPreview(cases[0].cfg, t)
+      return t("automations.switchCaseOther", { n: cases.length })
     }
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
@@ -2890,11 +2813,11 @@ export function toApiSteps(steps: BuilderStep[]): ApiStep[] {
   const out: ApiStep[] = []
   for (const s of steps) {
     if (s.step_type === "switch") {
-      // Compile the multi-case node to the nested binary-condition spine the
-      // engine runs. A half-built switch (no data point / no cases) persists
-      // only its "en otro caso" path, so the save still validates.
+      // Compile the multi-path node to the nested binary-condition spine the
+      // engine runs. With no cases at all, only the "en otro caso" path
+      // persists, so the save still validates.
       const cases = s.switchData?.cases ?? []
-      if (!s.switchData?.dpId || cases.length === 0) {
+      if (cases.length === 0) {
         out.push(...toApiSteps(s.switchData?.elseSteps ?? []))
         continue
       }
@@ -3202,27 +3125,17 @@ export function fromServerSteps(nodes: StepShape[]): BuilderStep[] {
     // ever hidden by the leaf-only switch card.
     if (n.step_type === "condition") {
       const sd = collapseSwitch<BuilderStep>(n, fromServerSteps, cid)
+      // Present as the unified multi-path "Condición" card ONLY when every path
+      // + the "en otro caso" is a flat action list — each case now edits its own
+      // filter via ConditionFields, so any data point (number/offer/tag/segment/
+      // time/…) is fine. A branch that itself branches stays a plain binary
+      // condition card so no step is ever hidden.
       if (sd && sd.cases.every((c) => allLeaf(c.steps)) && allLeaf(sd.elseSteps)) {
-        const dpId =
-          sd.dpId ??
-          dataPointIdFromCfg(
-            sd.cases[0]?.cfg.subject as string | undefined,
-            sd.cases[0]?.cfg.operand as string | undefined,
-            DATA_POINTS,
-          )
-        // Only present as a switch when the data point resolves to one the
-        // switch UI can render + edit (number/offer/text). For an unregistered
-        // var/column or a bool/legacy field the chain stays as plain conditions
-        // — never blank the card or, worse, let the next save drop every case
-        // (toApiSteps persists only elseSteps when dpId is missing).
-        const dp = dpId ? dataPointById(dpId) : undefined
-        if (dp && isSwitchableDataPoint(dp)) {
-          return {
-            cid: cid(),
-            step_type: "switch" as BuilderStepType,
-            step_config: {},
-            switchData: { ...sd, dpId },
-          }
+        return {
+          cid: cid(),
+          step_type: "switch" as BuilderStepType,
+          step_config: {},
+          switchData: sd,
         }
       }
     }

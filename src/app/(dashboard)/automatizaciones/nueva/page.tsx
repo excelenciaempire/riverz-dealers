@@ -5,8 +5,10 @@ import { useSearchParams } from "next/navigation"
 
 import {
   AutomationBuilder,
+  fromServerSteps,
   type BuilderInitial,
   type BuilderStep,
+  type ServerStepNode,
 } from "@/components/automations/automation-builder"
 import {
   AUTOMATION_TEMPLATES,
@@ -75,34 +77,24 @@ interface SeedRow {
   parent_index: number | null
 }
 
-function uid(): string {
-  return (
-    "c_" +
-    (typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2) + Date.now().toString(36))
-  )
-}
-
-/** Template seeds are flat with parent_index references. Expand into the
- *  builder's nested tree, preserving order within each scope. */
+/** Template seeds are flat with parent_index references. Expand into the nested
+ *  server-shape tree, then run through fromServerSteps so condition chains fold
+ *  into the unified "Condición" card exactly like a loaded automation. */
 function expandFromSeeds(rows: SeedRow[]): BuilderStep[] {
-  const nodes: BuilderStep[] = rows.map((r) => ({
-    cid: uid(),
+  const nodes: ServerStepNode[] = rows.map((r) => ({
+    id: "",
     step_type: r.step_type,
     step_config: r.step_config,
-    branches:
-      r.step_type === "condition" ? { yes: [], no: [] } : undefined,
+    branches: { yes: [], no: [] },
   }))
-  const roots: BuilderStep[] = []
+  const roots: ServerStepNode[] = []
   rows.forEach((r, i) => {
     if (r.parent_index == null) {
       roots.push(nodes[i])
       return
     }
     const parent = nodes[r.parent_index]
-    if (!parent.branches) parent.branches = { yes: [], no: [] }
     parent.branches[r.branch ?? "yes"].push(nodes[i])
   })
-  return roots
+  return fromServerSteps(roots)
 }

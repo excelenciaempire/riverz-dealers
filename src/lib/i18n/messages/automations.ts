@@ -273,7 +273,7 @@ export const automations = {
   },
   stepWait: { es: "Esperar", en: "Wait" },
   stepCondition: { es: "Condición (Sí / No)", en: "Condition (Yes / No)" },
-  stepSwitch: { es: "Varios caminos según un dato", en: "Multiple paths by a value" },
+  stepSwitch: { es: "Condición", en: "Condition" },
   stepSendWebhook: { es: "Enviar webhook", en: "Send webhook" },
   stepCloseConversation: { es: "Cerrar conversación", en: "Close conversation" },
   stepVoiceCall: { es: "Llamar con IA", en: "Call with AI" },
@@ -298,19 +298,16 @@ export const automations = {
   },
   voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
 
-  // Builder — multi-case "Varios caminos según un dato" node
-  switchPickData: { es: "¿Según cuál dato?", en: "Based on which data?" },
+  // Builder — unified multi-path "Condición" node (N filtered paths + "en otro caso")
   switchHint: {
-    es: "Un camino por cada valor. Gana el primero que coincida; el resto va a «En otro caso».",
-    en: "One path per value. The first match wins; the rest go to “Otherwise”.",
+    es: "Cada camino tiene su filtro; gana el primero que se cumpla. Si no se cumple ninguno, va a «En otro caso».",
+    en: "Each path has its own filter; the first one that matches wins. If none match, it goes to “Otherwise”.",
   },
-  switchAddCase: { es: "Añadir caso", en: "Add case" },
-  switchRemoveCase: { es: "Quitar caso", en: "Remove case" },
+  switchAddCase: { es: "Añadir camino", en: "Add path" },
+  switchRemoveCase: { es: "Quitar camino", en: "Remove path" },
   switchElse: { es: "En otro caso", en: "Otherwise" },
-  switchNeedsData: { es: "Elige un dato primero", en: "Choose a value first" },
-  switchSummary: { es: "Según {label}", en: "By {label}" },
-  switchCaseOne: { es: "{n} caso", en: "{n} case" },
-  switchCaseOther: { es: "{n} casos", en: "{n} cases" },
+  switchNeedsData: { es: "Añade un camino", en: "Add a path" },
+  switchCaseOther: { es: "{n} caminos", en: "{n} paths" },
 
   // Builder — step card controls
   moveBefore: { es: "Mover antes", en: "Move before" },
