@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Image from "next/image"
 import Link from "@/components/i18n/locale-link"
 import { useLocalizedRouter } from "@/hooks/use-localized-router"
@@ -35,12 +36,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type {
   AutomationStepType,
   AutomationTriggerType,
@@ -2009,6 +2004,39 @@ function AddButton({
 }) {
   const t = useT()
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  // Menú PROPIO (portaleado a body, con onClick nativo) en vez del DropdownMenu
+  // de base-ui: base-ui NO registra el click del mouse en los items cuando el
+  // disparador vive dentro de la transformación CSS `scale` del lienzo zoomeable
+  // (el teclado sí funcionaba, el mouse no → nada se agregaba). Un onClick nativo
+  // dispara el handler sin ese hit-testing roto, y el portal evita el clip.
+  const openMenu = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 4, left: r.left })
+    setOpen((v) => !v)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: PointerEvent) => {
+      if (!triggerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    // Diferir el listener para no capturar el mismo click que abrió el menú.
+    const id = window.setTimeout(() => document.addEventListener("pointerdown", onDoc), 0)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener("pointerdown", onDoc)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
   return (
     <div
       className={cn(
@@ -2023,53 +2051,65 @@ function AddButton({
       )}
     >
       <div className={cn(seg, "bg-border")} aria-hidden />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            // Resaltado con el color de marca (no apagado): borde y texto de
-            // acento + fondo tenue, para que la acción de agregar se vea.
-            "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-primary bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-accent-ink transition-all",
-            "hover:bg-primary/20",
-            "data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-accent-ink",
-          )}
-          aria-label={t("automations.addStep")}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("automations.add")}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-80 min-w-64 overflow-y-auto border-border bg-card"
-        >
-          <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("automations.chooseWhatToDo")}
-          </div>
-          {types.map((stepType) => {
-            const m = STEP_META[stepType]
-            const Icon = m.icon
-            return (
-              <DropdownMenuItem key={stepType} onClick={() => onPick(stepType)}>
-                <span
-                  className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                    m.iconBg,
-                    m.iconText,
-                  )}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={openMenu}
+        aria-label={t("automations.addStep")}
+        aria-expanded={open}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-primary bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-accent-ink transition-all hover:bg-primary/20",
+          open && "bg-primary/20",
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {t("automations.add")}
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 60 }}
+            className="max-h-80 min-w-64 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-lg"
+          >
+            <div className="border-b border-border px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("automations.chooseWhatToDo")}
+            </div>
+            {types.map((stepType) => {
+              const m = STEP_META[stepType]
+              const Icon = m.icon
+              return (
+                <button
+                  key={stepType}
+                  type="button"
+                  onClick={() => {
+                    onPick(stepType)
+                    setOpen(false)
+                  }}
+                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent"
                 >
-                  {m.brand === "whatsapp" ? (
-                    <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
-                  ) : m.brand === "shopify" ? (
-                    <Image src="/channels/shopify.svg" alt="" width={14} height={14} />
-                  ) : (
-                    <Icon className="h-3.5 w-3.5" />
-                  )}
-                </span>
-                {t(m.label)}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+                  <span
+                    className={cn(
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      m.iconBg,
+                      m.iconText,
+                    )}
+                  >
+                    {m.brand === "whatsapp" ? (
+                      <Image src="/channels/whatsapp.svg" alt="" width={14} height={14} />
+                    ) : m.brand === "shopify" ? (
+                      <Image src="/channels/shopify.svg" alt="" width={14} height={14} />
+                    ) : (
+                      <Icon className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                  {t(m.label)}
+                </button>
+              )
+            })}
+          </div>,
+          document.body,
+        )}
       <div className={cn(seg, "bg-border")} aria-hidden />
     </div>
   )
