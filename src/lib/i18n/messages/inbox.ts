@@ -229,6 +229,7 @@ export const inbox = {
   createSnippetCta: { es: 'Crear atajo "/{shortcut}"', en: 'Create shortcut "/{shortcut}"' },
   createSnippet: { es: "Crear atajo", en: "Create shortcut" },
   newSnippet: { es: "Nuevo atajo", en: "New shortcut" },
+  deleteSnippet: { es: "Eliminar atajo", en: "Delete shortcut" },
   snippetShortcutPlaceholder: { es: "atajo", en: "shortcut" },
   snippetBodyPlaceholder: {
     es: "Texto que se insertará…",

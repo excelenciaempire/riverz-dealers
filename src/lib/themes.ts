@@ -17,9 +17,11 @@ export const THEME_IDS = ["light", "dark"] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
 /**
- * Default for the *app* surface (dashboard, auth, legal): warm cream light.
+ * Default for the *app* surface (dashboard, auth, legal): deep charcoal dark.
+ * Only the default before the visitor makes an explicit choice — a saved
+ * light/dark preference (STORAGE_KEY) still wins on every surface.
  */
-export const DEFAULT_THEME: ThemeId = "light";
+export const DEFAULT_THEME: ThemeId = "dark";
 
 /**
  * Default for the public marketing *landing* (`/`): deep charcoal dark — the

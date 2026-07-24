@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash, Paperclip, X, Plus } from "lucide-react";
+import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,9 @@ interface Snippet {
   trigger: string;
   label: string;
   body: string;
+  /** Workspace snippet id — present only for user-created ones (the two
+   *  built-in defaults have none and can't be deleted). */
+  id?: string;
 }
 
 interface MessageComposerProps {
@@ -93,7 +96,8 @@ export function MessageComposer({
   const [createShortcut, setCreateShortcut] = useState("");
   const [createBody, setCreateBody] = useState("");
 
-  const { snippets: wsSnippets, create: createSnippet } = useSnippets();
+  const { snippets: wsSnippets, create: createSnippet, remove: removeSnippet } =
+    useSnippets();
   // 2 built-in defaults (translated) + workspace snippets (literal), keyed by
   // trigger so a workspace snippet can override a default.
   const allSnippets = useMemo<Snippet[]>(() => {
@@ -110,7 +114,7 @@ export function MessageComposer({
     });
     for (const s of wsSnippets) {
       const trigger = s.shortcut.toLowerCase();
-      byTrigger.set(trigger, { trigger, label: s.title ?? "", body: s.body });
+      byTrigger.set(trigger, { trigger, label: s.title ?? "", body: s.body, id: s.id });
     }
     return [...byTrigger.values()];
   }, [t, wsSnippets]);
@@ -366,18 +370,21 @@ export function MessageComposer({
               {filteredSnippets.length > 0 && (
                 <ul className="max-h-56 overflow-y-auto py-1">
                   {filteredSnippets.map((s, i) => (
-                    <li key={s.trigger}>
+                    <li
+                      key={s.trigger}
+                      onMouseEnter={() => setSnippetActiveIdx(i)}
+                      className={cn(
+                        "group flex items-start transition-colors",
+                        i === snippetActiveIdx ? "bg-accent" : "hover:bg-muted",
+                      )}
+                    >
                       <button
                         type="button"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           insertSnippet(s);
                         }}
-                        onMouseEnter={() => setSnippetActiveIdx(i)}
-                        className={cn(
-                          "flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors",
-                          i === snippetActiveIdx ? "bg-accent" : "hover:bg-muted",
-                        )}
+                        className="flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left"
                       >
                         <Slash className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
@@ -392,6 +399,21 @@ export function MessageComposer({
                           </p>
                         </div>
                       </button>
+                      {s.id && (
+                        <button
+                          type="button"
+                          aria-label={t("inbox.deleteSnippet")}
+                          title={t("inbox.deleteSnippet")}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void removeSnippet(s.id!);
+                          }}
+                          className="mr-1.5 mt-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-colors hover:bg-red-500/10 hover:text-red-600 focus:opacity-100 group-hover:opacity-100 dark:hover:text-red-400"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

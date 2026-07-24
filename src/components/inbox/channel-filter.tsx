@@ -27,10 +27,10 @@ export function ChannelFilter({
   const t = useT();
   const totalUnread = unread?.all ?? 0;
   return (
-    <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-3 pt-1">
+    <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-3 pt-2.5 sm:pt-1">
       <Chip
         label={t("inbox.allChannels")}
-        icon={<Inbox className="h-3.5 w-3.5" />}
+        icon={<Inbox className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
         active={value === null}
         onClick={() => onChange(null)}
         count={totalUnread}
