@@ -70,6 +70,12 @@ interface ConversationListProps {
   /** Active channel chip, if any — narrows the "clear all" scope to it. */
   channelFilter?: Channel | null;
   /**
+   * Whether the workspace has at least one connected channel. Drives the
+   * empty-state copy: with a connection we say "no messages yet" instead of
+   * telling the merchant to connect a channel they've already connected.
+   */
+  hasAnyConnection?: boolean;
+  /**
    * Increment to force the fetch effect below to refire. The parent
    * bumps this on realtime reconnect / tab visibility → visible so the
    * list catches up on any events sent while the WS was disconnected
@@ -93,6 +99,7 @@ export function ConversationList({
   onBulkDeleted,
   inboxTab = "messages",
   channelFilter = null,
+  hasAnyConnection = false,
   resyncToken = 0,
 }: ConversationListProps) {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -456,7 +463,11 @@ export function ConversationList({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <InboxEmptyState hasFilters={!!search.trim()} />
+          <InboxEmptyState
+            hasFilters={!!search.trim()}
+            channelActive={!!channelFilter}
+            hasAnyConnection={hasAnyConnection}
+          />
         ) : (
           <div
             style={{
@@ -769,26 +780,43 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.contact?.external_id === b.conversation.contact?.external_id,
 );
 
-// Editorial-style empty state. Two paths: the merchant is filtering /
-// searching (we tell them to widen the filter) vs. the bandeja is
-// genuinely empty (we point them at the integrations page so they can
-// connect a channel and start receiving messages).
-function InboxEmptyState({ hasFilters }: { hasFilters: boolean }) {
+// Editorial-style empty state. Distintos mensajes según por qué está vacía:
+//   - Buscando/filtrando por texto → "sin resultados", ampliar la búsqueda.
+//   - Chip de un canal activo sin mensajes → "aún no hay mensajes en este canal".
+//   - Canales YA conectados pero sin nada todavía → "aún no llegaron mensajes"
+//     (NO mostramos "Conectar un canal": ya está conectado, sería confuso).
+//   - Nada conectado → apuntamos a Integraciones para conectar el primer canal.
+function InboxEmptyState({
+  hasFilters,
+  channelActive,
+  hasAnyConnection,
+}: {
+  hasFilters: boolean;
+  channelActive: boolean;
+  hasAnyConnection: boolean;
+}) {
   const t = useT();
+  // El CTA "Conectar un canal" solo tiene sentido cuando NO hay ninguna
+  // conexión y no se está filtrando.
+  const showConnectCta = !hasFilters && !channelActive && !hasAnyConnection;
+  const title = hasFilters ? t("inbox.noResults") : t("inbox.emptyInbox");
+  const hint = hasFilters
+    ? t("inbox.emptyFilteredHint")
+    : channelActive
+      ? t("inbox.emptyChannelHint")
+      : hasAnyConnection
+        ? t("inbox.emptyConnectedHint")
+        : t("inbox.emptyInboxHint");
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
       <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
         <InboxIcon className="size-7" />
       </div>
-      <p className="mt-4 text-sm font-semibold text-foreground">
-        {hasFilters ? t("inbox.noResults") : t("inbox.emptyInbox")}
-      </p>
+      <p className="mt-4 text-sm font-semibold text-foreground">{title}</p>
       <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
-        {hasFilters
-          ? t("inbox.emptyFilteredHint")
-          : t("inbox.emptyInboxHint")}
+        {hint}
       </p>
-      {!hasFilters && (
+      {showConnectCta && (
         <Link
           href="/integraciones"
           className="mt-5 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"

@@ -732,6 +732,7 @@ export default function InboxPage() {
                 onBulkDeleted={handleBulkDeleted}
                 inboxTab={inboxTab}
                 channelFilter={channelFilter}
+                hasAnyConnection={hasAnyConnection !== false}
                 resyncToken={resyncToken}
               />
             </div>

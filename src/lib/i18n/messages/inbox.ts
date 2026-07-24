@@ -103,6 +103,17 @@ export const inbox = {
     es: "Conecta WhatsApp, Instagram, Messenger o tu correo para empezar a recibir mensajes.",
     en: "Connect WhatsApp, Instagram, Messenger or your email to start receiving messages.",
   },
+  // Canales YA conectados pero sin conversaciones todavía — no hay que conectar
+  // nada, solo esperar el primer mensaje.
+  emptyConnectedHint: {
+    es: "Aún no llegaron mensajes. Cuando un cliente escriba, aparecerá aquí.",
+    en: "No messages yet. When a customer writes, it'll show up here.",
+  },
+  // Chip de un canal específico activo y sin conversaciones en ese canal.
+  emptyChannelHint: {
+    es: "Aún no hay mensajes en este canal.",
+    en: "No messages in this channel yet.",
+  },
   connectChannel: { es: "Conectar un canal", en: "Connect a channel" },
   connectChannelArrow: { es: "Conectar un canal →", en: "Connect a channel →" },
 
