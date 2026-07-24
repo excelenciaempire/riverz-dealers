@@ -1,0 +1,171 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import Link from '@/components/i18n/locale-link';
+import { PhoneCall, PhoneIncoming, Sparkles, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { VoiceCard } from '@/components/settings/voice-card';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
+import type { VoiceCall, VoiceCallOutcome, VoiceCallStatus } from '@/types';
+
+const STATUS_KEY: Record<VoiceCallStatus, string> = {
+  queued: 'voice.statusQueued',
+  dialing: 'voice.statusDialing',
+  in_progress: 'voice.statusInProgress',
+  completed: 'voice.statusCompleted',
+  failed: 'voice.statusFailed',
+  no_answer: 'voice.statusNoAnswer',
+  busy: 'voice.statusBusy',
+  voicemail: 'voice.statusVoicemail',
+  canceled: 'voice.statusCanceled',
+};
+
+const OUTCOME_KEY: Record<VoiceCallOutcome, string> = {
+  confirmed: 'voice.outcomeConfirmed',
+  cancelled_by_customer: 'voice.outcomeCancelled',
+  rescheduled: 'voice.outcomeRescheduled',
+  recovered: 'voice.outcomeRecovered',
+  declined: 'voice.outcomeDeclined',
+  callback_requested: 'voice.outcomeCallback',
+  opt_out: 'voice.outcomeOptOut',
+  no_outcome: 'voice.outcomeNone',
+};
+
+type CallRow = VoiceCall & { contact?: { id: string; name: string | null; phone: string | null } };
+
+function fmtDuration(sec: number | null): string {
+  if (!sec || sec < 0) return '—';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export default function VoicePage() {
+  const t = useT();
+  const { workspace } = useWorkspace();
+  const format = useFormat();
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [calls, setCalls] = useState<CallRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!workspace?.id) return;
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { data: agentRows } = await supabase
+        .from('ai_agents')
+        .select('id, name')
+        .eq('workspace_id', workspace.id)
+        .eq('voice_enabled', true)
+        .is('deleted_at', null)
+        .order('priority', { ascending: false });
+      setAgents((agentRows ?? []) as { id: string; name: string }[]);
+
+      const res = await fetch(`/api/voice/calls?workspace_id=${workspace.id}&limit=50`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const { calls: rows } = (await res.json()) as { calls: CallRow[] };
+        setCalls(rows);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [workspace?.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">{t('nav.voice')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('voice.cardDesc')}</p>
+      </div>
+
+      {/* Connection + config + compact metrics */}
+      <VoiceCard />
+
+      {/* Voice-enabled agents */}
+      <section className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-violet-500" />
+          <h2 className="text-sm font-semibold text-foreground">{t('voice.agentsTitle')}</h2>
+        </div>
+        {agents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t('voice.noAgents')}{' '}
+            <Link href="/asistente" className="text-primary underline">
+              {t('voice.goToAssistant')}
+            </Link>
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {agents.map((a) => (
+              <li key={a.id} className="flex items-center justify-between py-2">
+                <span className="text-sm text-foreground">{a.name}</span>
+                <Link href="/asistente" className="text-xs text-primary underline">
+                  {t('voice.configure')}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Call log */}
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t('voice.callLogTitle')}</h2>
+        {loading ? (
+          <div className="flex items-center text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : calls.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('voice.noCalls')}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="pb-2 pr-4 font-medium">{t('voice.colContact')}</th>
+                  <th className="pb-2 pr-4 font-medium">{t('voice.colStatus')}</th>
+                  <th className="pb-2 pr-4 font-medium">{t('voice.outcome')}</th>
+                  <th className="pb-2 pr-4 font-medium">{t('voice.duration')}</th>
+                  <th className="pb-2 font-medium">{t('voice.colWhen')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calls.map((c) => (
+                  <tr key={c.id} className="border-t border-border/60">
+                    <td className="py-2 pr-4">
+                      <span className="inline-flex items-center gap-1.5 text-foreground">
+                        {c.direction === 'inbound' ? (
+                          <PhoneIncoming className="h-3.5 w-3.5 text-violet-500" />
+                        ) : (
+                          <PhoneCall className="h-3.5 w-3.5 text-violet-500" />
+                        )}
+                        {c.contact?.name || c.phone}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-muted-foreground">{t(STATUS_KEY[c.status])}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">
+                      {c.outcome ? t(OUTCOME_KEY[c.outcome]) : '—'}
+                    </td>
+                    <td className="py-2 pr-4 text-muted-foreground">{fmtDuration(c.duration_seconds)}</td>
+                    <td className="py-2 text-muted-foreground">
+                      {format.dateTime(new Date(c.created_at))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

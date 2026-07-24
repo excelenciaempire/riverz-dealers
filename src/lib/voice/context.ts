@@ -24,6 +24,7 @@ import {
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { DEFAULT_GREETINGS, DEFAULT_OBJECTIVES } from './constants';
+import { getVoiceModelConfig, type VoiceMode } from './model-config';
 
 /** Shape returned to the worker (GET /api/internal/voice/context). */
 export interface VoiceContextPayload {
@@ -34,9 +35,13 @@ export interface VoiceContextPayload {
   language: string;
   greeting: string;
   system_prompt: string;
-  voice: { provider: string; voice_id: string | null };
-  llm: { model: string };
-  stt: { model: string; language: string };
+  /** Conversation engine mode (global admin setting). */
+  mode: VoiceMode;
+  voice: { provider: string; voice_id: string | null; model: string };
+  llm: { provider: string; model: string };
+  stt: { provider: string; model: string; language: string };
+  /** Present when mode='realtime' (full-duplex engine, e.g. PersonaPlex). */
+  realtime: { provider: string; model: string } | null;
   max_call_seconds: number;
   sip: { trunk_id: string | null; caller_number: string | null };
   contact: { id: string; name: string | null };
@@ -214,6 +219,10 @@ export async function buildVoiceContext(
       ]
     : [];
 
+  // Global model stack (platform-admin setting). STT/TTS/mode are platform-wide;
+  // the LLM model still honors a per-agent override when set.
+  const model = await getVoiceModelConfig(db);
+
   return {
     call_id: call.id,
     direction: call.direction,
@@ -222,12 +231,25 @@ export async function buildVoiceContext(
     language: langOf(agent, call),
     greeting: resolveGreeting(agent, contact, call),
     system_prompt: `${base}\n\n${voiceBlock}`,
-    voice: { provider: agent.voice_provider || 'elevenlabs', voice_id: agent.voice_id },
-    llm: { model: agent.model || 'claude-haiku-4-5-20251001' },
-    stt: {
-      model: process.env.VOICE_STT_MODEL || 'nova-3',
-      language: process.env.VOICE_STT_LANGUAGE || 'multi',
+    mode: model.mode,
+    voice: {
+      provider: model.tts_provider,
+      voice_id: agent.voice_id || model.tts_default_voice_id,
+      model: model.tts_model,
     },
+    llm: {
+      provider: model.llm_provider,
+      model: agent.model || model.llm_model,
+    },
+    stt: {
+      provider: model.stt_provider,
+      model: model.stt_model,
+      language: model.stt_language,
+    },
+    realtime:
+      model.mode === 'realtime' && model.realtime_provider && model.realtime_model
+        ? { provider: model.realtime_provider, model: model.realtime_model }
+        : null,
     max_call_seconds: agent.voice_max_call_seconds || 300,
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },

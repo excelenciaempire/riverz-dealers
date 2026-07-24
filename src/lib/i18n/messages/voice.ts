@@ -125,4 +125,50 @@ export const voice = {
   metricAnswered: { es: "Contestadas", en: "Answered" },
   metricMinutes: { es: "Minutos", en: "Minutes" },
   metricCost: { es: "Costo estimado", en: "Estimated cost" },
+
+  // ── Merchant "Voz" page ──
+  agentsTitle: { es: "Agentes con voz", en: "Voice agents" },
+  noAgents: {
+    es: "Ningún agente tiene la voz activada.",
+    en: "No agent has voice enabled.",
+  },
+  goToAssistant: { es: "Ir al Asistente", en: "Go to Assistant" },
+  configure: { es: "Configurar", en: "Configure" },
+  callLogTitle: { es: "Registro de llamadas", en: "Call log" },
+  noCalls: { es: "Todavía no hay llamadas.", en: "No calls yet." },
+  colContact: { es: "Contacto", en: "Contact" },
+  colStatus: { es: "Estado", en: "Status" },
+  colWhen: { es: "Cuándo", en: "When" },
+
+  // ── Admin · global model stack ──
+  adminTitle: { es: "Modelo de voz (global)", en: "Voice model (global)" },
+  adminDesc: {
+    es: "Stack de modelos que usan TODAS las cuentas. Solo el equipo de Riverz lo cambia; los merchants no lo ven.",
+    en: "Model stack used by ALL accounts. Only the Riverz team changes it; merchants never see it.",
+  },
+  adminForbidden: {
+    es: "No tienes acceso a esta sección.",
+    en: "You don't have access to this section.",
+  },
+  adminMode: { es: "Modo de conversación", en: "Conversation mode" },
+  adminModePipeline: { es: "Pipeline (STT → LLM → TTS)", en: "Pipeline (STT → LLM → TTS)" },
+  adminPipelineHint: {
+    es: "Máximo control y tool-calling fiable. Recomendado para pedidos/cobros.",
+    en: "Maximum control and reliable tool-calling. Recommended for orders/payments.",
+  },
+  adminModeRealtime: { es: "Tiempo real (full-duplex)", en: "Realtime (full-duplex)" },
+  adminRealtimeHint: {
+    es: "Voz a voz nativa (ej. PersonaPlex): más fluida y humana. Requiere cablear el motor en el worker.",
+    en: "Native speech-to-speech (e.g. PersonaPlex): more fluid and human. Requires wiring the engine in the worker.",
+  },
+  adminStt: { es: "Reconocimiento de voz (STT)", en: "Speech-to-text (STT)" },
+  adminLlm: { es: "Cerebro (LLM)", en: "Brain (LLM)" },
+  adminTts: { es: "Voz (TTS)", en: "Text-to-speech (TTS)" },
+  adminRealtime: { es: "Motor full-duplex", en: "Full-duplex engine" },
+  adminProvider: { es: "Proveedor", en: "Provider" },
+  adminModel: { es: "Modelo", en: "Model" },
+  adminLanguage: { es: "Idioma", en: "Language" },
+  adminDefaultVoice: { es: "Voz por defecto", en: "Default voice" },
+  adminSave: { es: "Guardar", en: "Save" },
+  adminSaved: { es: "Modelo actualizado", en: "Model updated" },
 } satisfies Namespace;

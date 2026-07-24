@@ -32,7 +32,10 @@ import {
   Sun,
   UserRound,
   BarChart3,
+  PhoneCall,
+  SlidersHorizontal,
 } from "lucide-react";
+import { isPlatformAdminClient } from "@/lib/auth/platform-admin";
 import {
   Avatar,
   AvatarFallback,
@@ -85,6 +88,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/asistente", label: "nav.assistant", icon: Sparkles },
       { href: "/menus", label: "nav.flows", icon: Workflow },
+      { href: "/voz", label: "nav.voice", icon: PhoneCall, beta: true },
     ],
   },
   {
@@ -309,6 +313,16 @@ export function Sidebar({
             collapsed={collapsed}
             totalUnread={0}
           />
+          {/* Platform admin only — global voice model stack. Nav visibility is
+              a client hint; the /api/admin route enforces the real gate. */}
+          {isPlatformAdminClient(profile?.email) && (
+            <NavLink
+              item={{ href: "/admin/voz", label: "nav.adminVoiceModel", icon: SlidersHorizontal }}
+              pathname={pathname} fullPath={fullPath}
+              collapsed={collapsed}
+              totalUnread={0}
+            />
+          )}
         </div>
 
         {/* User row + theme toggle */}

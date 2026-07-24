@@ -15,6 +15,8 @@ export const nav = {
   contacts: { es: "Contactos", en: "Contacts" },
   assistant: { es: "Asistente IA", en: "AI Assistant" },
   flows: { es: "Flujos", en: "Flows" },
+  voice: { es: "Voz", en: "Voice" },
+  adminVoiceModel: { es: "Modelo de voz (admin)", en: "Voice model (admin)" },
   campaigns: { es: "Campañas", en: "Campaigns" },
   automations: { es: "Automatizaciones", en: "Automations" },
   templates: { es: "Plantillas", en: "Templates" },

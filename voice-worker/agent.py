@@ -278,9 +278,13 @@ def _build_session(context: dict, vad) -> AgentSession:
             model=llm_cfg.get("model", "claude-haiku-4-5"),
             caching="ephemeral",
         ),
+        # El modelo TTS lo fija el admin global (voice.model); default Flash v2.5.
+        # NOTE: los PROVEEDORES (stt/llm/tts) están cableados a deepgram/anthropic/
+        # elevenlabs. Si el admin cambia de proveedor o pone mode='realtime'
+        # (p.ej. PersonaPlex), hay que cablear ese motor aquí — ver README.
         tts=elevenlabs.TTS(
             voice_id=voice_cfg.get("voice_id"),
-            model="eleven_flash_v2_5",
+            model=voice_cfg.get("model", "eleven_flash_v2_5"),
         ),
         turn_detection=MultilingualModel(),
         vad=vad,
