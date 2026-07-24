@@ -263,7 +263,9 @@ export default function BroadcastDetailPage() {
       t('broadcasts.csvRepliedAt'),
       t('broadcasts.csvError'),
     ];
-    const rows = recipients.map((r) => [
+    // Export the CURRENTLY VISIBLE rows — respects the status filter + search
+    // so "filter to Fallidas → Exportar" gives just the failed recipients.
+    const rows = filteredRecipients.map((r) => [
       r.contact?.name ?? '',
       r.contact?.phone ?? '',
       r.status,

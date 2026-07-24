@@ -406,16 +406,20 @@ export function SegmentsPanel() {
   );
 }
 
-interface EditorProps {
+export interface EditorProps {
   workspaceId: string;
   segment: EditableSegment;
   tags: Tag[];
   customFields: CustomField[];
   onClose: () => void;
-  onSaved: () => void | Promise<void>;
+  /** Receives the saved row so callers (e.g. the campaign wizard) can select
+   *  the just-created segment and continue. */
+  onSaved: (saved?: ContactSegment) => void | Promise<void>;
 }
 
-function SegmentEditor({
+/** Segment create/edit modal. Exported so it can be reused inline (e.g. in the
+ *  campaign wizard) without routing to the contacts page. */
+export function SegmentEditor({
   workspaceId,
   segment,
   tags,
@@ -496,19 +500,21 @@ function SegmentEditor({
       match_mode: matchMode,
       rules,
     };
-    const { error } = segment.id
+    const { data: saved, error } = segment.id
       ? await supabase
           .from('contact_segments')
           .update(payload)
           .eq('id', segment.id)
-      : await supabase.from('contact_segments').insert(payload);
+          .select()
+          .maybeSingle()
+      : await supabase.from('contact_segments').insert(payload).select().maybeSingle();
     setSaving(false);
     if (error) {
       toast.error(t('contacts.saveSegmentError', { error: error.message }));
       return;
     }
     toast.success(segment.id ? t('contacts.segmentUpdated') : t('contacts.segmentCreated'));
-    await onSaved();
+    await onSaved((saved as ContactSegment | null) ?? undefined);
   }
 
   return (

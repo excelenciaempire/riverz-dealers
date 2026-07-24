@@ -39,3 +39,24 @@ export function assertCronAuth(req: Request, secretEnvName: string): void {
     throw new Response('Unauthorized', { status: 401 })
   }
 }
+
+/**
+ * Like {@link assertCronAuth} but accepts the `x-cron-secret` if it matches ANY
+ * of the configured env secrets. Guards against a config footgun where the cron
+ * service sends one secret name (e.g. CRON_SECRET) while a route was pinned to a
+ * differently-named env — a mismatch would silently 401 every run and the job
+ * would never fire. All names are the operator's own trusted cron secrets, so
+ * accepting any is no weaker. Passes only if at least one name is configured.
+ */
+export function assertCronAuthAny(req: Request, secretEnvNames: string[]): void {
+  const configured = secretEnvNames
+    .map((n) => process.env[n])
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+  if (configured.length === 0) {
+    throw new Response('Cron not configured', { status: 503 })
+  }
+  const supplied = req.headers.get('x-cron-secret') ?? ''
+  if (!configured.some((expected) => safeSecretEqual(supplied, expected))) {
+    throw new Response('Unauthorized', { status: 401 })
+  }
+}

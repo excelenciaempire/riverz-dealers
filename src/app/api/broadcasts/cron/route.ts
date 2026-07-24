@@ -15,7 +15,7 @@ import {
   isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
-import { assertCronAuth } from '@/lib/auth/cron'
+import { assertCronAuthAny } from '@/lib/auth/cron'
 import { pingCron } from '@/lib/cron/heartbeat'
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
@@ -44,7 +44,15 @@ function sleep(ms: number) {
 
 export async function GET(request: Request) {
   try {
-    assertCronAuth(request, 'BROADCAST_CRON_SECRET')
+    // Accept whichever cron secret the operator wired: the broadcasts cron
+    // service sends CRON_SECRET, older config used BROADCAST_CRON_SECRET, and
+    // the rest of the crons share AUTOMATION_CRON_SECRET. Any mismatch used to
+    // 401 every run → scheduled campaigns silently never sent.
+    assertCronAuthAny(request, [
+      'BROADCAST_CRON_SECRET',
+      'CRON_SECRET',
+      'AUTOMATION_CRON_SECRET',
+    ])
   } catch (r) {
     if (r instanceof Response) return r
     throw r
@@ -60,9 +68,13 @@ export async function GET(request: Request) {
   // the already-sent slice. 15 minutes comfortably exceeds the longest
   // legitimate single-broadcast run.
   const stuckCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  // Set scheduled_at too: an immediate "Enviar ahora" send whose browser tab
+  // closed mid-batch has scheduled_at = NULL, so without this the due query
+  // (scheduled_at <= now) would never re-select it and it'd be stranded in
+  // 'sending' forever. Stamping now() makes it immediately due to resume.
   await admin
     .from('broadcasts')
-    .update({ status: 'scheduled' })
+    .update({ status: 'scheduled', scheduled_at: new Date().toISOString() })
     .eq('status', 'sending')
     .lt('updated_at', stuckCutoff)
 

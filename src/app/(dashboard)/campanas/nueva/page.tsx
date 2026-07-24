@@ -28,6 +28,10 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { resolveSegment } from '@/lib/segments/resolve';
+import { SegmentEditor } from '@/components/contacts/segments-panel';
+import { estimateFromSample, rateFor, toCategory } from '@/lib/whatsapp/pricing';
 
 type AudienceType = 'all' | 'tags' | 'segment';
 
@@ -54,12 +58,6 @@ const BUILTIN_FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: 'shopify_last_order', label: 'broadcasts.fieldShopifyLastOrder' },
   { value: 'shopify_city', label: 'broadcasts.fieldShopifyCity' },
 ];
-
-function parseUsdRate(): number {
-  const raw = process.env.NEXT_PUBLIC_META_MSG_COST_USD;
-  const n = raw ? parseFloat(raw) : 0.02;
-  return Number.isFinite(n) && n >= 0 ? n : 0.02;
-}
 
 /** Quick chips above the manual datetime picker. Keeps the common case
  *  ("Programar para mañana 9 am") one click away. `label` is an i18n key
@@ -115,6 +113,7 @@ export default function NewBroadcastPage() {
   const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
+  const { workspace } = useWorkspace();
 
   const [name, setName] = useState('');
   const [audienceType, setAudienceType] = useState<AudienceType>('all');
@@ -131,6 +130,10 @@ export default function NewBroadcastPage() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [createConversations, setCreateConversations] = useState(false);
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  // A sample of recipient phone numbers, used to price the campaign by
+  // (country, template category) per Meta's rate card.
+  const [samplePhones, setSamplePhones] = useState<string[]>([]);
+  const [showSegmentModal, setShowSegmentModal] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
 
@@ -162,56 +165,86 @@ export default function NewBroadcastPage() {
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
+    const phonesOf = (rows: { phone?: string | null }[] | null | undefined) =>
+      (rows ?? []).map((r) => r.phone ?? '').filter((p): p is string => !!p);
     async function loadCount() {
       try {
         if (audienceType === 'all') {
-          const { count } = await supabase
-            .from('contacts')
-            .select('id', { count: 'exact', head: true });
-          if (!cancelled) setRecipientCount(count ?? 0);
+          const [{ count }, { data: sample }] = await Promise.all([
+            supabase
+              .from('contacts')
+              .select('id', { count: 'exact', head: true })
+              .eq('opted_out', false),
+            supabase.from('contacts').select('phone').eq('opted_out', false).limit(300),
+          ]);
+          if (!cancelled) {
+            setRecipientCount(count ?? 0);
+            setSamplePhones(phonesOf(sample));
+          }
           return;
         }
         if (audienceType === 'tags') {
           if (selectedTagIds.length === 0) {
-            if (!cancelled) setRecipientCount(0);
+            if (!cancelled) {
+              setRecipientCount(0);
+              setSamplePhones([]);
+            }
             return;
           }
           const { data } = await supabase
             .from('contact_tags')
             .select('contact_id')
             .in('tag_id', selectedTagIds);
-          const ids = new Set((data ?? []).map((r) => r.contact_id));
-          if (!cancelled) setRecipientCount(ids.size);
+          const ids = [...new Set((data ?? []).map((r) => r.contact_id))];
+          const { data: cts } = await supabase
+            .from('contacts')
+            .select('phone')
+            .in('id', ids.slice(0, 300))
+            .eq('opted_out', false);
+          if (!cancelled) {
+            setRecipientCount(ids.length);
+            setSamplePhones(phonesOf(cts));
+          }
           return;
         }
         if (audienceType === 'segment') {
-          if (!segmentId) {
-            if (!cancelled) setRecipientCount(0);
+          // Resolve the segment for real (the old code hardcoded type:'all',
+          // limit:1 — the count was always ≤1). Same resolver the send path
+          // uses, so preview == what actually goes out. Drops opted-out.
+          const seg = segments.find((s) => s.id === segmentId);
+          if (!segmentId || !seg) {
+            if (!cancelled) {
+              setRecipientCount(0);
+              setSamplePhones([]);
+            }
             return;
           }
-          const res = await fetchWithCsrf('/api/broadcasts/audience-preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              audience: { type: 'all' },
-              limit: 1,
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (!cancelled)
-              setRecipientCount(Array.isArray(data.contacts) ? data.contacts.length : 0);
+          const resolved = await resolveSegment(
+            supabase,
+            seg.workspace_id,
+            seg.rules ?? [],
+            seg.match_mode,
+          );
+          const contacts = resolved.contacts.filter(
+            (c) => !(c as { opted_out?: boolean }).opted_out,
+          );
+          if (!cancelled) {
+            setRecipientCount(contacts.length);
+            setSamplePhones(phonesOf(contacts as { phone?: string | null }[]));
           }
         }
       } catch {
-        if (!cancelled) setRecipientCount(null);
+        if (!cancelled) {
+          setRecipientCount(null);
+          setSamplePhones([]);
+        }
       }
     }
     void loadCount();
     return () => {
       cancelled = true;
     };
-  }, [audienceType, selectedTagIds, segmentId, fetchWithCsrf]);
+  }, [audienceType, selectedTagIds, segmentId, segments]);
 
   const template = useMemo(
     () => templates.find((t) => t.id === templateId) ?? null,
@@ -249,11 +282,16 @@ export default function NewBroadcastPage() {
     return [...out].sort((a, b) => Number(a) - Number(b));
   }, [template]);
 
-  const usdRate = useMemo(() => parseUsdRate(), []);
+  // Precise cost per Meta's model: per-message rate by (destination country,
+  // template category), averaged over a sample of the audience's phones and
+  // applied to the recipient count. Falls back to the category default when no
+  // phones are known yet. Recomputes when the template (→ category) changes.
   const estimatedCost = useMemo(() => {
     if (recipientCount === null) return null;
-    return recipientCount * usdRate;
-  }, [recipientCount, usdRate]);
+    const category = toCategory(template?.category);
+    if (samplePhones.length === 0) return recipientCount * rateFor(null, category);
+    return estimateFromSample(samplePhones, recipientCount, category);
+  }, [recipientCount, samplePhones, template]);
 
   function toggleTag(id: string) {
     setSelectedTagIds((prev) =>
@@ -477,7 +515,7 @@ export default function NewBroadcastPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => router.push('/contactos?tab=segments&new=1')}
+                      onClick={() => setShowSegmentModal(true)}
                       className="border-border text-foreground hover:bg-accent"
                     >
                       <Plus className="size-4" />
@@ -720,6 +758,32 @@ export default function NewBroadcastPage() {
           />
         </aside>
       </div>
+
+      {/* Inline segment creator — no more bouncing to /contactos. On save we
+          refresh the list, auto-select the new segment and stay in the wizard
+          so campaign creation continues. Its live preview updates as rules
+          change (same resolver as the count above). */}
+      {showSegmentModal && workspace && (
+        <SegmentEditor
+          workspaceId={workspace.id}
+          tags={tags}
+          customFields={customFields}
+          segment={{ name: '', description: '', match_mode: 'all', rules: [] }}
+          onClose={() => setShowSegmentModal(false)}
+          onSaved={async (saved) => {
+            const { data } = await createClient()
+              .from('contact_segments')
+              .select('*')
+              .order('name');
+            setSegments((data ?? []) as ContactSegment[]);
+            if (saved?.id) {
+              setAudienceType('segment');
+              setSegmentId(saved.id);
+            }
+            setShowSegmentModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
