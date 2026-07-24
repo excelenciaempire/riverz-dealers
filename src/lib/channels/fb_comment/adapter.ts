@@ -14,6 +14,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { handleMetaGraphError } from "../meta-auth";
 import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { applyCommentLifecycle } from "../comment-sync";
 
 /**
  * Facebook ad / post comments via Graph API.
@@ -92,7 +93,35 @@ export const fbCommentAdapter: ChannelAdapter = {
       for (const c of changes) {
         if (c.field !== "feed") continue;
         const value = c.value as Record<string, unknown> | undefined;
-        if (!value || value.item !== "comment" || value.verb !== "add") continue;
+        if (!value || value.item !== "comment") continue;
+        const verb = String(value.verb ?? "");
+        // Lifecycle events — a comment removed / hidden / unhidden / edited
+        // natively on Facebook. Reflect it in the inbox and move on; these are
+        // not new inbound messages. (Instagram has no equivalent webhook, so IG
+        // relies on the reconcile cron.)
+        if (verb !== "add") {
+          const commentId = String(value.comment_id ?? "");
+          const kind =
+            verb === "remove" || verb === "delete"
+              ? ("delete" as const)
+              : verb === "hide"
+                ? ("hide" as const)
+                : verb === "unhide"
+                  ? ("unhide" as const)
+                  : verb === "edited" || verb === "edit"
+                    ? ("edit" as const)
+                    : null;
+          if (commentId && kind) {
+            await applyCommentLifecycle(supabaseAdmin(), {
+              channel: "fb_comment",
+              workspaceId: connection.workspace_id,
+              commentExternalId: commentId,
+              kind,
+              text: kind === "edit" ? String(value.message ?? "") : undefined,
+            }).catch((e) => console.error("[fb_comment] lifecycle failed:", e));
+          }
+          continue;
+        }
         const fromObj = value.from as { id?: string; name?: string } | undefined;
         if (!fromObj?.id) continue;
         if (selfIds.has(String(fromObj.id))) continue;

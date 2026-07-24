@@ -442,6 +442,25 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Two-way comment sync (pull side): re-reads recent FB/IG comments and
+  # reflects native deletes/hides back into the inbox. Instagram pushes no
+  # comment lifecycle webhook, so this cron is the only IG sync path (Facebook
+  # also gets it in real time via feed webhooks). Uses AUTOMATION_CRON_SECRET.
+  - type: cron
+    name: cron-comment-sync
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/comment-sync
+    schedule: "*/10 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   - type: cron
     name: cron-broadcasts
     runtime: node
