@@ -1472,6 +1472,12 @@ export function MessageThread({
                           reactions={msgReactions}
                           currentUserId={user?.id}
                           senderName={senderName}
+                          commentAuthorName={authorLabelFor(msg)}
+                          commentAuthorAvatarUrl={
+                            msg.sender_type === "customer"
+                              ? (contact?.avatar_url ?? null)
+                              : null
+                          }
                           onToggleReaction={handlePillToggle}
                         />
                       </MessageActions>

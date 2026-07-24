@@ -155,6 +155,10 @@ export const inbox = {
   moderationDeleted: { es: "Eliminado", en: "Deleted" },
   moderationDone: { es: "Hecho", en: "Done" },
 
+  // Native comment view
+  commentAuthorBadge: { es: "Autor", en: "Author" },
+  commentLike: { es: "Me gusta", en: "Like" },
+
   // Message actions toolbar
   react: { es: "Reaccionar", en: "React" },
   reactWith: { es: "Reaccionar con {emoji}", en: "React with {emoji}" },
