@@ -19,10 +19,11 @@ import {
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
-import { useT } from "@/hooks/use-locale";
+import { useT, useLocale } from "@/hooks/use-locale";
 import { useCommentView } from "@/hooks/use-comment-view";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
-import { isUnsupportedSnippet } from "@/lib/channels/display";
+import { isUnsupportedSnippet, isCommentDeleted } from "@/lib/channels/display";
+import { dateFnsLocale } from "@/lib/i18n/format";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
@@ -924,7 +925,13 @@ export function MessageBubble({
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}
-        <MessageContent message={message} />
+        {isComment && isCommentDeleted(message) ? (
+          <span className="text-sm italic opacity-70">
+            {t("inbox.commentDeleted")}
+          </span>
+        ) : (
+          <MessageContent message={message} />
+        )}
         <div
           className={cn(
             "mt-1 flex items-center gap-1",
@@ -972,7 +979,8 @@ export function MessageBubble({
           onToggle={onToggleReaction}
         />
       )}
-      {(message.channel === "fb_comment" || message.channel === "ig_comment") &&
+      {!isCommentDeleted(message) &&
+        (message.channel === "fb_comment" || message.channel === "ig_comment") &&
         message.sender_type === "customer" && (
           <CommentModerationBar message={message} channel={message.channel} />
         )}
@@ -1000,8 +1008,14 @@ function NativeComment({
 }) {
   const t = useT();
   const tz = useTimezone();
+  const { locale } = useLocale();
   const [imgError, setImgError] = useState(false);
-  const when = formatInTimeZone(new Date(message.created_at), tz, "d MMM");
+  // Day + month AND the hour it was sent (HH:mm) — same send-time every other
+  // channel's bubble shows, localized month names.
+  const when = formatInTimeZone(new Date(message.created_at), tz, "d MMM · HH:mm", {
+    locale: dateFnsLocale(locale),
+  });
+  const deleted = isCommentDeleted(message);
   const initial = (authorName.trim().charAt(0) || "?").toUpperCase();
   const showImg = avatarUrl && !imgError;
   return (
@@ -1032,18 +1046,25 @@ function NativeComment({
             )}
           </div>
           <div className="text-sm text-foreground">
-            <MessageContent message={message} />
+            {deleted ? (
+              <span className="italic text-muted-foreground">
+                {t("inbox.commentDeleted")}
+              </span>
+            ) : (
+              <MessageContent message={message} />
+            )}
           </div>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] font-medium text-muted-foreground">
           <span>{when}</span>
-          {message.is_hidden && (
+          {!deleted && message.is_hidden && (
             <span className="text-amber-600 dark:text-amber-400">
               {t("inbox.moderationHidden")}
             </span>
           )}
         </div>
-        {(message.channel === "fb_comment" || message.channel === "ig_comment") &&
+        {!deleted &&
+          (message.channel === "fb_comment" || message.channel === "ig_comment") &&
           message.sender_type === "customer" && (
             <div className="mt-1">
               <CommentModerationBar message={message} channel={message.channel} />

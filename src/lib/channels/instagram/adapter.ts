@@ -15,6 +15,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { mapMetaAdReferral } from "../messenger/adapter";
 
 /**
  * Instagram DMs via Meta Graph API (Messenger Platform for IG).
@@ -202,6 +203,10 @@ export const instagramAdapter: ChannelAdapter = {
           sender.id,
           message.mid,
         );
+        // Click-to-Instagram ad context (the customer arrived from an ad).
+        const igPostback = m.postback as { referral?: unknown } | undefined;
+        const igReferral =
+          mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(igPostback?.referral);
         events.push({
           channel: "instagram",
           connection,
@@ -210,6 +215,7 @@ export const instagramAdapter: ChannelAdapter = {
           text: String(message.text ?? ""),
           attachments: attachments.length ? attachments : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+          referral: igReferral,
           raw: m,
         });
       }

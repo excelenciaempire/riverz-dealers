@@ -30,7 +30,6 @@ import {
   PanelLeftOpen,
   Moon,
   Sun,
-  UserRound,
   BarChart3,
   PhoneCall,
   SlidersHorizontal,
@@ -280,22 +279,15 @@ export function Sidebar({
           ))}
         </nav>
 
-        {/* Pie del sidebar: Equipo (promovido desde Ajustes porque es
-            tarea de la primera semana), Integraciones (con badge
-            pendiente hasta que WhatsApp y Shopify estén conectados) y
-            Ajustes (perfil, workspace, apariencia). */}
+        {/* Pie del sidebar: Integraciones (con badge pendiente hasta que
+            WhatsApp y Shopify estén conectados) y Ajustes (perfil, equipo,
+            apariencia). El equipo vive dentro de Ajustes → Equipo. */}
         <div
           className={cn(
             "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          <NavLink
-            item={{ href: "/ajustes?tab=workspace", label: "nav.team", icon: UserRound }}
-            pathname={pathname} fullPath={fullPath}
-            collapsed={collapsed}
-            totalUnread={0}
-          />
           <NavLink
             item={{
               href: "/integraciones",

@@ -1382,6 +1382,47 @@ export function MessageThread({
         );
       })()}
 
+      {/* Ad-referral banner — the customer arrived from a click-to-message ad.
+          Replaces the old inline "replied to an ad" bubble (now suppressed):
+          the context lives up here, like the comment post banner. Shown
+          wherever we captured the referral (WhatsApp CTWA, Messenger/IG CTM). */}
+      {conversation.ad_referral &&
+        (conversation.ad_referral.headline ||
+          conversation.ad_referral.body ||
+          conversation.ad_referral.sourceUrl) &&
+        (() => {
+          const ad = conversation.ad_referral!;
+          const caption = ad.headline || ad.body || "";
+          return (
+            <div className="flex items-start gap-3 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
+              <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-ink ring-1 ring-primary/30">
+                {t("inbox.adBadge")}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-muted-foreground">{t("inbox.repliedToAd")}</p>
+                {caption && (
+                  <p className="mt-0.5 line-clamp-2 text-foreground">{caption}</p>
+                )}
+                {ad.body && ad.headline && (
+                  <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                    {ad.body}
+                  </p>
+                )}
+                {ad.sourceUrl && (
+                  <a
+                    href={ad.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-0.5 inline-block text-[10px] text-accent-ink/80 hover:text-accent-ink hover:underline"
+                  >
+                    {t("inbox.viewAd")}
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
       {/* Messages Area */}
       <div ref={scrollRef} className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
@@ -1422,6 +1463,18 @@ export function MessageThread({
                 {/* Messages */}
                 <div className="space-y-2">
                   {group.messages.map((msg) => {
+                    // Suppress Meta's synthetic "X replied to an ad" echo — that
+                    // context now lives in the ad-referral banner above. It's a
+                    // plain agent text row with no structured marker, so we match
+                    // its content. (es/en phrasings Meta uses.)
+                    if (
+                      msg.sender_type === "agent" &&
+                      /replied to (an|your) ad|respondió a (un|tu) anuncio/i.test(
+                        msg.content_text ?? "",
+                      )
+                    ) {
+                      return null;
+                    }
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { decrypt } from "@/lib/channels/encryption";
 import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
+import { COMMENT_DELETED_TEXT } from "@/lib/channels/display";
 import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
@@ -121,7 +122,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // Local bookkeeping.
   if (action === "delete") {
-    await admin.from("messages").update({ status: "failed", content_text: "[deleted]" }).eq("id", m.id);
+    await admin.from("messages").update({ status: "failed", content_text: COMMENT_DELETED_TEXT }).eq("id", m.id);
   }
   if (action === "hide" || action === "unhide") {
     // Persist the hidden state so it survives reloads and syncs across panes

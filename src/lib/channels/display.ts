@@ -95,6 +95,27 @@ export function channelDisplay(channel: Channel): ChannelDisplay {
   return CHANNEL_DISPLAY[channel];
 }
 
+/** Sentinel written into a comment's `content_text` when it was deleted —
+ *  either by us via the moderation bar (`/api/messages/moderate`) or detected
+ *  removed on Facebook/Instagram and synced back (comment-sync / webhook). The
+ *  message row is kept (status `failed`) so the thread stays coherent; the UI
+ *  swaps the sentinel for a localized "comment deleted" tombstone. Centralised
+ *  here so the writers and the reader (message bubble) can't drift. */
+export const COMMENT_DELETED_TEXT = "[deleted]";
+
+/** True when a comment row represents a comment that was deleted on the source
+ *  platform (or by us). Pure + client-safe so both the inbox UI and the server
+ *  sync path share one definition. */
+export function isCommentDeleted(message: {
+  status?: string | null;
+  content_text?: string | null;
+}): boolean {
+  return (
+    message.status === "failed" &&
+    (message.content_text ?? "").trim() === COMMENT_DELETED_TEXT
+  );
+}
+
 /** True for the placeholder text stored when WhatsApp delivers a message type
  *  we can't render ("[unsupported]", "[Unsupported message type: reaction]").
  *  The UI swaps these for the localized `inbox.unsupported` label instead of

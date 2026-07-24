@@ -158,6 +158,12 @@ export const inbox = {
   // Native comment view
   commentAuthorBadge: { es: "Autor", en: "Author" },
   commentLike: { es: "Me gusta", en: "Like" },
+  commentDeleted: { es: "Comentario eliminado", en: "Comment deleted" },
+
+  // Ad-referral banner (customer arrived from a click-to-message ad)
+  adBadge: { es: "Anuncio", en: "Ad" },
+  repliedToAd: { es: "Respondió a un anuncio", en: "Replied to an ad" },
+  viewAd: { es: "Ver anuncio", en: "View ad" },
 
   // Message actions toolbar
   react: { es: "Reaccionar", en: "React" },

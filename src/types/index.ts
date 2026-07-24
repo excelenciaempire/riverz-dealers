@@ -217,6 +217,19 @@ export interface Conversation {
    * (resolved via the comments_meta.is_ad → ad_posts lookup). Drives the
    * inbox's "Ads only" filter. */
   is_ad?: boolean;
+  /** Click-to-WhatsApp/Messenger ad referral, stamped once (inbound) when the
+   * customer arrived from an ad. camelCase, as written by the adapters.
+   * Migration 092 (+ Messenger/IG capture). Drives the "replied to an ad"
+   * banner at the top of the thread. */
+  ad_referral?: {
+    sourceType?: string;
+    sourceId?: string;
+    ctwaClid?: string;
+    sourceUrl?: string;
+    headline?: string;
+    body?: string;
+    mediaType?: string;
+  } | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;

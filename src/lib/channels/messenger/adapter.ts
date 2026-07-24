@@ -17,6 +17,29 @@ import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 
 /**
+ * Map a Meta Messenger/Instagram `referral` (or postback.referral) to the
+ * shared InboundEvent.referral shape when it's a click-to-Messenger AD. Returns
+ * undefined for non-ad refs (m.me links, plain refs) so we only stamp real ad
+ * context. Best-effort: if Meta's shape differs, we return undefined and the
+ * banner simply doesn't show — never throws.
+ */
+export function mapMetaAdReferral(ref: unknown): InboundEvent["referral"] | undefined {
+  if (!ref || typeof ref !== "object") return undefined;
+  const r = ref as Record<string, unknown>;
+  const ctx = (r.ads_context_data ?? {}) as Record<string, unknown>;
+  const adId = r.ad_id ?? r.source_id;
+  const headline = typeof ctx.ad_title === "string" ? ctx.ad_title : undefined;
+  if (adId == null && !headline) return undefined;
+  return {
+    sourceType: typeof r.source === "string" ? r.source : "ADS",
+    sourceId: adId != null ? String(adId) : undefined,
+    ctwaClid: typeof r.ref === "string" ? r.ref : undefined,
+    headline,
+    mediaType: ctx.video_url ? "video" : ctx.photo_url ? "image" : undefined,
+  };
+}
+
+/**
  * Facebook Messenger via Meta Graph API (Send API).
  *
  * Required config:
@@ -196,6 +219,11 @@ export const messengerAdapter: ChannelAdapter = {
           sender.id,
           message.mid,
         );
+        // Click-to-Messenger ad context (the customer arrived from an ad). On
+        // the messaging event as `referral` or nested under `postback.referral`.
+        const postback = m.postback as { referral?: unknown } | undefined;
+        const referral =
+          mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(postback?.referral);
         events.push({
           channel: "messenger",
           connection,
@@ -204,6 +232,7 @@ export const messengerAdapter: ChannelAdapter = {
           text: String(message.text ?? ""),
           attachments: attachments.length ? attachments : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+          referral,
           raw: m,
         });
       }
