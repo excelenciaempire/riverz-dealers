@@ -13,11 +13,13 @@ import {
   XCircle,
   AlertCircle,
   Activity,
+  ChevronDown,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Automation, AutomationLog } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { RunJourney } from '@/components/automations/run-journey';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -182,6 +184,7 @@ export default function AutomationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [openLogId, setOpenLogId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -415,40 +418,57 @@ export default function AutomationDetailPage() {
               const Icon = STATUS_ICON[log.status as LogStatus];
               const contactName =
                 log.contact?.name?.trim() || log.contact?.phone || t('automations.system');
+              const isOpen = openLogId === log.id;
               return (
-                <li key={log.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <Icon
-                    className={cn(
-                      'size-3.5 shrink-0',
-                      log.status === 'success'
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : log.status === 'failed'
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-amber-600 dark:text-amber-400',
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm text-foreground">
-                        {contactName}
-                      </span>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
-                          STATUS_TONE[log.status as LogStatus],
-                        )}
-                      >
-                        {t(STATUS_LABEL[log.status as LogStatus])}
-                      </span>
+                <li key={log.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenLogId(isOpen ? null : log.id)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <Icon
+                      className={cn(
+                        'size-3.5 shrink-0',
+                        log.status === 'success'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : log.status === 'failed'
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-amber-600 dark:text-amber-400',
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm text-foreground">
+                          {contactName}
+                        </span>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                            STATUS_TONE[log.status as LogStatus],
+                          )}
+                        >
+                          {t(STATUS_LABEL[log.status as LogStatus])}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {format(new Date(log.created_at), 'd MMM, HH:mm')}
+                        {log.steps_executed?.length
+                          ? ` · ${t('automations.stepsSuffix', { n: log.steps_executed.length })}`
+                          : ''}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {format(new Date(log.created_at), 'd MMM, HH:mm')}
-                      {log.steps_executed?.length
-                        ? ` · ${t('automations.stepsSuffix', { n: log.steps_executed.length })}`
-                        : ''}
-                      {log.error_message ? ` · ${log.error_message}` : ''}
-                    </p>
-                  </div>
+                    <ChevronDown
+                      className={cn(
+                        'size-4 shrink-0 text-muted-foreground transition-transform',
+                        isOpen && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-border bg-muted/20 px-4 py-3 pl-11">
+                      <RunJourney log={log} />
+                    </div>
+                  )}
                 </li>
               );
             })}

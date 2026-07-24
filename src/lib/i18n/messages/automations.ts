@@ -536,6 +536,13 @@ export const automations = {
   system: { es: "Sistema", en: "System" },
   stepsSuffix: { es: "{n} pasos", en: "{n} steps" },
 
+  // Run journey (per-contact step-by-step trace, shown on stats + logs)
+  journeyTitle: { es: "Recorrido", en: "Journey" },
+  journeyTrigger: { es: "Se activó", en: "Triggered" },
+  journeyStepSkipped: { es: "Omitido", en: "Skipped" },
+  journeyWaited: { es: "Esperó {duration}", en: "Waited {duration}" },
+  journeyWentTo: { es: "Fue por", en: "Went to" },
+
   // Logs page
   logsLoadFailed: {
     es: "No se pudieron cargar los registros",

@@ -4,20 +4,15 @@ import { use, useEffect, useState } from "react"
 import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import {
   ArrowLeft,
-  Check,
   Loader2,
-  X,
   ChevronDown,
   ChevronRight,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
-import type {
-  Automation,
-  AutomationLog,
-  AutomationLogStepResult,
-} from "@/types"
+import type { Automation, AutomationLog } from "@/types"
 import { Button } from "@/components/ui/button"
+import { RunJourney } from "@/components/automations/run-journey"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/automations/trigger-meta"
 import { useT } from "@/hooks/use-locale"
@@ -138,19 +133,7 @@ export default function AutomationLogsPage({
                 </button>
                 {isOpen && (
                   <div className="border-t border-border px-4 py-3">
-                    {log.error_message && (
-                      <p className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
-                        {log.error_message}
-                      </p>
-                    )}
-                    <ul className="space-y-1.5">
-                      {(log.steps_executed ?? []).map((r, i) => (
-                        <StepRow key={i} result={r} />
-                      ))}
-                      {(log.steps_executed ?? []).length === 0 && (
-                        <li className="text-xs text-muted-foreground">{t("automations.noSteps")}</li>
-                      )}
-                    </ul>
+                    <RunJourney log={log} />
                   </div>
                 )}
               </li>
@@ -188,23 +171,3 @@ function StatusBadge({ status }: { status: AutomationLog["status"] }) {
   )
 }
 
-function StepRow({ result }: { result: AutomationLogStepResult }) {
-  const ok = result.status === "success"
-  return (
-    <li className="flex items-start gap-2 text-xs">
-      <span
-        className={cn(
-          "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full",
-          ok ? "bg-primary/20 text-accent-ink" : "bg-red-500/20 text-red-600 dark:text-red-400",
-        )}
-        aria-hidden
-      >
-        {ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-      </span>
-      <span className="text-foreground">{result.step_type}</span>
-      {result.detail && (
-        <span className="truncate text-muted-foreground">— {result.detail}</span>
-      )}
-    </li>
-  )
-}
