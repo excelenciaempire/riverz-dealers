@@ -2007,6 +2007,7 @@ function AddButton({
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // Menú PROPIO (portaleado a body, con onClick nativo) en vez del DropdownMenu
   // de base-ui: base-ui NO registra el click del mouse en los items cuando el
@@ -2022,7 +2023,16 @@ function AddButton({
   useEffect(() => {
     if (!open) return
     const onDoc = (e: PointerEvent) => {
-      if (!triggerRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      // El menú está portaleado FUERA del trigger, así que hay que excluirlo
+      // explícitamente — si no, un click en un item cuenta como "afuera" y
+      // cierra el menú en el pointerdown antes de que dispare su onClick.
+      if (
+        !triggerRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false)
+      }
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false)
@@ -2069,6 +2079,7 @@ function AddButton({
         pos &&
         createPortal(
           <div
+            ref={menuRef}
             style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 60 }}
             className="max-h-80 min-w-64 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-lg"
           >
