@@ -17,6 +17,8 @@ import {
 import { csrfGuard } from '@/lib/csrf'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
+import type { MessageButton } from '@/types'
 
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
@@ -257,6 +259,24 @@ export async function POST(request: Request) {
         .eq('id', contact.id)
     }
 
+    // Botones de la plantilla para renderizarlos en la bandeja (migración 112).
+    // El envío manual bloquea plantillas con botón de enlace DINÁMICO (no hay
+    // short link que resolver acá), así que solo persistimos botones con url
+    // estática / quick-reply. Best-effort: si falla la lectura, se guarda sin
+    // botones en vez de romper el envío ya realizado en Meta.
+    let buttons: MessageButton[] | null = null
+    if (message_type === 'template' && template_name) {
+      const { data: tplRow } = await supabase
+        .from('message_templates')
+        .select('buttons')
+        .eq('name', template_name)
+        .limit(1)
+        .maybeSingle()
+      buttons = resolveTemplateButtons(
+        (tplRow?.buttons as Array<Record<string, unknown>> | null) ?? null,
+      )
+    }
+
     // Insert message into DB — field names MUST match the messages schema
     // (see supabase/migrations/001_initial_schema.sql):
     //   conversation_id, sender_type, content_type, content_text,
@@ -270,6 +290,7 @@ export async function POST(request: Request) {
         content_text: content_text || null,
         media_url: media_url || null,
         template_name: template_name || null,
+        buttons,
         message_id: waMessageId,
         status: 'sent',
         reply_to_message_id: reply_to_message_id || null,

@@ -13,6 +13,7 @@ import {
   isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
 import { US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
+import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -33,35 +34,6 @@ function renderTemplateBody(body: string, params: string[]): string {
     const v = params[Number(n) - 1]
     return v != null && String(v).trim() ? String(v) : `{{${n}}}`
   })
-}
-
-/** Convierte los botones definidos en la plantilla al shape que guarda
- *  `messages.buttons` para la bandeja. Para el botón URL dinámico reemplaza el
- *  `{{1}}` del template por el short link real de este envío (buttonUrlParam en
- *  el índice buttonUrlIndex), así el enlace es clickeable en el inbox. Devuelve
- *  null cuando la plantilla no tiene botones. */
-function resolveTemplateButtons(
-  tplButtons: Array<Record<string, unknown>> | null,
-  dyn: { buttonUrlParam?: string; buttonUrlIndex?: number },
-): Array<Record<string, unknown>> | null {
-  if (!Array.isArray(tplButtons) || tplButtons.length === 0) return null
-  const out = tplButtons.map((b, i) => {
-    const type = String(b?.type ?? '')
-    const text = String(b?.text ?? '')
-    if (type === 'URL') {
-      let url = String(b?.url ?? '')
-      // Botón dinámico: {{1}} → el token del short link creado para este envío.
-      if (i === dyn.buttonUrlIndex && dyn.buttonUrlParam) {
-        url = url.replace(/\{\{\s*1\s*\}\}/, dyn.buttonUrlParam)
-      }
-      return { type, text, url }
-    }
-    if (type === 'PHONE_NUMBER') {
-      return { type, text, phone_number: String(b?.phone_number ?? '') }
-    }
-    return { type: type || 'QUICK_REPLY', text }
-  })
-  return out
 }
 
 interface SendTextArgs {
@@ -276,7 +248,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // Botones resueltos de la plantilla, para que la bandeja los muestre con el
   // enlace real (no el placeholder {{1}}). Sin esto la burbuja mostraba el
   // cuerpo pero no el botón — el comercio no veía el link de "Terminar Pedido".
-  let buttons: Array<Record<string, unknown>> | null = null
+  let buttons: import('@/types').MessageButton[] | null = null
   if (input.kind === 'template') {
     const { data: tplRows } = await db
       .from('message_templates')
