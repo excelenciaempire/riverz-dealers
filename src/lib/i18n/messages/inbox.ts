@@ -253,6 +253,7 @@ export const inbox = {
 
   // Message thread — author labels
   aiAssistant: { es: "Asistente IA", en: "AI assistant" },
+  automation: { es: "Automatización", en: "Automation" },
   agent: { es: "Agente", en: "Agent" },
 
   // Message thread — header, status, assignment

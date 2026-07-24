@@ -194,6 +194,50 @@ export function MessageThread({
   useEffect(() => {
     setAiEnabled(conversation?.ai_enabled !== false);
   }, [conversation?.id, conversation?.ai_enabled]);
+
+  // ¿Hay un agente IA que cubra el canal de ESTA conversación? Si no, el
+  // toggle "IA activa/en pausa" es engañoso (no hay quién responda), así que
+  // no lo mostramos. Un agente cubre el canal si está activo y es
+  // workspace-scoped (todos los canales) o channel-scoped con el canal
+  // enlazado en ai_agent_channels — misma regla que pickAgent en el runner.
+  const [hasAgentForChannel, setHasAgentForChannel] = useState(false);
+  const convChannel = conversation?.channel;
+  useEffect(() => {
+    if (!convChannel) {
+      setHasAgentForChannel(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("ai_agents")
+        .select("scope, ai_agent_channels(channel)")
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      if (cancelled) return;
+      if (error) {
+        // Fail-open: si no podemos verificar, mostramos el toggle como antes
+        // en vez de esconderlo por un error de red.
+        setHasAgentForChannel(true);
+        return;
+      }
+      const covers = (data ?? []).some((a) => {
+        const row = a as {
+          scope: string;
+          ai_agent_channels: { channel: string }[] | null;
+        };
+        if (row.scope === "workspace") return true;
+        return (row.ai_agent_channels ?? []).some(
+          (c) => c.channel === convChannel,
+        );
+      });
+      setHasAgentForChannel(covers);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [convChannel]);
   const toggleAi = useCallback(async () => {
     if (!conversation || aiToggling) return;
     const next = !aiEnabled;
@@ -823,7 +867,13 @@ export function MessageThread({
   const authorLabelFor = useCallback(
     (m: Message): string => {
       if (m.sender_type === "customer") return contactDisplayName;
-      if (m.sender_type === "bot") return t("inbox.aiAssistant");
+      if (m.sender_type === "bot") {
+        // Un envío de plantilla del bot es una automatización (o campaña), no
+        // el asistente IA conversando — lo etiquetamos como "Automatización".
+        return m.content_type === "template"
+          ? t("inbox.automation")
+          : t("inbox.aiAssistant");
+      }
       if (m.sender_id && m.sender_id === user?.id) return t("inbox.you");
       if (m.sender_id) return nameByUserId.get(m.sender_id) ?? t("inbox.agent");
       return t("inbox.you");
@@ -1158,29 +1208,33 @@ export function MessageThread({
 
           {/* Toggle de IA por chat — prende/apaga al asistente en esta
               conversación. Verde cuando responde, gris cuando está en
-              pausa (un humano toma el control). */}
-          <button
-            type="button"
-            onClick={toggleAi}
-            disabled={aiToggling}
-            title={
-              aiEnabled
-                ? t("inbox.aiActiveTooltip")
-                : t("inbox.aiPausedTooltip")
-            }
-            aria-pressed={aiEnabled}
-            className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-accent disabled:opacity-60",
-              aiEnabled
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-muted-foreground",
-            )}
-          >
-            <Bot className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">
-              {aiEnabled ? t("inbox.aiActive") : t("inbox.aiPaused")}
-            </span>
-          </button>
+              pausa (un humano toma el control). Solo se muestra si hay un
+              agente IA que cubra este canal — sin agente no hay nada que
+              activar/pausar. */}
+          {hasAgentForChannel && (
+            <button
+              type="button"
+              onClick={toggleAi}
+              disabled={aiToggling}
+              title={
+                aiEnabled
+                  ? t("inbox.aiActiveTooltip")
+                  : t("inbox.aiPausedTooltip")
+              }
+              aria-pressed={aiEnabled}
+              className={cn(
+                "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-accent disabled:opacity-60",
+                aiEnabled
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-muted-foreground",
+              )}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {aiEnabled ? t("inbox.aiActive") : t("inbox.aiPaused")}
+              </span>
+            </button>
+          )}
 
           {/* Assign dropdown — only render when there's more than one
               workspace member (or someone already assigned that we'd
@@ -1382,7 +1436,9 @@ export function MessageThread({
                     // don't need a "Tú" label cluttering every bubble.
                     const senderName =
                       msg.sender_type === "bot"
-                        ? t("inbox.aiAssistant")
+                        ? msg.content_type === "template"
+                          ? t("inbox.automation")
+                          : t("inbox.aiAssistant")
                         : msg.sender_type === "agent" &&
                             msg.sender_id &&
                             msg.sender_id !== user?.id
