@@ -6,6 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { isPlatformAdmin } from '@/lib/auth/platform-admin';
 import {
   getVoiceModelConfig,
+  buildModelUpdate,
   type VoiceModelConfig,
 } from '@/lib/voice/model-config';
 
@@ -36,36 +37,26 @@ export async function GET() {
   return NextResponse.json({ config });
 }
 
-const ALLOWED: (keyof VoiceModelConfig)[] = [
-  'mode',
-  'stt_provider',
-  'stt_model',
-  'stt_language',
-  'llm_provider',
-  'llm_model',
-  'tts_provider',
-  'tts_model',
-  'tts_default_voice_id',
-  'realtime_provider',
-  'realtime_model',
-];
-
 export async function PUT(request: Request) {
   const block = await csrfGuard(request);
   if (block) return block;
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 
-  const body = (await request.json().catch(() => null)) as Partial<VoiceModelConfig> | null;
+  const body = (await request.json().catch(() => null)) as
+    | (Partial<VoiceModelConfig> & {
+        stt_api_key?: string;
+        llm_api_key?: string;
+        tts_api_key?: string;
+        realtime_api_key?: string;
+      })
+    | null;
   if (!body) return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   if (body.mode && !['pipeline', 'realtime'].includes(body.mode)) {
     return NextResponse.json({ error: 'invalid_mode' }, { status: 400 });
   }
 
-  const update: Record<string, unknown> = {};
-  for (const k of ALLOWED) {
-    if (k in body) update[k] = body[k];
-  }
+  const update = buildModelUpdate(body);
   update.updated_at = new Date().toISOString();
   update.updated_by = gate.userId;
 

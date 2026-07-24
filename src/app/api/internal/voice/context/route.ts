@@ -66,18 +66,30 @@ export async function GET(request: Request) {
       );
     }
 
-    // Resolve this workspace's DID (caller ID) for outbound dialing.
+    // Resolve this workspace's voice connection config (caller ID, recording,
+    // human-transfer target) for the worker.
     const { data: conn } = await db
       .from('channel_connections')
       .select('config')
       .eq('workspace_id', call.workspace_id)
       .eq('channel', 'voice')
       .maybeSingle();
-    const callerNumber =
-      (conn as { config?: { phone_number?: string } } | null)?.config?.phone_number ?? null;
+    const cfg =
+      (conn as {
+        config?: {
+          phone_number?: string;
+          recording_enabled?: boolean;
+          transfer_number?: string;
+        };
+      } | null)?.config ?? {};
     const trunkId = process.env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID ?? null;
 
-    const payload = await buildVoiceContext(db, call, { trunkId, callerNumber });
+    const payload = await buildVoiceContext(db, call, {
+      trunkId,
+      callerNumber: cfg.phone_number ?? null,
+      recordingEnabled: Boolean(cfg.recording_enabled),
+      transferNumber: cfg.transfer_number ?? null,
+    });
     return NextResponse.json(payload);
   } catch (err) {
     return serverError(err, 'voice context failed');

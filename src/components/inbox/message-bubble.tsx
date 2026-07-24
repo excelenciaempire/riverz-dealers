@@ -16,6 +16,7 @@ import {
   CornerDownLeft,
   ExternalLink,
   Phone,
+  Heart,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -43,6 +44,10 @@ interface MessageBubbleProps {
    *  replies). Ignored outside the native comment layout. */
   commentAuthorName?: string;
   commentAuthorAvatarUrl?: string | null;
+  /** Native comment view: likes on this comment (Graph like_count) + whether
+   *  it's a reply to another comment (nests it under the thread). */
+  commentLikeCount?: number;
+  commentIsReply?: boolean;
   onToggleReaction?: (emoji: string) => void;
 }
 
@@ -805,6 +810,8 @@ export function MessageBubble({
   senderName,
   commentAuthorName,
   commentAuthorAvatarUrl,
+  commentLikeCount,
+  commentIsReply,
   onToggleReaction,
 }: MessageBubbleProps) {
   const t = useT();
@@ -827,6 +834,8 @@ export function MessageBubble({
         authorName={commentAuthorName ?? (isAgent ? t("inbox.you") : t("inbox.customer"))}
         avatarUrl={commentAuthorAvatarUrl ?? null}
         isPage={isAgent}
+        likeCount={commentLikeCount}
+        isReply={commentIsReply}
       />
     );
   }
@@ -1000,16 +1009,23 @@ function NativeComment({
   authorName,
   avatarUrl,
   isPage,
+  likeCount,
+  isReply,
 }: {
   message: Message;
   authorName: string;
   avatarUrl: string | null;
   isPage: boolean;
+  likeCount?: number;
+  isReply?: boolean;
 }) {
   const t = useT();
   const tz = useTimezone();
   const { locale } = useLocale();
   const [imgError, setImgError] = useState(false);
+  // A reply (to another comment) or the page's own reply nests under the
+  // thread — the indented, native "respuesta" look.
+  const nested = isReply || isPage;
   // Day + month AND the hour it was sent (HH:mm) — same send-time every other
   // channel's bubble shows, localized month names.
   const when = formatInTimeZone(new Date(message.created_at), tz, "d MMM · HH:mm", {
@@ -1019,7 +1035,7 @@ function NativeComment({
   const initial = (authorName.trim().charAt(0) || "?").toUpperCase();
   const showImg = avatarUrl && !imgError;
   return (
-    <div className={cn("flex w-full gap-2", isPage && "pl-7 sm:pl-9")}>
+    <div className={cn("flex w-full gap-2", nested && "pl-7 sm:pl-9")}>
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-foreground">
         {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1057,6 +1073,12 @@ function NativeComment({
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] font-medium text-muted-foreground">
           <span>{when}</span>
+          {!deleted && typeof likeCount === "number" && likeCount > 0 && (
+            <span className="inline-flex items-center gap-0.5">
+              <Heart className="h-3 w-3 fill-current text-rose-500" />
+              {likeCount}
+            </span>
+          )}
           {!deleted && message.is_hidden && (
             <span className="text-amber-600 dark:text-amber-400">
               {t("inbox.moderationHidden")}

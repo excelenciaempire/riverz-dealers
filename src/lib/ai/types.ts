@@ -107,6 +107,9 @@ export interface AiAgent {
   voice_max_retries: number;
   /** Minutes to wait before retrying an unanswered call. */
   voice_retry_delay_minutes: number;
+  /** Let the chat agent decide, mid-conversation, to escalate to a phone
+   *  call (via the escalate_to_call tool), within guardrails. Migration 115. */
+  voice_ai_decides: boolean;
 
   created_at: string;
   updated_at: string;

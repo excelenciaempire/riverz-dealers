@@ -72,6 +72,8 @@ export interface CommentItem {
   from: string | null;
   /** ISO-ish timestamp as returned by Graph (FB: created_time, IG: timestamp). */
   createdAt: string | null;
+  /** Likes on the comment (Graph `like_count`), when available. */
+  likeCount?: number;
 }
 
 /**
@@ -94,8 +96,8 @@ export async function fetchPostComments(
   try {
     const fields =
       channel === "ig_comment"
-        ? "id,text,username,timestamp"
-        : "id,message,from,created_time";
+        ? "id,text,username,timestamp,like_count"
+        : "id,message,from,created_time,like_count";
     const url = withAppsecretProof(
       `${GRAPH}/${postOrMediaId}/comments?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`,
       accessToken,
@@ -111,6 +113,7 @@ export async function fetchPostComments(
         username?: string;
         created_time?: string;
         timestamp?: string;
+        like_count?: number;
       }>;
     };
     return (j.data ?? []).map((c) => ({
@@ -118,6 +121,7 @@ export async function fetchPostComments(
       text: String(c.message ?? c.text ?? ""),
       from: c.from?.name ?? c.username ?? null,
       createdAt: c.created_time ?? c.timestamp ?? null,
+      likeCount: typeof c.like_count === "number" ? c.like_count : undefined,
     }));
   } catch {
     return null;

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import {
   extractShopifyLegacyPhone,
   extractShopifyName,
@@ -322,6 +323,18 @@ export async function POST(request: Request) {
       contactId,
       context: { vars },
     }).catch((err) => console.error('[shopify] dispatch failed:', err))
+
+    // Voice AI: si un agente activó "llamar al confirmar pedido" (objetivo
+    // order_confirmation), encolamos la llamada sin que el merchant arme una
+    // automatización. Solo en el alta del pedido; respeta horario/opt-out/limites.
+    if (triggerType === 'shopify_order_created') {
+      void maybeAutoVoiceCall(admin, {
+        workspaceId,
+        contactId,
+        callType: 'order_confirmation',
+        context: vars,
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

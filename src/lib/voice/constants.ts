@@ -69,6 +69,12 @@ export const DEFAULT_GREETINGS: { es: string; en: string } = {
   en: "Hi{{contact_name}}, I'm calling on behalf of the store. Do you have a minute?",
 };
 
+/** Spoken recording disclosure, prepended to the greeting when recording is on. */
+export const DEFAULT_RECORDING_DISCLOSURE: { es: string; en: string } = {
+  es: 'Te comento que esta llamada puede ser grabada por calidad.',
+  en: 'Just so you know, this call may be recorded for quality.',
+};
+
 /**
  * Curated ElevenLabs voices for the picker. voice_id values are the public
  * ElevenLabs voice ids; keep this list small and Latin-American first.

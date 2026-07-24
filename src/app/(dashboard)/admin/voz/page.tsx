@@ -18,6 +18,13 @@ export default function AdminVoiceModelPage() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [config, setConfig] = useState<VoiceModelConfig | null>(null);
+  // Plaintext API keys being entered (write-only; never returned by GET).
+  const [keys, setKeys] = useState<{
+    stt_api_key: string;
+    llm_api_key: string;
+    tts_api_key: string;
+    realtime_api_key: string;
+  }>({ stt_api_key: '', llm_api_key: '', tts_api_key: '', realtime_api_key: '' });
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,10 +56,14 @@ export default function AdminVoiceModelPage() {
     if (!config) return;
     setSaving(true);
     try {
+      // Only send keys the admin actually typed (empty = leave untouched).
+      const keyPayload = Object.fromEntries(
+        Object.entries(keys).filter(([, v]) => v.trim() !== ''),
+      );
       const res = await fetchWithCsrf('/api/admin/voice-model', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...config, ...keyPayload }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -60,6 +71,7 @@ export default function AdminVoiceModelPage() {
         return;
       }
       setConfig(json.config as VoiceModelConfig);
+      setKeys({ stt_api_key: '', llm_api_key: '', tts_api_key: '', realtime_api_key: '' });
       toast.success(t('voice.adminSaved'));
     } finally {
       setSaving(false);
@@ -131,6 +143,21 @@ export default function AdminVoiceModelPage() {
             <Row label={t('voice.adminLanguage')}>
               <Input value={config.stt_language} onChange={(e) => set({ stt_language: e.target.value })} />
             </Row>
+            <Row label={t('voice.adminEndpoint')}>
+              <Input
+                placeholder={t('voice.adminEndpointHint')}
+                value={config.stt_base_url ?? ''}
+                onChange={(e) => set({ stt_base_url: e.target.value || null })}
+              />
+            </Row>
+            <Row label={t('voice.adminApiKey')}>
+              <Input
+                type="password"
+                placeholder={config.has_stt_key ? '••••••••' : ''}
+                value={keys.stt_api_key}
+                onChange={(e) => setKeys((k) => ({ ...k, stt_api_key: e.target.value }))}
+              />
+            </Row>
           </Section>
 
           <Section title={t('voice.adminLlm')}>
@@ -139,6 +166,21 @@ export default function AdminVoiceModelPage() {
             </Row>
             <Row label={t('voice.adminModel')}>
               <Input value={config.llm_model} onChange={(e) => set({ llm_model: e.target.value })} />
+            </Row>
+            <Row label={t('voice.adminEndpoint')}>
+              <Input
+                placeholder={t('voice.adminEndpointHint')}
+                value={config.llm_base_url ?? ''}
+                onChange={(e) => set({ llm_base_url: e.target.value || null })}
+              />
+            </Row>
+            <Row label={t('voice.adminApiKey')}>
+              <Input
+                type="password"
+                placeholder={config.has_llm_key ? '••••••••' : ''}
+                value={keys.llm_api_key}
+                onChange={(e) => setKeys((k) => ({ ...k, llm_api_key: e.target.value }))}
+              />
             </Row>
           </Section>
 
@@ -153,6 +195,21 @@ export default function AdminVoiceModelPage() {
               <Input
                 value={config.tts_default_voice_id ?? ''}
                 onChange={(e) => set({ tts_default_voice_id: e.target.value || null })}
+              />
+            </Row>
+            <Row label={t('voice.adminEndpoint')}>
+              <Input
+                placeholder={t('voice.adminEndpointHint')}
+                value={config.tts_base_url ?? ''}
+                onChange={(e) => set({ tts_base_url: e.target.value || null })}
+              />
+            </Row>
+            <Row label={t('voice.adminApiKey')}>
+              <Input
+                type="password"
+                placeholder={config.has_tts_key ? '••••••••' : ''}
+                value={keys.tts_api_key}
+                onChange={(e) => setKeys((k) => ({ ...k, tts_api_key: e.target.value }))}
               />
             </Row>
           </Section>
@@ -170,6 +227,21 @@ export default function AdminVoiceModelPage() {
             <Input
               value={config.realtime_model ?? ''}
               onChange={(e) => set({ realtime_model: e.target.value || null })}
+            />
+          </Row>
+          <Row label={t('voice.adminEndpoint')}>
+            <Input
+              placeholder={t('voice.adminEndpointHint')}
+              value={config.realtime_base_url ?? ''}
+              onChange={(e) => set({ realtime_base_url: e.target.value || null })}
+            />
+          </Row>
+          <Row label={t('voice.adminApiKey')}>
+            <Input
+              type="password"
+              placeholder={config.has_realtime_key ? '••••••••' : ''}
+              value={keys.realtime_api_key}
+              onChange={(e) => setKeys((k) => ({ ...k, realtime_api_key: e.target.value }))}
             />
           </Row>
         </Section>

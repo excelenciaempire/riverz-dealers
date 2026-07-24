@@ -38,7 +38,7 @@ from livekit.agents import (
     cli,
     metrics,
 )
-from livekit.plugins import anthropic, deepgram, elevenlabs, silero
+from livekit.plugins import anthropic, deepgram, elevenlabs, openai, silero
 
 # NOTE: MultilingualModel sigue en este path en 1.6.x. El plugin muestra un aviso
 # de deprecación a favor de `livekit.agents.inference.TurnDetector` en el futuro:
@@ -252,6 +252,7 @@ async def _finalize(
         "ended_at": ended_at,
         "duration_seconds": duration,
         "usage": _usage_dict(usage_collector),
+        "recording_url": call_state.recording_url,
         "error": error,
     }
     try:
@@ -264,31 +265,163 @@ async def _finalize(
         await api.aclose()
 
 
+# --- Abstracción de proveedor -------------------------------------------------
+# Cada capa (stt/llm/tts) usa su plugin fijo (deepgram/anthropic/elevenlabs) con
+# la env key, SALVO que el cfg traiga `base_url`: entonces se usa el plugin
+# OpenAI-compatible de LiveKit apuntando a ese endpoint. Esto permite correr
+# STT/LLM/TTS en Modal (vLLM / Nano-vLLM exponen API OpenAI-compatible), o el
+# modo realtime (speech-to-speech) contra PersonaPlex vía Modal.
+# NOTE: firmas verificadas en el plugin openai 1.6.x:
+#   openai.STT(base_url, api_key, model, language)  · openai/stt.py
+#   openai.LLM(base_url, api_key, model)            · openai/llm.py
+#   openai.TTS(base_url, api_key, model, voice)     · openai/tts.py  (voice, no voice_id)
+#   openai.realtime.RealtimeModel(base_url, api_key, model, voice)
+
+# api_key placeholder: el AsyncClient de OpenAI exige una key aunque el endpoint
+# self-hosted no la valide.
+_OAI_PLACEHOLDER_KEY = "sk-local"
+
+
+def _make_stt(cfg: dict):
+    base_url = cfg.get("base_url")
+    if base_url:
+        kwargs: dict = {
+            "base_url": base_url,
+            "api_key": cfg.get("api_key") or _OAI_PLACEHOLDER_KEY,
+            "model": cfg.get("model") or "whisper-1",
+        }
+        # "multi" es un concepto de Deepgram; para OpenAI/Whisper omitimos el idioma
+        # (auto-detección) salvo que venga un código real.
+        lang = cfg.get("language")
+        if lang and lang != "multi":
+            kwargs["language"] = lang
+        return openai.STT(**kwargs)
+    return deepgram.STT(
+        model=cfg.get("model", "nova-3"),
+        language=cfg.get("language", "multi"),
+    )
+
+
+def _make_llm(cfg: dict):
+    base_url = cfg.get("base_url")
+    if base_url:
+        return openai.LLM(
+            base_url=base_url,
+            api_key=cfg.get("api_key") or _OAI_PLACEHOLDER_KEY,
+            model=cfg.get("model") or "gpt-4o-mini",
+        )
+    # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
+    return anthropic.LLM(
+        model=cfg.get("model", "claude-haiku-4-5"),
+        caching="ephemeral",
+    )
+
+
+def _make_tts(cfg: dict):
+    base_url = cfg.get("base_url")
+    if base_url:
+        return openai.TTS(
+            base_url=base_url,
+            api_key=cfg.get("api_key") or _OAI_PLACEHOLDER_KEY,
+            model=cfg.get("model") or "tts-1",
+            voice=cfg.get("voice_id") or "alloy",
+        )
+    return elevenlabs.TTS(
+        voice_id=cfg.get("voice_id"),
+        model=cfg.get("model", "eleven_flash_v2_5"),
+    )
+
+
+def _try_build_realtime(context: dict):
+    """Intenta construir un RealtimeModel OpenAI-compatible (speech-to-speech).
+    Camino para PersonaPlex vía Modal. Devuelve None si no es viable (→ pipeline)."""
+    rt = context.get("realtime") or {}
+    base_url = rt.get("base_url")
+    if not base_url:
+        return None
+    try:
+        from livekit.plugins.openai import realtime as openai_realtime
+
+        kwargs: dict = {"base_url": base_url}
+        if rt.get("model"):
+            kwargs["model"] = rt["model"]
+        if rt.get("api_key"):
+            kwargs["api_key"] = rt["api_key"]
+        voice_id = (context.get("voice") or {}).get("voice_id")
+        if voice_id:
+            kwargs["voice"] = voice_id
+        return openai_realtime.RealtimeModel(**kwargs)
+    except Exception:
+        logger.warning("no se pudo construir RealtimeModel; se usará el pipeline", exc_info=True)
+        return None
+
+
 def _build_session(context: dict, vad) -> AgentSession:
-    stt_cfg = context.get("stt") or {}
-    llm_cfg = context.get("llm") or {}
-    voice_cfg = context.get("voice") or {}
+    # Modo realtime (speech-to-speech) sin STT/TTS separados.
+    if context.get("mode") == "realtime":
+        rt = _try_build_realtime(context)
+        if rt is not None:
+            logger.info("sesión realtime (speech-to-speech) activada")
+            # El RealtimeModel maneja VAD/turn-detection del lado del servidor.
+            return AgentSession(llm=rt)
+        logger.warning("mode=realtime pero sin endpoint viable; cayendo al pipeline")
+
+    # Pipeline STT -> LLM -> TTS (con proveedor fijo o OpenAI-compatible por capa).
     return AgentSession(
-        stt=deepgram.STT(
-            model=stt_cfg.get("model", "nova-3"),
-            language=stt_cfg.get("language", "multi"),
-        ),
-        # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
-        llm=anthropic.LLM(
-            model=llm_cfg.get("model", "claude-haiku-4-5"),
-            caching="ephemeral",
-        ),
-        # El modelo TTS lo fija el admin global (voice.model); default Flash v2.5.
-        # NOTE: los PROVEEDORES (stt/llm/tts) están cableados a deepgram/anthropic/
-        # elevenlabs. Si el admin cambia de proveedor o pone mode='realtime'
-        # (p.ej. PersonaPlex), hay que cablear ese motor aquí — ver README.
-        tts=elevenlabs.TTS(
-            voice_id=voice_cfg.get("voice_id"),
-            model=voice_cfg.get("model", "eleven_flash_v2_5"),
-        ),
+        stt=_make_stt(context.get("stt") or {}),
+        llm=_make_llm(context.get("llm") or {}),
+        tts=_make_tts(context.get("voice") or {}),
         turn_detection=MultilingualModel(),
         vad=vad,
     )
+
+
+async def _start_recording(ctx: JobContext, context: dict, call_state: CallState) -> None:
+    """Inicia LiveKit Egress (audio-only) de la room a un bucket S3-compatible
+    (Supabase Storage vía endpoint S3). Fail-soft: si faltan credenciales o falla,
+    loguea y NO graba, sin romper la llamada."""
+    rec = context.get("recording") or {}
+    if not rec.get("enabled"):
+        return
+    bucket = os.getenv("RECORDING_S3_BUCKET")
+    access = os.getenv("RECORDING_S3_ACCESS_KEY")
+    secret = os.getenv("RECORDING_S3_SECRET_KEY")
+    if not (bucket and access and secret):
+        logger.warning("recording habilitado pero faltan credenciales S3; no se graba")
+        return
+    endpoint = os.getenv("RECORDING_S3_ENDPOINT") or None
+    region = os.getenv("RECORDING_S3_REGION") or "auto"
+    # Key determinística por call_id -> el backend puede firmar la URL sin adivinar.
+    key = f"voice-recordings/{call_state.call_id}.ogg"
+
+    s3_kwargs = dict(access_key=access, secret=secret, bucket=bucket, region=region)
+    if endpoint:  # Supabase / MinIO / R2 requieren endpoint + path-style
+        s3_kwargs["endpoint"] = endpoint
+        s3_kwargs["force_path_style"] = True
+
+    try:
+        info = await ctx.api.egress.start_room_composite_egress(
+            lkapi.RoomCompositeEgressRequest(
+                room_name=ctx.room.name,
+                audio_only=True,
+                file_outputs=[
+                    lkapi.EncodedFileOutput(
+                        file_type=lkapi.EncodedFileType.OGG,  # audio Opus -> .ogg
+                        filepath=key,
+                        s3=lkapi.S3Upload(**s3_kwargs),
+                    )
+                ],
+            )
+        )
+        call_state.egress_id = getattr(info, "egress_id", "") or ""
+        call_state.recording_key = key
+        # URL best-effort (el egress sube el archivo al cerrarse la room).
+        call_state.recording_url = (
+            f"{endpoint.rstrip('/')}/{bucket}/{key}" if endpoint else f"s3://{bucket}/{key}"
+        )
+        logger.info("egress iniciado (%s) -> %s", call_state.egress_id, key)
+    except Exception:
+        logger.warning("no se pudo iniciar egress; la llamada sigue sin grabación", exc_info=True)
 
 
 async def _timeout_guard(session: AgentSession, context: dict, call_state: CallState) -> None:
@@ -316,13 +449,22 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     context = await api.get_context(call_id=meta["call_id"])
     call_state.call_id = context.get("call_id", call_state.call_id)
 
+    sip = context.get("sip") or {}
+    # Identidad del participante telefónico (la fijamos nosotros al marcar) -> la
+    # necesita transfer_to_human para el SIP REFER.
+    identity = f"caller-{call_state.call_id}"
+    call_state.phone_identity = identity
+
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()
     _wire_events(session, call_state, usage_collector)
     agent = Agent(
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
-            call_state=call_state, api=api, tools_enabled=context.get("tools_enabled") or []
+            call_state=call_state,
+            api=api,
+            tools_enabled=context.get("tools_enabled") or [],
+            transfer_number=(context.get("transfer") or {}).get("number"),
         ),
     )
 
@@ -334,8 +476,6 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
         session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options())
     )
 
-    sip = context.get("sip") or {}
-    identity = f"caller-{call_state.call_id}"
     req_kwargs = dict(
         room_name=ctx.room.name,
         sip_trunk_id=sip.get("trunk_id"),
@@ -362,6 +502,8 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
 
     # Contestaron.
     call_state.answered_at = _now_iso()
+    # Grabación (si está habilitada) una vez que hay audio en la room.
+    await _start_recording(ctx, context, call_state)
     await session_task
 
     greeting = context.get("greeting")
@@ -387,6 +529,8 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     context = await api.get_context(did=did, caller=caller)
     call_state.call_id = context.get("call_id", "")
     call_state.answered_at = _now_iso()
+    # El participante telefónico ya está en la room -> guardamos su identity para transferir.
+    call_state.phone_identity = getattr(participant, "identity", "") or ""
 
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()
@@ -394,11 +538,17 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     agent = Agent(
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
-            call_state=call_state, api=api, tools_enabled=context.get("tools_enabled") or []
+            call_state=call_state,
+            api=api,
+            tools_enabled=context.get("tools_enabled") or [],
+            transfer_number=(context.get("transfer") or {}).get("number"),
         ),
     )
 
     ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context))
+
+    # Grabación (si está habilitada).
+    await _start_recording(ctx, context, call_state)
 
     await session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options())
 

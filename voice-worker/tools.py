@@ -42,6 +42,12 @@ class CallState:
     answered_at: str | None = None
     result_posted: bool = False
     transcript: list[dict[str, Any]] = field(default_factory=list)
+    # Identidad del participante telefónico (para transferir por SIP REFER).
+    phone_identity: str = ""
+    # Grabación (LiveKit Egress → S3/Supabase). Se reporta en /result.
+    egress_id: str = ""
+    recording_key: str | None = None
+    recording_url: str | None = None
 
 
 async def hangup() -> None:
@@ -79,8 +85,15 @@ async def _forward(api, call_state: CallState, tool: str, raw_input: dict[str, A
     return json.dumps({"error": data.get("error", "unknown")}, ensure_ascii=False)
 
 
-def build_tools(*, call_state: CallState, api, tools_enabled: list[str]) -> list:
-    """Construye la lista de tools según lo habilitado + las de control."""
+def build_tools(
+    *,
+    call_state: CallState,
+    api,
+    tools_enabled: list[str],
+    transfer_number: str | None = None,
+) -> list:
+    """Construye la lista de tools según lo habilitado + las de control.
+    `transfer_number` (opcional): si viene, se agrega `transfer_to_human`."""
     enabled = set(tools_enabled or [])
     tools: list = []
 
@@ -209,5 +222,61 @@ def build_tools(*, call_state: CallState, api, tools_enabled: list[str]) -> list
         return "ok"
 
     tools.append(detected_answering_machine)
+
+    # --- Transferencia a humano (sólo si hay número configurado) ---
+
+    if transfer_number:
+        @function_tool(
+            name="transfer_to_human",
+            description=(
+                "Transfiere la llamada a un agente humano. Úsala cuando el cliente lo pida "
+                "o cuando no puedas resolver su solicitud. Avisa al cliente antes de transferir."
+            ),
+        )
+        async def transfer_to_human(ctx: RunContext) -> str:
+            # Marca el desenlace ANTES de transferir (la llamada sale de nuestras manos).
+            call_state.outcome = call_state.outcome or "callback_requested"
+            call_state.outcome_details = {
+                **(call_state.outcome_details or {}),
+                "transferred": True,
+                "transfer_to": transfer_number,
+            }
+            # Aviso hablado al cliente.
+            try:
+                await ctx.session.generate_reply(
+                    instructions="Dile brevemente al cliente que lo vas a transferir con un agente."
+                )
+            except Exception:
+                pass
+            # SIP REFER del participante telefónico hacia el número humano.
+            # NOTE: firma según el ejemplo oficial outbound-caller-python:
+            # transfer_sip_participant(room_name, participant_identity, transfer_to="tel:+E164")
+            try:
+                jc = get_job_context()
+                await jc.api.sip.transfer_sip_participant(
+                    lkapi.TransferSIPParticipantRequest(
+                        room_name=jc.room.name,
+                        participant_identity=call_state.phone_identity,
+                        transfer_to=f"tel:{transfer_number}",
+                    )
+                )
+                # No colgamos: la transferencia se lleva la llamada.
+                call_state.status = call_state.status or "completed"
+                logger.info("llamada transferida a %s", transfer_number)
+                return "ok"
+            except Exception as e:
+                logger.warning("fallo al transferir: %s", e)
+                # Revertimos el flag transferido para no reportar algo que no pasó.
+                if call_state.outcome_details:
+                    call_state.outcome_details["transferred"] = False
+                try:
+                    await ctx.session.generate_reply(
+                        instructions="Discúlpate: no se pudo transferir la llamada en este momento."
+                    )
+                except Exception:
+                    pass
+                return json.dumps({"error": f"transfer_failed: {e}"}, ensure_ascii=False)
+
+        tools.append(transfer_to_human)
 
     return tools

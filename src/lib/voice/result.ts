@@ -49,6 +49,8 @@ export interface VoiceResultPayload {
     llm_output_tokens?: number;
     tts_chars?: number;
   } | null;
+  /** URL of the recorded audio (LiveKit Egress → storage), if recording was on. */
+  recording_url?: string | null;
   error?: string | null;
 }
 
@@ -264,6 +266,7 @@ export async function persistCallResult(
       ended_at: finalizeTs,
       duration_seconds: durationSeconds,
       cost,
+      recording_url: payload.recording_url ?? null,
       error: payload.error ?? null,
       updated_at: new Date().toISOString(),
     })

@@ -874,4 +874,8 @@ export interface VoiceConnectionConfig {
   monthly_minutes_limit?: number | null;
   /** Emergency stop: when true, no calls are dispatched. */
   kill_switch?: boolean;
+  /** Record calls (adds a spoken disclosure to the greeting). */
+  recording_enabled?: boolean;
+  /** E.164 number the agent can warm/cold-transfer a call to (human handoff). */
+  transfer_number?: string;
 }

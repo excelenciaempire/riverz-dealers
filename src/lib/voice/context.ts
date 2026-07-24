@@ -23,8 +23,21 @@ import {
 } from '@/lib/ai/runner';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
-import { DEFAULT_GREETINGS, DEFAULT_OBJECTIVES } from './constants';
-import { getVoiceModelConfig, type VoiceMode } from './model-config';
+import {
+  DEFAULT_GREETINGS,
+  DEFAULT_OBJECTIVES,
+  DEFAULT_RECORDING_DISCLOSURE,
+} from './constants';
+import { getVoiceModelResolved, type VoiceMode } from './model-config';
+
+/** A model layer's runtime coordinates for the worker. */
+interface LayerCfg {
+  provider: string;
+  model: string;
+  /** OpenAI-compatible endpoint (Modal) — null = use the built-in provider. */
+  base_url: string | null;
+  api_key: string | null;
+}
 
 /** Shape returned to the worker (GET /api/internal/voice/context). */
 export interface VoiceContextPayload {
@@ -37,11 +50,15 @@ export interface VoiceContextPayload {
   system_prompt: string;
   /** Conversation engine mode (global admin setting). */
   mode: VoiceMode;
-  voice: { provider: string; voice_id: string | null; model: string };
-  llm: { provider: string; model: string };
-  stt: { provider: string; model: string; language: string };
+  voice: LayerCfg & { voice_id: string | null };
+  llm: LayerCfg;
+  stt: LayerCfg & { language: string };
   /** Present when mode='realtime' (full-duplex engine, e.g. PersonaPlex). */
-  realtime: { provider: string; model: string } | null;
+  realtime: LayerCfg | null;
+  /** Whether to record the call (compliance disclosure is in the greeting). */
+  recording: { enabled: boolean };
+  /** Warm/cold transfer target for the transfer_to_human tool. */
+  transfer: { number: string | null };
   max_call_seconds: number;
   sip: { trunk_id: string | null; caller_number: string | null };
   contact: { id: string; name: string | null };
@@ -150,6 +167,8 @@ export async function buildVoiceContext(
   opts: {
     trunkId: string | null;
     callerNumber: string | null;
+    recordingEnabled?: boolean;
+    transferNumber?: string | null;
   },
 ): Promise<VoiceContextPayload> {
   const { data: agentRow } = await db
@@ -219,37 +238,58 @@ export async function buildVoiceContext(
       ]
     : [];
 
-  // Global model stack (platform-admin setting). STT/TTS/mode are platform-wide;
-  // the LLM model still honors a per-agent override when set.
-  const model = await getVoiceModelConfig(db);
+  // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
+  // platform-wide; the LLM model still honors a per-agent override when set.
+  const model = await getVoiceModelResolved(db);
+
+  // Recording disclosure is prepended to the greeting when recording is on, so
+  // the customer is informed the moment the call connects (compliance).
+  const lang = langOf(agent, call);
+  let greeting = resolveGreeting(agent, contact, call);
+  if (opts.recordingEnabled) {
+    greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
+  }
 
   return {
     call_id: call.id,
     direction: call.direction,
     call_type: call.call_type,
     phone: call.phone,
-    language: langOf(agent, call),
-    greeting: resolveGreeting(agent, contact, call),
+    language: lang,
+    greeting,
     system_prompt: `${base}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {
       provider: model.tts_provider,
       voice_id: agent.voice_id || model.tts_default_voice_id,
       model: model.tts_model,
+      base_url: model.tts_base_url,
+      api_key: model.tts_api_key,
     },
     llm: {
       provider: model.llm_provider,
       model: agent.model || model.llm_model,
+      base_url: model.llm_base_url,
+      api_key: model.llm_api_key,
     },
     stt: {
       provider: model.stt_provider,
       model: model.stt_model,
       language: model.stt_language,
+      base_url: model.stt_base_url,
+      api_key: model.stt_api_key,
     },
     realtime:
       model.mode === 'realtime' && model.realtime_provider && model.realtime_model
-        ? { provider: model.realtime_provider, model: model.realtime_model }
+        ? {
+            provider: model.realtime_provider,
+            model: model.realtime_model,
+            base_url: model.realtime_base_url,
+            api_key: model.realtime_api_key,
+          }
         : null,
+    recording: { enabled: Boolean(opts.recordingEnabled) },
+    transfer: { number: opts.transferNumber ?? null },
     max_call_seconds: agent.voice_max_call_seconds || 300,
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },

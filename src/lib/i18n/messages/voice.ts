@@ -169,6 +169,12 @@ export const voice = {
   adminModel: { es: "Modelo", en: "Model" },
   adminLanguage: { es: "Idioma", en: "Language" },
   adminDefaultVoice: { es: "Voz por defecto", en: "Default voice" },
+  adminEndpoint: { es: "Endpoint (Modal, opcional)", en: "Endpoint (Modal, optional)" },
+  adminEndpointHint: {
+    es: "URL OpenAI-compatible; vacío = proveedor por defecto",
+    en: "OpenAI-compatible URL; empty = default provider",
+  },
+  adminApiKey: { es: "API key del endpoint", en: "Endpoint API key" },
   adminSave: { es: "Guardar", en: "Save" },
   adminSaved: { es: "Modelo actualizado", en: "Model updated" },
 } satisfies Namespace;
