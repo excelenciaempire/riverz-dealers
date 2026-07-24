@@ -52,24 +52,30 @@ export interface VoiceResultPayload {
   error?: string | null;
 }
 
+/** Parse an env rate, falling back to `def` on missing/NaN (never poisons cost). */
+function envNum(name: string, def: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) ? n : def;
+}
+
+/** Non-negative finite number, else 0 — worker-supplied usage is untrusted. */
+function nn(v: number | null | undefined): number {
+  return Number.isFinite(v) && (v as number) > 0 ? (v as number) : 0;
+}
+
 /** Rough per-unit rates → estimated USD cost. Reconciled later (fase 2). */
 function estimateCost(
   usage: VoiceResultPayload['usage'],
   durationSeconds: number | null,
 ): VoiceCallCost {
-  const minutes = (durationSeconds ?? 0) / 60;
-  const sttMin = (usage?.stt_seconds ?? durationSeconds ?? 0) / 60;
-  const stt_usd = sttMin * Number(process.env.VOICE_STT_USD_PER_MIN ?? 0.0078);
+  const minutes = nn(durationSeconds) / 60;
+  const sttMin = (usage?.stt_seconds != null ? nn(usage.stt_seconds) : nn(durationSeconds)) / 60;
+  const stt_usd = sttMin * envNum('VOICE_STT_USD_PER_MIN', 0.0078);
   const llm_usd =
-    ((usage?.llm_input_tokens ?? 0) / 1_000_000) *
-      Number(process.env.VOICE_LLM_IN_USD_PER_MTOK ?? 1) +
-    ((usage?.llm_output_tokens ?? 0) / 1_000_000) *
-      Number(process.env.VOICE_LLM_OUT_USD_PER_MTOK ?? 5);
-  const tts_usd =
-    ((usage?.tts_chars ?? 0) / 1000) *
-    Number(process.env.VOICE_TTS_USD_PER_1K_CHARS ?? 0.05);
-  const telephony_usd =
-    minutes * Number(process.env.VOICE_TELEPHONY_USD_PER_MIN ?? 0.02);
+    (nn(usage?.llm_input_tokens) / 1_000_000) * envNum('VOICE_LLM_IN_USD_PER_MTOK', 1) +
+    (nn(usage?.llm_output_tokens) / 1_000_000) * envNum('VOICE_LLM_OUT_USD_PER_MTOK', 5);
+  const tts_usd = (nn(usage?.tts_chars) / 1000) * envNum('VOICE_TTS_USD_PER_1K_CHARS', 0.05);
+  const telephony_usd = minutes * envNum('VOICE_TELEPHONY_USD_PER_MIN', 0.02);
   const total_usd =
     Math.round((stt_usd + llm_usd + tts_usd + telephony_usd) * 10000) / 10000;
   return {
@@ -214,8 +220,20 @@ export async function persistCallResult(
   if (!callRow) return { ok: false, reason: 'call_not_found' };
   const call = callRow as VoiceCall;
 
-  // Idempotency: already finalized.
+  // Idempotency: fast path for the already-finalized read, plus an ATOMIC
+  // claim so two concurrent POSTs (the worker may retry) can't both proceed —
+  // otherwise we'd double-schedule retries and fire the completion trigger
+  // twice. Only the writer that flips ended_at from null wins.
   if (call.ended_at) return { ok: true, reason: 'already_finalized' };
+  const finalizeTs = payload.ended_at ?? new Date().toISOString();
+  const { data: claimed } = await db
+    .from('voice_calls')
+    .update({ ended_at: finalizeTs, updated_at: finalizeTs })
+    .eq('id', call.id)
+    .is('ended_at', null)
+    .select('id')
+    .maybeSingle();
+  if (!claimed) return { ok: true, reason: 'already_finalized' };
 
   const { data: agentRow } = await db
     .from('ai_agents')
@@ -243,7 +261,7 @@ export async function persistCallResult(
       summary: payload.summary ?? null,
       conversation_id: conversationId,
       answered_at: payload.answered_at ?? null,
-      ended_at: payload.ended_at ?? new Date().toISOString(),
+      ended_at: finalizeTs,
       duration_seconds: durationSeconds,
       cost,
       error: payload.error ?? null,

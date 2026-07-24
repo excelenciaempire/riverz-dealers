@@ -102,7 +102,10 @@ export function nextAllowedTime(
   from: Date = new Date(),
 ): Date {
   const days = hours.days?.length ? hours.days : DEFAULT_CALLING_HOURS.days;
-  const startMin = hhmmToMinutes(hours.start || DEFAULT_CALLING_HOURS.start);
+  // Normalize once and reuse for BOTH the window comparison and the scheduled
+  // instant, so an empty/malformed start can't produce an Invalid Date.
+  const startStr = hours.start || DEFAULT_CALLING_HOURS.start;
+  const startMin = hhmmToMinutes(startStr);
   const endMin = hhmmToMinutes(hours.end || DEFAULT_CALLING_HOURS.end);
 
   // Already inside a valid window today?
@@ -120,11 +123,11 @@ export function nextAllowedTime(
     if (!days.includes(dow)) continue;
     // Today but before the window → open today at start.
     if (i === 0 && nowMin < startMin) {
-      return fromZonedTime(`${candidate}T${hours.start}:00`, tz);
+      return fromZonedTime(`${candidate}T${startStr}:00`, tz);
     }
     // Today but after the window → skip to the next allowed day.
     if (i === 0) continue;
-    return fromZonedTime(`${candidate}T${hours.start}:00`, tz);
+    return fromZonedTime(`${candidate}T${startStr}:00`, tz);
   }
   // Fallback (window misconfigured): 1h from now.
   return new Date(from.getTime() + 60 * 60 * 1000);
@@ -196,11 +199,14 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   const agent = agentRow as AiAgent;
   if (!agent.voice_enabled) return { enqueued: false, reason: 'voice_disabled' };
 
-  // Contact + opt-out + phone.
+  // Contact + opt-out + phone. Scope by workspace so a caller can't enqueue a
+  // call against a contact from another tenant (the dashboard route validates
+  // workspace membership + agent ownership, but not the contact).
   const { data: contactRow } = await db
     .from('contacts')
     .select('*')
     .eq('id', input.contactId)
+    .eq('workspace_id', input.workspaceId)
     .maybeSingle();
   if (!contactRow) return { enqueued: false, reason: 'contact_not_found' };
   const contact = contactRow as Contact;
@@ -225,9 +231,11 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     ? new Date()
     : nextAllowedTime(tz, callingHours);
 
-  const maxAttempts =
-    input.maxAttempts ??
-    (agent.voice_max_retries ?? DEFAULT_MAX_RETRIES) + 1; // attempts = retries + 1
+  // attempts = retries + 1; clamp to [1, 6] so an automation config can't
+  // request an unbounded dial loop.
+  const rawMaxAttempts =
+    input.maxAttempts ?? (agent.voice_max_retries ?? DEFAULT_MAX_RETRIES) + 1;
+  const maxAttempts = Math.max(1, Math.min(6, Math.floor(rawMaxAttempts) || 1));
 
   const { data: inserted, error } = await db
     .from('voice_calls')

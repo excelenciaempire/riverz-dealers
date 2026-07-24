@@ -97,20 +97,26 @@ export async function resolveInboundCall(
 ): Promise<InboundResolution> {
   const did = toE164(input.did);
 
-  // Find the workspace that owns this DID.
+  // Find the workspace that owns this DID. Match on EXACT E.164 equality (not
+  // a last-8-digits fuzzy match) so two workspaces whose numbers merely share
+  // the last 8 digits can't cross-route inbound calls.
   const { data: conns } = await db
     .from('channel_connections')
     .select('workspace_id, config, status')
     .eq('channel', 'voice');
-  const conn = ((conns ?? []) as {
+  const matches = ((conns ?? []) as {
     workspace_id: string;
     config: VoiceConnectionConfig | null;
     status: string;
-  }[]).find((c) => {
+  }[]).filter((c) => {
     const num = c.config?.phone_number;
-    return num && phonesMatch(toE164(num), did);
+    return num && toE164(num) === did;
   });
-  if (!conn) return { ok: false, reason: 'unknown_did' };
+  if (matches.length === 0) return { ok: false, reason: 'unknown_did' };
+  // Ambiguous: two workspaces claim the same DID (config is merchant-supplied
+  // and unverified). Refuse rather than guess and route to the wrong tenant.
+  if (matches.length > 1) return { ok: false, reason: 'ambiguous_did' };
+  const conn = matches[0];
   if (conn.status === 'disconnected') return { ok: false, reason: 'disconnected' };
   const cfg = conn.config ?? {};
   if (!cfg.inbound_enabled) return { ok: false, reason: 'inbound_disabled' };
@@ -123,6 +129,26 @@ export async function resolveInboundCall(
   if (!contact) return { ok: false, reason: 'contact_failed' };
   if (contact.voice_opt_out) return { ok: false, reason: 'opt_out' };
 
+  const caller = toE164(input.caller);
+
+  // Idempotency: the worker may re-fetch /context for the SAME physical call
+  // (timeout/reconnect). Reuse a recent, still-open inbound call for this
+  // contact instead of creating a duplicate row + conversation.
+  const recentIso = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: existing } = await db
+    .from('voice_calls')
+    .select('*')
+    .eq('workspace_id', conn.workspace_id)
+    .eq('contact_id', contact.id)
+    .eq('direction', 'inbound')
+    .in('status', ['in_progress', 'dialing'])
+    .is('ended_at', null)
+    .gte('created_at', recentIso)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing) return { ok: true, call: existing as VoiceCall };
+
   const { data: inserted, error } = await db
     .from('voice_calls')
     .insert({
@@ -131,7 +157,7 @@ export async function resolveInboundCall(
       contact_id: contact.id,
       direction: 'inbound',
       call_type: 'inbound',
-      phone: toE164(input.caller),
+      phone: caller,
       language: agent.language || 'es',
       status: 'in_progress',
       context: {},

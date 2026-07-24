@@ -87,21 +87,36 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // Re-check opt-out at dispatch: the contact may have opted out AFTER the
+      // call was queued (or between retries). Compliance-critical.
+      const { data: contactRow } = await db
+        .from('contacts')
+        .select('voice_opt_out')
+        .eq('id', row.contact_id)
+        .maybeSingle();
+      if ((contactRow as { voice_opt_out?: boolean } | null)?.voice_opt_out) {
+        await db
+          .from('voice_calls')
+          .update({ status: 'canceled', ended_at: nowIso, error: 'opt_out', updated_at: nowIso })
+          .eq('id', row.id);
+        continue;
+      }
+
       try {
         await dispatchVoiceCall({ callId: row.id, workspaceId: row.workspace_id });
         dispatched++;
       } catch (err) {
         failed++;
         console.error('[cron/voice-calls] dispatch failed:', row.id, err);
-        await db
-          .from('voice_calls')
-          .update({
-            status: 'failed',
-            ended_at: new Date().toISOString(),
-            error: err instanceof Error ? err.message : String(err),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', row.id);
+        // Route through the result handler (same as the stuck-call sweep) so a
+        // transient dispatch error still fires voice_call_completed and the
+        // retry/fallback chain stays consistent instead of dead-ending.
+        await persistCallResult({
+          call_id: row.id,
+          status: 'failed',
+          ended_at: new Date().toISOString(),
+          error: err instanceof Error ? err.message : String(err),
+        }).catch((e) => console.error('[cron/voice-calls] fail-persist failed:', row.id, e));
       }
     }
 
