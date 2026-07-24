@@ -320,11 +320,16 @@ def _make_llm(cfg: dict):
 def _make_tts(cfg: dict):
     base_url = cfg.get("base_url")
     if base_url:
+        # response_format="wav": el emitter de LiveKit decodifica según el
+        # formato que PIDE el cliente (no el Content-Type). "wav" es a prueba de
+        # balas (auto-describe el sample rate; LiveKit resamplea). El wrapper de
+        # Modal (VoxCPM) devuelve WAV real para "wav".
         return openai.TTS(
             base_url=base_url,
             api_key=cfg.get("api_key") or _OAI_PLACEHOLDER_KEY,
             model=cfg.get("model") or "tts-1",
-            voice=cfg.get("voice_id") or "alloy",
+            voice=cfg.get("voice_id") or "default",
+            response_format="wav",
         )
     return elevenlabs.TTS(
         voice_id=cfg.get("voice_id"),
