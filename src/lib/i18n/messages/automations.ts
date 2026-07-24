@@ -273,7 +273,7 @@ export const automations = {
   },
   stepWait: { es: "Esperar", en: "Wait" },
   stepCondition: { es: "Condición (Sí / No)", en: "Condition (Yes / No)" },
-  stepSwitch: { es: "Bifurcar según un dato", en: "Branch by a value" },
+  stepSwitch: { es: "Varios caminos según un dato", en: "Multiple paths by a value" },
   stepSendWebhook: { es: "Enviar webhook", en: "Send webhook" },
   stepCloseConversation: { es: "Cerrar conversación", en: "Close conversation" },
   stepVoiceCall: { es: "Llamar con IA", en: "Call with AI" },
@@ -298,17 +298,19 @@ export const automations = {
   },
   voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
 
-  // Builder — multi-case "Bifurcar según…" node
-  switchPickData: { es: "¿Según cuál dato?", en: "Branch by which data?" },
+  // Builder — multi-case "Varios caminos según un dato" node
+  switchPickData: { es: "¿Según cuál dato?", en: "Based on which data?" },
   switchHint: {
-    es: "Cada caso se revisa en orden; gana el primero que coincida. Si no coincide ninguno, se usa “En otro caso”.",
-    en: "Cases are checked in order; the first match wins. If none match, “Otherwise” runs.",
+    es: "Un camino por cada valor. Gana el primero que coincida; el resto va a «En otro caso».",
+    en: "One path per value. The first match wins; the rest go to “Otherwise”.",
   },
   switchAddCase: { es: "Añadir caso", en: "Add case" },
   switchRemoveCase: { es: "Quitar caso", en: "Remove case" },
   switchElse: { es: "En otro caso", en: "Otherwise" },
-  switchNeedsData: { es: "Elige un dato para bifurcar", en: "Choose data to branch by" },
-  switchSummary: { es: "Según {label} · {count} casos", en: "By {label} · {count} cases" },
+  switchNeedsData: { es: "Elige un dato primero", en: "Choose a value first" },
+  switchSummary: { es: "Según {label}", en: "By {label}" },
+  switchCaseOne: { es: "{n} caso", en: "{n} case" },
+  switchCaseOther: { es: "{n} casos", en: "{n} cases" },
 
   // Builder — step card controls
   moveBefore: { es: "Mover antes", en: "Move before" },
@@ -359,7 +361,7 @@ export const automations = {
   person: { es: "Persona", en: "Person" },
 
   // Builder — update_contact_field editor
-  whichField: { es: "¿Qué dato?", en: "Which field?" },
+  whichField: { es: "¿Qué campo actualizar?", en: "Which field to update?" },
   fieldName: { es: "Nombre", en: "Name" },
   fieldEmail: { es: "Correo", en: "Email" },
   fieldCompany: { es: "Empresa", en: "Company" },
@@ -371,6 +373,9 @@ export const automations = {
   unitMinutes: { es: "Minutos", en: "Minutes" },
   unitHours: { es: "Horas", en: "Hours" },
   unitDays: { es: "Días", en: "Days" },
+  // Live count of contacts currently parked at a wait step (shown on the card
+  // when editing a saved automation).
+  waitingNow: { es: "{n} esperando", en: "{n} waiting" },
 
   // Builder — send_webhook editor
   url: { es: "URL", en: "URL" },

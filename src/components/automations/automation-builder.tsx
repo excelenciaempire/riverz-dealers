@@ -31,6 +31,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  BarChart3,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -109,6 +110,11 @@ const ProductsContext = createContext<string[]>([])
  *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
 const TriggerContext = createContext<AutomationTriggerType>("shopify_order_created")
 
+/** Live count of contacts currently parked at each wait step, keyed by the
+ *  persisted step id. Only populated when editing a saved automation; empty
+ *  during template previews / new drafts (nothing is waiting yet). */
+const WaitingCountsContext = createContext<Record<string, number>>({})
+
 /** Friendly sample values for the inline template preview (so {{n}} renders a
  *  realistic value instead of a placeholder once mapped to a data point). */
 const SAMPLE_BY_VAR: Record<string, string> = {
@@ -153,11 +159,16 @@ export type BuilderStepType = AutomationStepType | "switch"
 export interface BuilderStep {
   /** Client id; the API assigns real UUIDs server-side. */
   cid: string
+  /** Persisted automation_steps.id, kept only when loaded from the server so
+   *  live "waiting" counts can be mapped onto wait nodes. Absent for new steps
+   *  and dropped on the next save (steps are deleted + reinserted). */
+  serverId?: string
   step_type: BuilderStepType
   step_config: Record<string, unknown>
   branches?: { yes: BuilderStep[]; no: BuilderStep[] }
-  /** Multi-case "Bifurcar según…" data — only on `switch` steps. Compiled to a
-   *  nested binary-condition spine by toApiSteps; never reaches the wire. */
+  /** Multi-case "Varios caminos según un dato" data — only on `switch` steps.
+   *  Compiled to a nested binary-condition spine by toApiSteps; never reaches
+   *  the wire. */
   switchData?: SwitchData<BuilderStep>
 }
 
@@ -289,11 +300,14 @@ const STEP_META: Record<BuilderStepType, StepMeta> = {
 // `send_webhook` is intentionally NOT offered — it's a technical/developer
 // action that confuses merchants. The type stays in the union so any legacy
 // automation keeps loading + running its webhook step.
+// `update_contact_field` is likewise NOT offered — it overwrites a core
+// contact field (name/email/company) with a fixed value, which is rarely what
+// a merchant wants and can clobber real data; tags already cover state. The
+// type + editor stay so any legacy automation keeps loading + running it.
 const ADDABLE_STEPS: BuilderStepType[] = [
   "send_template",
   "voice_call",
   "assign_conversation",
-  "update_contact_field",
   "wait",
   "switch",
   "condition",
@@ -311,7 +325,6 @@ const ADDABLE_STEPS: BuilderStepType[] = [
 const LEAF_STEPS: BuilderStepType[] = [
   "send_template",
   "assign_conversation",
-  "update_contact_field",
   "wait",
   "close_conversation",
   "add_tag",
@@ -912,6 +925,9 @@ export function AutomationBuilder({
   const [agents, setAgents] = useState<Profile[]>([])
   const [offers, setOffers] = useState<string[]>([])
   const [products, setProducts] = useState<string[]>([])
+  // Live "how many are parked here right now" per wait step, keyed by the
+  // persisted step id. Only fetched when editing a saved automation.
+  const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({})
 
   // Load the user's templates once — powers the send_template picker and
   // the live phone preview. Approved first so the dropdown is useful.
@@ -987,6 +1003,28 @@ export function AutomationBuilder({
       setProducts([...titles].sort((a, b) => a.localeCompare(b)))
     })()
   }, [])
+
+  // Live "waiting here now" counts per wait step. Only meaningful for a saved
+  // automation; the map is keyed by the persisted step id (serverId on each
+  // loaded node). Pending executions are service-role only, so this goes
+  // through a dedicated endpoint.
+  useEffect(() => {
+    if (!initial.id) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/automations/${initial.id}/waiting`)
+        if (!res.ok) return
+        const body = await res.json()
+        if (!cancelled && body?.counts) setWaitingCounts(body.counts as Record<string, number>)
+      } catch {
+        // Non-critical overlay — a failed fetch just leaves the badges hidden.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [initial.id])
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -1096,6 +1134,7 @@ export function AutomationBuilder({
     <AgentsContext.Provider value={agents}>
     <OffersContext.Provider value={offers}>
     <ProductsContext.Provider value={products}>
+    <WaitingCountsContext.Provider value={waitingCounts}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -1126,6 +1165,17 @@ export function AutomationBuilder({
               aria-label={t("automations.active")}
             />
           </div>
+        )}
+        {isEditing && !templatePreview && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(`/automatizaciones/${initial.id}`)}
+            className="border-border bg-transparent text-foreground hover:bg-muted"
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("automations.viewStats")}</span>
+          </Button>
         )}
         <Button
           onClick={save}
@@ -1197,6 +1247,7 @@ export function AutomationBuilder({
             "Enviar plantilla" step (see StepEditor) — no separate rail. */}
       </div>
     </div>
+    </WaitingCountsContext.Provider>
     </ProductsContext.Provider>
     </OffersContext.Provider>
     </AgentsContext.Provider>
@@ -1425,6 +1476,23 @@ function StepList(props: StepListProps) {
   )
 }
 
+/** Amber pill shown on a wait card with how many contacts are parked there
+ *  right now. Renders nothing unless the step is a saved wait (has a serverId)
+ *  with at least one contact waiting. */
+function WaitingBadge({ step }: { step: BuilderStep }) {
+  const t = useT()
+  const counts = useContext(WaitingCountsContext)
+  if (step.step_type !== "wait" || !step.serverId) return null
+  const n = counts[step.serverId] ?? 0
+  if (n <= 0) return null
+  return (
+    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-amber-600/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-amber-700 dark:text-amber-300">
+      <Hourglass className="h-3 w-3" aria-hidden />
+      {t("automations.waitingNow", { n })}
+    </span>
+  )
+}
+
 function StepRenderer({
   step,
   index,
@@ -1499,6 +1567,7 @@ function StepRenderer({
               <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
               <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
             </div>
+            <WaitingBadge step={step} />
             <ChevronDown
               className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
             />
@@ -1963,6 +2032,7 @@ function LeafStepCard({
             <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
             <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
           </div>
+          <WaitingBadge step={step} />
           <ChevronDown
             className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
           />
@@ -2621,7 +2691,12 @@ function previewFor(step: BuilderStep, t: TFn): string {
       const sd = step.switchData
       if (!sd?.dpId) return t("automations.switchNeedsData")
       const label = t(dataPointById(sd.dpId)?.labelKey ?? "")
-      return t("automations.switchSummary", { label, count: sd.cases.length })
+      const n = sd.cases.length
+      const cases = t(
+        n === 1 ? "automations.switchCaseOne" : "automations.switchCaseOther",
+        { n },
+      )
+      return `${t("automations.switchSummary", { label })} · ${cases}`
     }
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
@@ -3153,6 +3228,9 @@ export function fromServerSteps(nodes: StepShape[]): BuilderStep[] {
     }
     return {
       cid: cid(),
+      // Preserve the persisted id (present on ServerStepNode) so the live
+      // "waiting" count can be keyed back to this exact step.
+      serverId: (n as { id?: string }).id,
       step_type: n.step_type as BuilderStepType,
       step_config: n.step_config ?? {},
       branches:
