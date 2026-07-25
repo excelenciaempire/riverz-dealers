@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isCommentDeleted } from '@/lib/channels/display';
 
 /**
  * The most recent inbound (customer) message of a contact — its text AND
@@ -112,17 +113,23 @@ export async function resolveIgReach(
   }
 
   if (commentIds.length > 0) {
+    // Un comentario BORRADO ya no existe en Instagram: responderlo en privado
+    // es imposible y su lápida ("[deleted]") como texto de engagement hacía que
+    // el scoring marcara a la persona como spam. Se descarta antes.
     const { data } = await db
       .from('messages')
-      .select('message_id, created_at')
+      .select('message_id, created_at, content_text, status')
       .in('conversation_id', commentIds)
       .eq('sender_type', 'customer')
       .not('message_id', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(1);
-    const top = (data ?? [])[0] as
-      | { message_id: string | null; created_at: string }
-      | undefined;
+      .limit(5);
+    const top = ((data ?? []) as Array<{
+      message_id: string | null;
+      created_at: string;
+      content_text: string | null;
+      status: string | null;
+    }>).find((m) => !isCommentDeleted(m));
     if (top?.message_id) {
       sawEngagement = true;
       if (withinCommentWindow(top.created_at)) {
