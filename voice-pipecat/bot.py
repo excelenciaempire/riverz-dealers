@@ -181,8 +181,27 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
 
     # ── Modo realtime full-duplex (PersonaPlex/Moshi) — definitivo, sin LiveKit
     if mode == "realtime" and realtime.get("base_url"):
+        # PersonaPlex necesita un voice_prompt (.pt) de su set de 18 voces + un
+        # text_prompt (persona). Mapea la voz del contexto a una PP; default NATF2.
+        _PP = {
+            "NATF0", "NATF1", "NATF2", "NATF3", "NATM0", "NATM1", "NATM2", "NATM3",
+            "VARF0", "VARF1", "VARF2", "VARF3", "VARF4",
+            "VARM0", "VARM1", "VARM2", "VARM3", "VARM4",
+        }
+        vid = ((ctx.get("voice") or {}).get("voice_id") or "").upper()
+        pp_voice = vid if vid in _PP else "NATF2"
+        sys_prompt = (
+            ctx.get("instructions")
+            or ctx.get("system_prompt")
+            or ctx.get("prompt")
+            or "Eres un asistente telefónico amable. Responde en español, breve y natural."
+        )
         bridge = MoshiBridge(
-            realtime["base_url"], realtime.get("api_key"), on_transcript=collect
+            realtime["base_url"],
+            realtime.get("api_key"),
+            voice=pp_voice,
+            text_prompt=sys_prompt,
+            on_transcript=collect,
         )
         pipeline = Pipeline([transport.input(), bridge, transport.output()])
         greeting = None

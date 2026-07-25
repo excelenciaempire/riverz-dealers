@@ -41,26 +41,39 @@ MIMI_SAMPLE_RATE = 24000  # tasa del códec Mimi que usan Moshi/PersonaPlex
 class MoshiClient:
     """Una conexión = una conversación (moshi.server serializa una por worker)."""
 
-    def __init__(self, base_url: str, auth_token: str | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        auth_token: str | None = None,
+        voice: str = "NATF2",
+        text_prompt: str = "You are a helpful assistant.",
+    ) -> None:
         self._base_url = base_url
         self._auth_token = auth_token
+        # PersonaPlex exige voice_prompt (archivo .pt de embeddings en la carpeta
+        # voices) y text_prompt en el query de /api/chat; sin ellos handle_chat
+        # lanza KeyError y cierra el WS (1000) sin handshake.
+        v = voice if voice.endswith(".pt") else f"{voice}.pt"
+        self._voice_prompt = v
+        self._text_prompt = text_prompt or "You are a helpful assistant."
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._writer = sphn.OpusStreamWriter(MIMI_SAMPLE_RATE)
         self._reader = sphn.OpusStreamReader(MIMI_SAMPLE_RATE)
 
     def _chat_url(self) -> str:
-        """Normaliza a wss://host/api/chat[?auth_id=...] aceptando base con o
-        sin la ruta /api/chat y con o sin query."""
-        url = self._base_url
-        base, _, query = url.partition("?")
+        """wss://host/api/chat?voice_prompt=<voz>.pt&text_prompt=…[&auth_id=…]"""
+        from urllib.parse import quote
+
+        base, _, query = self._base_url.partition("?")
         base = base.rstrip("/")
         if not base.endswith("/api/chat"):
             base = f"{base}/api/chat"
         params = [p for p in query.split("&") if p]
+        params.append(f"voice_prompt={quote(self._voice_prompt)}")
+        params.append(f"text_prompt={quote(self._text_prompt)}")
         if self._auth_token:
-            # moshi.server acepta un token estático opcional por query.
-            params.append(f"auth_id={self._auth_token}")
-        return base + ("?" + "&".join(params) if params else "")
+            params.append(f"auth_id={quote(self._auth_token)}")
+        return base + "?" + "&".join(params)
 
     async def connect(self, timeout: float = 15.0) -> None:
         url = self._chat_url()

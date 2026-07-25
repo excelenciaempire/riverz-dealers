@@ -48,15 +48,20 @@ class MoshiBridge(FrameProcessor):
         self,
         base_url: str,
         auth_token: str | None = None,
+        voice: str = "NATF2",
+        text_prompt: str = "You are a helpful assistant.",
         on_transcript: Callable[[str, str], None] | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._url = base_url
         self._auth = auth_token
+        self._voice = voice
+        self._text_prompt = text_prompt
         self._on_transcript = on_transcript
         self._client: MoshiClient | None = None
         self._recv_task: asyncio.Task | None = None
+        self._start_task: asyncio.Task | None = None
         self._up = create_stream_resampler()   # entrada  pipeline_rate -> 24k
         self._down = create_stream_resampler()  # salida   24k -> out_rate
         self._out_rate = 8000
@@ -67,8 +72,11 @@ class MoshiBridge(FrameProcessor):
 
         if isinstance(frame, StartFrame):
             self._out_rate = getattr(frame, "audio_out_sample_rate", None) or 8000
-            await self._start()
+            # Empuja StartFrame PRIMERO (que el pipeline arranque) y conecta a
+            # moshi en segundo plano; si bloqueáramos aquí, el transport de
+            # salida nunca recibe StartFrame.
             await self.push_frame(frame, direction)
+            self._start_task = asyncio.create_task(self._start())
         elif isinstance(frame, (EndFrame, CancelFrame)):
             await self._stop()
             await self.push_frame(frame, direction)
@@ -79,12 +87,18 @@ class MoshiBridge(FrameProcessor):
             await self.push_frame(frame, direction)
 
     async def _start(self) -> None:
-        self._client = MoshiClient(self._url, self._auth)
-        await self._client.connect()
-        self._recv_task = asyncio.create_task(
-            self._client.recv_loop(self._emit_audio, self._emit_text)
-        )
-        logger.info("MoshiBridge activo (out_rate=%d)", self._out_rate)
+        try:
+            self._client = MoshiClient(
+                self._url, self._auth, voice=self._voice, text_prompt=self._text_prompt
+            )
+            await self._client.connect()
+            self._recv_task = asyncio.create_task(
+                self._client.recv_loop(self._emit_audio, self._emit_text)
+            )
+            logger.info("MoshiBridge activo (voice=%s out_rate=%d)", self._voice, self._out_rate)
+        except Exception as e:
+            logger.error("MoshiBridge no pudo conectar a moshi: %s", e)
+            self._client = None
 
     async def _forward_input(self, frame: InputAudioRawFrame) -> None:
         if not self._client:
