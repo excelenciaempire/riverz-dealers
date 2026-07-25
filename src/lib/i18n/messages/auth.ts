@@ -125,17 +125,6 @@ export const auth = {
   inviteInvalidTitle: { es: "Invitación no válida", en: "Invalid invitation" },
   backToDashboard: { es: "Volver al panel", en: "Back to dashboard" },
 
-  // Idle guard
-  sessionExpiringIn: {
-    es: "Tu sesión expirará en {remaining} segundos",
-    en: "Your session will expire in {remaining} seconds",
-  },
-  sessionExpiringBody: {
-    es: "Por seguridad, cerraremos tu sesión por inactividad. Toca cualquier tecla o haz clic para continuar.",
-    en: "For your security, we'll sign you out due to inactivity. Press any key or click to continue.",
-  },
-  stayConnected: { es: "Seguir conectado", en: "Stay signed in" },
-
   // Auth layout footer
   privacy: { es: "Privacidad", en: "Privacy" },
   deleteData: { es: "Eliminar datos", en: "Delete data" },

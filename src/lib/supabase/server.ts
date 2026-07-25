@@ -19,6 +19,12 @@ import { cookies } from 'next/headers'
 // `await cookies()` work either way. The XSS surface is mitigated by
 // (a) strict CSP with nonce + 'strict-dynamic' (no inline scripts), and
 // (b) the CSRF token double-submit on every mutation.
+//
+// Sessions never expire on their own: they end only when the user signs out
+// (or revokes sessions from Settings). @supabase/ssr stamps maxAge=400 days
+// on the cookie and refreshes the 1h access token silently, and Supabase Auth
+// keeps sessions_timebox / sessions_inactivity_timeout at 0. Don't add an
+// idle-timeout guard on top — it was removed on purpose.
 export const SESSION_COOKIE_OPTIONS = {
   sameSite: 'lax',
   secure: process.env.NODE_ENV === 'production',
