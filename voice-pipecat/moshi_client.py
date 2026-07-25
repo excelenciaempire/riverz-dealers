@@ -75,7 +75,7 @@ class MoshiClient:
             params.append(f"auth_id={quote(self._auth_token)}")
         return base + "?" + "&".join(params)
 
-    async def connect(self, timeout: float = 15.0) -> None:
+    async def connect(self, timeout: float = 60.0) -> None:
         url = self._chat_url()
         logger.info("moshi: conectando a %s", url.split("?")[0])
         # compression=None: el server de moshi es aiohttp; permessage-deflate del

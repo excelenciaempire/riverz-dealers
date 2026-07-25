@@ -84,11 +84,15 @@ async def moshi_test(
     import asyncio as _asyncio
     from moshi_client import MoshiClient
 
+    import time as _t
+
     base = url or os.getenv("MOSHI_TEST_URL") or "wss://riverztest2--personaplex-serve.modal.run"
     client = MoshiClient(base, voice=voice, text_prompt="Hola, prueba.")
-    res: dict = {"handshake": False, "frames": [], "sent": 0, "error": None}
+    res: dict = {"handshake": False, "connect_ms": None, "frames": [], "sent": 0, "error": None}
     try:
+        _t0 = _t.monotonic()
         await client.connect()
+        res["connect_ms"] = int((_t.monotonic() - _t0) * 1000)
         res["handshake"] = True
 
         async def reader() -> None:
