@@ -303,6 +303,9 @@ def _make_stt(cfg: dict):
 
 
 def _make_llm(cfg: dict):
+    """LLM: Anthropic (Claude, default). Un `base_url` usa el plugin
+    OpenAI-COMPATIBLE como protocolo para un endpoint self-hosted (vLLM/Modal),
+    no OpenAI la empresa."""
     base_url = cfg.get("base_url")
     if base_url:
         return openai.LLM(
@@ -312,12 +315,14 @@ def _make_llm(cfg: dict):
         )
     # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
     return anthropic.LLM(
-        model=cfg.get("model", "claude-haiku-4-5"),
+        model=cfg.get("model") or "claude-haiku-4-5",
         caching="ephemeral",
     )
 
 
 def _make_tts(cfg: dict):
+    """TTS por provider: elevenlabs (default) · cartesia · google. Un `base_url`
+    fuerza el plugin OpenAI-compatible (VoxCPM en Modal, etc.)."""
     base_url = cfg.get("base_url")
     if base_url:
         # response_format="wav": el emitter de LiveKit decodifica según el
@@ -331,9 +336,26 @@ def _make_tts(cfg: dict):
             voice=cfg.get("voice_id") or "default",
             response_format="wav",
         )
+    provider = (cfg.get("provider") or "").lower()
+    try:
+        if provider == "cartesia":
+            from livekit.plugins import cartesia
+
+            kw: dict = {"model": cfg.get("model") or "sonic-2"}
+            if cfg.get("voice_id"):
+                kw["voice"] = cfg["voice_id"]
+            key = cfg.get("api_key") or os.getenv("CARTESIA_API_KEY")
+            if key:
+                kw["api_key"] = key
+            return cartesia.TTS(**kw)
+    except Exception:
+        logger.warning("TTS provider '%s' no disponible; uso ElevenLabs", provider, exc_info=True)
+    # ElevenLabs (default). Pasa la key EXPLÍCITA: el fallback por env del plugin
+    # (ELEVEN_API_KEY) resultó poco fiable en el worker; así siempre la recibe.
     return elevenlabs.TTS(
         voice_id=cfg.get("voice_id"),
         model=cfg.get("model", "eleven_flash_v2_5"),
+        api_key=cfg.get("api_key") or os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"),
     )
 
 
@@ -365,6 +387,8 @@ def _try_build_realtime(context: dict):
             logger.warning("no se pudo construir PersonaPlex; uso pipeline", exc_info=True)
             return None
 
+    # Endpoint OpenAI-Realtime-COMPATIBLE self-hosted (protocolo, no OpenAI la
+    # empresa): p.ej. Moshi/otro motor realtime servido en Modal con ese contrato.
     try:
         from livekit.plugins.openai import realtime as openai_realtime
 

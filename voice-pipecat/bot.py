@@ -268,11 +268,21 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
         api_key=llm_cfg.get("api_key") or os.getenv("ANTHROPIC_API_KEY", ""),
         model=llm_cfg.get("model") or "claude-haiku-4-5-20251001",
     )
-    tts = ElevenLabsTTSService(
-        api_key=tts_cfg.get("api_key") or os.getenv("ELEVENLABS_API_KEY", ""),
-        voice_id=tts_cfg.get("voice_id"),
-        model=tts_cfg.get("model") or "eleven_flash_v2_5",
-    )
+    # TTS por provider: elevenlabs (default) o cartesia (baja latencia). Sin Google/OpenAI.
+    if (tts_cfg.get("provider") or "").lower() == "cartesia":
+        from pipecat.services.cartesia.tts import CartesiaTTSService
+
+        tts = CartesiaTTSService(
+            api_key=tts_cfg.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
+            voice_id=tts_cfg.get("voice_id") or "",
+            model=tts_cfg.get("model") or "sonic-2",
+        )
+    else:
+        tts = ElevenLabsTTSService(
+            api_key=tts_cfg.get("api_key") or os.getenv("ELEVENLABS_API_KEY", ""),
+            voice_id=tts_cfg.get("voice_id"),
+            model=tts_cfg.get("model") or "eleven_flash_v2_5",
+        )
 
     system = ctx.get("instructions") or ctx.get("system_prompt") or ctx.get("prompt") or ""
     greeting = ctx.get("greeting")

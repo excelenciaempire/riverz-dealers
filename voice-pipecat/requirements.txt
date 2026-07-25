@@ -5,7 +5,7 @@
 # `main` verificada el 2026-07-25 (services en pipecat.services.<vendor>.<type>,
 # VAD en LLMUserAggregatorParams, PipelineTask/PipelineRunner clásicos). Fija la
 # versión EXACTA que coincida con esa API antes de desplegar en serio.
-pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,silero]>=0.0.100
+pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,cartesia,silero]>=0.0.100
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
