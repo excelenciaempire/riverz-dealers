@@ -42,8 +42,14 @@ export async function GET(request: Request) {
   const { data: conns } = await admin
     .from("channel_connections")
     .select("*")
+    // Include error/expired, not just connected: the webhook ROUTER keeps
+    // ingesting for error/expired (the subscription is app-level, not
+    // token-level), so the MAINTENANCE surface must match the ingest surface —
+    // otherwise a page stuck in 'error' never gets its subscription re-applied
+    // and, if Meta unsubscribes it after downtime, silently dies forever. A
+    // genuinely dead token just fails the re-apply (logged), which is harmless.
     .in("channel", ["messenger", "instagram", "fb_comment", "ig_comment"])
-    .eq("status", "connected");
+    .in("status", ["connected", "error", "expired"]);
   const list = (conns ?? []) as ChannelConnection[];
 
   const results: Array<{

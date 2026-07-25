@@ -25,7 +25,10 @@ export async function pollAllTikTokConnections(): Promise<{
     .from("channel_connections")
     .select("*")
     .eq("channel", "tiktok_comment")
-    .eq("status", "connected");
+    // Include error/expired: getFreshTikTokToken refreshes + heals the row back
+    // to 'connected'. Polling only 'connected' would permanently self-exclude a
+    // connection whose token refresh transiently failed (it never self-heals).
+    .in("status", ["connected", "error", "expired"]);
   const conns = (data ?? []) as ChannelConnection[];
   let ingested = 0;
 

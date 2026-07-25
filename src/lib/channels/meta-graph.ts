@@ -151,27 +151,56 @@ export interface DiscoveredAccount {
 }
 
 /**
+ * Follow Graph cursor pagination, accumulating every page's `data`. Meta caps
+ * an edge at ~25 items by default and returns the rest behind `paging.next`;
+ * reading only the first page silently loses every account past 25 (an agency
+ * with 30 pages would connect 25 and lose 5 — whose DMs/comments then get
+ * dropped as unmatched). The `paging.next` URL embeds the access_token but NOT
+ * `appsecret_proof`, so we re-attach it on every hop. `maxPages` is a hard
+ * backstop against a pathological cursor loop. Throws on a FIRST-page failure
+ * (so callers can distinguish "couldn't list" from "no results"); a later-page
+ * failure returns the partial accumulation rather than losing everything.
+ */
+async function fetchAllGraphPages<T>(
+  firstUrl: string,
+  userAccessToken: string,
+  maxPages = 40,
+): Promise<T[]> {
+  const out: T[] = [];
+  let url: string | null = firstUrl;
+  for (let page = 0; url && page < maxPages; page++) {
+    const r = await fetch(url);
+    if (!r.ok) {
+      if (page === 0) {
+        throw new Error(`[meta] paged GET failed (${r.status}): ${await r.text().catch(() => "")}`);
+      }
+      break;
+    }
+    const j = (await r.json()) as { data?: T[]; paging?: { next?: string } };
+    if (Array.isArray(j.data)) out.push(...j.data);
+    const next = j.paging?.next;
+    url = next ? withAppsecretProof(next, userAccessToken) : null;
+  }
+  return out;
+}
+
+/**
  * Lists pages the connected user manages, including the IG Professional
- * account id attached to each (if any).
+ * account id attached to each (if any). Follows pagination so a merchant/agency
+ * managing more than 25 pages connects ALL of them.
  */
 export async function listUserPages(userAccessToken: string): Promise<MetaPage[]> {
-  const url = withAppsecretProof(
-    `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id}&access_token=${encodeURIComponent(userAccessToken)}`,
+  const first = withAppsecretProof(
+    `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id}&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
     userAccessToken,
   );
-  const r = await fetch(url);
-  if (!r.ok) {
-    throw new Error(`[meta] /me/accounts failed (${r.status}): ${await r.text()}`);
-  }
-  const j = (await r.json()) as {
-    data?: Array<{
-      id: string;
-      name: string;
-      access_token: string;
-      instagram_business_account?: { id: string };
-    }>;
-  };
-  return (j.data ?? []).map((p) => ({
+  const data = await fetchAllGraphPages<{
+    id: string;
+    name: string;
+    access_token: string;
+    instagram_business_account?: { id: string };
+  }>(first, userAccessToken);
+  return data.map((p) => ({
     id: p.id,
     name: p.name,
     access_token: p.access_token,
@@ -224,35 +253,53 @@ export async function discoverMetaAccounts(
 }
 
 async function discoverWhatsAppAccounts(userAccessToken: string): Promise<DiscoveredAccount[]> {
-  // List WABAs the user owns/manages.
-  const bizUrl = withAppsecretProof(
-    `${GRAPH}/me/businesses?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`,
-    userAccessToken,
-  );
-  const bizRes = await fetch(bizUrl);
-  if (!bizRes.ok) return [];
-  const bizJson = (await bizRes.json()) as { data?: Array<{ id: string; name: string }> };
-
-  const accounts: DiscoveredAccount[] = [];
-  for (const b of bizJson.data ?? []) {
-    const wabaUrl = withAppsecretProof(
-      `${GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`,
+  // List WABAs the user owns/manages. All three edges paginate (a business can
+  // own many WABAs, a WABA many numbers) — fail-soft: a broken edge yields [].
+  let businesses: Array<{ id: string; name: string }>;
+  try {
+    businesses = await fetchAllGraphPages<{ id: string; name: string }>(
+      withAppsecretProof(
+        `${GRAPH}/me/businesses?fields=id,name&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
+        userAccessToken,
+      ),
       userAccessToken,
     );
-    const wabaRes = await fetch(wabaUrl);
-    if (!wabaRes.ok) continue;
-    const wabaJson = (await wabaRes.json()) as { data?: Array<{ id: string; name: string }> };
-    for (const w of wabaJson.data ?? []) {
-      const phoneUrl = withAppsecretProof(
-        `${GRAPH}/${w.id}/phone_numbers?access_token=${encodeURIComponent(userAccessToken)}`,
+  } catch {
+    return [];
+  }
+
+  const accounts: DiscoveredAccount[] = [];
+  for (const b of businesses) {
+    let wabas: Array<{ id: string; name: string }>;
+    try {
+      wabas = await fetchAllGraphPages<{ id: string; name: string }>(
+        withAppsecretProof(
+          `${GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
+          userAccessToken,
+        ),
         userAccessToken,
       );
-      const phoneRes = await fetch(phoneUrl);
-      if (!phoneRes.ok) continue;
-      const phoneJson = (await phoneRes.json()) as {
-        data?: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-      };
-      for (const ph of phoneJson.data ?? []) {
+    } catch {
+      continue;
+    }
+    for (const w of wabas) {
+      let phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
+      try {
+        phones = await fetchAllGraphPages<{
+          id: string;
+          display_phone_number: string;
+          verified_name: string;
+        }>(
+          withAppsecretProof(
+            `${GRAPH}/${w.id}/phone_numbers?limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
+            userAccessToken,
+          ),
+          userAccessToken,
+        );
+      } catch {
+        continue;
+      }
+      for (const ph of phones) {
         accounts.push({
           channel: "whatsapp",
           external_account_id: ph.id,
@@ -477,7 +524,10 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
 export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
   instagram: ["comments", "messages"], // IG comments + IG DMs
   page: ["feed", "messages"], // FB comments (feed) + Messenger DMs
-  whatsapp_business_account: ["messages"], // WhatsApp inbound
+  // WhatsApp inbound + `smb_message_echoes` = messages the merchant sends from
+  // their own WhatsApp app (coexistence) syncing back into Riverz. Both are
+  // app-level fields; losing the echo field silently breaks app→Riverz sync.
+  whatsapp_business_account: ["messages", "smb_message_echoes"],
 };
 
 /** Diff the live app-level subscriptions against what we require. Returns the

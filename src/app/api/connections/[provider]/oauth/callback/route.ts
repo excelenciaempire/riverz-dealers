@@ -250,6 +250,16 @@ export async function GET(
               : undefined,
           }
         : {};
+  // Gmail/Outlook REQUIRE the mailbox address as identity: it is the upsert key
+  // (so reconnecting revives the same row instead of stacking duplicates) AND
+  // Gmail's Pub/Sub push routes by email. If profile discovery failed, refuse
+  // rather than persist an identity-less mailbox that can't receive and would
+  // duplicate on every reconnect.
+  if ((channel === "gmail" || channel === "outlook") && !externalAccountId) {
+    console.error(`[oauth/${provider}] mailbox profile discovery returned no address`);
+    return redirectWithStatus(req, "error", "could not read mailbox address");
+  }
+
   let inserted: ChannelConnection | null = null;
   if (externalAccountId) {
     const up = await upsertConnectionRow(admin, {

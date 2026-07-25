@@ -37,62 +37,67 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, results: [] });
   }
 
-  // Decrypt each connection's page token once and cache by channel.
-  const tokens = new Map<string, string>();
+  // Iterate PER CONNECTION (not per channel) so this is multi-tenant: each
+  // connection resolves ONLY its own workspace's contacts with its OWN page
+  // token. Keying by channel (last connection wins) + building the participant
+  // map from just the first connection would resolve every tenant's contacts
+  // with one workspace's token — wrong names or none at all for the rest.
+  const results: Array<{
+    connectionId: string;
+    channel: string;
+    resolved: number;
+    skipped: number;
+  }> = [];
+
   for (const c of conns as ChannelConnection[]) {
     const secrets = (c.secrets ?? {}) as Record<string, unknown>;
     const enc = String(secrets.access_token ?? "");
-    if (enc) tokens.set(c.channel, decrypt(enc));
-  }
-
-  const results: Record<string, { resolved: number; skipped: number }> = {};
-
-  for (const channel of ["messenger", "instagram", "fb_comment", "ig_comment"] as const) {
-    const token = tokens.get(channel);
-    if (!token) {
-      results[channel] = { resolved: 0, skipped: 0 };
+    if (!enc) continue;
+    let token: string;
+    try {
+      token = decrypt(enc);
+    } catch {
       continue;
     }
+    const channel = c.channel;
 
     // For DM channels, the per-id profile lookup (/{IGSID}?fields=username)
     // is unreliable on Instagram — in practice it returns nothing for DM
     // senders. The reliable source is the conversations API, whose
-    // `participants` carry each person's username/name. Build that map once
-    // per run and resolve from it first; fall back to the per-id lookup.
+    // `participants` carry each person's username/name. Build that map from
+    // THIS connection and resolve from it first; fall back to the per-id lookup.
     let participantMap: Map<string, string> | null = null;
     if (channel === "instagram" || channel === "messenger") {
-      const conn = (conns as ChannelConnection[]).find((x) => x.channel === channel);
-      participantMap = await buildParticipantMap(channel, conn, token).catch(
-        () => null,
-      );
+      participantMap = await buildParticipantMap(channel, c, token).catch(() => null);
     }
 
-    // Pull only contacts that still need a name.
+    // Pull only THIS workspace's contacts on this channel that still need a name.
     const { data: contacts } = await admin
       .from("contacts")
       .select("id, external_id, name")
+      .eq("workspace_id", c.workspace_id)
       .eq("channel", channel)
       .is("name", null)
       .limit(500);
     const list = (contacts ?? []) as Pick<Contact, "id" | "external_id" | "name">[];
     let resolved = 0;
     let skipped = 0;
-    for (const c of list) {
-      if (!c.external_id) {
+    for (const ct of list) {
+      if (!ct.external_id) {
         skipped++;
         continue;
       }
       const name =
-        participantMap?.get(c.external_id) ??
-        (await resolveName(channel, c.external_id, token));
+        participantMap?.get(ct.external_id) ??
+        (await resolveName(channel, ct.external_id, token));
       if (!name) {
         skipped++;
         continue;
       }
-      await admin.from("contacts").update({ name }).eq("id", c.id);
+      await admin.from("contacts").update({ name }).eq("id", ct.id);
       resolved++;
     }
-    results[channel] = { resolved, skipped };
+    results.push({ connectionId: c.id, channel, resolved, skipped });
   }
 
   return NextResponse.json({ ok: true, results });

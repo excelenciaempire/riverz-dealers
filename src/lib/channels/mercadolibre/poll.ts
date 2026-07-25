@@ -21,7 +21,10 @@ export async function pollAllMercadoLibreConnections(): Promise<{
     .from("channel_connections")
     .select("*")
     .eq("channel", "mercadolibre")
-    .eq("status", "connected");
+    // Include error/expired: getFreshMLToken refreshes + heals the row back to
+    // 'connected'. These are exactly the sellers most likely to have dropped a
+    // body-less notification, so they must not be excluded from reconciliation.
+    .in("status", ["connected", "error", "expired"]);
   const conns = (data ?? []) as ChannelConnection[];
   let ingested = 0;
 

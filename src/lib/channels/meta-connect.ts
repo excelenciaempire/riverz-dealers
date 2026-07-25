@@ -111,16 +111,28 @@ export async function persistMetaConnections(
     if (channel !== "whatsapp") {
       const pageId = String(account.config.page_id ?? account.external_account_id);
       const igUserId = account.config.ig_user_id as string | undefined;
-      try {
-        await subscribePageToWebhooks({
-          channel,
-          pageId,
-          pageAccessToken: account.page_access_token,
-          igUserId,
-        });
-        subscribed++;
-      } catch (err) {
-        console.warn(`[meta-connect] subscribe failed for ${account.label}:`, err);
+      // Retry on a transient failure — a dropped subscribe leaves a page that
+      // shows "connected" but receives NOTHING (and, until the verify cron
+      // runs, silently). subscribePageToWebhooks is idempotent (read-union-post),
+      // so retrying is safe. The cron is the eventual backstop; this closes the
+      // common transient-5xx/rate-limit case at connect time.
+      let ok = false;
+      for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+        try {
+          await subscribePageToWebhooks({
+            channel,
+            pageId,
+            pageAccessToken: account.page_access_token,
+            igUserId,
+          });
+          ok = true;
+          subscribed++;
+        } catch (err) {
+          console.warn(
+            `[meta-connect] subscribe failed (attempt ${attempt + 1}) for ${account.label}:`,
+            err,
+          );
+        }
       }
     }
   }

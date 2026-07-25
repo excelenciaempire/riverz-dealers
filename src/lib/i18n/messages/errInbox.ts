@@ -134,6 +134,10 @@ export const errInbox = {
     es: "Proveedor no configurado",
     en: "Provider not configured",
   },
+  metaChannelNotConnectable: {
+    es: "Ese canal no se conecta por esta vía. WhatsApp usa Embedded Signup; los comentarios se activan solos junto a Messenger/Instagram.",
+    en: "That channel can't be connected this way. WhatsApp uses Embedded Signup; comments are enabled automatically alongside Messenger/Instagram.",
+  },
 
   // bulk-delete (clear inbox)
   bulkDeleteNoScope: {

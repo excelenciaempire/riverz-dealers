@@ -76,8 +76,11 @@ async function pollOne(
   // the inbox had fresh mail.
   //
   // On a freshly-connected mailbox we widen to 7d so the user sees a
-  // realistic backlog instead of an empty inbox on day one.
-  const window = lastHistoryId ? "newer_than:1d" : "newer_than:7d";
+  // realistic backlog instead of an empty inbox on day one. Gate on
+  // last_synced_at (has the POLLER ever run?) — NOT on history_id, which
+  // startGmailWatch writes at connect time, so keying on it defeated the 7d
+  // backlog on the very first poll.
+  const window = connection.last_synced_at ? "newer_than:1d" : "newer_than:7d";
   const inboxIds = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
   // Also pull recently-sent mail so the agent's own replies (including
   // ones sent straight from Gmail, outside this app) show in the thread.

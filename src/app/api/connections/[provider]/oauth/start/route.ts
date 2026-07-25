@@ -51,6 +51,20 @@ export async function GET(
     );
   }
 
+  // Meta: only the DM channels connect through the generic OAuth redirect.
+  // WhatsApp MUST go through Embedded Signup (it needs the legacy whatsapp_config
+  // bridge + number registration, which this flow doesn't run), and the comment
+  // channels (fb_comment/ig_comment) are derived SIBLINGS created automatically
+  // next to their DM channel — never connected standalone. Routing either here
+  // would produce a half-wired connection. The UI only ever sends messenger/
+  // instagram here, so this is a defensive guard.
+  if (provider === "meta" && channel !== "messenger" && channel !== "instagram") {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.metaChannelNotConnectable") },
+      { status: 400 },
+    );
+  }
+
   // Admin-only.
   const { data: membership } = await supabaseAdmin()
     .from("workspace_members")
@@ -110,9 +124,12 @@ export async function GET(
   if (cfg.configId) {
     authorize.searchParams.set("config_id", cfg.configId);
   } else if (cfg.scopes.length > 0) {
-    // MercadoLibre configures scopes on the app, not in the authorize URL, so
-    // its scope list is empty and we omit the param entirely.
-    authorize.searchParams.set("scope", cfg.scopes.join(provider === "google" ? " " : ","));
+    // Scope delimiter: OAuth 2.0 (Google + Microsoft) requires a SPACE between
+    // scopes — Microsoft's authorize endpoint rejects a comma-joined list as
+    // one invalid scope (AADSTS70011), which silently broke every Outlook
+    // connect. Only Meta's legacy scope fallback uses a comma. MercadoLibre
+    // configures scopes on the app (empty list here) so the param is omitted.
+    authorize.searchParams.set("scope", cfg.scopes.join(provider === "meta" ? "," : " "));
   }
   if (pkce) {
     authorize.searchParams.set("code_challenge", pkce.challenge);

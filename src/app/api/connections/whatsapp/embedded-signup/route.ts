@@ -168,20 +168,31 @@ export async function POST(req: Request): Promise<Response> {
     //    Acá solo confirmamos que la app quede suscrita y hacemos VISIBLE una
     //    falla en vez de tragárnosla (antes un fallo dejaba la conexión sin
     //    webhooks — y por ende sin sincronización app→Riverz — sin señal alguna).
-    try {
-      const subRes = await fetch(
-        withAppsecretProof(`${GRAPH}/${body.waba_id}/subscribed_apps`, token),
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!subRes.ok) {
+    // Retry once on a transient failure (500 / rate-limit) before giving up —
+    // a dropped WABA subscription silently stops ALL WhatsApp inbound AND the
+    // app→Riverz echo sync, with the connection still showing green.
+    let wabaSubscribed = false;
+    for (let attempt = 0; attempt < 2 && !wabaSubscribed; attempt++) {
+      try {
+        const subRes = await fetch(
+          withAppsecretProof(`${GRAPH}/${body.waba_id}/subscribed_apps`, token),
+          { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (subRes.ok) {
+          wabaSubscribed = true;
+        } else {
+          console.warn(
+            `[whatsapp/embedded-signup] subscribe_apps failed (attempt ${attempt + 1}, ${subRes.status}): ${await subRes
+              .text()
+              .catch(() => "")}`,
+          );
+        }
+      } catch (err) {
         console.warn(
-          `[whatsapp/embedded-signup] subscribe_apps failed (${subRes.status}): ${await subRes
-            .text()
-            .catch(() => "")}`,
+          `[whatsapp/embedded-signup] subscribe_apps failed (attempt ${attempt + 1}):`,
+          err,
         );
       }
-    } catch (err) {
-      console.warn("[whatsapp/embedded-signup] subscribe_apps failed:", err);
     }
 
     // 4. Register the number on Cloud API — ONLY for the new-number flow.

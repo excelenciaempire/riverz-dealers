@@ -376,7 +376,10 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/gmail-watch
-    schedule: "0 0 */5 * *"
+    # Every 12h (idempotent + cheap). NOT "0 0 */5 * *" — day-of-month stepping
+    # resets at month boundaries, so a single missed run could let the Gmail
+    # watch lapse past its 7-day expiry and silently stop push delivery.
+    schedule: "0 */12 * * *"
     envVars:
       - key: BASE_URL
         sync: false
@@ -473,6 +476,25 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/comment-sync
+    schedule: "*/10 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+  # TikTok comments have NO webhook (Accounts API isn't configured), so this
+  # poll is the SOLE inbound path AND the sole 24h-token refresh. Without it,
+  # TikTok comments never reach the inbox even after the app is approved.
+  # Uses AUTOMATION_CRON_SECRET.
+  - type: cron
+    name: cron-tiktok-comments
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/tiktok-comments
     schedule: "*/10 * * * *"
     envVars:
       - key: BASE_URL

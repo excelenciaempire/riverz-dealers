@@ -10,7 +10,11 @@ import type { Channel } from "@/types";
 // v25.0 para que coincida con la versión del SDK que emitió el code
 // (FB.login usa v25.0); un code debe canjearse en la misma versión o superior.
 const GRAPH = "https://graph.facebook.com/v25.0";
-const VALID_CHANNELS = ["messenger", "instagram", "fb_comment", "ig_comment"];
+// Only the DM channels are connectable. persistMetaConnections() auto-creates
+// the comment SIBLING (messenger→fb_comment, instagram→ig_comment), so a
+// comment channel is never connected standalone — accepting it here would
+// create a comment row with no DM row (its DMs would then be dropped).
+const VALID_CHANNELS = ["messenger", "instagram"];
 
 /**
  * POST /api/connections/meta/sdk-connect

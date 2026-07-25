@@ -270,7 +270,10 @@ export async function reconcileAllCommentConnections(
     .from("channel_connections")
     .select("*")
     .in("channel", ["fb_comment", "ig_comment"])
-    .eq("status", "connected");
+    // error/expired connections still receive comment webhooks (app-level
+    // subscription), so their deletions/hides must still be reconciled. A dead
+    // token just makes the Graph read fail → treated as transient → skipped.
+    .in("status", ["connected", "error", "expired"]);
   const list = (conns ?? []) as ChannelConnection[];
 
   let checked = 0;
