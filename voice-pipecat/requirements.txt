@@ -14,5 +14,8 @@ python-dotenv==1.2.2
 
 # Full-duplex (PersonaPlex/Moshi):
 numpy>=1.26,<3
-sphn>=0.1.4              # códec Opus streaming que usa moshi.server (Kyutai)
+# DEBE coincidir con el pin de personaplex/moshi (sphn >=0.1.4,<0.2). El formato
+# del stream Opus cambió en 0.2.x: si el cliente usa 0.2.x y el server 0.1.x, el
+# audio que mandamos NO se decodifica en el server → moshi no nos "escucha".
+sphn>=0.1.4,<0.2        # códec Opus streaming que usa moshi.server (Kyutai)
 websockets>=12,<14      # cliente WS hacia moshi.server (API estable 12/13)
