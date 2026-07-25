@@ -67,7 +67,10 @@ app = modal.App(APP_NAME)
     gpu="A100-80GB",       # NVIDIA-tested HW. H100 = lowest latency; L40S = cheapest (verify).
     volumes={HF_CACHE: cache_vol},
     secrets=[hf_secret],
-    min_containers=1,      # WARM: 7B cold start (~14GB load) is too slow for inbound calls.
+    # TEST/validation: scale-to-zero (pay per use; first call = slow cold start).
+    # PRODUCTION: set min_containers=1 (warm GPU, ~$1.8k/mo) — 7B cold start is
+    # too slow for inbound calls.
+    min_containers=0,
     scaledown_window=300,
     timeout=86400,         # caps WS/call lifetime (max 24h). Lower to your max call length.
 )
