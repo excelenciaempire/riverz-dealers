@@ -53,6 +53,10 @@ export function VoiceCard() {
           kill_switch: !!json.config.kill_switch,
           recording_enabled: !!json.config.recording_enabled,
           transfer_number: json.config.transfer_number ?? '',
+          cod_mode: !!json.config.cod_mode,
+          order_writeback: json.config.order_writeback ?? { enabled: false },
+          dedupe_hours: json.config.dedupe_hours ?? 0.25,
+          lead_ads_enabled: !!json.config.lead_ads_enabled,
         });
         setConnected(json.status === 'connected');
       }
@@ -180,6 +184,17 @@ export function VoiceCard() {
 
           <label className="flex items-center justify-between">
             <span>
+              <span className="block text-sm text-foreground">{t('voice.leadAds')}</span>
+              <span className="block text-xs text-muted-foreground">{t('voice.leadAdsHint')}</span>
+            </span>
+            <Switch
+              checked={!!cfg.lead_ads_enabled}
+              onCheckedChange={(c) => setCfg({ ...cfg, lead_ads_enabled: c })}
+            />
+          </label>
+
+          <label className="flex items-center justify-between">
+            <span>
               <span className="block text-sm text-foreground">{t('voice.recordingEnabled')}</span>
               <span className="block text-xs text-muted-foreground">{t('voice.recordingHint')}</span>
             </span>
@@ -210,6 +225,93 @@ export function VoiceCard() {
               onCheckedChange={(c) => setCfg({ ...cfg, kill_switch: c })}
             />
           </label>
+
+          {/* COD / dropshipping mode — opt-in. Off = a normal merchant sees
+              nothing extra. On = reveals order write-back + grouping window. */}
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+            <label className="flex items-center justify-between">
+              <span>
+                <span className="block text-sm text-foreground">{t('voice.codMode')}</span>
+                <span className="block text-xs text-muted-foreground">{t('voice.codModeHint')}</span>
+              </span>
+              <Switch
+                checked={!!cfg.cod_mode}
+                onCheckedChange={(c) => setCfg({ ...cfg, cod_mode: c })}
+              />
+            </label>
+
+            {cfg.cod_mode && (
+              <div className="mt-3 space-y-3 border-t border-border/60 pt-3">
+                <label className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">{t('voice.orderWriteback')}</span>
+                  <Switch
+                    checked={!!cfg.order_writeback?.enabled}
+                    onCheckedChange={(c) =>
+                      setCfg({
+                        ...cfg,
+                        order_writeback: { ...(cfg.order_writeback ?? {}), enabled: c },
+                      })
+                    }
+                  />
+                </label>
+                {cfg.order_writeback?.enabled && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                        {t('voice.confirmedTag')}
+                      </span>
+                      <Input
+                        value={cfg.order_writeback?.confirmed_tag ?? ''}
+                        onChange={(e) =>
+                          setCfg({
+                            ...cfg,
+                            order_writeback: {
+                              ...(cfg.order_writeback ?? {}),
+                              confirmed_tag: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Confirmado"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                        {t('voice.cancelledTag')}
+                      </span>
+                      <Input
+                        value={cfg.order_writeback?.cancelled_tag ?? ''}
+                        onChange={(e) =>
+                          setCfg({
+                            ...cfg,
+                            order_writeback: {
+                              ...(cfg.order_writeback ?? {}),
+                              cancelled_tag: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Cancelado"
+                      />
+                    </label>
+                  </div>
+                )}
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                    {t('voice.dedupeHours')}{' '}
+                    <span className="text-muted-foreground/60">({t('voice.dedupeHoursHint')})</span>
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.25"
+                    value={cfg.dedupe_hours ?? 0.25}
+                    onChange={(e) =>
+                      setCfg({ ...cfg, dedupe_hours: Number(e.target.value) || 0.25 })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+          </div>
 
           {stats && stats.total > 0 && (
             <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

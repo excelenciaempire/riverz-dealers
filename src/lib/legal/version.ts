@@ -15,7 +15,7 @@
  *
  * Format: ISO date (YYYY-MM-DD) of the update.
  */
-export const LEGAL_VERSION = "2026-07-18";
+export const LEGAL_VERSION = "2026-07-24";
 
 /**
  * True when a user's recorded consent version is missing or older than the

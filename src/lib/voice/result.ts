@@ -24,6 +24,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { nextAllowedTime, retryDelayMinutes } from './queue';
 import { DEFAULT_CALLING_HOURS } from './constants';
+import { maybeCodWriteback } from './cod';
 
 const DEFAULT_TZ = 'America/Bogota';
 
@@ -267,6 +268,10 @@ export async function persistCallResult(
       duration_seconds: durationSeconds,
       cost,
       recording_url: payload.recording_url ?? null,
+      // Per-city analytics — from the order/shipping context. (upsell_amount is
+      // NOT set here: the /tool route stamps it live during the call, so writing
+      // null here would clobber it.)
+      city: (call.context?.shipping_city as string) || null,
       error: payload.error ?? null,
       updated_at: new Date().toISOString(),
     })
@@ -278,6 +283,14 @@ export async function persistCallResult(
       .from('contacts')
       .update({ voice_opt_out: true })
       .eq('id', call.contact_id);
+  }
+
+  // COD write-back (opt-in): tag the Shopify order with the outcome + push a
+  // confirmed order to Dropi. No-op unless the workspace enabled it.
+  if (payload.status === 'completed' && payload.outcome) {
+    void maybeCodWriteback(db, call, payload.outcome).catch((err) =>
+      console.error('[voice] COD write-back failed:', err),
+    );
   }
 
   // Retry chain for unanswered outbound calls.

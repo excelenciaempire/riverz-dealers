@@ -166,6 +166,23 @@ def build_tools(
 
         tools.append(create_order)
 
+    if "update_order" in enabled:
+        @function_tool(
+            name="update_order",
+            description=(
+                "Agrega unidades al pedido que la clienta ya hizo (upsell durante la "
+                "llamada de confirmación). Úsalo una sola vez, sólo cuando la clienta "
+                "confirmó que quiere las unidades extra. Actualiza el pedido real."
+            ),
+        )
+        async def update_order(ctx: RunContext, add_units: int, reason: str | None = None) -> str:
+            return await _forward(
+                api, call_state, "update_order",
+                {"add_units": add_units, "reason": reason},
+            )
+
+        tools.append(update_order)
+
     # --- Tools de control (siempre presentes) ---
 
     @function_tool(

@@ -228,13 +228,32 @@ export async function buildVoiceContext(
   );
 
   const objective = resolveObjective(agent, call);
-  const voiceBlock = buildVoiceInstructions(agent, call, objective);
+
+  // In-call upsell: only on order confirmation, when enabled, and when we have
+  // an order to edit (order_id in context) and a Shopify connection.
+  const upsell = agent.voice_objectives?.order_confirmation?.upsell;
+  const upsellOn =
+    call.call_type === 'order_confirmation' &&
+    !!upsell?.enabled &&
+    !!shopify &&
+    !!call.context?.order_id;
+
+  const lang0 = langOf(agent, call);
+  const upsellBlock = upsellOn
+    ? '\n' +
+      (lang0 === 'en'
+        ? `## Upsell\nAfter confirming the order, naturally offer more units${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} If they accept, call update_order with the extra units — it updates the real order. Only once, only after they clearly say yes.`
+        : `## Upsell\nDespués de confirmar el pedido, ofrecé con naturalidad llevar más unidades${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} Si acepta, llamá update_order con las unidades extra — actualiza el pedido real. Una sola vez, sólo cuando diga que sí claramente.`)
+    : '';
+
+  const voiceBlock = buildVoiceInstructions(agent, call, objective) + upsellBlock;
 
   const toolsEnabled = shopify
     ? [
         'lookup_order',
         'create_checkout',
         ...(shopify.canCreateOrders ? ['create_order'] : []),
+        ...(upsellOn ? ['update_order'] : []),
       ]
     : [];
 

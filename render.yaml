@@ -534,6 +534,23 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Voice AI campaigns: advances running bulk call campaigns by one batch each
+  # (respects calling window / limits / opt-out via enqueueCall). Every minute.
+  - type: cron
+    name: cron-voice-campaign-run
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/voice-campaign-run
+    schedule: "* * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   # Watchdog de entrega: marca los mensajes que Meta dejó en 'sent' para
   # siempre (nunca mandó 'delivered' ni 'failed') como "sin confirmar", para
   # que la bandeja no mienta que llegaron. Usa AUTOMATION_CRON_SECRET.

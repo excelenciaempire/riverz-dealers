@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "18 de julio de 2026";
+const UPDATED = "24 de julio de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function TerminosPage() {
@@ -111,6 +111,10 @@ export default async function TerminosPage() {
 
         <Section title={t("legal.terms13Title")}>
           <p>{t("legal.terms13Body")}</p>
+        </Section>
+
+        <Section title={t("legal.voiceTitle")}>
+          <p>{t("legal.voiceBody")}</p>
         </Section>
 
         <Section title={t("legal.terms14Title")}>

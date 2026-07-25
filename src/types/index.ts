@@ -801,6 +801,15 @@ export type VoiceCallOutcome =
   | 'opt_out'
   | 'no_outcome';
 
+/** In-call upsell config (COD confirmation calls), on order_confirmation. */
+export interface VoiceUpsell {
+  enabled: boolean;
+  /** How the agent should pitch more units / a bundle. */
+  offer_text?: string;
+  /** Discount to mention (free text, e.g. "15% en la 2da unidad"). */
+  discount?: string;
+}
+
 /** Per-call-type objective config, stored in ai_agents.voice_objectives. */
 export interface VoiceObjective {
   enabled: boolean;
@@ -808,6 +817,8 @@ export interface VoiceObjective {
   objective: string;
   /** Extra instructions appended to the voice system prompt. */
   extra_instructions?: string;
+  /** Only on order_confirmation: try to upsell during the call. */
+  upsell?: VoiceUpsell;
 }
 
 export type VoiceObjectives = Partial<Record<VoiceCallType, VoiceObjective>>;
@@ -861,6 +872,10 @@ export interface VoiceCall {
   duration_seconds: number | null;
   cost: VoiceCallCost | null;
   recording_url: string | null;
+  /** Customer city (from the order/shipping context) — per-city analytics. */
+  city: string | null;
+  /** Extra revenue captured by an in-call upsell (order edit). */
+  upsell_amount: number | null;
   error: string | null;
   created_at: string;
   updated_at: string;
@@ -884,4 +899,43 @@ export interface VoiceConnectionConfig {
   recording_enabled?: boolean;
   /** E.164 number the agent can warm/cold-transfer a call to (human handoff). */
   transfer_number?: string;
+  // ── COD / dropshipping mode (opt-in; off for normal merchants) ──
+  /** Master toggle for the COD confirmation surface (write-back, Dropi, etc.). */
+  cod_mode?: boolean;
+  /** Write the call outcome back to the Shopify order as a tag. */
+  order_writeback?: {
+    enabled?: boolean;
+    /** Tag applied when outcome=confirmed (default "Confirmado"). */
+    confirmed_tag?: string;
+    /** Tag applied when outcome=cancelled/declined (default "Cancelado"). */
+    cancelled_tag?: string;
+  };
+  /** Anti-duplicate window for auto-enqueued calls, in HOURS (default 0.25 = 15 min;
+   *  COD merchants set 12 to group multiple same-contact orders into one call). */
+  dedupe_hours?: number;
+  /** Instant call when a Meta Lead Ad form is submitted. */
+  lead_ads_enabled?: boolean;
+}
+
+/** Bulk outbound call campaign over a saved segment (migration 116). */
+export type VoiceCampaignStatus = 'draft' | 'running' | 'paused' | 'done' | 'canceled';
+
+export interface VoiceCampaign {
+  id: string;
+  workspace_id: string;
+  agent_id: string;
+  name: string;
+  segment_id: string | null;
+  call_type: VoiceCallType;
+  objective: string | null;
+  status: VoiceCampaignStatus;
+  scheduled_at: string | null;
+  stats: {
+    total?: number;
+    enqueued?: number;
+    last_contact_id?: string | null;
+    done?: boolean;
+  };
+  created_at: string;
+  updated_at: string;
 }

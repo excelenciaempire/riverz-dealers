@@ -270,6 +270,14 @@ export const legal = {
     en: "riverz operates under United States law and serves users from various countries. This policy is a reasonable baseline pending review by a lawyer; the final terms may vary depending on your jurisdiction.",
   },
 
+  privacyVoiceTitle: {
+    es: "Llamadas de voz con IA",
+    en: "AI voice calls",
+  },
+  privacyVoiceBody: {
+    es: "Si activas los agentes de voz, procesamos el número de teléfono y el audio/transcripción de las llamadas (entrantes y salientes) para prestar el servicio. Podemos grabar las llamadas cuando el comercio lo activa; en ese caso se incluye un aviso hablado de grabación al inicio. El audio se procesa mediante sub-encargados de tratamiento (proveedores de telefonía y de modelos de voz/IA, p. ej. LiveKit, Telnyx, Deepgram, ElevenLabs, Modal y el proveedor del modelo de lenguaje) únicamente para generar la llamada. El destinatario puede pedir no ser llamado (opción \"No llamar\") y el comercio debe respetar los horarios y la normativa local de llamadas. No usamos el contenido de las llamadas para publicidad.",
+    en: "If you enable voice agents, we process the phone number and the audio/transcript of calls (inbound and outbound) to provide the service. Calls may be recorded when the merchant turns it on; in that case a spoken recording disclosure is played at the start. Audio is processed through sub-processors (telephony and voice/AI model providers, e.g. LiveKit, Telnyx, Deepgram, ElevenLabs, Modal and the language-model provider) solely to run the call. Recipients can ask not to be called (\"Do not call\") and the merchant must respect calling hours and local calling regulations. We do not use call content for advertising.",
+  },
   privacy10Title: { es: "13. Cambios", en: "13. Changes" },
   privacy10Body: {
     es: "Podemos actualizar esta política. Publicaremos los cambios en esta página con su fecha de actualización.",
@@ -449,6 +457,11 @@ export const legal = {
     en: "These Terms are governed by the laws applicable in the jurisdiction where riverz operates. Any dispute shall be submitted to the competent courts of that jurisdiction, without prejudice to any rights that the law recognizes as non-waivable.",
   },
 
+  voiceTitle: { es: "14. Llamadas de voz con IA", en: "14. AI voice calls" },
+  voiceBody: {
+    es: "Riverz permite que agentes de IA realicen y atiendan llamadas telefónicas en tu nombre (confirmación de pedidos, recuperación de carritos, seguimientos, campañas y llamadas entrantes). Como responsable del negocio, te comprometes a: (a) llamar solo a personas con una relación o base legal para el contacto; (b) respetar los horarios permitidos, los límites de reintentos y las solicitudes de \"no llamar\" (opt-out); (c) cumplir las leyes de telemarketing, protección de datos y grabación de llamadas de cada país donde operes, incluyendo el aviso y/o consentimiento de grabación cuando corresponda. Riverz provee controles (horarios, opt-out, aviso de grabación, kill switch) pero el uso conforme a la ley es tu responsabilidad. Los minutos de llamada y los modelos de voz pueden facturarse según tu plan.",
+    en: "Riverz lets AI agents place and answer phone calls on your behalf (order confirmation, cart recovery, follow-ups, campaigns and inbound calls). As the business, you agree to: (a) only call people with a relationship or lawful basis for contact; (b) respect allowed calling hours, retry limits and \"do not call\" (opt-out) requests; (c) comply with the telemarketing, data-protection and call-recording laws of each country you operate in, including recording notice and/or consent where required. Riverz provides controls (hours, opt-out, recording disclosure, kill switch), but lawful use is your responsibility. Call minutes and voice models may be billed per your plan.",
+  },
   terms14Title: { es: "14. Contacto", en: "14. Contact" },
   terms14BodyPre: {
     es: "¿Preguntas sobre estos Términos? Escríbenos a ",

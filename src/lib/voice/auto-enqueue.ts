@@ -9,12 +9,14 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AiAgent } from '@/lib/ai/types';
-import type { VoiceCallType } from '@/types';
+import type { VoiceCallType, VoiceConnectionConfig } from '@/types';
 import { enqueueCall } from './queue';
 
-/** Dedupe window: don't auto-enqueue the same call type for a contact twice
- *  within this span (e.g. Shopify re-delivering the order webhook). */
-const DEDUPE_MINUTES = 15;
+/** Default dedupe window (hours): don't auto-enqueue the same call type for a
+ *  contact twice within this span (e.g. Shopify re-delivering the order
+ *  webhook). COD merchants raise it (config.dedupe_hours, e.g. 12) to group
+ *  several same-contact orders into one confirmation call. */
+const DEFAULT_DEDUPE_HOURS = 0.25;
 
 /** Pick the highest-priority voice agent that has THIS objective turned on. */
 async function pickAgentForObjective(
@@ -53,8 +55,18 @@ export async function maybeAutoVoiceCall(
     const agent = await pickAgentForObjective(db, input.workspaceId, input.callType);
     if (!agent) return false;
 
+    // Dedupe window is configurable per workspace (COD groups multiple orders).
+    const { data: connRow } = await db
+      .from('channel_connections')
+      .select('config')
+      .eq('workspace_id', input.workspaceId)
+      .eq('channel', 'voice')
+      .maybeSingle();
+    const cfg = (connRow as { config?: VoiceConnectionConfig } | null)?.config ?? {};
+    const dedupeHours = cfg.dedupe_hours && cfg.dedupe_hours > 0 ? cfg.dedupe_hours : DEFAULT_DEDUPE_HOURS;
+
     // Dedupe recent auto-calls of the same type for this contact.
-    const since = new Date(Date.now() - DEDUPE_MINUTES * 60_000).toISOString();
+    const since = new Date(Date.now() - dedupeHours * 3_600_000).toISOString();
     const { count } = await db
       .from('voice_calls')
       .select('id', { count: 'exact', head: true })

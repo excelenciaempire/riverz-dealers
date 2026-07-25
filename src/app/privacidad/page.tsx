@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "18 de julio de 2026";
+const UPDATED = "24 de julio de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function PrivacidadPage() {
@@ -149,6 +149,10 @@ export default async function PrivacidadPage() {
             <li>{t("legal.privacyCcpaItemNoSale")}</li>
           </ul>
           <p className="mt-2">{t("legal.privacyCcpaBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyVoiceTitle")}>
+          <p>{t("legal.privacyVoiceBody")}</p>
         </Section>
 
         <Section title={t("legal.privacy10Title")}>

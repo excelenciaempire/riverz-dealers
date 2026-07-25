@@ -206,4 +206,76 @@ export const voice = {
   adminApiKey: { es: "API key del endpoint", en: "Endpoint API key" },
   adminSave: { es: "Guardar", en: "Save" },
   adminSaved: { es: "Modelo actualizado", en: "Model updated" },
+
+  // ── COD mode (integrations · voice card) ──
+  codMode: { es: "Modo confirmación COD", en: "COD confirmation mode" },
+  codModeHint: {
+    es: "Para dropshipping / pago contra entrega. Activa escribir el resultado en el pedido y agrupar llamadas.",
+    en: "For dropshipping / cash on delivery. Enables writing the outcome to the order and grouping calls.",
+  },
+  orderWriteback: {
+    es: "Escribir resultado en el pedido (Shopify)",
+    en: "Write outcome to the order (Shopify)",
+  },
+  confirmedTag: { es: "Etiqueta al confirmar", en: "Tag when confirmed" },
+  cancelledTag: { es: "Etiqueta al cancelar", en: "Tag when cancelled" },
+  dedupeHours: { es: "Agrupar pedidos (horas)", en: "Group orders (hours)" },
+  dedupeHoursHint: {
+    es: "No llamar dos veces al mismo cliente en esta ventana",
+    en: "Don't call the same customer twice within this window",
+  },
+  leadAds: { es: "Llamar leads de Meta al instante", en: "Instant-call Meta leads" },
+  leadAdsHint: {
+    es: "Cuando alguien deja sus datos en un anuncio de Facebook/Instagram, la IA lo llama.",
+    en: "When someone submits a Facebook/Instagram lead form, the AI calls them.",
+  },
+
+  // ── Dropi integration card ──
+  dropiDesc: {
+    es: "Fulfillment COD: los pedidos confirmados por llamada pasan a despacho.",
+    en: "COD fulfillment: orders confirmed by call go to dispatch.",
+  },
+  dropiApiKey: { es: "API key de Dropi", en: "Dropi API key" },
+  dropiReplaceKey: { es: "Reemplazar API key…", en: "Replace API key…" },
+  dropiBaseUrl: { es: "URL base (opcional)", en: "Base URL (optional)" },
+  dropiInvalidKey: { es: "Ingresa una API key válida.", en: "Enter a valid API key." },
+  dropiConnected: { es: "Dropi conectado", en: "Dropi connected" },
+  dropiDisconnected: { es: "Dropi desconectado", en: "Dropi disconnected" },
+  dropiConnectError: { es: "No se pudo conectar Dropi.", en: "Couldn't connect Dropi." },
+
+  // ── Upsell (agent · order confirmation) ──
+  upsellLabel: { es: "Ofrecer más unidades (upsell)", en: "Offer more units (upsell)" },
+  upsellOfferPlaceholder: {
+    es: "Ej: ofrecé llevar 2 unidades con envío gratis.",
+    en: "E.g. offer to take 2 units with free shipping.",
+  },
+  upsellDiscountPlaceholder: {
+    es: "Descuento a mencionar (opcional)",
+    en: "Discount to mention (optional)",
+  },
+
+  // ── Voice campaigns ──
+  campaignsTitle: { es: "Campañas de voz", en: "Voice campaigns" },
+  campaignsHint: {
+    es: "Llamá a un segmento de contactos con un objetivo. Respeta horario, opt-out y límites.",
+    en: "Call a segment of contacts with an objective. Respects hours, opt-out and limits.",
+  },
+  campaignName: { es: "Nombre de la campaña", en: "Campaign name" },
+  campaignPickAgent: { es: "Elegí un agente…", en: "Pick an agent…" },
+  campaignPickSegment: { es: "Elegí un segmento…", en: "Pick a segment…" },
+  campaignObjective: { es: "Objetivo de las llamadas", en: "Call objective" },
+  campaignSaveDraft: { es: "Guardar borrador", en: "Save draft" },
+  campaignStart: { es: "Iniciar", en: "Start" },
+  campaignMissing: { es: "Completá nombre, agente y segmento.", en: "Fill in name, agent and segment." },
+  campaignError: { es: "No se pudo crear la campaña.", en: "Couldn't create the campaign." },
+  campaignStarted: { es: "Campaña iniciada", en: "Campaign started" },
+  campaignSaved: { es: "Campaña guardada", en: "Campaign saved" },
+
+  // ── Extra metrics ──
+  metricsLast30: { es: "últimos 30 días", en: "last 30 days" },
+  metricConfirmed: { es: "Confirmadas", en: "Confirmed" },
+  metricUpsell: { es: "Ingreso upsell", en: "Upsell revenue" },
+  metricByHour: { es: "Por hora del día", en: "By hour of day" },
+  metricByCity: { es: "Por ciudad (confirmadas/total)", en: "By city (confirmed/total)" },
+  metricByOutcome: { es: "Por resultado", en: "By outcome" },
 } satisfies Namespace;

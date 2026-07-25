@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
+import { processLeadgen } from "@/lib/voice/leadads";
 import type { Channel, ChannelConnection } from "@/types";
 
 const log = getLogger("channels.webhook");
@@ -190,6 +191,18 @@ async function processChannelsWebhookAsync(
   // different connection rows.
   const adapterChannels = relatedChannels(channel);
   const db = supabaseAdmin();
+
+  // Voice AI — Meta Lead Ads arrive as a `leadgen` change on the page object
+  // (same delivery as Messenger/FB feed). Fire-and-forget an instant call when
+  // the workspace enabled it. Only for page channels; no-op otherwise.
+  if (channel === "messenger" || channel === "fb_comment") {
+    void processLeadgen(db, payload).catch((err) =>
+      log.error("leadgen processing failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+
   for (const c of adapterChannels) {
     const routes = explicitId
       ? await routesForExplicitId(explicitId, payload)

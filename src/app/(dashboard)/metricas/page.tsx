@@ -11,6 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
+import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useTimezone } from '@/hooks/use-timezone';
@@ -216,6 +217,10 @@ export default function MetricasPage() {
           />
         </>
       )}
+
+      {/* Voice AI calls — self-hides when there are no calls yet. Shown
+          regardless of Shopify (voice works without a store). */}
+      <VoiceAnalytics />
     </div>
   );
 }

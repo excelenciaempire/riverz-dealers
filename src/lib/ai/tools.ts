@@ -28,6 +28,7 @@ import {
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
 import { enqueueCall } from '@/lib/voice/queue'
+import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
 
 export const AGENTIC_LOOP_MAX_ITERS = 3
 
@@ -58,6 +59,32 @@ export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
       },
     },
     required: ['reason'],
+  },
+}
+
+/**
+ * Tool `update_order` — upsell EN VIVO durante una llamada de confirmación:
+ * agrega unidades al pedido existente en Shopify. Sólo se expone en llamadas
+ * de confirmación con upsell activo y cuando hay un order_id en contexto.
+ */
+export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
+  name: 'update_order',
+  description:
+    'Agregá unidades al pedido que la clienta ya hizo, durante la llamada de confirmación, cuando acepta llevar más (upsell). Pasá cuántas unidades sumar. Actualiza el pedido real en Shopify. Llamala una sola vez, sólo cuando la clienta confirmó que quiere las unidades extra.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      add_units: {
+        type: 'integer',
+        minimum: 1,
+        description: 'Cuántas unidades extra sumar al pedido.',
+      },
+      reason: {
+        type: 'string',
+        description: 'Nota corta del upsell (opcional).',
+      },
+    },
+    required: ['add_units'],
   },
 }
 
@@ -98,6 +125,10 @@ export interface ShopifyToolContext {
   channel?: string | null
   /** Nombre del contacto, prellenado desde la conversación. */
   contactName?: string | null
+  /** Id del pedido Shopify (numérico) para editar en vivo durante una llamada
+   *  de confirmación COD (tool `update_order` / upsell). Lo setea el bridge de
+   *  voz desde el contexto de la llamada. */
+  orderId?: string | null
   /** Modo simulación: el panel de prueba lo activa para que create_order
    *  NO cree un pedido real ni escriba en la base. */
   dryRun?: boolean
@@ -373,6 +404,45 @@ export async function runTool(
       scheduled: true,
       message:
         'Llamada programada. Avisale al cliente con naturalidad que lo vas a llamar en breve.',
+    })
+  }
+  if (toolName === 'update_order') {
+    if (!shopify) {
+      return JSON.stringify({
+        error: 'no_shopify_connection',
+        message: 'El workspace no tiene Shopify conectado.',
+      })
+    }
+    if (!shopify.orderId) {
+      return JSON.stringify({
+        error: 'no_order',
+        message: 'No hay un pedido para editar en esta llamada.',
+      })
+    }
+    const input = (toolInput ?? {}) as { add_units?: number; reason?: string }
+    const addUnits = Math.floor(Number(input.add_units))
+    if (!Number.isFinite(addUnits) || addUnits <= 0) {
+      return JSON.stringify({
+        error: 'invalid_units',
+        message: 'Pasá cuántas unidades extra sumar (número entero ≥ 1).',
+      })
+    }
+    const result = await addUnitsToFirstLineItem(
+      { shopDomain: shopify.shopDomain, accessToken: shopify.accessToken, apiVersion: shopify.apiVersion },
+      shopify.orderId,
+      addUnits,
+    )
+    if (!result.ok) {
+      return JSON.stringify({
+        error: 'update_failed',
+        message:
+          'No pude actualizar el pedido. No le prometas al cliente las unidades extra; ofrecé que lo revise el equipo.',
+      })
+    }
+    return JSON.stringify({
+      ok: true,
+      added_units: result.added_units,
+      message: `Se agregaron ${result.added_units} unidad(es) al pedido.`,
     })
   }
   if (toolName === 'lookup_order') {

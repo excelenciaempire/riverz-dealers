@@ -582,6 +582,9 @@ function buildVarsForOrder(
 
   const base: Record<string, string> = {
     customer_name: name ?? '',
+    // Numeric Shopify order id — needed to write the call outcome back as a tag
+    // (COD confirmation) and to edit the order on an in-call upsell.
+    order_id: String(order.id ?? ''),
     order_name: String(order.name ?? ''),
     order_number: String(order.order_number ?? ''),
     total_price: String(order.total_price ?? ''),

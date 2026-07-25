@@ -81,6 +81,18 @@ export async function PUT(request: Request) {
     kill_switch: Boolean(body.config?.kill_switch),
     recording_enabled: Boolean(body.config?.recording_enabled),
     transfer_number: body.config?.transfer_number?.trim() || undefined,
+    // COD / dropshipping mode (opt-in)
+    cod_mode: Boolean(body.config?.cod_mode),
+    order_writeback: body.config?.order_writeback
+      ? {
+          enabled: Boolean(body.config.order_writeback.enabled),
+          confirmed_tag: body.config.order_writeback.confirmed_tag?.trim() || undefined,
+          cancelled_tag: body.config.order_writeback.cancelled_tag?.trim() || undefined,
+        }
+      : undefined,
+    dedupe_hours:
+      body.config?.dedupe_hours != null ? Number(body.config.dedupe_hours) : undefined,
+    lead_ads_enabled: Boolean(body.config?.lead_ads_enabled),
   };
   const status = cfg.phone_number ? 'connected' : 'pending';
 

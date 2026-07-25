@@ -172,6 +172,17 @@ export function VoiceSettings({
     });
   }
 
+  function setUpsell(patch: { enabled?: boolean; offer_text?: string; discount?: string }) {
+    const oc = value.voice_objectives.order_confirmation ?? { enabled: false, objective: '' };
+    const prevUpsell = oc.upsell ?? { enabled: false };
+    set({
+      voice_objectives: {
+        ...value.voice_objectives,
+        order_confirmation: { ...oc, upsell: { ...prevUpsell, ...patch } },
+      },
+    });
+  }
+
   function toggleDay(day: number) {
     const days = value.voice_calling_hours.days.includes(day)
       ? value.voice_calling_hours.days.filter((d) => d !== day)
@@ -316,6 +327,36 @@ export function VoiceSettings({
                         value={obj?.objective ?? ''}
                         onChange={(e) => setObjective(type, { objective: e.target.value })}
                       />
+                    )}
+                    {/* Upsell — only on order confirmation. */}
+                    {type === 'order_confirmation' && obj?.enabled && (
+                      <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
+                        <label className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-foreground">
+                            {t('voice.upsellLabel')}
+                          </span>
+                          <Switch
+                            checked={obj?.upsell?.enabled ?? false}
+                            onCheckedChange={(c) => setUpsell({ enabled: c })}
+                          />
+                        </label>
+                        {obj?.upsell?.enabled && (
+                          <div className="mt-2 space-y-2">
+                            <Textarea
+                              className="min-h-12 bg-muted text-foreground"
+                              placeholder={t('voice.upsellOfferPlaceholder')}
+                              value={obj?.upsell?.offer_text ?? ''}
+                              onChange={(e) => setUpsell({ offer_text: e.target.value })}
+                            />
+                            <Input
+                              className="bg-muted text-foreground"
+                              placeholder={t('voice.upsellDiscountPlaceholder')}
+                              value={obj?.upsell?.discount ?? ''}
+                              onChange={(e) => setUpsell({ discount: e.target.value })}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

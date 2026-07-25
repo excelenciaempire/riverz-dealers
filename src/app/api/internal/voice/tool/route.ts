@@ -59,6 +59,11 @@ export async function POST(request: Request) {
     const canCreateOrders =
       (agentRow as Pick<AiAgent, 'puede_crear_pedidos'> | null)?.puede_crear_pedidos === true;
 
+    const orderId =
+      call.context && typeof call.context.order_id !== 'undefined'
+        ? String(call.context.order_id)
+        : null;
+
     const shopify = await resolveShopifyContext(db, call.workspace_id, contact, null);
     if (shopify) {
       const currency = await resolveWorkspaceCurrency(db, call.workspace_id);
@@ -70,9 +75,32 @@ export async function POST(request: Request) {
       shopify.channel = 'voice';
       shopify.contactName = contact.name ?? null;
       shopify.currency = shopify.config?.currency || currency;
+      shopify.orderId = orderId; // for in-call upsell (update_order)
     }
 
     const result = await runTool(body.tool, body.input ?? {}, shopify);
+
+    // Stamp in-call upsell revenue for analytics. Estimate the delta from the
+    // order's unit price (total_price / item_count) × extra units.
+    if (body.tool === 'update_order') {
+      try {
+        const parsed = JSON.parse(result) as { ok?: boolean; added_units?: number };
+        if (parsed.ok && parsed.added_units) {
+          const ctx = call.context ?? {};
+          const total = Number(ctx.total_price ?? 0);
+          const items = Number(ctx.item_count ?? 0);
+          const unit = items > 0 && total > 0 ? total / items : 0;
+          const delta = Math.round(unit * parsed.added_units * 100) / 100;
+          await db
+            .from('voice_calls')
+            .update({ upsell_amount: (call.upsell_amount ?? 0) + delta })
+            .eq('id', call.id);
+        }
+      } catch {
+        /* non-fatal — analytics only */
+      }
+    }
+
     return NextResponse.json({ ok: true, result });
   } catch (err) {
     return serverError(err, 'voice tool failed');
