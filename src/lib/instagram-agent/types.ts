@@ -34,6 +34,7 @@ export type CampaignStatus = 'draft' | 'active' | 'paused' | 'done';
 
 export type RecipientStatus =
   | 'queued'
+  | 'pending_review'
   | 'sent'
   | 'replied'
   | 'converted'

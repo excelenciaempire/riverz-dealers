@@ -144,10 +144,18 @@ export async function scoreCampaignRecipients(
         lead_score: s.score,
         lead_sentiment: s.sentiment,
         is_spam: s.spam,
-        // Spam/hate se descarta del envío inmediatamente.
-        ...(s.spam ? { status: 'skipped', error: 'spam/hate' } : {}),
       })
       .eq('id', rows[i].id);
+    // Spam/hate se descarta del envío inmediatamente — pero solo si sigue en
+    // cola: marcar `skipped` sobre una fila ya enviada o respondida borraría el
+    // estado real del embudo.
+    if (s.spam) {
+      await db
+        .from('instagram_campaign_recipients')
+        .update({ status: 'skipped', error: 'spam/hate' })
+        .eq('id', rows[i].id)
+        .in('status', ['queued', 'pending_review']);
+    }
   }
 
   return { scored: rows.length, spam: spamCount };

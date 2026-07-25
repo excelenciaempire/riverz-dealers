@@ -39,6 +39,14 @@ export const igAgent = {
     es: "alcanzables por Instagram",
     en: "reachable on Instagram",
   },
+  newCampaign: { es: "Nueva campaña", en: "New campaign" },
+  reachableNow: { es: "contactables ahora", en: "reachable now" },
+  reachHint: {
+    es: "{dm} con DM abierto (24h) y {comments} que comentaron en los últimos 7 días. Fuera de esas ventanas Meta no permite escribir. Histórico de Instagram: {total}.",
+    en: "{dm} with an open DM (24h) and {comments} who commented in the last 7 days. Outside those windows Meta doesn't allow messaging. Instagram history: {total}.",
+  },
+  igConnected: { es: "Instagram conectado", en: "Instagram connected" },
+  igNotConnected: { es: "Instagram sin conectar", en: "Instagram not connected" },
   inWindowInline: { es: "{n} en ventana", en: "{n} in window" },
   inWindowHint: {
     es: "Dentro de la ventana de 24h de Meta ahora mismo: {n}. Solo estas personas pueden recibir un DM libre ya; el resto, cuando vuelvan a interactuar.",
@@ -132,6 +140,12 @@ export const igAgent = {
 
   // Actions row
   controlHoldout: { es: "Control (holdout)", en: "Control (holdout)" },
+  holdoutLabel: { es: "Grupo de control", en: "Control group" },
+  saveDraft: { es: "Guardar borrador", en: "Save draft" },
+  saveAndLaunch: { es: "Guardar y lanzar", en: "Save and launch" },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  confirmDelete: { es: "Eliminar", en: "Delete" },
+  automationSection: { es: "Automatización", en: "Automation" },
   holdoutTitle: {
     es: "% de la audiencia que NO recibe DM, para medir incrementalidad real",
     en: "% of the audience that does NOT receive a DM, to measure real incrementality",
@@ -161,7 +175,16 @@ export const igAgent = {
   },
   approvalApprove: { es: "Aprobar y enviar", en: "Approve & send" },
   approvalReject: { es: "Descartar", en: "Discard" },
+  approvalDismiss: { es: "Quitar", en: "Remove" },
   approvalSent: { es: "DM enviado", en: "DM sent" },
+  approvalExpired: {
+    es: "La ventana de Meta se cerró: este DM ya no puede enviarse.",
+    en: "Meta's window closed: this DM can no longer be sent.",
+  },
+  approvalWindowClosed: {
+    es: "No se envió: la ventana de Meta ya se cerró.",
+    en: "Not sent: Meta's window has already closed.",
+  },
   approvalError: {
     es: "No se pudo procesar la aprobación",
     en: "Could not process the approval",
@@ -185,6 +208,18 @@ export const igAgent = {
   modeAuto: { es: "Auto", en: "Auto" },
   modeHybrid: { es: "Híbrido", en: "Hybrid" },
   modeApproval: { es: "Aprobación", en: "Approval" },
+  modeAutoDesc: {
+    es: "El agente envía solo, dentro de tus límites.",
+    en: "The agent sends on its own, within your limits.",
+  },
+  modeHybridDesc: {
+    es: "Envía solo a quien muestra intención clara; el resto espera tu visto bueno.",
+    en: "Sends only to clear high-intent leads; the rest waits for your go-ahead.",
+  },
+  modeApprovalDesc: {
+    es: "Cada DM espera tu aprobación.",
+    en: "Every DM waits for your approval.",
+  },
 
   // Order attribution ledger
   attributedOrdersTitle: {
@@ -275,6 +310,13 @@ export const igAgent = {
   live: { es: "En vivo", en: "Live" },
   queuedInline: { es: "{n} en cola", en: "{n} queued" },
   queued: { es: "En cola", en: "Queued" },
+  breakdownPending: { es: "en aprobación", en: "awaiting approval" },
+  breakdownSkipped: { es: "omitidos", en: "skipped" },
+  breakdownFailed: { es: "fallidos", en: "failed" },
+  breakdownSkippedNote: {
+    es: "Omitidos = sin ventana de Meta abierta, spam o baja voluntaria.",
+    en: "Skipped = no open Meta window, spam, or opted out.",
+  },
   sent: { es: "Enviados", en: "Sent" },
   replies: { es: "Respuestas", en: "Replies" },
   conversions: { es: "Conversiones", en: "Conversions" },

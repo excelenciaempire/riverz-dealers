@@ -300,6 +300,10 @@ export default function CampaignDetailPage() {
             ]}
           />
         </div>
+        {/* Qué pasó con el resto: sin esto, una campaña donde nadie tenía la
+            ventana de Meta abierta se leía como "no hizo nada". */}
+        <RecipientBreakdown byStatus={byStatus} />
+
         {metrics && metrics.revenue > 0 && (
           <p className="mt-3 flex items-center gap-1.5 text-sm">
             <TrendingUp className="h-4 w-4 text-accent-ink" />
@@ -442,6 +446,42 @@ export default function CampaignDetailPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Estados no terminales del embudo (en cola, en aprobación, omitidos,
+ * fallidos). Solo se muestran los que existen; sin ninguno, no ocupa espacio.
+ */
+function RecipientBreakdown({ byStatus }: { byStatus: Record<string, number> }) {
+  const t = useT();
+  const fmt = useFormat();
+  const items = (
+    [
+      ['queued', 'igAgent.queued'],
+      ['pending_review', 'igAgent.breakdownPending'],
+      ['skipped', 'igAgent.breakdownSkipped'],
+      ['failed', 'igAgent.breakdownFailed'],
+    ] as const
+  ).filter(([key]) => (byStatus[key] ?? 0) > 0);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-[11px] text-muted-foreground">
+      {items.map(([key, label]) => (
+        <span key={key} className="inline-flex items-center gap-1">
+          <span className="font-semibold tabular-nums text-foreground">
+            {fmt.number(byStatus[key] ?? 0)}
+          </span>
+          {t(label)}
+        </span>
+      ))}
+      {(byStatus.skipped ?? 0) > 0 && (
+        <span className="text-muted-foreground/70">
+          {t('igAgent.breakdownSkippedNote')}
+        </span>
+      )}
     </div>
   );
 }

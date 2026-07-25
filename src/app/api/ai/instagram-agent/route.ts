@@ -10,6 +10,7 @@ import {
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace'
 import { loadBrandContext, brandBrief } from '@/lib/instagram-agent/brand-context'
+import { loadAudienceStats } from '@/lib/instagram-agent/audience-stats'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 
@@ -138,13 +139,7 @@ export async function POST(request: Request) {
     // workspace_member, así que la consulta autenticada ya devuelve solo
     // lo del workspace del usuario.
     const workspaceId = await resolveWorkspaceId(supabase, user.id)
-    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const [
-      { data: products },
-      { count: reachableCount },
-      { count: inWindowCount },
-      brand,
-    ] = await Promise.all([
+    const [{ data: products }, audience, brand] = await Promise.all([
       supabase
         .from('shopify_products')
         .select(
@@ -152,28 +147,16 @@ export async function POST(request: Request) {
         )
         .order('title', { ascending: true })
         .limit(40),
-      // Instagram-reachable audience only: contacts sourced from an IG DM or
-      // comment WITH a usable IG id. A WhatsApp-first store has thousands of
-      // contacts the IG agent can never DM — grounding the plan on the total
-      // would inflate estimated_reach + the funnel wildly.
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .in('channel', ['instagram', 'ig_comment'])
-        .not('external_id', 'is', null),
-      // Of those, how many are inside Meta's 24h messaging window right now.
-      supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .in('channel', ['instagram', 'ig_comment'])
-        .not('external_id', 'is', null)
-        .gt('updated_at', windowStart),
+      // Alcance REAL: solo quien puede recibir un mensaje ahora (DM abierto o
+      // comentario de los últimos 7 días). Aterrizar el plan en el histórico
+      // completo inflaba estimated_reach y todo el embudo.
+      loadAudienceStats(supabase),
       workspaceId ? loadBrandContext(supabase, workspaceId) : Promise.resolve(null),
     ])
     const brief = brandBrief(brand)
 
-    const igReachable = reachableCount ?? 0
-    const inWindow = inWindowCount ?? 0
+    const igReachable = audience.reachable_now
+    const inWindow = audience.dm_window_24h
     const rows = (products ?? []) as ProductRow[]
     const currency = rows.find((p) => p.currency)?.currency ?? 'USD'
 
@@ -199,8 +182,10 @@ export async function POST(request: Request) {
       brief ? `VOZ Y CONOCIMIENTO DE LA MARCA (usa este tono y estos datos, no inventes nada fuera de aquí):\n${brief}\n` : '',
       `CONTEXTO DEL NEGOCIO:`,
       `- Canal: Instagram (DMs + comentarios)`,
-      `- Personas de Instagram alcanzables (comentarios + DM, con id válido): ${igReachable}`,
-      `- De ellas, dentro de la ventana de 24h de Meta ahora mismo: ${inWindow}`,
+      `- Personas contactables AHORA (ventanas de Meta abiertas): ${igReachable}`,
+      `- De ellas, con DM libre (ventana de 24h): ${inWindow}`,
+      `- Comentaristas de los últimos 7 días (respuesta privada): ${audience.comment_window_7d}`,
+      `- Histórico total de contactos de Instagram: ${audience.instagram_total}`,
       `- Moneda del catálogo: ${currency}`,
       `- Catálogo de productos:\n${catalog}`,
       '',
@@ -257,10 +242,13 @@ export async function POST(request: Request) {
       success: true,
       plan,
       context: {
-        instagram_reachable: igReachable,
+        instagram_reachable: audience.instagram_total,
+        reachable_now: igReachable,
         in_window_24h: inWindow,
+        comment_window_7d: audience.comment_window_7d,
         currency,
         has_catalog: rows.length > 0,
+        product_count: rows.length,
       },
     })
   } catch (error) {

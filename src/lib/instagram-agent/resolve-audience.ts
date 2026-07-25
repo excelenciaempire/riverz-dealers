@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { InstagramCampaign } from './types';
+import { MESSAGING_WINDOW_MS, COMMENT_WINDOW_MS } from './engagement';
 
 /**
  * Materializa la audiencia de una campaña: busca los contactos del workspace
@@ -7,11 +8,12 @@ import type { InstagramCampaign } from './types';
  * instagram_campaign_recipients (status='queued'), respetando el alcance
  * estimado del plan.
  *
- * Heurística del MVP: todo contacto con channel ∈ {instagram, ig_comment} y
- * external_id es alcanzable, priorizando los de actividad más reciente (la
- * ventana de 24h de Meta favorece a quien interactuó hace poco). Una versión
- * futura puede afinar el match contra `audience.source` (post/historia/ad
- * concretos) cuando el webhook persista ese origen por contacto.
+ * Solo entra quien tiene una ventana de Meta ABIERTA: comentaristas de los
+ * últimos 7 días (respuesta privada) y quien escribió por DM en las últimas
+ * 24h. Se priorizan los comentaristas (el comentario de alta intención es el
+ * entry-point natural del loop comentario→DM) y, dentro de cada grupo, los más
+ * recientes. Una versión futura puede afinar el match contra `audience.source`
+ * (post/historia/ad concretos) cuando el webhook persista ese origen.
  *
  * Idempotente: el upsert sobre (campaign_id, contact_id) evita duplicar
  * destinatarios si se resuelve más de una vez.
@@ -29,13 +31,13 @@ export async function resolveAudience(
     Math.min(2000, campaign.plan.audience.estimated_reach || 200),
   );
 
-  // Dos consultas separadas para poder priorizar a los comentaristas
-  // (ig_comment) sobre los que solo escribieron por DM: el comentario de alta
-  // intención es el entry-point natural del loop comentario→DM. Cada lado
-  // ordenado por recencia (la ventana de 24h de Meta favorece lo reciente).
+  // Solo gente con una ventana de Meta ABIERTA: comentaristas de los últimos 7
+  // días (respuesta privada) y quien escribió por DM (ventana de 24h). Encolar
+  // el histórico completo llenaba la campaña de destinatarios que morían al
+  // instante como "fuera de ventana" y hacía ver el embudo roto.
   const [commenters, dmers] = await Promise.all([
-    fetchByChannel(supabase, campaign.workspace_id, 'ig_comment', cap),
-    fetchByChannel(supabase, campaign.workspace_id, 'instagram', cap),
+    fetchReachableByChannel(supabase, campaign.workspace_id, 'ig_comment', cap),
+    fetchReachableByChannel(supabase, campaign.workspace_id, 'instagram', cap),
   ]);
 
   const merged = mergeAudience(commenters, dmers, cap);
@@ -73,22 +75,53 @@ export interface AudienceContact {
   external_id: string | null;
 }
 
-async function fetchByChannel(
+/**
+ * Contactos de un canal de Instagram con actividad dentro de su ventana de
+ * Meta: 24h para DMs, 7 días para comentarios. Ordenados por recencia — quien
+ * interactuó hace menos convierte más y le queda más ventana.
+ */
+async function fetchReachableByChannel(
   supabase: SupabaseClient,
   workspaceId: string,
   channel: 'instagram' | 'ig_comment',
   cap: number,
 ): Promise<AudienceContact[]> {
+  const windowMs = channel === 'instagram' ? MESSAGING_WINDOW_MS : COMMENT_WINDOW_MS;
+  const since = new Date(Date.now() - windowMs).toISOString();
+
+  const { data: convs, error: convErr } = await supabase
+    .from('conversations')
+    .select('contact_id')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', channel)
+    .gt('last_message_at', since)
+    .not('contact_id', 'is', null)
+    .order('last_message_at', { ascending: false })
+    .limit(cap * 2);
+  if (convErr) throw new Error(convErr.message);
+
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const row of (convs ?? []) as Array<{ contact_id: string }>) {
+    if (seen.has(row.contact_id)) continue;
+    seen.add(row.contact_id);
+    ids.push(row.contact_id);
+    if (ids.length >= cap) break;
+  }
+  if (ids.length === 0) return [];
+
   const { data, error } = await supabase
     .from('contacts')
     .select('id, external_id')
-    .eq('workspace_id', workspaceId)
-    .eq('channel', channel)
-    .not('external_id', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(cap);
+    .in('id', ids)
+    .not('external_id', 'is', null);
   if (error) throw new Error(error.message);
-  return (data ?? []) as AudienceContact[];
+
+  // Conservar el orden por recencia que trajo la consulta de conversaciones.
+  const byId = new Map(
+    ((data ?? []) as AudienceContact[]).map((c) => [c.id, c]),
+  );
+  return ids.map((id) => byId.get(id)).filter((c): c is AudienceContact => Boolean(c));
 }
 
 /**

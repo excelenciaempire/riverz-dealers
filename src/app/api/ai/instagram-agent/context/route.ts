@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { loadAudienceStats } from '@/lib/instagram-agent/audience-stats';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -29,43 +30,34 @@ export async function GET() {
       { status: 401 },
     );
 
-  const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-  const [
-    { count: totalCount },
-    { count: reachableCount },
-    { count: inWindowCount },
-    { count: productCount },
-    { data: cur },
-  ] = await Promise.all([
-    supabase.from('contacts').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('contacts')
-      .select('*', { count: 'exact', head: true })
-      .in('channel', ['instagram', 'ig_comment'])
-      .not('external_id', 'is', null),
-    supabase
-      .from('contacts')
-      .select('*', { count: 'exact', head: true })
-      .in('channel', ['instagram', 'ig_comment'])
-      .not('external_id', 'is', null)
-      .gt('updated_at', windowStart),
-    supabase.from('shopify_products').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('shopify_products')
-      .select('currency')
-      .not('currency', 'is', null)
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ count: totalCount }, audience, { count: productCount }, { data: cur }, { count: igConns }] =
+    await Promise.all([
+      supabase.from('contacts').select('*', { count: 'exact', head: true }),
+      loadAudienceStats(supabase),
+      supabase.from('shopify_products').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('shopify_products')
+        .select('currency')
+        .not('currency', 'is', null)
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('channel_connections')
+        .select('id', { count: 'exact', head: true })
+        .eq('channel', 'instagram')
+        .eq('status', 'connected'),
+    ]);
 
   return NextResponse.json({
     // Total across all channels — kept for internal use, no longer the headline.
     total_contacts: totalCount ?? 0,
-    // The honest "reachable" number: only IG-sourced, DM-addressable contacts.
-    instagram_reachable: reachableCount ?? 0,
-    // Subset inside Meta's 24h window right now (can receive a DM immediately).
-    in_window_24h: inWindowCount ?? 0,
+    // Full IG-sourced history (context, not a promise of reach).
+    instagram_reachable: audience.instagram_total,
+    // The honest headline: who can receive a message RIGHT NOW.
+    reachable_now: audience.reachable_now,
+    in_window_24h: audience.dm_window_24h,
+    comment_window_7d: audience.comment_window_7d,
+    instagram_connected: (igConns ?? 0) > 0,
     product_count: productCount ?? 0,
     has_catalog: (productCount ?? 0) > 0,
     currency: (cur as { currency?: string } | null)?.currency ?? 'USD',

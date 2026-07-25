@@ -27,7 +27,13 @@ export async function GET() {
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
   const [{ data }, agent] = await Promise.all([
-    supabase.from('ig_proactive_settings').select('paused, daily_cap').maybeSingle(),
+    workspaceId
+      ? supabase
+          .from('ig_proactive_settings')
+          .select('paused, daily_cap')
+          .eq('workspace_id', workspaceId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
     workspaceId
       ? resolveIgAgent(supabase, workspaceId)
       : Promise.resolve({ id: null, proactive_send_mode: 'auto' as ProactiveSendMode }),

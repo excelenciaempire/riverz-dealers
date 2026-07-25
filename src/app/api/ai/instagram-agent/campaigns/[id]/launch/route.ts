@@ -61,13 +61,26 @@ export async function POST(
     );
   }
 
-  // Resolver audiencia si aún no hay destinatarios.
-  const { count } = await supabase
-    .from('instagram_campaign_recipients')
-    .select('id', { count: 'exact', head: true })
-    .eq('campaign_id', id);
+  // Resolver audiencia si no queda NADIE en cola. Contar todas las filas (y no
+  // solo las `queued`) dejaba campañas activas sin nada que enviar: bastaba con
+  // que sus destinatarios estuvieran ya enviados, descartados o en aprobación
+  // para que el lanzamiento no resolviera audiencia nueva y el worker girara en
+  // vacío para siempre. El upsert de resolveAudience es idempotente, así que
+  // volver a resolver no duplica a nadie.
+  const [{ count: queuedCount }, { count: totalCount }] = await Promise.all([
+    supabase
+      .from('instagram_campaign_recipients')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', id)
+      .eq('status', 'queued'),
+    supabase
+      .from('instagram_campaign_recipients')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', id),
+  ]);
 
-  let queued = count ?? 0;
+  let queued = queuedCount ?? 0;
+  const hadRecipients = (totalCount ?? 0) > 0;
   if (queued === 0) {
     const plan = coercePlan(row.plan);
     if (!plan) {
@@ -95,7 +108,10 @@ export async function POST(
         { status: 500 },
       );
     }
-    if (queued === 0) {
+    // Sin nadie en cola Y sin historial: no hay campaña que lanzar. Con
+    // historial (todo ya enviado/atendido) sí activamos: la campaña sigue
+    // atribuyendo ventas e inscribiendo en tiempo real a quien comente ahora.
+    if (queued === 0 && !hadRecipients) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.noInstagramContactsLaunch') },
         { status: 400 },

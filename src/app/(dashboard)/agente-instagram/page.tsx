@@ -12,7 +12,6 @@ import {
   TrendingUp,
   CornerDownRight,
   ShoppingBag,
-  ArrowRight,
   RefreshCw,
   Wand2,
   Radio,
@@ -21,6 +20,9 @@ import {
   Check,
   Send,
   Receipt,
+  Rocket,
+  SlidersHorizontal,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,18 +31,22 @@ import { Switch } from '@/components/ui/switch';
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { CommentToDmPanel } from '@/components/settings/comment-to-dm-panel';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 import type { InstagramPlan, CampaignStatus } from '@/lib/instagram-agent/types';
 
 interface PlanContext {
-  /** IG-sourced, DM-addressable contacts — the honest "reachable" number. */
+  /** Full IG-sourced history — context, not a promise of reach. */
   instagram_reachable: number;
-  /** Subset inside Meta's 24h messaging window right now. */
+  /** Who can receive a message right now (both Meta windows open). */
+  reachable_now?: number;
+  /** Inside Meta's 24h DM window. */
   in_window_24h?: number;
-  /** Total across all channels — kept for the "thinking" panel only. */
-  total_contacts?: number;
+  /** Commenters from the last 7 days (private reply). */
+  comment_window_7d?: number;
+  instagram_connected?: boolean;
   currency: string;
   has_catalog: boolean;
   product_count?: number;
@@ -71,13 +77,14 @@ const EXAMPLES = [
 
 export default function InstagramAgentPage() {
   const fetchWithCsrf = useFetchWithCsrf();
+  const router = useLocalizedRouter();
   const t = useT();
   const fmt = useFormat();
   const [goal, setGoal] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<InstagramPlan | null>(null);
   const [context, setContext] = useState<PlanContext | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<'draft' | 'launch' | null>(null);
   const [holdoutPct, setHoldoutPct] = useState(10);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
 
@@ -112,26 +119,61 @@ export default function InstagramAgentPage() {
     loadCampaigns();
   }, [loadCampaigns]);
 
-  async function saveCampaign() {
-    if (!plan) return;
-    setSaving(true);
+  /** Persiste el plan como campaña. Devuelve el id, o null si falló. */
+  async function saveCampaign(): Promise<string | null> {
+    if (!plan) return null;
+    const res = await fetchWithCsrf('/api/ai/instagram-agent/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: goal.trim(), plan, holdout_pct: holdoutPct }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? t('igAgent.errorSaveCampaign'));
+      return null;
+    }
+    return json.id as string;
+  }
+
+  async function saveDraft() {
+    setSaving('draft');
     try {
-      const res = await fetchWithCsrf('/api/ai/instagram-agent/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: goal.trim(), plan, holdout_pct: holdoutPct }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error ?? t('igAgent.errorSaveCampaign'));
-        return;
+      const id = await saveCampaign();
+      if (id) {
+        toast.success(t('igAgent.toastCampaignSaved'));
+        loadCampaigns();
       }
-      toast.success(t('igAgent.toastCampaignSaved'));
-      loadCampaigns();
-    } catch (err) {
+    } catch {
       toast.error(t('igAgent.errorNetwork'));
     } finally {
-      setSaving(false);
+      setSaving(null);
+    }
+  }
+
+  // Guardar y lanzar en un paso: antes había que guardar, buscar la campaña en
+  // la lista y entrar al detalle para encontrar el botón de lanzar.
+  async function saveAndLaunch() {
+    setSaving('launch');
+    try {
+      const id = await saveCampaign();
+      if (!id) return;
+      const res = await fetchWithCsrf(
+        `/api/ai/instagram-agent/campaigns/${id}/launch`,
+        { method: 'POST' },
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.error ?? t('igAgent.errorActionFailed'));
+        loadCampaigns();
+        router.push(`/agente-instagram/${id}`);
+        return;
+      }
+      toast.success(t('igAgent.toastCampaignLaunched'));
+      router.push(`/agente-instagram/${id}`);
+    } catch {
+      toast.error(t('igAgent.errorNetwork'));
+    } finally {
+      setSaving(null);
     }
   }
 
@@ -170,8 +212,8 @@ export default function InstagramAgentPage() {
         return;
       }
       setPlan(json.plan as InstagramPlan);
-      setContext(json.context as PlanContext);
-    } catch (err) {
+      setContext((prev) => ({ ...prev, ...(json.context as PlanContext) }));
+    } catch {
       toast.error(t('igAgent.errorNetwork'));
     } finally {
       setLoading(false);
@@ -187,109 +229,104 @@ export default function InstagramAgentPage() {
     : '';
 
   const showEmptyState = !plan && !loading;
+  const busy = saving !== null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      {/* Cabecera minimalista — glifo + título, sin eyebrow ni subtítulo */}
-      <header className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
-          <InstagramIcon className="h-5 w-5" />
-        </span>
-        <h1 className="app-page-title">{t('igAgent.title')}</h1>
+    <div className="mx-auto max-w-5xl space-y-8">
+      {/* Cabecera — glifo + título + estado real de la conexión */}
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
+            <InstagramIcon className="h-5 w-5" />
+          </span>
+          <h1 className="app-page-title">{t('igAgent.title')}</h1>
+        </div>
+        <ConnectionPill connected={context?.instagram_connected} />
       </header>
 
-      {/* Controles: modo (auto/híbrido/aprobación) + pausar + tope */}
-      <ProactiveControls />
+      {/* Lo que espera tu decisión va primero. */}
+      <ApprovalsQueue />
 
-      {/* Compositor de objetivo — la pieza central */}
-      <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
-        {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c13584]/60 to-transparent" />
-        <div className="p-5 sm:p-6">
-          <Textarea
-            id="goal"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            rows={3}
-            maxLength={2000}
-            placeholder={t('igAgent.goalPlaceholder')}
-            className="resize-none border-0 bg-transparent px-0 text-[15px] leading-relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                if (!loading) generate();
-              }
-            }}
-          />
+      {/* 1 — Nueva campaña */}
+      <section className="space-y-3">
+        <div className="app-section-head">
+          <h2 className="text-sm font-medium text-foreground">
+            {t('igAgent.newCampaign')}
+          </h2>
+          <ReachChip context={context} />
+        </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            {context ? (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground"
-                title={
-                  context.in_window_24h != null
-                    ? t('igAgent.inWindowHint', {
-                        n: fmt.number(context.in_window_24h),
-                      })
-                    : undefined
+        <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
+          {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c13584]/60 to-transparent" />
+          <div className="p-5 sm:p-6">
+            <Textarea
+              id="goal"
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder={t('igAgent.goalPlaceholder')}
+              className="resize-none border-0 bg-transparent px-0 text-[15px] leading-relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  if (!loading) generate();
                 }
-              >
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                </span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {fmt.number(context.instagram_reachable)}
-                </span>
-                {t('igAgent.reachablePeople')}
+              }}
+            />
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <span className="text-[11px] text-muted-foreground">
+                {t('igAgent.generateHint')}
               </span>
-            ) : (
-              <span />
-            )}
-            <Button size="lg" onClick={generate} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t('igAgent.designing')}
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-4 w-4" />
-                  {plan ? t('igAgent.regeneratePlan') : t('igAgent.generatePlan')}
-                </>
-              )}
-            </Button>
+              <Button size="lg" onClick={generate} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('igAgent.designing')}
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4" />
+                    {plan
+                      ? t('igAgent.regeneratePlan')
+                      : t('igAgent.generatePlan')}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Ejemplos — chips ligeros, solo en el estado inicial */}
-      {showEmptyState && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {EXAMPLES.map((key, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setGoal(t(key))}
-              className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-[13px] leading-snug text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
-            >
-              {t(key)}
-            </button>
-          ))}
-        </div>
-      )}
+        {/* Ejemplos — chips ligeros, solo en el estado inicial */}
+        {showEmptyState && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {EXAMPLES.map((key, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setGoal(t(key))}
+                className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-[13px] leading-snug text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* El agente trabajando — estados en vivo, al estilo Blueberry. */}
+      {/* El agente trabajando — estados en vivo. */}
       {loading && (
         <AgentThinking
-          audience={context?.instagram_reachable}
+          audience={context?.reachable_now ?? context?.instagram_reachable}
           productCount={context?.product_count}
         />
       )}
 
-      {/* Plan generado */}
+      {/* 2 — Plan generado */}
       {plan && (
-        <div className="space-y-4">
+        <section className="space-y-4">
           {/* Encabezado de campaña + embudo */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -473,10 +510,10 @@ export default function InstagramAgentPage() {
             </div>
           </div>
 
-          {/* Acciones */}
+          {/* Acciones — una sola fila, con la acción principal a la derecha */}
           <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
-            <label className="mr-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span>{t('igAgent.controlHoldout')}</span>
+            <label className="mr-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>{t('igAgent.holdoutLabel')}</span>
               <select
                 value={holdoutPct}
                 onChange={(e) => setHoldoutPct(Number(e.target.value))}
@@ -490,105 +527,239 @@ export default function InstagramAgentPage() {
                 ))}
               </select>
             </label>
-            <Button variant="outline" onClick={generate} disabled={loading}>
+            <Button variant="ghost" onClick={generate} disabled={loading || busy}>
               <RefreshCw className="h-4 w-4" />
               {t('igAgent.regenerate')}
             </Button>
-            <Button
-              variant="secondary"
-              onClick={saveCampaign}
-              disabled={saving}
-            >
-              {saving ? (
+            <Button variant="outline" onClick={saveDraft} disabled={busy}>
+              {saving === 'draft' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {t('igAgent.saveCampaign')}
+              {t('igAgent.saveDraft')}
             </Button>
-            <Button render={<Link href="/asistente" />}>
-              {t('igAgent.activateAgentOnInstagram')}
-              <ArrowRight className="h-4 w-4" />
+            <Button onClick={saveAndLaunch} disabled={busy}>
+              {saving === 'launch' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4" />
+              )}
+              {t('igAgent.saveAndLaunch')}
             </Button>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* DMs proactivos en espera de aprobación (modo approval/hybrid) */}
-      <ApprovalsQueue />
+      {/* 3 — Campañas */}
+      <CampaignsSection campaigns={campaigns} onDelete={deleteCampaign} />
 
-      {/* Reglas comentario → DM — antes vivían sueltas en Ajustes; ahora con la
-          funcionalidad a la que pertenecen (comentario de alta intención → DM). */}
-      <CommentToDmPanel />
-
-      {/* Mis campañas guardadas */}
-      {campaigns.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <Radio className="h-4 w-4 text-accent-ink" />
-            {t('igAgent.myCampaigns')}
-          </p>
-          <ul className="divide-y divide-border">
-            {campaigns.map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center justify-between gap-3 py-2"
-              >
-                <Link
-                  href={`/agente-instagram/${c.id}`}
-                  className="min-w-0 flex-1 hover:underline"
-                >
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {c.name}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {c.offer_code
-                      ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
-                      : ''}
-                    {fmt.date(c.updated_at, {
-                      day: 'numeric',
-                      month: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </Link>
-                <Badge
-                  variant={
-                    c.status === 'active'
-                      ? 'default'
-                      : c.status === 'paused'
-                        ? 'outline'
-                        : 'secondary'
-                  }
-                  className="shrink-0"
-                >
-                  {t(STATUS_LABEL[c.status])}
-                </Badge>
-                <button
-                  type="button"
-                  onClick={() => deleteCampaign(c.id)}
-                  aria-label={t('igAgent.deleteCampaign')}
-                  className="shrink-0 inline-flex items-center justify-center min-h-9 min-w-9 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
+      {/* 4 — Automatización: modo, freno de emergencia, tope y reglas */}
+      <section className="space-y-3">
+        <div className="app-section-head">
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            {t('igAgent.automationSection')}
+          </h2>
         </div>
-      )}
+        <ProactiveControls />
+        <CommentToDmPanel />
+      </section>
 
-      {/* Pedidos atribuidos a Instagram (ledger de atribución) */}
+      {/* 5 — Resultados */}
       <AttributedOrders />
     </div>
   );
 }
 
+/** Estado de la conexión de Instagram: sin ella, nada de esto envía. */
+function ConnectionPill({ connected }: { connected?: boolean }) {
+  const t = useT();
+  if (connected === undefined) return null;
+  if (connected) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        {t('igAgent.igConnected')}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href="/integraciones"
+      className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/5 px-2.5 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+    >
+      <AlertTriangle className="h-3 w-3" />
+      {t('igAgent.igNotConnected')}
+    </Link>
+  );
+}
+
 /**
- * Live "agent thinking" panel — Blueberry's signature. While the plan is
- * generating, it walks through believable status steps (grounded in the
- * real audience + catalog numbers) with spinner → check transitions, so the
- * wait reads as the agent actually scanning and working.
+ * Cuánta gente puede recibir un mensaje AHORA. Meta abre dos ventanas —24h
+ * desde un DM, 7 días desde un comentario— y solo dentro de ellas se puede
+ * escribir; el histórico completo no es alcance real.
+ */
+function ReachChip({ context }: { context: PlanContext | null }) {
+  const t = useT();
+  const fmt = useFormat();
+  if (!context) return null;
+  const now = context.reachable_now ?? 0;
+  const dm = context.in_window_24h ?? 0;
+  const comments = context.comment_window_7d ?? 0;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground"
+      title={t('igAgent.reachHint', {
+        dm: fmt.number(dm),
+        comments: fmt.number(comments),
+        total: fmt.number(context.instagram_reachable),
+      })}
+    >
+      <span className="relative flex h-1.5 w-1.5">
+        {now > 0 && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+        )}
+        <span
+          className={cn(
+            'relative inline-flex h-1.5 w-1.5 rounded-full',
+            now > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+          )}
+        />
+      </span>
+      <span className="font-semibold text-foreground tabular-nums">
+        {fmt.number(now)}
+      </span>
+      {t('igAgent.reachableNow')}
+    </span>
+  );
+}
+
+/** Lista de campañas guardadas + estado vacío que explica el flujo. */
+function CampaignsSection({
+  campaigns,
+  onDelete,
+}: {
+  campaigns: CampaignRow[];
+  onDelete: (id: string) => void;
+}) {
+  const t = useT();
+  const fmt = useFormat();
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  return (
+    <section className="space-y-3">
+      <div className="app-section-head">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <Radio className="h-4 w-4 text-muted-foreground" />
+          {t('igAgent.myCampaigns')}
+        </h2>
+      </div>
+
+      {campaigns.length === 0 ? (
+        <ol className="grid gap-2 sm:grid-cols-3">
+          {[
+            ['igAgent.howStep1Title', 'igAgent.howStep1Desc'],
+            ['igAgent.howStep2Title', 'igAgent.howStep2Desc'],
+            ['igAgent.howStep3Title', 'igAgent.howStep3Desc'],
+          ].map(([title, desc], i) => (
+            <li
+              key={title}
+              className="rounded-xl border border-border bg-card p-3.5"
+            >
+              <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent/50 text-[10px] font-semibold text-accent-ink">
+                  {i + 1}
+                </span>
+                {t(title)}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {t(desc)}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <ul className="divide-y divide-border rounded-2xl border border-border bg-card px-5 shadow-sm">
+          {campaigns.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 py-2.5"
+            >
+              <Link
+                href={`/agente-instagram/${c.id}`}
+                className="min-w-0 flex-1 hover:underline"
+              >
+                <p className="truncate text-sm font-medium text-foreground">
+                  {c.name}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {c.offer_code
+                    ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
+                    : ''}
+                  {fmt.date(c.updated_at, {
+                    day: 'numeric',
+                    month: 'numeric',
+                    year: 'numeric',
+                  })}
+                </p>
+              </Link>
+              <Badge
+                variant={
+                  c.status === 'active'
+                    ? 'default'
+                    : c.status === 'paused'
+                      ? 'outline'
+                      : 'secondary'
+                }
+                className="shrink-0"
+              >
+                {t(STATUS_LABEL[c.status])}
+              </Badge>
+              {confirming === c.id ? (
+                <span className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirming(null)}
+                  >
+                    {t('igAgent.cancel')}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setConfirming(null);
+                      onDelete(c.id);
+                    }}
+                  >
+                    {t('igAgent.confirmDelete')}
+                  </Button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirming(c.id)}
+                  aria-label={t('igAgent.deleteCampaign')}
+                  className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Live "agent thinking" panel. While the plan is generating, it walks through
+ * believable status steps (grounded in the real audience + catalog numbers)
+ * with spinner → check transitions, so the wait reads as the agent actually
+ * scanning and working.
  */
 function AgentThinking({
   audience,
@@ -662,9 +833,16 @@ function AgentThinking({
 
 type SendMode = 'auto' | 'hybrid_intent' | 'approval';
 
+const MODE_DESC: Record<SendMode, string> = {
+  auto: 'igAgent.modeAutoDesc',
+  hybrid_intent: 'igAgent.modeHybridDesc',
+  approval: 'igAgent.modeApprovalDesc',
+};
+
 /**
- * The one control strip: automation mode (auto ↔ approval — this is where you
- * set approve/automatic), the emergency pause, and the daily cap.
+ * Controles del agente proactivo: cuánto envía solo, el freno de emergencia y
+ * el tope diario. Cada control con su etiqueta visible — antes era una fila de
+ * botones y un campo numérico sin nombre.
  */
 function ProactiveControls() {
   const t = useT();
@@ -719,53 +897,79 @@ function ProactiveControls() {
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-3 py-2 text-[13px] shadow-sm transition-colors',
+        'rounded-2xl border p-4 shadow-sm transition-colors',
         paused ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
       )}
     >
-      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
-        {MODES.map((m) => (
-          <button
-            key={m.v}
-            type="button"
-            onClick={() => {
-              setMode(m.v);
-              save({ send_mode: m.v });
-            }}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
-              mode === m.v
-                ? 'bg-accent text-accent-ink'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[13px] font-medium text-foreground">
+            {t('igAgent.modeLabel')}
+          </p>
+          <div className="mt-1.5 inline-flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
+            {MODES.map((m) => (
+              <button
+                key={m.v}
+                type="button"
+                onClick={() => {
+                  setMode(m.v);
+                  save({ send_mode: m.v });
+                }}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
+                  mode === m.v
+                    ? 'bg-accent text-accent-ink'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            {t(MODE_DESC[mode])}
+          </p>
+        </div>
 
-      <label className="ml-auto flex items-center gap-2" title={t('igAgent.controlsPauseHint')}>
-        <Switch
-          checked={paused}
-          onCheckedChange={(v) => {
-            setPaused(v);
-            save({ paused: v });
-          }}
-        />
-        <span className={cn('font-medium', paused ? 'text-destructive' : 'text-foreground')}>
-          {paused ? t('igAgent.controlsPausedOn') : t('igAgent.controlsPause')}
-        </span>
-      </label>
-      <input
-        type="number"
-        min={0}
-        max={10000}
-        value={cap}
-        onChange={(e) => setCap(Number(e.target.value))}
-        onBlur={() => save({ daily_cap: cap })}
-        title={t('igAgent.controlsDailyCapHint')}
-        className="w-16 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
-      />
+        <div className="flex flex-wrap items-center gap-5">
+          <label className="flex flex-col gap-1.5 text-[13px]">
+            <span className="font-medium text-foreground">
+              {t('igAgent.controlsDailyCap')}
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={10000}
+              value={cap}
+              onChange={(e) => setCap(Number(e.target.value))}
+              onBlur={() => save({ daily_cap: cap })}
+              title={t('igAgent.controlsDailyCapHint')}
+              className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
+            />
+          </label>
+
+          <label
+            className="flex flex-col gap-1.5 text-[13px]"
+            title={t('igAgent.controlsPauseHint')}
+          >
+            <span
+              className={cn(
+                'font-medium',
+                paused ? 'text-destructive' : 'text-foreground',
+              )}
+            >
+              {paused ? t('igAgent.controlsPausedOn') : t('igAgent.controlsPause')}
+            </span>
+            <Switch
+              checked={paused}
+              onCheckedChange={(v) => {
+                setPaused(v);
+                save({ paused: v });
+              }}
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
@@ -819,7 +1023,7 @@ function AttributedOrders() {
   if (orders.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="mb-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
@@ -864,7 +1068,7 @@ function AttributedOrders() {
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
@@ -876,6 +1080,21 @@ interface ApprovalRow {
   created_at: string;
   contact_name: string | null;
   campaign_name: string | null;
+  /** Ventana de Meta agotada (se marca al cargar la cola). */
+  expired?: boolean;
+}
+
+/** Ventana máxima de Meta para una respuesta privada a un comentario. */
+const COMMENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Pasada la ventana de Meta el envío ya no es posible. Se calcula al cargar
+ *  (no en render) para no depender del reloj en cada repintado. */
+function markExpired(rows: ApprovalRow[]): ApprovalRow[] {
+  const now = Date.now();
+  return rows.map((r) => ({
+    ...r,
+    expired: now - new Date(r.created_at).getTime() > COMMENT_WINDOW_MS,
+  }));
 }
 
 /**
@@ -894,7 +1113,7 @@ function ApprovalsQueue() {
         cache: 'no-store',
       });
       const json = await res.json();
-      if (res.ok) setItems((json.approvals ?? []) as ApprovalRow[]);
+      if (res.ok) setItems(markExpired((json.approvals ?? []) as ApprovalRow[]));
     } catch {
       /* la cola es secundaria */
     }
@@ -907,7 +1126,8 @@ function ApprovalsQueue() {
     fetch('/api/ai/instagram-agent/approvals', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j) setItems((j.approvals ?? []) as ApprovalRow[]);
+        if (!cancelled && j)
+          setItems(markExpired((j.approvals ?? []) as ApprovalRow[]));
       })
       .catch(() => {});
     return () => {
@@ -930,12 +1150,18 @@ function ApprovalsQueue() {
           body: JSON.stringify({ action, text }),
         },
       );
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        toast.error(j.error ?? t('igAgent.approvalError'));
+        toast.error(json.error ?? t('igAgent.approvalError'));
         load();
       } else if (action === 'approve') {
-        toast.success(t('igAgent.approvalSent'));
+        // El envío puede caerse por la ventana de Meta ya cerrada: decirlo,
+        // no cantar un "enviado" que no ocurrió.
+        if (json.status === 'skipped') {
+          toast.error(t('igAgent.approvalWindowClosed'));
+        } else {
+          toast.success(t('igAgent.approvalSent'));
+        }
       }
     } catch {
       toast.error(t('igAgent.approvalError'));
@@ -946,7 +1172,7 @@ function ApprovalsQueue() {
   if (items.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.03] p-5 shadow-sm">
+    <section className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.03] p-5 shadow-sm">
       <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
         <MessageCircle className="h-4 w-4 text-amber-500" />
         {t('igAgent.approvalsTitle')}
@@ -954,12 +1180,15 @@ function ApprovalsQueue() {
           {items.length}
         </span>
       </p>
+      <p className="text-[11px] text-muted-foreground">
+        {t('igAgent.approvalsHint')}
+      </p>
       <ul className="mt-3 space-y-3">
         {items.map((it) => (
           <ApprovalItem key={it.id} item={it} onAct={act} />
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
@@ -971,28 +1200,37 @@ function ApprovalItem({
   onAct: (id: string, action: 'approve' | 'reject', text?: string) => void;
 }) {
   const t = useT();
+  const fmt = useFormat();
   const [text, setText] = useState(item.draft_text);
   const name = item.contact_name ?? t('igAgent.approvalUnknownContact');
+  // Fuera de la ventana de Meta no ofrecemos un botón que solo puede fallar.
+  const expired = item.expired === true;
 
   return (
     <li className="rounded-xl border border-border bg-background p-3">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <p className="truncate text-xs font-medium text-foreground">
           {t('igAgent.approvalTo', { name })}
         </p>
-        {item.campaign_name && (
-          <span className="shrink-0 text-[11px] text-muted-foreground">
-            {item.campaign_name}
-          </span>
-        )}
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {item.campaign_name ? `${item.campaign_name} · ` : ''}
+          {fmt.date(item.created_at, { day: 'numeric', month: 'short' })}
+        </span>
       </div>
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={950}
+        disabled={expired}
         className="resize-none text-[13px]"
       />
+      {expired && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-destructive">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          {t('igAgent.approvalExpired')}
+        </p>
+      )}
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button
           variant="ghost"
@@ -1000,16 +1238,18 @@ function ApprovalItem({
           onClick={() => onAct(item.id, 'reject')}
         >
           <Trash2 className="h-3.5 w-3.5" />
-          {t('igAgent.approvalReject')}
+          {expired ? t('igAgent.approvalDismiss') : t('igAgent.approvalReject')}
         </Button>
-        <Button
-          size="sm"
-          onClick={() => onAct(item.id, 'approve', text.trim())}
-          disabled={!text.trim()}
-        >
-          <Send className="h-3.5 w-3.5" />
-          {t('igAgent.approvalApprove')}
-        </Button>
+        {!expired && (
+          <Button
+            size="sm"
+            onClick={() => onAct(item.id, 'approve', text.trim())}
+            disabled={!text.trim()}
+          >
+            <Send className="h-3.5 w-3.5" />
+            {t('igAgent.approvalApprove')}
+          </Button>
+        )}
       </div>
     </li>
   );

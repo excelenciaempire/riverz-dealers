@@ -4,7 +4,8 @@ import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import type { InstagramCampaign } from './types';
 import { loadBrandContext } from './brand-context';
-import { latestInbound, withinMessagingWindow } from './engagement';
+import { latestInbound, resolveIgReach } from './engagement';
+import { claimCommentPrivateReply } from './private-reply-lock';
 import { craftPersonalizedDM } from './personalize-dm';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment, type LeadScore } from './segment';
@@ -170,6 +171,8 @@ export async function sendCampaignBatch(
     id: string;
     contact: { id: string; external_id: string } | null;
     text: string;
+    /** Comment id when the only sanctioned route is a private reply. */
+    commentId?: string;
     /** Set when the row must be skipped instead of sent (e.g. outside window). */
     skip?: string;
   };
@@ -181,16 +184,20 @@ export async function sendCampaignBatch(
         text: null,
         at: null,
       }));
-      // A batch DM is free-form (recipient by id), so Meta only allows it
-      // within 24h of the person's last message. Outside the window → skip
-      // rather than let Meta reject it (and don't burn the attempt). Fresh
-      // comment-driven outreach goes out in real time, within window.
-      if (!withinMessagingWindow(inbound.at)) {
+      // How we're allowed to reach them right now. Most of a campaign audience
+      // are COMMENTERS: their comment-author id isn't a messageable IGSID and a
+      // comment doesn't open the 24h window, so a plain DM is rejected by Meta —
+      // the sanctioned route is a private reply carrying the comment id (7 days).
+      // Someone who actually DM'd us gets the richer free-form DM instead.
+      const reach = await resolveIgReach(db, contact.id).catch(
+        () => ({ kind: 'none', reason: 'no_engagement' }) as const,
+      );
+      if (reach.kind === 'none') {
         return {
           id: r.id,
           contact: { id: contact.id, external_id: contact.external_id },
           text: '',
-          skip: 'outside_24h_window',
+          skip: reach.reason,
         };
       }
       const personalCode = codeByRecipient.get(r.id);
@@ -219,7 +226,12 @@ export async function sendCampaignBatch(
         isVerified: profile?.is_verified ?? null,
         segment,
       });
-      return { id: r.id, contact: { id: contact.id, external_id: contact.external_id }, text };
+      return {
+        id: r.id,
+        contact: { id: contact.id, external_id: contact.external_id },
+        text,
+        commentId: reach.kind === 'private_reply' ? reach.commentId : undefined,
+      };
     }),
   );
 
@@ -243,13 +255,38 @@ export async function sendCampaignBatch(
       continue;
     }
 
+    // One private reply per comment across BOTH systems (comment-to-DM rules
+    // and the campaign engine): claim the shared lock first. If the other path
+    // already answered this comment, skip instead of letting Meta reject us.
+    if (p.commentId) {
+      const won = await claimCommentPrivateReply(
+        db,
+        campaign.workspace_id,
+        p.commentId,
+        'campaign',
+      );
+      if (!won) {
+        await db
+          .from('instagram_campaign_recipients')
+          .update({ status: 'skipped', error: 'comment ya respondido' })
+          .eq('id', p.id)
+          .eq('status', 'queued');
+        continue;
+      }
+    }
+
     // Atomically CLAIM the row (queued → sent) BEFORE sending. The real-time
     // path can claim+send the same recipient concurrently; without this guard
     // both would send and the person gets two DMs. If the claim affects no
     // rows, the other path already took it — skip.
     const { data: claimed } = await db
       .from('instagram_campaign_recipients')
-      .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        error: null,
+        ...(p.commentId ? { source_comment_id: p.commentId } : {}),
+      })
       .eq('id', p.id)
       .eq('status', 'queued')
       .select('id');
@@ -263,6 +300,9 @@ export async function sendCampaignBatch(
         // con un objeto mínimo para satisfacer el contrato del tipo.
         conversation: { id: '' } as unknown as Conversation,
         contact: { id: p.contact.id, external_id: p.contact.external_id } as unknown as Contact,
+        // Comment-sourced → private reply by comment id (their comment-author
+        // id is not messageable and the 24h window is closed).
+        commentId: p.commentId,
         text: p.text,
       } satisfies OutboundText);
 
