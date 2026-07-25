@@ -94,10 +94,23 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  // Prefer the comment's OWN owning connection (migration 117): a commenter who
+  // hit two of the workspace's accounts collapses into one conversation owned by
+  // the first, so the conversation's connection can be the wrong account — its
+  // page token would fail to moderate a comment that belongs to the other.
+  const { data: cmeta } = await admin
+    .from("comments_meta")
+    .select("connection_id")
+    .eq("message_id", m.id)
+    .maybeSingle();
+  const owningConnectionId =
+    (cmeta as { connection_id?: string | null } | null)?.connection_id ??
+    (conv as Conversation).connection_id ??
+    "";
   const { data: connection } = await admin
     .from("channel_connections")
     .select("*")
-    .eq("id", (conv as Conversation).connection_id ?? "")
+    .eq("id", owningConnectionId)
     .maybeSingle();
   if (!connection)
     return NextResponse.json(

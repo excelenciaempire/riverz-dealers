@@ -278,6 +278,12 @@ export async function ingestInboundEvent(
       ad_id: adId,
       permalink: event.comment.permalink,
       is_ad: isAd,
+      // The account that actually RECEIVED this comment. FB/IG comments group
+      // one conversation per (contact, channel), so a commenter who hits two of
+      // a workspace's accounts collapses into one conversation owned by the
+      // first — reply attribution by conversation.connection_id would use the
+      // wrong page token. Stamp the true owner per comment (migration 117).
+      connection_id: event.connection.id,
     });
 
     // Bubble is_ad onto the conversation row so the inbox list can
@@ -578,6 +584,25 @@ interface FindOrCreateConversationInput {
   created_at?: string;
 }
 
+/**
+ * Channels grouped into ONE conversation per resource thread (by
+ * thread_external_id) rather than one open conversation per (contact, channel):
+ *   - gmail / outlook  → email thread id
+ *   - mercadolibre     → "q:<id>" question / "pack:<id>" post-sale
+ *   - tiktok_comment   → "video:<id>|comment:<id>" (each top-level comment is its
+ *     own thread; without this, comments on different videos collapse into one
+ *     conversation and a reply would target the wrong video/comment).
+ * FB/IG comments intentionally stay grouped per contact.
+ */
+function isThreadGroupedChannel(channel: Channel): boolean {
+  return (
+    channel === "gmail" ||
+    channel === "outlook" ||
+    channel === "mercadolibre" ||
+    channel === "tiktok_comment"
+  );
+}
+
 async function findOrCreateConversation(
   db: SupabaseClient,
   input: FindOrCreateConversationInput,
@@ -594,15 +619,7 @@ async function findOrCreateConversation(
     // el contacto vuelve a escribir, arranca un hilo nuevo en vez de revivir
     // el borrado. (El re-polleo del MISMO correo ya se cortó en el paso 0b.)
     .is("deleted_at", null);
-  if (
-    input.thread_external_id &&
-    (input.channel === "gmail" ||
-      input.channel === "outlook" ||
-      // MercadoLibre groups by resource thread ("q:<id>" question / "pack:<id>"
-      // post-sale) so each question / order pack is its own conversation and
-      // replies route to the right ML endpoint.
-      input.channel === "mercadolibre")
-  ) {
+  if (input.thread_external_id && isThreadGroupedChannel(input.channel)) {
     query = query.eq("thread_external_id", input.thread_external_id);
   } else {
     query = query.neq("status", "closed");
@@ -675,10 +692,7 @@ async function findOrCreateConversation(
         .eq("contact_id", input.contact_id)
         .eq("channel", input.channel)
         .is("deleted_at", null);
-      if (
-        input.thread_external_id &&
-        (input.channel === "gmail" || input.channel === "outlook")
-      ) {
+      if (input.thread_external_id && isThreadGroupedChannel(input.channel)) {
         recover = recover.eq("thread_external_id", input.thread_external_id);
       } else {
         recover = recover.is("thread_external_id", null);

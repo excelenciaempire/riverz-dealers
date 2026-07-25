@@ -9,6 +9,8 @@ import {
   pageFieldsForChannel,
   getAppWebhookSubscriptions,
   appSubscriptionGaps,
+  subscribeWabaToWebhooks,
+  isWabaSubscribed,
 } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
 
@@ -143,6 +145,50 @@ export async function GET(request: Request) {
     });
   }
 
+  // WhatsApp WABAs — reconcile the per-WABA app subscription. Embedded Signup
+  // registers the app on the WABA at connect, but best-effort and never
+  // re-applied; a dropped subscription silently stops ALL WhatsApp inbound +
+  // echo sync while the connection still shows connected. Field selection is
+  // app-level (dashboard), so here we only ensure the app stays registered.
+  const { data: waConns } = await admin
+    .from("channel_connections")
+    .select("*")
+    .eq("channel", "whatsapp")
+    .in("status", ["connected", "error", "expired"]);
+  const waResults: Array<{
+    id: string;
+    wabaId: string;
+    reapplied: boolean;
+    subscribed: boolean | null;
+  }> = [];
+  let waMissing = 0;
+  for (const c of (waConns ?? []) as ChannelConnection[]) {
+    const secrets = (c.secrets ?? {}) as Record<string, unknown>;
+    const enc = String(secrets.access_token ?? "");
+    const cfg = (c.config ?? {}) as Record<string, unknown>;
+    const wabaId = String(cfg.waba_id ?? "");
+    if (!enc || !wabaId) {
+      skipped++;
+      continue;
+    }
+    let token: string;
+    try {
+      token = decrypt(enc);
+    } catch {
+      skipped++;
+      continue;
+    }
+    const reapplied = await subscribeWabaToWebhooks(wabaId, token);
+    const subscribed = await isWabaSubscribed(wabaId, token);
+    if (subscribed === false) {
+      waMissing++;
+      log.warn("WABA not subscribed to the app after re-apply", { id: c.id, wabaId });
+    } else if (subscribed === true) {
+      healthy++;
+    }
+    waResults.push({ id: c.id, wabaId, reapplied, subscribed });
+  }
+
   // APP-LEVEL subscription check. Per-page subscribed_apps (above) covers FB
   // `feed` + DM fields, but IG `comments` is subscribed ONLY at the app level
   // (one global toggle for every merchant) and is invisible to the per-page
@@ -162,7 +208,7 @@ export async function GET(request: Request) {
   // verify failure doesn't cry wolf. Matches the gmail/outlook polls' use of
   // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
   // most severe case (all merchants), never a false alarm (we read it live).
-  const anyMissing = results.some((r) => r.verified && r.missing.length > 0);
+  const anyMissing = results.some((r) => r.verified && r.missing.length > 0) || waMissing > 0;
   const anyAppGap = appGaps.length > 0;
   return NextResponse.json(
     {
@@ -171,6 +217,7 @@ export async function GET(request: Request) {
       healthy,
       skipped,
       results,
+      waResults,
       appSubscriptions: appSubs,
       appGaps,
     },

@@ -137,7 +137,9 @@ export async function POST(req: Request): Promise<Response> {
     ? mediaSendType
     : channel === "gmail" || channel === "outlook"
       ? "email"
-      : channel === "fb_comment" || channel === "ig_comment"
+      : channel === "fb_comment" ||
+          channel === "ig_comment" ||
+          channel === "tiktok_comment"
         ? "comment"
         : "text";
 
@@ -147,7 +149,11 @@ export async function POST(req: Request): Promise<Response> {
   // Resolve the reply target to the specific comment the agent picked,
   // or fall back to the most recent inbound comment in the thread.
   let replyToExternalId = body.reply_to_external_id;
-  if (channel === "fb_comment" || channel === "ig_comment") {
+  if (
+    channel === "fb_comment" ||
+    channel === "ig_comment" ||
+    channel === "tiktok_comment"
+  ) {
     let target: string | undefined;
     if (body.reply_to_external_id) {
       const { data: picked } = await admin

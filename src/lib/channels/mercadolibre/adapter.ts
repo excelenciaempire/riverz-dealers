@@ -103,8 +103,38 @@ export const mercadoLibreAdapter: ChannelAdapter = {
         const detail = await res.text().catch(() => "");
         throw new Error(`[mercadolibre] message failed (${res.status}): ${detail}`);
       }
-      const json = (await res.json().catch(() => ({}))) as { id?: string };
-      return { externalMessageId: json.id ?? undefined, status: "sent" };
+      // El id que devuelve el POST NO siempre coincide con el id que luego emite
+      // el webhook `messages` para ESTE mismo mensaje → el eco entraría como una
+      // fila nueva y el mensaje se DUPLICARÍA en el hilo. Releemos el pack y
+      // tomamos el id del mensaje del vendedor más reciente que coincide con lo
+      // enviado: ese es el id que usará el webhook, así el dedup global por
+      // message_id (inbox-writer) lo reconoce. Fallback al id del POST si falla.
+      const posted = (await res.json().catch(() => ({}))) as { id?: string };
+      let externalId = posted.id;
+      try {
+        const packRes = await fetch(
+          `${ML}/messages/packs/${packId}/sellers/${sellerId}?mark_as_read=false`,
+          { headers: { authorization: `Bearer ${token}` } },
+        );
+        if (packRes.ok) {
+          const pack = (await packRes.json()) as MlPack;
+          const sellerMsgs = (pack.messages ?? []).filter(
+            (m) => String(m.from?.user_id ?? "") === sellerId && Boolean(m.id),
+          );
+          const matching = sellerMsgs.filter((m) => (m.text ?? "") === text);
+          const pool = matching.length ? matching : sellerMsgs;
+          let newest: (typeof pool)[number] | undefined;
+          for (const m of pool) {
+            const tb = Date.parse(m.message_date?.created ?? "") || 0;
+            const ta = newest ? Date.parse(newest.message_date?.created ?? "") || 0 : -1;
+            if (tb >= ta) newest = m;
+          }
+          if (newest?.id) externalId = newest.id;
+        }
+      } catch {
+        /* keep posted.id */
+      }
+      return { externalMessageId: externalId ?? undefined, status: "sent" };
     }
 
     throw new Error("[mercadolibre] no resolvable target (question/pack) for this reply");
@@ -159,6 +189,27 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       // deduplica por a:<question_id>: lo enviado desde Riverz ya guardó ese id
       // (ver sendText), así que solo sobreviven las respuestas hechas en ML.
       if (q.status === "ANSWERED" && q.answer?.text) {
+        // Si la PRIMERA notificación llega con la pregunta ya ANSWERED (el
+        // vendedor respondió desde la app de ML antes de que procesáramos el
+        // evento UNANSWERED), la pregunta del comprador nunca se ingirió. La
+        // emitimos igual, pero HISTÓRICA: se preserva en el hilo sin volver a
+        // disparar al agente (ya está resuelta). Idempotente por q:<id> si ya
+        // existía del flujo normal.
+        if (q.text) {
+          events.push({
+            channel: "mercadolibre",
+            connection,
+            externalContactId: qBuyerId,
+            contactName: buyerName,
+            externalMessageId: `q:${q.id}`,
+            externalThreadId: `q:${q.id}`,
+            subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
+            text: q.text,
+            receivedAt: q.date_created ?? new Date().toISOString(),
+            historical: true,
+            raw: q,
+          });
+        }
         events.push({
           channel: "mercadolibre",
           connection,
@@ -228,12 +279,46 @@ export const mercadoLibreAdapter: ChannelAdapter = {
 };
 
 // ── Token refresh (rotating refresh_token — must persist the new one) ──
+//
+// ML's refresh_token is SINGLE-USE. Under concurrent notifications two calls can
+// both see the token expired and both POST /oauth/token with the same
+// refresh_token: the first rotates it, the second 400s ("invalid_grant"). The
+// old code flipped the connection to status='error' on that 400 — so a healthy,
+// just-refreshed seller got stuck in error. We guard it two ways (serverless-safe,
+// no schema): re-read the row right BEFORE refreshing (a concurrent winner may
+// have already rotated it → use theirs), and re-read AFTER a failure (if the
+// token is now valid, a winner rotated it while we were in flight → recover
+// instead of erroring). Only a genuine, still-invalid token flips to error.
 export async function getFreshMLToken(connection: ChannelConnection): Promise<string> {
-  const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
-  const config = (connection.config ?? {}) as Record<string, unknown>;
-  const expiresAt = config.token_expires_at ? Date.parse(String(config.token_expires_at)) : 0;
-  const accessEnc = String(secrets.access_token ?? "");
-  if (accessEnc && expiresAt > Date.now() + 120_000) return decrypt(accessEnc);
+  const admin = supabaseAdmin();
+
+  const stillValid = (
+    s: Record<string, unknown>,
+    c: Record<string, unknown>,
+  ): string | null => {
+    const exp = c.token_expires_at ? Date.parse(String(c.token_expires_at)) : 0;
+    const enc = String(s.access_token ?? "");
+    return enc && exp > Date.now() + 120_000 ? decrypt(enc) : null;
+  };
+
+  let secrets = (connection.secrets ?? {}) as Record<string, unknown>;
+  let config = (connection.config ?? {}) as Record<string, unknown>;
+  const cached = stillValid(secrets, config);
+  if (cached) return cached;
+
+  // Re-read fresh before spending the refresh_token — a concurrent request may
+  // have just rotated it.
+  const { data: fresh } = await admin
+    .from("channel_connections")
+    .select("secrets, config")
+    .eq("id", connection.id)
+    .maybeSingle();
+  if (fresh) {
+    secrets = (fresh.secrets ?? {}) as Record<string, unknown>;
+    config = (fresh.config ?? {}) as Record<string, unknown>;
+    const now = stillValid(secrets, config);
+    if (now) return now;
+  }
 
   const refreshEnc = String(secrets.refresh_token ?? "");
   if (!refreshEnc) throw new Error("[mercadolibre] connection missing refresh_token");
@@ -249,7 +334,22 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    await supabaseAdmin()
+    // A concurrent winner may have rotated the token while we were in flight
+    // (our refresh_token was already spent → this 400). Re-read: if it's now
+    // valid, use it instead of flipping a healthy connection to error.
+    const { data: after } = await admin
+      .from("channel_connections")
+      .select("secrets, config")
+      .eq("id", connection.id)
+      .maybeSingle();
+    if (after) {
+      const recovered = stillValid(
+        (after.secrets ?? {}) as Record<string, unknown>,
+        (after.config ?? {}) as Record<string, unknown>,
+      );
+      if (recovered) return recovered;
+    }
+    await admin
       .from("channel_connections")
       .update({ status: "error", last_error: `ML token refresh failed: ${detail.slice(0, 300)}` })
       .eq("id", connection.id);
@@ -262,7 +362,7 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
   };
   if (!json.access_token) throw new Error("[mercadolibre] refresh returned no access_token");
   const newExpiry = new Date(Date.now() + (json.expires_in ?? 21_600) * 1000).toISOString();
-  await supabaseAdmin()
+  await admin
     .from("channel_connections")
     .update({
       secrets: {

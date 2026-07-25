@@ -519,6 +519,47 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
   }
 }
 
+/** Subscribe a WhatsApp Business Account to our app's webhooks (idempotent).
+ *  Field selection for a WABA is configured at the app level (dashboard), so
+ *  this endpoint takes NO field list — it just registers the app on the WABA.
+ *  Returns true on success. */
+export async function subscribeWabaToWebhooks(
+  wabaId: string,
+  token: string,
+): Promise<boolean> {
+  try {
+    const r = await fetch(withAppsecretProof(`${GRAPH}/${wabaId}/subscribed_apps`, token), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether OUR app is subscribed to this WABA (GET /{waba}/subscribed_apps
+ *  returns the subscribed apps). Returns null when the check itself failed
+ *  (transient / bad token) so callers treat "unknown" ≠ "not subscribed". */
+export async function isWabaSubscribed(
+  wabaId: string,
+  token: string,
+): Promise<boolean | null> {
+  try {
+    const r = await fetch(
+      withAppsecretProof(
+        `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(token)}`,
+        token,
+      ),
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: unknown[] };
+    return Array.isArray(j.data) && j.data.length > 0;
+  } catch {
+    return null;
+  }
+}
+
 /** Expected app-level subscription object→fields. A missing/inactive entry here
  *  means an entire inbound surface stops for ALL merchants at once. */
 export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {

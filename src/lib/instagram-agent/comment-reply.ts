@@ -154,18 +154,33 @@ async function latestComment(
 
   const { data: msgs } = await db
     .from('messages')
-    .select('message_id, conversation_id')
+    .select('message_id, conversation_id, comments_meta(connection_id)')
     .in('conversation_id', convRows.map((c) => c.id))
     .eq('sender_type', 'customer')
     .not('message_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1);
   const top = (msgs ?? [])[0] as
-    | { message_id: string | null; conversation_id: string | null }
+    | {
+        message_id: string | null;
+        conversation_id: string | null;
+        comments_meta:
+          | { connection_id: string | null }
+          | { connection_id: string | null }[]
+          | null;
+      }
     | undefined;
   if (!top?.message_id) return null;
+  // Prefer the comment's OWN connection (migration 117) — the account that
+  // actually received it. Fall back to the conversation's connection only if
+  // the per-comment stamp is missing (comments ingested before 117).
+  const meta = Array.isArray(top.comments_meta) ? top.comments_meta[0] : top.comments_meta;
+  const ownConnectionId = meta?.connection_id ?? null;
+  const convConnectionId = top.conversation_id
+    ? (connByConv.get(top.conversation_id) ?? null)
+    : null;
   return {
     commentId: top.message_id,
-    connectionId: top.conversation_id ? (connByConv.get(top.conversation_id) ?? null) : null,
+    connectionId: ownConnectionId ?? convConnectionId,
   };
 }
