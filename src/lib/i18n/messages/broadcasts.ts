@@ -252,6 +252,10 @@ export const broadcasts = {
     es: "“Leídos” cuenta solo a quienes tienen activados los vistos en WhatsApp. Si están desactivados, pueden haber leído sin sumar aquí — “Entregados” y “Respondidos” no se ven afectados.",
     en: "“Read” counts only people who have read receipts enabled in WhatsApp. If they're off, they may have read it without counting here — “Delivered” and “Replied” are unaffected.",
   },
+  statsCappedNote: {
+    es: "Campaña muy grande: la tabla muestra los primeros {n} destinatarios. Los totales de arriba son exactos (del total de la campaña).",
+    en: "Very large campaign: the table shows the first {n} recipients. The totals above are exact (from the campaign's full count).",
+  },
   whyMessagesFail: { es: "Por qué pueden fallar los mensajes", en: "Why messages can fail" },
   whyMessagesFailDesc: {
     es: "Meta puede rechazar un mensaje si la cuenta del cliente no acepta WhatsApp Business, si su número está bloqueado o si pasó la ventana de 24 horas sin una plantilla aprobada.",

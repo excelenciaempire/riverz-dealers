@@ -202,6 +202,9 @@ export default function BroadcastDetailPage() {
   const [query, setQuery] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // True when a very large send exceeded the browser page cap — metrics then
+  // fall back to the DB aggregate columns and the table shows a subset.
+  const [recipientsCapped, setRecipientsCapped] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -217,14 +220,34 @@ export default function BroadcastDetailPage() {
         if (bcError) throw bcError;
         setBroadcast(bc);
 
-        const { data: recs, error: recsError } = await supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false });
-
-        if (recsError) throw recsError;
-        setRecipients(recs ?? []);
+        // Page through ALL recipients. A single Supabase select caps at 1000
+        // rows, which silently truncated the table, the hourly chart AND the
+        // CSV export for any campaign > 1000 — so the stats didn't reflect the
+        // real send. Batches of 1000 up to a browser-safe ceiling.
+        const PAGE = 1000;
+        const MAX = 50000;
+        const all: BroadcastRecipient[] = [];
+        let from = 0;
+        let capped = false;
+        for (;;) {
+          const { data: recs, error: recsError } = await supabase
+            .from('broadcast_recipients')
+            .select('*, contact:contacts(*)')
+            .eq('broadcast_id', broadcastId)
+            .order('created_at', { ascending: false })
+            .range(from, from + PAGE - 1);
+          if (recsError) throw recsError;
+          const batch = recs ?? [];
+          all.push(...batch);
+          if (batch.length < PAGE) break;
+          from += PAGE;
+          if (all.length >= MAX) {
+            capped = true;
+            break;
+          }
+        }
+        setRecipients(all);
+        setRecipientsCapped(capped);
       } catch (err) {
         setError(t('broadcasts.detailLoadError'));
       } finally {
@@ -250,6 +273,26 @@ export default function BroadcastDetailPage() {
     }
     return rows;
   }, [recipients, statusFilter, query]);
+
+  // Metrics DERIVED from the actual recipient rows — cumulative funnel, exactly
+  // matching the DB trigger's model (delivered ⊇ read ⊇ replied). Deriving here
+  // guarantees the cards, funnel, table and export all agree and reflect the
+  // real send, rather than trusting aggregate columns that could drift.
+  const derived = useMemo(() => {
+    const c = { total: recipients.length, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0 };
+    for (const r of recipients) {
+      const s = r.status;
+      if (s === 'failed') {
+        c.failed++;
+        continue;
+      }
+      if (s === 'sent' || s === 'delivered' || s === 'read' || s === 'replied') c.sent++;
+      if (s === 'delivered' || s === 'read' || s === 'replied') c.delivered++;
+      if (s === 'read' || s === 'replied') c.read++;
+      if (s === 'replied') c.replied++;
+    }
+    return c;
+  }, [recipients]);
 
   function handleExport() {
     if (!broadcast) return;
@@ -316,18 +359,29 @@ export default function BroadcastDetailPage() {
   }
 
   const status = getBroadcastStatus(broadcast.status);
-  const total = broadcast.total_recipients;
+  // Prefer the real, row-derived metrics; only when the row set was capped for
+  // a very large send do we fall back to the trigger-maintained aggregates.
+  const metrics = recipientsCapped
+    ? {
+        total: broadcast.total_recipients,
+        sent: broadcast.sent_count,
+        delivered: broadcast.delivered_count,
+        read: broadcast.read_count,
+        replied: broadcast.replied_count,
+        failed: broadcast.failed_count,
+      }
+    : derived;
+  const total = metrics.total;
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
   const funnelSteps: FunnelStep[] = [
-    { label: t('broadcasts.funnelSent'), value: broadcast.sent_count },
-    { label: t('broadcasts.funnelDelivered'), value: broadcast.delivered_count },
-    { label: t('broadcasts.funnelRead'), value: broadcast.read_count },
-    { label: t('broadcasts.funnelReplied'), value: broadcast.replied_count },
+    { label: t('broadcasts.funnelSent'), value: metrics.sent },
+    { label: t('broadcasts.funnelDelivered'), value: metrics.delivered },
+    { label: t('broadcasts.funnelRead'), value: metrics.read },
+    { label: t('broadcasts.funnelReplied'), value: metrics.replied },
   ];
 
-  const showFailedBanner =
-    statusFilter === 'failed' && broadcast.failed_count > 0;
+  const showFailedBanner = statusFilter === 'failed' && metrics.failed > 0;
 
   return (
     <div className="space-y-5">
@@ -431,23 +485,23 @@ export default function BroadcastDetailPage() {
         />
         <MetricCard
           label={t('broadcasts.metricDelivered')}
-          value={broadcast.delivered_count}
-          pct={pct(broadcast.delivered_count)}
+          value={metrics.delivered}
+          pct={pct(metrics.delivered)}
         />
         <MetricCard
           label={t('broadcasts.metricRead')}
-          value={broadcast.read_count}
-          pct={pct(broadcast.read_count)}
+          value={metrics.read}
+          pct={pct(metrics.read)}
         />
         <MetricCard
           label={t('broadcasts.metricReplied')}
-          value={broadcast.replied_count}
-          pct={pct(broadcast.replied_count)}
+          value={metrics.replied}
+          pct={pct(metrics.replied)}
         />
         <MetricCard
           label={t('broadcasts.metricFailed')}
-          value={broadcast.failed_count}
-          pct={pct(broadcast.failed_count)}
+          value={metrics.failed}
+          pct={pct(metrics.failed)}
         />
       </div>
 
@@ -458,6 +512,11 @@ export default function BroadcastDetailPage() {
       <p className="text-[11px] text-muted-foreground">
         {t('broadcasts.readReceiptsNote')}
       </p>
+      {recipientsCapped && (
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">
+          {t('broadcasts.statsCappedNote', { n: fmt.number(recipients.length) })}
+        </p>
+      )}
 
       {/* ── Embudo + actividad por hora ── */}
       <div className="grid gap-3 lg:grid-cols-2">
