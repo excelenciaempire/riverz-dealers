@@ -65,6 +65,12 @@ class MoshiBridge(FrameProcessor):
         self._up = create_stream_resampler()   # entrada  pipeline_rate -> 24k
         self._down = create_stream_resampler()  # salida   24k -> out_rate
         self._out_rate = 8000
+        # Instrumentación: contar frames de entrada (Telnyx->moshi) y de salida
+        # (moshi->Telnyx) para ubicar dónde se corta el audio en la llamada real.
+        self._in_n = 0
+        self._in_bytes = 0
+        self._out_n = 0
+        self._out_bytes = 0
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         # OBLIGATORIO: la base maneja Start/End/Cancel/interrupciones.
@@ -107,8 +113,15 @@ class MoshiBridge(FrameProcessor):
             pcm24 = await self._up.resample(frame.audio, frame.sample_rate, MIMI_SAMPLE_RATE)
             if pcm24:
                 await self._client.send_pcm(pcm24)
+            self._in_n += 1
+            self._in_bytes += len(pcm24 or b"")
+            if self._in_n % 50 == 0:
+                logger.info(
+                    "MoshiBridge IN: %d frames, %d bytes->moshi (src_rate=%s)",
+                    self._in_n, self._in_bytes, frame.sample_rate,
+                )
         except Exception as e:
-            logger.debug("MoshiBridge input error: %s", e)
+            logger.warning("MoshiBridge input error: %s", e)
 
     async def _emit_audio(self, pcm16_24k: bytes) -> None:
         try:
@@ -119,8 +132,15 @@ class MoshiBridge(FrameProcessor):
                         audio=pcm_out, sample_rate=self._out_rate, num_channels=1
                     )
                 )
+                self._out_n += 1
+                self._out_bytes += len(pcm_out)
+                if self._out_n % 50 == 0:
+                    logger.info(
+                        "MoshiBridge OUT: %d frames, %d bytes->Telnyx (rate=%d)",
+                        self._out_n, self._out_bytes, self._out_rate,
+                    )
         except Exception as e:
-            logger.debug("MoshiBridge output error: %s", e)
+            logger.warning("MoshiBridge output error: %s", e)
 
     async def _emit_text(self, text: str) -> None:
         if self._on_transcript:
