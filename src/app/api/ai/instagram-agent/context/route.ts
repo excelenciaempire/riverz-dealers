@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { loadAudienceStats } from '@/lib/instagram-agent/audience-stats';
+import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import { resolveIgAgent } from '@/lib/instagram-agent/agent-link';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -30,8 +32,16 @@ export async function GET() {
       { status: 401 },
     );
 
-  const [{ count: totalCount }, audience, { count: productCount }, { data: cur }, { count: igConns }] =
-    await Promise.all([
+  const workspaceId = await resolveWorkspaceId(supabase, user.id);
+  const [
+    { count: totalCount },
+    audience,
+    { count: productCount },
+    { data: cur },
+    { count: igConns },
+    { data: agentRows },
+    defaultAgent,
+  ] = await Promise.all([
       supabase.from('contacts').select('*', { count: 'exact', head: true }),
       loadAudienceStats(supabase),
       supabase.from('shopify_products').select('*', { count: 'exact', head: true }),
@@ -46,6 +56,19 @@ export async function GET() {
         .select('id', { count: 'exact', head: true })
         .eq('channel', 'instagram')
         .eq('status', 'connected'),
+      // Qué voz de marca escribirá los DMs — visible y elegible en la UI, para
+      // que un agente de otro producto no hable en nombre de la marca sin que
+      // nadie lo note.
+      supabase
+        .from('ai_agents')
+        .select('id, name, is_active')
+        .is('deleted_at', null)
+        .order('is_active', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .limit(20),
+      workspaceId
+        ? resolveIgAgent(supabase, workspaceId)
+        : Promise.resolve({ id: null }),
     ]);
 
   return NextResponse.json({
@@ -58,6 +81,8 @@ export async function GET() {
     in_window_24h: audience.dm_window_24h,
     comment_window_7d: audience.comment_window_7d,
     instagram_connected: (igConns ?? 0) > 0,
+    agents: (agentRows ?? []) as Array<{ id: string; name: string }>,
+    default_agent_id: defaultAgent.id,
     product_count: productCount ?? 0,
     has_catalog: (productCount ?? 0) > 0,
     currency: (cur as { currency?: string } | null)?.currency ?? 'USD',

@@ -43,6 +43,22 @@ export async function resolveIgAgent(
       .maybeSingle();
     if (data) return normalize(data as { id: string; proactive_send_mode?: string | null });
   }
+  // Preferir el agente que ATIENDE Instagram: es su voz la que el cliente ya
+  // conoce. Sin esa preferencia, un agente suelto de otro producto creado más
+  // tarde en el mismo workspace secuestraba la voz de los DMs proactivos.
+  const { data: igOwned } = await db
+    .from('ai_agents')
+    .select('id, proactive_send_mode, is_active, updated_at, ai_agent_channels!inner(channel)')
+    .eq('workspace_id', workspaceId)
+    .eq('ai_agent_channels.channel', 'instagram')
+    .order('is_active', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (igOwned) {
+    return normalize(igOwned as { id: string; proactive_send_mode?: string | null });
+  }
+
   const { data } = await db
     .from('ai_agents')
     .select('id, proactive_send_mode, is_active, updated_at')

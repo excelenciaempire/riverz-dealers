@@ -47,6 +47,9 @@ interface PlanContext {
   /** Commenters from the last 7 days (private reply). */
   comment_window_7d?: number;
   instagram_connected?: boolean;
+  /** Agentes del workspace: cuál de sus voces escribe los DMs. */
+  agents?: Array<{ id: string; name: string }>;
+  default_agent_id?: string | null;
   currency: string;
   has_catalog: boolean;
   product_count?: number;
@@ -86,6 +89,7 @@ export default function InstagramAgentPage() {
   const [context, setContext] = useState<PlanContext | null>(null);
   const [saving, setSaving] = useState<'draft' | 'launch' | null>(null);
   const [holdoutPct, setHoldoutPct] = useState(10);
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
 
   const loadCampaigns = useCallback(async () => {
@@ -107,7 +111,11 @@ export default function InstagramAgentPage() {
     fetch('/api/ai/instagram-agent/context', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j) setContext(j as PlanContext);
+        if (!cancelled && j) {
+          const ctx = j as PlanContext;
+          setContext(ctx);
+          setAgentId(ctx.default_agent_id ?? null);
+        }
       })
       .catch(() => {});
     return () => {
@@ -125,7 +133,12 @@ export default function InstagramAgentPage() {
     const res = await fetchWithCsrf('/api/ai/instagram-agent/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal: goal.trim(), plan, holdout_pct: holdoutPct }),
+      body: JSON.stringify({
+        goal: goal.trim(),
+        plan,
+        holdout_pct: holdoutPct,
+        ai_agent_id: agentId,
+      }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -512,6 +525,23 @@ export default function InstagramAgentPage() {
 
           {/* Acciones — una sola fila, con la acción principal a la derecha */}
           <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
+            {(context?.agents?.length ?? 0) > 1 && (
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span>{t('igAgent.voiceLabel')}</span>
+                <select
+                  value={agentId ?? ''}
+                  onChange={(e) => setAgentId(e.target.value || null)}
+                  className="max-w-52 truncate rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
+                  title={t('igAgent.voiceHint')}
+                >
+                  {context?.agents?.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="mr-auto flex items-center gap-2 text-[11px] text-muted-foreground">
               <span>{t('igAgent.holdoutLabel')}</span>
               <select

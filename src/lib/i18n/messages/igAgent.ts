@@ -141,6 +141,11 @@ export const igAgent = {
   // Actions row
   controlHoldout: { es: "Control (holdout)", en: "Control (holdout)" },
   holdoutLabel: { es: "Grupo de control", en: "Control group" },
+  voiceLabel: { es: "Voz", en: "Voice" },
+  voiceHint: {
+    es: "El agente cuya voz y conocimiento escriben los DMs de esta campaña.",
+    en: "The agent whose voice and knowledge write this campaign's DMs.",
+  },
   saveDraft: { es: "Guardar borrador", en: "Save draft" },
   saveAndLaunch: { es: "Guardar y lanzar", en: "Save and launch" },
   cancel: { es: "Cancelar", en: "Cancel" },
