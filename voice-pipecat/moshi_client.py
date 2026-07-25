@@ -98,8 +98,12 @@ class MoshiClient:
         try:
             pcm = np.frombuffer(pcm16_24k, dtype=np.int16).astype(np.float32) / 32768.0
             self._writer.append_pcm(pcm)
-            opus = self._writer.read_bytes()
-            if opus:
+            # Drená todo el Opus disponible (el encoder bufferea; un solo
+            # read_bytes por chunk puede no emitir nada).
+            while True:
+                opus = self._writer.read_bytes()
+                if not opus:
+                    break
                 await self._ws.send(bytes([TAG_AUDIO]) + opus)
         except Exception as e:  # fail-soft: un frame perdido no tumba la llamada
             logger.debug("moshi send_pcm error: %s", e)

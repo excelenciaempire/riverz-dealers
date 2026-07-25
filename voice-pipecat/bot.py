@@ -114,44 +114,56 @@ async def moshi_test(
         "text": [], "sent": 0, "error": None,
     }
     down = create_stream_resampler()  # 24k -> 8k, como el bridge real
+    res["raw_audio_frames"] = 0
+    res["input_pcm_bytes"] = 0
     try:
         _t0 = _t.monotonic()
         await client.connect()
         res["connect_ms"] = int((_t.monotonic() - _t0) * 1000)
         res["handshake"] = True
 
-        async def on_audio(pcm: bytes) -> None:
-            # pcm = int16 24k decodificado por sphn (moshi_client.recv_loop)
-            res["audio_msgs"] += 1
-            res["decoded_bytes"] += len(pcm)
-            try:
-                out = await down.resample(pcm, 24000, 8000)
-                res["resampled_bytes"] += len(out or b"")
-            except Exception as e:  # noqa: BLE001
-                if not res["error"]:
-                    res["error"] = f"resample: {type(e).__name__}: {e}"
+        # Lector inline: cuenta frames CRUDOS (tag 1) y decodifica (drena read_pcm)
+        # para distinguir "moshi no manda audio" de "el decode falla".
+        async def reader() -> None:
+            async for m in client._ws:
+                if not isinstance(m, (bytes, bytearray)) or not m:
+                    continue
+                tag, payload = m[0], m[1:]
+                if tag == 1:
+                    res["raw_audio_frames"] += 1
+                    client._reader.append_bytes(payload)
+                    while True:
+                        pcm = client._reader.read_pcm()
+                        if pcm is None or pcm.shape[-1] == 0:
+                            break
+                        res["audio_msgs"] += 1
+                        res["decoded_bytes"] += int(pcm.shape[-1]) * 2
+                        try:
+                            b = (pcm.clip(-1, 1) * 32767).astype("int16").tobytes()
+                            out = await down.resample(b, 24000, 8000)
+                            res["resampled_bytes"] += len(out or b"")
+                        except Exception:  # noqa: BLE001
+                            pass
+                elif tag == 2:
+                    if len(res["text"]) < 8:
+                        res["text"].append(payload.decode("utf-8", "ignore")[:20])
 
-        async def on_text(t: str) -> None:
-            if len(res["text"]) < 5:
-                res["text"].append(t[:30])
-
-        task = _asyncio.create_task(client.recv_loop(on_audio, on_text))
+        task = _asyncio.create_task(reader())
         if send:
             chunk = 3840  # 1920 int16 samples = 80ms @24k
+            frames: list[bytes] = []
             if speak:
-                pcm = await _el_pcm24(text)
-                res["input_pcm_bytes"] = len(pcm)
-                for i in range(0, len(pcm), chunk):
-                    await client.send_pcm(pcm[i:i + chunk])
-                    res["sent"] += 1
-                    await _asyncio.sleep(0.08)
-            else:
-                silence = b"\x00\x00" * 1920
-                for _ in range(40):  # ~3.2s
-                    await client.send_pcm(silence)
-                    res["sent"] += 1
-                    await _asyncio.sleep(0.08)
-        await _asyncio.sleep(6)
+                pcm_in = await _el_pcm24(text)
+                res["input_pcm_bytes"] = len(pcm_in)
+                frames = [pcm_in[i:i + chunk] for i in range(0, len(pcm_in), chunk)]
+            silence = b"\x00\x00" * 1920
+            # Stream CONTINUO (~12s): voz + silencio de cola, para que moshi siga
+            # dando pasos (lm_gen.step) y emita su respuesta — como una llamada real.
+            for k in range(150):
+                await client.send_pcm(frames[k] if k < len(frames) else silence)
+                res["sent"] += 1
+                await _asyncio.sleep(0.08)
+        await _asyncio.sleep(2)
         task.cancel()
     except Exception as e:  # noqa: BLE001
         res["error"] = f"{type(e).__name__}: {e}"
