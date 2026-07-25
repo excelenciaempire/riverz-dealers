@@ -56,7 +56,6 @@ export function VoiceCard() {
           cod_mode: !!json.config.cod_mode,
           order_writeback: json.config.order_writeback ?? { enabled: false },
           dedupe_hours: json.config.dedupe_hours ?? 0.25,
-          lead_ads_enabled: !!json.config.lead_ads_enabled,
         });
         setConnected(json.status === 'connected');
       }
@@ -179,17 +178,6 @@ export function VoiceCard() {
             <Switch
               checked={!!cfg.inbound_enabled}
               onCheckedChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
-            />
-          </label>
-
-          <label className="flex items-center justify-between">
-            <span>
-              <span className="block text-sm text-foreground">{t('voice.leadAds')}</span>
-              <span className="block text-xs text-muted-foreground">{t('voice.leadAdsHint')}</span>
-            </span>
-            <Switch
-              checked={!!cfg.lead_ads_enabled}
-              onCheckedChange={(c) => setCfg({ ...cfg, lead_ads_enabled: c })}
             />
           </label>
 

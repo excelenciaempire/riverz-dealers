@@ -913,8 +913,6 @@ export interface VoiceConnectionConfig {
   /** Anti-duplicate window for auto-enqueued calls, in HOURS (default 0.25 = 15 min;
    *  COD merchants set 12 to group multiple same-contact orders into one call). */
   dedupe_hours?: number;
-  /** Instant call when a Meta Lead Ad form is submitted. */
-  lead_ads_enabled?: boolean;
 }
 
 /** Bulk outbound call campaign over a saved segment (migration 116). */

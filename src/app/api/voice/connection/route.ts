@@ -92,7 +92,6 @@ export async function PUT(request: Request) {
       : undefined,
     dedupe_hours:
       body.config?.dedupe_hours != null ? Number(body.config.dedupe_hours) : undefined,
-    lead_ads_enabled: Boolean(body.config?.lead_ads_enabled),
   };
   const status = cfg.phone_number ? 'connected' : 'pending';
 

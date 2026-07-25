@@ -224,12 +224,6 @@ export const voice = {
     es: "No llamar dos veces al mismo cliente en esta ventana",
     en: "Don't call the same customer twice within this window",
   },
-  leadAds: { es: "Llamar leads de Meta al instante", en: "Instant-call Meta leads" },
-  leadAdsHint: {
-    es: "Cuando alguien deja sus datos en un anuncio de Facebook/Instagram, la IA lo llama.",
-    en: "When someone submits a Facebook/Instagram lead form, the AI calls them.",
-  },
-
   // ── Dropi integration card ──
   dropiDesc: {
     es: "Fulfillment COD: los pedidos confirmados por llamada pasan a despacho.",
