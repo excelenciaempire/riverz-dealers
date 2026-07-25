@@ -5,6 +5,7 @@ import Link from '@/components/i18n/locale-link';
 import { PhoneCall, PhoneIncoming, Sparkles, Loader2, Mic, Megaphone, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { VoiceCard } from '@/components/settings/voice-card';
+import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallDetail } from '@/components/voice/call-detail';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
@@ -88,6 +89,9 @@ export default function VoicePage() {
         <h1 className="text-2xl font-bold text-foreground">{t('nav.voice')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('voice.cardDesc')}</p>
       </div>
+
+      {/* Self-serve phone number (buy per country) */}
+      <VoiceNumberCard />
 
       {/* Connection + config + compact metrics */}
       <VoiceCard />

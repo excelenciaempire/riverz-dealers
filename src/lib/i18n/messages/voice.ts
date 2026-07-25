@@ -293,4 +293,41 @@ export const voice = {
 
   // ── Per-objective extra instructions ──
   extraInstructions: { es: "Instrucciones extra (opcional)", en: "Extra instructions (optional)" },
+
+  // ── Números self-serve (comprar por país) ──
+  numberTitle: { es: "Número de teléfono", en: "Phone number" },
+  numberDesc: {
+    es: "Compra el número propio de este espacio de trabajo.",
+    en: "Buy this workspace's own number.",
+  },
+  numberCurrent: { es: "Número actual", en: "Current number" },
+  numberNone: { es: "Todavía no hay número.", en: "No number yet." },
+  numberCountry: { es: "País", en: "Country" },
+  numberType: { es: "Tipo", en: "Type" },
+  numberTypeLocal: { es: "Local", en: "Local" },
+  numberTypeTollFree: { es: "Gratuito (toll-free)", en: "Toll-free" },
+  numberTypeMobile: { es: "Móvil", en: "Mobile" },
+  numberTypeNational: { es: "Nacional", en: "National" },
+  numberSearch: { es: "Buscar números", en: "Search numbers" },
+  numberSearching: { es: "Buscando…", en: "Searching…" },
+  numberNoResults: { es: "Sin números disponibles para esos filtros.", en: "No numbers available for those filters." },
+  numberBuy: { es: "Comprar", en: "Buy" },
+  numberBuying: { es: "Comprando…", en: "Buying…" },
+  numberBought: { es: "Número comprado", en: "Number purchased" },
+  numberBuyError: { es: "No se pudo comprar el número.", en: "Couldn't buy the number." },
+  numberRelease: { es: "Liberar número", en: "Release number" },
+  numberReleased: { es: "Número liberado", en: "Number released" },
+  numberReleaseConfirm: {
+    es: "¿Liberar el número? Se detiene la renta y dejará de recibir llamadas.",
+    en: "Release the number? The rental stops and it will no longer receive calls.",
+  },
+  numberPerMonth: { es: "/mes", en: "/mo" },
+  numberDocsRequired: {
+    es: "Este país exige documentación para poder comprar el número:",
+    en: "This country requires documentation before buying the number:",
+  },
+  numberDocsHint: {
+    es: "Reúne estos documentos; la carga y verificación se habilita a continuación.",
+    en: "Gather these documents; upload and verification is enabled next.",
+  },
 } satisfies Namespace;

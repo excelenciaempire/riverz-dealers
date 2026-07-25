@@ -889,6 +889,9 @@ export interface VoiceConnectionConfig {
   phone_number?: string;
   /** ISO country of the number (e.g. "CO", "MX"). */
   country?: string;
+  /** Telnyx id of the workspace's provisioned number (self-serve). Lets us
+   *  release the exact number later. */
+  telnyx_number_id?: string;
   /** Whether inbound calls are answered by the agent. */
   inbound_enabled?: boolean;
   /** Monthly cap of talk minutes; null/0 = unlimited. */

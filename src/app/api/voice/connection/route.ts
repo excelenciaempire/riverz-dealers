@@ -99,10 +99,16 @@ export async function PUT(request: Request) {
     const admin = supabaseAdmin();
     const { data: existing } = await admin
       .from('channel_connections')
-      .select('id')
+      .select('id, config')
       .eq('workspace_id', body.workspace_id)
       .eq('channel', 'voice')
       .maybeSingle();
+
+    // Preserve the self-serve number id: it's owned by the numbers flow and is
+    // NOT part of this settings form, so rebuilding cfg from the whitelist must
+    // not drop it (else the paid number is orphaned / can't be released).
+    const prevConfig = (existing as { config?: VoiceConnectionConfig } | null)?.config;
+    if (prevConfig?.telnyx_number_id) cfg.telnyx_number_id = prevConfig.telnyx_number_id;
 
     if (existing) {
       await admin
