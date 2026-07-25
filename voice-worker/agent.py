@@ -467,6 +467,37 @@ async def _timeout_guard(session: AgentSession, context: dict, call_state: CallS
     await _hangup()
 
 
+async def _deliver_greeting(session, context: dict) -> None:
+    """Speak the opening line, tolerant of the engine.
+
+    - Pipeline (STT→LLM→TTS): `session.say(greeting)` works.
+    - Realtime (e.g. PersonaPlex): full-duplex S2S has no separate TTS and may
+      not support say()/generate_reply — the model self-drives the greeting.
+    Never throws: a greeting failure must not kill the call.
+    """
+    greeting = context.get("greeting")
+    if not greeting:
+        return
+    if context.get("mode") == "realtime":
+        # Try to nudge the model to greet; if unsupported, let it drive itself.
+        try:
+            handle = session.generate_reply(instructions=greeting)
+            if handle is not None and hasattr(handle, "__await__"):
+                await handle
+            return
+        except Exception:
+            pass
+        try:
+            await session.say(greeting)
+        except Exception:
+            logger.info("realtime: sin say()/generate_reply; el modelo saluda solo")
+        return
+    try:
+        await session.say(greeting)
+    except Exception:
+        logger.warning("no se pudo reproducir el saludo", exc_info=True)
+
+
 async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, vad, meta: dict) -> None:
     call_state.direction = "outbound"
     call_state.call_id = meta.get("call_id", "")
@@ -532,9 +563,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     await _start_recording(ctx, context, call_state)
     await session_task
 
-    greeting = context.get("greeting")
-    if greeting:
-        await session.say(greeting)
+    await _deliver_greeting(session, context)
 
     _spawn(_timeout_guard(session, context, call_state))
 
@@ -578,9 +607,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
 
     await session.start(agent=agent, room=ctx.room, room_input_options=_room_input_options())
 
-    greeting = context.get("greeting")
-    if greeting:
-        await session.say(greeting)
+    await _deliver_greeting(session, context)
 
     _spawn(_timeout_guard(session, context, call_state))
 
