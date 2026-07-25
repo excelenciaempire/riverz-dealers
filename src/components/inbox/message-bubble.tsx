@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction, MessageAttachment } from "@/types";
 import {
@@ -359,10 +359,39 @@ function AttachmentList({
         );
       })}
       {caption && !isTypePlaceholder(caption) && (
-        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{caption}</p>
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{linkifyNodes(caption)}</p>
       )}
     </div>
   );
+}
+
+const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+
+/**
+ * Turn bare http(s) URLs inside plain message text into clickable links, on
+ * ANY channel. Links inherit the bubble's text color + underline so they read
+ * on both the agent (primary) and customer (muted) bubbles. Trailing sentence
+ * punctuation is kept out of the href so "…serum-pilar." doesn't 404.
+ */
+function linkifyNodes(text: string): ReactNode[] {
+  return text.split(URL_RE).map((part, i) => {
+    if (!/^https?:\/\//.test(part)) return part;
+    const trail = /[.,;:!?)\]}'"]+$/.exec(part)?.[0] ?? '';
+    const url = trail ? part.slice(0, part.length - trail.length) : part;
+    return (
+      <span key={i}>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 break-all hover:opacity-80"
+        >
+          {url}
+        </a>
+        {trail}
+      </span>
+    );
+  });
 }
 
 function MessageContent({ message }: { message: Message }) {
@@ -390,7 +419,7 @@ function MessageContent({ message }: { message: Message }) {
     case "text":
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
+          {linkifyNodes(message.content_text ?? "")}
         </p>
       );
 
@@ -404,7 +433,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              {linkifyNodes(message.content_text)}
             </p>
           )}
         </div>
@@ -420,7 +449,7 @@ function MessageContent({ message }: { message: Message }) {
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              {linkifyNodes(message.content_text)}
             </p>
           )}
         </div>
@@ -469,7 +498,7 @@ function MessageContent({ message }: { message: Message }) {
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              {linkifyNodes(message.content_text)}
             </p>
           )}
           <TemplateButtons message={message} />
@@ -497,7 +526,7 @@ function MessageContent({ message }: { message: Message }) {
             {t("inbox.buttonReply")}
           </span>
           <p className="whitespace-pre-wrap break-words text-sm">
-            {message.content_text || t("inbox.interactiveReply")}
+            {message.content_text ? linkifyNodes(message.content_text) : t("inbox.interactiveReply")}
           </p>
           <TemplateButtons message={message} />
         </div>
@@ -509,7 +538,9 @@ function MessageContent({ message }: { message: Message }) {
         <p className="whitespace-pre-wrap break-words text-sm">
           {isUnsupportedSnippet(message.content_text)
             ? t("inbox.unsupported")
-            : message.content_text || t("inbox.unsupported")}
+            : message.content_text
+              ? linkifyNodes(message.content_text)
+              : t("inbox.unsupported")}
         </p>
       );
   }
@@ -607,26 +638,11 @@ function emailIsHtml(message: Message): boolean {
   return isRichHtml(html);
 }
 
-/** Plain text with bare http(s) URLs turned into clickable links. */
+/** Plain text with bare http(s) URLs turned into clickable links (emails). */
 function LinkifiedText({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s<>"']+)/g);
   return (
     <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {parts.map((part, i) =>
-        /^https?:\/\//.test(part) ? (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="break-all text-accent-ink underline underline-offset-2 hover:text-accent-ink/80"
-          >
-            {part}
-          </a>
-        ) : (
-          part
-        ),
-      )}
+      {linkifyNodes(text)}
     </p>
   );
 }
