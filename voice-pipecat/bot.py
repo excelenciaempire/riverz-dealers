@@ -78,6 +78,7 @@ async def moshi_test(
     url: str | None = Query(default=None),
     voice: str = Query(default="NATF2"),
     send: bool = Query(default=True),
+    text: str = Query(default="Hola, prueba."),
 ):
     """Debug (no phone call): connect the moshi client, optionally feed it silence,
     and log EVERY raw frame PersonaPlex returns (tag+len). Iterate the bridge safely."""
@@ -87,8 +88,8 @@ async def moshi_test(
     import time as _t
 
     base = url or os.getenv("MOSHI_TEST_URL") or "wss://riverztest2--personaplex-serve.modal.run"
-    client = MoshiClient(base, voice=voice, text_prompt="Hola, prueba.")
-    res: dict = {"handshake": False, "connect_ms": None, "frames": [], "sent": 0, "error": None}
+    client = MoshiClient(base, voice=voice, text_prompt=text)
+    res: dict = {"handshake": False, "connect_ms": None, "text_len": len(text), "frames": [], "sent": 0, "error": None}
     try:
         _t0 = _t.monotonic()
         await client.connect()
@@ -240,17 +241,22 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         }
         vid = ((ctx.get("voice") or {}).get("voice_id") or "").upper()
         pp_voice = vid if vid in _PP else "NATF2"
-        sys_prompt = (
-            ctx.get("instructions")
+        # moshi text_prompt = persona CORTA (una línea) por query string. El
+        # system prompt completo (largo) hace un query gigante que rompe/enlentece
+        # el /api/chat del moshi.server (era el "sin handshake"). Cap corto.
+        raw_persona = (
+            ctx.get("voice_persona")
+            or ctx.get("instructions")
             or ctx.get("system_prompt")
             or ctx.get("prompt")
-            or "Eres un asistente telefónico amable. Responde en español, breve y natural."
+            or "Eres un recepcionista amable. Responde en español, breve y natural."
         )
+        persona = " ".join(str(raw_persona).split())[:160]
         bridge = MoshiBridge(
             realtime["base_url"],
             realtime.get("api_key"),
             voice=pp_voice,
-            text_prompt=sys_prompt,
+            text_prompt=persona,
             on_transcript=collect,
         )
         pipeline = Pipeline([transport.input(), bridge, transport.output()])
