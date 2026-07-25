@@ -87,40 +87,50 @@ async def moshi_test(
 
     import time as _t
 
+    from pipecat.audio.utils import create_stream_resampler
+
     base = url or os.getenv("MOSHI_TEST_URL") or "wss://riverztest2--personaplex-serve.modal.run"
     client = MoshiClient(base, voice=voice, text_prompt=text)
-    res: dict = {"handshake": False, "connect_ms": None, "text_len": len(text), "frames": [], "sent": 0, "error": None}
+    res: dict = {
+        "handshake": False, "connect_ms": None, "text_len": len(text),
+        "audio_msgs": 0, "decoded_bytes": 0, "resampled_bytes": 0,
+        "text": [], "sent": 0, "error": None,
+    }
+    down = create_stream_resampler()  # 24k -> 8k, como el bridge real
     try:
         _t0 = _t.monotonic()
         await client.connect()
         res["connect_ms"] = int((_t.monotonic() - _t0) * 1000)
         res["handshake"] = True
 
-        async def reader() -> None:
-            async for m in client._ws:  # raw: see every frame + tag
-                if isinstance(m, (bytes, bytearray)):
-                    res["frames"].append(f"b{len(m)}t{m[0] if m else -1}")
-                else:
-                    res["frames"].append(f"txt:{str(m)[:20]}")
-                if len(res["frames"]) >= 60:
-                    break
+        async def on_audio(pcm: bytes) -> None:
+            # pcm = int16 24k decodificado por sphn (moshi_client.recv_loop)
+            res["audio_msgs"] += 1
+            res["decoded_bytes"] += len(pcm)
+            try:
+                out = await down.resample(pcm, 24000, 8000)
+                res["resampled_bytes"] += len(out or b"")
+            except Exception as e:  # noqa: BLE001
+                if not res["error"]:
+                    res["error"] = f"resample: {type(e).__name__}: {e}"
 
-        task = _asyncio.create_task(reader())
+        async def on_text(t: str) -> None:
+            if len(res["text"]) < 5:
+                res["text"].append(t[:30])
+
+        task = _asyncio.create_task(client.recv_loop(on_audio, on_text))
         if send:
             silence = b"\x00\x00" * 1920  # 80ms of 24kHz int16 silence
             for _ in range(40):  # ~3.2s
                 await client.send_pcm(silence)
                 res["sent"] += 1
                 await _asyncio.sleep(0.08)
-        await _asyncio.sleep(4)
+        await _asyncio.sleep(5)
         task.cancel()
     except Exception as e:  # noqa: BLE001
         res["error"] = f"{type(e).__name__}: {e}"
     finally:
         await client.close()
-    # compact the frame list
-    res["frame_count"] = len(res["frames"])
-    res["frames"] = res["frames"][:30]
     return JSONResponse(res)
 
 
