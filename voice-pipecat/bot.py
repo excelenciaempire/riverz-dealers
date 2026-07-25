@@ -74,33 +74,49 @@ async def health() -> JSONResponse:
 
 
 @app.get("/moshi-test")
-async def moshi_test(url: str | None = Query(default=None), voice: str = Query(default="NATF2")):
-    """Debug (no phone call): connect the moshi client to PersonaPlex and report
-    whether the handshake + audio frames arrive. Iterate the bridge safely."""
+async def moshi_test(
+    url: str | None = Query(default=None),
+    voice: str = Query(default="NATF2"),
+    send: bool = Query(default=True),
+):
+    """Debug (no phone call): connect the moshi client, optionally feed it silence,
+    and log EVERY raw frame PersonaPlex returns (tag+len). Iterate the bridge safely."""
     import asyncio as _asyncio
     from moshi_client import MoshiClient
 
     base = url or os.getenv("MOSHI_TEST_URL") or "wss://riverztest2--personaplex-serve.modal.run"
     client = MoshiClient(base, voice=voice, text_prompt="Hola, prueba.")
-    result: dict = {"handshake": False, "audio_frames": 0, "text": [], "error": None}
+    res: dict = {"handshake": False, "frames": [], "sent": 0, "error": None}
     try:
         await client.connect()
-        result["handshake"] = True  # connect() awaits the moshi handshake byte
+        res["handshake"] = True
 
-        async def on_audio(pcm: bytes) -> None:
-            result["audio_frames"] += 1
+        async def reader() -> None:
+            async for m in client._ws:  # raw: see every frame + tag
+                if isinstance(m, (bytes, bytearray)):
+                    res["frames"].append(f"b{len(m)}t{m[0] if m else -1}")
+                else:
+                    res["frames"].append(f"txt:{str(m)[:20]}")
+                if len(res["frames"]) >= 60:
+                    break
 
-        async def on_text(t: str) -> None:
-            result["text"].append(t[:40])
-
-        task = _asyncio.create_task(client.recv_loop(on_audio, on_text))
-        await _asyncio.sleep(6)
+        task = _asyncio.create_task(reader())
+        if send:
+            silence = b"\x00\x00" * 1920  # 80ms of 24kHz int16 silence
+            for _ in range(40):  # ~3.2s
+                await client.send_pcm(silence)
+                res["sent"] += 1
+                await _asyncio.sleep(0.08)
+        await _asyncio.sleep(4)
         task.cancel()
     except Exception as e:  # noqa: BLE001
-        result["error"] = f"{type(e).__name__}: {e}"
+        res["error"] = f"{type(e).__name__}: {e}"
     finally:
         await client.close()
-    return JSONResponse(result)
+    # compact the frame list
+    res["frame_count"] = len(res["frames"])
+    res["frames"] = res["frames"][:30]
+    return JSONResponse(res)
 
 
 # ── Saliente: Riverz (o un test) dispara /dial → colocamos la llamada ──────────
