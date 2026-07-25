@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
-import type { VoiceCall, VoiceConnectionConfig } from '@/types';
+import type { VoiceConnectionConfig } from '@/types';
 
 /**
  * Voice / phone integration card: assign the workspace's DID, toggle inbound,
@@ -32,9 +32,12 @@ export function VoiceCard() {
     recording_enabled: false,
     transfer_number: '',
   });
-  const [stats, setStats] = useState<{ total: number; answered: number; minutes: number } | null>(
-    null,
-  );
+  const [usage, setUsage] = useState<{
+    minutes_used: number;
+    minutes_limit: number;
+    spend_usd: number;
+    calls: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!workspace?.id) return;
@@ -59,18 +62,19 @@ export function VoiceCard() {
         });
         setConnected(json.status === 'connected');
       }
-      // Compact stats from recent calls.
-      const callsRes = await fetch(`/api/voice/calls?workspace_id=${workspace.id}&limit=200`, {
+      // Talk minutes + estimated spend this month vs the monthly cap.
+      const usageRes = await fetch(`/api/voice/usage?workspace_id=${workspace.id}`, {
         cache: 'no-store',
       });
-      if (callsRes.ok) {
-        const { calls } = (await callsRes.json()) as { calls: VoiceCall[] };
-        const total = calls.length;
-        const answered = calls.filter((c) => c.status === 'completed').length;
-        const minutes = Math.round(
-          calls.reduce((acc, c) => acc + (c.duration_seconds ?? 0), 0) / 60,
+      if (usageRes.ok) {
+        setUsage(
+          (await usageRes.json()) as {
+            minutes_used: number;
+            minutes_limit: number;
+            spend_usd: number;
+            calls: number;
+          },
         );
-        setStats({ total, answered, minutes });
       }
     } catch {
       /* no-op */
@@ -230,17 +234,33 @@ export function VoiceCard() {
             </div>
           )}
 
-          {stats && stats.total > 0 && (
-            <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <span>
-                {t('voice.metricTotal')}: <span className="text-foreground">{stats.total}</span>
-              </span>
-              <span>
-                {t('voice.metricAnswered')}: <span className="text-foreground">{stats.answered}</span>
-              </span>
-              <span>
-                {t('voice.metricMinutes')}: <span className="text-foreground">{stats.minutes}</span>
-              </span>
+          {usage && (usage.calls > 0 || usage.minutes_used > 0) && (
+            <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>{t('voice.usageTitle')}</span>
+                <span className="text-foreground">
+                  {usage.minutes_used} {t('voice.usageMinutes').toLowerCase()}
+                  {usage.minutes_limit > 0
+                    ? ` / ${usage.minutes_limit}`
+                    : ` · ${t('voice.usageUnlimited')}`}
+                </span>
+              </div>
+              {usage.minutes_limit > 0 && (
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full rounded-full bg-violet-500"
+                    style={{
+                      width: `${Math.min(100, Math.round((usage.minutes_used / usage.minutes_limit) * 100))}%`,
+                    }}
+                  />
+                </div>
+              )}
+              {usage.spend_usd > 0 && (
+                <div className="mt-1.5 flex items-center justify-between text-muted-foreground">
+                  <span>{t('voice.usageSpend')}</span>
+                  <span className="text-foreground">${usage.spend_usd.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           )}
 

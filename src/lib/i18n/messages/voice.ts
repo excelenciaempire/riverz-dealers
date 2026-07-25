@@ -51,7 +51,7 @@ export const voice = {
   // AI-assisted setup + "AI decides"
   setupTitle: { es: "Configurar con IA", en: "Set up with AI" },
   setupHint: {
-    es: "Describe en tus palabras cuándo querés que el agente llame y armamos todo por vos.",
+    es: "Describe en tus palabras cuándo quieres que el agente llame y lo configuramos por ti.",
     en: "Describe in your words when the agent should call and we set it all up for you.",
   },
   setupPlaceholder: {
@@ -240,7 +240,7 @@ export const voice = {
   // ── Upsell (agent · order confirmation) ──
   upsellLabel: { es: "Ofrecer más unidades (upsell)", en: "Offer more units (upsell)" },
   upsellOfferPlaceholder: {
-    es: "Ej: ofrecé llevar 2 unidades con envío gratis.",
+    es: "Ej: ofrece llevar 2 unidades con envío gratis.",
     en: "E.g. offer to take 2 units with free shipping.",
   },
   upsellDiscountPlaceholder: {
@@ -251,16 +251,16 @@ export const voice = {
   // ── Voice campaigns ──
   campaignsTitle: { es: "Campañas de voz", en: "Voice campaigns" },
   campaignsHint: {
-    es: "Llamá a un segmento de contactos con un objetivo. Respeta horario, opt-out y límites.",
+    es: "Llama a un segmento de contactos con un objetivo. Respeta horario, opt-out y límites.",
     en: "Call a segment of contacts with an objective. Respects hours, opt-out and limits.",
   },
   campaignName: { es: "Nombre de la campaña", en: "Campaign name" },
-  campaignPickAgent: { es: "Elegí un agente…", en: "Pick an agent…" },
-  campaignPickSegment: { es: "Elegí un segmento…", en: "Pick a segment…" },
+  campaignPickAgent: { es: "Elige un agente…", en: "Pick an agent…" },
+  campaignPickSegment: { es: "Elige un segmento…", en: "Pick a segment…" },
   campaignObjective: { es: "Objetivo de las llamadas", en: "Call objective" },
   campaignSaveDraft: { es: "Guardar borrador", en: "Save draft" },
   campaignStart: { es: "Iniciar", en: "Start" },
-  campaignMissing: { es: "Completá nombre, agente y segmento.", en: "Fill in name, agent and segment." },
+  campaignMissing: { es: "Completa nombre, agente y segmento.", en: "Fill in name, agent and segment." },
   campaignError: { es: "No se pudo crear la campaña.", en: "Couldn't create the campaign." },
   campaignStarted: { es: "Campaña iniciada", en: "Campaign started" },
   campaignSaved: { es: "Campaña guardada", en: "Campaign saved" },
@@ -272,4 +272,25 @@ export const voice = {
   metricByHour: { es: "Por hora del día", en: "By hour of day" },
   metricByCity: { es: "Por ciudad (confirmadas/total)", en: "By city (confirmed/total)" },
   metricByOutcome: { es: "Por resultado", en: "By outcome" },
+
+  // ── Call detail (per-call drill-down) ──
+  callDetail: { es: "Detalle de la llamada", en: "Call detail" },
+  recording: { es: "Grabación", en: "Recording" },
+  transcript: { es: "Transcripción", en: "Transcript" },
+  roleAgent: { es: "Agente", en: "Agent" },
+  roleCustomer: { es: "Cliente", en: "Customer" },
+  attempt: { es: "Intento", en: "Attempt" },
+  city: { es: "Ciudad", en: "City" },
+  upsellAmount: { es: "Upsell", en: "Upsell" },
+  errorLabel: { es: "Error", en: "Error" },
+  openInInbox: { es: "Ver en bandeja", en: "View in inbox" },
+
+  // ── Usage this month (voice card) ──
+  usageTitle: { es: "Uso este mes", en: "This month" },
+  usageMinutes: { es: "Minutos", en: "Minutes" },
+  usageSpend: { es: "Gasto estimado", en: "Estimated spend" },
+  usageUnlimited: { es: "Sin límite", en: "Unlimited" },
+
+  // ── Per-objective extra instructions ──
+  extraInstructions: { es: "Instrucciones extra (opcional)", en: "Extra instructions (optional)" },
 } satisfies Namespace;

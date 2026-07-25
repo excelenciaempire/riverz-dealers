@@ -4,11 +4,29 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { serverError } from '@/lib/api/errors';
 
+const DEFAULT_TZ = 'America/Bogota';
+
+/** Hour-of-day (0–23) of an ISO timestamp in a specific IANA timezone, so the
+ *  "by hour" chart reads in the merchant's wall-clock, not the server's (UTC). */
+function hourInTz(iso: string, tz: string): number {
+  try {
+    const h = Number(
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(
+        new Date(iso),
+      ),
+    );
+    return Number.isFinite(h) ? h % 24 : new Date(iso).getUTCHours();
+  } catch {
+    return new Date(iso).getUTCHours();
+  }
+}
+
 /**
  * GET /api/voice/analytics?workspace_id=&days=30
+ *   (or &start=ISO&end=ISO to follow the dashboard date-range filter)
  * Aggregates voice_calls for the range: answer rate, confirmation rate,
- * minutes, upsell revenue, and breakdowns by hour / city / outcome.
- * Session-authenticated (workspace member).
+ * minutes, estimated cost, upsell revenue, and breakdowns by hour / city /
+ * outcome. Session-authenticated (workspace member).
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -29,17 +47,24 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+  // Range: explicit start/end (dashboard filter) wins; else last N days.
+  const startParam = url.searchParams.get('start');
+  const endParam = url.searchParams.get('end');
   const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30));
-  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const since = startParam || new Date(Date.now() - days * 86_400_000).toISOString();
 
   try {
-    const { data, error } = await supabaseAdmin()
+    let query = supabaseAdmin()
       .from('voice_calls')
-      .select('status, outcome, duration_seconds, upsell_amount, city, answered_at, started_at, created_at')
+      .select(
+        'status, outcome, duration_seconds, upsell_amount, cost, city, answered_at, started_at, created_at',
+      )
       .eq('workspace_id', workspaceId)
       .eq('direction', 'outbound')
       .gte('created_at', since)
       .limit(10000);
+    if (endParam) query = query.lte('created_at', endParam);
+    const { data, error } = await query;
     if (error) return serverError(error);
     const calls = (data ?? []) as Partial<VoiceCall>[];
 
@@ -53,6 +78,15 @@ export async function GET(request: Request) {
     );
     const upsellRevenue =
       Math.round(calls.reduce((a, c) => a + (Number(c.upsell_amount) || 0), 0) * 100) / 100;
+    const cost = Math.round(calls.reduce((a, c) => a + (Number(c.cost?.total_usd) || 0), 0) * 100) / 100;
+
+    // Bucket the hour-of-day chart in the merchant's timezone (server is UTC).
+    const { data: ws } = await supabaseAdmin()
+      .from('workspaces')
+      .select('timezone')
+      .eq('id', workspaceId)
+      .maybeSingle();
+    const tz = (ws as { timezone?: string } | null)?.timezone || DEFAULT_TZ;
 
     const byHour = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
     const cityMap = new Map<string, { total: number; confirmed: number }>();
@@ -61,7 +95,7 @@ export async function GET(request: Request) {
     for (const c of calls) {
       const ts = c.started_at || c.created_at;
       if (ts) {
-        const h = new Date(ts).getHours();
+        const h = hourInTz(ts, tz);
         if (byHour[h]) byHour[h].count++;
       }
       const city = (c.city || '').trim();
@@ -90,6 +124,7 @@ export async function GET(request: Request) {
       confirmed,
       confirmed_pct: answered ? Math.round((confirmed / answered) * 100) : 0,
       minutes,
+      cost,
       upsell_revenue: upsellRevenue,
       by_hour: byHour,
       by_city: byCity,

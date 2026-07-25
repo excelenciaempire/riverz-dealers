@@ -162,7 +162,10 @@ export function VoiceSettings({
     }
   }
 
-  function setObjective(type: VoiceCallType, patch: { enabled?: boolean; objective?: string }) {
+  function setObjective(
+    type: VoiceCallType,
+    patch: { enabled?: boolean; objective?: string; extra_instructions?: string },
+  ) {
     const prev = value.voice_objectives[type] ?? { enabled: false, objective: '' };
     set({
       voice_objectives: {
@@ -321,12 +324,22 @@ export function VoiceSettings({
                       </label>
                     </div>
                     {obj?.enabled && (
-                      <Textarea
-                        className="min-h-14 bg-background text-foreground"
-                        placeholder={t('voice.objPlaceholder')}
-                        value={obj?.objective ?? ''}
-                        onChange={(e) => setObjective(type, { objective: e.target.value })}
-                      />
+                      <div className="space-y-2">
+                        <Textarea
+                          className="min-h-14 bg-background text-foreground"
+                          placeholder={t('voice.objPlaceholder')}
+                          value={obj?.objective ?? ''}
+                          onChange={(e) => setObjective(type, { objective: e.target.value })}
+                        />
+                        <Textarea
+                          className="min-h-12 bg-background text-foreground"
+                          placeholder={t('voice.extraInstructions')}
+                          value={obj?.extra_instructions ?? ''}
+                          onChange={(e) =>
+                            setObjective(type, { extra_instructions: e.target.value })
+                          }
+                        />
+                      </div>
                     )}
                     {/* Upsell — only on order confirmation. */}
                     {type === 'order_confirmation' && obj?.enabled && (

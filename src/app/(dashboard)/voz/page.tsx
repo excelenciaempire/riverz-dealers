@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
-import { PhoneCall, PhoneIncoming, Sparkles, Loader2 } from 'lucide-react';
+import { PhoneCall, PhoneIncoming, Sparkles, Loader2, Mic, Megaphone, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { VoiceCard } from '@/components/settings/voice-card';
+import { CallDetail } from '@/components/voice/call-detail';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -49,6 +50,7 @@ export default function VoicePage() {
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCall, setSelectedCall] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!workspace?.id) return;
@@ -89,6 +91,18 @@ export default function VoicePage() {
 
       {/* Connection + config + compact metrics */}
       <VoiceCard />
+
+      {/* Voice campaigns — call a whole segment with an objective. */}
+      <Link
+        href="/campanas/voz"
+        className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+      >
+        <span className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-violet-500" />
+          <span className="text-sm font-semibold text-foreground">{t('voice.campaignsTitle')}</span>
+        </span>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </Link>
 
       {/* Voice-enabled agents */}
       <section className="rounded-xl border border-border bg-card p-4">
@@ -140,7 +154,11 @@ export default function VoicePage() {
               </thead>
               <tbody>
                 {calls.map((c) => (
-                  <tr key={c.id} className="border-t border-border/60">
+                  <tr
+                    key={c.id}
+                    onClick={() => setSelectedCall(c.id)}
+                    className="cursor-pointer border-t border-border/60 hover:bg-muted/40"
+                  >
                     <td className="py-2 pr-4">
                       <span className="inline-flex items-center gap-1.5 text-foreground">
                         {c.direction === 'inbound' ? (
@@ -149,6 +167,7 @@ export default function VoicePage() {
                           <PhoneCall className="h-3.5 w-3.5 text-violet-500" />
                         )}
                         {c.contact?.name || c.phone}
+                        {c.recording_url && <Mic className="h-3 w-3 text-muted-foreground" />}
                       </span>
                     </td>
                     <td className="py-2 pr-4 text-muted-foreground">{t(STATUS_KEY[c.status])}</td>
@@ -166,6 +185,8 @@ export default function VoicePage() {
           </div>
         )}
       </section>
+
+      <CallDetail callId={selectedCall} onClose={() => setSelectedCall(null)} />
     </div>
   );
 }

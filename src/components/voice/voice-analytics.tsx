@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { PhoneCall } from 'lucide-react';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 
 interface Analytics {
   total: number;
@@ -12,6 +13,7 @@ interface Analytics {
   confirmed: number;
   confirmed_pct: number;
   minutes: number;
+  cost: number;
   upsell_revenue: number;
   by_hour: { hour: number; count: number }[];
   by_city: { city: string; total: number; confirmed: number }[];
@@ -39,9 +41,11 @@ function Tile({ label, value }: { label: string; value: string }) {
 }
 
 /** Compact voice-calls analytics panel for /metricas. Renders nothing until
- *  there's at least one call. */
-export function VoiceAnalytics() {
+ *  there's at least one call. Follows the dashboard date range when start/end
+ *  are provided; otherwise falls back to the last 30 days. */
+export function VoiceAnalytics({ start, end }: { start?: string; end?: string } = {}) {
   const t = useT();
+  const format = useFormat();
   const { workspace } = useWorkspace();
   const wsId = workspace?.id;
   const [data, setData] = useState<Analytics | null>(null);
@@ -49,9 +53,10 @@ export function VoiceAnalytics() {
   useEffect(() => {
     if (!wsId) return;
     let cancelled = false;
+    const range = start && end ? `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}` : 'days=30';
     (async () => {
       try {
-        const res = await fetch(`/api/voice/analytics?workspace_id=${wsId}&days=30`, {
+        const res = await fetch(`/api/voice/analytics?workspace_id=${wsId}&${range}`, {
           cache: 'no-store',
         });
         if (res.ok && !cancelled) setData((await res.json()) as Analytics);
@@ -62,7 +67,7 @@ export function VoiceAnalytics() {
     return () => {
       cancelled = true;
     };
-  }, [wsId]);
+  }, [wsId, start, end]);
 
   if (!data || data.total === 0) return null;
 
@@ -73,17 +78,23 @@ export function VoiceAnalytics() {
       <div className="flex items-center gap-2">
         <PhoneCall className="h-4 w-4 text-violet-500" />
         <h2 className="text-sm font-semibold text-foreground">{t('voice.metricsTitle')}</h2>
-        <span className="text-xs text-muted-foreground">({t('voice.metricsLast30')})</span>
+        {!(start && end) && (
+          <span className="text-xs text-muted-foreground">({t('voice.metricsLast30')})</span>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Tile label={t('voice.metricTotal')} value={String(data.total)} />
         <Tile label={t('voice.metricAnswered')} value={`${data.answered_pct}%`} />
         <Tile label={t('voice.metricConfirmed')} value={`${data.confirmed_pct}%`} />
         <Tile label={t('voice.metricMinutes')} value={String(data.minutes)} />
         <Tile
+          label={t('voice.metricCost')}
+          value={data.cost > 0 ? `$${data.cost.toFixed(2)}` : '—'}
+        />
+        <Tile
           label={t('voice.metricUpsell')}
-          value={data.upsell_revenue > 0 ? data.upsell_revenue.toLocaleString() : '—'}
+          value={data.upsell_revenue > 0 ? format.number(data.upsell_revenue) : '—'}
         />
       </div>
 

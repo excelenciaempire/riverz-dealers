@@ -101,6 +101,11 @@ export function VoiceCallCard({ conversationId }: { conversationId: string }) {
           {call.summary}
         </p>
       )}
+      {call.recording_url && (
+        <audio controls preload="none" src={call.recording_url} className="mt-2 h-8 w-full">
+          <track kind="captions" />
+        </audio>
+      )}
     </div>
   );
 }

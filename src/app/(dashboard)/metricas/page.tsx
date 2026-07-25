@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import Link from '@/components/i18n/locale-link';
 import {
   Megaphone,
@@ -122,6 +122,14 @@ export default function MetricasPage() {
     data?.by_automation?.[0]?.currency ??
     'USD';
 
+  // Same range the attribution query uses — passed to the voice panel so it
+  // follows the page's date filter. Memoized on the filter (not every render)
+  // so a live `end` (e.g. preset "30d") doesn't retrigger the panel's fetch.
+  const voiceRange = useMemo(
+    () => rangeForPreset(tz, preset, custom),
+    [tz, preset, custom],
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -219,8 +227,12 @@ export default function MetricasPage() {
       )}
 
       {/* Voice AI calls — self-hides when there are no calls yet. Shown
-          regardless of Shopify (voice works without a store). */}
-      <VoiceAnalytics />
+          regardless of Shopify (voice works without a store). Follows the
+          same date range as the rest of the page. */}
+      <VoiceAnalytics
+        start={voiceRange.start.toISOString()}
+        end={voiceRange.end.toISOString()}
+      />
     </div>
   );
 }
