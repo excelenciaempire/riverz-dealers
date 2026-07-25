@@ -28,10 +28,15 @@ export async function resolveWorkspaceIdForUser(
 ): Promise<string | null> {
   if (!userId) return null
 
+  // Los workspaces BORRADOS quedan fuera de la resolución: si no, una cuenta
+  // que eliminó su workspace inicial resolvía a ese (más antiguo) mientras la
+  // UI —que sí descarta los borrados— mostraba el vivo, y todo lo que se
+  // escribía caía en un workspace muerto sin datos.
   const { data: owned } = await db
     .from('workspaces')
     .select('id')
     .eq('owner_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -40,8 +45,9 @@ export async function resolveWorkspaceIdForUser(
 
   const { data: member } = await db
     .from('workspace_members')
-    .select('workspace_id')
+    .select('workspace_id, workspaces!inner(deleted_at)')
     .eq('user_id', userId)
+    .is('workspaces.deleted_at', null)
     .order('joined_at', { ascending: true })
     .order('workspace_id', { ascending: true })
     .limit(1)
