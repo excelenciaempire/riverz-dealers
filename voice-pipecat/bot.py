@@ -73,11 +73,28 @@ async def health() -> JSONResponse:
     return JSONResponse({"ok": True, "engine": "pipecat+telnyx"})
 
 
+async def _el_pcm24(phrase: str) -> bytes:
+    """ElevenLabs TTS -> raw PCM 24kHz int16 (for feeding moshi as 'speech')."""
+    key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not key:
+        return b""
+    vid = "XrExE9yKIg1WjnnlVkGX"  # Matilda
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_24000"
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(
+            url,
+            headers={"xi-api-key": key},
+            json={"text": phrase, "model_id": "eleven_flash_v2_5"},
+        )
+        return r.content if r.status_code == 200 else b""
+
+
 @app.get("/moshi-test")
 async def moshi_test(
     url: str | None = Query(default=None),
     voice: str = Query(default="NATF2"),
     send: bool = Query(default=True),
+    speak: bool = Query(default=False),
     text: str = Query(default="Hola, prueba."),
 ):
     """Debug (no phone call): connect the moshi client, optionally feed it silence,
@@ -120,12 +137,21 @@ async def moshi_test(
 
         task = _asyncio.create_task(client.recv_loop(on_audio, on_text))
         if send:
-            silence = b"\x00\x00" * 1920  # 80ms of 24kHz int16 silence
-            for _ in range(40):  # ~3.2s
-                await client.send_pcm(silence)
-                res["sent"] += 1
-                await _asyncio.sleep(0.08)
-        await _asyncio.sleep(5)
+            chunk = 3840  # 1920 int16 samples = 80ms @24k
+            if speak:
+                pcm = await _el_pcm24(text)
+                res["input_pcm_bytes"] = len(pcm)
+                for i in range(0, len(pcm), chunk):
+                    await client.send_pcm(pcm[i:i + chunk])
+                    res["sent"] += 1
+                    await _asyncio.sleep(0.08)
+            else:
+                silence = b"\x00\x00" * 1920
+                for _ in range(40):  # ~3.2s
+                    await client.send_pcm(silence)
+                    res["sent"] += 1
+                    await _asyncio.sleep(0.08)
+        await _asyncio.sleep(6)
         task.cancel()
     except Exception as e:  # noqa: BLE001
         res["error"] = f"{type(e).__name__}: {e}"
