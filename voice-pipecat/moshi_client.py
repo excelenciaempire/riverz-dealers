@@ -78,7 +78,11 @@ class MoshiClient:
     async def connect(self, timeout: float = 15.0) -> None:
         url = self._chat_url()
         logger.info("moshi: conectando a %s", url.split("?")[0])
-        self._ws = await websockets.connect(url, max_size=None, open_timeout=timeout)
+        # compression=None: el server de moshi es aiohttp; permessage-deflate del
+        # cliente `websockets` puede romper la entrega de frames binarios (Opus).
+        self._ws = await websockets.connect(
+            url, max_size=None, open_timeout=timeout, compression=None
+        )
         # El servidor envía el byte de handshake antes del loop de audio.
         try:
             msg = await asyncio.wait_for(self._ws.recv(), timeout=timeout)

@@ -73,6 +73,36 @@ async def health() -> JSONResponse:
     return JSONResponse({"ok": True, "engine": "pipecat+telnyx"})
 
 
+@app.get("/moshi-test")
+async def moshi_test(url: str | None = Query(default=None), voice: str = Query(default="NATF2")):
+    """Debug (no phone call): connect the moshi client to PersonaPlex and report
+    whether the handshake + audio frames arrive. Iterate the bridge safely."""
+    import asyncio as _asyncio
+    from moshi_client import MoshiClient
+
+    base = url or os.getenv("MOSHI_TEST_URL") or "wss://riverztest2--personaplex-serve.modal.run"
+    client = MoshiClient(base, voice=voice, text_prompt="Hola, prueba.")
+    result: dict = {"handshake": False, "audio_frames": 0, "text": [], "error": None}
+    try:
+        await client.connect()
+        result["handshake"] = True  # connect() awaits the moshi handshake byte
+
+        async def on_audio(pcm: bytes) -> None:
+            result["audio_frames"] += 1
+
+        async def on_text(t: str) -> None:
+            result["text"].append(t[:40])
+
+        task = _asyncio.create_task(client.recv_loop(on_audio, on_text))
+        await _asyncio.sleep(6)
+        task.cancel()
+    except Exception as e:  # noqa: BLE001
+        result["error"] = f"{type(e).__name__}: {e}"
+    finally:
+        await client.close()
+    return JSONResponse(result)
+
+
 # ── Saliente: Riverz (o un test) dispara /dial → colocamos la llamada ──────────
 @app.post("/dial")
 async def dial(request: Request) -> JSONResponse:
