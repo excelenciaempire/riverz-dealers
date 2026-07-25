@@ -10,6 +10,7 @@ import { craftPersonalizedDM } from './personalize-dm';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment, type LeadScore } from './segment';
 import { proactiveGate, logProactiveSend } from './controls';
+import { recordProactiveDm } from './record-dm';
 import { resolveIgAgent, needsApproval } from './agent-link';
 import {
   getShopifyAdmin,

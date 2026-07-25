@@ -9,6 +9,7 @@ import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { resolveIgReach } from '@/lib/instagram-agent/engagement';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { logProactiveSend } from '@/lib/instagram-agent/controls';
+import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 
 /**
@@ -182,7 +183,7 @@ export async function POST(
   }
 
   try {
-    await instagramAdapter.sendText({
+    const result = await instagramAdapter.sendText({
       channel: 'instagram',
       connection,
       conversation: { id: '' } as unknown as Conversation,
@@ -202,6 +203,13 @@ export async function POST(
         error: null,
       })
       .eq('id', id);
+    await recordProactiveDm(supabaseAdmin(), {
+      workspaceId,
+      contactId: contact.id,
+      connection,
+      text,
+      externalMessageId: result?.externalMessageId ?? null,
+    });
     await logProactiveSend(supabaseAdmin(), {
       workspaceId,
       campaignId: rec.campaign_id,

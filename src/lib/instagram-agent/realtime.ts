@@ -13,6 +13,7 @@ import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { proactiveGate, logProactiveSend } from './controls';
+import { recordProactiveDm } from './record-dm';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
