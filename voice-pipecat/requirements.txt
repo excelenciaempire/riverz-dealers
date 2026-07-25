@@ -1,0 +1,18 @@
+# Riverz Voice — worker Pipecat + Telnyx (sin LiveKit). Track paralelo al de
+# voice-worker/ (LiveKit); no comparte dependencias con él.
+#
+# Pipecat evoluciona rápido: este código está escrito contra la API de pipecat
+# `main` verificada el 2026-07-25 (services en pipecat.services.<vendor>.<type>,
+# VAD en LLMUserAggregatorParams, PipelineTask/PipelineRunner clásicos). Fija la
+# versión EXACTA que coincida con esa API antes de desplegar en serio.
+pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,silero]>=0.0.100
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+python-dotenv==1.2.2
+
+# Full-duplex (PersonaPlex/Moshi):
+numpy>=1.26,<3
+sphn>=0.1.4              # códec Opus streaming que usa moshi.server (Kyutai)
+websockets>=12,<14      # cliente WS hacia moshi.server (API estable 12/13)
