@@ -121,13 +121,18 @@ class MoshiClient:
                 if tag == TAG_AUDIO:
                     try:
                         self._reader.append_bytes(payload)
-                        pcm = self._reader.read_pcm()  # float32 np, 24 kHz
+                        # Drená TODO el PCM disponible (el decoder Opus bufferea;
+                        # un solo read_pcm por frame pierde audio) — igual que el
+                        # opus_loop del server (read_pcm hasta shape[-1]==0).
+                        while True:
+                            pcm = self._reader.read_pcm()
+                            if pcm is None or pcm.shape[-1] == 0:
+                                break
+                            pcm16 = (np.clip(pcm, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+                            await on_audio(pcm16)
                     except Exception as e:
                         logger.debug("moshi decode error: %s", e)
                         continue
-                    if pcm is not None and len(pcm):
-                        pcm16 = (np.clip(pcm, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
-                        await on_audio(pcm16)
                 elif tag == TAG_TEXT and on_text is not None:
                     try:
                         text = payload.decode("utf-8", errors="ignore")
