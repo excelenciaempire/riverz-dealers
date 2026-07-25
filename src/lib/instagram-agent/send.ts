@@ -342,6 +342,15 @@ export async function sendCampaignBatch(
       } satisfies OutboundText);
 
       sent += 1;
+      // Que quede en la bandeja: el comercio tiene que poder leer lo que su
+      // agente le dijo a esta persona.
+      await recordProactiveDm(db, {
+        workspaceId: campaign.workspace_id,
+        contactId: p.contact.id,
+        externalId: p.contact.external_id,
+        connection: connByContact.get(p.contact.id) ?? connection,
+        text: p.text,
+      });
       await logProactiveSend(db, {
         workspaceId: campaign.workspace_id,
         campaignId: campaign.id,

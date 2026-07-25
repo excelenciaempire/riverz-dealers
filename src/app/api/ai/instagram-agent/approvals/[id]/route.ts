@@ -183,7 +183,7 @@ export async function POST(
   }
 
   try {
-    const result = await instagramAdapter.sendText({
+    await instagramAdapter.sendText({
       channel: 'instagram',
       connection,
       conversation: { id: '' } as unknown as Conversation,
@@ -206,9 +206,9 @@ export async function POST(
     await recordProactiveDm(supabaseAdmin(), {
       workspaceId,
       contactId: contact.id,
+      externalId: contact.external_id,
       connection,
       text,
-      externalMessageId: result?.externalMessageId ?? null,
     });
     await logProactiveSend(supabaseAdmin(), {
       workspaceId,

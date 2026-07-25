@@ -369,6 +369,13 @@ export async function maybeInstantOutreach(
       commentId: opts.commentId ?? undefined,
       text,
     } satisfies OutboundText);
+    await recordProactiveDm(db, {
+      workspaceId: opts.workspaceId,
+      contactId: opts.contact.id,
+      externalId: opts.contact.external_id,
+      connection,
+      text,
+    });
     await logProactiveSend(db, {
       workspaceId: opts.workspaceId,
       campaignId: campaign.id,
@@ -655,6 +662,13 @@ export async function maybeRunCloser(
     .from('instagram_campaign_recipients')
     .update({ status: 'replied', replied_at: new Date().toISOString() })
     .eq('id', rec.id);
+  await recordProactiveDm(db, {
+    workspaceId: opts.workspaceId,
+    contactId: opts.contact.id,
+    externalId: opts.contact.external_id,
+    connection: opts.connection,
+    text: reply,
+  });
   await logProactiveSend(db, {
     workspaceId: opts.workspaceId,
     campaignId: camp.id,
