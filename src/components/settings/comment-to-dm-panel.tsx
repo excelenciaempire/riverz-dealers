@@ -129,18 +129,21 @@ export function CommentToDmPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Subsección: vive dentro de "Automatización" del hub de Instagram, así
+          que su encabezado no debe competir con el de la sección. */}
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">
+          <h3 className="text-sm font-medium text-foreground">
             {t("settings.c2dmTitle")}
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          </h3>
+          <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
             {t("settings.c2dmDescription")}
           </p>
         </div>
         <Button
+          size="sm"
+          variant="outline"
           onClick={() => setEditing("new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="size-4" />
           {t("settings.c2dmNew")}
@@ -148,20 +151,12 @@ export function CommentToDmPanel() {
       </div>
 
       {rules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-accent-ink">
-            <MessageSquareReply className="size-6" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card/40 px-4 py-3">
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <MessageSquareReply className="size-4 shrink-0 text-accent-ink" />
             {t("settings.c2dmNoneYet")}
           </p>
-          <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-            {t("settings.c2dmNoneYetDesc")}
-          </p>
-          <Button
-            onClick={() => setEditing("new")}
-            className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
-          >
+          <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
             <Plus className="size-4" />
             {t("settings.c2dmCreateFirst")}
           </Button>
