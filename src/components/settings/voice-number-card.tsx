@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Phone, Loader2, Search, Trash2, Check, AlertCircle } from 'lucide-react';
+import { Phone, Loader2, Search, Trash2, Check, AlertCircle, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -17,16 +17,19 @@ interface Current {
 interface Available {
   phone_number: string;
   locality?: string | null;
-  region?: string | null;
   monthly_cost?: string | null;
   currency?: string | null;
-  features: string[];
 }
 interface Requirement {
   id: string;
   label: string;
   description?: string;
-  field_type?: string;
+  example?: string;
+  field_type: string; // textual | datetime | document | address
+}
+interface Regulatory {
+  requirement_group_id: string | null;
+  status: string | null; // approved | pending-approval | declined | ...
 }
 
 const TYPES = [
@@ -36,14 +39,15 @@ const TYPES = [
   { value: 'national', key: 'voice.numberTypeNational' },
 ];
 
-/** Self-serve phone number: search by country/type, buy, release. Each
- *  workspace provisions its own DID (caller ID + inbound target). */
+/** Self-serve phone number per workspace: search by country/type, upload the
+ *  country's regulatory documentation when required, buy, release. */
 export function VoiceNumberCard() {
   const t = useT();
   const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [current, setCurrent] = useState<Current | null>(null);
+  const [regulatory, setRegulatory] = useState<Regulatory | null>(null);
   const [loading, setLoading] = useState(true);
   const [country, setCountry] = useState('CO');
   const [type, setType] = useState('local');
@@ -53,15 +57,22 @@ export function VoiceNumberCard() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Regulatory form state
+  const [reqValues, setReqValues] = useState<Record<string, string>>({});
+  const [addr, setAddr] = useState<Record<string, Record<string, string>>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     if (!workspace?.id) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/voice/numbers?workspace_id=${workspace.id}`, {
-        cache: 'no-store',
-      });
-      if (res.ok) setCurrent((await res.json()) as Current);
+      const [numRes, regRes] = await Promise.all([
+        fetch(`/api/voice/numbers?workspace_id=${workspace.id}`, { cache: 'no-store' }),
+        fetch(`/api/voice/numbers/regulatory?workspace_id=${workspace.id}`, { cache: 'no-store' }),
+      ]);
+      if (numRes.ok) setCurrent((await numRes.json()) as Current);
+      if (regRes.ok) setRegulatory((await regRes.json()) as Regulatory);
     } finally {
       setLoading(false);
     }
@@ -70,6 +81,10 @@ export function VoiceNumberCard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const approved = regulatory?.status === 'approved';
+  const pending =
+    !!regulatory?.requirement_group_id && !approved && regulatory?.status !== 'declined';
 
   async function search() {
     if (!workspace?.id || !country.trim()) return;
@@ -96,6 +111,82 @@ export function VoiceNumberCard() {
     }
   }
 
+  async function uploadDoc(reqId: string, file: File) {
+    if (!workspace?.id) return;
+    setUploading(reqId);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('workspace_id', workspace.id);
+      const res = await fetchWithCsrf('/api/voice/numbers/documents', { method: 'POST', body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.document_id) {
+        setReqValues((v) => ({ ...v, [reqId]: json.document_id }));
+      } else {
+        toast.error(t('voice.numberRegError'));
+      }
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function saveAddress(reqId: string) {
+    if (!workspace?.id) return;
+    const a = addr[reqId] || {};
+    setUploading(reqId);
+    try {
+      const res = await fetchWithCsrf('/api/voice/numbers/address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspace.id,
+          business_name: a.business,
+          street_address: a.street,
+          locality: a.city,
+          administrative_area: a.state,
+          postal_code: a.postal,
+          country_code: country.trim().toUpperCase(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.address_id) {
+        setReqValues((v) => ({ ...v, [reqId]: json.address_id }));
+        toast.success(t('voice.numberAddrSaved'));
+      } else {
+        toast.error(t('voice.numberRegError'));
+      }
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  const allFilled = reqs.length > 0 && reqs.every((r) => !!reqValues[r.id]);
+
+  async function submitReg() {
+    if (!workspace?.id || !allFilled) return;
+    setSubmitting(true);
+    try {
+      const res = await fetchWithCsrf('/api/voice/numbers/regulatory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspace.id,
+          country: country.trim().toUpperCase(),
+          type,
+          requirements: reqs.map((r) => ({ requirement_id: r.id, field_value: reqValues[r.id] })),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRegulatory({ requirement_group_id: json.requirement_group_id, status: json.status });
+      } else {
+        toast.error(json.error ? `${t('voice.numberRegError')} (${json.error})` : t('voice.numberRegError'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function buy(phone: string) {
     if (!workspace?.id) return;
     setBusy(phone);
@@ -108,6 +199,7 @@ export function VoiceNumberCard() {
           phone_number: phone,
           country: country.trim().toUpperCase(),
           type,
+          requirement_group_id: requiresDocs ? regulatory?.requirement_group_id : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -140,6 +232,9 @@ export function VoiceNumberCard() {
       setBusy(null);
     }
   }
+
+  const buyDisabled = (phone: string) =>
+    !!busy || (requiresDocs && !approved) || busy === phone;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -213,19 +308,132 @@ export function VoiceNumberCard() {
             </Button>
           </div>
 
-          {/* Regulatory requirements for gated countries */}
-          {requiresDocs && reqs.length > 0 && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
-              <p className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
+          {/* Regulatory: approved / pending banners */}
+          {requiresDocs && approved && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs text-emerald-700 dark:text-emerald-300">
+              <Check className="h-3.5 w-3.5" />
+              {t('voice.numberRegStatusApproved')} · {t('voice.numberRegApprovedHint')}
+            </div>
+          )}
+          {requiresDocs && pending && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t('voice.numberRegStatusPending')} · {t('voice.numberRegPendingHint')}
+            </div>
+          )}
+
+          {/* Regulatory: the requirements form (until submitted/approved) */}
+          {requiresDocs && !approved && !pending && reqs.length > 0 && (
+            <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {t('voice.numberDocsRequired')}
               </p>
-              <ul className="mt-1.5 list-disc pl-5 text-foreground/90">
-                {reqs.map((r) => (
-                  <li key={r.id}>{r.label}</li>
-                ))}
-              </ul>
-              <p className="mt-1.5 text-muted-foreground">{t('voice.numberDocsHint')}</p>
+              {reqs.map((r) => (
+                <div key={r.id} className="rounded-md border border-border/60 bg-background p-2.5">
+                  <p className="text-xs font-medium text-foreground">{r.label}</p>
+                  {r.description && (
+                    <p className="mb-1.5 text-[11px] text-muted-foreground">{r.description}</p>
+                  )}
+                  {r.field_type === 'document' ? (
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted">
+                      {uploading === r.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : reqValues[r.id] ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      {reqValues[r.id]
+                        ? t('voice.numberUploaded')
+                        : uploading === r.id
+                          ? t('voice.numberUploading')
+                          : t('voice.numberUpload')}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadDoc(r.id, f);
+                        }}
+                      />
+                    </label>
+                  ) : r.field_type === 'address' ? (
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Input
+                          placeholder={t('voice.numberAddrBusiness')}
+                          value={addr[r.id]?.business ?? ''}
+                          onChange={(e) =>
+                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], business: e.target.value } }))
+                          }
+                        />
+                        <Input
+                          placeholder={t('voice.numberAddrStreet')}
+                          value={addr[r.id]?.street ?? ''}
+                          onChange={(e) =>
+                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], street: e.target.value } }))
+                          }
+                        />
+                        <Input
+                          placeholder={t('voice.numberAddrCity')}
+                          value={addr[r.id]?.city ?? ''}
+                          onChange={(e) =>
+                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], city: e.target.value } }))
+                          }
+                        />
+                        <Input
+                          placeholder={t('voice.numberAddrState')}
+                          value={addr[r.id]?.state ?? ''}
+                          onChange={(e) =>
+                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], state: e.target.value } }))
+                          }
+                        />
+                        <Input
+                          placeholder={t('voice.numberAddrPostal')}
+                          value={addr[r.id]?.postal ?? ''}
+                          onChange={(e) =>
+                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], postal: e.target.value } }))
+                          }
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => saveAddress(r.id)}
+                        disabled={uploading === r.id}
+                      >
+                        {uploading === r.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : reqValues[r.id] ? (
+                          <>
+                            <Check className="mr-1 h-3.5 w-3.5" />
+                            {t('voice.numberAddrSaved')}
+                          </>
+                        ) : (
+                          t('voice.numberAddrSave')
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder={r.example || r.label}
+                      value={reqValues[r.id] ?? ''}
+                      onChange={(e) =>
+                        setReqValues((v) => ({ ...v, [r.id]: e.target.value }))
+                      }
+                    />
+                  )}
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">{t('voice.numberDocsHint')}</p>
+              <Button onClick={submitReg} disabled={!allFilled || submitting} className="w-full">
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  t('voice.numberRegSubmit')
+                )}
+              </Button>
             </div>
           )}
 
@@ -247,11 +455,7 @@ export function VoiceNumberCard() {
                       </span>
                     )}
                   </span>
-                  <Button
-                    size="sm"
-                    onClick={() => buy(n.phone_number)}
-                    disabled={!!busy || requiresDocs}
-                  >
+                  <Button size="sm" onClick={() => buy(n.phone_number)} disabled={buyDisabled(n.phone_number)}>
                     {busy === n.phone_number ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (

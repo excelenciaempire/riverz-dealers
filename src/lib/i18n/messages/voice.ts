@@ -327,7 +327,30 @@ export const voice = {
     en: "This country requires documentation before buying the number:",
   },
   numberDocsHint: {
-    es: "Reúne estos documentos; la carga y verificación se habilita a continuación.",
-    en: "Gather these documents; upload and verification is enabled next.",
+    es: "Completa cada requisito y envíalo a revisión; podrás comprar cuando se apruebe.",
+    en: "Complete each requirement and submit for review; you can buy once approved.",
   },
+  // Regulatory submission
+  numberRegSubmit: { es: "Enviar para aprobación", en: "Submit for approval" },
+  numberRegSubmitting: { es: "Enviando…", en: "Submitting…" },
+  numberRegError: { es: "No se pudo enviar la documentación.", en: "Couldn't submit the documentation." },
+  numberRegStatusPending: { es: "Documentación en revisión", en: "Documentation under review" },
+  numberRegStatusApproved: { es: "Documentación aprobada", en: "Documentation approved" },
+  numberRegStatusDeclined: { es: "Documentación rechazada", en: "Documentation declined" },
+  numberRegPendingHint: {
+    es: "Telnyx la está revisando; vuelve más tarde para comprar.",
+    en: "Telnyx is reviewing it; come back later to buy.",
+  },
+  numberRegApprovedHint: { es: "Ya puedes comprar el número.", en: "You can now buy the number." },
+  numberUpload: { es: "Subir archivo", en: "Upload file" },
+  numberUploading: { es: "Cargando…", en: "Uploading…" },
+  numberUploaded: { es: "Cargado", en: "Uploaded" },
+  // Address requirement fields
+  numberAddrBusiness: { es: "Empresa o nombre", en: "Business or name" },
+  numberAddrStreet: { es: "Dirección", en: "Street address" },
+  numberAddrCity: { es: "Ciudad", en: "City" },
+  numberAddrState: { es: "Estado / Provincia", en: "State / Province" },
+  numberAddrPostal: { es: "Código postal", en: "Postal code" },
+  numberAddrSave: { es: "Guardar dirección", en: "Save address" },
+  numberAddrSaved: { es: "Dirección guardada", en: "Address saved" },
 } satisfies Namespace;

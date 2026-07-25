@@ -28,11 +28,13 @@ export interface AvailableNumber {
 }
 
 export interface RegulatoryRequirement {
+  /** The requirement's UUID — passed back as `requirement_id` in a group. */
   id: string;
   label: string;
   description?: string;
-  field_type?: string; // 'document' | 'textual' | 'address' | ...
-  requirement_type?: string;
+  example?: string;
+  /** Fulfillment kind: 'textual' | 'datetime' | 'document' | 'address'. */
+  field_type: string;
 }
 
 export interface OrderedNumber {
@@ -109,13 +111,85 @@ export async function getRegulatoryRequirements(opts: {
   p.set('filter[action]', 'ordering');
   const data = await telnyx<{ data: RawRequirementSet[] }>(`/regulatory_requirements?${p}`);
   const reqs = data.data?.[0]?.regulatory_requirements ?? [];
-  return reqs.map((r) => ({
-    id: r.field_type || r.requirement_type || r.name || 'requirement',
-    label: r.name || r.requirement_type || r.field_type || 'Requisito',
-    description: r.description,
-    field_type: r.field_type,
-    requirement_type: r.requirement_type,
-  }));
+  return reqs
+    .filter((r): r is typeof r & { id: string } => !!r.id)
+    .map((r) => ({
+      id: r.id, // real UUID → requirement_id
+      label: r.name || 'Requisito',
+      description: r.description,
+      example: r.example,
+      // GET may report 'address_id'; normalize to the fulfillment enum.
+      field_type: r.field_type === 'address_id' ? 'address' : r.field_type || 'textual',
+    }));
+}
+
+// ── Regulated-country provisioning: documents, addresses, requirement groups ──
+
+/** Upload a document (base64) → returns its Telnyx UUID. Must be linked to a
+ *  requirement group within ~30 min or Telnyx deletes it. */
+export async function uploadDocument(opts: {
+  base64: string;
+  filename: string;
+  customerReference?: string;
+}): Promise<{ id: string; status: string }> {
+  const data = await telnyx<{ data: { id: string; status: string } }>(`/documents`, {
+    method: 'POST',
+    body: JSON.stringify({
+      file: opts.base64,
+      filename: opts.filename,
+      customer_reference: opts.customerReference,
+    }),
+  });
+  return { id: data.data.id, status: data.data.status };
+}
+
+/** Create an address → returns its id (used as field_value for address reqs). */
+export async function createAddress(fields: Record<string, unknown>): Promise<{ id: string }> {
+  const data = await telnyx<{ data: { id: string } }>(`/addresses`, {
+    method: 'POST',
+    body: JSON.stringify({ address_book: true, validate_address: true, ...fields }),
+  });
+  return { id: data.data.id };
+}
+
+export interface RequirementGroup {
+  id: string;
+  status: string; // approved | unapproved | pending-approval | declined | expired
+}
+
+/** Create a requirement group with the filled requirements. */
+export async function createRequirementGroup(opts: {
+  country: string;
+  type: PhoneNumberType;
+  requirements: { requirement_id: string; field_value: string }[];
+  customerReference?: string;
+}): Promise<RequirementGroup> {
+  const data = await telnyx<{ data: { id: string; status: string } }>(`/requirement_groups`, {
+    method: 'POST',
+    body: JSON.stringify({
+      country_code: opts.country.toUpperCase(),
+      phone_number_type: opts.type,
+      action: 'ordering',
+      customer_reference: opts.customerReference,
+      regulatory_requirements: opts.requirements,
+    }),
+  });
+  return { id: data.data.id, status: data.data.status ?? 'unapproved' };
+}
+
+/** Submit a requirement group for Telnyx review. */
+export async function submitRequirementGroup(id: string): Promise<RequirementGroup> {
+  const data = await telnyx<{ data: { id: string; status: string } }>(
+    `/requirement_groups/${id}/submit_for_approval`,
+    { method: 'POST' },
+  );
+  return { id: data.data.id, status: data.data.status ?? 'pending-approval' };
+}
+
+/** Poll a requirement group's approval status. */
+export async function getRequirementGroup(id: string): Promise<RequirementGroup> {
+  const data = await telnyx<{ data: { id: string; status: string } }>(`/requirement_groups/${id}`);
+  return { id: data.data.id, status: data.data.status ?? 'unapproved' };
 }
 
 /** Order a number and attach it to the shared voice connection (inbound
@@ -178,10 +252,11 @@ interface RawAvailable {
 }
 interface RawRequirementSet {
   regulatory_requirements?: {
+    id?: string;
     name?: string;
     description?: string;
+    example?: string;
     field_type?: string;
-    requirement_type?: string;
   }[];
 }
 interface RawOrder {

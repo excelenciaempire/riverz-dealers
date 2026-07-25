@@ -892,6 +892,11 @@ export interface VoiceConnectionConfig {
   /** Telnyx id of the workspace's provisioned number (self-serve). Lets us
    *  release the exact number later. */
   telnyx_number_id?: string;
+  /** Regulated countries: the submitted Telnyx requirement group + its review
+   *  status (approved | pending-approval | declined | …). Ordering waits for
+   *  `approved`. */
+  regulatory_group_id?: string;
+  regulatory_status?: string;
   /** Whether inbound calls are answered by the agent. */
   inbound_enabled?: boolean;
   /** Monthly cap of talk minutes; null/0 = unlimited. */
