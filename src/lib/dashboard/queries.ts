@@ -69,8 +69,17 @@ export async function loadMetrics(
   const ps = iso(prev.start)
   const pe = iso(prev.end)
 
+  // Filas de mensajes del rango actual y del anterior. Se usan para TRES cosas
+  // a la vez (conversaciones del período, mezcla por canal y el delta), así que
+  // se traen una sola vez. Paginadas: sin esto cualquier rango con más de 1000
+  // mensajes se truncaría y dejaría de cuadrar con las tarjetas de conteo.
+  type MixRow = {
+    conversation_id?: string | null
+    channel?: string | null
+    sender_type?: string | null
+  }
+
   const [
-    openConvCur,
     newContactsCur,
     newContactsPrev,
     resolvedCur,
@@ -79,16 +88,10 @@ export async function loadMetrics(
     messagesSentPrev,
     messagesRecvCur,
     messagesRecvPrev,
+    connections,
+    rangeRows,
+    prevRows,
   ] = await Promise.all([
-    // Active conversations = open RIGHT NOW (a live snapshot, not range-bound).
-    // Excluye las borradas de la bandeja (soft-delete) para no inflar el conteo;
-    // las métricas basadas en `messages` (más abajo) SÍ conservan sus mensajes
-    // aunque la conversación se borre, que es justo lo que se pidió.
-    // `last_message_at not null` excluye las conversaciones-fantasma (una
-    // automatización de Shopify crea la fila ANTES de enviar; si el envío falla
-    // queda open + sin mensajes). La bandeja las oculta con el mismo filtro
-    // (conversation-list), así que la tarjeta debe coincidir con lo que se ve.
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').is('deleted_at', null).not('last_message_at', 'is', null),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', s).lt('created_at', e),
     db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', ps).lt('created_at', pe),
     // "Resueltas" — gate on closed_at (set by code only when status actually
@@ -102,40 +105,59 @@ export async function loadMetrics(
     db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
     db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
     db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
+    // Canales conectados del workspace: siembran la mezcla por canal para que
+    // un canal sin tráfico en la ventana aparezca en 0 y no desaparezca de la
+    // tarjeta (antes "no se mostraba WhatsApp" cuando el rango no lo incluía).
+    db.from('channel_connections').select('channel').eq('status', 'connected'),
+    fetchAllRows<MixRow>((from, to) =>
+      db
+        .from('messages')
+        .select('conversation_id, channel, sender_type')
+        .gte('created_at', s)
+        .lt('created_at', e)
+        .range(from, to),
+    ),
+    fetchAllRows<{ conversation_id?: string | null }>((from, to) =>
+      db
+        .from('messages')
+        .select('conversation_id')
+        .gte('created_at', ps)
+        .lt('created_at', pe)
+        .range(from, to),
+    ),
   ])
 
-  // Channel mix — over the selected range. Paginated so it counts EVERY
-  // message, not just the first 1000 (otherwise the mix disagrees with the
-  // sent/received KPI totals on wide ranges).
-  type MixRow = { channel?: string | null; sender_type?: string | null }
-  const channelMixRows = await fetchAllRows<MixRow>((from, to) =>
-    db
-      .from('messages')
-      .select('channel, sender_type')
-      .gte('created_at', s)
-      .lt('created_at', e)
-      .range(from, to),
-  )
-
+  // Conversaciones DEL PERÍODO: las que tuvieron al menos un mensaje dentro del
+  // rango. Antes esta tarjeta era una foto instantánea de "abiertas ahora", que
+  // ignoraba el filtro de fechas y no cuadraba con el resto del panel.
+  const convIds = new Set<string>()
   const mix = new Map<string, { inbound: number; outbound: number }>()
-  for (const r of channelMixRows) {
+  for (const row of (connections.data ?? []) as { channel?: string | null }[]) {
+    if (row.channel) mix.set(row.channel, { inbound: 0, outbound: 0 })
+  }
+  for (const r of rangeRows) {
+    if (r.conversation_id) convIds.add(r.conversation_id)
     const ch = r.channel ?? 'unknown'
     const m = mix.get(ch) ?? { inbound: 0, outbound: 0 }
     if (r.sender_type === 'customer') m.inbound++
     else m.outbound++
     mix.set(ch, m)
   }
+  const prevConvIds = new Set<string>()
+  for (const r of prevRows) if (r.conversation_id) prevConvIds.add(r.conversation_id)
+
   const channelMix = [...mix.entries()]
     .map(([channel, v]) => ({ channel, inbound: v.inbound, outbound: v.outbound }))
-    .sort((a, b) => b.inbound + b.outbound - (a.inbound + a.outbound))
+    // Volumen desc; los canales en cero caen al final en orden estable para que
+    // la lista no baile entre refrescos.
+    .sort(
+      (a, b) =>
+        b.inbound + b.outbound - (a.inbound + a.outbound) ||
+        a.channel.localeCompare(b.channel),
+    )
 
   return {
-    // Instantaneous count — "previous" equals current so the delta widget
-    // renders neutral (it's "en curso ahora", not a windowed metric).
-    activeConversations: {
-      current: openConvCur.count ?? 0,
-      previous: openConvCur.count ?? 0,
-    },
+    conversations: { current: convIds.size, previous: prevConvIds.size },
     newContacts: { current: newContactsCur.count ?? 0, previous: newContactsPrev.count ?? 0 },
     resolved: { current: resolvedCur.count ?? 0, previous: resolvedPrev.count ?? 0 },
     messagesSent: { current: messagesSentCur.count ?? 0, previous: messagesSentPrev.count ?? 0 },

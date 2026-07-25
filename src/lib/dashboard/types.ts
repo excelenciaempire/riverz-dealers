@@ -8,8 +8,8 @@ export interface MetricDelta {
 }
 
 export interface MetricsBundle {
-  /** Live "open right now" count — independent of the selected range. */
-  activeConversations: MetricDelta
+  /** Conversations with at least one message in the range vs previous period. */
+  conversations: MetricDelta
   /** New contacts in the selected range (current) vs the previous period. */
   newContacts: MetricDelta
   /** Conversations resolved (closed) in the range vs previous period. */
@@ -18,7 +18,11 @@ export interface MetricsBundle {
   messagesSent: MetricDelta
   /** Messages received in the range vs previous period. */
   messagesReceived: MetricDelta
-  /** Volume mix by channel over the selected range. */
+  /**
+   * Volume mix by channel over the selected range. Seeded with EVERY channel
+   * the workspace has connected, so a channel with no traffic in the window
+   * shows as 0 instead of silently vanishing from the card.
+   */
   channelMix: ChannelMixPoint[]
 }
 

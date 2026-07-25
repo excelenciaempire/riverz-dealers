@@ -13,9 +13,12 @@ interface ChannelMixCardProps {
 }
 
 /**
- * "Where is the inbox load coming from?" — last-7-days message volume
- * broken down by channel, with inbound vs outbound bars per row so the
+ * "Where is the inbox load coming from?" — message volume over the selected
+ * range broken down by channel, with inbound vs outbound bars per row so the
  * team can spot a channel that's exploding (or one that's gone quiet).
+ *
+ * La lista incluye TODOS los canales conectados del workspace: uno sin tráfico
+ * en la ventana se muestra atenuado en 0 en vez de desaparecer de la tarjeta.
  */
 export function ChannelMixCard({ mix }: ChannelMixCardProps) {
   const t = useT()
@@ -39,7 +42,10 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
           const inboundPct = (m.inbound / peak) * 100
           const outboundPct = (m.outbound / peak) * 100
           return (
-            <li key={m.channel} className="flex items-center gap-3">
+            <li
+              key={m.channel}
+              className={cn('flex items-center gap-3', sum === 0 && 'opacity-45')}
+            >
               <div className="flex w-16 sm:w-28 shrink-0 items-center gap-2">
                 <span className="flex size-6 items-center justify-center rounded-md bg-muted">
                   <ChannelLogo channel={m.channel as Channel} size={14} />

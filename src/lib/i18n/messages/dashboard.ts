@@ -13,7 +13,7 @@ export const dashboard = {
   offline: { es: "Sin conexión", en: "Offline" },
 
   // Metric cards
-  openConversations: { es: "Conversaciones abiertas", en: "Open conversations" },
+  conversations: { es: "Conversaciones", en: "Conversations" },
   newContacts: { es: "Contactos nuevos", en: "New contacts" },
   resolved: { es: "Resueltas", en: "Resolved" },
   messagesReceived: { es: "Mensajes recibidos", en: "Messages received" },
@@ -105,6 +105,7 @@ export const dashboard = {
   range7d: { es: "7 días", en: "7 days" },
   range30d: { es: "30 días", en: "30 days" },
   custom: { es: "Personalizado", en: "Custom" },
+  rangeTimezone: { es: "Fechas en {tz}", en: "Dates in {tz}" },
   prevMonth: { es: "Mes anterior", en: "Previous month" },
   nextMonth: { es: "Mes siguiente", en: "Next month" },
   pickStartDate: { es: "Elige la fecha inicial", en: "Pick the start date" },

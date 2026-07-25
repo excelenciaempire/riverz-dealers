@@ -187,7 +187,7 @@ export default function DashboardPage() {
       {/* Filtro de fecha — debajo del checklist. Si el checklist se oculta,
           queda justo bajo el header. */}
       <div className="flex justify-end">
-        <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
+        <DateRangeFilter tz={tz} preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>
 
       {/* Metric cards */}
@@ -197,9 +197,10 @@ export default function DashboardPage() {
         ) : (
           <>
             <MetricCard
-              title={t('dashboard.openConversations')}
-              value={fmt.number(metrics.activeConversations.current)}
+              title={t('dashboard.conversations')}
+              value={fmt.number(metrics.conversations.current)}
               icon={MessageSquare}
+              delta={deltaFor(metrics.conversations.current, metrics.conversations.previous, suffix, t, fmt.number)}
             />
             <MetricCard
               title={t('dashboard.newContacts')}

@@ -12,7 +12,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns'
-import type { RangePreset } from '@/lib/dashboard/date-utils'
+import { dayKey, type RangePreset } from '@/lib/dashboard/date-utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-locale'
@@ -26,6 +26,8 @@ export interface CustomRange {
 }
 
 interface DateRangeFilterProps {
+  /** Workspace IANA timezone — the clock every range boundary is resolved in. */
+  tz: string
   preset: RangePreset
   custom: CustomRange | null
   onChange: (preset: RangePreset, custom?: CustomRange | null) => void
@@ -46,14 +48,25 @@ const parseYmd = (s: string): Date => {
   return new Date(y, m - 1, d)
 }
 
-/** Global date-range filter: preset chips + a custom calendar range picker. */
-export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterProps) {
+/**
+ * Global date-range filter: preset chips + a custom calendar range picker.
+ *
+ * Every boundary ("Hoy", "Ayer", el día que se toca en el calendario) se
+ * resuelve en la zona horaria del WORKSPACE, no en la del navegador. Por eso el
+ * calendario recibe `tz`: sin él, un equipo en Bogotá viendo un workspace en
+ * Buenos Aires no podía siquiera seleccionar el día en curso del workspace
+ * (quedaba deshabilitado como "futuro") entre las 22:00 y la medianoche.
+ */
+export function DateRangeFilter({ tz, preset, custom, onChange }: DateRangeFilterProps) {
   const t = useT()
   const fmt = useFormat()
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1">
+    <div
+      className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1"
+      title={t('dashboard.rangeTimezone', { tz })}
+    >
       {PRESETS.map((p) => (
         <Chip key={p.key} active={preset === p.key} onClick={() => onChange(p.key)}>
           {t(p.label)}
@@ -73,6 +86,7 @@ export function DateRangeFilter({ preset, custom, onChange }: DateRangeFilterPro
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto">
           <RangeCalendar
+            tz={tz}
             value={preset === 'custom' ? custom : null}
             onSelect={(r) => {
               onChange('custom', r)
@@ -129,18 +143,24 @@ const WEEKDAY_KEYS = [
 ]
 
 function RangeCalendar({
+  tz,
   value,
   onSelect,
 }: {
+  tz: string
   value: CustomRange | null
   onSelect: (r: CustomRange) => void
 }) {
   const t = useT()
   const fmt = useFormat()
-  const [month, setMonth] = useState<Date>(() => (value ? parseYmd(value.end) : new Date()))
+  // "Hoy" del workspace, no del navegador — es el mismo día que usa
+  // rangeForPreset al convertir el YYYY-MM-DD elegido a un instante real.
+  const todayKey = dayKey(tz, new Date())
+  const [month, setMonth] = useState<Date>(() =>
+    parseYmd(value ? value.end : todayKey),
+  )
   // First click sets the start and waits for the end click.
   const [pendingStart, setPendingStart] = useState<string | null>(null)
-  const todayKey = ymd(new Date())
 
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
   const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })

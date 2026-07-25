@@ -136,7 +136,7 @@ export default function MetricasPage() {
         <div>
           <h1 className="app-page-title">{t('metrics.title')}</h1>
         </div>
-        <DateRangeFilter preset={preset} custom={custom} onChange={handleFilterChange} />
+        <DateRangeFilter tz={tz} preset={preset} custom={custom} onChange={handleFilterChange} />
       </div>
 
       {loading ? (
