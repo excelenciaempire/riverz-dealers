@@ -6,6 +6,12 @@
 livekit-agents[anthropic,deepgram,elevenlabs,openai,silero,turn-detector]==1.6.6
 livekit-api==1.2.0
 
+# PersonaPlex (NVIDIA full-duplex S2S) realtime plugin — official custom
+# RealtimeModel that bridges LiveKit <-> the moshi-server WebSocket. Only used
+# when the global voice mode is "realtime" + provider "personaplex". Pulls sphn
+# (bundled Opus) + livekit-agents[codecs]. See voice-worker/personaplex.py.
+livekit-plugins-nvidia[personaplex]==1.6.6
+
 httpx==0.28.1
 python-dotenv==1.2.2
 

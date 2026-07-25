@@ -19,9 +19,26 @@ built-in providers) cuts per-minute cost and enables brand voice cloning.
 |---|---|---|---|
 | `voxcpm_tts.py` | **VoxCPM 2B TTS** (OpenBMB, Apache-2.0) | `POST /v1/audio/speech` (OpenAI-compatible) | **shippable** |
 
+| `personaplex.py` | **PersonaPlex-7B** (NVIDIA full-duplex S2S) via `moshi.server` WebSocket | `wss://…/api/chat` | **plumbing shipped, NOT deployed** |
+
 Deliberately NOT here (see research in the voice-ai-feature memory):
 - **STT** → keep **Deepgram** streaming. LiveKit's OpenAI STT is batch (whole-utterance upload) and adds turn latency.
-- **Realtime / PersonaPlex** → not self-servable as an OpenAI-Realtime endpoint today (weights exist at `nvidia/personaplex-7b-v1`, but there's no OpenAI-Realtime-compatible server). Keep the STT→LLM→TTS pipeline; revisit if NVIDIA ships a NIM.
+
+## Realtime (PersonaPlex) — plumbing shipped, dormant
+
+Correction to the earlier note: PersonaPlex **is** usable via a **custom LiveKit model** — NVIDIA + LiveKit ship `livekit-plugins-nvidia[personaplex]` (a `RealtimeModel` that bridges LiveKit ↔ PersonaPlex's `moshi.server` binary WebSocket). We shipped the plumbing: `voice-worker/personaplex.py` (thin adapter), the router in `agent.py::_try_build_realtime`, and `modal/personaplex.py` (serves `moshi.server` on a GPU behind Modal's WebSocket — Modal supports long-lived WS: a WS = one function call up to `timeout`, not the 150s HTTP cap).
+
+**Deploy (only when you decide to turn it on — it's expensive):**
+```bash
+modal profile activate riverztest2
+modal secret create hf-token HF_TOKEN=hf_xxx    # HF acct that ACCEPTED the model license
+modal deploy modal/personaplex.py               # → wss://<workspace>--personaplex.modal.run
+```
+Then /admin/voz → realtime mode + provider `personaplex` + base_url = that wss URL + a voice code (`NATF2`…).
+
+**Two hard caveats (why it's dormant + gated, not the default):**
+1. **No tool-calling.** Full-duplex S2S can't run `create_order`/`transfer_to_human`. The router auto-falls-back to the pipeline for any agent with `tools_enabled` — so PersonaPlex is only for tool-free conversational agents. No customer-side transcript in realtime mode either.
+2. **Warm GPU is mandatory** (7B cold start too slow) → ~$1,400–2,850/mo baseline (L40S/A100/H100) regardless of volume, vs. the VoxCPM pipeline's L4 **scale-to-zero ($0 idle)**. Verdict: keep the pipeline as default; switch PersonaPlex on only for a specific tool-free use case where sub-250ms full-duplex is the selling point. Verify end-to-end SIP latency (24kHz model over 8kHz PSTN) before production.
 
 ## Deploy (VoxCPM TTS)
 

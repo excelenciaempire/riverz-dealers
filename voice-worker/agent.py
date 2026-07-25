@@ -338,12 +338,33 @@ def _make_tts(cfg: dict):
 
 
 def _try_build_realtime(context: dict):
-    """Intenta construir un RealtimeModel OpenAI-compatible (speech-to-speech).
-    Camino para PersonaPlex vía Modal. Devuelve None si no es viable (→ pipeline)."""
+    """Construye un RealtimeModel speech-to-speech desde context.realtime, o None → pipeline.
+
+    Rutea por provider:
+      - personaplex/nvidia → plugin oficial livekit-plugins-nvidia (adapter propio).
+        PersonaPlex NO soporta tools: si el agente usa tools, cae al pipeline.
+      - resto → endpoint OpenAI-Realtime-compatible.
+    """
     rt = context.get("realtime") or {}
     base_url = rt.get("base_url")
     if not base_url:
         return None
+    provider = (rt.get("provider") or "").lower()
+
+    if provider in ("personaplex", "nvidia"):
+        # PersonaPlex no tiene function-calling → los agentes con tools DEBEN usar
+        # el pipeline (Deepgram→Claude→VoxCPM) para conservar create_order, etc.
+        if context.get("tools_enabled"):
+            logger.info("realtime=personaplex pero el agente usa tools; uso pipeline")
+            return None
+        try:
+            from personaplex import build_personaplex_realtime
+
+            return build_personaplex_realtime(context)
+        except Exception:
+            logger.warning("no se pudo construir PersonaPlex; uso pipeline", exc_info=True)
+            return None
+
     try:
         from livekit.plugins.openai import realtime as openai_realtime
 
