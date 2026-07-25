@@ -35,11 +35,15 @@ export async function resolveIgAgent(
   workspaceId: string,
   linkedAgentId?: string | null,
 ): Promise<IgAgentConfig> {
+  // Los agentes BORRADOS no gobiernan nada: su voz y su conocimiento ya no
+  // representan a la marca. Sin este filtro, un agente eliminado de otro
+  // producto seguía escribiendo los DMs proactivos.
   if (linkedAgentId) {
     const { data } = await db
       .from('ai_agents')
       .select('id, proactive_send_mode')
       .eq('id', linkedAgentId)
+      .is('deleted_at', null)
       .maybeSingle();
     if (data) return normalize(data as { id: string; proactive_send_mode?: string | null });
   }
@@ -50,6 +54,7 @@ export async function resolveIgAgent(
     .from('ai_agents')
     .select('id, proactive_send_mode, is_active, updated_at, ai_agent_channels!inner(channel)')
     .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
     .eq('ai_agent_channels.channel', 'instagram')
     .order('is_active', { ascending: false })
     .order('updated_at', { ascending: false })
@@ -63,6 +68,7 @@ export async function resolveIgAgent(
     .from('ai_agents')
     .select('id, proactive_send_mode, is_active, updated_at')
     .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
     .order('is_active', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(1)

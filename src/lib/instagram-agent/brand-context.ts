@@ -38,7 +38,9 @@ export async function loadBrandContext(
   const base = db
     .from('ai_agents')
     .select('name, persona, knowledge, tone, language, is_active, updated_at')
-    .eq('workspace_id', workspaceId);
+    .eq('workspace_id', workspaceId)
+    // Un agente borrado ya no habla por la marca.
+    .is('deleted_at', null);
   const { data } = await (agentId
     ? base.eq('id', agentId)
     : base
