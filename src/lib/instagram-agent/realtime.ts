@@ -19,6 +19,7 @@ import {
   featureEnabled,
 } from './controls';
 import { recordProactiveDm } from './record-dm';
+import { loadCustomerContext } from './customer-context';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
@@ -296,6 +297,8 @@ export async function maybeInstantOutreach(
   // Profile-API-eligible yet, so profile is usually null here (segment falls
   // back to intent); the rich signals kick in once they DM.
   const profile = await loadIgProfile(db, opts.contact.id).catch(() => null);
+  // Y quién es como clienta: a quien ya compró no se le vende de cero.
+  const customer = await loadCustomerContext(db, opts.contact.id);
   const segment = resolveIgSegment({
     followsBusiness: profile?.follows_business,
     followerCount: profile?.follower_count,
@@ -303,6 +306,7 @@ export async function maybeInstantOutreach(
     leadScore,
   });
   const personaFields = {
+    customer: customer?.brief ?? null,
     personaHint: profile?.persona_hint ?? null,
     openerHint: profile?.opener_hint ?? null,
     followsBusiness: profile?.follows_business ?? null,
@@ -584,10 +588,13 @@ async function autonomousCommentReply(
   const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
   if (!connection) return;
 
-  const [brand, links, profile] = await Promise.all([
+  const [brand, links, profile, customer] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
     loadIgProfile(db, opts.contact.id).catch(() => null),
+    // Quién es como clienta: si ya compró, el mensaje deja de ser una venta a
+    // una desconocida y pasa a ser una conversación con alguien de la casa.
+    loadCustomerContext(db, opts.contact.id),
   ]);
   const segment = resolveIgSegment({
     followsBusiness: profile?.follows_business,
@@ -601,6 +608,7 @@ async function autonomousCommentReply(
     base: 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
     brand,
     links,
+    customer: customer?.brief ?? null,
     goal: null,
     offer: null,
     products: links.products.map((p) => p.title),

@@ -30,6 +30,8 @@ Reglas (estrictas):
 - No inventes productos, precios ni promesas que no estén en el contexto.
 - DATOS QUE NO TIENES: si preguntan por registros o aprobaciones sanitarias (ANMAT, INVIMA, FDA…), contraindicaciones, ingredientes, plazos de envío o garantías que NO estén literalmente en el contexto, NO lo afirmes ni lo niegues. Di que lo confirmas y ofrece la respuesta por aquí. Inventar un dato regulatorio o de salud es la peor falta posible.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
+- SI YA ES CLIENTA: no le vendas como si no te conociera. Pregúntale cómo le fue con lo que se llevó y, si encaja, sugiere lo que va después. Nunca le ofrezcas de nuevo lo que ya tiene.
+- SI TE PREGUNTA POR UN PEDIDO SUYO (dónde está, cuándo llega, un cambio): eso NO es una venta. Responde que lo revisas y sigue por aquí; no metas oferta ni producto.
 - SUS INTERESES sí puedes usarlos, y deberías: son lo que hace que el mensaje suene a alguien que la conoce y no a un envío masivo. Úsalos como los usa un amigo — para conectar con lo que le gusta, de pasada y en una frase—, nunca listándolos ni describiéndoselos ("veo que te gusta el gym, viajar y cocinar" es exactamente lo que NO se hace).
 - Lo que NUNCA se cita: datos suyos (seguidores, si te sigue, ubicación), ni nada que delate que se miró su perfil.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
@@ -58,6 +60,8 @@ export interface CraftDMInput {
   segment?: { label: string; toneHint: string; offerHint: string } | null;
   /** Enlaces reales de la tienda (evita los "[enlace de la tienda]"). */
   links?: StoreLinks | null;
+  /** Qué sabemos de ella como clienta (ya compró, qué se llevó). */
+  customer?: string | null;
 }
 
 /**
@@ -165,6 +169,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     `MENSAJE BASE (referencia de intención y tono, NO lo copies literal):\n${input.base}`,
     input.products?.length ? `PRODUCTOS A DESTACAR: ${input.products.join(', ')}` : '',
     linksBrief(input.links ?? null),
+    input.customer ?? '',
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',

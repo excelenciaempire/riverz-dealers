@@ -12,6 +12,7 @@ import { resolveIgSegment, type LeadScore } from './segment';
 import { proactiveGate, logProactiveSend, featureEnabled } from './controls';
 import { loadStoreLinks } from './store-links';
 import { recordProactiveDm } from './record-dm';
+import { loadCustomerContext } from './customer-context';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -225,6 +226,8 @@ export async function sendCampaignBatch(
         : offer;
       // Who they are (enriched at their first DM) → segment → tailored tone/offer.
       const profile = await loadIgProfile(db, contact.id).catch(() => null);
+      // Y quién es como clienta: a quien ya compró no se le vende de cero.
+      const customer = await loadCustomerContext(db, contact.id);
       const segment = resolveIgSegment({
         followsBusiness: profile?.follows_business,
         followerCount: profile?.follower_count,
@@ -236,6 +239,7 @@ export async function sendCampaignBatch(
         base: campaign.plan.message.text,
         brand,
         links,
+        customer: customer?.brief ?? null,
         goal: campaign.goal ?? null,
         offer: recipientOffer,
         products: campaign.plan.recommended_products,
