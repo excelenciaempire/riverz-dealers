@@ -18,6 +18,7 @@ Lo primero: NO estás vendiendo en frío, estás INICIANDO UNA CONVERSACIÓN. Es
 
 Reglas (estrictas):
 - Máximo 480 caracteres.
+- SI HAY HILO: no es el primer mensaje. Continúa la conversación donde quedó, sin saludar de cero ni repetir lo que ya dijiste.
 - ABRE por algo de ELLA: lo que comentó, o el GANCHO de su perfil si te lo damos ("acaba de volver de la playa" → "¿qué tal la playa?"). Natural, como quien comenta entre conocidos.
 - Nunca digas de dónde sacaste el gancho, ni "vi tu perfil/tus fotos/tus posts". Se menciona como se menciona algo que uno vio pasar, sin explicarlo.
 - El gancho es una suposición, no un hecho: pregunta ("¿te fuiste de viaje?"), no afirmes ("como estuviste en Cancún…"). Si no encaja con naturalidad, ignóralo y abre por lo que dijo.
@@ -62,6 +63,8 @@ export interface CraftDMInput {
   links?: StoreLinks | null;
   /** Qué sabemos de ella como clienta (ya compró, qué se llevó). */
   customer?: string | null;
+  /** Lo que ya se dijeron en este hilo de comentarios. */
+  thread?: string | null;
 }
 
 /**
@@ -170,6 +173,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     input.products?.length ? `PRODUCTOS A DESTACAR: ${input.products.join(', ')}` : '',
     linksBrief(input.links ?? null),
     input.customer ?? '',
+    input.thread ?? '',
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',

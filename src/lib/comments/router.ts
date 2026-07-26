@@ -22,6 +22,9 @@ import { maybeInstantOutreach } from '@/lib/instagram-agent/realtime';
  *      quien muestra intención de compra.
  *   3. Si nada aplica, el comentario queda en la bandeja para un humano.
  *
+ * Las respuestas dentro de un hilo pasan por el mismo camino: el agente lee lo
+ * que ya se dijeron bajo ese post y continúa desde ahí.
+ *
  * Solo Instagram llega al paso 2: en Facebook no existe la respuesta privada
  * por comentario que el agente necesita, así que ahí manda solo el paso 1.
  */
@@ -56,16 +59,19 @@ export async function routeComment(
   }
   if (handledByRule) return;
 
-  // 2. El agente. Solo Instagram, y solo comentarios de primer nivel: una
-  //    respuesta a un comentario (incluida la nuestra) no es un cliente nuevo
-  //    pidiendo atención, y contestarla abriría un bucle.
-  if (ev.channel !== 'ig_comment' || ev.parentCommentId) return;
+  // 2. El agente. Solo Instagram (en Facebook no existe la respuesta privada
+  //    por comentario). Las respuestas DENTRO de un hilo también entran: si la
+  //    persona contesta nuestra respuesta, la conversación siguió y dejarla sin
+  //    atender era el peor momento para callarse. El bucle lo corta el agente,
+  //    que lee el hilo y no insiste más de tres veces.
+  if (ev.channel !== 'ig_comment') return;
   try {
     await maybeInstantOutreach(db, {
       workspaceId: ev.workspaceId,
       contact: ev.contact,
       sourcePostId: ev.postId,
       commentId: ev.commentId,
+      parentCommentId: ev.parentCommentId,
       connection: ev.connection,
       engagementText: ev.text,
     });

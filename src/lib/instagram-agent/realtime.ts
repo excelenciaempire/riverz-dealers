@@ -20,6 +20,8 @@ import {
 } from './controls';
 import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
+import { loadOrderStatus } from './order-status';
+import { loadCommentThread } from './comment-thread';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
@@ -182,12 +184,20 @@ export async function maybeInstantOutreach(
      *  pins the outreach to the right account when the workspace has
      *  more than one Instagram connected. */
     connection?: ChannelConnection | null;
+    /** Si viene, es una respuesta dentro de un hilo, no un comentario nuevo. */
+    parentCommentId?: string | null;
     engagementText: string | null;
   },
 ): Promise<void> {
   if (!opts.contact.external_id) return;
   // Respect opt-out — never re-engage a contact who asked to stop.
   if (await isOptedOut(db, opts.contact.id)) return;
+  // Una respuesta dentro de un hilo no inscribe a nadie en una campaña —
+  // esa persona ya está en conversación. La atiende el piso, que lee el hilo.
+  if (opts.parentCommentId) {
+    await autonomousCommentReply(db, opts);
+    return;
+  }
   const campaign = await campaignForContact(
     db,
     opts.workspaceId,
@@ -531,6 +541,7 @@ async function autonomousCommentReply(
     workspaceId: string;
     contact: ContactLite;
     commentId?: string | null;
+    sourcePostId?: string | null;
     connection?: ChannelConnection | null;
     engagementText: string | null;
   },
@@ -555,6 +566,17 @@ async function autonomousCommentReply(
   });
   if (!burst.success) return;
 
+  // "¿Dónde está mi pedido?" NO es intención de compra y el filtro de abajo la
+  // habría descartado — justo la pregunta que más urge contestar. Se resuelve
+  // primero y se responde con el estado real (misma consulta a Shopify que usa
+  // la tool del Asistente), no con un pitch.
+  const orderStatus = await loadOrderStatus(
+    db,
+    opts.workspaceId,
+    opts.contact.id,
+    engagement,
+  );
+
   // ¿Intención de compra? Solo contestamos a quien pregunta de verdad; el
   // "😍" y el spam no reciben DM (y el spam se oculta, como siempre).
   let score: LeadScore = 'medium';
@@ -566,10 +588,11 @@ async function autonomousCommentReply(
       if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
       return;
     }
-    if (s.score === 'low') return;
+    // El desinterés solo descarta cuando NO hay una duda de post-venta detrás.
+    if (s.score === 'low' && !orderStatus) return;
     score = s.score;
   } catch {
-    return; // sin clasificar, no arriesgamos un DM no pedido
+    if (!orderStatus) return; // sin clasificar, no arriesgamos un DM no pedido
   }
 
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
@@ -588,14 +611,23 @@ async function autonomousCommentReply(
   const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
   if (!connection) return;
 
-  const [brand, links, profile, customer] = await Promise.all([
+  const [brand, links, profile, customer, thread] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
     loadIgProfile(db, opts.contact.id).catch(() => null),
     // Quién es como clienta: si ya compró, el mensaje deja de ser una venta a
     // una desconocida y pasa a ser una conversación con alguien de la casa.
     loadCustomerContext(db, opts.contact.id),
+    // Y qué se dijeron ya bajo este post: una respuesta a nuestra respuesta no
+    // es un primer contacto y no puede empezar saludando de cero.
+    loadCommentThread(db, opts.contact.id, opts.sourcePostId ?? null),
   ]);
+
+  // Freno anti-bucle: en un mismo hilo no insistimos más de tres veces. Si da
+  // para más, ya no es un comentario — es una conversación, y sigue en la
+  // bandeja con el Asistente o una persona.
+  if ((thread?.ourReplies ?? 0) >= 3) return;
+
   const segment = resolveIgSegment({
     followsBusiness: profile?.follows_business,
     followerCount: profile?.follower_count,
@@ -605,10 +637,13 @@ async function autonomousCommentReply(
 
   const text = await craftPersonalizedDM({
     apiKey,
-    base: 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
+    base: orderStatus
+      ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
+      : 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
     brand,
     links,
-    customer: customer?.brief ?? null,
+    customer: [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
+    thread: thread?.brief ?? null,
     goal: null,
     offer: null,
     products: links.products.map((p) => p.title),
