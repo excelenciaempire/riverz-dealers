@@ -343,11 +343,22 @@ def _make_llm(cfg: dict):
                 key = os.getenv("DEEPSEEK_API_KEY")
             elif "openai.com" in bl:
                 key = os.getenv("OPENAI_API_KEY")
-        return openai.LLM(
+        model_name = cfg.get("model") or "gpt-4o-mini"
+        llm_kwargs = dict(
             base_url=base_url,
             api_key=key or _OAI_PLACEHOLDER_KEY,
-            model=cfg.get("model") or "gpt-4o-mini",
+            model=model_name,
         )
+        # gpt-oss (Cerebras/Groq) es un modelo de *reasoning*: por defecto gasta
+        # tokens razonando antes de responder → latencia y silencios en voz.
+        # Forzamos reasoning mínimo. Sólo estos modelos aceptan el parámetro;
+        # fail-soft si el plugin de esta versión no lo expone.
+        if "gpt-oss" in model_name.lower():
+            try:
+                return openai.LLM(**llm_kwargs, reasoning_effort="low")
+            except TypeError:
+                logger.warning("openai.LLM no acepta reasoning_effort; sin él")
+        return openai.LLM(**llm_kwargs)
     # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
     return anthropic.LLM(
         model=cfg.get("model") or "claude-haiku-4-5",
