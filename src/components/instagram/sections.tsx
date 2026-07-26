@@ -39,7 +39,7 @@ import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 import type { InstagramPlan, CampaignStatus } from '@/lib/instagram-agent/types';
 
-interface PlanContext {
+export interface PlanContext {
   /** Full IG-sourced history — context, not a promise of reach. */
   instagram_reachable: number;
   /** Who can receive a message right now (both Meta windows open). */
@@ -80,7 +80,7 @@ const EXAMPLES = [
   'igAgent.example4',
 ];
 
-export default function InstagramAgentPage() {
+export function OutreachSection() {
   const fetchWithCsrf = useFetchWithCsrf();
   const router = useLocalizedRouter();
   const t = useT();
@@ -91,7 +91,6 @@ export default function InstagramAgentPage() {
   const [context, setContext] = useState<PlanContext | null>(null);
   const [saving, setSaving] = useState<'draft' | 'launch' | null>(null);
   const [holdoutPct, setHoldoutPct] = useState(10);
-  const [agentId, setAgentId] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const settings = useProactiveSettings();
 
@@ -117,7 +116,6 @@ export default function InstagramAgentPage() {
         if (!cancelled && j) {
           const ctx = j as PlanContext;
           setContext(ctx);
-          setAgentId(ctx.default_agent_id ?? null);
         }
       })
       .catch(() => {});
@@ -140,7 +138,6 @@ export default function InstagramAgentPage() {
         goal: goal.trim(),
         plan,
         holdout_pct: holdoutPct,
-        ai_agent_id: agentId,
       }),
     });
     const json = await res.json();
@@ -248,51 +245,13 @@ export default function InstagramAgentPage() {
   const busy = saving !== null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      {/* Cabecera — glifo + título + estado real de la conexión */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
-            <InstagramIcon className="h-5 w-5" />
-          </span>
-          <h1 className="app-page-title">{t('igAgent.title')}</h1>
-        </div>
-        <ConnectionPill connected={context?.instagram_connected} />
-      </header>
+    <div className="space-y-3">
+      <SectionHead
+        title={t('igAgent.blockOutreachTitle')}
+        hint={t('igAgent.blockOutreachHint')}
+        aside={<ReachChip context={context} />}
+      />
 
-      {/* Lo que espera tu decisión va primero. */}
-      <ApprovalsQueue />
-
-      {/* ── 1. Responde los DMs ── quién atiende cuando te escriben. Vive en
-          Asistente IA; aquí solo se ve el estado y se entra a configurarlo. */}
-      <section className="space-y-3">
-        <SectionHead
-          step={1}
-          title={t('igAgent.blockDmTitle')}
-          hint={t('igAgent.blockDmHint')}
-        />
-        <DmAgentCard context={context} />
-      </section>
-
-      {/* ── 2. Responde los comentarios ── */}
-      <section className="space-y-3">
-        <SectionHead
-          step={2}
-          title={t('igAgent.blockCommentsTitle')}
-          hint={t('igAgent.blockCommentsHint')}
-        />
-        <CommentAutoReply settings={settings} />
-        <CommentToDmPanel />
-      </section>
-
-      {/* ── 3. Inicia conversaciones ── */}
-      <section className="space-y-3">
-        <SectionHead
-          step={3}
-          title={t('igAgent.blockOutreachTitle')}
-          hint={t('igAgent.blockOutreachHint')}
-          aside={<ReachChip context={context} />}
-        />
 
         <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
           {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
@@ -352,7 +311,6 @@ export default function InstagramAgentPage() {
             ))}
           </div>
         )}
-      </section>
 
       {/* El agente trabajando — estados en vivo. */}
       {loading && (
@@ -553,23 +511,6 @@ export default function InstagramAgentPage() {
 
           {/* Acciones — una sola fila, con la acción principal a la derecha */}
           <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
-            {(context?.agents?.length ?? 0) > 1 && (
-              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span>{t('igAgent.voiceLabel')}</span>
-                <select
-                  value={agentId ?? ''}
-                  onChange={(e) => setAgentId(e.target.value || null)}
-                  className="max-w-52 truncate rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
-                  title={t('igAgent.voiceHint')}
-                >
-                  {context?.agents?.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             <label className="mr-auto flex items-center gap-2 text-[11px] text-muted-foreground">
               <span>{t('igAgent.holdoutLabel')}</span>
               <select
@@ -611,25 +552,12 @@ export default function InstagramAgentPage() {
 
       <CampaignsSection campaigns={campaigns} onDelete={deleteCampaign} />
 
-      {/* Límites — mandan sobre TODO lo que sale solo (2 y 3). */}
-      <section className="space-y-3">
-        <div className="app-section-head">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            {t('igAgent.limitsSection')}
-          </h2>
-        </div>
-        <ProactiveLimits settings={settings} />
-      </section>
-
-      {/* Resultados */}
-      <AttributedOrders />
     </div>
   );
 }
 
 /** Estado de la conexión de Instagram: sin ella, nada de esto envía. */
-function ConnectionPill({ connected }: { connected?: boolean }) {
+export function ConnectionPill({ connected }: { connected?: boolean }) {
   const t = useT();
   if (connected === undefined) return null;
   if (connected) {
@@ -656,7 +584,7 @@ function ConnectionPill({ connected }: { connected?: boolean }) {
  * desde un DM, 7 días desde un comentario— y solo dentro de ellas se puede
  * escribir; el histórico completo no es alcance real.
  */
-function ReachChip({ context }: { context: PlanContext | null }) {
+export function ReachChip({ context }: { context: PlanContext | null }) {
   const t = useT();
   const fmt = useFormat();
   if (!context) return null;
@@ -900,7 +828,7 @@ const MODE_DESC: Record<SendMode, string> = {
  * sola escritura. Antes vivían todos apelotonados en una tarjeta; ahora cada
  * control aparece donde el comercio lo entiende.
  */
-interface ProactiveSettings {
+export interface ProactiveSettings {
   loaded: boolean;
   paused: boolean;
   autoReply: boolean;
@@ -918,7 +846,7 @@ interface ProactiveSettings {
   }) => void;
 }
 
-function useProactiveSettings(): ProactiveSettings {
+export function useProactiveSettings(): ProactiveSettings {
   const fetchWithCsrf = useFetchWithCsrf();
   const [paused, setPaused] = useState(false);
   const [autoReply, setAutoReply] = useState(true);
@@ -976,13 +904,11 @@ function useProactiveSettings(): ProactiveSettings {
 }
 
 /** Encabezado numerado de bloque: deja claro que son tres cosas distintas. */
-function SectionHead({
-  step,
+export function SectionHead({
   title,
   hint,
   aside,
 }: {
-  step: number;
   title: string;
   hint: string;
   aside?: React.ReactNode;
@@ -990,12 +916,7 @@ function SectionHead({
   return (
     <div className="app-section-head">
       <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/60 text-[10px] font-semibold text-accent-ink">
-            {step}
-          </span>
-          {title}
-        </h2>
+        <h2 className="text-sm font-medium text-foreground">{title}</h2>
         <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
           {hint}
         </p>
@@ -1005,58 +926,8 @@ function SectionHead({
   );
 }
 
-/**
- * Bloque 1 — quién responde los DMs. No se configura aquí: es el agente de IA
- * del workspace. Mostrarlo evita la pregunta "¿y esto qué tiene que ver con el
- * Asistente?" y deja el camino a configurarlo a un clic.
- */
-function DmAgentCard({ context }: { context: PlanContext | null }) {
-  const t = useT();
-  const agent =
-    context?.agents?.find((a) => a.id === context?.default_agent_id) ?? null;
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/50 text-accent-ink">
-          <Bot className="h-4 w-4" />
-        </span>
-        <div className="min-w-0">
-          {agent ? (
-            <>
-              <p className="truncate text-sm font-medium text-foreground">
-                {agent.name}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {t('igAgent.dmAgentActive')}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium text-foreground">
-                {t('igAgent.dmAgentNone')}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {t('igAgent.dmAgentNoneHint')}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-      <Button
-        variant={agent ? 'outline' : 'default'}
-        size="sm"
-        render={<Link href="/asistente" />}
-      >
-        {agent ? t('igAgent.dmAgentConfigure') : t('igAgent.dmAgentCreate')}
-        <ArrowRight className="h-3.5 w-3.5" />
-      </Button>
-    </div>
-  );
-}
-
 /** Bloque 2 — el interruptor del piso autónomo. */
-function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
+export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   if (!settings.loaded) return null;
   return (
@@ -1084,7 +955,7 @@ function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
  * Límites — mandan sobre todo lo que sale solo: cuánto se automatiza, el freno
  * de emergencia y el tope diario.
  */
-function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
+export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   if (!settings.loaded) return null;
 
@@ -1200,7 +1071,7 @@ const ORDER_SOURCE_LABEL: Record<string, string> = {
  * the Instagram engine, with source + revenue and the attributed total. Hidden
  * when empty.
  */
-function AttributedOrders() {
+export function AttributedOrders() {
   const t = useT();
   const fmt = useFormat();
   const [orders, setOrders] = useState<AttributedOrder[]>([]);
@@ -1306,7 +1177,7 @@ function markExpired(rows: ApprovalRow[]): ApprovalRow[] {
  * proactive_send_mode = approval, or hybrid for a non-high lead). The merchant
  * edits, then approves (sends) or discards. Hidden entirely when empty.
  */
-function ApprovalsQueue() {
+export function ApprovalsQueue() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [items, setItems] = useState<ApprovalRow[]>([]);
@@ -1493,4 +1364,41 @@ function FunnelStat({
       </p>
     </div>
   );
+}
+
+/**
+ * Bloque "Responde los comentarios": qué pasa cuando alguien comenta en tus
+ * posts. El interruptor de contestar siempre + las reglas de palabra clave,
+ * juntos y sin nada más alrededor.
+ */
+export function CommentsSection({ settings }: { settings: ProactiveSettings }) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <SectionHead
+        title={t('igAgent.blockCommentsTitle')}
+        hint={t('igAgent.blockCommentsHint')}
+      />
+      <CommentAutoReply settings={settings} />
+      <CommentToDmPanel />
+    </div>
+  );
+}
+
+/** ¿Instagram está conectado? Lo único que la cabecera necesita saber. */
+export function useIgConnected(): boolean | undefined {
+  const [connected, setConnected] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ai/instagram-agent/context', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j) setConnected(!!j.instagram_connected);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return connected;
 }

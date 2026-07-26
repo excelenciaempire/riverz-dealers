@@ -41,12 +41,10 @@ export const igAgent = {
   },
   newCampaign: { es: "Nueva campaña", en: "New campaign" },
 
-  // Los tres bloques del hub
-  blockDmTitle: { es: "Responde los DMs", en: "Answers your DMs" },
-  blockDmHint: {
-    es: "Cuando alguien te escribe por privado, contesta tu agente de IA con tu catálogo y tus reglas.",
-    en: "When someone DMs you, your AI agent answers with your catalog and your rules.",
-  },
+  // Pestañas
+  tabComments: { es: "Comentarios", en: "Comments" },
+  tabOutreach: { es: "Conversaciones", en: "Conversations" },
+
   blockCommentsTitle: {
     es: "Responde los comentarios",
     en: "Answers your comments",
@@ -65,18 +63,6 @@ export const igAgent = {
   },
   limitsSection: { es: "Límites", en: "Limits" },
 
-  // Bloque 1 — agente de DMs
-  dmAgentActive: {
-    es: "Atiende tus DMs de Instagram",
-    en: "Handling your Instagram DMs",
-  },
-  dmAgentNone: { es: "Sin agente configurado", en: "No agent configured" },
-  dmAgentNoneHint: {
-    es: "Nadie contesta tus DMs automáticamente. Los comentarios sí siguen funcionando.",
-    en: "Nobody answers your DMs automatically. Comments still work.",
-  },
-  dmAgentConfigure: { es: "Configurar", en: "Configure" },
-  dmAgentCreate: { es: "Crear agente", en: "Create agent" },
   reachableNow: { es: "contactables ahora", en: "reachable now" },
   reachHint: {
     es: "{dm} con DM abierto (24h) y {comments} que comentaron en los últimos 7 días. Fuera de esas ventanas Meta no permite escribir. Histórico de Instagram: {total}.",
@@ -178,11 +164,6 @@ export const igAgent = {
   // Actions row
   controlHoldout: { es: "Control (holdout)", en: "Control (holdout)" },
   holdoutLabel: { es: "Grupo de control", en: "Control group" },
-  voiceLabel: { es: "Voz", en: "Voice" },
-  voiceHint: {
-    es: "El agente cuya voz y conocimiento escriben los DMs de esta campaña.",
-    en: "The agent whose voice and knowledge write this campaign's DMs.",
-  },
   saveDraft: { es: "Guardar borrador", en: "Save draft" },
   saveAndLaunch: { es: "Guardar y lanzar", en: "Save and launch" },
   cancel: { es: "Cancelar", en: "Cancel" },
