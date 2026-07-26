@@ -125,17 +125,27 @@ export const fbCommentAdapter: ChannelAdapter = {
         const fromObj = value.from as { id?: string; name?: string } | undefined;
         if (!fromObj?.id) continue;
         if (selfIds.has(String(fromObj.id))) continue;
-        // A comment made WITH a photo ships its CDN url on `value.photo`.
-        // Re-host it to Storage so it shows in the inbox (the url expires).
-        const photoUrl = typeof value.photo === "string" ? value.photo : "";
+        // Un comentario puede venir con foto (`value.photo`), video o GIF
+        // (`value.video`) o un sticker (`value.sticker`). Los re-hospedamos en
+        // Storage para que se vean en la bandeja — las URL del CDN caducan.
+        // Antes sólo se guardaba la foto: un comentario con video o sticker
+        // quedaba como burbuja vacía.
+        const mediaUrl =
+          typeof value.photo === "string"
+            ? { url: value.photo, kind: "image" as const }
+            : typeof value.video === "string"
+              ? { url: value.video, kind: "video" as const }
+              : typeof value.sticker === "string"
+                ? { url: value.sticker, kind: "image" as const }
+                : null;
         let attachments: MessageAttachment[] | undefined;
-        if (photoUrl) {
+        if (mediaUrl) {
           const ingested = await ingestMetaAttachment({
-            attachmentUrl: photoUrl,
+            attachmentUrl: mediaUrl.url,
             workspaceId: connection.workspace_id,
             conversationId: fromObj.id,
             externalMessageId: String(value.comment_id ?? ""),
-            hintedKind: "image",
+            hintedKind: mediaUrl.kind,
           });
           if (ingested) {
             attachments = [

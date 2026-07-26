@@ -423,14 +423,22 @@ function MessageContent({ message }: { message: Message }) {
   const mediaUrl = safeMediaUrl(message.media_url ?? undefined);
 
   switch (message.content_type) {
-    case "text":
+    case "text": {
+      // Un marcador de tipo ("[Ubicación]") se muestra en el idioma del
+      // usuario; el resto del texto sale tal cual. Sin nada que mostrar
+      // (mensaje sin cuerpo ni archivo, o un tipo que la plataforma no nos
+      // deja leer) va el rótulo — nunca una burbuja en blanco: en la bandeja
+      // todo mensaje se ve.
+      const body = message.content_text?.trim();
+      const readable = body && !isUnsupportedSnippet(body);
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {/* Un marcador de tipo ("[Ubicación]") se muestra en el idioma del
-              usuario; el resto del texto sale tal cual. */}
-          {linkifyNodes(localizeContentToken(message.content_text, t))}
+          {readable
+            ? linkifyNodes(localizeContentToken(message.content_text, t))
+            : t("inbox.unsupported")}
         </p>
       );
+    }
 
     case "image":
       return (

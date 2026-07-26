@@ -5,9 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection } from "@/types";
+import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { ingestRawMedia } from "../media-ingest";
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -255,6 +256,17 @@ export const mercadoLibreAdapter: ChannelAdapter = {
         if (!nickCache.has(buyerId)) {
           nickCache.set(buyerId, await resolveMlNickname(buyerId, auth));
         }
+        // Fotos / archivos adjuntos: se bajan con el token del vendedor y se
+        // re-hospedan en Storage. Sin esto, un mensaje que era sólo una foto
+        // (un comprobante, una foto del producto) entraba como burbuja vacía.
+        const mlAttachments = await ingestMlAttachments({
+          attachments: m.message_attachments,
+          token,
+          siteId: String(cfg.site_id ?? ""),
+          workspaceId: connection.workspace_id,
+          externalContactId: buyerId,
+          externalMessageId: m.id,
+        });
         events.push({
           channel: "mercadolibre",
           connection,
@@ -262,7 +274,8 @@ export const mercadoLibreAdapter: ChannelAdapter = {
           contactName: nickCache.get(buyerId),
           externalMessageId: m.id,
           externalThreadId: `pack:${packId}`,
-          text: m.text ?? "",
+          text: m.text?.trim() || (mlAttachments.length ? "" : "[unsupported]"),
+          attachments: mlAttachments.length ? mlAttachments : undefined,
           receivedAt: m.message_date?.created ?? new Date().toISOString(),
           // Mensajes del vendedor = salientes (sender_type=agent). Lo enviado
           // desde Riverz se deduplica por m.id (el mismo id que devolvió el POST).
@@ -405,6 +418,68 @@ function extractPackId(resource: string): string | null {
   return m ? m[1] : null;
 }
 
+/** Tope de descarga por adjunto (10 MB) — igual criterio que el resto de los
+ *  canales: un archivo enorme no puede bloquear el ingest. */
+const ML_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Baja los adjuntos de un mensaje post-venta de Mercado Libre y los re-hospeda
+ * en Storage. ML no publica una URL: se pide el archivo por su id con el token
+ * del vendedor (`/messages/attachments/{id}?tag=post_sale&site_id=…`).
+ * Best-effort — un adjunto que falla se saltea y el mensaje igual entra.
+ */
+async function ingestMlAttachments(args: {
+  attachments?: Array<{
+    filename?: string;
+    original_filename?: string;
+    type?: string;
+    size?: number;
+  }>;
+  token: string;
+  siteId: string;
+  workspaceId: string;
+  externalContactId: string;
+  externalMessageId?: string;
+}): Promise<MessageAttachment[]> {
+  const list = args.attachments ?? [];
+  const out: MessageAttachment[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    const id = a.filename?.trim();
+    if (!id) continue;
+    if (a.size && a.size > ML_ATTACHMENT_MAX_BYTES) continue;
+    try {
+      const url = new URL(`${ML}/messages/attachments/${encodeURIComponent(id)}`);
+      url.searchParams.set("tag", "post_sale");
+      if (args.siteId) url.searchParams.set("site_id", args.siteId);
+      const r = await fetch(url.toString(), {
+        headers: { authorization: `Bearer ${args.token}` },
+      });
+      if (!r.ok) continue;
+      const buffer = Buffer.from(await r.arrayBuffer());
+      if (!buffer.length || buffer.length > ML_ATTACHMENT_MAX_BYTES) continue;
+      const ingested = await ingestRawMedia({
+        buffer,
+        mime: a.type || r.headers.get("content-type") || "application/octet-stream",
+        workspaceId: args.workspaceId,
+        conversationId: args.externalContactId,
+        id: `${args.externalMessageId ?? "ml"}-${i}`,
+        fileName: a.original_filename || id,
+      });
+      if (!ingested) continue;
+      out.push({
+        url: ingested.publicUrl,
+        mime_type: ingested.mediaMime,
+        size: ingested.mediaSize,
+        name: a.original_filename || id,
+      });
+    } catch (err) {
+      console.warn("[mercadolibre] adjunto no descargado:", err);
+    }
+  }
+  return out;
+}
+
 interface MlQuestion {
   id?: number;
   seller_id?: number;
@@ -424,5 +499,12 @@ interface MlPack {
     from?: { user_id?: number | string };
     to?: { user_id?: number | string };
     message_date?: { created?: string };
+    /** Fotos y archivos que el comprador (o el vendedor) adjuntó al mensaje. */
+    message_attachments?: Array<{
+      filename?: string;
+      original_filename?: string;
+      type?: string;
+      size?: number;
+    }>;
   }>;
 }

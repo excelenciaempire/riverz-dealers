@@ -731,31 +731,114 @@ async function handleWhatsappReactionEcho(
   }
 }
 
-function extractText(m: WhatsAppMessage): string {
+/** Exportada para tests: es la que decide QUÉ se ve de cada tipo de mensaje. */
+export function extractText(m: WhatsAppMessage): string {
   switch (m.type) {
     case "text":
       return m.text?.body ?? "";
     case "image":
-      return m.image?.caption ?? "[Imagen]";
+      return m.image?.caption || "[Imagen]";
     case "video":
-      return m.video?.caption ?? "[Video]";
+      return m.video?.caption || "[Video]";
     case "document":
-      return m.document?.caption ?? m.document?.filename ?? "[Documento]";
+      return m.document?.caption || m.document?.filename || "[Documento]";
     case "audio":
       return "[Audio]";
     case "sticker":
       return "[Sticker]";
     case "location":
-      return m.location?.name ?? "[Ubicación]";
+      return describeLocation(m);
     case "interactive":
       return (
         m.interactive?.button_reply?.title ??
         m.interactive?.list_reply?.title ??
+        describeFlowReply(m) ??
         "[Respuesta interactiva]"
       );
+    // Botón de una plantilla: el título es literalmente lo que respondió la
+    // persona, así que se lee como cualquier mensaje suyo.
+    case "button":
+      return m.button?.text || "[Respuesta]";
+    case "contacts":
+      return describeContacts(m);
+    case "order":
+      return describeOrder(m);
+    case "system":
+      return m.system?.body || "[unsupported message type: system]";
     default:
-      return m.text?.body ?? `[${m.type}]`;
+      // Un tipo nuevo de WhatsApp: si trae texto lo mostramos; si no, la
+      // bandeja pone el rótulo localizado de "mensaje no compatible" en vez
+      // de un "[order]" crudo.
+      return m.text?.body || `[unsupported message type: ${m.type}]`;
   }
+}
+
+/** Nombre / dirección de la ubicación + enlace al mapa, para poder abrirla. */
+function describeLocation(m: WhatsAppMessage): string {
+  const loc = m.location ?? {};
+  const label = [loc.name, loc.address].filter(Boolean).join(" · ");
+  const lat = Number(loc.latitude);
+  const lng = Number(loc.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return [label || "[Ubicación]", `https://maps.google.com/?q=${lat},${lng}`].join("\n");
+  }
+  return label || "[Ubicación]";
+}
+
+/** Tarjeta(s) de contacto compartidas: nombre y teléfono de cada una. */
+function describeContacts(m: WhatsAppMessage): string {
+  const lines = (m.contacts ?? [])
+    .map((c) => {
+      const name = c.name?.formatted_name || c.name?.first_name || "";
+      const phone = c.phones?.find((p) => p.phone || p.wa_id);
+      const number = phone?.phone || phone?.wa_id || "";
+      const email = c.emails?.find((e) => e.email)?.email ?? "";
+      return [name, number, email].filter(Boolean).join(" · ");
+    })
+    .filter(Boolean);
+  return lines.length ? lines.join("\n") : "[Contacto]";
+}
+
+/** Pedido armado desde el catálogo: cuántas unidades de cada producto. */
+function describeOrder(m: WhatsAppMessage): string {
+  const items = m.order?.product_items ?? [];
+  const lines = items
+    .map((it) => {
+      const qty = Number(it.quantity);
+      const price = Number(it.item_price);
+      const parts = [
+        Number.isFinite(qty) && qty > 0 ? `${qty}×` : "",
+        it.product_retailer_id ?? "",
+        Number.isFinite(price) && price > 0
+          ? `${price}${it.currency ? ` ${it.currency}` : ""}`
+          : "",
+      ].filter(Boolean);
+      return parts.join(" ");
+    })
+    .filter(Boolean);
+  const note = m.order?.text?.trim();
+  const body = lines.length ? `[Pedido]\n${lines.join("\n")}` : "[Pedido]";
+  return note ? `${body}\n${note}` : body;
+}
+
+/** Respuesta de un WhatsApp Flow: mostramos los valores que completó la
+ *  persona, no el JSON crudo. */
+function describeFlowReply(m: WhatsAppMessage): string | undefined {
+  const nfm = m.interactive?.nfm_reply;
+  if (!nfm) return undefined;
+  const fromJson = (() => {
+    if (!nfm.response_json) return "";
+    try {
+      const parsed = JSON.parse(nfm.response_json) as Record<string, unknown>;
+      return Object.entries(parsed)
+        .filter(([k]) => k !== "flow_token")
+        .map(([k, v]) => `${k}: ${String(v)}`)
+        .join("\n");
+    } catch {
+      return "";
+    }
+  })();
+  return fromJson || nfm.body || nfm.name || undefined;
 }
 
 interface WhatsAppWebhookBody {
@@ -793,7 +876,7 @@ interface WhatsAppWebhookBody {
   }[];
 }
 
-interface WhatsAppMessage {
+export interface WhatsAppMessage {
   id?: string;
   from?: string;
   /** Recipient (the customer) — present on echoes / history messages. */
@@ -811,12 +894,40 @@ interface WhatsAppMessage {
   };
   audio?: { id: string; voice?: boolean; mime_type?: string };
   sticker?: { id: string; mime_type?: string; animated?: boolean };
-  location?: { name?: string };
+  location?: {
+    name?: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+  };
   interactive?: {
     type: string;
     button_reply?: { id: string; title: string };
     list_reply?: { id: string; title: string };
+    /** Respuesta de un WhatsApp Flow — el detalle viaja como JSON. */
+    nfm_reply?: { name?: string; body?: string; response_json?: string };
   };
+  /** Respuesta a un botón de plantilla (tipo `button`, no `interactive`). */
+  button?: { text?: string; payload?: string };
+  /** Tarjeta de contacto compartida. */
+  contacts?: Array<{
+    name?: { formatted_name?: string; first_name?: string };
+    phones?: Array<{ phone?: string; wa_id?: string }>;
+    emails?: Array<{ email?: string }>;
+  }>;
+  /** Pedido armado desde el catálogo de WhatsApp. */
+  order?: {
+    catalog_id?: string;
+    text?: string;
+    product_items?: Array<{
+      product_retailer_id?: string;
+      quantity?: number | string;
+      item_price?: number | string;
+      currency?: string;
+    }>;
+  };
+  /** Mensaje del sistema (cambio de número, etc.). */
+  system?: { body?: string };
   /** Emoji reaction to a previously-exchanged message (not a new message). */
   reaction?: { message_id?: string; emoji?: string };
   /** Present when the message came from a Click-to-WhatsApp ad. */

@@ -9,6 +9,7 @@ import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
+import { handleMetaReaction, type MetaReactionEvent } from "../meta-reactions";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
@@ -159,6 +160,19 @@ export const instagramAdapter: ChannelAdapter = {
         const igPostback = m.postback as
           | { mid?: string; title?: string; payload?: string; referral?: unknown }
           | undefined;
+        // Reacción a un DM: estado del mensaje reaccionado, no un mensaje nuevo.
+        if (m.reaction) {
+          const recipient = m.recipient as { id?: string } | undefined;
+          await handleMetaReaction({
+            channel: "instagram",
+            connection,
+            senderId: String(sender.id),
+            recipientId: recipient?.id ? String(recipient.id) : undefined,
+            selfIds,
+            reaction: m.reaction as MetaReactionEvent,
+          });
+          continue;
+        }
         if (!message) {
           // Sin `message` el evento antes se tiraba entero. Un botón tocado
           // (postback) SÍ es una respuesta de la persona y va al hilo; un

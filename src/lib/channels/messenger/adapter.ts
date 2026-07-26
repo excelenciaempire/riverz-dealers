@@ -9,6 +9,7 @@ import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
 import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
+import { handleMetaReaction, type MetaReactionEvent } from "../meta-reactions";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
@@ -180,6 +181,20 @@ export const messengerAdapter: ChannelAdapter = {
         const postback = m.postback as
           | { mid?: string; title?: string; payload?: string; referral?: unknown }
           | undefined;
+        // Reacción a un mensaje: no es un mensaje nuevo, se guarda como estado
+        // y la burbuja reaccionada muestra el emoji (igual que WhatsApp).
+        if (m.reaction) {
+          const recipient = m.recipient as { id?: string } | undefined;
+          await handleMetaReaction({
+            channel: "messenger",
+            connection,
+            senderId: String(sender.id),
+            recipientId: recipient?.id ? String(recipient.id) : undefined,
+            selfIds,
+            reaction: m.reaction as MetaReactionEvent,
+          });
+          continue;
+        }
         if (!message) {
           // Eventos SIN `message` que antes se descartaban enteros:
           //  - `postback`: la persona tocó un botón (el texto del botón es su

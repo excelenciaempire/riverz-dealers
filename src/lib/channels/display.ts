@@ -163,20 +163,36 @@ const CONTENT_TOKEN_KEYS: Record<string, string> = {
   "[audio]": "inbox.previewAudio",
   "[documento]": "inbox.previewDocument",
   "[ubicación]": "inbox.previewLocation",
+  "[sticker]": "inbox.previewSticker",
+  "[contacto]": "inbox.previewContact",
+  "[pedido]": "inbox.previewOrder",
+  "[respuesta]": "inbox.previewButtonReply",
+  "[respuesta interactiva]": "inbox.previewInteractive",
   "[mención en historia]": "inbox.previewStoryMention",
   "[publicación compartida]": "inbox.previewSharedPost",
   "[archivo no disponible]": "inbox.previewFileUnavailable",
 };
 
-/** Traduce un marcador de tipo ("[Imagen]") al idioma activo; cualquier otro
- *  texto vuelve tal cual. */
+/**
+ * Traduce el marcador de tipo ("[Imagen]", "[Pedido]") al idioma activo.
+ * También cuando encabeza un contenido con detalle debajo (el pedido lista sus
+ * productos): sólo se traduce esa primera línea, el resto vuelve intacto.
+ * Cualquier otro texto pasa sin tocar.
+ */
 export function localizeContentToken(
   text: string | null | undefined,
   t: TFn,
 ): string {
   const raw = (text ?? "").trim();
-  const key = CONTENT_TOKEN_KEYS[raw.toLowerCase()];
-  return key ? t(key) : (text ?? "");
+  if (!raw) return text ?? "";
+  const exact = CONTENT_TOKEN_KEYS[raw.toLowerCase()];
+  if (exact) return t(exact);
+  const nl = raw.indexOf("\n");
+  if (nl > 0) {
+    const head = CONTENT_TOKEN_KEYS[raw.slice(0, nl).trim().toLowerCase()];
+    if (head) return `${t(head)}${raw.slice(nl)}`;
+  }
+  return text ?? "";
 }
 
 export function channelLabel(channel: Channel, t: TFn): string {
