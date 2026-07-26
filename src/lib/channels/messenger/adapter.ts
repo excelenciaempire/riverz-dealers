@@ -1,10 +1,12 @@
 import type {
   ChannelAdapter,
   InboundEvent,
+  OutboundMedia,
   OutboundText,
   ParsedWebhookContext,
   SendResult,
 } from "../types";
+import { sendMetaMedia } from "../meta-send-media";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
@@ -141,6 +143,14 @@ export const messengerAdapter: ChannelAdapter = {
     }
     const json = (await res.json()) as { message_id?: string };
     return { externalMessageId: json.message_id, status: "sent" };
+  },
+
+  /** Foto, video, audio o archivo como respuesta del agente. */
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
+    const pageId = String(cfg.page_id ?? "");
+    if (!pageId) throw new Error("[messenger] connection missing page_id");
+    return sendMetaMedia("messenger", pageId, input);
   },
 
   async parseWebhook(

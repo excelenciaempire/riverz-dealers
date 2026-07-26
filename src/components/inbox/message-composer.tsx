@@ -65,11 +65,18 @@ export function MessageComposer({
   onClearReply,
 }: MessageComposerProps) {
   const t = useT();
-  // Capacidades por canal. Hoy sólo WhatsApp envía media (único adapter con
-  // sendMedia) y usa plantillas (HSM de WhatsApp). En Instagram/Messenger/ML/
-  // email/comentarios el envío saliente es texto: ocultamos adjuntar y
-  // plantillas para no ofrecer algo que el canal no puede hacer.
-  const canAttachMedia = channel === "whatsapp";
+  // Capacidades por canal, según lo que el adapter sabe enviar de verdad.
+  // WhatsApp, Instagram y Messenger mandan archivos (Send API de Meta);
+  // Instagram no acepta documentos por DM, sólo imagen, video y audio. En ML,
+  // email y comentarios el envío saliente es texto: se oculta el clip para no
+  // ofrecer algo que el canal no puede hacer. Las plantillas (HSM) son de
+  // WhatsApp únicamente.
+  const canAttachMedia =
+    channel === "whatsapp" || channel === "instagram" || channel === "messenger";
+  const acceptedFiles =
+    channel === "instagram"
+      ? "image/*,video/*,audio/*"
+      : "image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx";
   const canUseTemplates = channel === "whatsapp";
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -465,7 +472,7 @@ export function MessageComposer({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx"
+              accept={acceptedFiles}
               className="hidden"
               onChange={handleFilePick}
             />

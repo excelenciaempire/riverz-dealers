@@ -1,10 +1,12 @@
 import type {
   ChannelAdapter,
   InboundEvent,
+  OutboundMedia,
   OutboundText,
   ParsedWebhookContext,
   SendResult,
 } from "../types";
+import { sendMetaMedia } from "../meta-send-media";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
@@ -123,6 +125,15 @@ export const instagramAdapter: ChannelAdapter = {
     }
     const json = (await res.json()) as { message_id?: string };
     return { externalMessageId: json.message_id, status: "sent" };
+  },
+
+  /** Foto, video o audio como respuesta del agente (Instagram no acepta
+   *  documentos por DM). */
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
+    const pageId = String(cfg.page_id ?? "");
+    if (!pageId) throw new Error("[instagram] connection missing page_id");
+    return sendMetaMedia("instagram", pageId, input);
   },
 
   async parseWebhook(

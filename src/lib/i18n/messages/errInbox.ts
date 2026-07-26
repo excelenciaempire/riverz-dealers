@@ -68,6 +68,10 @@ export const errInbox = {
     es: "Este canal no admite archivos adjuntos",
     en: "This channel doesn't support attachments",
   },
+  mediaUnsupportedInstagram: {
+    es: "Instagram solo admite imagen, video y audio por mensaje directo",
+    en: "Instagram only supports image, video and audio in direct messages",
+  },
   conversationNoConnection: {
     es: "La conversación no tiene una conexión",
     en: "Conversation has no connection",
