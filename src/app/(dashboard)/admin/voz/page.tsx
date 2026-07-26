@@ -8,17 +8,22 @@ import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import type { VoiceModelConfig } from '@/lib/voice/model-config';
+import {
+  LAYER_PROVIDERS,
+  modelsFor,
+  providerOption,
+  type ProviderOption,
+} from '@/lib/voice/providers';
 
 /**
- * Platform-admin only: the GLOBAL voice model stack. Merchants never see this.
- * The API enforces the platform-admin allowlist; this page degrades to a
- * "forbidden" notice if the GET is rejected.
+ * Platform-admin only: the GLOBAL voice model stack, modular by layer
+ * (STT · LLM · TTS · or a full-duplex S2S engine). Each layer is a
+ * provider + model dropdown; merchants never see this.
  */
 export default function AdminVoiceModelPage() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [config, setConfig] = useState<VoiceModelConfig | null>(null);
-  // Plaintext API keys being entered (write-only; never returned by GET).
   const [keys, setKeys] = useState<{
     stt_api_key: string;
     llm_api_key: string;
@@ -56,7 +61,6 @@ export default function AdminVoiceModelPage() {
     if (!config) return;
     setSaving(true);
     try {
-      // Only send keys the admin actually typed (empty = leave untouched).
       const keyPayload = Object.fromEntries(
         Object.entries(keys).filter(([, v]) => v.trim() !== ''),
       );
@@ -133,118 +137,103 @@ export default function AdminVoiceModelPage() {
 
       {!isRealtime ? (
         <>
-          <Section title={t('voice.adminStt')}>
-            <Row label={t('voice.adminProvider')}>
-              <Input value={config.stt_provider} onChange={(e) => set({ stt_provider: e.target.value })} />
-            </Row>
-            <Row label={t('voice.adminModel')}>
-              <Input value={config.stt_model} onChange={(e) => set({ stt_model: e.target.value })} />
-            </Row>
+          <LayerSection
+            title={t('voice.adminStt')}
+            layer="stt"
+            provider={config.stt_provider}
+            model={config.stt_model}
+            onProvider={(p, m) => set({ stt_provider: p, stt_model: m })}
+            onModel={(m) => set({ stt_model: m })}
+            providerLabel={t('voice.adminProvider')}
+            modelLabel={t('voice.adminModel')}
+          >
             <Row label={t('voice.adminLanguage')}>
               <Input value={config.stt_language} onChange={(e) => set({ stt_language: e.target.value })} />
             </Row>
-            <Row label={t('voice.adminEndpoint')}>
-              <Input
-                placeholder={t('voice.adminEndpointHint')}
-                value={config.stt_base_url ?? ''}
-                onChange={(e) => set({ stt_base_url: e.target.value || null })}
-              />
-            </Row>
-            <Row label={t('voice.adminApiKey')}>
-              <Input
-                type="password"
-                placeholder={config.has_stt_key ? '••••••••' : ''}
-                value={keys.stt_api_key}
-                onChange={(e) => setKeys((k) => ({ ...k, stt_api_key: e.target.value }))}
-              />
-            </Row>
-          </Section>
+            <EndpointKey
+              t={t}
+              baseUrl={config.stt_base_url}
+              onBaseUrl={(v) => set({ stt_base_url: v })}
+              hasKey={config.has_stt_key}
+              keyVal={keys.stt_api_key}
+              onKey={(v) => setKeys((k) => ({ ...k, stt_api_key: v }))}
+            />
+          </LayerSection>
 
-          <Section title={t('voice.adminLlm')}>
-            <Row label={t('voice.adminProvider')}>
-              <Input value={config.llm_provider} onChange={(e) => set({ llm_provider: e.target.value })} />
-            </Row>
-            <Row label={t('voice.adminModel')}>
-              <Input value={config.llm_model} onChange={(e) => set({ llm_model: e.target.value })} />
-            </Row>
-            <Row label={t('voice.adminEndpoint')}>
-              <Input
-                placeholder={t('voice.adminEndpointHint')}
-                value={config.llm_base_url ?? ''}
-                onChange={(e) => set({ llm_base_url: e.target.value || null })}
-              />
-            </Row>
-            <Row label={t('voice.adminApiKey')}>
-              <Input
-                type="password"
-                placeholder={config.has_llm_key ? '••••••••' : ''}
-                value={keys.llm_api_key}
-                onChange={(e) => setKeys((k) => ({ ...k, llm_api_key: e.target.value }))}
-              />
-            </Row>
-          </Section>
+          <LayerSection
+            title={t('voice.adminLlm')}
+            layer="llm"
+            provider={config.llm_provider}
+            model={config.llm_model}
+            onProvider={(p, m) => set({ llm_provider: p, llm_model: m })}
+            onModel={(m) => set({ llm_model: m })}
+            providerLabel={t('voice.adminProvider')}
+            modelLabel={t('voice.adminModel')}
+          >
+            <EndpointKey
+              t={t}
+              baseUrl={config.llm_base_url}
+              onBaseUrl={(v) => set({ llm_base_url: v })}
+              hasKey={config.has_llm_key}
+              keyVal={keys.llm_api_key}
+              onKey={(v) => setKeys((k) => ({ ...k, llm_api_key: v }))}
+            />
+          </LayerSection>
 
-          <Section title={t('voice.adminTts')}>
-            <Row label={t('voice.adminProvider')}>
-              <Input value={config.tts_provider} onChange={(e) => set({ tts_provider: e.target.value })} />
-            </Row>
-            <Row label={t('voice.adminModel')}>
-              <Input value={config.tts_model} onChange={(e) => set({ tts_model: e.target.value })} />
-            </Row>
+          <LayerSection
+            title={t('voice.adminTts')}
+            layer="tts"
+            provider={config.tts_provider}
+            model={config.tts_model}
+            onProvider={(p, m) => set({ tts_provider: p, tts_model: m })}
+            onModel={(m) => set({ tts_model: m })}
+            providerLabel={t('voice.adminProvider')}
+            modelLabel={t('voice.adminModel')}
+          >
             <Row label={t('voice.adminDefaultVoice')}>
               <Input
+                placeholder={providerOption('tts', config.tts_provider)?.voiceHint ?? ''}
                 value={config.tts_default_voice_id ?? ''}
                 onChange={(e) => set({ tts_default_voice_id: e.target.value || null })}
               />
             </Row>
-            <Row label={t('voice.adminEndpoint')}>
-              <Input
-                placeholder={t('voice.adminEndpointHint')}
-                value={config.tts_base_url ?? ''}
-                onChange={(e) => set({ tts_base_url: e.target.value || null })}
-              />
-            </Row>
-            <Row label={t('voice.adminApiKey')}>
-              <Input
-                type="password"
-                placeholder={config.has_tts_key ? '••••••••' : ''}
-                value={keys.tts_api_key}
-                onChange={(e) => setKeys((k) => ({ ...k, tts_api_key: e.target.value }))}
-              />
-            </Row>
-          </Section>
+            <EndpointKey
+              t={t}
+              baseUrl={config.tts_base_url}
+              onBaseUrl={(v) => set({ tts_base_url: v })}
+              hasKey={config.has_tts_key}
+              keyVal={keys.tts_api_key}
+              onKey={(v) => setKeys((k) => ({ ...k, tts_api_key: v }))}
+            />
+          </LayerSection>
         </>
       ) : (
-        <Section title={t('voice.adminRealtime')}>
-          <Row label={t('voice.adminProvider')}>
+        <LayerSection
+          title={t('voice.adminRealtime')}
+          layer="realtime"
+          provider={config.realtime_provider ?? ''}
+          model={config.realtime_model ?? ''}
+          onProvider={(p, m) => set({ realtime_provider: p || null, realtime_model: m || null })}
+          onModel={(m) => set({ realtime_model: m || null })}
+          providerLabel={t('voice.adminProvider')}
+          modelLabel={t('voice.adminModel')}
+        >
+          <Row label={t('voice.adminDefaultVoice')}>
             <Input
-              placeholder="personaplex"
-              value={config.realtime_provider ?? ''}
-              onChange={(e) => set({ realtime_provider: e.target.value || null })}
+              placeholder={providerOption('realtime', config.realtime_provider)?.voiceHint ?? ''}
+              value={config.tts_default_voice_id ?? ''}
+              onChange={(e) => set({ tts_default_voice_id: e.target.value || null })}
             />
           </Row>
-          <Row label={t('voice.adminModel')}>
-            <Input
-              value={config.realtime_model ?? ''}
-              onChange={(e) => set({ realtime_model: e.target.value || null })}
-            />
-          </Row>
-          <Row label={t('voice.adminEndpoint')}>
-            <Input
-              placeholder={t('voice.adminEndpointHint')}
-              value={config.realtime_base_url ?? ''}
-              onChange={(e) => set({ realtime_base_url: e.target.value || null })}
-            />
-          </Row>
-          <Row label={t('voice.adminApiKey')}>
-            <Input
-              type="password"
-              placeholder={config.has_realtime_key ? '••••••••' : ''}
-              value={keys.realtime_api_key}
-              onChange={(e) => setKeys((k) => ({ ...k, realtime_api_key: e.target.value }))}
-            />
-          </Row>
-        </Section>
+          <EndpointKey
+            t={t}
+            baseUrl={config.realtime_base_url}
+            onBaseUrl={(v) => set({ realtime_base_url: v })}
+            hasKey={config.has_realtime_key}
+            keyVal={keys.realtime_api_key}
+            onKey={(v) => setKeys((k) => ({ ...k, realtime_api_key: v }))}
+          />
+        </LayerSection>
       )}
 
       <div className="flex justify-end">
@@ -256,12 +245,149 @@ export default function AdminVoiceModelPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/** A layer card: provider select → model select → extra rows (children). */
+function LayerSection({
+  title,
+  layer,
+  provider,
+  model,
+  onProvider,
+  onModel,
+  providerLabel,
+  modelLabel,
+  children,
+}: {
+  title: string;
+  layer: keyof typeof LAYER_PROVIDERS;
+  provider: string;
+  model: string;
+  onProvider: (provider: string, model: string) => void;
+  onModel: (model: string) => void;
+  providerLabel: string;
+  modelLabel: string;
+  children?: React.ReactNode;
+}) {
+  const providers = LAYER_PROVIDERS[layer];
+  const opt: ProviderOption | undefined = providers.find((p) => p.id === provider);
+  const models = modelsFor(layer, provider);
+  const known = providers.some((p) => p.id === provider);
+  // Cuando el modelo actual no está en la lista sugerida, mostramos "custom".
+  const modelKnown = models.some((m) => m.id === model);
+
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <p className="mb-3 text-sm font-medium text-foreground">{title}</p>
-      <div className="space-y-3">{children}</div>
+      <div className="space-y-3">
+        <Row label={providerLabel}>
+          <Select
+            value={known ? provider : '__custom__'}
+            onChange={(v) => {
+              if (v === '__custom__') {
+                onProvider('', model);
+                return;
+              }
+              // Al cambiar de proveedor, sugerí su primer modelo.
+              const first = modelsFor(layer, v)[0]?.id ?? '';
+              onProvider(v, first);
+            }}
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+            <option value="__custom__">Custom…</option>
+          </Select>
+        </Row>
+        {opt?.note ? (
+          <p className="text-xs text-muted-foreground sm:pl-[160px]">{opt.note}</p>
+        ) : null}
+
+        {known ? (
+          <Row label={modelLabel}>
+            <Select
+              value={modelKnown ? model : '__custom__'}
+              onChange={(v) => onModel(v === '__custom__' ? '' : v)}
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              <option value="__custom__">Custom…</option>
+            </Select>
+          </Row>
+        ) : (
+          <Row label={providerLabel}>
+            <Input placeholder="provider id" value={provider} onChange={(e) => onProvider(e.target.value, model)} />
+          </Row>
+        )}
+
+        {(!known || !modelKnown) && (
+          <Row label={modelLabel}>
+            <Input value={model} onChange={(e) => onModel(e.target.value)} placeholder="modelo" />
+          </Row>
+        )}
+
+        {children}
+      </div>
     </section>
+  );
+}
+
+function EndpointKey({
+  t,
+  baseUrl,
+  onBaseUrl,
+  hasKey,
+  keyVal,
+  onKey,
+}: {
+  t: (k: string) => string;
+  baseUrl: string | null;
+  onBaseUrl: (v: string | null) => void;
+  hasKey: boolean;
+  keyVal: string;
+  onKey: (v: string) => void;
+}) {
+  return (
+    <>
+      <Row label={t('voice.adminEndpoint')}>
+        <Input
+          placeholder={t('voice.adminEndpointHint')}
+          value={baseUrl ?? ''}
+          onChange={(e) => onBaseUrl(e.target.value || null)}
+        />
+      </Row>
+      <Row label={t('voice.adminApiKey')}>
+        <Input
+          type="password"
+          placeholder={hasKey ? '••••••••' : ''}
+          value={keyVal}
+          onChange={(e) => onKey(e.target.value)}
+        />
+      </Row>
+    </>
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      {children}
+    </select>
   );
 }
 

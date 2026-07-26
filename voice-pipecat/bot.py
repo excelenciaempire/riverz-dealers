@@ -320,47 +320,23 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
     def collect(role: str, text: str) -> None:
         transcript.append({"role": role, "text": text})
 
-    # ── Modo realtime full-duplex (PersonaPlex/Moshi) — definitivo, sin LiveKit
-    if mode == "realtime" and realtime.get("base_url"):
-        # PersonaPlex necesita un voice_prompt (.pt) de su set de 18 voces + un
-        # text_prompt (persona). Mapea la voz del contexto a una PP; default NATF2.
-        _PP = {
-            "NATF0", "NATF1", "NATF2", "NATF3", "NATM0", "NATM1", "NATM2", "NATM3",
-            "VARF0", "VARF1", "VARF2", "VARF3", "VARF4",
-            "VARM0", "VARM1", "VARM2", "VARM3", "VARM4",
-        }
-        vid = ((ctx.get("voice") or {}).get("voice_id") or "").upper()
-        pp_voice = vid if vid in _PP else "NATF2"
-        # moshi text_prompt = persona CORTA (una línea) por query string. El
-        # system prompt completo (largo) hace un query gigante que rompe/enlentece
-        # el /api/chat del moshi.server (era el "sin handshake"). Cap corto.
-        raw_persona = (
-            ctx.get("voice_persona")
-            or ctx.get("instructions")
-            or ctx.get("system_prompt")
-            or ctx.get("prompt")
-            or "Eres un recepcionista amable."
-        )
-        # FORZAR IDIOMA: la voz por defecto (NATF2) es inglesa y "tira" a inglés.
-        # Ponemos la directiva de idioma AL FRENTE del text_prompt (y siempre, aunque
-        # se recorte) para que PersonaPlex hable en el idioma del agente.
-        lang = str(ctx.get("language") or "es").lower()
-        if lang.startswith("es"):
-            directive = "IMPORTANTE: habla SOLO en español latinoamericano, natural y breve. Nunca en inglés. "
+    # ── Motor de conversación ──────────────────────────────────────────────
+    # realtime = S2S full-duplex (PersonaPlex / OpenAI Realtime / Gemini Live /
+    # Nova Sonic). Si el motor elegido no está disponible (extra/clave/API), cae
+    # a pipeline (STT+LLM+TTS) para que la llamada NUNCA quede muda.
+    pipeline = None
+    greeting = None
+    if mode == "realtime" and realtime and realtime.get("provider"):
+        try:
+            built = _build_realtime(ctx, model, realtime, transport, collect)
+        except Exception as e:  # noqa: BLE001
+            logger.error("realtime build falló (%s) → pipeline", e)
+            built = None
+        if built is not None:
+            pipeline, greeting = built
         else:
-            directive = "IMPORTANT: speak ONLY in English, natural and brief. "
-        persona = (directive + " ".join(str(raw_persona).split()))[:200]
-        bridge = MoshiBridge(
-            realtime["base_url"],
-            realtime.get("api_key"),
-            voice=pp_voice,
-            text_prompt=persona,
-            on_transcript=collect,
-        )
-        pipeline = Pipeline([transport.input(), bridge, transport.output()])
-        greeting = None
-    else:
-        # ── Modo pipeline (Deepgram + Anthropic + ElevenLabs) ──
+            logger.warning("realtime no disponible → usando pipeline")
+    if pipeline is None:
         pipeline, greeting = _build_pipeline(ctx, model, transport)
 
     task = PipelineTask(
@@ -403,59 +379,156 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         logger.info("ws: llamada %s terminada (%ds)", resolved_call_id, duration)
 
 
+def _env(*names: str) -> str:
+    for n in names:
+        v = os.getenv(n)
+        if v:
+            return v
+    return ""
+
+
+# ── Fábricas por capa. Cada proveedor con import perezoso: seleccionar uno que
+# no esté instalado NO rompe el arranque; sólo falla al construirse esa capa
+# (y ahí caemos a un default seguro). Los `id` coinciden con src/lib/voice/providers.ts.
+def _build_stt(cfg: dict):  # noqa: ANN201
+    p = (cfg.get("provider") or "deepgram").lower()
+    key = cfg.get("api_key") or ""
+    model = cfg.get("model") or ""
+    lang = cfg.get("language") or "multi"
+    if p == "openai":
+        from pipecat.services.openai.stt import OpenAISTTService
+        return OpenAISTTService(api_key=key or _env("OPENAI_API_KEY"), model=model or "gpt-4o-transcribe")
+    if p == "groq":
+        from pipecat.services.groq.stt import GroqSTTService
+        return GroqSTTService(api_key=key or _env("GROQ_API_KEY"), model=model or "whisper-large-v3-turbo")
+    if p == "assemblyai":
+        from pipecat.services.assemblyai.stt import AssemblyAISTTService
+        return AssemblyAISTTService(api_key=key or _env("ASSEMBLYAI_API_KEY"))
+    if p == "gladia":
+        from pipecat.services.gladia.stt import GladiaSTTService
+        return GladiaSTTService(api_key=key or _env("GLADIA_API_KEY"))
+    # deepgram (default, multi-idioma)
+    from pipecat.services.deepgram.stt import DeepgramSTTService
+    try:
+        from deepgram import LiveOptions
+        return DeepgramSTTService(
+            api_key=key or _env("DEEPGRAM_API_KEY"),
+            live_options=LiveOptions(model=model or "nova-3", language=lang),
+            audio_passthrough=True,
+        )
+    except Exception:
+        return DeepgramSTTService(api_key=key or _env("DEEPGRAM_API_KEY"), audio_passthrough=True)
+
+
+def _build_llm(cfg: dict):  # noqa: ANN201
+    p = (cfg.get("provider") or "anthropic").lower()
+    key = cfg.get("api_key") or ""
+    model = cfg.get("model") or ""
+    base_url = cfg.get("base_url") or None
+    if p == "anthropic":
+        from pipecat.services.anthropic.llm import AnthropicLLMService
+        return AnthropicLLMService(
+            api_key=key or _env("ANTHROPIC_API_KEY"),
+            model=model or "claude-haiku-4-5-20251001",
+        )
+    if p == "gemini":
+        from pipecat.services.google.llm import GoogleLLMService
+        return GoogleLLMService(
+            api_key=key or _env("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            model=model or "gemini-2.0-flash",
+        )
+    # openai / groq / openai_compatible → cliente OpenAI-compatible (base_url)
+    from pipecat.services.openai.llm import OpenAILLMService
+    if p == "groq":
+        base_url = base_url or "https://api.groq.com/openai/v1"
+        key = key or _env("GROQ_API_KEY")
+        model = model or "llama-3.3-70b-versatile"
+    elif p == "openai":
+        key = key or _env("OPENAI_API_KEY")
+        model = model or "gpt-4o-mini"
+    kwargs = {"api_key": key, "model": model or "gpt-4o-mini"}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return OpenAILLMService(**kwargs)
+
+
+def _build_tts(cfg: dict):  # noqa: ANN201
+    p = (cfg.get("provider") or "elevenlabs").lower()
+    key = cfg.get("api_key") or ""
+    model = cfg.get("model") or ""
+    voice = cfg.get("voice_id") or ""
+    if p == "cartesia":
+        from pipecat.services.cartesia.tts import CartesiaTTSService
+        return CartesiaTTSService(
+            api_key=key or _env("CARTESIA_API_KEY"), voice_id=voice, model=model or "sonic-2"
+        )
+    if p == "rime":
+        from pipecat.services.rime.tts import RimeTTSService
+        return RimeTTSService(
+            api_key=key or _env("RIME_API_KEY"), voice_id=voice or "cove", model=model or "mistv2"
+        )
+    if p == "playht":
+        from pipecat.services.playht.tts import PlayHTTTSService
+        return PlayHTTTSService(
+            api_key=key or _env("PLAYHT_API_KEY"),
+            user_id=_env("PLAYHT_USER_ID"),
+            voice_url=voice,
+        )
+    if p == "deepgram":
+        from pipecat.services.deepgram.tts import DeepgramTTSService
+        return DeepgramTTSService(api_key=key or _env("DEEPGRAM_API_KEY"), voice=model or "aura-2-thalia-en")
+    if p == "openai":
+        from pipecat.services.openai.tts import OpenAITTSService
+        return OpenAITTSService(
+            api_key=key or _env("OPENAI_API_KEY"), voice=voice or "nova", model=model or "gpt-4o-mini-tts"
+        )
+    if p == "gemini":
+        from pipecat.services.google.tts import GoogleTTSService
+        return GoogleTTSService(
+            api_key=key or _env("GEMINI_API_KEY", "GOOGLE_API_KEY"), voice_id=voice or "Kore"
+        )
+    if p == "hume":
+        from pipecat.services.hume.tts import HumeTTSService
+        return HumeTTSService(api_key=key or _env("HUME_API_KEY"), voice=voice)
+    # elevenlabs (default)
+    from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+    return ElevenLabsTTSService(
+        api_key=key or _env("ELEVENLABS_API_KEY", "ELEVEN_API_KEY"),
+        voice_id=voice or None,
+        model=model or "eleven_flash_v2_5",
+    )
+
+
 def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
-    """Modo pipeline. Imports perezosos: si tu versión de pipecat difiere en
-    estos módulos, sólo afecta a este modo, no al full-duplex. # VERSION"""
+    """Modo pipeline STT→LLM→TTS. Cada capa se arma con su fábrica; si un
+    proveedor falla al construirse, cae al default seguro (deepgram/anthropic/
+    elevenlabs) para no dejar la llamada muda. # VERSION"""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
     from pipecat.processors.aggregators.llm_context import LLMContext
     from pipecat.processors.aggregators.llm_response_universal import (
         LLMContextAggregatorPair,
         LLMUserAggregatorParams,
     )
-    from pipecat.services.anthropic.llm import AnthropicLLMService
-    from pipecat.services.deepgram.stt import DeepgramSTTService
-    from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 
     stt_cfg = model.get("stt", {})
     llm_cfg = model.get("llm", {})
     tts_cfg = model.get("tts", {})
 
     try:
-        from deepgram import LiveOptions
-
-        stt = DeepgramSTTService(
-            api_key=stt_cfg.get("api_key") or os.getenv("DEEPGRAM_API_KEY", ""),
-            live_options=LiveOptions(
-                model=stt_cfg.get("model", "nova-3"),
-                language=stt_cfg.get("language", "multi"),
-            ),
-            audio_passthrough=True,
-        )
-    except Exception:
-        stt = DeepgramSTTService(
-            api_key=stt_cfg.get("api_key") or os.getenv("DEEPGRAM_API_KEY", ""),
-            audio_passthrough=True,
-        )
-
-    llm = AnthropicLLMService(
-        api_key=llm_cfg.get("api_key") or os.getenv("ANTHROPIC_API_KEY", ""),
-        model=llm_cfg.get("model") or "claude-haiku-4-5-20251001",
-    )
-    # TTS por provider: elevenlabs (default) o cartesia (baja latencia). Sin Google/OpenAI.
-    if (tts_cfg.get("provider") or "").lower() == "cartesia":
-        from pipecat.services.cartesia.tts import CartesiaTTSService
-
-        tts = CartesiaTTSService(
-            api_key=tts_cfg.get("api_key") or os.getenv("CARTESIA_API_KEY", ""),
-            voice_id=tts_cfg.get("voice_id") or "",
-            model=tts_cfg.get("model") or "sonic-2",
-        )
-    else:
-        tts = ElevenLabsTTSService(
-            api_key=tts_cfg.get("api_key") or os.getenv("ELEVENLABS_API_KEY", ""),
-            voice_id=tts_cfg.get("voice_id"),
-            model=tts_cfg.get("model") or "eleven_flash_v2_5",
-        )
+        stt = _build_stt(stt_cfg)
+    except Exception as e:  # noqa: BLE001
+        logger.error("STT %s falló (%s) → deepgram", stt_cfg.get("provider"), e)
+        stt = _build_stt({"provider": "deepgram", "language": stt_cfg.get("language")})
+    try:
+        llm = _build_llm(llm_cfg)
+    except Exception as e:  # noqa: BLE001
+        logger.error("LLM %s falló (%s) → anthropic", llm_cfg.get("provider"), e)
+        llm = _build_llm({"provider": "anthropic"})
+    try:
+        tts = _build_tts(tts_cfg)
+    except Exception as e:  # noqa: BLE001
+        logger.error("TTS %s falló (%s) → elevenlabs", tts_cfg.get("provider"), e)
+        tts = _build_tts({"provider": "elevenlabs", "voice_id": tts_cfg.get("voice_id")})
 
     system = ctx.get("instructions") or ctx.get("system_prompt") or ctx.get("prompt") or ""
     greeting = ctx.get("greeting")
@@ -477,6 +550,103 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
         ]
     )
     return pipeline, greeting
+
+
+def _build_realtime(ctx: dict, model: dict, realtime: dict, transport, collect):  # noqa: ANN001
+    """Motor S2S full-duplex por proveedor. Devuelve (pipeline, greeting) o None
+    (→ el caller cae a pipeline). PersonaPlex usa el bridge de Modal; el resto
+    (OpenAI Realtime / Gemini Live / Nova Sonic) son servicios S2S de pipecat."""
+    provider = (realtime.get("provider") or "").lower()
+
+    if provider == "personaplex":
+        if not realtime.get("base_url"):
+            return None
+        return _build_personaplex(ctx, realtime, transport, collect)
+
+    # ── S2S por API (OpenAI Realtime / Gemini Live / Nova Sonic) ──
+    system = ctx.get("system_prompt") or ctx.get("instructions") or ctx.get("prompt") or ""
+    voice = ((ctx.get("voice") or {}).get("voice_id")) or ""
+    key = realtime.get("api_key") or ""
+    rt_model = realtime.get("model") or ""
+
+    from pipecat.processors.aggregators.llm_context import LLMContext
+    from pipecat.processors.aggregators.llm_response_universal import (
+        LLMContextAggregatorPair,
+    )
+
+    svc = None
+    if provider == "openai_realtime":
+        try:
+            from pipecat.services.openai_realtime_beta import OpenAIRealtimeBetaLLMService
+        except Exception:
+            from pipecat.services.openai.realtime import OpenAIRealtimeBetaLLMService  # type: ignore
+        kwargs = {"api_key": key or _env("OPENAI_API_KEY")}
+        if rt_model:
+            kwargs["model"] = rt_model
+        svc = OpenAIRealtimeBetaLLMService(**kwargs)
+    elif provider == "gemini_live":
+        from pipecat.services.gemini_multimodal_live.gemini import (
+            GeminiMultimodalLiveLLMService,
+        )
+        kwargs = {"api_key": key or _env("GEMINI_API_KEY", "GOOGLE_API_KEY")}
+        if rt_model:
+            kwargs["model"] = rt_model
+        if voice:
+            kwargs["voice_id"] = voice
+        svc = GeminiMultimodalLiveLLMService(**kwargs)
+    elif provider == "aws_nova_sonic":
+        from pipecat.services.aws_nova_sonic.aws import AWSNovaSonicLLMService
+        kwargs = {
+            "secret_access_key": _env("AWS_SECRET_ACCESS_KEY"),
+            "access_key_id": _env("AWS_ACCESS_KEY_ID"),
+            "region": _env("AWS_REGION") or "us-east-1",
+        }
+        if voice:
+            kwargs["voice_id"] = voice
+        svc = AWSNovaSonicLLMService(**kwargs)
+    else:
+        return None
+
+    context = LLMContext(messages=[{"role": "system", "content": system}] if system else [])
+    user_agg, assistant_agg = LLMContextAggregatorPair(context)
+    pipeline = Pipeline(
+        [transport.input(), user_agg, svc, transport.output(), assistant_agg]
+    )
+    # Estos motores hablan primero según el system prompt; sin greeting scripted.
+    return pipeline, None
+
+
+def _build_personaplex(ctx: dict, realtime: dict, transport, collect):  # noqa: ANN001
+    """PersonaPlex/Moshi full-duplex vía el bridge de Modal (sin LiveKit)."""
+    _PP = {
+        "NATF0", "NATF1", "NATF2", "NATF3", "NATM0", "NATM1", "NATM2", "NATM3",
+        "VARF0", "VARF1", "VARF2", "VARF3", "VARF4",
+        "VARM0", "VARM1", "VARM2", "VARM3", "VARM4",
+    }
+    vid = ((ctx.get("voice") or {}).get("voice_id") or "").upper()
+    pp_voice = vid if vid in _PP else "NATF2"
+    raw_persona = (
+        ctx.get("voice_persona")
+        or ctx.get("instructions")
+        or ctx.get("system_prompt")
+        or ctx.get("prompt")
+        or "Eres un recepcionista amable."
+    )
+    # FORZAR IDIOMA al frente (la voz PP tira a inglés); cap corto p/ handshake rápido.
+    lang = str(ctx.get("language") or "es").lower()
+    if lang.startswith("es"):
+        directive = "IMPORTANTE: habla SOLO en español latinoamericano, natural y breve. Nunca en inglés. "
+    else:
+        directive = "IMPORTANT: speak ONLY in English, natural and brief. "
+    persona = (directive + " ".join(str(raw_persona).split()))[:200]
+    bridge = MoshiBridge(
+        realtime["base_url"],
+        realtime.get("api_key"),
+        voice=pp_voice,
+        text_prompt=persona,
+        on_transcript=collect,
+    )
+    return Pipeline([transport.input(), bridge, transport.output()]), None
 
 
 if __name__ == "__main__":

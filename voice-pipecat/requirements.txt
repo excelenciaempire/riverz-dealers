@@ -5,7 +5,11 @@
 # `main` verificada el 2026-07-25 (services en pipecat.services.<vendor>.<type>,
 # VAD en LLMUserAggregatorParams, PipelineTask/PipelineRunner clásicos). Fija la
 # versión EXACTA que coincida con esa API antes de desplegar en serio.
-pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,cartesia,silero]>=0.0.100
+# Extras = un proveedor por capa. El admin (/admin/voz) permite intercambiarlos.
+# Si algún extra no existe en tu versión de pipecat, el build de pip falla → quitar
+# ese extra (la fábrica del worker cae al default igual). Sin Google/OpenAI estaba
+# antes; ahora se incluyen a pedido (openai, google).
+pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,cartesia,silero,openai,google,aws,groq,rime,playht]>=0.0.100
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
