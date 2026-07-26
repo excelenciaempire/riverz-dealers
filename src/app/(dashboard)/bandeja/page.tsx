@@ -656,16 +656,20 @@ export default function InboxPage() {
 
   // Switching tab clears any channel filter that no longer applies, so
   // the user doesn't get an empty list because a stale chip is still
-  // restricting results.
+  // restricting results. También cierra la conversación abierta: al pasar de
+  // Mensajes a Comentarios (o al revés) el hilo activo ya no pertenece a la
+  // pestaña que se está mirando, así que quedaría abierto sin estar en la lista.
   const handleTabChange = useCallback(
     (next: InboxTab) => {
+      if (next === inboxTab) return;
       setInboxTab(next);
       setMlKindFilter("all");
       if (channelFilter && !channelBelongsToTab(channelFilter, next)) {
         setChannelFilter(null);
       }
+      if (activeConversation) handleCloseConversation();
     },
-    [channelFilter],
+    [inboxTab, channelFilter, activeConversation, handleCloseConversation],
   );
 
   return (
