@@ -76,14 +76,16 @@ app = modal.App(APP_NAME)
     secrets=[hf_secret],
     # PRODUCCIÓN (recepcionista/entrantes): GPU SIEMPRE caliente. Sin esto, el
     # arranque en frío del 7B (~12s) + carga de voz da dead air al atender.
-    # min_containers=2: REDUNDANCIA ante preemption. Modal puede DESALOJAR un
-    # contenedor a media llamada (visto en logs cada ~3min con A100-80GB); con 2
-    # calientes, el supervisor del bridge reconecta al sano y el audio se reanuda
-    # en vez de quedar mudo. Costo: ~2x GPU caliente 24/7 — bajar a 1 tras validar.
-    min_containers=2,
-    # Ventana amplia de inactividad: mantené el contenedor (y la voz precargada
-    # en memoria) vivo entre llamadas.
-    scaledown_window=1800,
+    # min_containers=0: SCALE-TO-ZERO. PersonaPlex ya quedó validado (habla en
+    # llamada real); tener A100-80GB caliente 24/7 cuesta ~$1.800/mo POR contenedor
+    # aunque no haya llamadas. En cero no se paga nada estando ocioso. Costo:
+    # cold-start (~40-60s: carga del 7B + voz) en la PRIMERA llamada tras inactividad
+    # → para pruebas lo pre-calentamos antes de marcar; para un recepcionista EN VIVO
+    # subir a min_containers=1 (siempre listo, ~$1.800/mo).
+    min_containers=0,
+    # Ventana corta: apagar el contenedor pronto tras la última llamada (menos costo
+    # ocioso). Subir si hacés muchas llamadas seguidas y no querés recalentar.
+    scaledown_window=300,
     timeout=86400,         # caps WS/call lifetime (max 24h). Lower to your max call length.
 )
 # max_inputs=1: moshi.server serializa el chat con un lock (server.py:114/259),
