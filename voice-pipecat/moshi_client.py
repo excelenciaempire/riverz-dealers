@@ -80,8 +80,17 @@ class MoshiClient:
         logger.info("moshi: conectando a %s", url.split("?")[0])
         # compression=None: el server de moshi es aiohttp; permessage-deflate del
         # cliente `websockets` puede romper la entrega de frames binarios (Opus).
+        # ping_interval/timeout bajos: el contenedor de Modal puede ser DESALOJADO
+        # (preemption) a media llamada y dejar el socket medio-abierto. Con el ping
+        # por defecto (20s) una llamada corta nunca detecta al peer muerto → audio
+        # a la nada. Con 5s, la caída se detecta en ~5-8s y el supervisor reconecta.
         self._ws = await websockets.connect(
-            url, max_size=None, open_timeout=timeout, compression=None
+            url,
+            max_size=None,
+            open_timeout=timeout,
+            compression=None,
+            ping_interval=5,
+            ping_timeout=8,
         )
         # El servidor envía el byte de handshake antes del loop de audio.
         try:

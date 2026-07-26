@@ -60,8 +60,8 @@ class MoshiBridge(FrameProcessor):
         self._text_prompt = text_prompt
         self._on_transcript = on_transcript
         self._client: MoshiClient | None = None
-        self._recv_task: asyncio.Task | None = None
-        self._start_task: asyncio.Task | None = None
+        self._supervisor_task: asyncio.Task | None = None
+        self._active = False
         self._up = create_stream_resampler()   # entrada  pipeline_rate -> 24k
         self._down = create_stream_resampler()  # salida   24k -> out_rate
         self._out_rate = 8000
@@ -82,7 +82,8 @@ class MoshiBridge(FrameProcessor):
             # moshi en segundo plano; si bloqueáramos aquí, el transport de
             # salida nunca recibe StartFrame.
             await self.push_frame(frame, direction)
-            self._start_task = asyncio.create_task(self._start())
+            self._active = True
+            self._supervisor_task = asyncio.create_task(self._supervise())
         elif isinstance(frame, (EndFrame, CancelFrame)):
             await self._stop()
             await self.push_frame(frame, direction)
@@ -92,19 +93,44 @@ class MoshiBridge(FrameProcessor):
         else:
             await self.push_frame(frame, direction)
 
-    async def _start(self) -> None:
-        try:
-            self._client = MoshiClient(
-                self._url, self._auth, voice=self._voice, text_prompt=self._text_prompt
-            )
-            await self._client.connect()
-            self._recv_task = asyncio.create_task(
-                self._client.recv_loop(self._emit_audio, self._emit_text)
-            )
-            logger.info("MoshiBridge activo (voice=%s out_rate=%d)", self._voice, self._out_rate)
-        except Exception as e:
-            logger.error("MoshiBridge no pudo conectar a moshi: %s", e)
-            self._client = None
+    async def _supervise(self) -> None:
+        """Mantiene viva la conexión a moshi durante toda la llamada. Modal puede
+        DESALOJAR (preemption) el contenedor a media llamada; cuando el WS cae,
+        recv_loop retorna → reconectamos a otro contenedor caliente (min_containers
+        >= 2) y el audio se reanuda en ~pocos segundos, en vez de quedar mudo.
+        Se pierde el estado conversacional de moshi al reconectar (es full-duplex
+        stateful), aceptable para un recepcionista: mejor que dead air."""
+        attempt = 0
+        while self._active:
+            try:
+                self._client = MoshiClient(
+                    self._url, self._auth, voice=self._voice, text_prompt=self._text_prompt
+                )
+                await self._client.connect()
+                logger.info(
+                    "MoshiBridge activo (voice=%s out_rate=%d intento=%d)",
+                    self._voice, self._out_rate, attempt,
+                )
+                attempt = 0
+                # recv_loop bloquea hasta que el WS se cierra (o el peer muere y el
+                # ping lo detecta). Cuando retorna, la conexión ya no sirve.
+                await self._client.recv_loop(self._emit_audio, self._emit_text)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                logger.error("MoshiBridge conexión a moshi falló: %s", e)
+            finally:
+                if self._client:
+                    await self._client.close()
+                    self._client = None
+            if not self._active:
+                break
+            attempt += 1
+            if attempt > 8:
+                logger.error("MoshiBridge: demasiados reintentos a moshi; me rindo")
+                break
+            logger.warning("MoshiBridge: moshi caído; reconectando (intento %d)…", attempt)
+            await asyncio.sleep(min(0.4 * attempt, 2.0))
 
     async def _forward_input(self, frame: InputAudioRawFrame) -> None:
         if not self._client:
@@ -150,9 +176,10 @@ class MoshiBridge(FrameProcessor):
                 pass
 
     async def _stop(self) -> None:
-        if self._recv_task:
-            self._recv_task.cancel()
-            self._recv_task = None
+        self._active = False
+        if self._supervisor_task:
+            self._supervisor_task.cancel()
+            self._supervisor_task = None
         if self._client:
             await self._client.close()
             self._client = None

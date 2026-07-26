@@ -76,7 +76,11 @@ app = modal.App(APP_NAME)
     secrets=[hf_secret],
     # PRODUCCIÓN (recepcionista/entrantes): GPU SIEMPRE caliente. Sin esto, el
     # arranque en frío del 7B (~12s) + carga de voz da dead air al atender.
-    min_containers=1,
+    # min_containers=2: REDUNDANCIA ante preemption. Modal puede DESALOJAR un
+    # contenedor a media llamada (visto en logs cada ~3min con A100-80GB); con 2
+    # calientes, el supervisor del bridge reconecta al sano y el audio se reanuda
+    # en vez de quedar mudo. Costo: ~2x GPU caliente 24/7 — bajar a 1 tras validar.
+    min_containers=2,
     # Ventana amplia de inactividad: mantené el contenedor (y la voz precargada
     # en memoria) vivo entre llamadas.
     scaledown_window=1800,
