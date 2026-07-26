@@ -4,10 +4,10 @@ import type { Namespace } from "./types";
 export const igAgent = {
   // Page header
   eyebrow: { es: "Marketing con IA", en: "AI marketing" },
-  title: { es: "Instagram 1:1", en: "Instagram 1:1" },
+  title: { es: "Ventas por Instagram", en: "Instagram Sales" },
   subtitle: {
-    es: "Describe un objetivo y el agente diseña una campaña de DMs 1:1 — audiencia, copy y oferta — lista para revisar y lanzar.",
-    en: "Describe a goal and the agent designs a 1:1 DM campaign — audience, copy and offer — ready to review and launch.",
+    es: "Describe un objetivo y tu agente sale a buscar a quién venderle: audiencia, mensaje y oferta, listos para revisar y lanzar.",
+    en: "Describe a goal and your agent goes out to find who to sell to: audience, message and offer, ready to review and launch.",
   },
 
   // Goal box
@@ -92,8 +92,8 @@ export const igAgent = {
     en: "Filtering comments and story replies…",
   },
   thinkingDraftDm: {
-    es: "Redactando el DM 1:1 en tu voz de marca…",
-    en: "Drafting the 1:1 DM in your brand voice…",
+    es: "Redactando el DM en tu voz de marca…",
+    en: "Drafting the DM in your brand voice…",
   },
   thinkingComputeFunnel: {
     es: "Calculando el embudo y la oferta…",
@@ -117,8 +117,8 @@ export const igAgent = {
   instagramDm: { es: "DM de Instagram", en: "Instagram DM" },
   offerCodeLabel: { es: "Código", en: "Code" },
   dmBaseNote: {
-    es: "Este es el DM base. Al enviarse, el agente lo reescribe 1:1 para cada persona en tu voz de marca, respondiendo a su interacción y con su propio código de descuento. Vista previa con “{name}”.",
-    en: "This is the base DM. When sent, the agent rewrites it 1:1 for each person in your brand voice, responding to their interaction and with their own discount code. Preview with “{name}”.",
+    es: "Este es el DM base. Al enviarse, el agente lo reescribe para cada persona en tu voz de marca, respondiendo a su interacción y con su propio código de descuento. Vista previa con “{name}”.",
+    en: "This is the base DM. When sent, the agent rewrites it for each person in your brand voice, responding to their interaction and with their own discount code. Preview with “{name}”.",
   },
   followUpIfNoReply: {
     es: "Seguimiento si no responden",
@@ -298,7 +298,7 @@ export const igAgent = {
   errorNetwork: { es: "Error de red", en: "Network error" },
 
   // Campaign detail — header
-  backToAgent: { es: "Agente de Instagram", en: "Instagram Agent" },
+  backToAgent: { es: "Ventas por Instagram", en: "Instagram Sales" },
   instagramCampaign: { es: "Campaña de Instagram", en: "Instagram campaign" },
   campaignNotFound: { es: "Campaña no encontrada.", en: "Campaign not found." },
   errorLoadCampaign: {

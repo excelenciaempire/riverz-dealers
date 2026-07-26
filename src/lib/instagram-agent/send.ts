@@ -240,6 +240,7 @@ export async function sendCampaignBatch(
         name: contact.name,
         engagement: inbound.text,
         personaHint: profile?.persona_hint ?? null,
+        openerHint: profile?.opener_hint ?? null,
         followsBusiness: profile?.follows_business ?? null,
         isVerified: profile?.is_verified ?? null,
         segment,

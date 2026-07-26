@@ -20,7 +20,7 @@ export const nav = {
   campaigns: { es: "Campañas", en: "Campaigns" },
   automations: { es: "Automatizaciones", en: "Automations" },
   templates: { es: "Plantillas", en: "Templates" },
-  instagramAgent: { es: "Instagram 1:1", en: "Instagram 1:1" },
+  instagramAgent: { es: "Ventas por Instagram", en: "Instagram Sales" },
   products: { es: "Productos", en: "Products" },
   orders: { es: "Pedidos", en: "Orders" },
   metrics: { es: "Métricas", en: "Metrics" },

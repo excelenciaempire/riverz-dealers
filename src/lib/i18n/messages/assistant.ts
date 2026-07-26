@@ -292,14 +292,14 @@ export const assistant = {
     en: 'Respects business hours and "don\'t reply when an agent is assigned". Only applies to WhatsApp, Instagram, and Messenger.',
   },
 
-  // Proactive Instagram DM automation level (Instagram 1:1)
+  // Proactive Instagram DM automation level (Ventas por Instagram)
   proactiveModeTitle: {
     es: "DMs proactivos de Instagram",
     en: "Proactive Instagram DMs",
   },
   proactiveModeHint: {
-    es: "Cuánto se automatiza el alcance 1:1 por Instagram (comentario→DM y campañas). Siempre dentro de las políticas de Meta.",
-    en: "How much of the 1:1 Instagram outreach (comment→DM and campaigns) runs automatically. Always within Meta policy.",
+    es: "Cuánto sale solo por Instagram (comentario→DM y campañas). Siempre dentro de las políticas de Meta.",
+    en: "How much of the Instagram outreach (comment→DM and campaigns) goes out on its own. Always within Meta policy.",
   },
   proactiveModeAuto: {
     es: "Automático — envía solo (con opt-out y ventana de 24 h)",
@@ -314,8 +314,8 @@ export const assistant = {
     en: "Approval — every DM waits for your go-ahead",
   },
   proactiveModeFootnote: {
-    es: "Los DMs en revisión aparecen en Instagram 1:1 para aprobarlos o editarlos antes de enviar.",
-    en: "DMs awaiting review appear in Instagram 1:1 to approve or edit before sending.",
+    es: "Los DMs en revisión aparecen en Ventas por Instagram para aprobarlos o editarlos antes de enviar.",
+    en: "DMs awaiting review appear in Instagram Sales to approve or edit before sending.",
   },
 
   // Advanced: sales close

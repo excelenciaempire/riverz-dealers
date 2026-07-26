@@ -12,10 +12,16 @@ export function personalize(template: string, name: string | null): string {
   return template.replace(/\{\{\s*(nombre|name|1)\s*\}\}/gi, first);
 }
 
-const DM_SYSTEM = `Eres el redactor de DMs de Instagram de una marca B2C. Escribes UN solo DM dirigido a una persona concreta, que suena a un humano real escribiendo por Instagram, NO a una plantilla.
+const DM_SYSTEM = `Eres el redactor de DMs de Instagram de una marca B2C. Escribes UN solo DM a una persona concreta.
+
+Lo primero: NO estás vendiendo en frío, estás INICIANDO UNA CONVERSACIÓN. Escribe como le escribirías a alguien que te cae bien: primero la persona, después —y solo si encaja— la marca. Un DM que abre vendiendo se ignora; uno que abre por algo suyo, se responde.
 
 Reglas (estrictas):
 - Máximo 480 caracteres.
+- ABRE por algo de ELLA: lo que comentó, o el GANCHO de su perfil si te lo damos ("acaba de volver de la playa" → "¿qué tal la playa?"). Natural, como quien comenta entre conocidos.
+- Nunca digas de dónde sacaste el gancho, ni "vi tu perfil/tus fotos/tus posts". Se menciona como se menciona algo que uno vio pasar, sin explicarlo.
+- El gancho es una suposición, no un hecho: pregunta ("¿te fuiste de viaje?"), no afirmes ("como estuviste en Cancún…"). Si no encaja con naturalidad, ignóralo y abre por lo que dijo.
+- La marca entra DESPUÉS del gancho, en una sola frase, y solo si viene a cuento. Si no viene a cuento, cierra con una pregunta y ya: la venta es la siguiente conversación, no esta.
 - Responde de forma natural a la interacción que tuvo la persona (su comentario/historia/DM). Engánchate a lo que dijo.
 - Usa la VOZ DE MARCA y el tono dados. Nunca suenes a chatbot ni admitas ser IA.
 - Emojis con moderación (0 a 2).
@@ -24,7 +30,7 @@ Reglas (estrictas):
 - No inventes productos, precios ni promesas que no estén en el contexto.
 - DATOS QUE NO TIENES: si preguntan por registros o aprobaciones sanitarias (ANMAT, INVIMA, FDA…), contraindicaciones, ingredientes, plazos de envío o garantías que NO estén literalmente en el contexto, NO lo afirmes ni lo niegues. Di que lo confirmas y ofrece la respuesta por aquí. Inventar un dato regulatorio o de salud es la peor falta posible.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
-- NUNCA digas ni insinúes que revisaste su perfil, sus fotos o sus datos; suena a vigilancia. Usa cualquier pista solo para calibrar el tono, no la menciones.
+- La PISTA DE PERFIL (intereses generales) NO se menciona nunca: solo calibra el tono. El GANCHO sí puede mencionarse, con la naturalidad de arriba. Nunca cites datos suyos (seguidores, si te sigue, ubicación) ni des a entender que lo investigaste.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
 - Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.`;
 
@@ -41,6 +47,8 @@ export interface CraftDMInput {
   engagement: string | null;
   /** Pista de interés no sensible derivada de su foto de perfil (o null). */
   personaHint?: string | null;
+  /** Gancho concreto y reciente de su perfil público con el que ABRIR. */
+  openerHint?: string | null;
   /** Relación de audiencia propia: ¿ya te sigue? */
   followsBusiness?: boolean | null;
   /** ¿Cuenta verificada / figura pública? */
@@ -145,7 +153,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
   // Also skip when no provider at all is configured (Anthropic or a fallback).
   if (
     !hasLlm(input.apiKey) ||
-    (!brief && !input.engagement && !input.personaHint)
+    (!brief && !input.engagement && !input.personaHint && !input.openerHint)
   )
     return fallback();
 
@@ -171,8 +179,11 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     `- Su interacción reciente (respóndele a esto de forma personal): ${
       input.engagement ? `"${input.engagement.slice(0, 400).replace(/\s+/g, ' ').trim()}"` : '(sin texto, sé cálido y genérico)'
     }`,
+    input.openerHint
+      ? `- GANCHO PARA ABRIR (algo suyo, público y reciente): ${input.openerHint}. Ábrele por aquí de forma natural y en tono de pregunta; si no encaja, ignóralo.`
+      : '',
     input.personaHint
-      ? `- Pista de perfil (SOLO para calibrar el tono; NO afirmes hechos sobre su vida ni digas que viste su perfil): ${input.personaHint}`
+      ? `- Pista de perfil (SOLO para calibrar el tono; NO la menciones ni afirmes hechos sobre su vida): ${input.personaHint}`
       : '',
     '',
     'Escribe el DM para ESTA persona.',

@@ -189,6 +189,8 @@ export interface IgProfileEnrichment {
   is_verified: boolean | null;
   follows_business: boolean | null;
   persona_hint: string | null;
+  /** Gancho concreto y reciente de su perfil público con el que abrir. */
+  opener_hint?: string | null;
 }
 
 /** Load a contact's Instagram enrichment for segmentation + DM personalization. */
@@ -198,7 +200,9 @@ export async function loadIgProfile(
 ): Promise<IgProfileEnrichment | null> {
   const { data } = await db
     .from('contact_ig_profile')
-    .select('follower_count, is_verified, follows_business, persona_hint, external_hint')
+    .select(
+      'follower_count, is_verified, follows_business, persona_hint, external_hint, opener_hint',
+    )
     .eq('contact_id', contactId)
     .maybeSingle();
   if (!data) return null;
@@ -215,5 +219,6 @@ export async function loadIgProfile(
     is_verified: d.is_verified,
     follows_business: d.follows_business,
     persona_hint,
+    opener_hint: d.opener_hint ?? null,
   };
 }

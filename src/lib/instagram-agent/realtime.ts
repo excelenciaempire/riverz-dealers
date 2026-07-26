@@ -296,6 +296,7 @@ export async function maybeInstantOutreach(
   });
   const personaFields = {
     personaHint: profile?.persona_hint ?? null,
+    openerHint: profile?.opener_hint ?? null,
     followsBusiness: profile?.follows_business ?? null,
     isVerified: profile?.is_verified ?? null,
     segment,
@@ -625,6 +626,7 @@ async function autonomousCommentReply(
     name: opts.contact.name,
     engagement,
     personaHint: profile?.persona_hint ?? null,
+    openerHint: profile?.opener_hint ?? null,
     followsBusiness: profile?.follows_business ?? null,
     isVerified: profile?.is_verified ?? null,
     segment,

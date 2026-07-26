@@ -52,6 +52,22 @@ NUNCA menciones ni supongas edad, género, etnia, raza, religión, salud, cuerpo
 Si no hay señal útil, responde exactamente: null
 Máximo 22 palabras, en español, sin comillas.`;
 
+/**
+ * El gancho para ABRIR: no una categoría de interés, sino UNA cosa concreta y
+ * reciente que la persona publicó y sobre la que cualquiera comentaría de forma
+ * natural. Es lo que convierte un DM de venta en una conversación.
+ */
+const OPENER_SYSTEM = `De los posts PÚBLICOS recientes de una persona en Instagram, eliges UNA sola cosa concreta con la que un humano abriría una conversación natural.
+
+Reglas:
+- Que sea algo que ELLA publicó y quiso mostrar: un viaje, una mascota, una receta, una carrera, un logro, una mudanza, un concierto.
+- Concreto y reciente, no una categoría. Bien: "acaba de volver de un viaje a la playa". Mal: "le gustan los viajes".
+- NADA sensible ni deducido: nunca edad, género, etnia, religión, salud, cuerpo, orientación, política, dinero, ni hijos.
+- Nada incómodo de que te lo mencione un desconocido: si dudas, responde null.
+- Nada de rupturas, duelos, enfermedades, problemas ni quejas.
+- Si no hay nada claro, reciente y agradable, responde exactamente: null
+Máximo 14 palabras, en español, en tercera persona, sin comillas.`;
+
 function isPrivate(p: ApifyProfile): boolean {
   return p.private === true || p.isPrivate === true;
 }
@@ -142,10 +158,42 @@ async function analyze(p: ApifyProfile): Promise<string | null> {
   }
 }
 
+/** El gancho concreto para abrir (solo texto: nace de lo que ella publicó). */
+async function findOpener(p: ApifyProfile): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY ?? null;
+  if (!hasLlm(key)) return null;
+  const captions = postsOf(p)
+    .map((x) => x.caption)
+    .filter(Boolean)
+    .slice(0, 4)
+    .join('\n---\n')
+    .slice(0, 1200);
+  if (!captions.trim()) return null;
+  try {
+    const out = await completeText({
+      // Este texto se le dice a la persona en la primera línea: si el modelo se
+      // equivoca de tono, quedamos como intrusos. Vale el modelo bueno.
+      tier: 'premium',
+      system: OPENER_SYSTEM,
+      user: `Posts recientes:\n${captions}\n\nDa el gancho, o null.`,
+      maxTokens: 60,
+      anthropicKey: key,
+      effort: 'low',
+    });
+    return clean(out);
+  } catch {
+    return null;
+  }
+}
+
 async function mark(
   db: SupabaseClient,
   contactId: string,
-  fields: { external_hint: string | null; is_public: boolean | null },
+  fields: {
+    external_hint: string | null;
+    is_public: boolean | null;
+    opener_hint?: string | null;
+  },
 ): Promise<void> {
   await db.from('contact_ig_profile').upsert(
     {
@@ -180,8 +228,12 @@ export async function enrichExternalProfile(
       await mark(db, opts.contactId, { external_hint: null, is_public: false });
       return 'private';
     }
-    const hint = await analyze(p);
-    await mark(db, opts.contactId, { external_hint: hint, is_public: true });
+    const [hint, opener] = await Promise.all([analyze(p), findOpener(p)]);
+    await mark(db, opts.contactId, {
+      external_hint: hint,
+      opener_hint: opener,
+      is_public: true,
+    });
     return 'enriched';
   } catch {
     return 'failed';
