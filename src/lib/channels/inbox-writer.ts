@@ -539,14 +539,23 @@ async function upsertContact(
     return (updated as Contact) ?? e;
   }
 
+  // La misma persona vive en dos filas: la del comentario (que sí trae
+  // @usuario) y la del DM (que Meta entrega sin nombre). Cuando abrimos la del
+  // DM, heredamos el nombre de su hermana en vez de dejar el hilo como
+  // "Cliente Instagram · …9033".
+  const inherited =
+    !input.name && (input.channel === "instagram" || input.channel === "messenger")
+      ? await siblingCommentIdentity(db, input)
+      : null;
+
   const { data: created, error } = await db
     .from("contacts")
     .insert({
       workspace_id: input.workspace_id,
       channel: input.channel,
       external_id: input.external_id,
-      name: input.name,
-      avatar_url: input.avatar_url,
+      name: input.name ?? inherited?.name ?? null,
+      avatar_url: input.avatar_url ?? inherited?.avatar_url ?? null,
       email: input.email,
       phone: input.phone,
       ...(input.created_at ? { created_at: input.created_at } : {}),
@@ -558,6 +567,28 @@ async function upsertContact(
     return null;
   }
   return created as Contact;
+}
+
+/**
+ * Nombre y foto que ya conocemos de esta persona por el canal de comentarios
+ * (mismo workspace, mismo id de Instagram/Facebook). Devuelve null si no hay
+ * hermana o si tampoco tiene nombre.
+ */
+async function siblingCommentIdentity(
+  db: SupabaseClient,
+  input: UpsertContactInput,
+): Promise<{ name: string | null; avatar_url: string | null } | null> {
+  const sibling = input.channel === "instagram" ? "ig_comment" : "fb_comment";
+  const { data } = await db
+    .from("contacts")
+    .select("name, avatar_url")
+    .eq("workspace_id", input.workspace_id)
+    .eq("channel", sibling)
+    .eq("external_id", input.external_id)
+    .not("name", "is", null)
+    .limit(1)
+    .maybeSingle();
+  return (data as { name: string | null; avatar_url: string | null } | null) ?? null;
 }
 
 interface FindOrCreateConversationInput {

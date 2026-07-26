@@ -10,6 +10,7 @@ import { craftPersonalizedDM } from './personalize-dm';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment, type LeadScore } from './segment';
 import { proactiveGate, logProactiveSend } from './controls';
+import { loadStoreLinks } from './store-links';
 import { recordProactiveDm } from './record-dm';
 import { resolveIgAgent, needsApproval } from './agent-link';
 import {
@@ -135,6 +136,13 @@ export async function sendCampaignBatch(
   // Brand voice + knowledge once per batch, from the SAME linked agent that
   // answers reactively, so every DM sounds on-brand and consistent.
   const brand = await loadBrandContext(db, campaign.workspace_id, campaign.ai_agent_id ?? null);
+  // Enlaces reales de la tienda, una vez por tanda: sin ellos el modelo
+  // escribía "[enlace de la tienda web]" y eso llegaba al cliente.
+  const links = await loadStoreLinks(
+    db,
+    campaign.workspace_id,
+    campaign.plan.recommended_products,
+  );
   const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
   const offer = campaign.plan.offer
     ? { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount }
@@ -225,6 +233,7 @@ export async function sendCampaignBatch(
         apiKey,
         base: campaign.plan.message.text,
         brand,
+        links,
         goal: campaign.goal ?? null,
         offer: recipientOffer,
         products: campaign.plan.recommended_products,

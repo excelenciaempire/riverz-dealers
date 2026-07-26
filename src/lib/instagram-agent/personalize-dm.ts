@@ -1,5 +1,6 @@
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { brandBrief, type BrandContext } from './brand-context';
+import { linksBrief, type StoreLinks } from './store-links';
 
 /**
  * Replace the name token in a base message with the contact's first name
@@ -21,6 +22,7 @@ Reglas (estrictas):
 - UNA sola llamada a la acción clara.
 - Si hay un código de descuento, inclúyelo tal cual.
 - No inventes productos, precios ni promesas que no estén en el contexto.
+- ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
 - NUNCA digas ni insinúes que revisaste su perfil, sus fotos o sus datos; suena a vigilancia. Usa cualquier pista solo para calibrar el tono, no la menciones.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
 - Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.`;
@@ -44,6 +46,36 @@ export interface CraftDMInput {
   isVerified?: boolean | null;
   /** Clase de público (tono + oferta por segmento). */
   segment?: { label: string; toneHint: string; offerHint: string } | null;
+  /** Enlaces reales de la tienda (evita los "[enlace de la tienda]"). */
+  links?: StoreLinks | null;
+}
+
+/** Marcador de enlace: "[enlace de la tienda]", "(link aquí)", "[url]"… */
+const LINK_PLACEHOLDER =
+  /[[(]\s*(?:el\s+|tu\s+|su\s+)?(?:enlace|link|url|sitio|tienda)\b[^\])]*[\])]/gi;
+
+/**
+ * Última red: si el modelo igual dejó un marcador de enlace, lo cambiamos por
+ * el enlace real; si no hay ninguno, lo quitamos y la frase queda limpia en vez
+ * de llegarle al cliente un "[enlace de la tienda web]".
+ */
+export function stripLinkPlaceholders(
+  text: string,
+  links: StoreLinks | null,
+): string {
+  const real = links?.products[0]?.url ?? links?.storeUrl ?? null;
+  if (!LINK_PLACEHOLDER.test(text)) {
+    LINK_PLACEHOLDER.lastIndex = 0;
+    return text;
+  }
+  LINK_PLACEHOLDER.lastIndex = 0;
+  const replaced = real
+    ? text.replace(LINK_PLACEHOLDER, real)
+    : text
+        .replace(LINK_PLACEHOLDER, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([.,!?])/g, '$1');
+  return replaced.trim();
 }
 
 /**
@@ -80,6 +112,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     input.goal ? `OBJETIVO DE LA CAMPAÑA:\n${input.goal}` : '',
     `MENSAJE BASE (referencia de intención y tono, NO lo copies literal):\n${input.base}`,
     input.products?.length ? `PRODUCTOS A DESTACAR: ${input.products.join(', ')}` : '',
+    linksBrief(input.links ?? null),
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',
@@ -116,6 +149,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     // Strip wrapping quotes the model sometimes adds, and any stray token.
     text = text.replace(/^["'“”]|["'“”]$/g, '').trim();
     text = personalize(text, input.name); // resolve any {{nombre}} it echoed
+    text = stripLinkPlaceholders(text, input.links ?? null);
     if (!text) return fallback();
     // IG DM hard limit is 1000 chars; keep margin.
     return text.slice(0, 950);

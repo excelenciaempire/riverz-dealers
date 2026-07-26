@@ -14,6 +14,7 @@ import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { proactiveGate, logProactiveSend } from './controls';
 import { recordProactiveDm } from './record-dm';
+import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
   getShopifyAdmin,
@@ -237,6 +238,13 @@ export async function maybeInstantOutreach(
   // linked agent, so proactive copy matches the reactive assistant.
   const agent = await resolveIgAgent(db, opts.workspaceId, campaign.ai_agent_id);
   const brand = await loadBrandContext(db, opts.workspaceId, agent.id);
+  // Enlaces reales de la tienda: sin ellos el modelo escribía marcadores tipo
+  // "[enlace de la tienda web]" y le llegaban así al cliente.
+  const links = await loadStoreLinks(
+    db,
+    opts.workspaceId,
+    campaign.plan.recommended_products,
+  );
 
   // Who they are → segment → tailored tone/offer. Comment-only contacts aren't
   // Profile-API-eligible yet, so profile is usually null here (segment falls
@@ -263,6 +271,7 @@ export async function maybeInstantOutreach(
       base: campaign.plan.message.text,
       brand,
       goal: campaign.goal,
+      links,
       offer: offerFrom(campaign),
       products: campaign.plan.recommended_products,
       name: opts.contact.name,
@@ -348,6 +357,7 @@ export async function maybeInstantOutreach(
     base: campaign.plan.message.text,
     brand,
     goal: campaign.goal,
+    links,
     offer,
     products: campaign.plan.recommended_products,
     name: opts.contact.name,
@@ -399,7 +409,8 @@ const CLOSE_SYSTEM = `Eres un vendedor por DM de Instagram de una marca B2C. La 
 Reglas:
 - Responde su pregunta u objeción de forma concreta.
 - Recomienda el producto correcto del contexto (no inventes nada fuera de él).
-- Cierra con su código de descuento (si lo hay) y un siguiente paso claro (el link o "te paso el link").
+- Cierra con su código de descuento (si lo hay) y un siguiente paso claro.
+- ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. PROHIBIDO escribir marcadores tipo "[enlace]" o URLs inventadas; si no hay enlace, invita a seguir por aquí.
 - Voz de marca, cálido, natural. Nunca admitas ser IA.
 - Nunca digas ni insinúes que revisaste su perfil o sus fotos; usa cualquier pista solo para el tono. Adapta tono y oferta al segmento.
 - Máximo 480 caracteres, 0 a 2 emojis, UNA sola llamada a la acción.
@@ -417,6 +428,7 @@ async function generateCloserReply(input: {
   personaHint?: string | null;
   followsBusiness?: boolean | null;
   segment?: { label: string; toneHint: string; offerHint: string } | null;
+  links?: StoreLinks | null;
 }): Promise<string | null> {
   const first = (input.name ?? '').trim().split(/\s+/)[0] || null;
   const userPrompt = [
@@ -425,6 +437,7 @@ async function generateCloserReply(input: {
     input.plan.recommended_products.length
       ? `PRODUCTOS: ${input.plan.recommended_products.join(', ')}`
       : '',
+    linksBrief(input.links ?? null),
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',
@@ -605,6 +618,7 @@ export async function maybeRunCloser(
     plan,
     brand,
     goal: camp.goal,
+    links: await loadStoreLinks(db, opts.workspaceId, plan.recommended_products),
     offer,
     name: opts.contact.name,
     inbound: opts.inboundText,
