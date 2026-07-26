@@ -12,7 +12,6 @@ import {
   TrendingUp,
   CornerDownRight,
   ShoppingBag,
-  RefreshCw,
   Wand2,
   Radio,
   Save,
@@ -21,9 +20,6 @@ import {
   Send,
   Receipt,
   Rocket,
-  Bot,
-  ArrowRight,
-  SlidersHorizontal,
   AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -90,7 +86,10 @@ export function OutreachSection() {
   const [plan, setPlan] = useState<InstagramPlan | null>(null);
   const [context, setContext] = useState<PlanContext | null>(null);
   const [saving, setSaving] = useState<'draft' | 'launch' | null>(null);
-  const [holdoutPct, setHoldoutPct] = useState(10);
+  // Grupo de control fijo: 10% de la audiencia no recibe DM, para poder medir
+  // qué habría pasado sin el agente. Es estadística, no una decisión que el
+  // comercio deba tomar, así que no se pregunta.
+  const holdoutPct = 10;
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const settings = useProactiveSettings();
 
@@ -245,13 +244,10 @@ export function OutreachSection() {
   const busy = saving !== null;
 
   return (
-    <div className="space-y-3">
-      <SectionHead
-        title={t('igAgent.blockOutreachTitle')}
-        hint={t('igAgent.blockOutreachHint')}
-        aside={<ReachChip context={context} />}
-      />
-
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ReachChip context={context} />
+      </div>
 
         <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
           {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
@@ -274,9 +270,7 @@ export function OutreachSection() {
             />
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-              <span className="text-[11px] text-muted-foreground">
-                {t('igAgent.generateHint')}
-              </span>
+              <span />
               <Button size="lg" onClick={generate} disabled={loading}>
                 {loading ? (
                   <>
@@ -414,9 +408,6 @@ export function OutreachSection() {
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-[10px] text-muted-foreground">
-                {t('igAgent.dmBaseNote', { name: plan.message.preview_name })}
-              </p>
 
               {/* Follow-up */}
               <div className="mt-4">
@@ -441,9 +432,6 @@ export function OutreachSection() {
                   </p>
                   <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
                     {plan.comment_reply}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    {t('igAgent.commentToDmNote')}
                   </p>
                 </div>
               )}
@@ -511,25 +499,6 @@ export function OutreachSection() {
 
           {/* Acciones — una sola fila, con la acción principal a la derecha */}
           <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
-            <label className="mr-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span>{t('igAgent.holdoutLabel')}</span>
-              <select
-                value={holdoutPct}
-                onChange={(e) => setHoldoutPct(Number(e.target.value))}
-                className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
-                title={t('igAgent.holdoutTitle')}
-              >
-                {[0, 5, 10, 20].map((p) => (
-                  <option key={p} value={p}>
-                    {p}%
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button variant="ghost" onClick={generate} disabled={loading || busy}>
-              <RefreshCw className="h-4 w-4" />
-              {t('igAgent.regenerate')}
-            </Button>
             <Button variant="outline" onClick={saveDraft} disabled={busy}>
               {saving === 'draft' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -903,29 +872,6 @@ export function useProactiveSettings(): ProactiveSettings {
   };
 }
 
-/** Encabezado numerado de bloque: deja claro que son tres cosas distintas. */
-export function SectionHead({
-  title,
-  hint,
-  aside,
-}: {
-  title: string;
-  hint: string;
-  aside?: React.ReactNode;
-}) {
-  return (
-    <div className="app-section-head">
-      <div className="min-w-0">
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
-        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-          {hint}
-        </p>
-      </div>
-      {aside}
-    </div>
-  );
-}
-
 /** Bloque 2 — el interruptor del piso autónomo. */
 export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
@@ -980,9 +926,6 @@ export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
         <div>
           <p className="text-[13px] font-medium text-foreground">
             {t('igAgent.limitsSection')}
-          </p>
-          <p className="mt-1 max-w-md text-[11px] leading-snug text-muted-foreground">
-            {t('igAgent.limitsHint')}
           </p>
         </div>
 
@@ -1237,9 +1180,6 @@ export function ApprovalsQueue() {
           {items.length}
         </span>
       </p>
-      <p className="text-[11px] text-muted-foreground">
-        {t('igAgent.approvalsHint')}
-      </p>
       <ul className="mt-3 space-y-3">
         {items.map((it) => (
           <ApprovalItem key={it.id} item={it} onAct={act} />
@@ -1354,13 +1294,8 @@ function FunnelStat({
  * juntos y sin nada más alrededor.
  */
 export function CommentsSection({ settings }: { settings: ProactiveSettings }) {
-  const t = useT();
   return (
     <div className="space-y-4">
-      <SectionHead
-        title={t('igAgent.blockCommentsTitle')}
-        hint={t('igAgent.blockCommentsHint')}
-      />
       <CommentAutoReply settings={settings} />
       <CommentToDmPanel />
     </div>

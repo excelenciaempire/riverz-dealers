@@ -71,8 +71,8 @@ export const igAgent = {
     en: "Start conversations automatically",
   },
   outreachEnabledHint: {
-    es: "Con una campaña activa, el agente escribe él mismo a quien encaja. Apagado, las campañas quedan quietas; los comentarios se siguen respondiendo.",
-    en: "With a live campaign, the agent messages whoever fits, on its own. Off, campaigns sit still; comments are still answered.",
+    es: "El agente escribe él mismo a quien encaja en tus campañas activas.",
+    en: "The agent messages whoever fits your live campaigns, on its own.",
   },
 
   reachableNow: { es: "contactables ahora", en: "reachable now" },
@@ -248,8 +248,8 @@ export const igAgent = {
     en: "Always answer people who ask",
   },
   autoReplyCommentsHint: {
-    es: "Aunque no haya campaña activa, el agente responde por privado a los comentarios con intención de compra. El comentario casual y el spam no reciben nada.",
-    en: "Even with no active campaign, the agent privately answers comments that show buying intent. Casual comments and spam get nothing.",
+    es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
+    en: "Only people showing buying intent. Casual comments and spam get nothing.",
   },
   modeAutoDesc: {
     es: "El agente envía solo, dentro de tus límites.",
