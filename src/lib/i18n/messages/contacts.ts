@@ -438,6 +438,19 @@ export const contacts = {
   tabActivity: { es: "Actividad", en: "Activity" },
   actEmpty: { es: "Sin actividad todavía.", en: "No activity yet." },
   actRangeAll: { es: "Todo", en: "All" },
+
+  // Filtro por señal (de dónde viene la persona / si se le puede escribir)
+  signalAll: { es: "Cualquier señal", en: "Any signal" },
+  signalReachable: {
+    es: "Contactables ahora",
+    en: "Reachable now",
+  },
+  signalStory: {
+    es: "Respondieron una historia",
+    en: "Replied to a story",
+  },
+  signalCommenters: { es: "Comentaron", en: "Commented" },
+  signalCustomers: { es: "Ya compraron", en: "Already bought" },
   actRange7: { es: "7 días", en: "7 days" },
   actRange30: { es: "30 días", en: "30 days" },
   actRange90: { es: "90 días", en: "90 days" },

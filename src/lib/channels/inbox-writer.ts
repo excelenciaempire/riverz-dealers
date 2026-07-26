@@ -245,6 +245,9 @@ export async function ingestInboundEvent(
     message_id: event.externalMessageId,
     status: event.outbound ? "sent" : "delivered",
     created_at: event.receivedAt,
+    // De qué interacción nació (respuesta a historia, mención en historia).
+    // Null en la inmensa mayoría: es un mensaje normal.
+    engagement_kind: event.engagementKind ?? null,
   };
   const { data: message, error } = await db
     .from("messages")

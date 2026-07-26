@@ -44,6 +44,11 @@ export interface InboundEvent {
   subject?: string;
   /** Plain-text message body. Always present (even if empty). */
   text: string;
+  /** De qué INTERACCIÓN nació, cuando no es un mensaje normal. Una respuesta a
+   *  una historia y una mención en una historia llegan por el mismo webhook que
+   *  un DM y quedaban indistinguibles — pero son la audiencia más caliente que
+   *  Meta permite contactar, y hay que poder segmentarlas. */
+  engagementKind?: "story_reply" | "story_mention" | null;
   /** Optional rich HTML body (email channels). */
   htmlBody?: string;
   /** Files / images / docs attached. */

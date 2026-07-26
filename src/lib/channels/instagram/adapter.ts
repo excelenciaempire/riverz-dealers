@@ -154,7 +154,13 @@ export const instagramAdapter: ChannelAdapter = {
       for (const m of messaging) {
         const sender = m.sender as { id?: string } | undefined;
         const message = m.message as
-          | { mid?: string; text?: string; is_echo?: boolean; attachments?: Array<Record<string, unknown>> }
+          | {
+              mid?: string;
+              text?: string;
+              is_echo?: boolean;
+              attachments?: Array<Record<string, unknown>>;
+              reply_to?: { story?: { id?: string; url?: string } };
+            }
           | undefined;
         if (!sender?.id) continue;
         const igPostback = m.postback as
@@ -285,11 +291,23 @@ export const instagramAdapter: ChannelAdapter = {
         // Click-to-Instagram ad context (the customer arrived from an ad).
         const igReferral =
           mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(igPostback?.referral);
+        // Respuesta a una historia NUESTRA, o mención de la marca en la SUYA:
+        // llegan como un DM cualquiera y así quedaban indistinguibles. Son la
+        // señal más caliente que Meta permite contactar — se etiquetan para
+        // poder segmentarlas después.
+        const engagementKind = message.reply_to?.story
+          ? ("story_reply" as const)
+          : (message.attachments ?? []).some(
+                (att) => String((att as { type?: string }).type ?? "") === "story_mention",
+              )
+            ? ("story_mention" as const)
+            : null;
         events.push({
           channel: "instagram",
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
+          engagementKind,
           text: composeMetaText(message.text, parsed.descriptions, parsed.media.length > 0),
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),

@@ -154,6 +154,10 @@ export default function ContactsPage() {
   const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
     'all',
   );
+  // Filtro por SEÑAL: de qué interacción viene la persona y si el agente puede
+  // escribirle ahora. Es lo que la automatización de Instagram genera, y la
+  // lista de contactos no sabía leerlo.
+  const [signal, setSignal] = useState<Signal>('all');
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -182,6 +186,16 @@ export default function ContactsPage() {
       }
     }
 
+    // Señal: resolvemos primero el conjunto que la cumple y luego acotamos,
+    // igual que con las etiquetas.
+    const signalIds = await resolveSignalIds(supabase, workspaceId, signal);
+    if (signalIds && signalIds.length === 0) {
+      setContacts([]);
+      setTotalCount(0);
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from('contacts')
       .select('*', { count: 'exact' })
@@ -191,6 +205,9 @@ export default function ContactsPage() {
 
     if (taggedIds) {
       query = query.in('id', taggedIds);
+    }
+    if (signalIds) {
+      query = query.in('id', signalIds);
     }
 
     // Date filter on created_at (Todo / 7d / 30d / 90d).
@@ -262,7 +279,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap, selectedTagIds, datePreset, workspaceId, t]);
+  }, [supabase, page, search, tagsMap, selectedTagIds, datePreset, signal, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -449,6 +466,30 @@ export default function ContactsPage() {
           </button>
         ))}
       </div>
+
+      {/* Señal (de dónde viene / si se le puede escribir ahora) */}
+      <select
+        value={signal}
+        onChange={(e) => {
+          setSignal(e.target.value as Signal);
+          setPage(0);
+        }}
+        className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
+      >
+        {(
+          [
+            ['all', 'contacts.signalAll'],
+            ['reachable', 'contacts.signalReachable'],
+            ['story', 'contacts.signalStory'],
+            ['commenters', 'contacts.signalCommenters'],
+            ['customers', 'contacts.signalCustomers'],
+          ] as const
+        ).map(([v, k]) => (
+          <option key={v} value={v}>
+            {t(k)}
+          </option>
+        ))}
+      </select>
 
       {/* Tag filter */}
       {Object.keys(tagsMap).length > 0 && (
@@ -767,4 +808,91 @@ export default function ContactsPage() {
       </Dialog>
     </div>
   );
+}
+
+/**
+ * Filtros por SEÑAL — lo que la automatización de Instagram genera y la lista
+ * de contactos no sabía leer.
+ *
+ *   reachable  — a quién puede escribirle el agente AHORA: DM abierto (24h de
+ *                Meta) o comentario de los últimos 7 días (respuesta privada).
+ *                Es el único número honesto de alcance.
+ *   story      — quien respondió o mencionó una historia: la audiencia más
+ *                caliente que Meta permite contactar.
+ *   commenters — quien llegó por un comentario, no por un DM.
+ *   customers  — quien ya compró (historial de Shopify sincronizado).
+ */
+type Signal = 'all' | 'reachable' | 'story' | 'commenters' | 'customers';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function resolveSignalIds(
+  supabase: ReturnType<typeof createClient>,
+  workspaceId: string,
+  signal: Signal,
+): Promise<string[] | null> {
+  if (signal === 'all') return null;
+
+  if (signal === 'customers') {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .not('shopify_customer_data', 'is', null)
+      .limit(5000);
+    return [...new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id))];
+  }
+
+  if (signal === 'commenters') {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .in('channel', ['ig_comment', 'fb_comment'])
+      .limit(5000);
+    return [...new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id))];
+  }
+
+  if (signal === 'story') {
+    const { data } = await supabase
+      .from('messages')
+      .select('conversations!inner(contact_id, workspace_id)')
+      .in('engagement_kind', ['story_reply', 'story_mention'])
+      .eq('conversations.workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    const rows = (data ?? []) as unknown as Array<{
+      conversations: { contact_id: string | null } | null;
+    }>;
+    return [
+      ...new Set(
+        rows.map((r) => r.conversations?.contact_id).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+  }
+
+  // reachable: la ventana de Meta abierta, por canal.
+  const since = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  const { data } = await supabase
+    .from('conversations')
+    .select('contact_id, channel, last_message_at')
+    .eq('workspace_id', workspaceId)
+    .in('channel', ['instagram', 'ig_comment'])
+    .gt('last_message_at', since)
+    .not('contact_id', 'is', null)
+    .limit(5000);
+  const now = Date.now();
+  const ids = new Set<string>();
+  for (const row of (data ?? []) as Array<{
+    contact_id: string;
+    channel: string;
+    last_message_at: string | null;
+  }>) {
+    if (!row.last_message_at) continue;
+    const age = now - new Date(row.last_message_at).getTime();
+    if (row.channel === 'instagram' ? age < DAY_MS : age < 7 * DAY_MS) {
+      ids.add(row.contact_id);
+    }
+  }
+  return [...ids];
 }
