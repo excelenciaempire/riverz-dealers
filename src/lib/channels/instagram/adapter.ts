@@ -179,6 +179,30 @@ export const instagramAdapter: ChannelAdapter = {
             });
             continue;
           }
+          // Reacción a uno de NUESTROS mensajes (el corazón que la persona
+          // deja sobre el DM). Meta la entrega en `message_reactions` —ya
+          // suscrito— pero llegaba sin `message` y se tiraba entera, así que
+          // una de las pocas interacciones que la API sí nos da person-level
+          // se perdía. Es señal de interés real: la ingerimos como el emoji en
+          // el hilo, que se entiende en cualquier idioma y no necesita UI nueva.
+          const reaction = m.reaction as
+            | { mid?: string; action?: string; emoji?: string; reaction?: string }
+            | undefined;
+          if (reaction?.action === "react") {
+            const emoji = String(reaction.emoji ?? "").trim() || "❤️";
+            senderIds.add(sender.id);
+            events.push({
+              channel: "instagram",
+              connection,
+              externalContactId: sender.id,
+              externalMessageId: `rx-${reaction.mid ?? sender.id}-${String(m.timestamp ?? "")}`,
+              text: emoji,
+              receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+              raw: m,
+            });
+            continue;
+          }
+
           const standalone =
             mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(igPostback?.referral);
           if (standalone) {
