@@ -34,10 +34,8 @@ import {
   Sun,
   BarChart3,
   PhoneCall,
-  ShieldCheck,
   MessageSquareReply,
 } from "lucide-react";
-import { isPlatformAdminClient } from "@/lib/auth/platform-admin";
 import {
   Avatar,
   AvatarFallback,
@@ -326,17 +324,9 @@ export function Sidebar({
             collapsed={collapsed}
             totalUnread={0}
           />
-          {/* Platform admin only — atajo al panel de plataforma (/admin).
-              Mostrarlo es una pista de cliente; el layout de /admin y cada
-              ruta /api/admin son la puerta real. */}
-          {isPlatformAdminClient(profile?.email) && (
-            <NavLink
-              item={{ href: "/admin", label: "nav.admin", icon: ShieldCheck }}
-              pathname={pathname} fullPath={fullPath}
-              collapsed={collapsed}
-              totalUnread={0}
-            />
-          )}
+          {/* Admin de plataforma: SIN entrada en el menú (a pedido). Se accede
+              solo por URL directa /admin/voz. El layout de /admin y cada ruta
+              /api/admin siguen siendo la puerta real (platform-admin). */}
         </div>
 
         {/* User row + theme toggle */}

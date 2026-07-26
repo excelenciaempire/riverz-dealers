@@ -239,8 +239,8 @@ async def moshi_test(
 @app.get("/selftest")
 async def selftest(
     call_id: str = Query(...),
-    phrases: str = Query(default="Hola, buenas|Sí, quiero confirmar mi pedido|¿Cuánto cuesta el envío?"),
-    turn_wait: float = Query(default=5.0),
+    phrases: str = Query(default="Hola, buenas|¿Cuánto cuesta el envío?"),
+    turn_wait: float = Query(default=4.0),
 ):
     import asyncio as _a
     import base64 as _b64
@@ -310,10 +310,10 @@ async def selftest(
                     elif _t.monotonic() - quiet_since > 0.6:
                         return
 
-            # Ventana del saludo del bot
+            # Saludo: espera corta (solo confirmar que existe, sin detalle)
             st["listening"] = True
-            await _a.sleep(0.5)
-            await wait_quiet()
+            await _a.sleep(0.3)
+            await wait_quiet(3.0)
             report["greeting_bot_ms"] = st["bot_ms"]
 
             for ph in plist:
@@ -321,29 +321,30 @@ async def selftest(
                 if not ulaw:
                     report["turns"].append({"said": ph, "error": "TTS vacío (¿ELEVENLABS_API_KEY?)"})
                     continue
-                await wait_quiet()               # asegura silencio del bot antes
+                await wait_quiet(2.0)            # settle corto y barato
                 st["bot_ms"] = 0
                 st["first_bot"] = None
-                await send_silence(0.3)
+                await send_silence(0.2)
                 await send_ulaw(ulaw)
                 t_end = _t.monotonic()
                 st["first_bot"] = None           # medir desde que YO terminé
-                await send_silence(1.2)          # gatilla el fin de turno (VAD)
-                # espera la respuesta (hasta turn_wait, corta antes si ya respondió mucho)
+                await send_silence(0.8)          # gatilla el fin de turno (VAD 0.5)
+                # CORTA apenas detecta respuesta (solo queremos responde sí/no +
+                # latencia) → no esperamos la respuesta completa → no gasta de más.
                 waited = 0.0
                 while waited < turn_wait:
-                    await _a.sleep(0.2)
-                    waited += 0.2
-                    if st["bot_ms"] > 400 and st["first_bot"]:
+                    await _a.sleep(0.1)
+                    waited += 0.1
+                    if st["first_bot"] and st["bot_ms"] >= 200:
                         break
                 lat = int((st["first_bot"] - t_end) * 1000) if st["first_bot"] else None
-                await wait_quiet()               # dejar que termine de responder
                 report["turns"].append({
                     "said": ph,
-                    "bot_responded": st["bot_ms"] > 200,
+                    "bot_responded": bool(st["first_bot"]) and st["bot_ms"] >= 200,
                     "latency_ms": lat,
                     "bot_audio_ms": st["bot_ms"],
                 })
+            # Colgar de inmediato → corta cualquier TTS/LLM en curso (no gasta más)
 
             rtask.cancel()
     except Exception as e:  # noqa: BLE001
