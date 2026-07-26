@@ -32,6 +32,7 @@ import {
 } from "@/lib/channels/display";
 import { findLinks } from "@/lib/inbox/linkify";
 import { dateFnsLocale } from "@/lib/i18n/format";
+import { PhoneActions } from "./phone-actions";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
 import { CommentModerationBar } from "./comment-moderation-bar";
@@ -55,6 +56,10 @@ interface MessageBubbleProps {
    *  it's a reply to another comment (nests it under the thread). */
   commentLikeCount?: number;
   commentIsReply?: boolean;
+  /** Nombre del contacto — lo hereda el atajo de WhatsApp para nombrar el
+   *  contacto nuevo cuando el cliente deja su teléfono escrito. */
+  contactName?: string | null;
+  contactPhone?: string | null;
   onToggleReaction?: (emoji: string) => void;
 }
 
@@ -429,8 +434,26 @@ function linkifyNodes(text: string): ReactNode[] {
   return nodes;
 }
 
-function MessageContent({ message }: { message: Message }) {
+function MessageContent({
+  message,
+  contactName,
+  contactPhone,
+}: {
+  message: Message;
+  contactName?: string | null;
+  contactPhone?: string | null;
+}) {
   const t = useT();
+  // Teléfono que dejó el cliente → atajo para seguir por WhatsApp. Sólo en
+  // mensajes entrantes: un número en un mensaje nuestro es el nuestro.
+  const phoneActions =
+    message.sender_type === "customer" ? (
+      <PhoneActions
+        text={message.content_text}
+        contactName={contactName}
+        contactPhone={contactPhone}
+      />
+    ) : null;
   // Attachments first: IG / Messenger / WhatsApp media is re-hosted to
   // Storage at ingest and stored in `attachments`. Rendering from the
   // array (rather than only the derived media_url + content_type) means
@@ -461,11 +484,14 @@ function MessageContent({ message }: { message: Message }) {
       if (isUnsupportedMediaSnippet(body)) return <UnsupportedMedia />;
       const readable = body && !isUnsupportedSnippet(body);
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {readable
-            ? linkifyNodes(localizeContentToken(message.content_text, t))
-            : t("inbox.unsupported")}
-        </p>
+        <div>
+          <p className="whitespace-pre-wrap break-words text-sm">
+            {readable
+              ? linkifyNodes(localizeContentToken(message.content_text, t))
+              : t("inbox.unsupported")}
+          </p>
+          {readable && phoneActions}
+        </div>
       );
     }
 
@@ -585,14 +611,21 @@ function MessageContent({ message }: { message: Message }) {
 
     default:
       if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia />;
+      // Acá caen, entre otros, los comentarios de Facebook/Instagram: dejar
+      // el teléfono en un comentario es de lo más común para pedir precio.
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {isUnsupportedSnippet(message.content_text)
-            ? t("inbox.unsupported")
-            : message.content_text
-              ? linkifyNodes(message.content_text)
-              : t("inbox.unsupported")}
-        </p>
+        <div>
+          <p className="whitespace-pre-wrap break-words text-sm">
+            {isUnsupportedSnippet(message.content_text)
+              ? t("inbox.unsupported")
+              : message.content_text
+                ? linkifyNodes(message.content_text)
+                : t("inbox.unsupported")}
+          </p>
+          {message.content_text && !isUnsupportedSnippet(message.content_text)
+            ? phoneActions
+            : null}
+        </div>
       );
   }
 }
@@ -879,6 +912,8 @@ export function MessageBubble({
   commentAuthorAvatarUrl,
   commentLikeCount,
   commentIsReply,
+  contactName,
+  contactPhone,
   onToggleReaction,
 }: MessageBubbleProps) {
   const t = useT();
@@ -903,6 +938,8 @@ export function MessageBubble({
         isPage={isAgent}
         likeCount={commentLikeCount}
         isReply={commentIsReply}
+        contactName={contactName}
+        contactPhone={contactPhone}
       />
     );
   }
@@ -1006,7 +1043,7 @@ export function MessageBubble({
             {t("inbox.commentDeleted")}
           </span>
         ) : (
-          <MessageContent message={message} />
+          <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
         )}
         <div
           className={cn(
@@ -1078,6 +1115,8 @@ function NativeComment({
   isPage,
   likeCount,
   isReply,
+  contactName,
+  contactPhone,
 }: {
   message: Message;
   authorName: string;
@@ -1085,6 +1124,8 @@ function NativeComment({
   isPage: boolean;
   likeCount?: number;
   isReply?: boolean;
+  contactName?: string | null;
+  contactPhone?: string | null;
 }) {
   const t = useT();
   const tz = useTimezone();
@@ -1134,7 +1175,7 @@ function NativeComment({
                 {t("inbox.commentDeleted")}
               </span>
             ) : (
-              <MessageContent message={message} />
+              <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
             )}
           </div>
         </div>

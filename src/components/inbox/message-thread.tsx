@@ -1604,6 +1604,16 @@ export function MessageThread({
                             msg.message_id ? commentLikes.get(msg.message_id) : undefined
                           }
                           commentIsReply={commentParents.has(msg.id)}
+                          contactName={contact?.name}
+                          contactPhone={
+                            contact?.phone ??
+                            // El external_id sólo ES un teléfono en WhatsApp;
+                            // en IG/Messenger es un id numérico que podría
+                            // colisionar al comparar por sufijo.
+                            (conversation?.channel === "whatsapp"
+                              ? contact?.external_id
+                              : null)
+                          }
                           onToggleReaction={handlePillToggle}
                         />
                       </MessageActions>

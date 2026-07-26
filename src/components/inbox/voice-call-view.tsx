@@ -73,14 +73,14 @@ export function VoiceCallCard({ conversationId }: { conversationId: string }) {
     <div className="mx-4 mt-3 rounded-xl border border-border bg-muted/40 p-3">
       <div className="flex items-center gap-2">
         {inbound ? (
-          <PhoneIncoming className="h-4 w-4 text-violet-500" />
+          <PhoneIncoming className="h-4 w-4 text-yellow-500" />
         ) : (
-          <PhoneCall className="h-4 w-4 text-violet-500" />
+          <PhoneCall className="h-4 w-4 text-yellow-500" />
         )}
         <span className="text-sm font-medium text-foreground">
           {inbound ? t('voice.callInbound') : t('voice.callOutbound')}
         </span>
-        <span className="ml-auto rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-500">
+        <span className="ml-auto rounded-full bg-yellow-500/10 px-2 py-0.5 text-[11px] text-yellow-500">
           {t(STATUS_KEY[call.status])}
         </span>
       </div>

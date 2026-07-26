@@ -102,7 +102,7 @@ export default function VoicePage() {
         className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
       >
         <span className="flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-violet-500" />
+          <Megaphone className="h-4 w-4 text-yellow-500" />
           <span className="text-sm font-semibold text-foreground">{t('voice.campaignsTitle')}</span>
         </span>
         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -111,7 +111,7 @@ export default function VoicePage() {
       {/* Voice-enabled agents */}
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-violet-500" />
+          <Sparkles className="h-4 w-4 text-yellow-500" />
           <h2 className="text-sm font-semibold text-foreground">{t('voice.agentsTitle')}</h2>
         </div>
         {agents.length === 0 ? (
@@ -166,9 +166,9 @@ export default function VoicePage() {
                     <td className="py-2 pr-4">
                       <span className="inline-flex items-center gap-1.5 text-foreground">
                         {c.direction === 'inbound' ? (
-                          <PhoneIncoming className="h-3.5 w-3.5 text-violet-500" />
+                          <PhoneIncoming className="h-3.5 w-3.5 text-yellow-500" />
                         ) : (
-                          <PhoneCall className="h-3.5 w-3.5 text-violet-500" />
+                          <PhoneCall className="h-3.5 w-3.5 text-yellow-500" />
                         )}
                         {c.contact?.name || c.phone}
                         {c.recording_url && <Mic className="h-3 w-3 text-muted-foreground" />}

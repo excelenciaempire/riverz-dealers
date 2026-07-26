@@ -91,9 +91,9 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {call?.direction === 'inbound' ? (
-              <PhoneIncoming className="h-4 w-4 text-violet-500" />
+              <PhoneIncoming className="h-4 w-4 text-yellow-500" />
             ) : (
-              <PhoneCall className="h-4 w-4 text-violet-500" />
+              <PhoneCall className="h-4 w-4 text-yellow-500" />
             )}
             {call?.contact?.name || call?.phone || t('voice.callDetail')}
           </DialogTitle>

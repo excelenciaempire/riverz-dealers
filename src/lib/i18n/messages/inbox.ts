@@ -196,6 +196,10 @@ export const inbox = {
   buttonReply: { es: "Respuesta de botón", en: "Button reply" },
   interactiveReply: { es: "[Respuesta interactiva]", en: "[Interactive reply]" },
   unsupported: { es: "[No compatible]", en: "[Unsupported]" },
+  writeOnWhatsapp: {
+    es: "Escribir a {phone} por WhatsApp",
+    en: "Message {phone} on WhatsApp",
+  },
   unsupportedMedia: {
     es: "Nota de voz o contenido que la plataforma no envía — ábrelo en la app",
     en: "Voice note or content the platform doesn't deliver — open it in the app",

@@ -76,7 +76,7 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <PhoneCall className="h-4 w-4 text-violet-500" />
+        <PhoneCall className="h-4 w-4 text-yellow-500" />
         <h2 className="text-sm font-semibold text-foreground">{t('voice.metricsTitle')}</h2>
         {!(start && end) && (
           <span className="text-xs text-muted-foreground">({t('voice.metricsLast30')})</span>
@@ -105,7 +105,7 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
           {data.by_hour.map((h) => (
             <div key={h.hour} className="flex-1" title={`${h.hour}:00 — ${h.count}`}>
               <div
-                className="w-full rounded-sm bg-violet-500/60"
+                className="w-full rounded-sm bg-yellow-500/60"
                 style={{ height: `${(h.count / maxHour) * 100}%` }}
               />
             </div>
