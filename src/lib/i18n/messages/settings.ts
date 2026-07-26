@@ -649,8 +649,8 @@ export const settings = {
   tabCommentToDm: { es: "Comentario a DM", en: "Comment to DM" },
   c2dmTitle: { es: "Comentario a DM", en: "Comment to DM" },
   c2dmDescription: {
-    es: "Cuando alguien comenta en tu post o anuncio de Instagram/Facebook, respóndele en público y mándale un DM privado automáticamente.",
-    en: "When someone comments on your Instagram/Facebook post or ad, auto-reply publicly and send them a private DM.",
+    es: "Responde en público a quien use una palabra clave y mándale un DM.",
+    en: "Publicly reply to anyone using a keyword and send them a DM.",
   },
   c2dmNew: { es: "Nueva regla", en: "New rule" },
   c2dmNoneYet: { es: "Aún no hay reglas", en: "No rules yet" },

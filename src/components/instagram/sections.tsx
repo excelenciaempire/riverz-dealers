@@ -1203,6 +1203,31 @@ function ApprovalItem({
   // Fuera de la ventana de Meta no ofrecemos un botón que solo puede fallar.
   const expired = item.expired === true;
 
+  // Vencido = ya no se puede enviar y no hay nada que revisar. Una línea con el
+  // nombre y el botón de quitar; mostrar el borrador entero era ocupar media
+  // pantalla con algo que solo se puede descartar.
+  if (expired) {
+    return (
+      <li className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2">
+        <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+          <span className="truncate">
+            {t('igAgent.approvalTo', { name })} · {t('igAgent.approvalExpired')}
+          </span>
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          onClick={() => onAct(item.id, 'reject')}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {t('igAgent.approvalDismiss')}
+        </Button>
+      </li>
+    );
+  }
+
   return (
     <li className="rounded-xl border border-border bg-background p-3">
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -1219,15 +1244,8 @@ function ApprovalItem({
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={950}
-        disabled={expired}
         className="resize-none text-[13px]"
       />
-      {expired && (
-        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-destructive">
-          <AlertTriangle className="h-3 w-3 shrink-0" />
-          {t('igAgent.approvalExpired')}
-        </p>
-      )}
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button
           variant="ghost"

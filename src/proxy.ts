@@ -107,12 +107,16 @@ export async function proxy(request: NextRequest) {
   //    embedded App Bridge page.
   //  - otherwise  → top-level install/open: start OAuth immediately
   //    (App Store review requires auth before any interstitial page).
+  // ONLY at the site root: the App URL is `https://riverz.co`, so this
+  // bootstrap fires exclusively for `/?shop=…`. Matching every path would
+  // catch our own post-auth redirects — `/registro?shop=…`,
+  // `/integraciones?shop=…` — and bounce them back to OAuth, an infinite
+  // redirect loop (the callback lands on `/registro?shopify=pending&shop=…`).
   const shopParam = request.nextUrl.searchParams.get('shop')
   if (
+    request.nextUrl.pathname === '/' &&
     shopParam &&
-    /^[\w-]+\.myshopify\.com$/i.test(shopParam) &&
-    !request.nextUrl.pathname.startsWith('/api/shopify/') &&
-    !isShopifyEmbedded
+    /^[\w-]+\.myshopify\.com$/i.test(shopParam)
   ) {
     const url = request.nextUrl.clone()
     const isEmbeddedLoad = request.nextUrl.searchParams.get('embedded') === '1'
