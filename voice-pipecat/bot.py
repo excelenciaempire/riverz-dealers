@@ -781,12 +781,12 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
         from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
         up_kwargs["user_turn_strategies"] = UserTurnStrategies(
             start=[VADUserTurnStartStrategy()],
-            # wait_for_transcript=False → no se cuelga esperando el transcript.
-            # user_speech_timeout=1.0 → da tiempo a que el transcript de Deepgram
-            # (~0.67s) llegue ANTES de cerrar el turno; con 0.6s cerraba vacío y el
-            # turno-pregunta no generaba respuesta.
+            # Producción: espera el transcript real (en llamadas humanas SIEMPRE
+            # llega; sólo el audio sintético del /selftest lo dejaba flaky).
+            # user_speech_timeout=0.8 = ágil; user_turn_stop_timeout (arriba, 1.2s)
+            # acota el caso raro sin transcript para no colgarse.
             stop=[SpeechTimeoutUserTurnStopStrategy(
-                user_speech_timeout=1.0, wait_for_transcript=False,
+                user_speech_timeout=0.8, wait_for_transcript=True,
             )],
         )
         logger.info("user_turn_strategies: VAD start + SpeechTimeout(no-wait-transcript) stop")
