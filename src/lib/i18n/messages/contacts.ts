@@ -441,10 +441,6 @@ export const contacts = {
 
   // Filtro por señal (de dónde viene la persona / si se le puede escribir)
   signalAll: { es: "Cualquier señal", en: "Any signal" },
-  signalReachable: {
-    es: "Contactables ahora",
-    en: "Reachable now",
-  },
   signalStory: {
     es: "Respondieron una historia",
     en: "Replied to a story",

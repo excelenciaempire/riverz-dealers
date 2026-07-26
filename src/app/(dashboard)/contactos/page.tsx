@@ -479,7 +479,6 @@ export default function ContactsPage() {
         {(
           [
             ['all', 'contacts.signalAll'],
-            ['reachable', 'contacts.signalReachable'],
             ['story', 'contacts.signalStory'],
             ['commenters', 'contacts.signalCommenters'],
             ['customers', 'contacts.signalCustomers'],
@@ -814,17 +813,13 @@ export default function ContactsPage() {
  * Filtros por SEÑAL — lo que la automatización de Instagram genera y la lista
  * de contactos no sabía leer.
  *
- *   reachable  — a quién puede escribirle el agente AHORA: DM abierto (24h de
- *                Meta) o comentario de los últimos 7 días (respuesta privada).
- *                Es el único número honesto de alcance.
  *   story      — quien respondió o mencionó una historia: la audiencia más
  *                caliente que Meta permite contactar.
  *   commenters — quien llegó por un comentario, no por un DM.
  *   customers  — quien ya compró (historial de Shopify sincronizado).
  */
-type Signal = 'all' | 'reachable' | 'story' | 'commenters' | 'customers';
+type Signal = 'all' | 'story' | 'commenters' | 'customers';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function resolveSignalIds(
   supabase: ReturnType<typeof createClient>,
@@ -871,28 +866,5 @@ async function resolveSignalIds(
     ];
   }
 
-  // reachable: la ventana de Meta abierta, por canal.
-  const since = new Date(Date.now() - 7 * DAY_MS).toISOString();
-  const { data } = await supabase
-    .from('conversations')
-    .select('contact_id, channel, last_message_at')
-    .eq('workspace_id', workspaceId)
-    .in('channel', ['instagram', 'ig_comment'])
-    .gt('last_message_at', since)
-    .not('contact_id', 'is', null)
-    .limit(5000);
-  const now = Date.now();
-  const ids = new Set<string>();
-  for (const row of (data ?? []) as Array<{
-    contact_id: string;
-    channel: string;
-    last_message_at: string | null;
-  }>) {
-    if (!row.last_message_at) continue;
-    const age = now - new Date(row.last_message_at).getTime();
-    if (row.channel === 'instagram' ? age < DAY_MS : age < 7 * DAY_MS) {
-      ids.add(row.contact_id);
-    }
-  }
-  return [...ids];
+  return null;
 }

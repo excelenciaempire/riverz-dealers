@@ -22,6 +22,7 @@ import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
 import { loadOrderStatus } from './order-status';
 import { loadCommentThread } from './comment-thread';
+import { loadProductBrain } from './product-brain';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
@@ -315,8 +316,14 @@ export async function maybeInstantOutreach(
     isVerified: profile?.is_verified,
     leadScore,
   });
+  // El cerebro del producto del que habla, o el que la campaña quiere destacar.
+  const productBrain = await loadProductBrain(db, opts.workspaceId, {
+    text: opts.engagementText,
+    preferTitles: campaign.plan.recommended_products,
+  });
   const personaFields = {
     customer: customer?.brief ?? null,
+    product: productBrain?.brief ?? null,
     personaHint: profile?.persona_hint ?? null,
     openerHint: profile?.opener_hint ?? null,
     followsBusiness: profile?.follows_business ?? null,
@@ -611,7 +618,7 @@ async function autonomousCommentReply(
   const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
   if (!connection) return;
 
-  const [brand, links, profile, customer, thread] = await Promise.all([
+  const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
     loadIgProfile(db, opts.contact.id).catch(() => null),
@@ -621,6 +628,8 @@ async function autonomousCommentReply(
     // Y qué se dijeron ya bajo este post: una respuesta a nuestra respuesta no
     // es un primer contacto y no puede empezar saludando de cero.
     loadCommentThread(db, opts.contact.id, opts.sourcePostId ?? null),
+    // El cerebro del producto del que habla: su conocimiento y sus barreras.
+    loadProductBrain(db, opts.workspaceId, { text: engagement }),
   ]);
 
   // Freno anti-bucle: en un mismo hilo no insistimos más de tres veces. Si da
@@ -644,6 +653,7 @@ async function autonomousCommentReply(
     links,
     customer: [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
     thread: thread?.brief ?? null,
+    product: product?.brief ?? null,
     goal: null,
     offer: null,
     products: links.products.map((p) => p.title),

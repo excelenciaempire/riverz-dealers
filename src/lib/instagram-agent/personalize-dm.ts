@@ -28,7 +28,7 @@ Reglas (estrictas):
 - Emojis con moderación (0 a 2).
 - UNA sola llamada a la acción clara.
 - Si hay un código de descuento, inclúyelo tal cual.
-- No inventes productos, precios ni promesas que no estén en el contexto.
+- No inventes productos, precios ni promesas que no estén en el contexto. Si te damos el PRODUCTO DEL QUE HABLA, sus datos y sus barreras mandan sobre todo lo demás: no contradigas su "NUNCA afirmes" ni ofrezcas precios u ofertas fuera de las suyas.
 - DATOS QUE NO TIENES: si preguntan por registros o aprobaciones sanitarias (ANMAT, INVIMA, FDA…), contraindicaciones, ingredientes, plazos de envío o garantías que NO estén literalmente en el contexto, NO lo afirmes ni lo niegues. Di que lo confirmas y ofrece la respuesta por aquí. Inventar un dato regulatorio o de salud es la peor falta posible.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
 - SI YA ES CLIENTA: no le vendas como si no te conociera. Pregúntale cómo le fue con lo que se llevó y, si encaja, sugiere lo que va después. Nunca le ofrezcas de nuevo lo que ya tiene.
@@ -65,6 +65,8 @@ export interface CraftDMInput {
   customer?: string | null;
   /** Lo que ya se dijeron en este hilo de comentarios. */
   thread?: string | null;
+  /** El cerebro del producto del que habla: conocimiento + sus barreras. */
+  product?: string | null;
 }
 
 /**
@@ -174,6 +176,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     linksBrief(input.links ?? null),
     input.customer ?? '',
     input.thread ?? '',
+    input.product ?? '',
     input.offer?.code
       ? `OFERTA: código ${input.offer.code}${input.offer.discount ? ` (${input.offer.discount})` : ''}`
       : 'OFERTA: ninguna',

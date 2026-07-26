@@ -13,6 +13,7 @@ import { proactiveGate, logProactiveSend, featureEnabled } from './controls';
 import { loadStoreLinks } from './store-links';
 import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
+import { loadProductBrain } from './product-brain';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -228,6 +229,11 @@ export async function sendCampaignBatch(
       const profile = await loadIgProfile(db, contact.id).catch(() => null);
       // Y quién es como clienta: a quien ya compró no se le vende de cero.
       const customer = await loadCustomerContext(db, contact.id);
+      // El cerebro del producto del que habla (o el que la campaña destaca).
+      const productBrain = await loadProductBrain(db, campaign.workspace_id, {
+        text: inbound.text,
+        preferTitles: campaign.plan.recommended_products,
+      });
       const segment = resolveIgSegment({
         followsBusiness: profile?.follows_business,
         followerCount: profile?.follower_count,
@@ -240,6 +246,7 @@ export async function sendCampaignBatch(
         brand,
         links,
         customer: customer?.brief ?? null,
+        product: productBrain?.brief ?? null,
         goal: campaign.goal ?? null,
         offer: recipientOffer,
         products: campaign.plan.recommended_products,
