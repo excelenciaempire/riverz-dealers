@@ -62,6 +62,18 @@ export const igAgent = {
     en: "Go find them: describe a goal and the agent picks who to message first, and with what.",
   },
   limitsSection: { es: "Límites", en: "Limits" },
+  limitsHint: {
+    es: "Mandan sobre todo lo que sale solo, esté encendido lo que esté.",
+    en: "They govern everything automatic, whatever is switched on.",
+  },
+  outreachEnabled: {
+    es: "Iniciar conversaciones automáticamente",
+    en: "Start conversations automatically",
+  },
+  outreachEnabledHint: {
+    es: "Con una campaña activa, el agente escribe él mismo a quien encaja. Apagado, las campañas quedan quietas; los comentarios se siguen respondiendo.",
+    en: "With a live campaign, the agent messages whoever fits, on its own. Off, campaigns sit still; comments are still answered.",
+  },
 
   reachableNow: { es: "contactables ahora", en: "reachable now" },
   reachHint: {

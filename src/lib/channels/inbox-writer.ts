@@ -11,13 +11,12 @@ import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
 import {
-  maybeInstantOutreach,
   maybeRunCloser,
   markCampaignReply,
   hasInstagramAgent,
 } from "@/lib/instagram-agent/realtime";
 import { enrichContactProfile } from "@/lib/instagram-agent/profile-enrich";
-import { processCommentForDmRules } from "@/lib/comment-to-dm/engine";
+import { routeComment } from "@/lib/comments/router";
 import { phonesMatch, sanitizePhoneForMeta } from "@/lib/whatsapp/phone-utils";
 import {
   isOptOutKeyword,
@@ -310,17 +309,17 @@ export async function ingestInboundEvent(
     }
   }
 
-  // Comment-to-DM (ManyChat-style growth tool): a public comment that matches
-  // an active rule gets a public reply + a private DM. Covers BOTH IG and FB
-  // comment surfaces. Fire-and-forget so a slow Graph call never blocks the
-  // webhook ack; no matching rule → no-op.
+  // Un comentario entra por UN solo portero, que decide en orden fijo quién lo
+  // atiende: primero las reglas que configuró el comercio, después el agente.
+  // Antes eran dos caminos disparados en paralelo y quién atendía a la persona
+  // lo decidía el azar de cuál terminara primero.
   if (
     event.comment &&
     message &&
     !event.outbound &&
     (channel === "ig_comment" || channel === "fb_comment")
   ) {
-    void processCommentForDmRules(db, {
+    void routeComment(db, {
       workspaceId,
       channel,
       connection: event.connection,
@@ -333,30 +332,7 @@ export async function ingestInboundEvent(
       postId: event.comment.postId ?? null,
       parentCommentId: event.comment.parentCommentId ?? null,
       text: event.text,
-    }).catch((err) => console.error("[comment-to-dm] failed:", err));
-  }
-
-  // Real-time outreach: an Instagram comment is peak intent. Enroll the
-  // commenter in the active campaign and DM them now (Blueberry's instant
-  // loop). Fire-and-forget; no active campaign → no-op.
-  if (channel === "ig_comment" && !event.outbound) {
-    maybeInstantOutreach(db, {
-      workspaceId,
-      contact: {
-        id: contact.id,
-        external_id: contact.external_id ?? null,
-        name: contact.name ?? null,
-      },
-      sourcePostId: event.comment?.postId ?? null,
-      // The comment id — lets us DM as a private reply to the comment.
-      commentId: event.externalMessageId ?? null,
-      // The account that received the comment — the DM/hide must go out
-      // through it, not through "the workspace's newest IG connection".
-      connection: event.connection,
-      engagementText: event.text,
-    }).catch((err) =>
-      console.error("[ig-agent] instant outreach failed:", err),
-    );
+    }).catch((err) => console.error("[comment-router] failed:", err));
   }
 
   // 5. Bump conversation summary fields. Outbound (our own sent mail) must no

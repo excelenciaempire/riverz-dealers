@@ -6,6 +6,7 @@ import {
   AttributedOrders,
   ConnectionPill,
   OutreachSection,
+  OutreachToggle,
   ProactiveLimits,
   useIgConnected,
   useProactiveSettings,
@@ -40,6 +41,8 @@ export default function VentasInstagramPage() {
 
       {/* Lo único urgente: DMs preparados que esperan tu visto bueno. */}
       <ApprovalsQueue />
+
+      <OutreachToggle settings={settings} />
 
       <OutreachSection />
 

@@ -12,7 +12,12 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
-import { proactiveGate, logProactiveSend, autoReplyCommentsEnabled } from './controls';
+import {
+  proactiveGate,
+  logProactiveSend,
+  autoReplyCommentsEnabled,
+  featureEnabled,
+} from './controls';
 import { recordProactiveDm } from './record-dm';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
@@ -191,7 +196,10 @@ export async function maybeInstantOutreach(
   // muestra intención de compra, con la voz del agente configurado (piso
   // autónomo). Es lo que separa "una herramienta de campañas" de "un agente
   // que atiende tu Instagram".
-  if (!campaign) {
+  // Salir a buscar es una funcionalidad aparte y tiene su propio interruptor:
+  // apagada, nadie entra a una campaña aunque haya uno activa. El comentario
+  // igual se atiende por el piso autónomo, que es la otra funcionalidad.
+  if (!campaign || !(await featureEnabled(db, opts.workspaceId, 'outreach'))) {
     await autonomousCommentReply(db, opts);
     return;
   }

@@ -23,18 +23,39 @@ export async function proactiveGate(
   return gateFromSettings(db, workspaceId, s);
 }
 
+/**
+ * Cada funcionalidad se prende y se apaga por su cuenta, como los agentes.
+ * Sin fila de ajustes, todo está encendido (el default de las columnas).
+ *
+ *   comments — responder los comentarios (incluye el piso autónomo).
+ *   outreach — salir a buscar: inscribir gente en campañas y enviarles.
+ *
+ * `paused` (el freno de emergencia) manda sobre las dos y se comprueba aparte,
+ * en proactiveGate, junto con el tope diario.
+ */
+export type IgFeature = 'comments' | 'outreach';
+
+export async function featureEnabled(
+  db: SupabaseClient,
+  workspaceId: string,
+  feature: IgFeature,
+): Promise<boolean> {
+  const column =
+    feature === 'comments' ? 'auto_reply_comments' : 'outreach_enabled';
+  const { data } = await db
+    .from('ig_proactive_settings')
+    .select(column)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  return (data as Record<string, boolean> | null)?.[column] !== false;
+}
+
 /** ¿Está encendido el piso autónomo (responder comentarios sin campaña)? */
 export async function autoReplyCommentsEnabled(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<boolean> {
-  const { data } = await db
-    .from('ig_proactive_settings')
-    .select('auto_reply_comments')
-    .eq('workspace_id', workspaceId)
-    .maybeSingle();
-  // Sin fila de ajustes → encendido (el default de la columna).
-  return (data as { auto_reply_comments?: boolean } | null)?.auto_reply_comments !== false;
+  return featureEnabled(db, workspaceId, 'comments');
 }
 
 async function gateFromSettings(

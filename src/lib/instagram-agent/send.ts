@@ -9,7 +9,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { craftPersonalizedDM } from './personalize-dm';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment, type LeadScore } from './segment';
-import { proactiveGate, logProactiveSend } from './controls';
+import { proactiveGate, logProactiveSend, featureEnabled } from './controls';
 import { loadStoreLinks } from './store-links';
 import { recordProactiveDm } from './record-dm';
 import { resolveIgAgent, needsApproval } from './agent-link';
@@ -65,6 +65,11 @@ export async function sendCampaignBatch(
     return { sent: 0, failed: 0, remaining: 0, skipped: 'instagram_not_connected' };
   }
   const connection = igConns[0];
+
+  // El interruptor de "iniciar conversaciones": apagado, el worker no envía.
+  if (!(await featureEnabled(db, campaign.workspace_id, 'outreach'))) {
+    return { sent: 0, failed: 0, remaining: 0, skipped: 'outreach_disabled' };
+  }
 
   // Trust gate: emergency pause + rolling-24h daily cap for the workspace.
   const gate = await proactiveGate(db, campaign.workspace_id);

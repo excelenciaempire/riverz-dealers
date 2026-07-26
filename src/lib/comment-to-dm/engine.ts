@@ -57,12 +57,12 @@ const DM_CHANNEL: Record<CommentChannel, 'instagram' | 'messenger'> = {
 export async function processCommentForDmRules(
   db: SupabaseClient,
   ev: CommentEvent,
-): Promise<void> {
-  if (!ev.commentId) return;
+): Promise<boolean> {
+  if (!ev.commentId) return false;
   // Only top-level comments. A reply to a comment (incl. a reply to OUR own
   // public reply) carries a parent_id — skipping those avoids DM loops and
   // matches ManyChat's default of triggering on post/ad comments.
-  if (ev.parentCommentId) return;
+  if (ev.parentCommentId) return false;
 
   const { data: rules } = await db
     .from('comment_to_dm_rules')
@@ -75,7 +75,7 @@ export async function processCommentForDmRules(
     .order('priority', { ascending: true });
 
   const list = (rules ?? []) as CommentToDmRule[];
-  if (list.length === 0) return;
+  if (list.length === 0) return false;
 
   // First matching rule wins (post scope + keyword match).
   const rule = list.find(
@@ -83,7 +83,7 @@ export async function processCommentForDmRules(
       (r.post_id == null || r.post_id === ev.postId) &&
       commentMatches(r, ev.text),
   );
-  if (!rule) return;
+  if (!rule) return false;
 
   // Idempotency claim: insert the log row BEFORE sending. A duplicate webhook
   // delivery for the same comment collides on UNIQUE (rule_id, comment) and we
@@ -99,7 +99,10 @@ export async function processCommentForDmRules(
     })
     .select('id')
     .single();
-  if (claimErr || !claim) return; // 23505 (already handled) or insert failed
+  // 23505 (ya atendido por otra entrega del webhook) o insert fallido. En el
+  // primer caso ESTE comentario sí es de una regla: devolvemos true para que el
+  // router no lo mande además por el camino del agente.
+  if (claimErr || !claim) return Boolean(claimErr);
 
   const logId = (claim as { id: string }).id;
   let publicReplyStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
@@ -180,6 +183,10 @@ export async function processCommentForDmRules(
       error: errMsg,
     })
     .eq('id', logId);
+
+  // Una regla del comercio se hizo cargo de este comentario: el router no debe
+  // mandarlo además por el camino del agente.
+  return true;
 }
 
 /** Empty keyword list = match ANY comment. Otherwise contains/exact. */

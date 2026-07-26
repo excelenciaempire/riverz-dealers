@@ -832,17 +832,17 @@ export interface ProactiveSettings {
   loaded: boolean;
   paused: boolean;
   autoReply: boolean;
+  outreach: boolean;
   cap: number;
-  mode: SendMode;
   setPaused: (v: boolean) => void;
   setAutoReply: (v: boolean) => void;
+  setOutreach: (v: boolean) => void;
   setCap: (v: number) => void;
-  setMode: (v: SendMode) => void;
   save: (next: {
     paused?: boolean;
     daily_cap?: number;
-    send_mode?: SendMode;
     auto_reply_comments?: boolean;
+    outreach_enabled?: boolean;
   }) => void;
 }
 
@@ -850,8 +850,8 @@ export function useProactiveSettings(): ProactiveSettings {
   const fetchWithCsrf = useFetchWithCsrf();
   const [paused, setPaused] = useState(false);
   const [autoReply, setAutoReply] = useState(true);
+  const [outreach, setOutreach] = useState(true);
   const [cap, setCap] = useState(500);
-  const [mode, setMode] = useState<SendMode>('auto');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -862,8 +862,8 @@ export function useProactiveSettings(): ProactiveSettings {
         if (!cancelled && j) {
           setPaused(!!j.paused);
           setAutoReply(j.auto_reply_comments !== false);
+          setOutreach(j.outreach_enabled !== false);
           setCap(Number(j.daily_cap) || 500);
-          if (j.send_mode) setMode(j.send_mode as SendMode);
           setLoaded(true);
         }
       })
@@ -877,8 +877,8 @@ export function useProactiveSettings(): ProactiveSettings {
     (next: {
       paused?: boolean;
       daily_cap?: number;
-      send_mode?: SendMode;
       auto_reply_comments?: boolean;
+      outreach_enabled?: boolean;
     }) => {
       void fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
@@ -893,12 +893,12 @@ export function useProactiveSettings(): ProactiveSettings {
     loaded,
     paused,
     autoReply,
+    outreach,
     cap,
-    mode,
     setPaused,
     setAutoReply,
+    setOutreach,
     setCap,
-    setMode,
     save,
   };
 }
@@ -952,18 +952,17 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
 }
 
 /**
- * Límites — mandan sobre todo lo que sale solo: cuánto se automatiza, el freno
- * de emergencia y el tope diario.
+ * Límites — mandan sobre TODO lo que sale solo, esté encendida la funcionalidad
+ * que esté: el freno de emergencia y el tope diario.
+ *
+ * Ya no hay selector de "modo": cada funcionalidad se prende o se apaga con su
+ * interruptor y, encendida, trabaja sola. Un desplegable que mezclaba las dos
+ * cosas ("¿cuánto se automatiza?") obligaba a entender un concepto extra para
+ * hacer algo que un interruptor dice solo.
  */
 export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   if (!settings.loaded) return null;
-
-  const MODES: { v: SendMode; label: string }[] = [
-    { v: 'auto', label: t('igAgent.modeAuto') },
-    { v: 'hybrid_intent', label: t('igAgent.modeHybrid') },
-    { v: 'approval', label: t('igAgent.modeApproval') },
-  ];
 
   return (
     <div
@@ -977,30 +976,10 @@ export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[13px] font-medium text-foreground">
-            {t('igAgent.modeLabel')}
+            {t('igAgent.limitsSection')}
           </p>
-          <div className="mt-1.5 inline-flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
-            {MODES.map((m) => (
-              <button
-                key={m.v}
-                type="button"
-                onClick={() => {
-                  settings.setMode(m.v);
-                  settings.save({ send_mode: m.v });
-                }}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
-                  settings.mode === m.v
-                    ? 'bg-accent text-accent-ink'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            {t(MODE_DESC[settings.mode])}
+          <p className="mt-1 max-w-md text-[11px] leading-snug text-muted-foreground">
+            {t('igAgent.limitsHint')}
           </p>
         </div>
 
@@ -1401,4 +1380,33 @@ export function useIgConnected(): boolean | undefined {
     };
   }, []);
   return connected;
+}
+
+/**
+ * El interruptor de "iniciar conversaciones": encendido, el agente sale a
+ * buscar solo; apagado, las campañas quedan quietas y los comentarios se
+ * siguen atendiendo (son funcionalidades distintas).
+ */
+export function OutreachToggle({ settings }: { settings: ProactiveSettings }) {
+  const t = useT();
+  if (!settings.loaded) return null;
+  return (
+    <label className="flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <Switch
+        checked={settings.outreach}
+        onCheckedChange={(v) => {
+          settings.setOutreach(v);
+          settings.save({ outreach_enabled: v });
+        }}
+      />
+      <span>
+        <span className="block text-[13px] font-medium text-foreground">
+          {t('igAgent.outreachEnabled')}
+        </span>
+        <span className="block text-[11px] leading-snug text-muted-foreground">
+          {t('igAgent.outreachEnabledHint')}
+        </span>
+      </span>
+    </label>
+  );
 }

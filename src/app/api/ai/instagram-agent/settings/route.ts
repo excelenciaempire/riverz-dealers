@@ -27,6 +27,7 @@ export async function GET() {
       paused: false,
       daily_cap: 500,
       auto_reply_comments: true,
+      outreach_enabled: true,
       send_mode: 'auto',
     });
 
@@ -35,7 +36,7 @@ export async function GET() {
     workspaceId
       ? supabase
           .from('ig_proactive_settings')
-          .select('paused, daily_cap, auto_reply_comments')
+          .select('paused, daily_cap, auto_reply_comments, outreach_enabled')
           .eq('workspace_id', workspaceId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -47,12 +48,14 @@ export async function GET() {
     paused?: boolean;
     daily_cap?: number;
     auto_reply_comments?: boolean;
+    outreach_enabled?: boolean;
   } | null;
   return NextResponse.json({
     paused: s?.paused ?? false,
     daily_cap: s?.daily_cap ?? 500,
-    // Sin fila de ajustes, el piso autónomo está encendido (default de la BD).
+    // Sin fila de ajustes, ambas funcionalidades están encendidas (default BD).
     auto_reply_comments: s?.auto_reply_comments !== false,
+    outreach_enabled: s?.outreach_enabled !== false,
     send_mode: agent.proactive_send_mode,
   });
 }
@@ -85,12 +88,16 @@ export async function POST(request: Request) {
   if (
     typeof body.paused === 'boolean' ||
     body.daily_cap != null ||
-    typeof body.auto_reply_comments === 'boolean'
+    typeof body.auto_reply_comments === 'boolean' ||
+    typeof body.outreach_enabled === 'boolean'
   ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
     if (typeof body.paused === 'boolean') patch.paused = body.paused;
     if (typeof body.auto_reply_comments === 'boolean') {
       patch.auto_reply_comments = body.auto_reply_comments;
+    }
+    if (typeof body.outreach_enabled === 'boolean') {
+      patch.outreach_enabled = body.outreach_enabled;
     }
     if (body.daily_cap != null) {
       patch.daily_cap = Math.max(
