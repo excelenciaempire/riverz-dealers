@@ -57,6 +57,12 @@ class MoshiClient:
         self._voice_prompt = v
         self._text_prompt = text_prompt or "You are a helpful assistant."
         self._ws: websockets.WebSocketClientProtocol | None = None
+        # `ready` = handshake recibido. NO enviar audio antes: el server carga los
+        # prompts (voz/texto) durante varios segundos y recién ahí crea su
+        # opus_reader; si le mandamos Opus durante esa ventana, su decoder muere
+        # ('sending on a closed channel') y cierra la conexión (close 1000, msgs=2).
+        # Esta era la diferencia con el probe, que espera el handshake antes de enviar.
+        self.ready = False
         self._writer = sphn.OpusStreamWriter(MIMI_SAMPLE_RATE)
         self._reader = sphn.OpusStreamReader(MIMI_SAMPLE_RATE)
 
@@ -97,12 +103,15 @@ class MoshiClient:
             msg = await asyncio.wait_for(self._ws.recv(), timeout=timeout)
             if isinstance(msg, (bytes, bytearray)) and msg and msg[0] != HANDSHAKE:
                 logger.warning("moshi: primer mensaje no fue handshake (tag=%s)", msg[0])
+            # Handshake OK → recién ahora es seguro enviar audio.
+            self.ready = True
         except asyncio.TimeoutError:
             logger.warning("moshi: sin handshake dentro de %.0fs (sigo igual)", timeout)
+            self.ready = True  # fail-soft: igual intentamos enviar
 
     async def send_pcm(self, pcm16_24k: bytes) -> None:
         """Envía audio del usuario (PCM int16 mono a 24 kHz) al modelo."""
-        if not self._ws:
+        if not self._ws or not self.ready:
             return
         try:
             pcm = np.frombuffer(pcm16_24k, dtype=np.int16).astype(np.float32) / 32768.0
