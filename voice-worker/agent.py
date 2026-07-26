@@ -309,10 +309,23 @@ def _make_stt(cfg: dict):
         if lang and lang != "multi":
             kwargs["language"] = lang
         return openai.STT(**kwargs)
-    return deepgram.STT(
+    # endpointing_ms bajo = Deepgram cierra el enunciado antes tras el silencio →
+    # menos latencia (el turn-detector semántico igual decide el fin de turno).
+    # no_delay/interim = emite parciales sin buffer. Fail-soft por versión.
+    dg = dict(
         model=cfg.get("model", "nova-3"),
         language=cfg.get("language", "multi"),
+        interim_results=True,
+        endpointing_ms=100,
+        no_delay=True,
     )
+    try:
+        return deepgram.STT(**dg)
+    except TypeError:
+        return deepgram.STT(
+            model=cfg.get("model", "nova-3"),
+            language=cfg.get("language", "multi"),
+        )
 
 
 def _make_llm(cfg: dict):
@@ -479,19 +492,29 @@ def _build_session(context: dict, vad) -> AgentSession:
         turn_detection=MultilingualModel(),
         vad=vad,
     )
-    # Estos parámetros existen en AgentSession 1.6.x; si alguno cambia de nombre,
-    # fail-soft: se arma la sesión sin ellos (mejor sin tuning que sin llamada).
+    # Ajustes de LATENCIA (lo más cercano a full-duplex/PersonaPlex sin perder la
+    # voz Celeste ni la inteligencia de Cerebras):
+    #  - preemptive_generation: el bot empieza a generar la respuesta apenas
+    #    detecta fin de turno probable (no espera la confirmación) → recorta el
+    #    mayor pedazo de latencia percibida. Si sigue hablando, se descarta.
+    #  - min_endpointing_delay 0.25: responde casi al instante tras que callas.
+    #  - max_endpointing_delay 2.5: tope más corto para pausas largas.
+    # Fallback EN CAPAS: si la versión no acepta preemptive_generation, se prueba
+    # sin él (no perdemos el resto del tuning); si nada, sesión pelada.
     tuned = dict(
         allow_interruptions=True,
         min_interruption_words=2,
-        min_endpointing_delay=0.4,
-        max_endpointing_delay=4.0,
+        min_endpointing_delay=0.25,
+        max_endpointing_delay=2.5,
+        preemptive_generation=True,
     )
-    try:
-        return AgentSession(**kwargs, **tuned)
-    except TypeError as e:
-        logger.warning("AgentSession sin tuning (%s)", e)
-        return AgentSession(**kwargs)
+    tuned_no_preempt = {k: v for k, v in tuned.items() if k != "preemptive_generation"}
+    for attempt in (tuned, tuned_no_preempt, {}):
+        try:
+            return AgentSession(**kwargs, **attempt)
+        except TypeError as e:
+            logger.warning("AgentSession: retry sin unos params (%s)", e)
+    return AgentSession(**kwargs)
 
 
 async def _start_recording(ctx: JobContext, context: dict, call_state: CallState) -> None:
