@@ -710,11 +710,25 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     greeting = ctx.get("greeting")
 
     context = LLMContext(messages=[{"role": "system", "content": system}] if system else [])
-    # VAD en el aggregator a 8kHz → la finalización de turno es por VAD (0.5s de
-    # silencio) en vez del TurnAnalyzer que descartaba el primer turno.
+    # FIN DE TURNO por TRANSCRIPCIÓN, no por el smart-turn (default). El default de
+    # pipecat es TurnAnalyzerUserTurnStopStrategy(LocalSmartTurnAnalyzerV3), un modelo
+    # ONNX que sobre audio TELEFÓNICO cuelga/no completa el turno (issue #3643 y lo
+    # visto en /selftest: strategy None → no responde). Con TranscriptionUserTurnStop
+    # el turno cierra ~0.7s después de la última palabra transcrita → responde ágil.
+    up_kwargs: dict = {"vad_analyzer": _mk_vad()}
+    try:
+        from pipecat.turns.user_turn_strategies import UserTurnStrategies
+        from pipecat.turns.user_start import VADUserTurnStartStrategy
+        from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
+        up_kwargs["user_turn_strategies"] = UserTurnStrategies(
+            start=[VADUserTurnStartStrategy()],
+            stop=[TranscriptionUserTurnStopStrategy(timeout=0.7)],
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("user_turn_strategies no disponible (uso default smart-turn): %s", e)
     user_agg, assistant_agg = LLMContextAggregatorPair(
         context,
-        user_params=LLMUserAggregatorParams(vad_analyzer=_mk_vad()),
+        user_params=LLMUserAggregatorParams(**up_kwargs),
     )
     pipeline = Pipeline(
         [
