@@ -75,11 +75,28 @@ async def health() -> JSONResponse:
 
 async def _el_pcm24(phrase: str) -> bytes:
     """ElevenLabs TTS -> raw PCM 24kHz int16 (for feeding moshi as 'speech')."""
-    key = os.getenv("ELEVENLABS_API_KEY", "")
+    key = os.getenv("ELEVENLABS_API_KEY", "") or os.getenv("ELEVEN_API_KEY", "")
     if not key:
         return b""
     vid = "XrExE9yKIg1WjnnlVkGX"  # Matilda
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_24000"
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(
+            url,
+            headers={"xi-api-key": key},
+            json={"text": phrase, "model_id": "eleven_flash_v2_5"},
+        )
+        return r.content if r.status_code == 200 else b""
+
+
+async def _el_ulaw8(phrase: str) -> bytes:
+    """ElevenLabs TTS -> μ-law 8kHz (PCMU) — el formato que habla un 'llamante'
+    de Telnyx. Se usa en /selftest para simular al usuario sin llamada real."""
+    key = os.getenv("ELEVENLABS_API_KEY", "") or os.getenv("ELEVEN_API_KEY", "")
+    if not key:
+        return b""
+    vid = "XrExE9yKIg1WjnnlVkGX"  # Matilda (es-419)
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=ulaw_8000"
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(
             url,
@@ -214,6 +231,104 @@ async def moshi_test(
     return JSONResponse(res)
 
 
+# ── Auto-test SIN teléfono: un "llamante sintético" corre contra el pipeline ───
+# real (localhost /ws), habla en español vía ElevenLabs y mide cuántos turnos
+# responde el bot y con qué latencia. Así iteramos el turn-taking sin llamar a
+# nadie. Requiere un call_id real (fila voice_calls) para que /ws resuelva el
+# contexto/stack. GET /selftest?call_id=...&phrases=Hola|Otra frase
+@app.get("/selftest")
+async def selftest(
+    call_id: str = Query(...),
+    phrases: str = Query(default="Hola, buenas|Sí, quiero confirmar mi pedido|¿Cuánto cuesta el envío?"),
+    turn_wait: float = Query(default=5.0),
+):
+    import asyncio as _a
+    import base64 as _b64
+    import json as _json
+    import time as _t
+
+    import websockets as _ws
+
+    plist = [p for p in phrases.split("|") if p.strip()]
+    report: dict = {"call_id": call_id, "phrases": plist, "greeting_bot_ms": 0, "turns": [], "error": None}
+    ws_url = f"ws://localhost:{PORT}/ws?call_id={call_id}"
+    SIL = b"\xff" * 160  # 20ms de silencio μ-law
+    st = {"listening": False, "bot_ms": 0, "first_bot": None}
+
+    def _b(x: bytes) -> str:
+        return _b64.b64encode(x).decode()
+
+    try:
+        async with _ws.connect(ws_url, max_size=None, open_timeout=30) as ws:
+            await ws.send(_json.dumps({"event": "connected"}))
+            await ws.send(_json.dumps({
+                "event": "start", "stream_id": "selftest",
+                "start": {"call_control_id": "selftest",
+                          "media_format": {"encoding": "PCMU", "sample_rate": 8000, "channels": 1},
+                          "from": "+10000000000", "to": "+10000000001"},
+            }))
+
+            async def receiver():
+                async for msg in ws:
+                    try:
+                        m = _json.loads(msg)
+                    except Exception:
+                        continue
+                    if m.get("event") == "media" and m.get("media", {}).get("payload"):
+                        if st["listening"]:
+                            if st["first_bot"] is None:
+                                st["first_bot"] = _t.monotonic()
+                            st["bot_ms"] += 20  # cada frame = 20ms
+
+            rtask = _a.create_task(receiver())
+
+            async def send_ulaw(data: bytes):
+                for i in range(0, len(data), 160):
+                    ch = data[i:i + 160]
+                    if len(ch) < 160:
+                        ch = ch + b"\xff" * (160 - len(ch))
+                    await ws.send(_json.dumps({"event": "media", "media": {"payload": _b(ch)}}))
+                    await _a.sleep(0.02)
+
+            async def send_silence(secs: float):
+                for _ in range(int(secs / 0.02)):
+                    await ws.send(_json.dumps({"event": "media", "media": {"payload": _b(SIL)}}))
+                    await _a.sleep(0.02)
+
+            # Ventana del saludo del bot
+            st["listening"] = True
+            await _a.sleep(5.0)
+            report["greeting_bot_ms"] = st["bot_ms"]
+
+            for ph in plist:
+                st["bot_ms"] = 0
+                st["first_bot"] = None
+                ulaw = await _el_ulaw8(ph)
+                if not ulaw:
+                    report["turns"].append({"said": ph, "error": "TTS vacío (¿ELEVENLABS_API_KEY?)"})
+                    continue
+                await send_silence(0.4)
+                await send_ulaw(ulaw)
+                t_end = _t.monotonic()
+                await send_silence(1.2)          # gatilla el fin de turno (VAD)
+                await _a.sleep(turn_wait)         # espera la respuesta del bot
+                lat = int((st["first_bot"] - t_end) * 1000) if st["first_bot"] else None
+                report["turns"].append({
+                    "said": ph,
+                    "bot_responded": st["bot_ms"] > 200,
+                    "latency_ms": lat,
+                    "bot_audio_ms": st["bot_ms"],
+                })
+
+            rtask.cancel()
+    except Exception as e:  # noqa: BLE001
+        report["error"] = f"{type(e).__name__}: {e}"
+    # Resumen
+    ok = [t for t in report["turns"] if t.get("bot_responded")]
+    report["summary"] = f"{len(ok)}/{len(plist)} turnos respondidos"
+    return JSONResponse(report)
+
+
 # ── Saliente: Riverz (o un test) dispara /dial → colocamos la llamada ──────────
 @app.post("/dial")
 async def dial(request: Request) -> JSONResponse:
@@ -301,22 +416,10 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         inbound_encoding="PCMU",
         api_key=TELNYX_API_KEY or None,
     )
-    # VAD en el TRANSPORT a 8000 Hz (telefonía). CLAVE: pipecat espera que el VAD
-    # confirme el fin de habla antes de generar; si el VAD corre al rate por
-    # defecto (16k) con audio de 8k, detecta el INICIO pero nunca el FIN →
-    # se cuelga tras el primer turno (era el bug de "lento + 1 sola respuesta").
-    # stop_secs bajo = corta rápido tras el silencio para responder ágil.
-    vad_analyzer = None
-    try:
-        from pipecat.audio.vad.silero import SileroVADAnalyzer
-        from pipecat.audio.vad.vad_analyzer import VADParams
-        _vp = VADParams(stop_secs=0.5)
-        try:
-            vad_analyzer = SileroVADAnalyzer(sample_rate=8000, params=_vp)
-        except TypeError:
-            vad_analyzer = SileroVADAnalyzer(params=_vp)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("VAD no disponible: %s", e)
+    # El VAD va en el AGGREGATOR (ver _build_pipeline), no acá: así la
+    # finalización de turno es por VAD (0.5s de silencio = turno listo) en vez del
+    # TurnAnalyzer "inteligente" que descartaba el primer turno (strategy None →
+    # "lento + casi no responde"). Igual fijamos el sample rate del transport a 8k.
     transport = FastAPIWebsocketTransport(
         websocket=websocket,
         params=FastAPIWebsocketParams(
@@ -325,7 +428,6 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
             audio_in_sample_rate=8000,
             audio_out_sample_rate=8000,
             add_wav_header=False,
-            vad_analyzer=vad_analyzer,
             serializer=serializer,
         ),
     )
@@ -541,11 +643,19 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     proveedor falla al construirse, cae al default seguro (deepgram/anthropic/
     elevenlabs) para no dejar la llamada muda. # VERSION"""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
+    from pipecat.audio.vad.vad_analyzer import VADParams
     from pipecat.processors.aggregators.llm_context import LLMContext
     from pipecat.processors.aggregators.llm_response_universal import (
         LLMContextAggregatorPair,
         LLMUserAggregatorParams,
     )
+
+    def _mk_vad():
+        vp = VADParams(stop_secs=0.5)
+        try:
+            return SileroVADAnalyzer(sample_rate=8000, params=vp)
+        except TypeError:
+            return SileroVADAnalyzer(params=vp)
 
     stt_cfg = model.get("stt", {})
     llm_cfg = model.get("llm", {})
@@ -574,9 +684,12 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     greeting = ctx.get("greeting")
 
     context = LLMContext(messages=[{"role": "system", "content": system}] if system else [])
-    # El VAD vive en el TRANSPORT ahora (arriba); el aggregator solo consume los
-    # eventos de turno. Doble VAD (transport + aggregator) rompía el endpointing.
-    user_agg, assistant_agg = LLMContextAggregatorPair(context)
+    # VAD en el aggregator a 8kHz → la finalización de turno es por VAD (0.5s de
+    # silencio) en vez del TurnAnalyzer que descartaba el primer turno.
+    user_agg, assistant_agg = LLMContextAggregatorPair(
+        context,
+        user_params=LLMUserAggregatorParams(vad_analyzer=_mk_vad()),
+    )
     pipeline = Pipeline(
         [
             transport.input(),
