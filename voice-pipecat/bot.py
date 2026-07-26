@@ -781,9 +781,13 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
         from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
         up_kwargs["user_turn_strategies"] = UserTurnStrategies(
             start=[VADUserTurnStartStrategy()],
-            stop=[SpeechTimeoutUserTurnStopStrategy()],
+            # wait_for_transcript=False → cierra el turno por VAD+timer sin esperar
+            # el transcript (que a veces llega tarde y colgaba el turno en None).
+            stop=[SpeechTimeoutUserTurnStopStrategy(
+                user_speech_timeout=0.6, wait_for_transcript=False,
+            )],
         )
-        logger.info("user_turn_strategies: VAD start + SpeechTimeout stop (sin smart-turn)")
+        logger.info("user_turn_strategies: VAD start + SpeechTimeout(no-wait-transcript) stop")
     except Exception as e:  # noqa: BLE001
         logger.warning("turn strategies no aplicadas (%s) → default smart-turn", e)
     user_agg, assistant_agg = LLMContextAggregatorPair(
