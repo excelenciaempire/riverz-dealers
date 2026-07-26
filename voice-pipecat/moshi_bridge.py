@@ -71,6 +71,12 @@ class MoshiBridge(FrameProcessor):
         # SÍ responde). Bufferizamos la entrada y enviamos en bloques de 80ms.
         self._MIMI_CHUNK = 1920 * 2  # bytes de PCM int16 @24k por frame de 80ms
         self._in_buf = bytearray()
+        # Jitter buffer de SALIDA: moshi entrega audio en ráfagas (~137ms) pero el
+        # teléfono quiere un flujo parejo de 20ms → "entrecortado". Encolamos el PCM
+        # de moshi y un _play_loop lo drena a ritmo constante de 20ms.
+        self._out_q = bytearray()
+        self._play_task: asyncio.Task | None = None
+        self._primed = False  # espera un colchón mínimo antes de empezar a drenar
         # Instrumentación: contar frames de entrada (Telnyx->moshi) y de salida
         # (moshi->Telnyx) para ubicar dónde se corta el audio en la llamada real.
         self._in_n = 0
@@ -90,6 +96,7 @@ class MoshiBridge(FrameProcessor):
             await self.push_frame(frame, direction)
             self._active = True
             self._supervisor_task = asyncio.create_task(self._supervise())
+            self._play_task = asyncio.create_task(self._play_loop())
         elif isinstance(frame, (EndFrame, CancelFrame)):
             await self._stop()
             await self.push_frame(frame, direction)
@@ -176,23 +183,61 @@ class MoshiBridge(FrameProcessor):
             logger.warning("MoshiBridge input error: %s", e)
 
     async def _emit_audio(self, pcm16_24k: bytes) -> None:
+        # moshi entrega en ráfagas → NO empujamos directo (eso es lo entrecortado).
+        # Resampleamos a la tasa de salida y encolamos; _play_loop drena a 20ms.
         try:
             pcm_out = await self._down.resample(pcm16_24k, MIMI_SAMPLE_RATE, self._out_rate)
             if pcm_out:
-                await self.push_frame(
-                    OutputAudioRawFrame(
-                        audio=pcm_out, sample_rate=self._out_rate, num_channels=1
-                    )
-                )
-                self._out_n += 1
-                self._out_bytes += len(pcm_out)
-                if self._out_n % 50 == 0:
-                    logger.info(
-                        "MoshiBridge OUT: %d frames, %d bytes->Telnyx (rate=%d)",
-                        self._out_n, self._out_bytes, self._out_rate,
-                    )
+                self._out_q.extend(pcm_out)
+                # Cota de latencia: si moshi se adelanta (ráfaga grande), no dejes
+                # crecer la cola más de ~1s — descarta lo más viejo.
+                cap = self._out_rate * 2  # 1s de PCM int16
+                if len(self._out_q) > cap:
+                    del self._out_q[: len(self._out_q) - cap]
         except Exception as e:
             logger.warning("MoshiBridge output error: %s", e)
+
+    async def _play_loop(self) -> None:
+        """Drena el jitter buffer a ritmo CONSTANTE de 20ms → flujo parejo al
+        teléfono (arregla el 'entrecortado' de las ráfagas de moshi)."""
+        frame_bytes = int(self._out_rate * 0.02) * 2  # 20ms PCM int16
+        prime_bytes = frame_bytes * 4  # colchón ~80ms antes de empezar
+        loop = asyncio.get_event_loop()
+        next_t = loop.time()
+        try:
+            while self._active:
+                next_t += 0.02
+                delay = next_t - loop.time()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                else:
+                    next_t = loop.time()  # nos atrasamos: re-sincronizar
+                if not self._primed:
+                    if len(self._out_q) < prime_bytes:
+                        continue
+                    self._primed = True
+                if len(self._out_q) >= frame_bytes:
+                    chunk = bytes(self._out_q[:frame_bytes])
+                    del self._out_q[:frame_bytes]
+                    await self.push_frame(
+                        OutputAudioRawFrame(
+                            audio=chunk, sample_rate=self._out_rate, num_channels=1
+                        )
+                    )
+                    self._out_n += 1
+                    self._out_bytes += len(chunk)
+                    if self._out_n % 100 == 0:
+                        logger.info(
+                            "MoshiBridge OUT: %d frames 20ms, %d bytes->Telnyx (q=%d)",
+                            self._out_n, self._out_bytes, len(self._out_q),
+                        )
+                else:
+                    # cola vacía: se acabó el turno de moshi → re-primear el colchón
+                    self._primed = False
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.warning("MoshiBridge play_loop error: %s", e)
 
     async def _emit_text(self, text: str) -> None:
         if self._on_transcript:
@@ -203,6 +248,9 @@ class MoshiBridge(FrameProcessor):
 
     async def _stop(self) -> None:
         self._active = False
+        if self._play_task:
+            self._play_task.cancel()
+            self._play_task = None
         if self._supervisor_task:
             self._supervisor_task.cancel()
             self._supervisor_task = None
