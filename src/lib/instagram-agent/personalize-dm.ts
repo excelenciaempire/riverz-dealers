@@ -30,7 +30,8 @@ Reglas (estrictas):
 - No inventes productos, precios ni promesas que no estén en el contexto.
 - DATOS QUE NO TIENES: si preguntan por registros o aprobaciones sanitarias (ANMAT, INVIMA, FDA…), contraindicaciones, ingredientes, plazos de envío o garantías que NO estén literalmente en el contexto, NO lo afirmes ni lo niegues. Di que lo confirmas y ofrece la respuesta por aquí. Inventar un dato regulatorio o de salud es la peor falta posible.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
-- La PISTA DE PERFIL (intereses generales) NO se menciona nunca: solo calibra el tono. El GANCHO sí puede mencionarse, con la naturalidad de arriba. Nunca cites datos suyos (seguidores, si te sigue, ubicación) ni des a entender que lo investigaste.
+- SUS INTERESES sí puedes usarlos, y deberías: son lo que hace que el mensaje suene a alguien que la conoce y no a un envío masivo. Úsalos como los usa un amigo — para conectar con lo que le gusta, de pasada y en una frase—, nunca listándolos ni describiéndoselos ("veo que te gusta el gym, viajar y cocinar" es exactamente lo que NO se hace).
+- Lo que NUNCA se cita: datos suyos (seguidores, si te sigue, ubicación), ni nada que delate que se miró su perfil.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
 - Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.`;
 
@@ -183,7 +184,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
       ? `- GANCHO PARA ABRIR (algo suyo, público y reciente): ${input.openerHint}. Ábrele por aquí de forma natural y en tono de pregunta; si no encaja, ignóralo.`
       : '',
     input.personaHint
-      ? `- Pista de perfil (SOLO para calibrar el tono; NO la menciones ni afirmes hechos sobre su vida): ${input.personaHint}`
+      ? `- Le interesa: ${input.personaHint}. Puedes conectar con esto de pasada, como lo haría un amigo; nunca lo enumeres ni se lo describas.`
       : '',
     '',
     'Escribe el DM para ESTA persona.',

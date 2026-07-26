@@ -33,6 +33,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   automatizaciones: "automations",
   plantillas: "templates",
   "agente-instagram": "instagram-agent",
+  comentarios: "comments",
   productos: "products",
   pedidos: "orders",
   metricas: "metrics",

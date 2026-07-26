@@ -35,6 +35,7 @@ import {
   BarChart3,
   PhoneCall,
   SlidersHorizontal,
+  MessageSquareReply,
 } from "lucide-react";
 import { isPlatformAdminClient } from "@/lib/auth/platform-admin";
 import {
@@ -89,6 +90,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/asistente", label: "nav.assistant", icon: Sparkles },
       { href: "/menus", label: "nav.flows", icon: Workflow },
+      { href: "/comentarios", label: "nav.comments", icon: MessageSquareReply, beta: true },
       { href: "/voz", label: "nav.voice", icon: PhoneCall, beta: true },
     ],
   },
