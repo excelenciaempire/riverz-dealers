@@ -65,6 +65,12 @@ class MoshiBridge(FrameProcessor):
         self._up = create_stream_resampler()   # entrada  pipeline_rate -> 24k
         self._down = create_stream_resampler()  # salida   24k -> out_rate
         self._out_rate = 8000
+        # moshi/Mimi opera en frames de 80ms = 1920 muestras @24k = 3840 bytes.
+        # Telnyx entrega 20ms (¼ de frame Mimi); mandar cuartos de frame hace que
+        # el modelo NO dé pasos → 0 audio de vuelta (probado: el probe manda 80ms y
+        # SÍ responde). Bufferizamos la entrada y enviamos en bloques de 80ms.
+        self._MIMI_CHUNK = 1920 * 2  # bytes de PCM int16 @24k por frame de 80ms
+        self._in_buf = bytearray()
         # Instrumentación: contar frames de entrada (Telnyx->moshi) y de salida
         # (moshi->Telnyx) para ubicar dónde se corta el audio en la llamada real.
         self._in_n = 0
@@ -138,14 +144,20 @@ class MoshiBridge(FrameProcessor):
         try:
             pcm24 = await self._up.resample(frame.audio, frame.sample_rate, MIMI_SAMPLE_RATE)
             if pcm24:
-                await self._client.send_pcm(pcm24)
-            self._in_n += 1
-            self._in_bytes += len(pcm24 or b"")
-            if self._in_n % 50 == 0:
-                logger.info(
-                    "MoshiBridge IN: %d frames, %d bytes->moshi (src_rate=%s)",
-                    self._in_n, self._in_bytes, frame.sample_rate,
-                )
+                self._in_buf.extend(pcm24)
+            # Enviar SÓLO en bloques alineados a Mimi (80ms); si no, el modelo no
+            # avanza sus pasos y no devuelve audio.
+            while len(self._in_buf) >= self._MIMI_CHUNK:
+                chunk = bytes(self._in_buf[: self._MIMI_CHUNK])
+                del self._in_buf[: self._MIMI_CHUNK]
+                await self._client.send_pcm(chunk)
+                self._in_n += 1
+                self._in_bytes += len(chunk)
+                if self._in_n % 25 == 0:
+                    logger.info(
+                        "MoshiBridge IN: %d bloques 80ms, %d bytes->moshi (src_rate=%s)",
+                        self._in_n, self._in_bytes, frame.sample_rate,
+                    )
         except Exception as e:
             logger.warning("MoshiBridge input error: %s", e)
 

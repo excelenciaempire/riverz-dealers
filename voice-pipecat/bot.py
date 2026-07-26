@@ -96,6 +96,7 @@ async def moshi_test(
     send: bool = Query(default=True),
     speak: bool = Query(default=False),
     text: str = Query(default="Hola, prueba."),
+    chunk_ms: int = Query(default=80),
 ):
     """Debug (no phone call): connect the moshi client, optionally feed it silence,
     and log EVERY raw frame PersonaPlex returns (tag+len). Iterate the bridge safely."""
@@ -149,20 +150,24 @@ async def moshi_test(
                         res["text"].append(payload.decode("utf-8", "ignore")[:20])
 
         task = _asyncio.create_task(reader())
+        res["chunk_ms"] = chunk_ms
         if send:
-            chunk = 3840  # 1920 int16 samples = 80ms @24k
+            spc = int(24000 * chunk_ms / 1000)  # muestras por chunk (80ms->1920)
+            chunk = spc * 2
             frames: list[bytes] = []
             if speak:
                 pcm_in = await _el_pcm24(text)
                 res["input_pcm_bytes"] = len(pcm_in)
                 frames = [pcm_in[i:i + chunk] for i in range(0, len(pcm_in), chunk)]
-            silence = b"\x00\x00" * 1920
-            # Stream CONTINUO (~12s): voz + silencio de cola, para que moshi siga
-            # dando pasos (lm_gen.step) y emita su respuesta — como una llamada real.
-            for k in range(150):
+            silence = b"\x00\x00" * spc
+            # Stream CONTINUO (~12s): voz + silencio de cola. chunk_ms controla el
+            # tamaño del bloque: 80ms = 1 frame Mimi (moshi responde); 20ms = ¼ de
+            # frame (reproduce la llamada real muda) — así se prueba la hipótesis.
+            n_iter = int(12000 / chunk_ms)
+            for k in range(n_iter):
                 await client.send_pcm(frames[k] if k < len(frames) else silence)
                 res["sent"] += 1
-                await _asyncio.sleep(0.08)
+                await _asyncio.sleep(chunk_ms / 1000)
         await _asyncio.sleep(2)
         task.cancel()
     except Exception as e:  # noqa: BLE001
