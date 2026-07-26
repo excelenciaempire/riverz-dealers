@@ -297,7 +297,9 @@ export async function buildVoiceContext(
       provider: model.tts_provider,
       voice_id: agent.voice_id || model.tts_default_voice_id,
       model: model.tts_model,
-      base_url: model.tts_base_url,
+      // OpenAI/VoxCPM enrutan por base_url; deepgram/cartesia/elevenlabs/gemini
+      // no tienen baseUrl en el catálogo → null → plugin nativo del worker.
+      base_url: effectiveBaseUrl('tts', model.tts_provider, model.tts_base_url),
       api_key: model.tts_api_key,
     },
     llm: (() => {
@@ -319,7 +321,8 @@ export async function buildVoiceContext(
       provider: model.stt_provider,
       model: model.stt_model,
       language: model.stt_language,
-      base_url: model.stt_base_url,
+      // Deepgram = nativo (sin baseUrl); openai/groq (whisper) enrutan por base_url.
+      base_url: effectiveBaseUrl('stt', model.stt_provider, model.stt_base_url),
       api_key: model.stt_api_key,
     },
     realtime:

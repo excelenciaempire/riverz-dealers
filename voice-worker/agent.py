@@ -411,6 +411,16 @@ def _make_tts(cfg: dict):
             if key:
                 kw["api_key"] = key
             return cartesia.TTS(**kw)
+        if provider in ("gemini", "google"):
+            from livekit.plugins import google
+
+            g_kw: dict = {"model": cfg.get("model") or "gemini-2.5-flash-preview-tts"}
+            if cfg.get("voice_id"):
+                g_kw["voice_name"] = cfg["voice_id"]
+            key = cfg.get("api_key") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if key:
+                g_kw["api_key"] = key
+            return google.TTS(**g_kw)
     except Exception:
         logger.warning("TTS provider '%s' no disponible; uso ElevenLabs", provider, exc_info=True)
     # ElevenLabs (default). Pasa la key EXPLÍCITA: el fallback por env del plugin
@@ -423,22 +433,24 @@ def _make_tts(cfg: dict):
 
 
 def _try_build_realtime(context: dict):
-    """Construye un RealtimeModel speech-to-speech desde context.realtime, o None → pipeline.
+    """Construye un RealtimeModel speech-to-speech (full-duplex) desde
+    context.realtime, o None → cae al pipeline.
 
-    Rutea por provider:
-      - personaplex/nvidia → plugin oficial livekit-plugins-nvidia (adapter propio).
-        PersonaPlex NO soporta tools: si el agente usa tools, cae al pipeline.
-      - resto → endpoint OpenAI-Realtime-compatible.
+    Rutea por provider (todos multilingües salvo PersonaPlex):
+      - gemini_live/google → Gemini Live nativo (hosteado, multilingüe).
+      - openai_realtime/openai → OpenAI Realtime nativo (hosteado, multilingüe).
+      - personaplex/nvidia → self-host GPU (solo inglés, sin tools).
+      - cualquiera con base_url → endpoint OpenAI-Realtime-COMPATIBLE self-hosted
+        (Qwen-Omni en Modal/RunPod, Moshi, etc.). Es el camino "trae tu modelo".
     """
     rt = context.get("realtime") or {}
-    base_url = rt.get("base_url")
-    if not base_url:
-        return None
     provider = (rt.get("provider") or "").lower()
+    base_url = rt.get("base_url")
+    voice_id = (context.get("voice") or {}).get("voice_id")
 
+    # PersonaPlex (self-host). No tiene function-calling → agentes con tools DEBEN
+    # usar el pipeline para conservar create_order, etc.
     if provider in ("personaplex", "nvidia"):
-        # PersonaPlex no tiene function-calling → los agentes con tools DEBEN usar
-        # el pipeline (Deepgram→Claude→VoxCPM) para conservar create_order, etc.
         if context.get("tools_enabled"):
             logger.info("realtime=personaplex pero el agente usa tools; uso pipeline")
             return None
@@ -450,17 +462,39 @@ def _try_build_realtime(context: dict):
             logger.warning("no se pudo construir PersonaPlex; uso pipeline", exc_info=True)
             return None
 
-    # Endpoint OpenAI-Realtime-COMPATIBLE self-hosted (protocolo, no OpenAI la
-    # empresa): p.ej. Moshi/otro motor realtime servido en Modal con ese contrato.
+    # Gemini Live (Google) — full-duplex hosteado, multilingüe (habla español).
+    if provider in ("gemini_live", "google"):
+        try:
+            from livekit.plugins import google
+
+            g_kwargs: dict = {}
+            if rt.get("model"):
+                g_kwargs["model"] = rt["model"]
+            if voice_id:
+                g_kwargs["voice"] = voice_id
+            key = rt.get("api_key") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if key:
+                g_kwargs["api_key"] = key
+            return google.beta.realtime.RealtimeModel(**g_kwargs)
+        except Exception:
+            logger.warning("no se pudo construir Gemini Live; uso pipeline", exc_info=True)
+            return None
+
+    # OpenAI Realtime NATIVO (sin base_url) o cualquier endpoint OpenAI-Realtime-
+    # COMPATIBLE self-hosted vía base_url (Qwen-Omni en Modal/RunPod, Moshi, …).
     try:
         from livekit.plugins.openai import realtime as openai_realtime
 
-        kwargs: dict = {"base_url": base_url}
+        kwargs: dict = {}
+        if base_url:
+            kwargs["base_url"] = base_url
+            kwargs["api_key"] = rt.get("api_key") or _OAI_PLACEHOLDER_KEY
+        else:
+            key = rt.get("api_key") or os.getenv("OPENAI_API_KEY")
+            if key:
+                kwargs["api_key"] = key
         if rt.get("model"):
             kwargs["model"] = rt["model"]
-        if rt.get("api_key"):
-            kwargs["api_key"] = rt["api_key"]
-        voice_id = (context.get("voice") or {}).get("voice_id")
         if voice_id:
             kwargs["voice"] = voice_id
         return openai_realtime.RealtimeModel(**kwargs)

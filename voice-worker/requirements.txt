@@ -3,7 +3,7 @@
 # como extras y quedan alineados a la misma versión que livekit-agents.
 # El extra `openai` trae livekit-plugins-openai (STT/LLM/TTS/realtime
 # OpenAI-compatible) para apuntar capas a un endpoint en Modal (vLLM / PersonaPlex).
-livekit-agents[anthropic,deepgram,elevenlabs,openai,silero,turn-detector,cartesia]==1.6.6
+livekit-agents[anthropic,deepgram,elevenlabs,openai,silero,turn-detector,cartesia,google]==1.6.6
 livekit-api==1.2.0
 
 # PersonaPlex (NVIDIA full-duplex S2S) realtime plugin — official custom

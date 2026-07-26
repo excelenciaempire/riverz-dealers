@@ -53,6 +53,7 @@ export const STT_PROVIDERS: ProviderOption[] = [
       { id: 'gpt-4o-mini-transcribe', label: 'gpt-4o-mini-transcribe' },
       { id: 'whisper-1', label: 'Whisper' },
     ],
+    baseUrl: 'https://api.openai.com/v1',
   },
   {
     id: 'groq',
@@ -61,17 +62,14 @@ export const STT_PROVIDERS: ProviderOption[] = [
       { id: 'whisper-large-v3-turbo', label: 'whisper-large-v3-turbo' },
       { id: 'whisper-large-v3', label: 'whisper-large-v3' },
     ],
+    baseUrl: 'https://api.groq.com/openai/v1',
     note: 'Whisper muy rápido y barato.',
   },
   {
-    id: 'assemblyai',
-    label: 'AssemblyAI',
-    models: [{ id: 'best', label: 'best' }],
-  },
-  {
-    id: 'gladia',
-    label: 'Gladia',
-    models: [{ id: 'solaria-1', label: 'solaria-1' }],
+    id: 'openai_compatible',
+    label: 'OpenAI-compatible (custom)',
+    models: [{ id: 'whisper-1', label: 'Escribir modelo…' }],
+    note: 'Cualquier endpoint STT OpenAI-compatible (base_url + key). Ej. Whisper self-host.',
   },
 ];
 
@@ -220,23 +218,6 @@ export const TTS_PROVIDERS: ProviderOption[] = [
     note: 'Máxima calidad, 32 idiomas, pero la más cara (~$0.10/min). Tier premium.',
   },
   {
-    id: 'hume',
-    label: 'Hume (Octave)',
-    models: [{ id: 'octave', label: 'Octave (expresivo)' }],
-    voiceHint: 'voz/description Hume',
-    note: 'Muy barato (~$7.6/1M chars), expresivo.',
-  },
-  {
-    id: 'rime',
-    label: 'Rime',
-    models: [
-      { id: 'mistv2', label: 'mistv2' },
-      { id: 'arcana', label: 'arcana' },
-    ],
-    voiceHint: 'nombre de voz Rime (ej. "cove")',
-    note: 'Conversacional, baja latencia.',
-  },
-  {
     id: 'openai',
     label: 'OpenAI',
     models: [
@@ -245,21 +226,20 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'tts-1', label: 'tts-1 (barato)' },
     ],
     voiceHint: 'voz OpenAI (alloy, nova, shimmer…)',
-  },
-  {
-    id: 'playht',
-    label: 'PlayHT',
-    models: [
-      { id: 'Play3.0-mini', label: 'Play 3.0 mini' },
-      { id: 'PlayHT2.0-turbo', label: 'PlayHT 2.0 turbo' },
-    ],
-    voiceHint: 'voice URL/id de PlayHT',
+    baseUrl: 'https://api.openai.com/v1',
   },
   {
     id: 'gemini',
     label: 'Google (Gemini TTS)',
     models: [{ id: 'gemini-2.5-flash-preview-tts', label: 'Gemini 2.5 Flash TTS' }],
     voiceHint: 'voz Gemini (ej. Kore, Puck)',
+  },
+  {
+    id: 'openai_compatible',
+    label: 'OpenAI-compatible (custom)',
+    models: [{ id: 'tts-1', label: 'Escribir modelo…' }],
+    voiceHint: 'voz del endpoint',
+    note: 'Cualquier TTS OpenAI-compatible (base_url + key). Ej. VoxCPM self-host.',
   },
 ];
 
@@ -299,8 +279,23 @@ export const RECOMMENDED_COMBOS = [
   },
 ] as const;
 
-/** Motores full-duplex speech-to-speech (modo realtime). */
+/**
+ * Motores full-duplex speech-to-speech (modo realtime). El bot escucha y habla a
+ * la vez → latencia casi nula, lo más humano. Trade-off vs. pipeline: usás la voz
+ * del modelo (no Celeste) y suele costar más por minuto.
+ */
 export const REALTIME_PROVIDERS: ProviderOption[] = [
+  {
+    id: 'gemini_live',
+    label: 'Google (Gemini Live)',
+    models: [
+      { id: 'gemini-2.0-flash-live-001', label: 'Gemini 2.0 Flash Live' },
+      { id: 'gemini-2.5-flash-preview-native-audio-dialog', label: 'Gemini 2.5 Flash (audio nativo)' },
+    ],
+    voiceHint: 'voz Gemini (Puck, Charon, Kore…)',
+    note: 'S2S hosteado, multi-idioma (habla español). Barato + rápido. Recomendado.',
+    recommended: true,
+  },
   {
     id: 'openai_realtime',
     label: 'OpenAI Realtime',
@@ -309,31 +304,24 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
       { id: 'gpt-4o-realtime-preview', label: 'gpt-4o-realtime-preview' },
     ],
     voiceHint: 'voz (alloy, marin, cedar…)',
-    note: 'S2S natural, cualquier idioma. El más humano.',
+    note: 'S2S hosteado, cualquier idioma. El más humano. Más caro.',
   },
   {
-    id: 'gemini_live',
-    label: 'Google (Gemini Live)',
+    id: 'qwen_omni',
+    label: 'Qwen-Omni (self-host)',
     models: [
-      { id: 'gemini-2.0-flash-live-001', label: 'Gemini 2.0 Flash Live' },
-      { id: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (exp)' },
+      { id: 'qwen3-omni', label: 'Qwen3-Omni' },
+      { id: 'qwen2.5-omni', label: 'Qwen2.5-Omni' },
     ],
-    voiceHint: 'voz Gemini (Puck, Charon, Kore…)',
-    note: 'S2S natural, multi-idioma.',
-  },
-  {
-    id: 'aws_nova_sonic',
-    label: 'Amazon Nova Sonic',
-    models: [{ id: 'amazon.nova-sonic-v1:0', label: 'Nova Sonic v1' }],
-    voiceHint: 'voz (matthew, tiffany, amy…)',
-    note: 'S2S de AWS. Requiere credenciales Bedrock.',
+    voiceHint: 'voz del endpoint',
+    note: 'S2S multilingüe self-host (Modal/RunPod) vía endpoint OpenAI-Realtime-compatible (base_url). $0 por minuto de API a escala.',
   },
   {
     id: 'personaplex',
-    label: 'PersonaPlex (Modal)',
+    label: 'PersonaPlex (self-host)',
     models: [{ id: 'personaplex-7b', label: 'PersonaPlex 7B' }],
     voiceHint: 'voz PP (NATF2, NATM1…)',
-    note: 'Full-duplex self-host. Solo inglés, experimental.',
+    note: 'Full-duplex self-host (Modal/RunPod). Solo inglés, experimental. Sin tools.',
   },
 ];
 
