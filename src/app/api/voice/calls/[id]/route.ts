@@ -45,6 +45,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       .maybeSingle();
     if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+    // Reproducción de la grabación: el egress sube a un bucket PRIVADO
+    // "voice-recordings" como `<call_id>.ogg`. Firmamos una URL de corta vida para
+    // que el navegador pueda reproducirla (el recording_url guardado es una ruta
+    // S3, no reproducible directo). Fail-soft: si no hay objeto, se deja como está.
+    if (call.recording_url) {
+      const { data: signed } = await supabaseAdmin()
+        .storage.from('voice-recordings')
+        .createSignedUrl(`${call.id}.ogg`, 60 * 60);
+      if (signed?.signedUrl) call.recording_url = signed.signedUrl;
+    }
+
     let transcript: TranscriptTurn[] = [];
     if (call.conversation_id) {
       const { data: msgs } = await supabaseAdmin()

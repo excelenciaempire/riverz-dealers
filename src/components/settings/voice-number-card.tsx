@@ -239,7 +239,7 @@ export function VoiceNumberCard() {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <Phone className="h-5 w-5 text-violet-500" />
+        <Phone className="h-5 w-5 text-yellow-500" />
         <p className="text-sm font-medium text-foreground">{t('voice.numberTitle')}</p>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{t('voice.numberDesc')}</p>

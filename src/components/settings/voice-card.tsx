@@ -118,7 +118,7 @@ export function VoiceCard() {
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <PhoneCall className="h-5 w-5 text-violet-500" />
+          <PhoneCall className="h-5 w-5 text-yellow-500" />
           <p className="text-sm font-medium text-foreground">{t('voice.cardTitle')}</p>
         </div>
         <span
@@ -248,7 +248,7 @@ export function VoiceCard() {
               {usage.minutes_limit > 0 && (
                 <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
                   <div
-                    className="h-full rounded-full bg-violet-500"
+                    className="h-full rounded-full bg-yellow-500"
                     style={{
                       width: `${Math.min(100, Math.round((usage.minutes_used / usage.minutes_limit) * 100))}%`,
                     }}

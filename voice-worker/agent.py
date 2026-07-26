@@ -574,8 +574,9 @@ async def _start_recording(ctx: JobContext, context: dict, call_state: CallState
         return
     endpoint = os.getenv("RECORDING_S3_ENDPOINT") or None
     region = os.getenv("RECORDING_S3_REGION") or "auto"
-    # Key determinística por call_id -> el backend puede firmar la URL sin adivinar.
-    key = f"voice-recordings/{call_state.call_id}.ogg"
+    # Key determinística por call_id (el bucket ya es "voice-recordings") -> el
+    # backend firma la URL de reproducción como `<call_id>.ogg` sin adivinar.
+    key = f"{call_state.call_id}.ogg"
 
     s3_kwargs = dict(access_key=access, secret=secret, bucket=bucket, region=region)
     if endpoint:  # Supabase / MinIO / R2 requieren endpoint + path-style

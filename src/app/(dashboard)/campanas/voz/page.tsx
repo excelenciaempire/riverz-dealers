@@ -94,7 +94,7 @@ export default function VoiceCampaignsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex items-center gap-2">
-        <PhoneCall className="h-5 w-5 text-violet-500" />
+        <PhoneCall className="h-5 w-5 text-yellow-500" />
         <h1 className="text-2xl font-bold text-foreground">{t('voice.campaignsTitle')}</h1>
       </div>
       <p className="text-sm text-muted-foreground">{t('voice.campaignsHint')}</p>
