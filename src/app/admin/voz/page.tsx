@@ -108,6 +108,14 @@ export default function AdminVoiceModelPage() {
         <p className="mt-1 text-sm text-muted-foreground">{t('voice.adminDesc')}</p>
       </div>
 
+      {/* Resumen del stack ACTIVO (lo que corre en las llamadas ahora) */}
+      <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">Activo: </span>
+        {config.mode === 'realtime'
+          ? `realtime · ${config.realtime_provider ?? '—'} / ${config.realtime_model ?? '—'}`
+          : `pipeline · STT ${config.stt_provider}/${config.stt_model} · LLM ${config.llm_provider}/${config.llm_model} · TTS ${config.tts_provider}/${config.tts_model}`}
+      </div>
+
       {/* Mode */}
       <section className="rounded-xl border border-border bg-card p-4">
         <p className="mb-2 text-sm font-medium text-foreground">{t('voice.adminMode')}</p>
@@ -362,11 +370,16 @@ function EndpointKey({
       <Row label={t('voice.adminApiKey')}>
         <Input
           type="password"
-          placeholder={hasKey ? '••••••••' : ''}
+          placeholder={hasKey ? '••••••••' : t('voice.adminKeyEnvHint')}
           value={keyVal}
           onChange={(e) => onKey(e.target.value)}
         />
       </Row>
+      {!hasKey ? (
+        <p className="text-xs text-muted-foreground sm:pl-[160px]">
+          {t('voice.adminKeyEnvNote')}
+        </p>
+      ) : null}
     </>
   );
 }

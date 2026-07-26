@@ -204,6 +204,11 @@ export const voice = {
     en: "OpenAI-compatible URL; empty = default provider",
   },
   adminApiKey: { es: "API key del endpoint", en: "Endpoint API key" },
+  adminKeyEnvHint: { es: "usa la del servidor", en: "uses server key" },
+  adminKeyEnvNote: {
+    es: "Vacío = usa la variable de entorno del servidor para este proveedor.",
+    en: "Empty = uses the server environment variable for this provider.",
+  },
   adminSave: { es: "Guardar", en: "Save" },
   adminSaved: { es: "Modelo actualizado", en: "Model updated" },
 
