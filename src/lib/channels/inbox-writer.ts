@@ -10,6 +10,7 @@ import { runAiAgent } from "@/lib/ai/runner";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
+import { mediaPreviewToken } from "./display";
 import {
   maybeRunCloser,
   markCampaignReply,
@@ -112,6 +113,16 @@ export async function ingestInboundEvent(
   //     primario. Fail-soft — no rompe el ingest si falla.
   await linkUnifiedContact(db, contact).catch(() => contact.id);
 
+  // Preview de la lista. Un mensaje que es SÓLO un archivo (una nota de voz,
+  // una foto) llega con texto vacío y la conversación quedaba diciendo "Sin
+  // mensajes" aunque el mensaje estuviera ahí. Guardamos el marcador del tipo
+  // —la UI lo muestra en el idioma del usuario (localizeContentToken)— sin
+  // tocar el content_text del mensaje, que sigue vacío para que la burbuja
+  // muestre el reproductor y nada más.
+  const previewText = event.text?.trim()
+    ? event.text
+    : mediaPreviewToken(event.attachments?.[0]?.mime_type);
+
   // 2. Find-or-create conversation. Emails group by threadId; everything
   //    else keeps one open conversation per (contact, channel).
   //    Un evento que sólo trae contexto de anuncio (referralOnly) jamás abre
@@ -123,7 +134,7 @@ export async function ingestInboundEvent(
     connection_id: event.connection.id,
     subject: event.subject,
     thread_external_id: event.externalThreadId ?? event.comment?.postId ?? null,
-    firstMessageText: event.text,
+    firstMessageText: previewText,
     lastMessageAt: event.receivedAt,
     lastSenderType: event.outbound ? "agent" : "customer",
     createIfMissing: event.referralOnly ? false : event.createIfMissing,
@@ -358,7 +369,7 @@ export async function ingestInboundEvent(
     updated_at: new Date().toISOString(),
   };
   if (isNewer) {
-    summaryPatch.last_message_text = event.text.slice(0, 200);
+    summaryPatch.last_message_text = previewText.slice(0, 200);
     summaryPatch.last_message_at = event.receivedAt;
     summaryPatch.last_sender_type = event.outbound ? "agent" : "customer";
   }
@@ -608,6 +619,20 @@ async function upsertContact(
     .select()
     .single();
   if (error) {
+    // 23505 = dos entregas del mismo contacto nuevo en vuelo a la vez: ambas
+    // vieron "no existe" y ambas insertaron. La que pierde volvía null y su
+    // mensaje se PERDÍA (era el caso de una nota de voz que llega junto con
+    // otro mensaje). Releemos la fila que ganó y seguimos con ella.
+    if (error.code === "23505") {
+      const { data: raced } = await db
+        .from("contacts")
+        .select("*")
+        .eq("workspace_id", input.workspace_id)
+        .eq("channel", input.channel)
+        .eq("external_id", input.external_id)
+        .maybeSingle();
+      if (raced) return raced as Contact;
+    }
     console.error("[inbox-writer] upsert contact failed:", error);
     return null;
   }

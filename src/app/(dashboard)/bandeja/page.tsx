@@ -10,7 +10,7 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
 import { MlSubFilter, type MlKindFilter } from "@/components/inbox/ml-subfilter";
-import { mlThreadKind } from "@/lib/channels/display";
+import { mediaPreviewToken, mlThreadKind } from "@/lib/channels/display";
 import {
   InboxTabs,
   type InboxTab,
@@ -218,7 +218,13 @@ export default function InboxPage() {
               c.id === newMsg.conversation_id
                 ? {
                     ...c,
-                    last_message_text: newMsg.content_text ?? "",
+                    // Un mensaje que es sólo un archivo llega sin texto: el
+                    // preview muestra el marcador del tipo ("[Audio]") en vez
+                    // de quedar en "Sin mensajes" hasta el UPDATE de la
+                    // conversación.
+                    last_message_text:
+                      newMsg.content_text?.trim() ||
+                      mediaPreviewToken(newMsg.media_mime ?? newMsg.media_type),
                     last_message_at: newMsg.created_at,
                     unread_count:
                       activeConversation?.id === newMsg.conversation_id

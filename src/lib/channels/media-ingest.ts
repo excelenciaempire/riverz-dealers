@@ -126,13 +126,19 @@ export function sniffMime(buffer: Buffer, hint?: MediaCategory): string | null {
     if (kind === "WEBP") return "image/webp";
     if (kind === "AVI ") return "video/x-msvideo";
   }
-  // ISO-BMFF: el brand del `ftyp` distingue audio (M4A) de video (mp4/mov).
+  // ISO-BMFF (mp4/m4a/mov). Instagram entrega las notas de voz acá: un mp4
+  // con brand `isom` y SIN pista de video, que el CDN sirve como
+  // `video/mp4` — guardado así, la nota de voz se ve como una burbuja de
+  // video negra y muda. El contenedor lo dice: los `hdlr` declaran 'soun'
+  // (audio) y 'vide' (video), así que preguntamos al archivo en vez de
+  // confiar en el header o el brand.
   if (ascii(4, 4) === "ftyp") {
     const brand = ascii(8, 4);
-    if (brand.startsWith("M4A") || brand.startsWith("M4B")) return "audio/mp4";
     if (brand.startsWith("qt")) return "video/quicktime";
-    // IG/Messenger sirven las notas de voz como mp4 con brand isom/mp42: el
-    // hint del adjunto es lo único que distingue audio de video ahí.
+    const tracks = isoTrackKinds(buffer);
+    if (tracks.hasVideo) return "video/mp4";
+    if (tracks.hasAudio) return "audio/mp4";
+    if (brand.startsWith("M4A") || brand.startsWith("M4B")) return "audio/mp4";
     return wantsAudio ? "audio/mp4" : "video/mp4";
   }
   // Matroska / WebM.
@@ -146,16 +152,49 @@ export function sniffMime(buffer: Buffer, hint?: MediaCategory): string | null {
   return null;
 }
 
+/** Qué pistas declara un contenedor ISO-BMFF. Cada track trae un box `hdlr`
+ *  con su tipo ('soun' | 'vide'); alcanza con buscarlos en la cabecera (el
+ *  `moov` va al principio en lo que sirve Meta). Se mira sólo el primer MB
+ *  para no recorrer un video largo entero. */
+function isoTrackKinds(buffer: Buffer): { hasAudio: boolean; hasVideo: boolean } {
+  const head = buffer.subarray(0, Math.min(buffer.length, 1024 * 1024)).toString("latin1");
+  let hasAudio = false;
+  let hasVideo = false;
+  let i = head.indexOf("hdlr");
+  while (i !== -1) {
+    // Desde el nombre del box: 4 'hdlr' + 4 versión/flags + 4 pre_defined,
+    // y ahí viene el handler_type ('soun' | 'vide').
+    const handler = head.slice(i + 12, i + 16);
+    if (handler === "soun") hasAudio = true;
+    if (handler === "vide") hasVideo = true;
+    i = head.indexOf("hdlr", i + 4);
+  }
+  return { hasAudio, hasVideo };
+}
+
 /**
- * Mime definitivo con el que se guarda el archivo: el declarado si sirve,
- * si no lo que dicen los bytes, y como último recurso el que sugiere el tipo
- * de adjunto que anunció el canal. Nunca deja un audio como octet-stream.
+ * Mime definitivo con el que se guarda el archivo. Manda el archivo, no el
+ * header: el CDN de Meta sirve las notas de voz de Instagram como
+ * `video/mp4` (un mp4 sin pista de video) y las de WhatsApp como
+ * `application/octet-stream`. Con el header crudo la nota de voz entraba
+ * como video mudo o como documento. Sólo se revisa el declarado cuando NO
+ * es de fiar; un mime concreto y coherente se respeta tal cual.
  */
 export function resolveMime(
   declared: string | null | undefined,
   buffer: Buffer,
   hint?: MediaCategory,
 ): string {
+  const lower = (declared ?? "").toLowerCase().split(";")[0].trim();
+  // mp4 declarado como video: puede ser una nota de voz. El contenedor decide.
+  if (lower === "video/mp4" || lower === "application/mp4" || lower === "audio/mp4") {
+    const tracks = isoTrackKinds(buffer);
+    if (tracks.hasVideo) return "video/mp4";
+    if (tracks.hasAudio) return "audio/mp4";
+    return lower === "video/mp4" && hint !== "voice" && hint !== "audio"
+      ? "video/mp4"
+      : "audio/mp4";
+  }
   if (!isGenericMime(declared)) return declared as string;
   const sniffed = sniffMime(buffer, hint);
   if (sniffed) return sniffed;

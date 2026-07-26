@@ -8,6 +8,20 @@ function bytes(sig: string, at = 0, size = 64): Buffer {
   return b;
 }
 
+/** mp4 mínimo con los `hdlr` de las pistas que se pidan — así se ve el
+ *  contenedor real de una nota de voz (solo 'soun') vs un video. */
+function isoMp4(tracks: { soun?: boolean; vide?: boolean }): Buffer {
+  const parts = [Buffer.alloc(4), Buffer.from("ftypisom", "latin1")];
+  for (const kind of ["soun", "vide"] as const) {
+    if (!tracks[kind]) continue;
+    const box = Buffer.alloc(24);
+    box.write("hdlr", 4, "latin1");
+    box.write(kind, 16, "latin1");
+    parts.push(box);
+  }
+  return Buffer.concat(parts);
+}
+
 describe("sniffMime", () => {
   it("reconoce la nota de voz de WhatsApp (ogg/opus)", () => {
     expect(sniffMime(bytes("OggS"))).toBe("audio/ogg");
@@ -18,6 +32,12 @@ describe("sniffMime", () => {
     mp4.write("isom", 8, "latin1");
     expect(sniffMime(mp4, "voice")).toBe("audio/mp4");
     expect(sniffMime(mp4, "video")).toBe("video/mp4");
+  });
+
+  it("reconoce la nota de voz de Instagram: mp4 con pista de audio y ninguna de video", () => {
+    // Es lo que entrega el CDN de Meta — brand `isom`, un solo track 'soun'.
+    expect(sniffMime(isoMp4({ soun: true }))).toBe("audio/mp4");
+    expect(sniffMime(isoMp4({ soun: true, vide: true }))).toBe("video/mp4");
   });
 
   it("reconoce m4a por el brand aunque no haya hint", () => {
@@ -47,6 +67,16 @@ describe("sniffMime", () => {
 describe("resolveMime", () => {
   it("respeta el mime declarado cuando dice algo", () => {
     expect(resolveMime("audio/ogg", bytes("OggS"), "voice")).toBe("audio/ogg");
+  });
+
+  it("corrige el video/mp4 que el CDN pone en las notas de voz de Instagram", () => {
+    // El header decía video/mp4 y la nota de voz se veía como una burbuja de
+    // video negra y muda. El contenedor manda.
+    const nota = isoMp4({ soun: true });
+    expect(resolveMime("video/mp4", nota, "audio")).toBe("audio/mp4");
+    expect(mimeToCategory(resolveMime("video/mp4", nota, "audio"))).toBe("audio");
+    // Un video de verdad sigue siendo video, aunque el adjunto venga sin hint.
+    expect(resolveMime("video/mp4", isoMp4({ soun: true, vide: true }))).toBe("video/mp4");
   });
 
   it("mira los bytes cuando el CDN declara octet-stream", () => {

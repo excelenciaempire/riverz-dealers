@@ -133,6 +133,22 @@ export function isUnsupportedMediaSnippet(text?: string | null): boolean {
   return (text ?? "").trim().toLowerCase() === "[unsupported media]";
 }
 
+/**
+ * Marcador de tipo para el preview de la bandeja cuando el mensaje no trae
+ * texto (una nota de voz, una foto). Sin esto la conversación decía "Sin
+ * mensajes" aunque el mensaje estuviera ahí. Se guarda/emite en español;
+ * `localizeContentToken` lo muestra en el idioma del usuario. Puro y
+ * client-safe: lo usan el ingest (servidor) y el realtime de la bandeja.
+ */
+export function mediaPreviewToken(mime?: string | null): string {
+  const m = (mime ?? "").toLowerCase().split(";")[0].trim();
+  if (!m) return "";
+  if (m.startsWith("image/")) return "[Imagen]";
+  if (m.startsWith("video/")) return "[Video]";
+  if (m.startsWith("audio/")) return "[Audio]";
+  return "[Documento]";
+}
+
 /** MercadoLibre sub-kind: a pre-sale QUESTION (public, shown on the listing)
  *  vs a post-sale MESSAGE (private, tied to an order pack). */
 export type MlThreadKind = "question" | "message";
