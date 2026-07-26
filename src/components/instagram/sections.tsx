@@ -929,9 +929,13 @@ export function SectionHead({
 /** Bloque 2 — el interruptor del piso autónomo. */
 export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
-  if (!settings.loaded) return null;
   return (
-    <label className="flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <label
+      className={cn(
+        'flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-opacity',
+        settings.loaded ? '' : 'pointer-events-none opacity-50',
+      )}
+    >
       <Switch
         checked={settings.autoReply}
         onCheckedChange={(v) => {
@@ -962,8 +966,6 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
  */
 export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
-  if (!settings.loaded) return null;
-
   return (
     <div
       className={cn(
@@ -971,6 +973,7 @@ export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
         settings.paused
           ? 'border-destructive/40 bg-destructive/5'
           : 'border-border bg-card',
+        settings.loaded ? '' : 'pointer-events-none opacity-50',
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1389,9 +1392,13 @@ export function useIgConnected(): boolean | undefined {
  */
 export function OutreachToggle({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
-  if (!settings.loaded) return null;
   return (
-    <label className="flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <label
+      className={cn(
+        'flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-opacity',
+        settings.loaded ? '' : 'pointer-events-none opacity-50',
+      )}
+    >
       <Switch
         checked={settings.outreach}
         onCheckedChange={(v) => {
