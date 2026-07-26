@@ -194,10 +194,13 @@ def build_tools(
         ),
     )
     async def report_outcome(
-        ctx: RunContext, outcome: str, details: dict | None = None
+        ctx: RunContext, outcome: str, details: str | None = None
     ) -> str:
+        # details como TEXTO (no dict): un parámetro tipo objeto genera un JSON
+        # schema sin `additionalProperties:false`, que los LLM en modo estricto
+        # (Groq/OpenAI) RECHAZAN con 400 → tumbaba TODA la llamada al LLM.
         call_state.outcome = outcome
-        call_state.outcome_details = details
+        call_state.outcome_details = {"note": details} if details else None
         logger.info("outcome=%s details=%s", outcome, details)
         return "ok"
 
