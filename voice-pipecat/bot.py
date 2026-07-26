@@ -265,6 +265,20 @@ async def turns_debug():
         )
     except Exception as e:  # noqa: BLE001
         out["params_err"] = str(e)
+    # Firmas/docstring de las estrategias de STOP (para configurarlas bien)
+    import inspect
+    for mod, cls in [
+        ("pipecat.turns.user_stop", "SpeechTimeoutUserTurnStopStrategy"),
+        ("pipecat.turns.user_stop", "LLMTurnCompletionUserTurnStopStrategy"),
+        ("pipecat.turns.user_stop", "DeferredUserTurnStopStrategy"),
+    ]:
+        try:
+            m = importlib.import_module(mod)
+            c = getattr(m, cls)
+            out[cls + "__sig"] = str(inspect.signature(c.__init__))
+            out[cls + "__doc"] = (inspect.getdoc(c) or "")[:300]
+        except Exception as e:  # noqa: BLE001
+            out[cls + "__sig"] = f"ERR {e}"
     return JSONResponse(out)
 
 
