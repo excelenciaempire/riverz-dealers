@@ -301,12 +301,24 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         inbound_encoding="PCMU",
         api_key=TELNYX_API_KEY or None,
     )
+    # VAD en el TRANSPORT (no solo en el aggregator): sin esto el transport no
+    # emite bien "usuario empezó/dejó de hablar" → el endpointing se cuelga
+    # (respuestas lentísimas y solo el primer turno). stop_secs bajo = corta
+    # rápido tras el silencio para responder ágil por teléfono.
+    vad_analyzer = None
+    try:
+        from pipecat.audio.vad.silero import SileroVADAnalyzer
+        from pipecat.audio.vad.vad_analyzer import VADParams
+        vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.5))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("VAD no disponible: %s", e)
     transport = FastAPIWebsocketTransport(
         websocket=websocket,
         params=FastAPIWebsocketParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
             add_wav_header=False,
+            vad_analyzer=vad_analyzer,
             serializer=serializer,
         ),
     )
@@ -413,7 +425,16 @@ def _build_stt(cfg: dict):  # noqa: ANN201
         from deepgram import LiveOptions
         return DeepgramSTTService(
             api_key=key or _env("DEEPGRAM_API_KEY"),
-            live_options=LiveOptions(model=model or "nova-3", language=lang),
+            live_options=LiveOptions(
+                model=model or "nova-3",
+                language=lang,
+                interim_results=True,   # parciales → el VAD corta antes
+                endpointing=300,        # ms de silencio para finalizar (ágil)
+                utterance_end_ms="1000",
+                vad_events=True,
+                smart_format=True,
+                punctuate=True,
+            ),
             audio_passthrough=True,
         )
     except Exception:
@@ -546,10 +567,9 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     greeting = ctx.get("greeting")
 
     context = LLMContext(messages=[{"role": "system", "content": system}] if system else [])
-    user_agg, assistant_agg = LLMContextAggregatorPair(
-        context,
-        user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
-    )
+    # El VAD vive en el TRANSPORT ahora (arriba); el aggregator solo consume los
+    # eventos de turno. Doble VAD (transport + aggregator) rompía el endpointing.
+    user_agg, assistant_agg = LLMContextAggregatorPair(context)
     pipeline = Pipeline(
         [
             transport.input(),
