@@ -90,6 +90,8 @@ export function VoiceSettings({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
+  // Opciones avanzadas ocultas por defecto — el 95% de los usuarios no las toca.
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
@@ -281,16 +283,6 @@ export function VoiceSettings({
                 );
               })}
             </div>
-            <Input
-              className="mt-2 bg-muted text-foreground"
-              placeholder={t('voice.customVoiceId')}
-              value={
-                value.voice_id && !CURATED_VOICES.some((v) => v.voice_id === value.voice_id)
-                  ? value.voice_id
-                  : ''
-              }
-              onChange={(e) => set({ voice_id: e.target.value.trim() || null })}
-            />
           </div>
 
           {/* Greeting */}
@@ -443,52 +435,85 @@ export function VoiceSettings({
             </div>
           </div>
 
-          {/* Duration + retries */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                {t('voice.maxDuration')}
-              </p>
-              <Input
-                type="number"
-                min={30}
-                max={1800}
-                className="bg-muted text-foreground"
-                value={value.voice_max_call_seconds}
-                onChange={(e) =>
-                  set({ voice_max_call_seconds: Number(e.target.value) || DEFAULT_MAX_CALL_SECONDS })
-                }
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">{t('voice.retries')}</p>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                className="bg-muted text-foreground"
-                value={value.voice_max_retries}
-                onChange={(e) => set({ voice_max_retries: Number(e.target.value) || 0 })}
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                {t('voice.retryDelay')}
-              </p>
-              <Input
-                type="number"
-                min={15}
-                max={1440}
-                className="bg-muted text-foreground"
-                value={value.voice_retry_delay_minutes}
-                onChange={(e) =>
-                  set({
-                    voice_retry_delay_minutes:
-                      Number(e.target.value) || DEFAULT_RETRY_DELAY_MINUTES,
-                  })
-                }
-              />
-            </div>
+          {/* Opciones avanzadas — ocultas por defecto para no abrumar. */}
+          <div className="border-t border-border pt-3">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              {showAdvanced ? '−' : '+'} {t('voice.advanced')}
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 space-y-4">
+                <div>
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                    {t('voice.customVoiceId')}
+                  </p>
+                  <Input
+                    className="bg-muted text-foreground"
+                    placeholder={t('voice.customVoiceId')}
+                    value={
+                      value.voice_id && !CURATED_VOICES.some((v) => v.voice_id === value.voice_id)
+                        ? value.voice_id
+                        : ''
+                    }
+                    onChange={(e) => set({ voice_id: e.target.value.trim() || null })}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      {t('voice.maxDuration')}
+                    </p>
+                    <Input
+                      type="number"
+                      min={30}
+                      max={1800}
+                      className="bg-muted text-foreground"
+                      value={value.voice_max_call_seconds}
+                      onChange={(e) =>
+                        set({
+                          voice_max_call_seconds:
+                            Number(e.target.value) || DEFAULT_MAX_CALL_SECONDS,
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      {t('voice.retries')}
+                    </p>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={5}
+                      className="bg-muted text-foreground"
+                      value={value.voice_max_retries}
+                      onChange={(e) => set({ voice_max_retries: Number(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      {t('voice.retryDelay')}
+                    </p>
+                    <Input
+                      type="number"
+                      min={15}
+                      max={1440}
+                      className="bg-muted text-foreground"
+                      value={value.voice_retry_delay_minutes}
+                      onChange={(e) =>
+                        set({
+                          voice_retry_delay_minutes:
+                            Number(e.target.value) || DEFAULT_RETRY_DELAY_MINUTES,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

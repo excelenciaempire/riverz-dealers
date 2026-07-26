@@ -203,6 +203,7 @@ export const voice = {
     es: "URL OpenAI-compatible; vacío = proveedor por defecto",
     en: "OpenAI-compatible URL; empty = default provider",
   },
+  advanced: { es: "Opciones avanzadas", en: "Advanced options" },
   adminApiKey: { es: "API key del endpoint", en: "Endpoint API key" },
   adminKeyEnvHint: { es: "usa la del servidor", en: "uses server key" },
   adminKeyEnvNote: {
