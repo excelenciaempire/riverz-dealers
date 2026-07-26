@@ -142,6 +142,15 @@ class MoshiBridge(FrameProcessor):
         if not self._client:
             return
         try:
+            # Amplitud de la ENTRADA cruda de Telnyx: distingue "el llamante habla"
+            # de "llega silencio" (Telnyx no enruta el audio entrante). Pico por
+            # ventana de logging.
+            try:
+                import numpy as _np
+                peak = int(_np.abs(_np.frombuffer(frame.audio, dtype=_np.int16)).max()) if frame.audio else 0
+                self._in_peak = max(getattr(self, "_in_peak", 0), peak)
+            except Exception:
+                pass
             pcm24 = await self._up.resample(frame.audio, frame.sample_rate, MIMI_SAMPLE_RATE)
             if pcm24:
                 self._in_buf.extend(pcm24)
@@ -155,9 +164,10 @@ class MoshiBridge(FrameProcessor):
                 self._in_bytes += len(chunk)
                 if self._in_n % 25 == 0:
                     logger.info(
-                        "MoshiBridge IN: %d bloques 80ms, %d bytes->moshi (src_rate=%s)",
-                        self._in_n, self._in_bytes, frame.sample_rate,
+                        "MoshiBridge IN: %d bloques 80ms, %d bytes->moshi (src_rate=%s, pico=%d/32767)",
+                        self._in_n, self._in_bytes, frame.sample_rate, getattr(self, "_in_peak", 0),
                     )
+                    self._in_peak = 0
         except Exception as e:
             logger.warning("MoshiBridge input error: %s", e)
 
