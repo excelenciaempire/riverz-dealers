@@ -151,16 +151,12 @@ export function CommentToDmPanel() {
       </div>
 
       {rules.length === 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card/40 px-4 py-3">
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <MessageSquareReply className="size-4 shrink-0 text-accent-ink" />
-            {t("settings.c2dmNoneYet")}
-          </p>
-          <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
-            <Plus className="size-4" />
-            {t("settings.c2dmCreateFirst")}
-          </Button>
-        </div>
+        // El botón de "Nueva regla" ya está arriba: repetirlo aquí era ofrecer
+        // dos caminos para lo mismo.
+        <p className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-card/40 px-4 py-3 text-xs text-muted-foreground">
+          <MessageSquareReply className="size-4 shrink-0 text-accent-ink" />
+          {t("settings.c2dmNoneYet")}
+        </p>
       ) : (
         <ul className="space-y-2">
           {rules.map((rule) => (
