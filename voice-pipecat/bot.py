@@ -321,7 +321,10 @@ async def selftest(
                 if not ulaw:
                     report["turns"].append({"said": ph, "error": "TTS vacío (¿ELEVENLABS_API_KEY?)"})
                     continue
-                await wait_quiet(2.0)            # settle corto y barato
+                await wait_quiet(8.0)            # ESPERAR que el bot termine su
+                                                 # respuesta anterior (como una
+                                                 # persona) antes de hablar, si no
+                                                 # lo interrumpimos y no procesa el turno
                 st["bot_ms"] = 0
                 st["first_bot"] = None
                 await send_silence(0.2)
