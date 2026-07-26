@@ -378,11 +378,11 @@ async def selftest(
                                                  # lo interrumpimos y no procesa el turno
                 st["bot_ms"] = 0
                 st["first_bot"] = None
-                await send_silence(0.2)
+                await send_silence(0.5)          # deja a Deepgram "arrancar"
                 await send_ulaw(ulaw)
                 t_end = _t.monotonic()
                 st["first_bot"] = None           # medir desde que YO terminé
-                await send_silence(0.8)          # gatilla el fin de turno (VAD 0.5)
+                await send_silence(1.6)          # deja finalizar el transcript + VAD
                 # CORTA apenas detecta respuesta (solo queremos responde sí/no +
                 # latencia) → no esperamos la respuesta completa → no gasta de más.
                 waited = 0.0
