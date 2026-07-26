@@ -157,6 +157,10 @@ class MoshiBridge(FrameProcessor):
             # Enviar SÓLO en bloques alineados a Mimi (80ms); si no, el modelo no
             # avanza sus pasos y no devuelve audio.
             while len(self._in_buf) >= self._MIMI_CHUNK:
+                if not self._client:  # en pleno reconnect: no acumular sin límite
+                    if len(self._in_buf) > self._MIMI_CHUNK * 12:
+                        del self._in_buf[:-self._MIMI_CHUNK * 12]
+                    break
                 chunk = bytes(self._in_buf[: self._MIMI_CHUNK])
                 del self._in_buf[: self._MIMI_CHUNK]
                 await self._client.send_pcm(chunk)

@@ -93,6 +93,21 @@ app = modal.App(APP_NAME)
 @modal.concurrent(max_inputs=1)
 @modal.web_server(port=PORT, startup_timeout=600)  # proxy to moshi's own WS server on PORT
 def serve():
+    # PARCHE del bug del server de referencia (NVIDIA/moshi server.py:212):
+    # opus_loop hace `pcm.shape[-1]` sobre `opus_reader.read_pcm()`, que devuelve
+    # None cuando aún no hay un frame Opus completo decodificado → AttributeError
+    # → la tarea muere y CIERRA la conexión ~1s tras el handshake. El audio en
+    # tiempo real (llamada) pega en ese None siempre; el probe en ráfaga lo
+    # esquivaba por timing. Guardamos contra None (tratarlo como frame vacío).
+    import glob
+    for sp in glob.glob("/usr/local/lib/python*/site-packages/moshi/server.py"):
+        subprocess.run(
+            ["sed", "-i",
+             "s/if pcm\\.shape\\[-1\\] == 0:/if pcm is None or pcm.shape[-1] == 0:/",
+             sp],
+            check=False,
+        )
+        subprocess.run(["grep", "-n", "pcm is None or", sp], check=False)
     # No --ssl: Modal terminates TLS at the edge (clients use wss://, container speaks ws).
     subprocess.Popen(["python", "-m", "moshi.server", "--host", "0.0.0.0", "--port", str(PORT)])
     # Self-warm: precarga la voz por defecto (una conexión interna) para que la
