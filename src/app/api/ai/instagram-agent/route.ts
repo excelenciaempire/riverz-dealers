@@ -64,7 +64,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin comillas tripl
 
 Reglas:
 - Responde en el MISMO idioma del objetivo (por defecto español).
-- No inventes productos que no estén en el catálogo. Si el catálogo está vacío, deja recommended_products en [] y haz el copy genérico.
+- No inventes productos que no estén en el catálogo. Respeta las ofertas permitidas de cada producto (no propongas un descuento que no esté ahí) y su lista de "NUNCA afirmar". Si el catálogo está vacío, deja recommended_products en [] y haz el copy genérico.
 - estimated_reach y funnel.contacted NUNCA pueden superar las personas de Instagram alcanzables indicadas en el contexto.
 - Si el OBJETIVO es CRECER LA LISTA (suscriptores, email, SMS, captar datos): el DM debe invitar a la persona a dejar su email o teléfono a cambio de valor (imán de leads, acceso anticipado, guía, sorteo) con opt-in claro; "offer" puede ser null (no fuerces un descuento); y next_steps debe incluir sincronizar los contactos capturados a tu lista/Klaviyo.
 - El DM debe sonar a Instagram, no a email ni a plantilla rígida.
@@ -78,6 +78,13 @@ interface ProductRow {
   price_min: number | null
   price_max: number | null
   currency: string | null
+  // El cerebro del producto. Sin esto el plan proponía descuentos que el
+  // producto no permite y copy que tiene prohibido afirmar: el conocimiento
+  // existía, pero no llegaba al planificador.
+  say_guidelines: string | null
+  never_say: unknown[] | null
+  allowed_offers: unknown[] | null
+  health_sensitive: boolean | null
 }
 
 /** Extrae el primer objeto JSON de la respuesta del modelo de forma tolerante. */
@@ -143,7 +150,7 @@ export async function POST(request: Request) {
       supabase
         .from('shopify_products')
         .select(
-          'title, product_type, vendor, tags, price_min, price_max, currency',
+          'title, product_type, vendor, tags, price_min, price_max, currency, say_guidelines, never_say, allowed_offers, health_sensitive',
         )
         .order('title', { ascending: true })
         .limit(40),
@@ -171,7 +178,30 @@ export async function POST(request: Request) {
                   : `${p.price_min} ${p.currency ?? currency}`
                 : 's/precio'
             const meta = [p.product_type, p.vendor].filter(Boolean).join(' · ')
-            return `- ${p.title} (${price})${meta ? ` — ${meta}` : ''}`
+            // Lo que el producto SÍ permite y lo que tiene prohibido. Es el
+            // límite del plan: sin esto proponía descuentos inexistentes.
+            const strings = (v: unknown[] | null) =>
+              Array.isArray(v)
+                ? v
+                    .map((x) =>
+                      typeof x === 'string'
+                        ? x
+                        : x && typeof x === 'object' &&
+                            typeof (x as { label?: unknown }).label === 'string'
+                          ? ((x as { label: string }).label)
+                          : '',
+                    )
+                    .filter(Boolean)
+                : []
+            const offers = strings(p.allowed_offers)
+            const never = strings(p.never_say)
+            const extra = [
+              p.say_guidelines?.trim() ? `  enfatiza: ${p.say_guidelines.trim()}` : '',
+              offers.length ? `  ofertas permitidas: ${offers.join(' | ')}` : '',
+              never.length ? `  NUNCA afirmar: ${never.join('; ')}` : '',
+              p.health_sensitive ? '  producto delicado: sin promesas de resultados' : '',
+            ].filter(Boolean)
+            return [`- ${p.title} (${price})${meta ? ` — ${meta}` : ''}`, ...extra].join('\n')
           })
           .join('\n')
       : '(catálogo vacío — no hay productos sincronizados)'
