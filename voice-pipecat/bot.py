@@ -716,16 +716,41 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     # visto en /selftest: strategy None → no responde). Con TranscriptionUserTurnStop
     # el turno cierra ~0.7s después de la última palabra transcrita → responde ágil.
     up_kwargs: dict = {"vad_analyzer": _mk_vad()}
-    try:
-        from pipecat.turns.user_turn_strategies import UserTurnStrategies
-        from pipecat.turns.user_start import VADUserTurnStartStrategy
-        from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
-        up_kwargs["user_turn_strategies"] = UserTurnStrategies(
-            start=[VADUserTurnStartStrategy()],
-            stop=[TranscriptionUserTurnStopStrategy(timeout=0.7)],
+
+    def _imp(cands):
+        import importlib
+        for mod, name in cands:
+            try:
+                m = importlib.import_module(mod)
+                if hasattr(m, name):
+                    return getattr(m, name)
+            except Exception:
+                continue
+        return None
+
+    _UTS = _imp([("pipecat.turns.user_turn_strategies", "UserTurnStrategies")])
+    _VADStart = _imp([
+        ("pipecat.turns.user_start.vad_user_turn_start_strategy", "VADUserTurnStartStrategy"),
+        ("pipecat.turns.user_start", "VADUserTurnStartStrategy"),
+        ("pipecat.turns.turn_start_strategies", "VADUserTurnStartStrategy"),
+    ])
+    _TransStop = _imp([
+        ("pipecat.turns.user_stop.transcription_user_turn_stop_strategy", "TranscriptionUserTurnStopStrategy"),
+        ("pipecat.turns.user_stop", "TranscriptionUserTurnStopStrategy"),
+        ("pipecat.turns.turn_stop_strategies", "TranscriptionUserTurnStopStrategy"),
+    ])
+    if _UTS and _VADStart and _TransStop:
+        try:
+            stop = _TransStop(timeout=0.7)
+        except TypeError:
+            stop = _TransStop()
+        up_kwargs["user_turn_strategies"] = _UTS(start=[_VADStart()], stop=[stop])
+        logger.info("user_turn_strategies: transcription-stop OK (sin smart-turn)")
+    else:
+        logger.warning(
+            "no encontré clases de turn strategies (UTS=%s VAD=%s TRANS=%s) → default smart-turn",
+            bool(_UTS), bool(_VADStart), bool(_TransStop),
         )
-    except Exception as e:  # noqa: BLE001
-        logger.warning("user_turn_strategies no disponible (uso default smart-turn): %s", e)
     user_agg, assistant_agg = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(**up_kwargs),
