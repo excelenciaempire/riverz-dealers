@@ -154,6 +154,31 @@ import type { TFn } from "@/lib/i18n/translate";
  * non-brand comment labels are translated. Backend/log uses can keep using
  * channelDisplay(channel).label directly.
  */
+/** Marcadores que los adaptadores guardan como `content_text` cuando el
+ *  mensaje no es texto (una imagen, una ubicación, un post compartido). Se
+ *  persisten en un solo idioma — la UI los muestra en el del usuario. */
+const CONTENT_TOKEN_KEYS: Record<string, string> = {
+  "[imagen]": "inbox.previewImage",
+  "[video]": "inbox.previewVideo",
+  "[audio]": "inbox.previewAudio",
+  "[documento]": "inbox.previewDocument",
+  "[ubicación]": "inbox.previewLocation",
+  "[mención en historia]": "inbox.previewStoryMention",
+  "[publicación compartida]": "inbox.previewSharedPost",
+  "[archivo no disponible]": "inbox.previewFileUnavailable",
+};
+
+/** Traduce un marcador de tipo ("[Imagen]") al idioma activo; cualquier otro
+ *  texto vuelve tal cual. */
+export function localizeContentToken(
+  text: string | null | undefined,
+  t: TFn,
+): string {
+  const raw = (text ?? "").trim();
+  const key = CONTENT_TOKEN_KEYS[raw.toLowerCase()];
+  return key ? t(key) : (text ?? "");
+}
+
 export function channelLabel(channel: Channel, t: TFn): string {
   if (channel === "fb_comment") return t("common.channelFbComments");
   if (channel === "ig_comment") return t("common.channelIgComments");

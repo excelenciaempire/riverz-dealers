@@ -5,10 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection, MessageAttachment } from "@/types";
+import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
-import { ingestMetaAttachment } from "../media-ingest";
+import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
@@ -176,7 +176,49 @@ export const messengerAdapter: ChannelAdapter = {
               attachments?: Array<Record<string, unknown>>;
             }
           | undefined;
-        if (!sender?.id || !message) continue;
+        if (!sender?.id) continue;
+        const postback = m.postback as
+          | { mid?: string; title?: string; payload?: string; referral?: unknown }
+          | undefined;
+        if (!message) {
+          // Eventos SIN `message` que antes se descartaban enteros:
+          //  - `postback`: la persona tocó un botón (el texto del botón es su
+          //    respuesta y tiene que verse en el hilo como cualquier mensaje).
+          //  - `referral`: llegó desde un anuncio a un chat que YA existía
+          //    ("Este chat contiene una respuesta a …"). No es un mensaje:
+          //    sólo sella el origen publicitario en la conversación.
+          const pbTitle = String(postback?.title ?? "").trim();
+          if (pbTitle) {
+            senderIds.add(sender.id);
+            events.push({
+              channel: "messenger",
+              connection,
+              externalContactId: sender.id,
+              externalMessageId:
+                postback?.mid ?? `pb-${sender.id}-${String(m.timestamp ?? "")}`,
+              text: pbTitle,
+              receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+              referral: mapMetaAdReferral(postback?.referral),
+              raw: m,
+            });
+            continue;
+          }
+          const standalone =
+            mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(postback?.referral);
+          if (standalone) {
+            events.push({
+              channel: "messenger",
+              connection,
+              externalContactId: sender.id,
+              text: "",
+              receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+              referral: standalone,
+              referralOnly: true,
+              raw: m,
+            });
+          }
+          continue;
+        }
         // Echo: un mensaje que el negocio ENVIÓ — desde la app de Messenger, el
         // Business Suite o nuestra propia API (sender = page id). En vez de
         // descartarlo lo ingerimos SALIENTE, para que una respuesta escrita
@@ -189,20 +231,20 @@ export const messengerAdapter: ChannelAdapter = {
           const recipient = m.recipient as { id?: string } | undefined;
           const customerId = recipient?.id ? String(recipient.id) : "";
           if (!customerId || selfIds.has(customerId)) continue;
-          const echoAttachments = await ingestMessengerAttachments(
-            message.attachments ?? [],
-            connection.workspace_id,
-            customerId,
-            message.mid,
-          );
+          const echo = await ingestMetaAttachments({
+            attachments: message.attachments,
+            workspaceId: connection.workspace_id,
+            externalContactId: customerId,
+            externalMessageId: message.mid,
+          });
           senderIds.add(customerId);
           events.push({
             channel: "messenger",
             connection,
             externalContactId: customerId,
             externalMessageId: message.mid,
-            text: String(message.text ?? ""),
-            attachments: echoAttachments.length ? echoAttachments : undefined,
+            text: composeMetaText(message.text, echo.descriptions, echo.media.length > 0),
+            attachments: echo.media.length ? echo.media : undefined,
             receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
             outbound: true,
             raw: m,
@@ -210,18 +252,19 @@ export const messengerAdapter: ChannelAdapter = {
           continue;
         }
         senderIds.add(sender.id);
-        // Messenger ships attachments con `type` (image/video/audio/file)
-        // y `payload.url` ya público. Lo persistimos en Storage para
-        // que la URL no se nos expire después.
-        const attachments = await ingestMessengerAttachments(
-          message.attachments ?? [],
-          connection.workspace_id,
-          sender.id,
-          message.mid,
-        );
+        // Messenger ships attachments con `type` (image/video/audio/file) y
+        // `payload.url` ya público: lo persistimos en Storage para que la URL
+        // no se nos expire. Lo que NO es archivo (enlace compartido, tarjeta
+        // de producto, ubicación) vuelve como texto descriptivo, así el
+        // mensaje se ve en la bandeja igual que en Messenger.
+        const parsed = await ingestMetaAttachments({
+          attachments: message.attachments,
+          workspaceId: connection.workspace_id,
+          externalContactId: sender.id,
+          externalMessageId: message.mid,
+        });
         // Click-to-Messenger ad context (the customer arrived from an ad). On
         // the messaging event as `referral` or nested under `postback.referral`.
-        const postback = m.postback as { referral?: unknown } | undefined;
         const referral =
           mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(postback?.referral);
         events.push({
@@ -229,8 +272,8 @@ export const messengerAdapter: ChannelAdapter = {
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
-          text: String(message.text ?? ""),
-          attachments: attachments.length ? attachments : undefined,
+          text: composeMetaText(message.text, parsed.descriptions, parsed.media.length > 0),
+          attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral,
           raw: m,
@@ -248,63 +291,6 @@ export const messengerAdapter: ChannelAdapter = {
     return verifyMetaHandshake(req, connection);
   },
 };
-
-/**
- * Procesa el array `message.attachments` que ship Messenger en sus
- * webhooks. Cada item trae `type` (image/video/audio/file/location)
- * y `payload.url` con la URL pública. Bajamos cada uno y lo subimos
- * a Storage para tener un permalink propio.
- *
- * Ignora silenciosamente locations / templates / fallbacks — no son
- * media bajable. Best-effort: si una descarga falla la salteamos y
- * seguimos con el resto.
- */
-async function ingestMessengerAttachments(
-  attachments: Array<Record<string, unknown>>,
-  workspaceId: string,
-  externalContactId: string,
-  externalMessageId?: string,
-): Promise<MessageAttachment[]> {
-  const out: MessageAttachment[] = [];
-  for (let i = 0; i < attachments.length; i++) {
-    const a = attachments[i];
-    const type = String(a.type ?? "").toLowerCase();
-    const payload = (a.payload ?? {}) as { url?: string };
-    const url = payload.url ? String(payload.url) : "";
-    if (!url) continue;
-    if (type === "location" || type === "template" || type === "fallback") {
-      continue;
-    }
-    const hintedKind =
-      type === "image"
-        ? "image"
-        : type === "video"
-          ? "video"
-          : type === "audio"
-            ? "audio"
-            : type === "file"
-              ? "document"
-              : undefined;
-    const ingested = await ingestMetaAttachment({
-      attachmentUrl: url,
-      workspaceId,
-      // Path estable por sender — la conversation row se crea
-      // después en inbox-writer.
-      conversationId: externalContactId,
-      externalMessageId: externalMessageId
-        ? `${externalMessageId}-${i}`
-        : undefined,
-      hintedKind,
-    });
-    if (!ingested) continue;
-    out.push({
-      url: ingested.publicUrl,
-      mime_type: ingested.mediaMime,
-      size: ingested.mediaSize,
-    });
-  }
-  return out;
-}
 
 /**
  * Resolve a Messenger PSID to a display name via /{psid}?fields=name.

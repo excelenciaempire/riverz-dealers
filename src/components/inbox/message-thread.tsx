@@ -457,6 +457,33 @@ export function MessageThread({
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
 
+  // Al abrir un chat de Messenger/Instagram le pedimos a Meta el historial del
+  // hilo y rellenamos lo que falte: mensajes que no llegaron por webhook y
+  // respuestas mandadas desde la app de Meta. El servidor limita la frecuencia
+  // (synced_at), así que abrir y cerrar no bombardea a Graph. Si trajo algo,
+  // volvemos a leer los mensajes.
+  const [historyNonce, setHistoryNonce] = useState(0);
+  useEffect(() => {
+    if (!conversationId) return;
+    if (convChannel !== "messenger" && convChannel !== "instagram") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchWithCsrf(`/api/conversations/${conversationId}/sync`, {
+          method: "POST",
+        });
+        if (cancelled || !res.ok) return;
+        const json = (await res.json()) as { ingested?: number };
+        if (!cancelled && (json.ingested ?? 0) > 0) setHistoryNonce((n) => n + 1);
+      } catch {
+        // Rellenar el historial es un extra: si falla, el hilo se ve igual.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, convChannel, fetchWithCsrf]);
+
   // Fetch messages whenever the selected conversation changes. Kept
   // separate from the unread-reset effect so that incoming messages
   // arriving while the thread is open don't trigger a full refetch —
@@ -515,8 +542,9 @@ export function MessageThread({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus —
     // realtime is best-effort and any message events sent while the WS
-    // was disconnected or throttled are otherwise lost.
-  }, [conversationId, resyncToken]);
+    // was disconnected or throttled are otherwise lost. `historyNonce`
+    // hace lo mismo cuando el relleno de historial trajo mensajes viejos.
+  }, [conversationId, resyncToken, historyNonce]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just

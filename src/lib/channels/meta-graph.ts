@@ -459,6 +459,11 @@ const FB_PAGE_FIELDS = [
   // already, so IG_* fields don't need this — and adding an unsupported field
   // to the IG object would 400 the whole subscribe, like `comments`.)
   "message_echoes",
+  // Cliente que llega (o vuelve) desde un anuncio click-to-Messenger. Sin esto
+  // el evento suelto de `referral` no llega y el chat no queda atribuido al
+  // anuncio cuando la conversación ya existía. (No se agrega a los objetos de
+  // Instagram: un campo no soportado ahí hace fallar TODA la suscripción.)
+  "messaging_referrals",
   "feed", // FB post/ad comments arrive under the `feed` field
 ];
 // NOTE: `comments` is intentionally NOT here. IG comment webhooks are

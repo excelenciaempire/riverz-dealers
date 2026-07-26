@@ -1,0 +1,222 @@
+import type { MessageAttachment } from "@/types";
+import { ingestMetaAttachment } from "./media-ingest";
+
+/**
+ * Traductor único de `message.attachments` de Meta (Messenger + Instagram DM)
+ * a lo que la bandeja sabe mostrar.
+ *
+ * Antes sólo se bajaban image/video/audio/file y TODO lo demás se descartaba
+ * en silencio: un enlace compartido, una tarjeta de producto, una mención en
+ * historia o una ubicación entraban como mensaje con texto vacío y en la
+ * bandeja quedaba una burbuja en blanco — la conversación no se veía completa.
+ * Acá cada adjunto termina en una de dos cosas:
+ *   - `media`: archivo re-hospedado en Storage (permalink propio, las URL del
+ *     CDN de Meta caducan en horas).
+ *   - `descriptions`: una línea legible (título + enlace) que se concatena al
+ *     texto del mensaje, así la burbuja y el preview de la lista siempre dicen
+ *     algo.
+ */
+export interface MetaAttachmentsResult {
+  media: MessageAttachment[];
+  descriptions: string[];
+}
+
+/** Adjuntos que SON un archivo descargable del CDN de Meta. `story_mention` y
+ *  los reels/posts compartidos de IG también lo son: el `type` no dice si es
+ *  foto o video, lo decide el mime real. */
+const MEDIA_TYPES = new Set([
+  "image",
+  "video",
+  "audio",
+  "file",
+  "story_mention",
+  "ig_reel",
+  "reel",
+]);
+
+/** Marcadores entre corchetes: la burbuja los oculta cuando ya se ve el archivo
+ *  (isTypePlaceholder) y el preview de la lista los muestra localizados. */
+const STORY_MENTION_LABEL = "[Mención en historia]";
+const SHARED_POST_LABEL = "[Publicación compartida]";
+const LOCATION_LABEL = "[Ubicación]";
+const MEDIA_UNAVAILABLE_LABEL = "[Archivo no disponible]";
+/** Sentinela que `isUnsupportedSnippet` ya reconoce y la UI localiza. */
+export const META_UNSUPPORTED_LABEL = "[unsupported]";
+
+/** Desenvuelve el redirector de Meta (`l.facebook.com/l.php?u=…`) para guardar
+ *  el enlace real que el cliente compartió. */
+export function unwrapMetaLink(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (/^(l|lm|lt)\.(facebook|instagram)\.com$/i.test(u.hostname) && u.pathname === "/l.php") {
+      const target = u.searchParams.get("u");
+      if (target) return target;
+    }
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
+/** ¿La URL es de un CDN de Meta? Sólo bajamos a Storage lo que sirve Meta —
+ *  nunca salimos a buscar un sitio de terceros por un enlace de un webhook. */
+function isMetaCdn(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return (
+      h.endsWith("fbcdn.net") ||
+      h.endsWith("cdninstagram.com") ||
+      h.endsWith("fbsbx.com") ||
+      h.endsWith("akamaihd.net")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function str(...values: unknown[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+/** "Título\nenlace" — sin repetir cuando el título ES el enlace. */
+function describeLink(title: string, url: string): string {
+  if (title && url) return title === url ? url : `${title}\n${url}`;
+  return title || url || "";
+}
+
+function hintFor(type: string): "image" | "video" | "audio" | "document" | undefined {
+  if (type === "image") return "image";
+  if (type === "video") return "video";
+  if (type === "audio") return "audio";
+  if (type === "file") return "document";
+  return undefined;
+}
+
+export async function ingestMetaAttachments(input: {
+  attachments?: Array<Record<string, unknown>>;
+  workspaceId: string;
+  /** PSID / IGSID — path estable en Storage (la conversación se crea después). */
+  externalContactId: string;
+  externalMessageId?: string;
+}): Promise<MetaAttachmentsResult> {
+  const list = Array.isArray(input.attachments) ? input.attachments : [];
+  const media: MessageAttachment[] = [];
+  const descriptions: string[] = [];
+  let slot = 0;
+
+  /** Baja el archivo a Storage. `requireMedia` descarta lo que resulte no ser
+   *  imagen/video/audio (un enlace del CDN que devuelve HTML, por ejemplo). */
+  const download = async (
+    url: string,
+    hinted?: "image" | "video" | "audio" | "document",
+    requireMedia = false,
+  ): Promise<boolean> => {
+    const ingested = await ingestMetaAttachment({
+      attachmentUrl: url,
+      workspaceId: input.workspaceId,
+      conversationId: input.externalContactId,
+      externalMessageId: input.externalMessageId
+        ? `${input.externalMessageId}-${slot}`
+        : undefined,
+      hintedKind: hinted,
+    });
+    slot++;
+    if (!ingested) return false;
+    if (requireMedia && !/^(image|video|audio)\//i.test(ingested.mediaMime)) {
+      return false;
+    }
+    media.push({
+      url: ingested.publicUrl,
+      mime_type: ingested.mediaMime,
+      size: ingested.mediaSize,
+    });
+    return true;
+  };
+
+  for (const raw of list) {
+    const a = (raw ?? {}) as Record<string, unknown>;
+    const type = String(a.type ?? "").toLowerCase();
+    const payload = (a.payload ?? {}) as Record<string, unknown>;
+    const url = str(payload.url);
+    const title = str(a.title, payload.title);
+
+    if (MEDIA_TYPES.has(type)) {
+      if (url && (await download(url, hintFor(type)))) {
+        if (type === "story_mention") descriptions.push(STORY_MENTION_LABEL);
+        continue;
+      }
+      // La descarga falló (URL caducada, 404, archivo > tope): al menos dejamos
+      // el enlace o un rótulo para que el mensaje no se vea vacío.
+      descriptions.push(describeLink(title, url) || MEDIA_UNAVAILABLE_LABEL);
+      continue;
+    }
+
+    if (type === "location") {
+      const coords = (payload.coordinates ?? {}) as { lat?: unknown; long?: unknown };
+      const lat = Number(coords.lat);
+      const lng = Number(coords.long);
+      descriptions.push(
+        Number.isFinite(lat) && Number.isFinite(lng)
+          ? `${title || LOCATION_LABEL}\nhttps://maps.google.com/?q=${lat},${lng}`
+          : title || LOCATION_LABEL,
+      );
+      continue;
+    }
+
+    // Plantilla genérica: las tarjetas de producto/enlace que Meta arma con
+    // `elements[]` (título, subtítulo, imagen y enlace). Es lo que se ve en el
+    // chat como una tarjeta con foto — la bajamos y describimos.
+    const elements = Array.isArray(payload.elements)
+      ? (payload.elements as Array<Record<string, unknown>>)
+      : [];
+    if (elements.length > 0) {
+      for (const rawEl of elements) {
+        const el = (rawEl ?? {}) as Record<string, unknown>;
+        const action = (el.default_action ?? {}) as Record<string, unknown>;
+        const image = str(el.image_url);
+        if (image) await download(image, "image");
+        const line = describeLink(
+          str(el.title, el.subtitle),
+          unwrapMetaLink(str(action.url, el.item_url, el.url)),
+        );
+        if (line) descriptions.push(line);
+      }
+      if (descriptions.length === 0 && title) descriptions.push(title);
+      continue;
+    }
+
+    // share / fallback / cualquier tipo nuevo de Meta = algo compartido.
+    // Instagram entrega los posts y reels compartidos como archivo del CDN;
+    // Messenger entrega los enlaces como `fallback` con la URL real.
+    const link = url ? unwrapMetaLink(url) : "";
+    if (link && isMetaCdn(link) && (await download(link, undefined, true))) {
+      descriptions.push(title || SHARED_POST_LABEL);
+      continue;
+    }
+    descriptions.push(describeLink(title, link) || META_UNSUPPORTED_LABEL);
+  }
+
+  return { media, descriptions };
+}
+
+/**
+ * Texto final del mensaje: lo que escribió la persona + la descripción de lo
+ * que compartió, sin repetir líneas. Cuando no queda nada que mostrar y
+ * tampoco hay archivo, devolvemos el sentinela de "no compatible" para que la
+ * bandeja muestre un rótulo en vez de una burbuja en blanco.
+ */
+export function composeMetaText(
+  text: string | undefined,
+  descriptions: string[],
+  hasMedia: boolean,
+): string {
+  const parts = [String(text ?? "").trim(), ...descriptions.map((d) => d.trim())].filter(
+    Boolean,
+  );
+  const joined = [...new Set(parts)].join("\n");
+  if (joined) return joined;
+  return hasMedia ? "" : META_UNSUPPORTED_LABEL;
+}

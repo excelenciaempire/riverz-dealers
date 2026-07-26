@@ -115,6 +115,8 @@ export async function ingestInboundEvent(
 
   // 2. Find-or-create conversation. Emails group by threadId; everything
   //    else keeps one open conversation per (contact, channel).
+  //    Un evento que sólo trae contexto de anuncio (referralOnly) jamás abre
+  //    una conversación: sella la que ya existe y se va.
   const conversation = await findOrCreateConversation(db, {
     workspace_id: workspaceId,
     contact_id: contact.id,
@@ -125,7 +127,7 @@ export async function ingestInboundEvent(
     firstMessageText: event.text,
     lastMessageAt: event.receivedAt,
     lastSenderType: event.outbound ? "agent" : "customer",
-    createIfMissing: event.createIfMissing,
+    createIfMissing: event.referralOnly ? false : event.createIfMissing,
     created_at: historicalCreatedAt,
   });
   if (!conversation) return null;
@@ -145,6 +147,9 @@ export async function ingestInboundEvent(
         () => {},
       );
   }
+  // El evento de anuncio suelto no es un mensaje: ya selló el origen, cortamos
+  // antes de insertar nada (si no, quedaría una burbuja en blanco en el hilo).
+  if (event.referralOnly) return null;
 
   // 2c. Reconciliar "enviado pero marcado fallido". Si un envío desde Riverz
   //     falló en HTTP DESPUÉS de que la plataforma ya lo entregó, quedó una
@@ -364,10 +369,13 @@ export async function ingestInboundEvent(
     ? Date.parse(conversation.last_message_at)
     : NaN;
   const isNewer = Number.isNaN(curTs) || (Number.isFinite(evTs) && evTs >= curTs);
+  //    Un entrante HISTÓRICO (relleno de la conversación desde Meta) tampoco
+  //    suma no-leídos: es historia que ya pasó, no algo nuevo por responder.
   const summaryPatch: Record<string, unknown> = {
-    unread_count: event.outbound
-      ? (conversation.unread_count ?? 0)
-      : (conversation.unread_count ?? 0) + 1,
+    unread_count:
+      event.outbound || event.historical
+        ? (conversation.unread_count ?? 0)
+        : (conversation.unread_count ?? 0) + 1,
     updated_at: new Date().toISOString(),
   };
   if (isNewer) {
@@ -418,12 +426,17 @@ export async function ingestInboundEvent(
     }
   }
 
+  // Un DM de Instagram que es SOLO una mención en historia o una publicación
+  // compartida (texto = un marcador entre corchetes) se guarda para que la
+  // conversación se vea completa, pero no le pide nada al agente: no hay
+  // pregunta que responder.
   const igEmptyDm =
     channel === "instagram" &&
-    !(
+    (!(
       Boolean(event.text && event.text.trim()) ||
       Boolean(event.attachments && event.attachments.length)
-    );
+    ) ||
+      /^\[[^\]]+\]$/.test((event.text ?? "").trim()));
   if (
     !event.outbound &&
     !event.historical &&

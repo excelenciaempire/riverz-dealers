@@ -66,6 +66,12 @@ export interface InboundEvent {
     body?: string;
     mediaType?: string;
   };
+  /** Sólo trae contexto de anuncio, no un mensaje. Meta manda un evento
+   *  `referral` suelto cuando alguien vuelve a escribir desde un anuncio a un
+   *  chat que YA existe (el cartel "Este chat contiene una respuesta a …").
+   *  Se sella `conversations.ad_referral` y no se inserta ningún mensaje —
+   *  nunca crea la conversación si no existe. */
+  referralOnly?: boolean;
   /** Wall-clock timestamp at the platform. */
   receivedAt: string;
   /** When true this event is something WE sent (e.g. an email pulled

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { Channel, Conversation, ConversationStatus, MessageStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
-import { isUnsupportedSnippet } from "@/lib/channels/display";
+import { isUnsupportedSnippet, localizeContentToken } from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import {
   MESSAGE_CHANNELS,
@@ -735,7 +735,8 @@ const ConversationItem = memo(function ConversationItem({
               ) : null}
               {isUnsupportedSnippet(conversation.last_message_text)
                 ? t("inbox.unsupported")
-                : conversation.last_message_text || t("inbox.noMessages")}
+                : localizeContentToken(conversation.last_message_text, t) ||
+                  t("inbox.noMessages")}
             </span>
           </p>
           <div className="flex shrink-0 items-center gap-1.5">

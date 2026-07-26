@@ -5,10 +5,10 @@ import type {
   ParsedWebhookContext,
   SendResult,
 } from "../types";
-import type { ChannelConnection, MessageAttachment } from "@/types";
+import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
-import { ingestMetaAttachment } from "../media-ingest";
+import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
@@ -155,7 +155,46 @@ export const instagramAdapter: ChannelAdapter = {
         const message = m.message as
           | { mid?: string; text?: string; is_echo?: boolean; attachments?: Array<Record<string, unknown>> }
           | undefined;
-        if (!sender?.id || !message) continue;
+        if (!sender?.id) continue;
+        const igPostback = m.postback as
+          | { mid?: string; title?: string; payload?: string; referral?: unknown }
+          | undefined;
+        if (!message) {
+          // Sin `message` el evento antes se tiraba entero. Un botón tocado
+          // (postback) SÍ es una respuesta de la persona y va al hilo; un
+          // `referral` suelto sólo sella de qué anuncio vino la conversación.
+          const pbTitle = String(igPostback?.title ?? "").trim();
+          if (pbTitle) {
+            senderIds.add(sender.id);
+            events.push({
+              channel: "instagram",
+              connection,
+              externalContactId: sender.id,
+              externalMessageId:
+                igPostback?.mid ?? `pb-${sender.id}-${String(m.timestamp ?? "")}`,
+              text: pbTitle,
+              receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+              referral: mapMetaAdReferral(igPostback?.referral),
+              raw: m,
+            });
+            continue;
+          }
+          const standalone =
+            mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(igPostback?.referral);
+          if (standalone) {
+            events.push({
+              channel: "instagram",
+              connection,
+              externalContactId: sender.id,
+              text: "",
+              receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
+              referral: standalone,
+              referralOnly: true,
+              raw: m,
+            });
+          }
+          continue;
+        }
         // Echo: a DM the business SENT — from the Instagram phone app, Business
         // Suite, or our own API. IG fires one for every business send (sender =
         // our IG/page id). Instead of dropping it we ingest it OUTBOUND, so a
@@ -171,12 +210,12 @@ export const instagramAdapter: ChannelAdapter = {
           // Sin destinatario mapeable, o eco hacia nuestra propia cuenta: nada
           // que sincronizar.
           if (!customerId || selfIds.has(customerId)) continue;
-          const echoAttachments = await ingestInstagramAttachments(
-            message.attachments ?? [],
-            connection.workspace_id,
-            customerId,
-            message.mid,
-          );
+          const echo = await ingestMetaAttachments({
+            attachments: message.attachments,
+            workspaceId: connection.workspace_id,
+            externalContactId: customerId,
+            externalMessageId: message.mid,
+          });
           // Resolvemos también el nombre del destinatario (por si el hilo lo
           // inició el comercio desde el celular y aún no existe en Riverz).
           senderIds.add(customerId);
@@ -185,8 +224,8 @@ export const instagramAdapter: ChannelAdapter = {
             connection,
             externalContactId: customerId,
             externalMessageId: message.mid,
-            text: String(message.text ?? ""),
-            attachments: echoAttachments.length ? echoAttachments : undefined,
+            text: composeMetaText(message.text, echo.descriptions, echo.media.length > 0),
+            attachments: echo.media.length ? echo.media : undefined,
             receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
             outbound: true,
             raw: m,
@@ -194,17 +233,18 @@ export const instagramAdapter: ChannelAdapter = {
           continue;
         }
         senderIds.add(sender.id);
-        // Bajamos cada attachment a Storage para tener un permalink —
-        // las CDN URLs de IG caducan en horas y el inbox necesita
-        // poder mostrar el adjunto días después.
-        const attachments = await ingestInstagramAttachments(
-          message.attachments ?? [],
-          connection.workspace_id,
-          sender.id,
-          message.mid,
-        );
+        // Bajamos cada attachment a Storage para tener un permalink — las CDN
+        // URLs de IG caducan en horas y el inbox necesita poder mostrar el
+        // adjunto días después. Lo que no es archivo (post o reel compartido,
+        // mención en historia, enlace) vuelve como texto descriptivo en vez de
+        // desaparecer.
+        const parsed = await ingestMetaAttachments({
+          attachments: message.attachments,
+          workspaceId: connection.workspace_id,
+          externalContactId: sender.id,
+          externalMessageId: message.mid,
+        });
         // Click-to-Instagram ad context (the customer arrived from an ad).
-        const igPostback = m.postback as { referral?: unknown } | undefined;
         const igReferral =
           mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(igPostback?.referral);
         events.push({
@@ -212,8 +252,8 @@ export const instagramAdapter: ChannelAdapter = {
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
-          text: String(message.text ?? ""),
-          attachments: attachments.length ? attachments : undefined,
+          text: composeMetaText(message.text, parsed.descriptions, parsed.media.length > 0),
+          attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral: igReferral,
           raw: m,
@@ -233,62 +273,6 @@ export const instagramAdapter: ChannelAdapter = {
     return verifyMetaHandshake(req, connection);
   },
 };
-
-/**
- * Procesa los `message.attachments` de IG. Cada item trae `type`
- * (image/video/audio/file/share/story_mention) y `payload.url` con
- * la URL pública. Bajamos cada uno a Storage para mantener el
- * permalink. Share/story_mention se ignoran — no son media bajable.
- */
-async function ingestInstagramAttachments(
-  attachments: Array<Record<string, unknown>>,
-  workspaceId: string,
-  externalContactId: string,
-  externalMessageId?: string,
-): Promise<MessageAttachment[]> {
-  const out: MessageAttachment[] = [];
-  for (let i = 0; i < attachments.length; i++) {
-    const a = attachments[i];
-    const type = String(a.type ?? "").toLowerCase();
-    const payload = (a.payload ?? {}) as { url?: string };
-    const url = payload.url ? String(payload.url) : "";
-    if (!url) continue;
-    if (
-      type === "share" ||
-      type === "story_mention" ||
-      type === "template" ||
-      type === "fallback"
-    ) {
-      continue;
-    }
-    const hintedKind =
-      type === "image"
-        ? "image"
-        : type === "video"
-          ? "video"
-          : type === "audio"
-            ? "audio"
-            : type === "file"
-              ? "document"
-              : undefined;
-    const ingested = await ingestMetaAttachment({
-      attachmentUrl: url,
-      workspaceId,
-      conversationId: externalContactId,
-      externalMessageId: externalMessageId
-        ? `${externalMessageId}-${i}`
-        : undefined,
-      hintedKind,
-    });
-    if (!ingested) continue;
-    out.push({
-      url: ingested.publicUrl,
-      mime_type: ingested.mediaMime,
-      size: ingested.mediaSize,
-    });
-  }
-  return out;
-}
 
 /**
  * Resolve an IGSID to a display label, preferring "@username" over the

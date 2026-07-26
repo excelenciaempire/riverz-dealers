@@ -23,7 +23,11 @@ import { useTimezone } from "@/hooks/use-timezone";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { useCommentView } from "@/hooks/use-comment-view";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
-import { isUnsupportedSnippet, isCommentDeleted } from "@/lib/channels/display";
+import {
+  isUnsupportedSnippet,
+  isCommentDeleted,
+  localizeContentToken,
+} from "@/lib/channels/display";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
@@ -419,7 +423,9 @@ function MessageContent({ message }: { message: Message }) {
     case "text":
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {linkifyNodes(message.content_text ?? "")}
+          {/* Un marcador de tipo ("[Ubicación]") se muestra en el idioma del
+              usuario; el resto del texto sale tal cual. */}
+          {linkifyNodes(localizeContentToken(message.content_text, t))}
         </p>
       );
 

@@ -262,6 +262,9 @@ export interface Conversation {
   /** Toggle manual del asistente IA en este chat. Migration 082. Default
    *  true; si está en false, la IA no responde en esta conversación. */
   ai_enabled?: boolean;
+  /** Último relleno del historial desde la plataforma (Meta Graph).
+   *  Migration 120 — limita la frecuencia de /api/conversations/:id/sync. */
+  synced_at?: string | null;
   /** Cuándo el asistente envió un link de checkout (pago pendiente).
    *  Migration 081. NULL = sin checkout pendiente / ya pagado. */
   pending_checkout_at?: string | null;

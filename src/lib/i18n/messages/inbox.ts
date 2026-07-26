@@ -210,6 +210,9 @@ export const inbox = {
   previewLocation: { es: "[Ubicación]", en: "[Location]" },
   previewTemplate: { es: "[Plantilla]", en: "[Template]" },
   previewMessage: { es: "[Mensaje]", en: "[Message]" },
+  previewStoryMention: { es: "[Mención en historia]", en: "[Story mention]" },
+  previewSharedPost: { es: "[Publicación compartida]", en: "[Shared post]" },
+  previewFileUnavailable: { es: "[Archivo no disponible]", en: "[File unavailable]" },
 
   // Composer — snippets, session window
   snippetGreetingLabel: { es: "Saludo de bienvenida", en: "Welcome greeting" },
