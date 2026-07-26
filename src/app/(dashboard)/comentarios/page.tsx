@@ -2,7 +2,6 @@
 
 import { MessageSquareReply } from 'lucide-react';
 import {
-  ApprovalsQueue,
   CommentsSection,
   ConnectionPill,
   ProactiveLimits,
@@ -40,8 +39,6 @@ export default function ComentariosPage() {
         <ConnectionPill connected={connected} />
       </header>
 
-      {/* Borradores que esperan tu visto bueno (también salen de aquí). */}
-      <ApprovalsQueue />
 
       <CommentsSection settings={settings} />
 

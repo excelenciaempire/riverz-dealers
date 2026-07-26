@@ -7,7 +7,7 @@ import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
-import { resolveIgAgent, needsApproval } from './agent-link';
+import { resolveIgAgent } from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
@@ -310,29 +310,6 @@ export async function maybeInstantOutreach(
     segment,
   };
 
-  if (needsApproval(agent.proactive_send_mode, leadScore)) {
-    // Human-approval mode: draft the DM and hold it for review. Don't send and
-    // don't claim the per-comment reply lock yet — that happens on approval.
-    const draft = await craftPersonalizedDM({
-      apiKey,
-      base: campaign.plan.message.text,
-      brand,
-      goal: campaign.goal,
-      links,
-      offer: offerFrom(campaign),
-      products: campaign.plan.recommended_products,
-      name: opts.contact.name,
-      engagement: opts.engagementText,
-      ...personaFields,
-    });
-    await db
-      .from('instagram_campaign_recipients')
-      .update({ status: 'pending_review', draft_text: draft })
-      .eq('id', recipientId)
-      .eq('status', 'queued');
-    return;
-  }
-
   // Trust gate: emergency pause + rolling-24h daily cap. If blocked, leave the
   // recipient queued (the cron is gated too) so nothing is lost, just deferred.
   const trust = await proactiveGate(db, opts.workspaceId);
@@ -592,10 +569,6 @@ async function autonomousCommentReply(
   }
 
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
-  // En modo aprobación/híbrido el comercio pidió revisar cada DM proactivo: sin
-  // campaña no hay cola donde dejarlo, así que respetamos su decisión y no
-  // enviamos (la conversación queda en la bandeja para atenderla a mano).
-  if (needsApproval(agent.proactive_send_mode, score)) return;
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;

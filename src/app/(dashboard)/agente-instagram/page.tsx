@@ -2,7 +2,6 @@
 
 import { InstagramIcon } from '@/components/layout/instagram-icon';
 import {
-  ApprovalsQueue,
   AttributedOrders,
   ConnectionPill,
   OutreachSection,
@@ -39,8 +38,6 @@ export default function VentasInstagramPage() {
         <ConnectionPill connected={connected} />
       </header>
 
-      {/* Lo único urgente: DMs preparados que esperan tu visto bueno. */}
-      <ApprovalsQueue />
 
       <OutreachToggle settings={settings} />
 

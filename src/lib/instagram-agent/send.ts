@@ -12,7 +12,6 @@ import { resolveIgSegment, type LeadScore } from './segment';
 import { proactiveGate, logProactiveSend, featureEnabled } from './controls';
 import { loadStoreLinks } from './store-links';
 import { recordProactiveDm } from './record-dm';
-import { resolveIgAgent, needsApproval } from './agent-link';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -44,8 +43,6 @@ export async function sendCampaignBatch(
 ): Promise<{
   sent: number;
   failed: number;
-  /** Retenidos para aprobación humana (modo aprobación/híbrido). */
-  held?: number;
   remaining: number;
   skipped?: string;
 }> {
@@ -261,15 +258,6 @@ export async function sendCampaignBatch(
 
   let sent = 0;
   let failed = 0;
-  let held = 0;
-
-  // El modo de automatización del agente (auto | híbrido | aprobación) también
-  // manda aquí: antes solo lo respetaba el camino en tiempo real, así que un
-  // comercio en "Aprobación" veía cómo el worker por lotes enviaba igual.
-  const agent = await resolveIgAgent(db, campaign.workspace_id, campaign.ai_agent_id ?? null);
-  const scoreById = new Map(
-    rows.map((r) => [r.id, (r.lead_score as LeadScore | null) ?? null]),
-  );
 
   // Send sequentially (don't hammer the Meta API in parallel).
   for (const p of prepared) {
@@ -285,23 +273,6 @@ export async function sendCampaignBatch(
         .from('instagram_campaign_recipients')
         .update({ status: 'skipped', error: 'contacto sin external_id de Instagram' })
         .eq('id', p.id);
-      continue;
-    }
-
-    // ¿Este DM necesita visto bueno humano? Se guarda como borrador en la cola
-    // de aprobación (con su comentario de origen, para poder entregarlo luego
-    // como respuesta privada) y NO se reclama el lock del comentario todavía.
-    if (needsApproval(agent.proactive_send_mode, scoreById.get(p.id) ?? null)) {
-      await db
-        .from('instagram_campaign_recipients')
-        .update({
-          status: 'pending_review',
-          draft_text: p.text,
-          ...(p.commentId ? { source_comment_id: p.commentId } : {}),
-        })
-        .eq('id', p.id)
-        .eq('status', 'queued');
-      held += 1;
       continue;
     }
 
@@ -394,7 +365,7 @@ export async function sendCampaignBatch(
     .eq('is_holdout', false)
     .eq('is_spam', false);
 
-  return { sent, failed, held, remaining: remaining ?? 0 };
+  return { sent, failed, remaining: remaining ?? 0 };
 }
 
 /**

@@ -197,21 +197,14 @@ export const igAgent = {
   codePrefix: { es: "Código {code}", en: "Code {code}" },
   deleteCampaign: { es: "Eliminar campaña", en: "Delete campaign" },
 
-  // Approvals queue (proactive DMs held for review)
-  approvalsTitle: { es: "Pendientes de aprobación", en: "Pending approval" },
   approvalsHint: {
     es: "DMs que el agente preparó y esperan tu visto bueno antes de enviarse.",
     en: "DMs the agent drafted, waiting for your go-ahead before sending.",
   },
-  approvalTo: { es: "Para {name}", en: "To {name}" },
   approvalUnknownContact: {
     es: "Contacto de Instagram",
     en: "Instagram contact",
   },
-  approvalApprove: { es: "Aprobar y enviar", en: "Approve & send" },
-  approvalReject: { es: "Descartar", en: "Discard" },
-  approvalDismiss: { es: "Quitar", en: "Remove" },
-  approvalSent: { es: "DM enviado", en: "DM sent" },
   approvalExpired: {
     es: "La ventana de Meta se cerró: este DM ya no puede enviarse.",
     en: "Meta's window closed: this DM can no longer be sent.",
@@ -238,11 +231,6 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
-  // Proactive automation mode (auto ↔ approval), surfaced in the hub controls
-  modeLabel: { es: "Modo", en: "Mode" },
-  modeAuto: { es: "Auto", en: "Auto" },
-  modeHybrid: { es: "Híbrido", en: "Hybrid" },
-  modeApproval: { es: "Aprobación", en: "Approval" },
   autoReplyComments: {
     es: "Contestar siempre a quien pregunta",
     en: "Always answer people who ask",
@@ -353,7 +341,6 @@ export const igAgent = {
   live: { es: "En vivo", en: "Live" },
   queuedInline: { es: "{n} en cola", en: "{n} queued" },
   queued: { es: "En cola", en: "Queued" },
-  breakdownPending: { es: "en aprobación", en: "awaiting approval" },
   breakdownSkipped: { es: "omitidos", en: "skipped" },
   breakdownFailed: { es: "fallidos", en: "failed" },
   breakdownSkippedNote: {

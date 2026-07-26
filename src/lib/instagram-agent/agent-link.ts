@@ -77,13 +77,3 @@ export async function resolveIgAgent(
   return normalize(data as { id: string; proactive_send_mode?: string | null });
 }
 
-/** Does this lead need human approval before a proactive DM, given the mode? */
-export function needsApproval(
-  mode: ProactiveSendMode,
-  leadScore: 'high' | 'medium' | 'low' | null,
-): boolean {
-  if (mode === 'auto') return false;
-  if (mode === 'approval') return true;
-  // hybrid_intent: auto only for clearly high-intent leads.
-  return leadScore !== 'high';
-}

@@ -17,7 +17,6 @@ import {
   Save,
   Trash2,
   Check,
-  Send,
   Receipt,
   Rocket,
   AlertTriangle,
@@ -91,7 +90,6 @@ export function OutreachSection() {
   // comercio deba tomar, así que no se pregunta.
   const holdoutPct = 10;
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
-  const settings = useProactiveSettings();
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -784,14 +782,6 @@ function AgentThinking({
   );
 }
 
-type SendMode = 'auto' | 'hybrid_intent' | 'approval';
-
-const MODE_DESC: Record<SendMode, string> = {
-  auto: 'igAgent.modeAutoDesc',
-  hybrid_intent: 'igAgent.modeHybridDesc',
-  approval: 'igAgent.modeApprovalDesc',
-};
-
 /**
  * Ajustes proactivos compartidos por los bloques 2 y 3: una sola carga, una
  * sola escritura. Antes vivían todos apelotonados en una tarjeta; ahora cada
@@ -1069,204 +1059,6 @@ export function AttributedOrders() {
         ))}
       </ul>
     </section>
-  );
-}
-
-interface ApprovalRow {
-  id: string;
-  draft_text: string;
-  discount_code: string | null;
-  lead_score: string | null;
-  created_at: string;
-  contact_name: string | null;
-  campaign_name: string | null;
-  /** Ventana de Meta agotada (se marca al cargar la cola). */
-  expired?: boolean;
-}
-
-/** Ventana máxima de Meta para una respuesta privada a un comentario. */
-const COMMENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Pasada la ventana de Meta el envío ya no es posible. Se calcula al cargar
- *  (no en render) para no depender del reloj en cada repintado. */
-function markExpired(rows: ApprovalRow[]): ApprovalRow[] {
-  const now = Date.now();
-  return rows.map((r) => ({
-    ...r,
-    expired: now - new Date(r.created_at).getTime() > COMMENT_WINDOW_MS,
-  }));
-}
-
-/**
- * Proactive DMs the agent drafted and held for review (agent's
- * proactive_send_mode = approval, or hybrid for a non-high lead). The merchant
- * edits, then approves (sends) or discards. Hidden entirely when empty.
- */
-export function ApprovalsQueue() {
-  const t = useT();
-  const fetchWithCsrf = useFetchWithCsrf();
-  const [items, setItems] = useState<ApprovalRow[]>([]);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/ai/instagram-agent/approvals', {
-        cache: 'no-store',
-      });
-      const json = await res.json();
-      if (res.ok) setItems(markExpired((json.approvals ?? []) as ApprovalRow[]));
-    } catch {
-      /* la cola es secundaria */
-    }
-  }, []);
-
-  // Initial fetch — defer setState into the promise callback (not a synchronous
-  // call in the effect body) to keep renders from cascading.
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/ai/instagram-agent/approvals', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled && j)
-          setItems(markExpired((j.approvals ?? []) as ApprovalRow[]));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function act(
-    id: string,
-    action: 'approve' | 'reject',
-    text?: string,
-  ) {
-    setItems((prev) => prev.filter((x) => x.id !== id));
-    try {
-      const res = await fetchWithCsrf(
-        `/api/ai/instagram-agent/approvals/${id}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, text }),
-        },
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(json.error ?? t('igAgent.approvalError'));
-        load();
-      } else if (action === 'approve') {
-        // El envío puede caerse por la ventana de Meta ya cerrada: decirlo,
-        // no cantar un "enviado" que no ocurrió.
-        if (json.status === 'skipped') {
-          toast.error(t('igAgent.approvalWindowClosed'));
-        } else {
-          toast.success(t('igAgent.approvalSent'));
-        }
-      }
-    } catch {
-      toast.error(t('igAgent.approvalError'));
-      load();
-    }
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <section className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.03] p-5 shadow-sm">
-      <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-foreground">
-        <MessageCircle className="h-4 w-4 text-amber-500" />
-        {t('igAgent.approvalsTitle')}
-        <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-700 tabular-nums dark:text-amber-300">
-          {items.length}
-        </span>
-      </p>
-      <ul className="mt-3 space-y-3">
-        {items.map((it) => (
-          <ApprovalItem key={it.id} item={it} onAct={act} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function ApprovalItem({
-  item,
-  onAct,
-}: {
-  item: ApprovalRow;
-  onAct: (id: string, action: 'approve' | 'reject', text?: string) => void;
-}) {
-  const t = useT();
-  const fmt = useFormat();
-  const [text, setText] = useState(item.draft_text);
-  const name = item.contact_name ?? t('igAgent.approvalUnknownContact');
-  // Fuera de la ventana de Meta no ofrecemos un botón que solo puede fallar.
-  const expired = item.expired === true;
-
-  // Vencido = ya no se puede enviar y no hay nada que revisar. Una línea con el
-  // nombre y el botón de quitar; mostrar el borrador entero era ocupar media
-  // pantalla con algo que solo se puede descartar.
-  if (expired) {
-    return (
-      <li className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2">
-        <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
-          <span className="truncate">
-            {t('igAgent.approvalTo', { name })} · {t('igAgent.approvalExpired')}
-          </span>
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => onAct(item.id, 'reject')}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          {t('igAgent.approvalDismiss')}
-        </Button>
-      </li>
-    );
-  }
-
-  return (
-    <li className="rounded-xl border border-border bg-background p-3">
-      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <p className="truncate text-xs font-medium text-foreground">
-          {t('igAgent.approvalTo', { name })}
-        </p>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {item.campaign_name ? `${item.campaign_name} · ` : ''}
-          {fmt.date(item.created_at, { day: 'numeric', month: 'short' })}
-        </span>
-      </div>
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={3}
-        maxLength={950}
-        className="resize-none text-[13px]"
-      />
-      <div className="mt-2 flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onAct(item.id, 'reject')}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          {expired ? t('igAgent.approvalDismiss') : t('igAgent.approvalReject')}
-        </Button>
-        {!expired && (
-          <Button
-            size="sm"
-            onClick={() => onAct(item.id, 'approve', text.trim())}
-            disabled={!text.trim()}
-          >
-            <Send className="h-3.5 w-3.5" />
-            {t('igAgent.approvalApprove')}
-          </Button>
-        )}
-      </div>
-    </li>
   );
 }
 
