@@ -251,7 +251,8 @@ async def selftest(
 
     plist = [p for p in phrases.split("|") if p.strip()]
     report: dict = {"call_id": call_id, "phrases": plist, "greeting_bot_ms": 0, "turns": [], "error": None}
-    ws_url = f"ws://localhost:{PORT}/ws?call_id={call_id}"
+    _port = os.getenv("PORT", "8080")
+    ws_url = f"ws://localhost:{_port}/ws?call_id={call_id}"
     SIL = b"\xff" * 160  # 20ms de silencio μ-law
     st = {"listening": False, "bot_ms": 0, "first_bot": None}
 
