@@ -77,6 +77,26 @@ async function fetchCapped(
   }
 }
 
+/**
+ * Bytes de un adjunto YA re-hospedado (Supabase Storage) para volver a
+ * enviarlo por un canal que no acepta una URL y quiere el archivo: Gmail y
+ * Outlook lo mandan dentro del MIME, Mercado Libre lo sube antes por su
+ * endpoint. Mismo tope y timeout que la ingesta. null si no se pudo bajar.
+ */
+export async function fetchAttachmentBytes(
+  url: string,
+): Promise<{ buffer: Buffer; mime: string } | null> {
+  return fetchCapped(url);
+}
+
+/** Nombre con el que viaja el archivo cuando el composer no mandó uno: el
+ *  último segmento de la URL, o un genérico con la extensión del mime. */
+export function attachmentFilename(url: string, mime: string): string {
+  const fromUrl = url.split("?")[0].split("/").pop() ?? "";
+  if (fromUrl.includes(".")) return fromUrl;
+  return `adjunto.${mimeToExtension(mime)}`;
+}
+
 export type MediaCategory =
   | "image"
   | "voice"

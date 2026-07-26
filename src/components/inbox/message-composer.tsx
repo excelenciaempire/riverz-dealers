@@ -66,13 +66,19 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const t = useT();
   // Capacidades por canal, según lo que el adapter sabe enviar de verdad.
-  // WhatsApp, Instagram y Messenger mandan archivos (Send API de Meta);
-  // Instagram no acepta documentos por DM, sólo imagen, video y audio. En ML,
-  // email y comentarios el envío saliente es texto: se oculta el clip para no
-  // ofrecer algo que el canal no puede hacer. Las plantillas (HSM) son de
-  // WhatsApp únicamente.
+  // Mandan archivos: WhatsApp, Instagram y Messenger (Send API de Meta),
+  // Gmail y Outlook (dentro del MIME del correo) y Mercado Libre (subida a su
+  // endpoint, sólo en mensajes post-venta). Instagram no acepta documentos por
+  // DM, sólo imagen, video y audio. En los comentarios y en Voz el envío es
+  // texto: se oculta el clip para no ofrecer algo que el canal no puede hacer.
+  // Las plantillas (HSM) son de WhatsApp únicamente.
   const canAttachMedia =
-    channel === "whatsapp" || channel === "instagram" || channel === "messenger";
+    channel === "whatsapp" ||
+    channel === "instagram" ||
+    channel === "messenger" ||
+    channel === "gmail" ||
+    channel === "outlook" ||
+    channel === "mercadolibre";
   const acceptedFiles =
     channel === "instagram"
       ? "image/*,video/*,audio/*"

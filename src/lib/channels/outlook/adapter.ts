@@ -1,12 +1,16 @@
 import type {
   ChannelAdapter,
   InboundEvent,
+  OutboundMedia,
   OutboundText,
   ParsedWebhookContext,
   SendResult,
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
+import { attachmentFilename, fetchAttachmentBytes } from "../media-ingest";
+import { safeLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import { htmlToText } from "../html-to-text";
 import {
   fetchOutlookMessage,
@@ -42,96 +46,64 @@ export const outlookAdapter: ChannelAdapter = {
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[outlook] contact missing email address");
 
-    const subject = input.conversation.subject ?? "(no subject)";
-    const convId = input.conversation.thread_external_id ?? null;
-
-    // THREADING: a fresh draft can't carry a conversationId (Graph assigns
-    // it server-side), so a plain create+send always started a NEW thread.
-    // Instead, find any message already in this Outlook conversation and
-    // `createReply` from it — Graph then keeps the reply in the same
-    // thread. We overwrite the draft body + recipient and still capture
-    // internetMessageId so the Sent-folder poller dedupes our own reply.
-    const originalId = convId
-      ? await findMessageIdInConversation(accessToken, convId)
-      : null;
-
-    if (originalId) {
-      const replyRes = await fetch(
-        `https://graph.microsoft.com/v1.0/me/messages/${originalId}/createReply`,
-        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (!replyRes.ok) {
-        const detail = await replyRes.text().catch(() => "");
-        throw new Error(`[outlook] createReply failed (${replyRes.status}): ${detail}`);
-      }
-      const draft = (await replyRes.json()) as { id?: string };
-      if (!draft.id) throw new Error("[outlook] reply draft missing id");
-
-      // Overwrite the auto-quoted body with our text and force the
-      // recipient — createReply defaults `toRecipients` to the replied-to
-      // message's sender, which is us when the only thread message so far
-      // is one we sent. The PATCH response carries internetMessageId.
-      const patchRes = await fetch(
-        `https://graph.microsoft.com/v1.0/me/messages/${draft.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            body: { contentType: "Text", content: input.text },
-            toRecipients: [{ emailAddress: { address: to } }],
-          }),
-        },
-      );
-      if (!patchRes.ok) {
-        const detail = await patchRes.text().catch(() => "");
-        throw new Error(`[outlook] reply patch failed (${patchRes.status}): ${detail}`);
-      }
-      const patched = (await patchRes.json()) as { internetMessageId?: string };
-
-      const sendRes = await fetch(
-        `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/send`,
-        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (!sendRes.ok && sendRes.status !== 202) {
-        const detail = await sendRes.text().catch(() => "");
-        throw new Error(`[outlook] reply send failed (${sendRes.status}): ${detail}`);
-      }
-      return { externalMessageId: patched.internetMessageId, status: "sent" };
-    }
-
-    // No prior message in the thread (agent-initiated first email) — fall
-    // back to a standalone draft. Create-then-send (not /sendMail) so we
-    // capture internetMessageId for Sent-folder dedup.
-    const draftRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        subject,
-        body: { contentType: "Text", content: input.text },
-        toRecipients: [{ emailAddress: { address: to } }],
-      }),
+    const draft = await createDraft(accessToken, {
+      to,
+      subject: input.conversation.subject ?? "(no subject)",
+      convId: input.conversation.thread_external_id ?? null,
+      text: input.text,
     });
-    if (!draftRes.ok) {
-      const detail = await draftRes.text().catch(() => "");
-      throw new Error(`[outlook] draft create failed (${draftRes.status}): ${detail}`);
-    }
-    const draft = (await draftRes.json()) as { id?: string; internetMessageId?: string };
-    if (!draft.id) throw new Error("[outlook] draft missing id");
+    await sendDraft(accessToken, draft.id);
+    return { externalMessageId: draft.internetMessageId, status: "sent" };
+  },
 
-    const sendRes = await fetch(
-      `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/send`,
-      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!sendRes.ok && sendRes.status !== 202) {
-      const detail = await sendRes.text().catch(() => "");
-      throw new Error(`[outlook] send failed (${sendRes.status}): ${detail}`);
+  /**
+   * Responder adjuntando un archivo. Graph sube el adjunto AL BORRADOR y
+   * recién ahí se envía, así el correo sale con el archivo dentro (no como
+   * enlace) y sigue en el mismo hilo que la respuesta de texto.
+   */
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const locale = await safeLocale();
+    const accessToken = await getFreshAccessToken(supabaseAdmin(), input.connection);
+    if (!accessToken) throw new Error("[outlook] connection missing access_token");
+
+    const to = input.contact.email || input.contact.external_id;
+    if (!to) throw new Error("[outlook] contact missing email address");
+
+    const file = await fetchAttachmentBytes(input.mediaUrl);
+    if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
+    // Por encima de 3 MB Graph exige una sesión de subida por partes; se
+    // avisa el límite en vez de fallar con un error opaco de Microsoft.
+    if (file.buffer.length > GRAPH_ATTACHMENT_MAX_BYTES) {
+      throw new Error(translate(locale, "errInbox.attachmentTooLargeGraph"));
     }
+
+    const draft = await createDraft(accessToken, {
+      to,
+      subject: input.conversation.subject ?? "(no subject)",
+      convId: input.conversation.thread_external_id ?? null,
+      text: input.caption ?? "",
+    });
+    const attachRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/attachments`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: input.filename || attachmentFilename(input.mediaUrl, file.mime),
+          contentType: file.mime,
+          contentBytes: file.buffer.toString("base64"),
+        }),
+      },
+    );
+    if (!attachRes.ok) {
+      const detail = await attachRes.text().catch(() => "");
+      throw new Error(`[outlook] attach failed (${attachRes.status}): ${detail}`);
+    }
+    await sendDraft(accessToken, draft.id);
     return { externalMessageId: draft.internetMessageId, status: "sent" };
   },
 
@@ -218,6 +190,98 @@ interface GraphNotification {
  * null when the conversation has no readable message (e.g. the agent is
  * emailing first) — the caller then falls back to a standalone draft.
  */
+/** Tope de `fileAttachment` en Graph: por encima hace falta una sesión de
+ *  subida por partes, que no vale la pena para un adjunto de bandeja. */
+const GRAPH_ATTACHMENT_MAX_BYTES = 3 * 1024 * 1024;
+
+/**
+ * Borrador listo para enviar, en el hilo correcto.
+ *
+ * THREADING: un borrador nuevo no puede llevar conversationId (lo asigna
+ * Graph), así que crear+enviar arrancaba SIEMPRE un hilo nuevo. Por eso, si
+ * ya hay un mensaje en esa conversación, se usa `createReply` sobre él y se
+ * sobreescriben cuerpo y destinatario — `createReply` pone como destinatario
+ * al remitente del mensaje respondido, que somos nosotros cuando lo único que
+ * hay en el hilo es algo que enviamos. Se devuelve internetMessageId para que
+ * el poller de Enviados deduplique nuestra propia respuesta.
+ */
+async function createDraft(
+  accessToken: string,
+  args: { to: string; subject: string; convId: string | null; text: string },
+): Promise<{ id: string; internetMessageId?: string }> {
+  const originalId = args.convId
+    ? await findMessageIdInConversation(accessToken, args.convId)
+    : null;
+
+  if (originalId) {
+    const replyRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${originalId}/createReply`,
+      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!replyRes.ok) {
+      const detail = await replyRes.text().catch(() => "");
+      throw new Error(`[outlook] createReply failed (${replyRes.status}): ${detail}`);
+    }
+    const draft = (await replyRes.json()) as { id?: string };
+    if (!draft.id) throw new Error("[outlook] reply draft missing id");
+
+    const patchRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${draft.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          body: { contentType: "Text", content: args.text },
+          toRecipients: [{ emailAddress: { address: args.to } }],
+        }),
+      },
+    );
+    if (!patchRes.ok) {
+      const detail = await patchRes.text().catch(() => "");
+      throw new Error(`[outlook] reply patch failed (${patchRes.status}): ${detail}`);
+    }
+    const patched = (await patchRes.json()) as { internetMessageId?: string };
+    return { id: draft.id, internetMessageId: patched.internetMessageId };
+  }
+
+  // Sin mensajes previos en el hilo (el agente escribe primero): borrador
+  // suelto. Crear-y-enviar (no /sendMail) para capturar internetMessageId.
+  const draftRes = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      subject: args.subject,
+      body: { contentType: "Text", content: args.text },
+      toRecipients: [{ emailAddress: { address: args.to } }],
+    }),
+  });
+  if (!draftRes.ok) {
+    const detail = await draftRes.text().catch(() => "");
+    throw new Error(`[outlook] draft create failed (${draftRes.status}): ${detail}`);
+  }
+  const draft = (await draftRes.json()) as { id?: string; internetMessageId?: string };
+  if (!draft.id) throw new Error("[outlook] draft missing id");
+  return { id: draft.id, internetMessageId: draft.internetMessageId };
+}
+
+async function sendDraft(accessToken: string, draftId: string): Promise<void> {
+  const sendRes = await fetch(
+    `https://graph.microsoft.com/v1.0/me/messages/${draftId}/send`,
+    { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!sendRes.ok && sendRes.status !== 202) {
+    const detail = await sendRes.text().catch(() => "");
+    throw new Error(`[outlook] send failed (${sendRes.status}): ${detail}`);
+  }
+}
+
+
 async function findMessageIdInConversation(
   accessToken: string,
   conversationId: string,

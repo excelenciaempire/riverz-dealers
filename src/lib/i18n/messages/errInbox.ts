@@ -68,6 +68,18 @@ export const errInbox = {
     es: "Este canal no admite archivos adjuntos",
     en: "This channel doesn't support attachments",
   },
+  attachmentUnreadable: {
+    es: "No se pudo leer el archivo adjunto",
+    en: "Couldn't read the attached file",
+  },
+  attachmentTooLargeGraph: {
+    es: "Outlook admite hasta 3 MB por adjunto",
+    en: "Outlook allows up to 3 MB per attachment",
+  },
+  attachmentQuestionUnsupported: {
+    es: "Las preguntas de Mercado Libre solo admiten texto",
+    en: "Mercado Libre questions only support text",
+  },
   mediaUnsupportedInstagram: {
     es: "Instagram solo admite imagen, video y audio por mensaje directo",
     en: "Instagram only supports image, video and audio in direct messages",

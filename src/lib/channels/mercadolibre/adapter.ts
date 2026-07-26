@@ -1,6 +1,7 @@
 import type {
   ChannelAdapter,
   InboundEvent,
+  OutboundMedia,
   OutboundText,
   ParsedWebhookContext,
   SendResult,
@@ -8,7 +9,9 @@ import type {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
-import { ingestRawMedia } from "../media-ingest";
+import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../media-ingest";
+import { safeLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -139,6 +142,77 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     }
 
     throw new Error("[mercadolibre] no resolvable target (question/pack) for this reply");
+  },
+
+  /**
+   * Responder un mensaje post-venta con un archivo. Mercado Libre no acepta
+   * una URL: hay que subir el archivo a su endpoint de adjuntos y mandar el
+   * id que devuelve junto al texto. Las preguntas de publicación (`q:`) son
+   * sólo texto — lo avisamos claro.
+   */
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const locale = await safeLocale();
+    const token = await getFreshMLToken(input.connection);
+    const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
+    const sellerId = String(cfg.seller_id ?? "");
+    const siteId = String(cfg.site_id ?? "");
+
+    const target =
+      (input.conversation as { thread_external_id?: string })?.thread_external_id ??
+      input.replyToExternalId ??
+      "";
+    if (!target.startsWith("pack:")) {
+      throw new Error(translate(locale, "errInbox.attachmentQuestionUnsupported"));
+    }
+    const packId = target.slice(5);
+    const buyerId = input.contact.external_id;
+    if (!buyerId) throw new Error("[mercadolibre] pack reply missing buyer id");
+
+    const file = await fetchAttachmentBytes(input.mediaUrl);
+    if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
+    const filename = input.filename || attachmentFilename(input.mediaUrl, file.mime);
+
+    const uploadUrl = new URL(`${ML}/messages/attachments`);
+    uploadUrl.searchParams.set("tag", "post_sale");
+    if (siteId) uploadUrl.searchParams.set("site_id", siteId);
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mime }), filename);
+    const upRes = await fetch(uploadUrl.toString(), {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!upRes.ok) {
+      const detail = await upRes.text().catch(() => "");
+      throw new Error(`[mercadolibre] attachment upload failed (${upRes.status}): ${detail}`);
+    }
+    const uploaded = (await upRes.json().catch(() => ({}))) as { id?: string };
+    if (!uploaded.id) throw new Error("[mercadolibre] attachment upload returned no id");
+
+    // Mismo saneo que el texto: tope de 350 y sólo latin1 (ML rechaza emojis).
+    const text = [...(input.caption ?? "")]
+      .filter((c) => (c.codePointAt(0) ?? 0) <= 0xff)
+      .join("")
+      .slice(0, 350);
+    const res = await fetch(
+      `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          from: { user_id: sellerId },
+          to: { user_id: buyerId },
+          text,
+          attachments: [uploaded.id],
+        }),
+      },
+    );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`[mercadolibre] message with attachment failed (${res.status}): ${detail}`);
+    }
+    const posted = (await res.json().catch(() => ({}))) as { id?: string };
+    return { externalMessageId: posted.id ?? undefined, status: "sent" };
   },
 
   async parseWebhook(
