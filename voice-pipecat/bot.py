@@ -546,6 +546,11 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
             audio_in_sample_rate=8000,
             audio_out_sample_rate=8000,
             enable_metrics=True,
+            # SIN barge-in: el bot termina de hablar antes de escuchar. En teléfono,
+            # el eco del propio bot (o ruido) disparaba una falsa interrupción que lo
+            # cortaba a media palabra ("se corta") y corrompía el turno siguiente
+            # (turnos 2+ no generaban). Sin interrupciones, cada turno queda limpio.
+            allow_interruptions=False,
         ),
     )
 
