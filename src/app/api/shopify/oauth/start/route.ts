@@ -6,7 +6,11 @@ import {
   shopifyScopes,
   verifyOAuthHmac,
 } from '@/lib/shopify/oauth'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { getConnectionByShop } from '@/lib/shopify/connection'
+import { hasPendingInstall } from '@/lib/shopify/pending-install'
 import { getLocale } from '@/lib/i18n/server'
+import { localizePath } from '@/lib/i18n/routes'
 import { translate } from '@/lib/i18n/translate'
 
 /**
@@ -54,6 +58,29 @@ export async function GET(request: Request) {
         { status: 400 },
       )
     }
+  }
+
+  // Shopify loads the App URL (which the proxy forwards here) both to START
+  // an install AND to OPEN an already-installed app. If we bounce an already
+  // installed shop back to the OAuth grant, Shopify aborts the load with
+  // `application_cant_be_loaded_misconfigured`. So when the shop is already
+  // connected — or has an unclaimed pending install from a just-completed
+  // OAuth round-trip — send the merchant INTO the app instead of re-running
+  // OAuth: sign in to the workspace that owns it, or claim the pending store.
+  const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+  try {
+    const admin = supabaseAdmin()
+    if (await getConnectionByShop(admin, shop)) {
+      return NextResponse.redirect(new URL(localizePath('/ingresar', locale), base))
+    }
+    if (await hasPendingInstall(admin, shop)) {
+      const claimUrl = new URL(localizePath('/registro', locale), base)
+      claimUrl.searchParams.set('shopify', 'pending')
+      claimUrl.searchParams.set('shop', shop)
+      return NextResponse.redirect(claimUrl)
+    }
+  } catch {
+    // Lookup failed — fall through to OAuth so a fresh install still works.
   }
 
   const redirectUri =
