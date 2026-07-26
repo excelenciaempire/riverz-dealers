@@ -8,7 +8,12 @@ import type {
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
-import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
+import {
+  composeMetaText,
+  ingestMetaAttachments,
+  isMetaUnsupportedText,
+  logUnrenderableMetaMessage,
+} from "../meta-attachments";
 import { handleMetaReaction, type MetaReactionEvent } from "../meta-reactions";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
@@ -290,17 +295,19 @@ export const messengerAdapter: ChannelAdapter = {
         // the messaging event as `referral` or nested under `postback.referral`.
         const referral =
           mapMetaAdReferral(m.referral) ?? mapMetaAdReferral(postback?.referral);
+        const msText = composeMetaText(
+          message.text,
+          parsed.descriptions,
+          parsed.media.length > 0,
+          Boolean(message.is_unsupported),
+        );
+        if (isMetaUnsupportedText(msText)) logUnrenderableMetaMessage("messenger", m);
         events.push({
           channel: "messenger",
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
-          text: composeMetaText(
-            message.text,
-            parsed.descriptions,
-            parsed.media.length > 0,
-            Boolean(message.is_unsupported),
-          ),
+          text: msText,
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral,

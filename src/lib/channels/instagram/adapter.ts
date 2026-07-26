@@ -8,7 +8,12 @@ import type {
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "../encryption";
 import { verifyMetaHandshake } from "../meta-webhook";
-import { composeMetaText, ingestMetaAttachments } from "../meta-attachments";
+import {
+  composeMetaText,
+  ingestMetaAttachments,
+  isMetaUnsupportedText,
+  logUnrenderableMetaMessage,
+} from "../meta-attachments";
 import { handleMetaReaction, type MetaReactionEvent } from "../meta-reactions";
 import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
@@ -313,18 +318,20 @@ export const instagramAdapter: ChannelAdapter = {
               )
             ? ("story_mention" as const)
             : null;
+        const igText = composeMetaText(
+          message.text,
+          parsed.descriptions,
+          parsed.media.length > 0,
+          Boolean(message.is_unsupported),
+        );
+        if (isMetaUnsupportedText(igText)) logUnrenderableMetaMessage("instagram", m);
         events.push({
           channel: "instagram",
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
           engagementKind,
-          text: composeMetaText(
-            message.text,
-            parsed.descriptions,
-            parsed.media.length > 0,
-            Boolean(message.is_unsupported),
-          ),
+          text: igText,
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral: igReferral,

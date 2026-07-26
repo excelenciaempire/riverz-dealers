@@ -50,6 +50,30 @@ export const META_UNSUPPORTED_LABEL = "[unsupported]";
  *  mudo. */
 export const META_UNSUPPORTED_MEDIA_LABEL = "[unsupported media]";
 
+/** True cuando el texto compuesto es uno de los dos sentinelas — o sea, el
+ *  mensaje entró sin nada que mostrar. */
+export function isMetaUnsupportedText(text: string): boolean {
+  return text === META_UNSUPPORTED_LABEL || text === META_UNSUPPORTED_MEDIA_LABEL;
+}
+
+/**
+ * Deja en el log EXACTAMENTE lo que mandó Meta cuando un mensaje entrante no
+ * dejó ni texto ni archivo. Es el único caso donde la bandeja no puede mostrar
+ * el contenido, y sin el payload no se distingue "Meta no lo entregó" de "el
+ * adjunto venía con una forma que no leemos". El mensaje no tiene texto por
+ * definición en esta rama: sólo se loguean ids y metadatos del adjunto.
+ */
+export function logUnrenderableMetaMessage(channel: string, message: unknown): void {
+  try {
+    console.warn(
+      `[${channel}] mensaje entrante sin contenido renderable — payload:`,
+      JSON.stringify(message).slice(0, 1200),
+    );
+  } catch {
+    /* nunca romper la ingesta por un log */
+  }
+}
+
 /** Desenvuelve el redirector de Meta (`l.facebook.com/l.php?u=…`) para guardar
  *  el enlace real que el cliente compartió. */
 export function unwrapMetaLink(raw: string): string {
