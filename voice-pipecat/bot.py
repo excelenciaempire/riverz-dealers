@@ -98,6 +98,8 @@ async def moshi_test(
     text: str = Query(default="Hola, prueba."),
     chunk_ms: int = Query(default=80),
     via8k: bool = Query(default=False),
+    bridgesim: bool = Query(default=False),
+    secs: int = Query(default=12),
 ):
     """Debug (no phone call): connect the moshi client, optionally feed it silence,
     and log EVERY raw frame PersonaPlex returns (tag+len). Iterate the bridge safely."""
@@ -152,7 +154,32 @@ async def moshi_test(
 
         task = _asyncio.create_task(reader())
         res["chunk_ms"] = chunk_ms
-        if send:
+        if send and bridgesim:
+            # Réplica EXACTA de MoshiBridge._forward_input: 8k en frames de 20ms →
+            # up-resampler PERSISTENTE (incremental) → buffer a 80ms → send_pcm, en
+            # tiempo real por `secs`. Reproduce la llamada real sin telefonear.
+            res["bridgesim"] = True
+            pcm_in = await _el_pcm24(text)
+            d8 = create_stream_resampler()
+            src8 = await d8.resample(pcm_in, 24000, 8000)  # "banda telefónica"
+            up = create_stream_resampler()
+            buf = bytearray()
+            MIMI = 1920 * 2
+            f8 = 160 * 2  # 20ms @ 8k = 160 muestras
+            src_frames = [src8[i:i + f8] for i in range(0, len(src8), f8)]
+            sil8 = b"\x00\x00" * 160
+            n_iter = int(secs * 1000 / 20)
+            for k in range(n_iter):
+                fr = src_frames[k] if k < len(src_frames) else sil8
+                pcm24 = await up.resample(fr, 8000, 24000)
+                if pcm24:
+                    buf.extend(pcm24)
+                while len(buf) >= MIMI:
+                    await client.send_pcm(bytes(buf[:MIMI]))
+                    del buf[:MIMI]
+                    res["sent"] += 1
+                await _asyncio.sleep(0.02)
+        elif send:
             spc = int(24000 * chunk_ms / 1000)  # muestras por chunk (80ms->1920)
             chunk = spc * 2
             frames: list[bytes] = []
