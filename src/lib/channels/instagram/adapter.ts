@@ -158,6 +158,10 @@ export const instagramAdapter: ChannelAdapter = {
               mid?: string;
               text?: string;
               is_echo?: boolean;
+              /** Instagram NO entrega el contenido de las notas de voz, los
+               *  GIFs ni lo compartido de cuentas privadas: manda el mensaje
+               *  con esta bandera y sin adjunto (tampoco aparece vía Graph). */
+              is_unsupported?: boolean;
               attachments?: Array<Record<string, unknown>>;
               reply_to?: { story?: { id?: string; url?: string } };
             }
@@ -259,6 +263,7 @@ export const instagramAdapter: ChannelAdapter = {
             workspaceId: connection.workspace_id,
             externalContactId: customerId,
             externalMessageId: message.mid,
+            accessToken: getToken() || undefined,
           });
           // Resolvemos también el nombre del destinatario (por si el hilo lo
           // inició el comercio desde el celular y aún no existe en Riverz).
@@ -268,7 +273,12 @@ export const instagramAdapter: ChannelAdapter = {
             connection,
             externalContactId: customerId,
             externalMessageId: message.mid,
-            text: composeMetaText(message.text, echo.descriptions, echo.media.length > 0),
+            text: composeMetaText(
+              message.text,
+              echo.descriptions,
+              echo.media.length > 0,
+              Boolean(message.is_unsupported),
+            ),
             attachments: echo.media.length ? echo.media : undefined,
             receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
             outbound: true,
@@ -287,6 +297,7 @@ export const instagramAdapter: ChannelAdapter = {
           workspaceId: connection.workspace_id,
           externalContactId: sender.id,
           externalMessageId: message.mid,
+          accessToken: getToken() || undefined,
         });
         // Click-to-Instagram ad context (the customer arrived from an ad).
         const igReferral =
@@ -308,7 +319,12 @@ export const instagramAdapter: ChannelAdapter = {
           externalContactId: sender.id,
           externalMessageId: message.mid,
           engagementKind,
-          text: composeMetaText(message.text, parsed.descriptions, parsed.media.length > 0),
+          text: composeMetaText(
+            message.text,
+            parsed.descriptions,
+            parsed.media.length > 0,
+            Boolean(message.is_unsupported),
+          ),
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral: igReferral,

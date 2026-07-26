@@ -174,6 +174,7 @@ export const messengerAdapter: ChannelAdapter = {
               mid?: string;
               text?: string;
               is_echo?: boolean;
+              is_unsupported?: boolean;
               attachments?: Array<Record<string, unknown>>;
             }
           | undefined;
@@ -251,6 +252,7 @@ export const messengerAdapter: ChannelAdapter = {
             workspaceId: connection.workspace_id,
             externalContactId: customerId,
             externalMessageId: message.mid,
+            accessToken: getToken() || undefined,
           });
           senderIds.add(customerId);
           events.push({
@@ -258,7 +260,12 @@ export const messengerAdapter: ChannelAdapter = {
             connection,
             externalContactId: customerId,
             externalMessageId: message.mid,
-            text: composeMetaText(message.text, echo.descriptions, echo.media.length > 0),
+            text: composeMetaText(
+              message.text,
+              echo.descriptions,
+              echo.media.length > 0,
+              Boolean(message.is_unsupported),
+            ),
             attachments: echo.media.length ? echo.media : undefined,
             receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
             outbound: true,
@@ -277,6 +284,7 @@ export const messengerAdapter: ChannelAdapter = {
           workspaceId: connection.workspace_id,
           externalContactId: sender.id,
           externalMessageId: message.mid,
+          accessToken: getToken() || undefined,
         });
         // Click-to-Messenger ad context (the customer arrived from an ad). On
         // the messaging event as `referral` or nested under `postback.referral`.
@@ -287,7 +295,12 @@ export const messengerAdapter: ChannelAdapter = {
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
-          text: composeMetaText(message.text, parsed.descriptions, parsed.media.length > 0),
+          text: composeMetaText(
+            message.text,
+            parsed.descriptions,
+            parsed.media.length > 0,
+            Boolean(message.is_unsupported),
+          ),
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
           referral,

@@ -42,6 +42,13 @@ const LOCATION_LABEL = "[Ubicación]";
 const MEDIA_UNAVAILABLE_LABEL = "[Archivo no disponible]";
 /** Sentinela que `isUnsupportedSnippet` ya reconoce y la UI localiza. */
 export const META_UNSUPPORTED_LABEL = "[unsupported]";
+/** Meta avisa `is_unsupported: true` cuando la plataforma NO entrega el
+ *  contenido: notas de voz de Instagram, GIFs, y contenido compartido de
+ *  cuentas privadas llegan así — sin adjunto ni texto, ni siquiera vía Graph.
+ *  Se distingue del sentinela genérico para que la burbuja explique que el
+ *  mensaje existe y hay que abrirlo en la app, en vez de un "[No compatible]"
+ *  mudo. */
+export const META_UNSUPPORTED_MEDIA_LABEL = "[unsupported media]";
 
 /** Desenvuelve el redirector de Meta (`l.facebook.com/l.php?u=…`) para guardar
  *  el enlace real que el cliente compartió. */
@@ -101,6 +108,9 @@ export async function ingestMetaAttachments(input: {
   /** PSID / IGSID — path estable en Storage (la conversación se crea después). */
   externalContactId: string;
   externalMessageId?: string;
+  /** Page token: sólo se usa para reintentar un asset del CDN de Meta que
+   *  rechaza la descarga anónima (pasa con el audio de las notas de voz). */
+  accessToken?: string;
 }): Promise<MetaAttachmentsResult> {
   const list = Array.isArray(input.attachments) ? input.attachments : [];
   const media: MessageAttachment[] = [];
@@ -122,6 +132,7 @@ export async function ingestMetaAttachments(input: {
         ? `${input.externalMessageId}-${slot}`
         : undefined,
       hintedKind: hinted,
+      accessToken: input.accessToken,
     });
     slot++;
     if (!ingested) return false;
@@ -212,11 +223,14 @@ export function composeMetaText(
   text: string | undefined,
   descriptions: string[],
   hasMedia: boolean,
+  /** `message.is_unsupported` del webhook: Meta retuvo el contenido. */
+  unsupportedMedia = false,
 ): string {
   const parts = [String(text ?? "").trim(), ...descriptions.map((d) => d.trim())].filter(
     Boolean,
   );
   const joined = [...new Set(parts)].join("\n");
   if (joined) return joined;
-  return hasMedia ? "" : META_UNSUPPORTED_LABEL;
+  if (hasMedia) return "";
+  return unsupportedMedia ? META_UNSUPPORTED_MEDIA_LABEL : META_UNSUPPORTED_LABEL;
 }

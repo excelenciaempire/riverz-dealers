@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // La descarga a Storage se simula: acá nos importa QUÉ se baja y qué texto
 // queda cuando el adjunto no es un archivo bajable.
 const downloads: string[] = [];
+const tokens: Array<string | undefined> = [];
 vi.mock("./media-ingest", () => ({
-  ingestMetaAttachment: vi.fn(async (opts: { attachmentUrl: string }) => {
+  ingestMetaAttachment: vi.fn(async (opts: { attachmentUrl: string; accessToken?: string }) => {
     downloads.push(opts.attachmentUrl);
+    tokens.push(opts.accessToken);
     if (opts.attachmentUrl.includes("fails")) return null;
     return {
       publicUrl: `https://storage.test/${downloads.length}.bin`,
@@ -20,6 +22,7 @@ import {
   composeMetaText,
   ingestMetaAttachments,
   META_UNSUPPORTED_LABEL,
+  META_UNSUPPORTED_MEDIA_LABEL,
   unwrapMetaLink,
 } from "./meta-attachments";
 
@@ -27,6 +30,7 @@ const BASE = { workspaceId: "ws", externalContactId: "psid-1", externalMessageId
 
 beforeEach(() => {
   downloads.length = 0;
+  tokens.length = 0;
 });
 
 describe("unwrapMetaLink", () => {
@@ -49,6 +53,19 @@ describe("ingestMetaAttachments", () => {
     });
     expect(r.media).toHaveLength(1);
     expect(r.descriptions).toEqual([]);
+  });
+
+  it("baja el audio de una nota de voz con el token de la conexión", async () => {
+    const r = await ingestMetaAttachments({
+      ...BASE,
+      accessToken: "PAGE_TOKEN",
+      attachments: [
+        { type: "audio", payload: { url: "https://lookaside.fbsbx.com/ig_messaging_cdn/?a=1" } },
+      ],
+    });
+    expect(r.media).toHaveLength(1);
+    expect(r.descriptions).toEqual([]);
+    expect(tokens).toEqual(["PAGE_TOKEN"]);
   });
 
   it("describe un enlace compartido (fallback) en vez de descartarlo", async () => {
@@ -137,5 +154,12 @@ describe("composeMetaText", () => {
 
   it("marca como no compatible lo que no dejó ni texto ni archivo", () => {
     expect(composeMetaText("", [], false)).toBe(META_UNSUPPORTED_LABEL);
+  });
+
+  it("distingue el contenido que Meta retuvo (nota de voz de IG)", () => {
+    expect(composeMetaText("", [], false, true)).toBe(META_UNSUPPORTED_MEDIA_LABEL);
+    // Con texto o archivo, la bandera no cambia nada.
+    expect(composeMetaText("hola", [], false, true)).toBe("hola");
+    expect(composeMetaText("", [], true, true)).toBe("");
   });
 });

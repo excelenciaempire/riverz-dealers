@@ -85,6 +85,86 @@ export type MediaCategory =
   | "document"
   | "sticker";
 
+/** Content-Type que no dice nada: el CDN de Meta (y varias APIs) devuelven
+ *  `application/octet-stream` para notas de voz y videos. Guardado así, la
+ *  nota de voz entra como "documento" y la bandeja la muestra como enlace de
+ *  descarga en vez de reproductor. Cuando el mime es genérico miramos los
+ *  bytes. */
+function isGenericMime(mime?: string | null): boolean {
+  const m = (mime ?? "").toLowerCase().split(";")[0].trim();
+  return (
+    !m ||
+    // Algunos canales mandan una etiqueta ("photo", "file") en vez de un mime.
+    !m.includes("/") ||
+    m === "application/octet-stream" ||
+    m === "binary/octet-stream" ||
+    m === "application/binary" ||
+    m === "application/download"
+  );
+}
+
+/**
+ * Detecta el tipo real por los primeros bytes del archivo (magic numbers).
+ * Cubre lo que mandan los canales: notas de voz (ogg/opus, m4a/aac, mp3, amr,
+ * wav, webm), fotos, video y PDF. Devuelve null si no reconoce la firma.
+ */
+export function sniffMime(buffer: Buffer, hint?: MediaCategory): string | null {
+  if (buffer.length < 12) return null;
+  const ascii = (start: number, len: number): string =>
+    buffer.subarray(start, start + len).toString("latin1");
+  const wantsAudio = hint === "audio" || hint === "voice";
+
+  if (ascii(0, 4) === "OggS") return "audio/ogg";
+  if (ascii(0, 4) === "fLaC") return "audio/flac";
+  if (ascii(0, 5) === "#!AMR") return "audio/amr";
+  if (ascii(0, 3) === "ID3") return "audio/mpeg";
+  // MPEG audio frame sync (mp3 sin tag ID3).
+  if (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) return "audio/mpeg";
+  if (ascii(0, 4) === "RIFF") {
+    const kind = ascii(8, 4);
+    if (kind === "WAVE") return "audio/wav";
+    if (kind === "WEBP") return "image/webp";
+    if (kind === "AVI ") return "video/x-msvideo";
+  }
+  // ISO-BMFF: el brand del `ftyp` distingue audio (M4A) de video (mp4/mov).
+  if (ascii(4, 4) === "ftyp") {
+    const brand = ascii(8, 4);
+    if (brand.startsWith("M4A") || brand.startsWith("M4B")) return "audio/mp4";
+    if (brand.startsWith("qt")) return "video/quicktime";
+    // IG/Messenger sirven las notas de voz como mp4 con brand isom/mp42: el
+    // hint del adjunto es lo único que distingue audio de video ahí.
+    return wantsAudio ? "audio/mp4" : "video/mp4";
+  }
+  // Matroska / WebM.
+  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return wantsAudio ? "audio/webm" : "video/webm";
+  }
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (ascii(1, 3) === "PNG") return "image/png";
+  if (ascii(0, 3) === "GIF") return "image/gif";
+  if (ascii(0, 4) === "%PDF") return "application/pdf";
+  return null;
+}
+
+/**
+ * Mime definitivo con el que se guarda el archivo: el declarado si sirve,
+ * si no lo que dicen los bytes, y como último recurso el que sugiere el tipo
+ * de adjunto que anunció el canal. Nunca deja un audio como octet-stream.
+ */
+export function resolveMime(
+  declared: string | null | undefined,
+  buffer: Buffer,
+  hint?: MediaCategory,
+): string {
+  if (!isGenericMime(declared)) return declared as string;
+  const sniffed = sniffMime(buffer, hint);
+  if (sniffed) return sniffed;
+  if (hint === "voice" || hint === "audio") return "audio/mp4";
+  if (hint === "image") return "image/jpeg";
+  if (hint === "video") return "video/mp4";
+  return declared || "application/octet-stream";
+}
+
 export interface IngestedMedia {
   /** URL pública en Supabase Storage. */
   publicUrl: string;
@@ -130,7 +210,9 @@ export async function ingestWhatsappMedia(opts: {
     // link de descarga en vez de reproductor. Solo caemos al header cuando
     // Graph no declara nada útil.
     const declared = mimeType && mimeType !== "application/octet-stream" ? mimeType : null;
-    const mime = declared || contentType || mimeType || "application/octet-stream";
+    // Si ni Graph ni el CDN declaran algo útil, los bytes deciden — así una
+    // nota de voz nunca queda como "documento".
+    const mime = resolveMime(declared || contentType || mimeType, buffer, opts.hintedKind);
     const category = opts.hintedKind ?? mimeToCategory(mime);
     const ext = mimeToExtension(mime);
     const path = buildStoragePath(
@@ -164,11 +246,18 @@ export async function ingestMetaAttachment(opts: {
   conversationId: string;
   externalMessageId?: string;
   hintedKind?: MediaCategory;
+  /** Page token de la conexión. Algunos assets del CDN de Meta (típicamente
+   *  el audio de `lookaside.fbsbx.com/ig_messaging_cdn`) responden 403 sin
+   *  credencial; sólo se reintenta con token cuando la baja anónima falla. */
+  accessToken?: string;
 }): Promise<IngestedMedia | null> {
   try {
-    const fetched = await fetchCapped(opts.attachmentUrl);
+    const fetched =
+      (await fetchCapped(opts.attachmentUrl)) ??
+      (await fetchMetaCdnAuthenticated(opts.attachmentUrl, opts.accessToken));
     if (!fetched) return null;
-    const { buffer, mime } = fetched;
+    const { buffer } = fetched;
+    const mime = resolveMime(fetched.mime, buffer, opts.hintedKind);
     const category = opts.hintedKind ?? mimeToCategory(mime);
     const ext = mimeToExtension(mime);
     const id =
@@ -193,6 +282,44 @@ export async function ingestMetaAttachment(opts: {
   }
 }
 
+/** Reintento autenticado de un asset del CDN de Meta: primero con el token
+ *  como Bearer, luego como parámetro `access_token` (Meta acepta las dos
+ *  formas según el endpoint). Sólo para hosts de Meta — jamás mandamos el
+ *  token del comercio a un tercero. */
+async function fetchMetaCdnAuthenticated(
+  url: string,
+  accessToken?: string,
+): Promise<{ buffer: Buffer; mime: string } | null> {
+  if (!accessToken) return null;
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  const isMeta = [
+    "fbcdn.net",
+    "cdninstagram.com",
+    "fbsbx.com",
+    "akamaihd.net",
+    "facebook.com",
+    "instagram.com",
+  ].some((h) => host === h || host.endsWith(`.${h}`));
+  if (!isMeta) return null;
+
+  const withBearer = await fetchCapped(url, {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (withBearer) return withBearer;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("access_token", accessToken);
+    return await fetchCapped(u.toString());
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Persist already-downloaded bytes (email attachments — Gmail returns
  * base64url via attachments.get, Graph returns base64 contentBytes) to
@@ -212,7 +339,9 @@ export async function ingestRawMedia(opts: {
     // Red de seguridad común a Gmail/Outlook: nunca persistir un adjunto
     // que exceda el tope (los callers ya filtran por tamaño declarado).
     if (opts.buffer.length > MAX_ATTACHMENT_BYTES) return null;
-    const mime = opts.mime || "application/octet-stream";
+    // Gmail/Outlook/Mercado Libre declaran a veces octet-stream: los bytes
+    // mandan, para que una nota de voz adjunta se reproduzca igual.
+    const mime = resolveMime(opts.mime, opts.buffer, opts.hintedKind);
     const category = opts.hintedKind ?? mimeToCategory(mime);
     // Prefer the real filename's extension (preserves .pdf/.docx names);
     // fall back to the mime map.
@@ -279,11 +408,13 @@ function buildStoragePath(
  * matchea ninguno, cae a "document".
  */
 export function mimeToCategory(mime: string): MediaCategory {
-  const lower = mime.toLowerCase();
+  const lower = mime.toLowerCase().split(";")[0].trim();
   if (lower.startsWith("image/")) return "image";
   if (lower.startsWith("video/")) return "video";
   // WhatsApp voice notes vienen como audio/ogg con codec opus.
-  if (lower === "audio/ogg" || lower === "audio/amr") return "voice";
+  if (lower === "audio/ogg" || lower === "audio/amr" || lower === "audio/opus") {
+    return "voice";
+  }
   if (lower.startsWith("audio/")) return "audio";
   return "document";
 }
@@ -303,12 +434,19 @@ function mimeToExtension(mime: string): string {
     "video/webm": "webm",
     "video/3gpp": "3gp",
     "audio/ogg": "ogg",
+    "audio/opus": "opus",
     "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
     "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
     "audio/aac": "aac",
     "audio/amr": "amr",
+    "audio/3gpp": "3ga",
     "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
     "audio/webm": "weba",
+    "video/x-msvideo": "avi",
     "application/pdf": "pdf",
     "application/zip": "zip",
     "text/plain": "txt",

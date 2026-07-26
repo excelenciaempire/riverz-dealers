@@ -122,7 +122,15 @@ export function isCommentDeleted(message: {
  *  showing the raw sentinel. */
 export function isUnsupportedSnippet(text?: string | null): boolean {
   if (!text) return false;
-  return /^\[unsupported(\]$| message type)/i.test(text.trim());
+  return /^\[unsupported(\]$| media\]$| message type)/i.test(text.trim());
+}
+
+/** Caso concreto de lo anterior: Meta avisó `is_unsupported` — la persona SÍ
+ *  mandó algo (nota de voz, GIF, contenido de una cuenta privada) pero la
+ *  plataforma no lo entrega ni por webhook ni por Graph. La burbuja lo dice
+ *  así, en vez de un "[No compatible]" que parece un error nuestro. */
+export function isUnsupportedMediaSnippet(text?: string | null): boolean {
+  return (text ?? "").trim().toLowerCase() === "[unsupported media]";
 }
 
 /** MercadoLibre sub-kind: a pre-sale QUESTION (public, shown on the listing)

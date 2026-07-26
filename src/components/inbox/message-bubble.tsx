@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Phone,
   Heart,
+  Mic,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -25,6 +26,7 @@ import { useCommentView } from "@/hooks/use-comment-view";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
   isUnsupportedSnippet,
+  isUnsupportedMediaSnippet,
   isCommentDeleted,
   localizeContentToken,
 } from "@/lib/channels/display";
@@ -132,6 +134,20 @@ function MediaUnavailable({ label }: { label: string }) {
     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-foreground">
       <ImageOff className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span>{t("inbox.mediaUnavailable", { label })}</span>
+    </div>
+  );
+}
+
+/** Meta marcó el mensaje como `is_unsupported`: la persona mandó una nota de
+ *  voz (o un GIF, o algo de una cuenta privada) y la plataforma no entrega el
+ *  archivo por API. Se dice explícito para que el agente sepa que hay un
+ *  mensaje real y lo abra en la app. */
+function UnsupportedMedia() {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Mic className="h-4 w-4 shrink-0" />
+      <span>{t("inbox.unsupportedMedia")}</span>
     </div>
   );
 }
@@ -305,12 +321,24 @@ function isTypePlaceholder(caption: string): boolean {
 
 /** Normalize an attachment's mime to a coarse kind. Handles both the
  *  new real mimes ("image/jpeg") and the legacy channel-type tags
- *  ("image", "video", "audio", "file") older rows stored. */
-function attachmentKind(mime?: string): "image" | "video" | "audio" | "file" {
+ *  ("image", "video", "audio", "file") older rows stored. Cuando el mime no
+ *  dice nada (`application/octet-stream`, como manda el CDN de Meta para
+ *  varias notas de voz) decide la extensión del archivo — si no, una nota de
+ *  voz vieja se ve como enlace de descarga en vez de reproductor. */
+function attachmentKind(
+  mime?: string,
+  url?: string,
+): "image" | "video" | "audio" | "file" {
   const m = (mime ?? "").toLowerCase();
   if (m.startsWith("image")) return "image";
   if (m.startsWith("video")) return "video";
   if (m.startsWith("audio")) return "audio";
+  const ext = (url ?? "").toLowerCase().split(/[?#]/)[0].split(".").pop() ?? "";
+  if (["ogg", "oga", "opus", "mp3", "m4a", "aac", "amr", "wav", "weba", "flac", "3ga"].includes(ext)) {
+    return "audio";
+  }
+  if (["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"].includes(ext)) return "image";
+  if (["mp4", "mov", "webm", "3gp", "avi"].includes(ext)) return "video";
   return "file";
 }
 
@@ -332,8 +360,8 @@ function AttachmentList({
   return (
     <div className="flex flex-col gap-1">
       {attachments.map((a, i) => {
-        const kind = attachmentKind(a.mime_type);
         const url = safeMediaUrl(a.url);
+        const kind = attachmentKind(a.mime_type, a.url);
         if (!url) {
           return (
             <span key={i} className="text-sm text-muted-foreground">
@@ -430,6 +458,7 @@ function MessageContent({ message }: { message: Message }) {
       // deja leer) va el rótulo — nunca una burbuja en blanco: en la bandeja
       // todo mensaje se ve.
       const body = message.content_text?.trim();
+      if (isUnsupportedMediaSnippet(body)) return <UnsupportedMedia />;
       const readable = body && !isUnsupportedSnippet(body);
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
@@ -555,6 +584,7 @@ function MessageContent({ message }: { message: Message }) {
     }
 
     default:
+      if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia />;
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
           {isUnsupportedSnippet(message.content_text)

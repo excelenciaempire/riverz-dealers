@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { resolveMime } from '@/lib/channels/media-ingest'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
@@ -97,11 +98,18 @@ export async function GET(
           downloadUrl: mediaInfo.url,
           accessToken,
         })
+        // El mime que declara Graph gana sobre el header del CDN: la CDN
+        // lookaside devuelve `application/octet-stream` para muchas notas de
+        // voz y con ese Content-Type el <audio> del inbox no reproduce. Si
+        // ninguno de los dos sirve, deciden los bytes (resolveMime).
+        const declared =
+          mediaInfo.mimeType && mediaInfo.mimeType !== 'application/octet-stream'
+            ? mediaInfo.mimeType
+            : null
         return new Response(new Uint8Array(buffer), {
           status: 200,
           headers: {
-            'Content-Type':
-              contentType || mediaInfo.mimeType || 'application/octet-stream',
+            'Content-Type': resolveMime(declared || contentType, buffer),
             'Cache-Control': 'private, max-age=86400',
           },
         })
