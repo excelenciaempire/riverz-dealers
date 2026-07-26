@@ -301,15 +301,20 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         inbound_encoding="PCMU",
         api_key=TELNYX_API_KEY or None,
     )
-    # VAD en el TRANSPORT (no solo en el aggregator): sin esto el transport no
-    # emite bien "usuario empezó/dejó de hablar" → el endpointing se cuelga
-    # (respuestas lentísimas y solo el primer turno). stop_secs bajo = corta
-    # rápido tras el silencio para responder ágil por teléfono.
+    # VAD en el TRANSPORT a 8000 Hz (telefonía). CLAVE: pipecat espera que el VAD
+    # confirme el fin de habla antes de generar; si el VAD corre al rate por
+    # defecto (16k) con audio de 8k, detecta el INICIO pero nunca el FIN →
+    # se cuelga tras el primer turno (era el bug de "lento + 1 sola respuesta").
+    # stop_secs bajo = corta rápido tras el silencio para responder ágil.
     vad_analyzer = None
     try:
         from pipecat.audio.vad.silero import SileroVADAnalyzer
         from pipecat.audio.vad.vad_analyzer import VADParams
-        vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.5))
+        _vp = VADParams(stop_secs=0.5)
+        try:
+            vad_analyzer = SileroVADAnalyzer(sample_rate=8000, params=_vp)
+        except TypeError:
+            vad_analyzer = SileroVADAnalyzer(params=_vp)
     except Exception as e:  # noqa: BLE001
         logger.warning("VAD no disponible: %s", e)
     transport = FastAPIWebsocketTransport(
@@ -317,6 +322,8 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
         params=FastAPIWebsocketParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
+            audio_in_sample_rate=8000,
+            audio_out_sample_rate=8000,
             add_wav_header=False,
             vad_analyzer=vad_analyzer,
             serializer=serializer,
