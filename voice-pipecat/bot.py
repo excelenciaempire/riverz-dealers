@@ -339,9 +339,17 @@ async def ws(websocket: WebSocket, call_id: str | None = Query(default=None)) ->
             or ctx.get("instructions")
             or ctx.get("system_prompt")
             or ctx.get("prompt")
-            or "Eres un recepcionista amable. Responde en español, breve y natural."
+            or "Eres un recepcionista amable."
         )
-        persona = " ".join(str(raw_persona).split())[:160]
+        # FORZAR IDIOMA: la voz por defecto (NATF2) es inglesa y "tira" a inglés.
+        # Ponemos la directiva de idioma AL FRENTE del text_prompt (y siempre, aunque
+        # se recorte) para que PersonaPlex hable en el idioma del agente.
+        lang = str(ctx.get("language") or "es").lower()
+        if lang.startswith("es"):
+            directive = "IMPORTANTE: habla SOLO en español latinoamericano, natural y breve. Nunca en inglés. "
+        else:
+            directive = "IMPORTANT: speak ONLY in English, natural and brief. "
+        persona = (directive + " ".join(str(raw_persona).split()))[:200]
         bridge = MoshiBridge(
             realtime["base_url"],
             realtime.get("api_key"),
