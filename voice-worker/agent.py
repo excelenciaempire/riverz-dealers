@@ -181,34 +181,47 @@ def _usage_dict(usage_collector) -> dict | None:
 
 async def _summarize(context: dict, transcript: list[dict]) -> str | None:
     """Resumen corto (2-3 frases) en el idioma de la llamada. Fail-soft -> None.
-    Usa el SDK de Anthropic directamente (dependencia transitiva del plugin) con
-    un one-shot; si no hay API key o falla (p.ej. sin saldo), devuelve None."""
+    Usa el MISMO LLM del pipeline (Groq/OpenAI-compat vía context.llm.base_url, o
+    Anthropic si no hay base_url) — así no depende del saldo de Anthropic."""
     if not transcript:
         return None
-    key = os.getenv("ANTHROPIC_API_KEY")
-    if not key:
-        return None
-    try:
-        import anthropic as anthropic_sdk
-    except Exception:
-        return None
     lang = (context or {}).get("language", "es")
-    model = ((context or {}).get("llm") or {}).get("model", "claude-haiku-4-5")
+    llm_cfg = (context or {}).get("llm") or {}
     convo = "\n".join(f"{t['role']}: {t['text']}" for t in transcript)[:6000]
     prompt = (
         f"Resume esta llamada telefónica en 2-3 frases en '{lang}'. "
         f"Devuelve sólo el resumen, sin preámbulos.\n\n{convo}"
     )
+    base_url = llm_cfg.get("base_url")
+    # Camino 1: LLM OpenAI-compatible (Groq, etc.) — el que ya usa la llamada.
+    if base_url:
+        key = llm_cfg.get("api_key") or _OAI_PLACEHOLDER_KEY
+        model = llm_cfg.get("model") or "llama-3.3-70b-versatile"
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(base_url=base_url, api_key=key)
+            resp = await client.chat.completions.create(
+                model=model, max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return (resp.choices[0].message.content or "").strip() or None
+        except Exception:
+            logger.warning("resumen (openai-compat) falló", exc_info=True)
+            return None
+    # Camino 2: Anthropic (si el LLM es Claude y hay saldo).
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        return None
     try:
+        import anthropic as anthropic_sdk
         client = anthropic_sdk.AsyncAnthropic(api_key=key)
         resp = await client.messages.create(
-            model=model,
+            model=llm_cfg.get("model") or "claude-haiku-4-5",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )
         parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
-        text = " ".join(parts).strip()
-        return text or None
+        return (" ".join(parts).strip()) or None
     except Exception:
         logger.warning("no se pudo generar el resumen", exc_info=True)
         return None
@@ -421,13 +434,31 @@ def _build_session(context: dict, vad) -> AgentSession:
         logger.warning("mode=realtime pero sin endpoint viable; cayendo al pipeline")
 
     # Pipeline STT -> LLM -> TTS (con proveedor fijo o OpenAI-compatible por capa).
-    return AgentSession(
+    # Ajustes de latencia + interrupciones (barge-in natural):
+    #  - allow_interruptions: el cliente PUEDE cortar al bot hablando.
+    #  - min_interruption_words=2: hace falta hablar en serio para cortarlo (un
+    #    "ajá"/ruido no lo interrumpe) → se siente humano sin falsos cortes.
+    #  - min_endpointing_delay bajo: responde apenas detecta que terminaste.
+    kwargs: dict = dict(
         stt=_make_stt(context.get("stt") or {}),
         llm=_make_llm(context.get("llm") or {}),
         tts=_make_tts(context.get("voice") or {}),
         turn_detection=MultilingualModel(),
         vad=vad,
     )
+    # Estos parámetros existen en AgentSession 1.6.x; si alguno cambia de nombre,
+    # fail-soft: se arma la sesión sin ellos (mejor sin tuning que sin llamada).
+    tuned = dict(
+        allow_interruptions=True,
+        min_interruption_words=2,
+        min_endpointing_delay=0.4,
+        max_endpointing_delay=4.0,
+    )
+    try:
+        return AgentSession(**kwargs, **tuned)
+    except TypeError as e:
+        logger.warning("AgentSession sin tuning (%s)", e)
+        return AgentSession(**kwargs)
 
 
 async def _start_recording(ctx: JobContext, context: dict, call_state: CallState) -> None:
