@@ -22,6 +22,14 @@ export interface ProviderOption {
   voiceHint?: string;
   /** Nota corta para el admin (ej. idioma, latencia). */
   note?: string;
+  /**
+   * Endpoint OpenAI-compatible por defecto (punto A: modelos abiertos servidos
+   * por terceros, pago-por-uso, $0 ocioso). El worker lo usa si no hay base_url
+   * explícito. Solo aplica a proveedores tipo OpenAI-compatible.
+   */
+  baseUrl?: string;
+  /** Marca la opción recomendada para ecommerce (barata + buena). */
+  recommended?: boolean;
 }
 
 /** Voz → texto. */
@@ -68,6 +76,27 @@ export const STT_PROVIDERS: ProviderOption[] = [
 /** Cerebro. */
 export const LLM_PROVIDERS: ProviderOption[] = [
   {
+    id: 'gemini',
+    label: 'Google (Gemini)',
+    models: [
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (recomendado ecommerce)' },
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    ],
+    note: 'Inteligente + barato + baja latencia + buen tool-calling. Ideal.',
+    recommended: true,
+  },
+  {
+    id: 'groq',
+    label: 'Groq (Llama/abiertos)',
+    models: [
+      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (rápido + capaz)' },
+      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (ultra-rápido/barato)' },
+    ],
+    note: 'La menor latencia (500+ tok/s). 70B para ventas, 8B para lo simple.',
+    recommended: true,
+  },
+  {
     id: 'anthropic',
     label: 'Anthropic (Claude)',
     models: [
@@ -75,44 +104,91 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
       { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (rápido)' },
     ],
-    note: 'Mejor razonamiento de ventas.',
+    note: 'Mejor razonamiento de ventas (tier premium).',
   },
   {
     id: 'openai',
     label: 'OpenAI (GPT)',
     models: [
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini (rápido/barato)' },
       { id: 'gpt-4o', label: 'GPT-4o' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o mini (rápido)' },
       { id: 'gpt-4.1', label: 'GPT-4.1' },
     ],
   },
+  // ── Punto A: modelos ABIERTOS servidos por terceros, pago-por-uso, $0 ocioso.
+  // Todos hablan API OpenAI-compatible → el worker usa OpenAILLMService + baseUrl.
   {
-    id: 'gemini',
-    label: 'Google (Gemini)',
+    id: 'deepinfra',
+    label: 'DeepInfra (abiertos)',
     models: [
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+      { id: 'Qwen/Qwen3-72B-Instruct', label: 'Qwen3 72B' },
+      { id: 'meta-llama/Llama-3.3-70B-Instruct', label: 'Llama 3.3 70B' },
+      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
     ],
+    baseUrl: 'https://api.deepinfra.com/v1/openai',
+    note: 'Qwen/Llama/DeepSeek pago-por-uso, muy barato, $0 ocioso.',
   },
   {
-    id: 'groq',
-    label: 'Groq (Llama)',
+    id: 'together',
+    label: 'Together AI (abiertos)',
     models: [
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (ultra-rápido)' },
+      { id: 'Qwen/Qwen3-72B-Instruct', label: 'Qwen3 72B' },
+      { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Turbo' },
     ],
-    note: 'La más rápida y barata.',
+    baseUrl: 'https://api.together.xyz/v1',
+    note: 'Modelos abiertos pago-por-uso.',
+  },
+  {
+    id: 'fireworks',
+    label: 'Fireworks (abiertos)',
+    models: [
+      { id: 'accounts/fireworks/models/qwen3-72b-instruct', label: 'Qwen3 72B' },
+      { id: 'accounts/fireworks/models/llama-v3p3-70b-instruct', label: 'Llama 3.3 70B' },
+    ],
+    baseUrl: 'https://api.fireworks.ai/inference/v1',
+    note: 'Modelos abiertos pago-por-uso, baja latencia.',
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    models: [
+      { id: 'deepseek-chat', label: 'DeepSeek V3 (chat)' },
+    ],
+    baseUrl: 'https://api.deepseek.com',
+    note: 'Muy barato y competente.',
   },
   {
     id: 'openai_compatible',
     label: 'OpenAI-compatible (custom)',
     models: [{ id: '', label: 'Escribir modelo…' }],
-    note: 'Cualquier endpoint OpenAI-compatible (base_url + key).',
+    note: 'Cualquier endpoint OpenAI-compatible (base_url + key). Ej. Qwen self-host en vLLM.',
   },
 ];
 
-/** Texto → voz. */
+/** Texto → voz. (La capa que más pesa en el costo.) */
 export const TTS_PROVIDERS: ProviderOption[] = [
+  {
+    id: 'cartesia',
+    label: 'Cartesia (Sonic)',
+    models: [
+      { id: 'sonic-2', label: 'Sonic 2' },
+      { id: 'sonic', label: 'Sonic' },
+    ],
+    voiceHint: 'voice_id de Cartesia (UUID)',
+    note: 'La más rápida (~40-90ms), muy natural. ~$0.03/min. Recomendada.',
+    recommended: true,
+  },
+  {
+    id: 'deepgram',
+    label: 'Deepgram (Aura-2)',
+    models: [
+      { id: 'aura-2-celeste-es', label: 'Aura-2 Celeste (español)' },
+      { id: 'aura-2-thalia-en', label: 'Aura-2 Thalia (inglés)' },
+    ],
+    voiceHint: 'modelo de voz Aura (ej. aura-2-celeste-es)',
+    note: 'La más barata buena (~$0.015-0.02/min). Mismo proveedor que el STT.',
+    recommended: true,
+  },
   {
     id: 'elevenlabs',
     label: 'ElevenLabs',
@@ -123,17 +199,14 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'eleven_v3', label: 'v3' },
     ],
     voiceHint: 'voice_id de ElevenLabs (ej. XrExE9yKIg1WjnnlVkGX)',
-    note: 'Estándar de calidad, 32 idiomas.',
+    note: 'Máxima calidad, 32 idiomas, pero la más cara (~$0.10/min). Tier premium.',
   },
   {
-    id: 'cartesia',
-    label: 'Cartesia (Sonic)',
-    models: [
-      { id: 'sonic-2', label: 'Sonic 2' },
-      { id: 'sonic', label: 'Sonic' },
-    ],
-    voiceHint: 'voice_id de Cartesia (UUID)',
-    note: 'La más rápida (~40-90ms), muy natural.',
+    id: 'hume',
+    label: 'Hume (Octave)',
+    models: [{ id: 'octave', label: 'Octave (expresivo)' }],
+    voiceHint: 'voz/description Hume',
+    note: 'Muy barato (~$7.6/1M chars), expresivo.',
   },
   {
     id: 'rime',
@@ -143,7 +216,17 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'arcana', label: 'arcana' },
     ],
     voiceHint: 'nombre de voz Rime (ej. "cove")',
-    note: 'Conversacional, ideal ventas.',
+    note: 'Conversacional, baja latencia.',
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    models: [
+      { id: 'gpt-4o-mini-tts', label: 'gpt-4o-mini-tts' },
+      { id: 'tts-1-hd', label: 'tts-1-hd' },
+      { id: 'tts-1', label: 'tts-1 (barato)' },
+    ],
+    voiceHint: 'voz OpenAI (alloy, nova, shimmer…)',
   },
   {
     id: 'playht',
@@ -155,35 +238,48 @@ export const TTS_PROVIDERS: ProviderOption[] = [
     voiceHint: 'voice URL/id de PlayHT',
   },
   {
-    id: 'deepgram',
-    label: 'Deepgram (Aura)',
-    models: [{ id: 'aura-2-thalia-en', label: 'Aura 2' }],
-    voiceHint: 'modelo de voz Aura (ej. aura-2-celeste-es)',
-    note: 'Mismo proveedor que el STT.',
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    models: [
-      { id: 'gpt-4o-mini-tts', label: 'gpt-4o-mini-tts' },
-      { id: 'tts-1-hd', label: 'tts-1-hd' },
-      { id: 'tts-1', label: 'tts-1' },
-    ],
-    voiceHint: 'voz OpenAI (alloy, nova, shimmer…)',
-  },
-  {
     id: 'gemini',
     label: 'Google (Gemini TTS)',
     models: [{ id: 'gemini-2.5-flash-preview-tts', label: 'Gemini 2.5 Flash TTS' }],
     voiceHint: 'voz Gemini (ej. Kore, Puck)',
   },
-  {
-    id: 'hume',
-    label: 'Hume (Octave)',
-    models: [{ id: 'octave', label: 'Octave (expresivo)' }],
-    voiceHint: 'voz/description Hume',
-  },
 ];
+
+/**
+ * Combos recomendados para ecommerce (confirmar pedidos + servicio al cliente),
+ * ordenados por costo. Todos: multi-idioma, tools (cierran pedidos), baja
+ * latencia, $0 ocioso. Costos aprox. por minuto de llamada, todo incluido
+ * (Telnyx + STT + LLM + TTS). Ver también src/lib/voice/README de costos.
+ */
+export const RECOMMENDED_COMBOS = [
+  {
+    id: 'economico',
+    label: 'Económico',
+    stt: 'deepgram',
+    llm: 'gemini',
+    tts: 'deepgram',
+    approxPerMin: '~$0.05/min',
+    note: 'Deepgram + Gemini 2.5 Flash + Aura-2. El mejor costo/calidad.',
+  },
+  {
+    id: 'natural',
+    label: 'Voz más natural',
+    stt: 'deepgram',
+    llm: 'gemini',
+    tts: 'cartesia',
+    approxPerMin: '~$0.055/min',
+    note: 'Deepgram + Gemini 2.5 Flash + Cartesia Sonic (voz premium, baja latencia).',
+  },
+  {
+    id: 'premium',
+    label: 'Premium ventas',
+    stt: 'deepgram',
+    llm: 'anthropic',
+    tts: 'elevenlabs',
+    approxPerMin: '~$0.20/min',
+    note: 'Deepgram + Claude Sonnet + ElevenLabs. Máximo razonamiento y voz.',
+  },
+] as const;
 
 /** Motores full-duplex speech-to-speech (modo realtime). */
 export const REALTIME_PROVIDERS: ProviderOption[] = [

@@ -88,6 +88,9 @@ export interface VoiceModelResolved {
 }
 
 function defaultRow(): VoiceModelRow {
+  // Default = combo ECONÓMICO recomendado para ecommerce (~$0.05/min), y que
+  // funciona con las claves que ya tenemos (Deepgram + Groq). El admin lo
+  // intercambia por capa; para español nativo, Aura-2 tiene voces es.
   return {
     mode: 'pipeline',
     stt_provider: 'deepgram',
@@ -95,12 +98,12 @@ function defaultRow(): VoiceModelRow {
     stt_language: process.env.VOICE_STT_LANGUAGE || 'multi',
     stt_base_url: null,
     stt_api_key_encrypted: null,
-    llm_provider: 'anthropic',
-    llm_model: 'claude-haiku-4-5-20251001',
+    llm_provider: 'groq',
+    llm_model: 'llama-3.3-70b-versatile',
     llm_base_url: null,
     llm_api_key_encrypted: null,
-    tts_provider: 'elevenlabs',
-    tts_model: 'eleven_flash_v2_5',
+    tts_provider: 'deepgram',
+    tts_model: 'aura-2-celeste-es',
     tts_default_voice_id: null,
     tts_base_url: null,
     tts_api_key_encrypted: null,

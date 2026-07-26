@@ -435,17 +435,25 @@ def _build_llm(cfg: dict):  # noqa: ANN201
         from pipecat.services.google.llm import GoogleLLMService
         return GoogleLLMService(
             api_key=key or _env("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-            model=model or "gemini-2.0-flash",
+            model=model or "gemini-2.5-flash",
         )
-    # openai / groq / openai_compatible → cliente OpenAI-compatible (base_url)
+    # Punto A: hosts serverless de modelos ABIERTOS (pago-por-uso, $0 ocioso) +
+    # openai/groq/openai_compatible → todos hablan API OpenAI-compatible.
     from pipecat.services.openai.llm import OpenAILLMService
-    if p == "groq":
-        base_url = base_url or "https://api.groq.com/openai/v1"
-        key = key or _env("GROQ_API_KEY")
-        model = model or "llama-3.3-70b-versatile"
-    elif p == "openai":
-        key = key or _env("OPENAI_API_KEY")
-        model = model or "gpt-4o-mini"
+    # (provider) -> (base_url, env vars de la clave, modelo por defecto)
+    OPENAI_COMPAT = {
+        "groq": ("https://api.groq.com/openai/v1", ("GROQ_API_KEY",), "llama-3.3-70b-versatile"),
+        "deepinfra": ("https://api.deepinfra.com/v1/openai", ("DEEPINFRA_API_KEY", "DEEPINFRA_TOKEN"), "Qwen/Qwen3-72B-Instruct"),
+        "together": ("https://api.together.xyz/v1", ("TOGETHER_API_KEY",), "Qwen/Qwen3-72B-Instruct"),
+        "fireworks": ("https://api.fireworks.ai/inference/v1", ("FIREWORKS_API_KEY",), "accounts/fireworks/models/qwen3-72b-instruct"),
+        "deepseek": ("https://api.deepseek.com", ("DEEPSEEK_API_KEY",), "deepseek-chat"),
+        "openai": (None, ("OPENAI_API_KEY",), "gpt-4o-mini"),
+    }
+    if p in OPENAI_COMPAT:
+        default_url, env_names, default_model = OPENAI_COMPAT[p]
+        base_url = base_url or default_url
+        key = key or _env(*env_names)
+        model = model or default_model
     kwargs = {"api_key": key, "model": model or "gpt-4o-mini"}
     if base_url:
         kwargs["base_url"] = base_url
