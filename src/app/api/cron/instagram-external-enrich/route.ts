@@ -27,14 +27,10 @@ export async function GET(request: Request) {
     throw r;
   }
 
-  if (!(process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN)) {
-    return NextResponse.json({ ok: true, skipped: 'no_apify_token' });
-  }
-
   const db = supabaseAdmin();
   const { data, error } = await db
     .from('contacts')
-    .select('id, name, contact_ig_profile(external_enriched_at)')
+    .select('id, name, workspace_id, contact_ig_profile(external_enriched_at)')
     .in('channel', ['instagram', 'ig_comment'])
     .eq('opted_out', false)
     .not('name', 'is', null)
@@ -47,6 +43,7 @@ export async function GET(request: Request) {
   type Row = {
     id: string;
     name: string | null;
+    workspace_id: string | null;
     contact_ig_profile:
       | { external_enriched_at: string | null }
       | { external_enriched_at: string | null }[]
@@ -70,9 +67,12 @@ export async function GET(request: Request) {
     failed: 0,
   };
   for (const r of due) {
+    // El token sale de la integración del workspace (Integraciones → Apify);
+    // sin token conectado, enrichExternalProfile devuelve 'skipped'.
     const result = await enrichExternalProfile(db, {
       contactId: r.id,
       username: r.name ?? '',
+      workspaceId: r.workspace_id,
     });
     counts[result] = (counts[result] ?? 0) + 1;
   }

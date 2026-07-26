@@ -40,6 +40,43 @@ export const igAgent = {
     en: "reachable on Instagram",
   },
   newCampaign: { es: "Nueva campaña", en: "New campaign" },
+
+  // Los tres bloques del hub
+  blockDmTitle: { es: "Responde los DMs", en: "Answers your DMs" },
+  blockDmHint: {
+    es: "Cuando alguien te escribe por privado, contesta tu agente de IA con tu catálogo y tus reglas.",
+    en: "When someone DMs you, your AI agent answers with your catalog and your rules.",
+  },
+  blockCommentsTitle: {
+    es: "Responde los comentarios",
+    en: "Answers your comments",
+  },
+  blockCommentsHint: {
+    es: "Qué pasa cuando alguien comenta en tus posts: a quién se le escribe por privado y con qué reglas.",
+    en: "What happens when someone comments on your posts: who gets a private reply and under which rules.",
+  },
+  blockOutreachTitle: {
+    es: "Inicia conversaciones",
+    en: "Starts conversations",
+  },
+  blockOutreachHint: {
+    es: "Sal a buscar tú: describe un objetivo y el agente elige a quién escribirle primero y con qué.",
+    en: "Go find them: describe a goal and the agent picks who to message first, and with what.",
+  },
+  limitsSection: { es: "Límites", en: "Limits" },
+
+  // Bloque 1 — agente de DMs
+  dmAgentActive: {
+    es: "Atiende tus DMs de Instagram",
+    en: "Handling your Instagram DMs",
+  },
+  dmAgentNone: { es: "Sin agente configurado", en: "No agent configured" },
+  dmAgentNoneHint: {
+    es: "Nadie contesta tus DMs automáticamente. Los comentarios sí siguen funcionando.",
+    en: "Nobody answers your DMs automatically. Comments still work.",
+  },
+  dmAgentConfigure: { es: "Configurar", en: "Configure" },
+  dmAgentCreate: { es: "Crear agente", en: "Create agent" },
   reachableNow: { es: "contactables ahora", en: "reachable now" },
   reachHint: {
     es: "{dm} con DM abierto (24h) y {comments} que comentaron en los últimos 7 días. Fuera de esas ventanas Meta no permite escribir. Histórico de Instagram: {total}.",

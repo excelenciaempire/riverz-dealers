@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveWorkspaceKey } from '@/lib/integrations/workspace-key';
 import {
   completeText,
   describeImage,
@@ -80,9 +81,10 @@ function clean(out: string): string | null {
 }
 
 /** Run the third-party scraper for one public username. Null on any failure. */
-async function scrapeProfile(username: string): Promise<ApifyProfile | null> {
-  const token = process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN;
-  if (!token) return null;
+async function scrapeProfile(
+  username: string,
+  token: string,
+): Promise<ApifyProfile | null> {
   try {
     const res = await fetch(
       `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
@@ -214,12 +216,21 @@ export type ExternalEnrichResult = 'enriched' | 'private' | 'skipped' | 'failed'
  */
 export async function enrichExternalProfile(
   db: SupabaseClient,
-  opts: { contactId: string; username: string },
+  opts: { contactId: string; username: string; workspaceId?: string | null },
 ): Promise<ExternalEnrichResult> {
   try {
     const uname = opts.username.replace(/^@/, '').trim();
     if (!uname) return 'skipped';
-    const p = await scrapeProfile(uname);
+    // El token que el comercio conectó en Integraciones; la variable de entorno
+    // queda solo como respaldo para despliegues de un solo negocio.
+    const token = await resolveWorkspaceKey(
+      db,
+      opts.workspaceId ?? null,
+      'apify',
+      process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null,
+    );
+    if (!token) return 'skipped';
+    const p = await scrapeProfile(uname, token);
     if (!p) {
       await mark(db, opts.contactId, { external_hint: null, is_public: null });
       return 'failed';

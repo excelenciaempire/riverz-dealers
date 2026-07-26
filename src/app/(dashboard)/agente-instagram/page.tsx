@@ -21,6 +21,8 @@ import {
   Send,
   Receipt,
   Rocket,
+  Bot,
+  ArrowRight,
   SlidersHorizontal,
   AlertTriangle,
 } from 'lucide-react';
@@ -91,6 +93,7 @@ export default function InstagramAgentPage() {
   const [holdoutPct, setHoldoutPct] = useState(10);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
+  const settings = useProactiveSettings();
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -260,14 +263,36 @@ export default function InstagramAgentPage() {
       {/* Lo que espera tu decisión va primero. */}
       <ApprovalsQueue />
 
-      {/* 1 — Nueva campaña */}
+      {/* ── 1. Responde los DMs ── quién atiende cuando te escriben. Vive en
+          Asistente IA; aquí solo se ve el estado y se entra a configurarlo. */}
       <section className="space-y-3">
-        <div className="app-section-head">
-          <h2 className="text-sm font-medium text-foreground">
-            {t('igAgent.newCampaign')}
-          </h2>
-          <ReachChip context={context} />
-        </div>
+        <SectionHead
+          step={1}
+          title={t('igAgent.blockDmTitle')}
+          hint={t('igAgent.blockDmHint')}
+        />
+        <DmAgentCard context={context} />
+      </section>
+
+      {/* ── 2. Responde los comentarios ── */}
+      <section className="space-y-3">
+        <SectionHead
+          step={2}
+          title={t('igAgent.blockCommentsTitle')}
+          hint={t('igAgent.blockCommentsHint')}
+        />
+        <CommentAutoReply settings={settings} />
+        <CommentToDmPanel />
+      </section>
+
+      {/* ── 3. Inicia conversaciones ── */}
+      <section className="space-y-3">
+        <SectionHead
+          step={3}
+          title={t('igAgent.blockOutreachTitle')}
+          hint={t('igAgent.blockOutreachHint')}
+          aside={<ReachChip context={context} />}
+        />
 
         <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all focus-within:border-accent-ink/40 focus-within:shadow-md">
           {/* Hairline con degradado de Instagram, sutil, para anclar la marca */}
@@ -584,22 +609,20 @@ export default function InstagramAgentPage() {
         </section>
       )}
 
-      {/* 3 — Campañas */}
       <CampaignsSection campaigns={campaigns} onDelete={deleteCampaign} />
 
-      {/* 4 — Automatización: modo, freno de emergencia, tope y reglas */}
+      {/* Límites — mandan sobre TODO lo que sale solo (2 y 3). */}
       <section className="space-y-3">
         <div className="app-section-head">
           <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
             <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            {t('igAgent.automationSection')}
+            {t('igAgent.limitsSection')}
           </h2>
         </div>
-        <ProactiveControls />
-        <CommentToDmPanel />
+        <ProactiveLimits settings={settings} />
       </section>
 
-      {/* 5 — Resultados */}
+      {/* Resultados */}
       <AttributedOrders />
     </div>
   );
@@ -873,12 +896,29 @@ const MODE_DESC: Record<SendMode, string> = {
 };
 
 /**
- * Controles del agente proactivo: cuánto envía solo, el freno de emergencia y
- * el tope diario. Cada control con su etiqueta visible — antes era una fila de
- * botones y un campo numérico sin nombre.
+ * Ajustes proactivos compartidos por los bloques 2 y 3: una sola carga, una
+ * sola escritura. Antes vivían todos apelotonados en una tarjeta; ahora cada
+ * control aparece donde el comercio lo entiende.
  */
-function ProactiveControls() {
-  const t = useT();
+interface ProactiveSettings {
+  loaded: boolean;
+  paused: boolean;
+  autoReply: boolean;
+  cap: number;
+  mode: SendMode;
+  setPaused: (v: boolean) => void;
+  setAutoReply: (v: boolean) => void;
+  setCap: (v: number) => void;
+  setMode: (v: SendMode) => void;
+  save: (next: {
+    paused?: boolean;
+    daily_cap?: number;
+    send_mode?: SendMode;
+    auto_reply_comments?: boolean;
+  }) => void;
+}
+
+function useProactiveSettings(): ProactiveSettings {
   const fetchWithCsrf = useFetchWithCsrf();
   const [paused, setPaused] = useState(false);
   const [autoReply, setAutoReply] = useState(true);
@@ -905,24 +945,148 @@ function ProactiveControls() {
     };
   }, []);
 
-  async function save(next: {
-    paused?: boolean;
-    daily_cap?: number;
-    send_mode?: SendMode;
-    auto_reply_comments?: boolean;
-  }) {
-    try {
-      await fetchWithCsrf('/api/ai/instagram-agent/settings', {
+  const save = useCallback(
+    (next: {
+      paused?: boolean;
+      daily_cap?: number;
+      send_mode?: SendMode;
+      auto_reply_comments?: boolean;
+    }) => {
+      void fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(next),
-      });
-    } catch {
-      /* silencioso */
-    }
-  }
+      }).catch(() => {});
+    },
+    [fetchWithCsrf],
+  );
 
-  if (!loaded) return null;
+  return {
+    loaded,
+    paused,
+    autoReply,
+    cap,
+    mode,
+    setPaused,
+    setAutoReply,
+    setCap,
+    setMode,
+    save,
+  };
+}
+
+/** Encabezado numerado de bloque: deja claro que son tres cosas distintas. */
+function SectionHead({
+  step,
+  title,
+  hint,
+  aside,
+}: {
+  step: number;
+  title: string;
+  hint: string;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="app-section-head">
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent/60 text-[10px] font-semibold text-accent-ink">
+            {step}
+          </span>
+          {title}
+        </h2>
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+          {hint}
+        </p>
+      </div>
+      {aside}
+    </div>
+  );
+}
+
+/**
+ * Bloque 1 — quién responde los DMs. No se configura aquí: es el agente de IA
+ * del workspace. Mostrarlo evita la pregunta "¿y esto qué tiene que ver con el
+ * Asistente?" y deja el camino a configurarlo a un clic.
+ */
+function DmAgentCard({ context }: { context: PlanContext | null }) {
+  const t = useT();
+  const agent =
+    context?.agents?.find((a) => a.id === context?.default_agent_id) ?? null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/50 text-accent-ink">
+          <Bot className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          {agent ? (
+            <>
+              <p className="truncate text-sm font-medium text-foreground">
+                {agent.name}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {t('igAgent.dmAgentActive')}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-foreground">
+                {t('igAgent.dmAgentNone')}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {t('igAgent.dmAgentNoneHint')}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+      <Button
+        variant={agent ? 'outline' : 'default'}
+        size="sm"
+        render={<Link href="/asistente" />}
+      >
+        {agent ? t('igAgent.dmAgentConfigure') : t('igAgent.dmAgentCreate')}
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+/** Bloque 2 — el interruptor del piso autónomo. */
+function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
+  const t = useT();
+  if (!settings.loaded) return null;
+  return (
+    <label className="flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <Switch
+        checked={settings.autoReply}
+        onCheckedChange={(v) => {
+          settings.setAutoReply(v);
+          settings.save({ auto_reply_comments: v });
+        }}
+      />
+      <span>
+        <span className="block text-[13px] font-medium text-foreground">
+          {t('igAgent.autoReplyComments')}
+        </span>
+        <span className="block text-[11px] leading-snug text-muted-foreground">
+          {t('igAgent.autoReplyCommentsHint')}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Límites — mandan sobre todo lo que sale solo: cuánto se automatiza, el freno
+ * de emergencia y el tope diario.
+ */
+function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
+  const t = useT();
+  if (!settings.loaded) return null;
 
   const MODES: { v: SendMode; label: string }[] = [
     { v: 'auto', label: t('igAgent.modeAuto') },
@@ -934,7 +1098,9 @@ function ProactiveControls() {
     <div
       className={cn(
         'rounded-2xl border p-4 shadow-sm transition-colors',
-        paused ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
+        settings.paused
+          ? 'border-destructive/40 bg-destructive/5'
+          : 'border-border bg-card',
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -948,12 +1114,12 @@ function ProactiveControls() {
                 key={m.v}
                 type="button"
                 onClick={() => {
-                  setMode(m.v);
-                  save({ send_mode: m.v });
+                  settings.setMode(m.v);
+                  settings.save({ send_mode: m.v });
                 }}
                 className={cn(
                   'rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors',
-                  mode === m.v
+                  settings.mode === m.v
                     ? 'bg-accent text-accent-ink'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
@@ -963,27 +1129,8 @@ function ProactiveControls() {
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-muted-foreground">
-            {t(MODE_DESC[mode])}
+            {t(MODE_DESC[settings.mode])}
           </p>
-
-          {/* Piso autónomo: contestar siempre a quien pregunta, haya campaña o no */}
-          <label className="mt-3 flex max-w-md items-start gap-2.5">
-            <Switch
-              checked={autoReply}
-              onCheckedChange={(v) => {
-                setAutoReply(v);
-                save({ auto_reply_comments: v });
-              }}
-            />
-            <span>
-              <span className="block text-[13px] font-medium text-foreground">
-                {t('igAgent.autoReplyComments')}
-              </span>
-              <span className="block text-[11px] leading-snug text-muted-foreground">
-                {t('igAgent.autoReplyCommentsHint')}
-              </span>
-            </span>
-          </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-5">
@@ -995,9 +1142,9 @@ function ProactiveControls() {
               type="number"
               min={0}
               max={10000}
-              value={cap}
-              onChange={(e) => setCap(Number(e.target.value))}
-              onBlur={() => save({ daily_cap: cap })}
+              value={settings.cap}
+              onChange={(e) => settings.setCap(Number(e.target.value))}
+              onBlur={() => settings.save({ daily_cap: settings.cap })}
               title={t('igAgent.controlsDailyCapHint')}
               className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
             />
@@ -1010,16 +1157,18 @@ function ProactiveControls() {
             <span
               className={cn(
                 'font-medium',
-                paused ? 'text-destructive' : 'text-foreground',
+                settings.paused ? 'text-destructive' : 'text-foreground',
               )}
             >
-              {paused ? t('igAgent.controlsPausedOn') : t('igAgent.controlsPause')}
+              {settings.paused
+                ? t('igAgent.controlsPausedOn')
+                : t('igAgent.controlsPause')}
             </span>
             <Switch
-              checked={paused}
+              checked={settings.paused}
               onCheckedChange={(v) => {
-                setPaused(v);
-                save({ paused: v });
+                settings.setPaused(v);
+                settings.save({ paused: v });
               }}
             />
           </label>

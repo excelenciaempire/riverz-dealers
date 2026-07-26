@@ -3,6 +3,7 @@
 import Link from '@/components/i18n/locale-link';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
+import { ApifyCard } from '@/components/settings/apify-card';
 import { VoiceCard } from '@/components/settings/voice-card';
 import { DropiCard } from '@/components/settings/dropi-card';
 import { useT } from '@/hooks/use-locale';
@@ -36,6 +37,13 @@ export default function IntegracionesPage() {
           {t('settings.ownAudience')}
         </h2>
         <KlaviyoCard />
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">
+          {t('settings.knowYourPeople')}
+        </h2>
+        <ApifyCard />
       </div>
     </div>
   );

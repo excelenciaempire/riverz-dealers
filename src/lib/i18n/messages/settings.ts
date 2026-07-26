@@ -50,6 +50,31 @@ export const settings = {
 
   // Integrations page
   ownAudience: { es: "Audiencia propia", en: "Your audience" },
+  knowYourPeople: {
+    es: "Conocer a tu gente",
+    en: "Know your people",
+  },
+
+  // Apify card — perfil público para abrir conversaciones
+  apifyDescription: {
+    es: "Lee el perfil público de quien te escribe para que el agente abra la conversación por algo suyo, no vendiendo. Solo cuentas públicas.",
+    en: "Reads the public profile of people who reach out, so the agent opens with something of theirs instead of a pitch. Public accounts only.",
+  },
+  apifyTokenPlaceholder: {
+    es: "Token de API de Apify",
+    en: "Apify API token",
+  },
+  apifyInvalidKey: {
+    es: "El token no parece válido",
+    en: "That token doesn't look valid",
+  },
+  apifyConnectError: {
+    es: "No se pudo conectar Apify",
+    en: "Couldn't connect Apify",
+  },
+  apifyConnected: { es: "Apify conectado", en: "Apify connected" },
+  apifyDisconnected: { es: "Apify desconectado", en: "Apify disconnected" },
+  apifyDisconnect: { es: "Desconectar Apify", en: "Disconnect Apify" },
 
   // Klaviyo card
   klaviyoDescription: {
