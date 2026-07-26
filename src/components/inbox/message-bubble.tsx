@@ -28,6 +28,7 @@ import {
   isCommentDeleted,
   localizeContentToken,
 } from "@/lib/channels/display";
+import { findLinks } from "@/lib/inbox/linkify";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
@@ -369,33 +370,35 @@ function AttachmentList({
   );
 }
 
-const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
-
 /**
- * Turn bare http(s) URLs inside plain message text into clickable links, on
- * ANY channel. Links inherit the bubble's text color + underline so they read
- * on both the agent (primary) and customer (muted) bubbles. Trailing sentence
- * punctuation is kept out of the href so "…serum-pilar." doesn't 404.
+ * Convierte en enlaces clicables las URL y correos del texto de un mensaje, en
+ * CUALQUIER canal — con esquema, con www o a secas ("pilarargentina.store"),
+ * que es como los escribe la gente. Heredan el color de la burbuja con
+ * subrayado para que se lean tanto en la del agente (primary) como en la del
+ * cliente. La detección vive en lib/inbox/linkify (pura y testeada).
  */
 function linkifyNodes(text: string): ReactNode[] {
-  return text.split(URL_RE).map((part, i) => {
-    if (!/^https?:\/\//.test(part)) return part;
-    const trail = /[.,;:!?)\]}'"]+$/.exec(part)?.[0] ?? '';
-    const url = trail ? part.slice(0, part.length - trail.length) : part;
-    return (
-      <span key={i}>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 break-all hover:opacity-80"
-        >
-          {url}
-        </a>
-        {trail}
-      </span>
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const link of findLinks(text)) {
+    if (link.start > last) nodes.push(text.slice(last, link.start));
+    nodes.push(
+      <a
+        key={key++}
+        href={link.href}
+        target={link.isEmail ? undefined : "_blank"}
+        rel={link.isEmail ? undefined : "noopener noreferrer"}
+        className="underline underline-offset-2 break-all hover:opacity-80"
+      >
+        {link.text}
+      </a>,
     );
-  });
+    if (link.trailing) nodes.push(link.trailing);
+    last = link.end;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
 }
 
 function MessageContent({ message }: { message: Message }) {
@@ -515,7 +518,11 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span>{message.content_text || t("inbox.sharedLocation")}</span>
+          <span className="whitespace-pre-wrap break-words">
+            {message.content_text
+              ? linkifyNodes(localizeContentToken(message.content_text, t))
+              : t("inbox.sharedLocation")}
+          </span>
         </div>
       );
 
