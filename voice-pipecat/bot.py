@@ -498,11 +498,12 @@ def _build_tts(cfg: dict):  # noqa: ANN201
     if p == "hume":
         from pipecat.services.hume.tts import HumeTTSService
         return HumeTTSService(api_key=key or _env("HUME_API_KEY"), voice=voice)
-    # elevenlabs (default)
+    # elevenlabs (default / fallback). voice_id OBLIGATORIO: sin él ElevenLabs
+    # lanza excepción; usamos Matilda (es-419) como default para no quedar mudos.
     from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
     return ElevenLabsTTSService(
         api_key=key or _env("ELEVENLABS_API_KEY", "ELEVEN_API_KEY"),
-        voice_id=voice or None,
+        voice_id=voice or "XrExE9yKIg1WjnnlVkGX",
         model=model or "eleven_flash_v2_5",
     )
 
@@ -520,7 +521,10 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
 
     stt_cfg = model.get("stt", {})
     llm_cfg = model.get("llm", {})
-    tts_cfg = model.get("tts", {})
+    # OJO: el contexto envía la capa TTS bajo "voice" (no "tts"). Leer "voice"
+    # primero; sin esto el TTS SIEMPRE caía al default (ElevenLabs) ignorando la
+    # config del admin.
+    tts_cfg = model.get("voice") or model.get("tts") or {}
 
     try:
         stt = _build_stt(stt_cfg)
