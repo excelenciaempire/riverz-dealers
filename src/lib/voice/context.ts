@@ -29,6 +29,7 @@ import {
   DEFAULT_RECORDING_DISCLOSURE,
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
+import { effectiveBaseUrl } from './providers';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -299,18 +300,21 @@ export async function buildVoiceContext(
       base_url: model.tts_base_url,
       api_key: model.tts_api_key,
     },
-    llm: {
-      provider: model.llm_provider,
-      // Con un endpoint custom (base_url, ej. Cerebras/Groq) el NOMBRE de modelo lo
-      // dicta ese endpoint → usamos el de la config global, NO el agent.model (que
-      // puede ser un id de otro proveedor, ej. claude-*, y rompería el endpoint).
-      // Sin base_url, respetamos el override por-agente.
-      model: model.llm_base_url
-        ? (model.llm_model || agent.model)
-        : (agent.model || model.llm_model),
-      base_url: model.llm_base_url,
-      api_key: model.llm_api_key,
-    },
+    llm: (() => {
+      // base_url efectivo: el de la config o el del catálogo del proveedor (Groq,
+      // Gemini, Cerebras, OpenAI… enrutan por OpenAI-compat). Anthropic = null → nativo.
+      const llmBase = effectiveBaseUrl('llm', model.llm_provider, model.llm_base_url);
+      return {
+        provider: model.llm_provider,
+        // Con endpoint OpenAI-compat el NOMBRE de modelo lo dicta ese endpoint →
+        // usamos el de la config, NO el agent.model (que puede ser de otro
+        // proveedor, ej. claude-*, y rompería el endpoint). Sin base_url (Anthropic)
+        // respetamos el override por-agente.
+        model: llmBase ? (model.llm_model || agent.model) : (agent.model || model.llm_model),
+        base_url: llmBase,
+        api_key: model.llm_api_key,
+      };
+    })(),
     stt: {
       provider: model.stt_provider,
       model: model.stt_model,

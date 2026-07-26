@@ -331,6 +331,16 @@ def _make_llm(cfg: dict):
                 key = os.getenv("CEREBRAS_API_KEY")
             elif "groq" in bl:
                 key = os.getenv("GROQ_API_KEY")
+            elif "googleapis" in bl:  # Gemini vía endpoint OpenAI-compatible
+                key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            elif "deepinfra" in bl:
+                key = os.getenv("DEEPINFRA_API_KEY")
+            elif "together" in bl:
+                key = os.getenv("TOGETHER_API_KEY")
+            elif "fireworks" in bl:
+                key = os.getenv("FIREWORKS_API_KEY")
+            elif "deepseek" in bl:
+                key = os.getenv("DEEPSEEK_API_KEY")
             elif "openai.com" in bl:
                 key = os.getenv("OPENAI_API_KEY")
         return openai.LLM(

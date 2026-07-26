@@ -1,9 +1,11 @@
 /**
  * Voice AI — catálogo de proveedores/modelos por capa (STT · LLM · TTS · S2S).
  *
- * Fuente única para los selectores del admin (`/admin/voz`). El worker
- * (`voice-pipecat/bot.py`) instancia el proveedor elegido por su `id`. Mantené
- * los `id` en sync con las fábricas del worker (_build_stt/_llm/_tts + realtime).
+ * Fuente única para los selectores del admin (`/admin/voz`). El worker de
+ * producción (`voice-worker/agent.py`, LiveKit) instancia el proveedor elegido:
+ * los OpenAI-compatibles (Groq/Gemini/Cerebras/OpenAI/DeepInfra/…) van por
+ * `base_url`; Anthropic es nativo. Mantené los `id`/`baseUrl` en sync con
+ * `_make_stt/_make_llm/_make_tts` del worker.
  *
  * Los nombres son técnicos (marcas) → no se traducen. Cada opción puede fijar
  * modelos sugeridos; el admin igual permite escribir un modelo/voz custom.
@@ -83,6 +85,8 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
       { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
     ],
+    // Endpoint OpenAI-compatible de Google → el worker lo trata igual que Groq.
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
     note: 'Inteligente + barato + baja latencia + buen tool-calling. Ideal.',
     recommended: true,
   },
@@ -92,9 +96,22 @@ export const LLM_PROVIDERS: ProviderOption[] = [
     models: [
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (rápido + capaz)' },
       { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (ultra-rápido/barato)' },
+      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
     ],
-    note: 'La menor latencia (500+ tok/s). 70B para ventas, 8B para lo simple.',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    note: 'La menor latencia (500+ tok/s). Tier gratis ~12k tok/min (justo para demos); Dev Tier para producción.',
     recommended: true,
+  },
+  {
+    id: 'cerebras',
+    label: 'Cerebras (ultra-rápido)',
+    models: [
+      { id: 'gpt-oss-120b', label: 'GPT-OSS 120B (el más capaz)' },
+      { id: 'zai-glm-4.7', label: 'GLM 4.7' },
+      { id: 'gemma-4-31b', label: 'Gemma 4 31B' },
+    ],
+    baseUrl: 'https://api.cerebras.ai/v1',
+    note: 'La inferencia más rápida del mercado (~2-3x Groq). Requiere saldo/billing.',
   },
   {
     id: 'anthropic',
@@ -104,7 +121,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
       { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (rápido)' },
     ],
-    note: 'Mejor razonamiento de ventas (tier premium).',
+    note: 'Mejor razonamiento de ventas y español. Nativo (no usa base_url).',
   },
   {
     id: 'openai',
@@ -114,6 +131,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'gpt-4o', label: 'GPT-4o' },
       { id: 'gpt-4.1', label: 'GPT-4.1' },
     ],
+    baseUrl: 'https://api.openai.com/v1',
   },
   // ── Punto A: modelos ABIERTOS servidos por terceros, pago-por-uso, $0 ocioso.
   // Todos hablan API OpenAI-compatible → el worker usa OpenAILLMService + baseUrl.
@@ -340,4 +358,19 @@ export function providerOption(
   providerId: string | null | undefined,
 ): ProviderOption | undefined {
   return LAYER_PROVIDERS[layer].find((x) => x.id === providerId);
+}
+
+/**
+ * base_url efectivo de una capa: el guardado en la config o, si no hay, el del
+ * catálogo del proveedor. Así seleccionar Groq/Gemini/Cerebras/OpenAI enruta por
+ * el camino OpenAI-compatible del worker sin tener que tipear la URL. Anthropic
+ * es nativo (sin baseUrl en el catálogo) → devuelve null y usa su plugin propio.
+ */
+export function effectiveBaseUrl(
+  layer: keyof typeof LAYER_PROVIDERS,
+  providerId: string | null | undefined,
+  storedBaseUrl: string | null | undefined,
+): string | null {
+  if (storedBaseUrl && storedBaseUrl.trim()) return storedBaseUrl.trim();
+  return providerOption(layer, providerId)?.baseUrl ?? null;
 }
