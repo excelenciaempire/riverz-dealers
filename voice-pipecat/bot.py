@@ -231,6 +231,43 @@ async def moshi_test(
     return JSONResponse(res)
 
 
+# ── Introspección: qué clases de turn-strategy y qué campos hay en ESTA versión
+# de pipecat (para configurar el fin de turno sin adivinar).
+@app.get("/turns-debug")
+async def turns_debug():
+    import importlib
+    import pkgutil
+
+    out: dict = {}
+    try:
+        import pipecat
+        out["pipecat_version"] = getattr(pipecat, "__version__", "?")
+    except Exception as e:  # noqa: BLE001
+        out["pipecat_version"] = f"ERR {e}"
+    for sub in [
+        "user_stop", "user_start", "turn_stop_strategies", "turn_start_strategies",
+        "user_turn_strategies", "smart_turn",
+    ]:
+        try:
+            m = importlib.import_module(f"pipecat.turns.{sub}")
+            out[sub] = [n for n in dir(m) if "Strateg" in n or "Turn" in n or "Config" in n]
+            if hasattr(m, "__path__"):
+                out[sub + "__mods"] = [x.name for x in pkgutil.iter_modules(m.__path__)]
+        except Exception as e:  # noqa: BLE001
+            out[sub] = f"ERR {type(e).__name__}: {e}"
+    try:
+        from pipecat.processors.aggregators.llm_response_universal import (
+            LLMUserAggregatorParams,
+        )
+        mf = getattr(LLMUserAggregatorParams, "model_fields", None)
+        out["LLMUserAggregatorParams_fields"] = (
+            list(mf.keys()) if mf else [f for f in dir(LLMUserAggregatorParams) if not f.startswith("_")]
+        )
+    except Exception as e:  # noqa: BLE001
+        out["params_err"] = str(e)
+    return JSONResponse(out)
+
+
 # ── Auto-test SIN teléfono: un "llamante sintético" corre contra el pipeline ───
 # real (localhost /ws), habla en español vía ElevenLabs y mide cuántos turnos
 # responde el bot y con qué latencia. Así iteramos el turn-taking sin llamar a
