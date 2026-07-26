@@ -755,13 +755,23 @@ def _build_pipeline(ctx: dict, model: dict, transport):  # noqa: ANN001
     # ONNX que sobre audio TELEFÓNICO cuelga/no completa el turno (issue #3643 y lo
     # visto en /selftest: strategy None → no responde). Con TranscriptionUserTurnStop
     # el turno cierra ~0.7s después de la última palabra transcrita → responde ágil.
-    # FIN DE TURNO fiable sobre audio telefónico. El smart-turn default (issue
-    # #3643) sólo cierra el turno por VAD o, si no, por `user_turn_stop_timeout`
-    # (default 5s) → lento y a veces se pierde el turno 2+. Bajamos ese timeout a
-    # 1.2s: el turno cierra rápido y de forma consistente aunque el smart-turn no
-    # dispare. (TranscriptionUserTurnStopStrategy no existe con ese nombre en esta
-    # versión, así que usamos el timeout, que sí es un campo soportado.)
+    # FIN DE TURNO por SILENCIO (VAD), NO por el smart-turn. El default de pipecat
+    # 1.6.0 es TurnAnalyzerUserTurnStopStrategy (modelo ONNX) que sobre audio
+    # telefónico clasifica mal las preguntas como "incompletas" → strategy None →
+    # el turno 2+ no dispara el LLM. Lo reemplazamos por SpeechTimeoutUserTurnStop
+    # (cierra el turno tras el silencio del VAD, 0.5s) → cada turno responde.
     up_kwargs: dict = {"vad_analyzer": _mk_vad(), "user_turn_stop_timeout": 1.2}
+    try:
+        from pipecat.turns.user_turn_strategies import UserTurnStrategies
+        from pipecat.turns.user_start import VADUserTurnStartStrategy
+        from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
+        up_kwargs["user_turn_strategies"] = UserTurnStrategies(
+            start=[VADUserTurnStartStrategy()],
+            stop=[SpeechTimeoutUserTurnStopStrategy()],
+        )
+        logger.info("user_turn_strategies: VAD start + SpeechTimeout stop (sin smart-turn)")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("turn strategies no aplicadas (%s) → default smart-turn", e)
     user_agg, assistant_agg = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(**up_kwargs),
