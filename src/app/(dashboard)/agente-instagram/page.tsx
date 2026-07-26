@@ -442,7 +442,10 @@ export default function InstagramAgentPage() {
                   {t('igAgent.followUpIfNoReply')}
                 </p>
                 <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
-                  {plan.follow_up}
+                  {plan.follow_up.replace(
+                    /{{s*(nombre|name|1)s*}}/gi,
+                    plan.message.preview_name,
+                  )}
                 </p>
               </div>
 

@@ -149,10 +149,9 @@ export default function CampaignDetailPage() {
       ? campaign.metrics
       : null
   ) as CampaignMetrics | null;
-  const messagePreview = plan.message.text.replace(
-    /\{\{\s*(nombre|name|1)\s*\}\}/gi,
-    plan.message.preview_name,
-  );
+  const fillName = (text: string) =>
+    text.replace(/\{\{\s*(nombre|name|1)\s*\}\}/gi, plan.message.preview_name);
+  const messagePreview = fillName(plan.message.text);
 
   // Cumulative funnel (each recipient sits in exactly one terminal status).
   const converted = byStatus.converted ?? 0;
@@ -408,7 +407,7 @@ export default function CampaignDetailPage() {
               {t('igAgent.followUp')}
             </p>
             <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground whitespace-pre-wrap">
-              {plan.follow_up}
+              {fillName(plan.follow_up)}
             </p>
           </div>
         </div>
