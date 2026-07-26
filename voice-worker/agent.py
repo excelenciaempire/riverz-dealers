@@ -480,8 +480,16 @@ def _try_build_realtime(context: dict):
             logger.warning("no se pudo construir Gemini Live; uso pipeline", exc_info=True)
             return None
 
+    # Qwen-Omni (self-host RunPod/Modal): el server (runpod/qwen-omni) es
+    # turn-based (audio→audio), NO habla el protocolo OpenAI-Realtime. Su adapter
+    # LiveKit es el paso 2 (necesita GPU en el loop). Hasta entonces cae al
+    # pipeline (Cerebras+Celeste) — nunca rompe la llamada.
+    if provider in ("qwen_omni", "qwen-omni", "qwen"):
+        logger.info("realtime=qwen_omni: adapter LiveKit pendiente; uso pipeline")
+        return None
+
     # OpenAI Realtime NATIVO (sin base_url) o cualquier endpoint OpenAI-Realtime-
-    # COMPATIBLE self-hosted vía base_url (Qwen-Omni en Modal/RunPod, Moshi, …).
+    # COMPATIBLE self-hosted vía base_url (Moshi u otro con ese contrato).
     try:
         from livekit.plugins.openai import realtime as openai_realtime
 

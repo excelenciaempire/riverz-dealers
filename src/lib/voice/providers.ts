@@ -314,7 +314,7 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
       { id: 'qwen2.5-omni', label: 'Qwen2.5-Omni' },
     ],
     voiceHint: 'voz del endpoint',
-    note: 'S2S multilingüe self-host (Modal/RunPod) vía endpoint OpenAI-Realtime-compatible (base_url). $0 por minuto de API a escala.',
+    note: 'S2S multilingüe self-host (RunPod/Modal). Server listo (runpod/qwen-omni); adapter LiveKit en progreso → por ahora cae al pipeline. $0 por minuto de API a escala.',
   },
   {
     id: 'personaplex',
