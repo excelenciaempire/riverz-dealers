@@ -248,6 +248,20 @@ export async function buildVoiceContext(
 
   const voiceBlock = buildVoiceInstructions(agent, call, objective) + upsellBlock;
 
+  // El system prompt se re-envía en CADA turno, así que su tamaño multiplica el
+  // costo y los tokens-por-minuto (los tiers gratis, ej. Groq, cortan en ~12k
+  // TPM). El grueso vive en `base` (catálogo/ficha de producto); lo acotamos a
+  // un presupuesto de caracteres y NUNCA tocamos el bloque de comportamiento de
+  // voz. Configurable con VOICE_SYSTEM_PROMPT_MAX_CHARS.
+  const PROMPT_CHAR_BUDGET = Number(process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 14000);
+  const baseTrimmed =
+    base.length > PROMPT_CHAR_BUDGET
+      ? base.slice(0, PROMPT_CHAR_BUDGET) +
+        (langOf(agent, call) === 'en'
+          ? '\n\n[Product details truncated — ask the customer for specifics if needed.]'
+          : '\n\n[Ficha de producto recortada — si hace falta un detalle puntual, pregúntalo al cliente.]')
+      : base;
+
   const toolsEnabled = shopify
     ? [
         'lookup_order',
@@ -276,7 +290,7 @@ export async function buildVoiceContext(
     phone: call.phone,
     language: lang,
     greeting,
-    system_prompt: `${base}\n\n${voiceBlock}`,
+    system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {
       provider: model.tts_provider,
