@@ -287,7 +287,13 @@ export async function buildVoiceContext(
     },
     llm: {
       provider: model.llm_provider,
-      model: agent.model || model.llm_model,
+      // Con un endpoint custom (base_url, ej. Cerebras/Groq) el NOMBRE de modelo lo
+      // dicta ese endpoint → usamos el de la config global, NO el agent.model (que
+      // puede ser un id de otro proveedor, ej. claude-*, y rompería el endpoint).
+      // Sin base_url, respetamos el override por-agente.
+      model: model.llm_base_url
+        ? (model.llm_model || agent.model)
+        : (agent.model || model.llm_model),
       base_url: model.llm_base_url,
       api_key: model.llm_api_key,
     },
