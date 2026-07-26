@@ -55,7 +55,11 @@ function describeSilence(hours: number): string {
   return `${d} día${d === 1 ? '' : 's'}`;
 }
 
-function buildSystem(agent: AiAgent, silenceHours: number): string {
+function buildSystem(
+  agent: AiAgent,
+  silenceHours: number,
+  campaignHint?: string | null,
+): string {
   const tone = TONE_HINT[agent.tone] ?? 'natural';
   const lang = LANG_NAME[agent.language] ?? 'español';
   const parts: string[] = [];
@@ -80,6 +84,10 @@ function buildSystem(agent: AiAgent, silenceHours: number): string {
       '- Si NO hay nada útil ni natural que agregar (la conversación ya cerró, fue una despedida, o un follow-up sería molesto), responde EXACTAMENTE con la palabra SKIP y nada más.',
     ].join('\n'),
   );
+  // Si la persona llegó por una campaña de Instagram viva, el seguimiento debe
+  // continuar ESA conversación (su oferta, su código, el seguimiento que el
+  // plan previó) en vez de ser un recordatorio genérico.
+  if (campaignHint) parts.push(`\n${campaignHint}`);
   // Same server-enforced business-scope guardrails as the main runner: the
   // follow-up is still a customer-facing message, so it must stay in business
   // scope and in character regardless of the merchant's persona.
@@ -105,6 +113,8 @@ export async function runFollowUp(
     connection: ChannelConnection;
     /** Horas transcurridas desde nuestro último mensaje (para el prompt). */
     silenceHours: number;
+    /** Qué decir si la persona viene de una campaña de Instagram viva. */
+    campaignHint?: string | null;
   },
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
@@ -217,7 +227,7 @@ export async function runFollowUp(
     const resp = await client.messages.create({
       model: agent.model || 'claude-haiku-4-5-20251001',
       max_tokens: 400,
-      system: buildSystem(agent, silenceHours),
+      system: buildSystem(agent, silenceHours, args.campaignHint),
       messages,
     });
     const text = extractText(

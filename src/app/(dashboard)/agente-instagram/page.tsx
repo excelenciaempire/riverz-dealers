@@ -881,6 +881,7 @@ function ProactiveControls() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [paused, setPaused] = useState(false);
+  const [autoReply, setAutoReply] = useState(true);
   const [cap, setCap] = useState(500);
   const [mode, setMode] = useState<SendMode>('auto');
   const [loaded, setLoaded] = useState(false);
@@ -892,6 +893,7 @@ function ProactiveControls() {
       .then((j) => {
         if (!cancelled && j) {
           setPaused(!!j.paused);
+          setAutoReply(j.auto_reply_comments !== false);
           setCap(Number(j.daily_cap) || 500);
           if (j.send_mode) setMode(j.send_mode as SendMode);
           setLoaded(true);
@@ -907,6 +909,7 @@ function ProactiveControls() {
     paused?: boolean;
     daily_cap?: number;
     send_mode?: SendMode;
+    auto_reply_comments?: boolean;
   }) {
     try {
       await fetchWithCsrf('/api/ai/instagram-agent/settings', {
@@ -962,6 +965,25 @@ function ProactiveControls() {
           <p className="mt-1.5 text-[11px] text-muted-foreground">
             {t(MODE_DESC[mode])}
           </p>
+
+          {/* Piso autónomo: contestar siempre a quien pregunta, haya campaña o no */}
+          <label className="mt-3 flex max-w-md items-start gap-2.5">
+            <Switch
+              checked={autoReply}
+              onCheckedChange={(v) => {
+                setAutoReply(v);
+                save({ auto_reply_comments: v });
+              }}
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-foreground">
+                {t('igAgent.autoReplyComments')}
+              </span>
+              <span className="block text-[11px] leading-snug text-muted-foreground">
+                {t('igAgent.autoReplyCommentsHint')}
+              </span>
+            </span>
+          </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-5">

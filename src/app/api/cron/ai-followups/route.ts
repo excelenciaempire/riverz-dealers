@@ -5,6 +5,7 @@ import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { pingCron } from '@/lib/cron/heartbeat';
 import { runFollowUp } from '@/lib/ai/followup';
+import { campaignFollowUpHint } from '@/lib/instagram-agent/campaign-followup';
 import { runVoiceFollowups } from '@/lib/voice/followup';
 import type { AiAgent, BusinessHours } from '@/lib/ai/types';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
@@ -183,12 +184,21 @@ async function processWorkspace(
     if (!connection) continue;
 
     const silenceHours = Math.max(0, (nowMs - lastMsgMs) / 3_600_000);
+    // En Instagram, si la persona viene de una campaña viva, el seguimiento
+    // continúa ESA campaña (el "seguimiento si no responden" del plan) en vez
+    // de ser un recordatorio genérico.
+    const campaignHint =
+      conv.channel === 'instagram'
+        ? await campaignFollowUpHint(admin, conv.contact_id).catch(() => null)
+        : null;
+
     const result = await runFollowUp(admin, {
       agent,
       conversation: conv,
       contact: contactRow as Contact,
       connection,
       silenceHours,
+      campaignHint,
     });
 
     if (result.sent) {

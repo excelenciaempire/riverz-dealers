@@ -20,6 +20,28 @@ export async function proactiveGate(
     .eq('workspace_id', workspaceId)
     .maybeSingle();
   const s = data as { paused?: boolean; daily_cap?: number } | null;
+  return gateFromSettings(db, workspaceId, s);
+}
+
+/** ¿Está encendido el piso autónomo (responder comentarios sin campaña)? */
+export async function autoReplyCommentsEnabled(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from('ig_proactive_settings')
+    .select('auto_reply_comments')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  // Sin fila de ajustes → encendido (el default de la columna).
+  return (data as { auto_reply_comments?: boolean } | null)?.auto_reply_comments !== false;
+}
+
+async function gateFromSettings(
+  db: SupabaseClient,
+  workspaceId: string,
+  s: { paused?: boolean; daily_cap?: number } | null,
+): Promise<ProactiveGate> {
   if (s?.paused) return { ok: false, reason: 'paused' };
   const cap = s?.daily_cap ?? DEFAULT_DAILY_CAP;
   if (cap <= 0) return { ok: true }; // 0 = unlimited

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripLinkPlaceholders } from './personalize-dm';
+import { stripLinkPlaceholders, enforceOffer } from './personalize-dm';
 
 /**
  * Caso real: el DM que salió a una clienta decía "puedes comprarlo desde
@@ -45,5 +45,36 @@ describe('stripLinkPlaceholders', () => {
   it('no confunde corchetes de otro tipo', () => {
     const text = 'Te queda [1 unidad] disponible';
     expect(stripLinkPlaceholders(text, LINKS)).toBe(text);
+  });
+});
+
+/**
+ * Caso real del piso autónomo: el modelo de respaldo inventó "tengo un código
+ * de bienvenida para ti: CARG15" sobre una campaña SIN oferta. Ese código no
+ * existe y el cliente lo intenta.
+ */
+describe('enforceOffer', () => {
+  it('borra la frase del código inventado cuando no hay oferta', () => {
+    const out = enforceOffer(
+      'Hola Caro. Tengo un código de bienvenida para ti: CARG15. ¿Te ayudo con la compra?',
+      null,
+    );
+    expect(out).not.toContain('CARG15');
+    expect(out).toContain('Hola Caro.');
+    expect(out).toContain('¿Te ayudo con la compra?');
+  });
+
+  it('reemplaza un código inventado por el real de la campaña', () => {
+    const out = enforceOffer('Usá el código CARG15 al pagar.', {
+      code: 'PILAR15',
+      discount: '15%',
+    });
+    expect(out).toContain('PILAR15');
+    expect(out).not.toContain('CARG15');
+  });
+
+  it('no toca un texto sin códigos', () => {
+    const text = 'Hola Susy, ¿te armo el pedido?';
+    expect(enforceOffer(text, null)).toBe(text);
   });
 });

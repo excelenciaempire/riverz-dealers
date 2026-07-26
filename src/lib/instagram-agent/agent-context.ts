@@ -23,18 +23,21 @@ export async function loadInstagramContext(
   // Latest campaign membership → lead score + live offer code.
   const { data: recRow } = await db
     .from('instagram_campaign_recipients')
-    .select('lead_score, discount_code, instagram_campaigns(name, offer_code, status)')
+    .select('lead_score, discount_code, instagram_campaigns(name, goal, offer_code, status)')
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  type CampRow = {
+    name: string;
+    goal: string | null;
+    offer_code: string | null;
+    status: string;
+  };
   const rec = recRow as {
     lead_score: LeadScore | null;
     discount_code: string | null;
-    instagram_campaigns:
-      | { name: string; offer_code: string | null; status: string }
-      | { name: string; offer_code: string | null; status: string }[]
-      | null;
+    instagram_campaigns: CampRow | CampRow[] | null;
   } | null;
   const camp = rec
     ? Array.isArray(rec.instagram_campaigns)
@@ -63,10 +66,40 @@ export async function loadInstagramContext(
     lines.push(`- Intereses (de su perfil): ${profile.persona_hint}.`);
 
   if (camp && (camp.status === 'active' || camp.status === 'paused')) {
-    lines.push(`- Está en la campaña activa "${camp.name}".`);
+    lines.push(
+      `- Está en la campaña "${camp.name}"${camp.goal ? `, cuyo objetivo es: ${camp.goal}` : ''}.`,
+    );
     const code = rec?.discount_code || camp.offer_code;
     if (code) lines.push(`- Su código de oferta disponible: ${code}.`);
+    // Lo que YA le escribimos: sin esto el agente reactivo saluda de cero y
+    // repite la misma oferta como si fuera el primer contacto.
+    const lastProactive = await lastProactiveText(db, contactId);
+    if (lastProactive) {
+      lines.push(
+        `- Ya le escribimos nosotros primero esto (no lo repitas, continúa desde ahí): "${lastProactive}"`,
+      );
+    }
+    lines.push(
+      '- Tu trabajo aquí es AVANZAR la venta: resuelve su duda, recomienda lo correcto y llévala al pedido con las herramientas que tengas.',
+    );
   }
 
   return lines.join('\n');
+}
+
+/** Último DM proactivo que le enviamos a esta persona (campaña/cierre). */
+async function lastProactiveText(
+  db: SupabaseClient,
+  contactId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('ig_proactive_log')
+    .select('text')
+    .eq('contact_id', contactId)
+    .not('text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const text = (data as { text?: string | null } | null)?.text ?? null;
+  return text ? text.slice(0, 400) : null;
 }

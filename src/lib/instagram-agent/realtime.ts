@@ -12,7 +12,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
-import { proactiveGate, logProactiveSend } from './controls';
+import { proactiveGate, logProactiveSend, autoReplyCommentsEnabled } from './controls';
 import { recordProactiveDm } from './record-dm';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
@@ -50,9 +50,20 @@ interface ActiveCampaign {
 
 type ContactLite = { id: string; external_id: string | null; name: string | null };
 
-async function newestActiveCampaign(
+/**
+ * Campaña que debe hacerse cargo de esta persona.
+ *
+ * Antes se tomaba "la campaña activa más reciente" y punto: con dos campañas
+ * corriendo, la segunda se quedaba muda para siempre y quien ya estaba en la
+ * primera nunca entraba a la nueva. Ahora se recorren las activas de la más
+ * reciente a la más antigua y se elige la primera en la que esta persona
+ * TODAVÍA no está — así ninguna campaña queda muerta y nadie recibe dos DMs
+ * por lo mismo.
+ */
+async function campaignForContact(
   db: SupabaseClient,
   workspaceId: string,
+  contactId: string,
 ): Promise<ActiveCampaign | null> {
   const { data } = await db
     .from('instagram_campaigns')
@@ -60,13 +71,29 @@ async function newestActiveCampaign(
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
     .order('launched_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!data) return null;
-  const row = data as Omit<ActiveCampaign, 'plan'> & { plan: unknown };
-  const plan = coercePlan(row.plan);
-  if (!plan) return null;
-  return { ...row, plan };
+    .limit(10);
+  const rows = (data ?? []) as Array<Omit<ActiveCampaign, 'plan'> & { plan: unknown }>;
+  if (rows.length === 0) return null;
+
+  const { data: enrolled } = await db
+    .from('instagram_campaign_recipients')
+    .select('campaign_id')
+    .eq('contact_id', contactId)
+    .in(
+      'campaign_id',
+      rows.map((r) => r.id),
+    );
+  const taken = new Set(
+    ((enrolled ?? []) as Array<{ campaign_id: string }>).map((r) => r.campaign_id),
+  );
+
+  for (const row of rows) {
+    if (taken.has(row.id)) continue;
+    const plan = coercePlan(row.plan);
+    if (!plan) continue;
+    return { ...row, plan };
+  }
+  return null;
 }
 
 /** Has this contact asked to stop receiving messages? (compliance gate) */
@@ -155,8 +182,19 @@ export async function maybeInstantOutreach(
   if (!opts.contact.external_id) return;
   // Respect opt-out — never re-engage a contact who asked to stop.
   if (await isOptedOut(db, opts.contact.id)) return;
-  const campaign = await newestActiveCampaign(db, opts.workspaceId);
-  if (!campaign) return;
+  const campaign = await campaignForContact(
+    db,
+    opts.workspaceId,
+    opts.contact.id,
+  );
+  // Sin campaña que la cubra, el agente NO se queda mudo: contesta igual a quien
+  // muestra intención de compra, con la voz del agente configurado (piso
+  // autónomo). Es lo que separa "una herramienta de campañas" de "un agente
+  // que atiende tu Instagram".
+  if (!campaign) {
+    await autonomousCommentReply(db, opts);
+    return;
+  }
 
   // Enroll (idempotent on campaign_id+contact_id). A returned row means we
   // inserted it now → first contact; empty means they were already enrolled.
@@ -409,6 +447,7 @@ const CLOSE_SYSTEM = `Eres un vendedor por DM de Instagram de una marca B2C. La 
 Reglas:
 - Responde su pregunta u objeción de forma concreta.
 - Recomienda el producto correcto del contexto (no inventes nada fuera de él).
+- Si preguntan por registros o aprobaciones sanitarias, contraindicaciones, ingredientes o plazos que NO estén en el contexto, no los afirmes ni los niegues: di que lo confirmas. Nunca inventes un dato regulatorio o de salud.
 - Cierra con su código de descuento (si lo hay) y un siguiente paso claro.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. PROHIBIDO escribir marcadores tipo "[enlace]" o URLs inventadas; si no hay enlace, invita a seguir por aquí.
 - Voz de marca, cálido, natural. Nunca admitas ser IA.
@@ -484,9 +523,204 @@ async function generateCloserReply(input: {
 }
 
 /**
- * A campaign recipient replied. If so, answer + close in the campaign's
- * context and return true (so the caller suppresses the generic assistant).
- * Returns false when this contact isn't a live campaign recipient.
+ * PISO AUTÓNOMO — sin campaña activa.
+ *
+ * Alguien comenta "cuánto vale?" en un post y no hay ninguna campaña corriendo:
+ * antes no pasaba nada. Ahora el agente le contesta por privado igual, con la
+ * voz y el conocimiento del agente de IA que el comercio configuró para
+ * Instagram, y le lleva la conversación a la bandeja donde su equipo la ve.
+ *
+ * Guardas (las mismas que todo lo proactivo): interruptor por workspace
+ * (encendido por defecto), solo intención de compra real —el comentario casual
+ * y el spam no reciben nada—, pausa de emergencia, tope diario, una sola
+ * respuesta privada por comentario, y baja del contacto respetada.
+ */
+async function autonomousCommentReply(
+  db: SupabaseClient,
+  opts: {
+    workspaceId: string;
+    contact: ContactLite;
+    commentId?: string | null;
+    connection?: ChannelConnection | null;
+    engagementText: string | null;
+  },
+): Promise<void> {
+  // Solo aplica al camino comentario → DM privado: sin id de comentario no hay
+  // ruta permitida por Meta para escribirle.
+  if (!opts.commentId || !opts.contact.external_id) return;
+  if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) return;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  if (!hasLlm(apiKey)) return;
+
+  // Un comentario sin texto (un emoji, una mención) no dice nada que responder.
+  const engagement = (opts.engagementText ?? '').trim();
+  if (engagement.length < 3) return;
+
+  // No abrir la puerta a fan-out: el mismo tope por minuto que el alcance de
+  // campaña, para que un post viral no dispare cientos de llamadas.
+  const burst = await limitByKey(`ig-auto:${opts.workspaceId}`, {
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!burst.success) return;
+
+  // ¿Intención de compra? Solo contestamos a quien pregunta de verdad; el
+  // "😍" y el spam no reciben DM (y el spam se oculta, como siempre).
+  let score: LeadScore = 'medium';
+  try {
+    const [s] = await scoreLeads(apiKey, [engagement]);
+    if (!s) return;
+    if (s.spam) {
+      const conn = opts.connection ?? (await igConnection(db, opts.workspaceId));
+      if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
+      return;
+    }
+    if (s.score === 'low') return;
+    score = s.score;
+  } catch {
+    return; // sin clasificar, no arriesgamos un DM no pedido
+  }
+
+  const agent = await resolveIgAgent(db, opts.workspaceId, null);
+  // En modo aprobación/híbrido el comercio pidió revisar cada DM proactivo: sin
+  // campaña no hay cola donde dejarlo, así que respetamos su decisión y no
+  // enviamos (la conversación queda en la bandeja para atenderla a mano).
+  if (needsApproval(agent.proactive_send_mode, score)) return;
+
+  const trust = await proactiveGate(db, opts.workspaceId);
+  if (!trust.ok) return;
+
+  const won = await claimCommentPrivateReply(
+    db,
+    opts.workspaceId,
+    opts.commentId,
+    'campaign',
+  );
+  if (!won) return;
+
+  const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
+  if (!connection) return;
+
+  const [brand, links, profile] = await Promise.all([
+    loadBrandContext(db, opts.workspaceId, agent.id),
+    loadStoreLinks(db, opts.workspaceId, []),
+    loadIgProfile(db, opts.contact.id).catch(() => null),
+  ]);
+  const segment = resolveIgSegment({
+    followsBusiness: profile?.follows_business,
+    followerCount: profile?.follower_count,
+    isVerified: profile?.is_verified,
+    leadScore: score,
+  });
+
+  const text = await craftPersonalizedDM({
+    apiKey,
+    base: 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
+    brand,
+    links,
+    goal: null,
+    offer: null,
+    products: links.products.map((p) => p.title),
+    name: opts.contact.name,
+    engagement,
+    personaHint: profile?.persona_hint ?? null,
+    followsBusiness: profile?.follows_business ?? null,
+    isVerified: profile?.is_verified ?? null,
+    segment,
+  });
+  if (!text.trim()) return;
+
+  try {
+    await instagramAdapter.sendText({
+      channel: 'instagram',
+      connection,
+      conversation: { id: '' } as unknown as Conversation,
+      contact: {
+        id: opts.contact.id,
+        external_id: opts.contact.external_id,
+      } as unknown as Contact,
+      commentId: opts.commentId,
+      text,
+    } satisfies OutboundText);
+    await recordProactiveDm(db, {
+      workspaceId: opts.workspaceId,
+      contactId: opts.contact.id,
+      externalId: opts.contact.external_id,
+      connection,
+      text,
+    });
+    await logProactiveSend(db, {
+      workspaceId: opts.workspaceId,
+      contactId: opts.contact.id,
+      kind: 'outreach',
+      text,
+    });
+  } catch (err) {
+    console.error('[ig-agent] respuesta autónoma falló:', err);
+  }
+}
+
+/**
+ * Alguien de una campaña respondió: lo marcamos en el embudo (sent → replied).
+ * Independiente de QUIÉN conteste después — el agente configurado o el cierre
+ * de respaldo—, para que las métricas no dependan del camino que atendió.
+ */
+export async function markCampaignReply(
+  db: SupabaseClient,
+  contactId: string,
+): Promise<void> {
+  const { data } = await db
+    .from('instagram_campaign_recipients')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const id = (data as { id?: string } | null)?.id;
+  if (!id) return;
+  await db
+    .from('instagram_campaign_recipients')
+    .update({ status: 'replied', replied_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('status', 'sent');
+}
+
+/**
+ * ¿El workspace tiene un agente de IA atendiendo Instagram? Si lo tiene, es ÉL
+ * quien debe responder —con su catálogo, sus reglas y sus herramientas
+ * (crear pedido, checkout, escalar)— y no un cerrador aparte con la mitad de
+ * las capacidades. El contexto de la campaña (oferta, código, lo que ya le
+ * escribimos) le llega por `loadInstagramContext`.
+ */
+export async function hasInstagramAgent(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from('ai_agents')
+    .select('id, ai_agent_channels(channel)')
+    .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
+    .is('deleted_at', null);
+  const rows = (data ?? []) as Array<{
+    id: string;
+    ai_agent_channels?: Array<{ channel: string }> | null;
+  }>;
+  // Sin canales asignados, el agente atiende todo (mismo criterio que el
+  // runner): cualquier agente activo cuenta.
+  return rows.some(
+    (a) =>
+      !a.ai_agent_channels?.length ||
+      a.ai_agent_channels.some((c) => c.channel === 'instagram'),
+  );
+}
+
+/**
+ * Cierre de RESPALDO: solo corre cuando el workspace no tiene ningún agente de
+ * IA atendiendo Instagram. Contesta en el contexto de la campaña para que el
+ * cliente no quede en silencio; devuelve true si respondió.
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 

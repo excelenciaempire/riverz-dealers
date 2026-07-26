@@ -23,14 +23,19 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user)
-    return NextResponse.json({ paused: false, daily_cap: 500, send_mode: 'auto' });
+    return NextResponse.json({
+      paused: false,
+      daily_cap: 500,
+      auto_reply_comments: true,
+      send_mode: 'auto',
+    });
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
   const [{ data }, agent] = await Promise.all([
     workspaceId
       ? supabase
           .from('ig_proactive_settings')
-          .select('paused, daily_cap')
+          .select('paused, daily_cap, auto_reply_comments')
           .eq('workspace_id', workspaceId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -38,10 +43,16 @@ export async function GET() {
       ? resolveIgAgent(supabase, workspaceId)
       : Promise.resolve({ id: null, proactive_send_mode: 'auto' as ProactiveSendMode }),
   ]);
-  const s = data as { paused?: boolean; daily_cap?: number } | null;
+  const s = data as {
+    paused?: boolean;
+    daily_cap?: number;
+    auto_reply_comments?: boolean;
+  } | null;
   return NextResponse.json({
     paused: s?.paused ?? false,
     daily_cap: s?.daily_cap ?? 500,
+    // Sin fila de ajustes, el piso autónomo está encendido (default de la BD).
+    auto_reply_comments: s?.auto_reply_comments !== false,
     send_mode: agent.proactive_send_mode,
   });
 }
@@ -71,9 +82,16 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
 
   // Workspace-level controls (pause + cap).
-  if (typeof body.paused === 'boolean' || body.daily_cap != null) {
+  if (
+    typeof body.paused === 'boolean' ||
+    body.daily_cap != null ||
+    typeof body.auto_reply_comments === 'boolean'
+  ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
     if (typeof body.paused === 'boolean') patch.paused = body.paused;
+    if (typeof body.auto_reply_comments === 'boolean') {
+      patch.auto_reply_comments = body.auto_reply_comments;
+    }
     if (body.daily_cap != null) {
       patch.daily_cap = Math.max(
         0,

@@ -22,6 +22,7 @@ Reglas (estrictas):
 - UNA sola llamada a la acción clara.
 - Si hay un código de descuento, inclúyelo tal cual.
 - No inventes productos, precios ni promesas que no estén en el contexto.
+- DATOS QUE NO TIENES: si preguntan por registros o aprobaciones sanitarias (ANMAT, INVIMA, FDA…), contraindicaciones, ingredientes, plazos de envío o garantías que NO estén literalmente en el contexto, NO lo afirmes ni lo niegues. Di que lo confirmas y ofrece la respuesta por aquí. Inventar un dato regulatorio o de salud es la peor falta posible.
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
 - NUNCA digas ni insinúes que revisaste su perfil, sus fotos o sus datos; suena a vigilancia. Usa cualquier pista solo para calibrar el tono, no la menciones.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
@@ -48,6 +49,48 @@ export interface CraftDMInput {
   segment?: { label: string; toneHint: string; offerHint: string } | null;
   /** Enlaces reales de la tienda (evita los "[enlace de la tienda]"). */
   links?: StoreLinks | null;
+}
+
+/**
+ * Menciones de un código de descuento: "código CARG15", "cupón ABC10", o el
+ * código suelto en mayúsculas. El grupo 2 es el código.
+ */
+const CODE_MENTION =
+  /(c[óo]digo|cup[óo]n|promo)\b([^.!?\n]{0,40}?)\b([A-Z][A-Z0-9]{3,15})\b/g;
+
+/**
+ * Ninguna oferta que el comercio no haya creado.
+ *
+ * Los modelos de respaldo (los que entran cuando Anthropic no responde) se
+ * inventan códigos con el nombre de la persona — "tengo un código para ti:
+ * CARG15" — y ese código no existe: el cliente lo intenta, falla, y la marca
+ * queda mal. Si la campaña no tiene oferta, la mención se elimina; si la tiene,
+ * cualquier código distinto se reemplaza por el real.
+ */
+export function enforceOffer(
+  text: string,
+  offer: { code: string; discount: string } | null | undefined,
+): string {
+  CODE_MENTION.lastIndex = 0;
+  if (!CODE_MENTION.test(text)) return text;
+  CODE_MENTION.lastIndex = 0;
+
+  if (offer?.code) {
+    return text.replace(
+      CODE_MENTION,
+      (_m, label: string, middle: string) => `${label}${middle}${offer.code}`,
+    );
+  }
+  // Sin oferta: fuera la frase entera que la menciona.
+  return text
+    .split(/(?<=[.!?¡¿\n])\s+/)
+    .filter((sentence) => {
+      CODE_MENTION.lastIndex = 0;
+      return !CODE_MENTION.test(sentence);
+    })
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 /** Marcador de enlace: "[enlace de la tienda]", "(link aquí)", "[url]"… */
@@ -139,7 +182,10 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
 
   try {
     let text = await completeText({
-      tier: 'triage',
+      // Este mensaje ES el producto y va a un cliente real con el nombre de la
+      // marca encima: el modelo de triage se inventaba códigos y datos. Vale el
+      // costo del modelo bueno.
+      tier: 'premium',
       system: DM_SYSTEM,
       user: userPrompt,
       maxTokens: 400,
@@ -150,6 +196,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     text = text.replace(/^["'“”]|["'“”]$/g, '').trim();
     text = personalize(text, input.name); // resolve any {{nombre}} it echoed
     text = stripLinkPlaceholders(text, input.links ?? null);
+    text = enforceOffer(text, input.offer ?? null);
     if (!text) return fallback();
     // IG DM hard limit is 1000 chars; keep margin.
     return text.slice(0, 950);

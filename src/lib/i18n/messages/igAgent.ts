@@ -213,6 +213,14 @@ export const igAgent = {
   modeAuto: { es: "Auto", en: "Auto" },
   modeHybrid: { es: "Híbrido", en: "Hybrid" },
   modeApproval: { es: "Aprobación", en: "Approval" },
+  autoReplyComments: {
+    es: "Contestar siempre a quien pregunta",
+    en: "Always answer people who ask",
+  },
+  autoReplyCommentsHint: {
+    es: "Aunque no haya campaña activa, el agente responde por privado a los comentarios con intención de compra. El comentario casual y el spam no reciben nada.",
+    en: "Even with no active campaign, the agent privately answers comments that show buying intent. Casual comments and spam get nothing.",
+  },
   modeAutoDesc: {
     es: "El agente envía solo, dentro de tus límites.",
     en: "The agent sends on its own, within your limits.",

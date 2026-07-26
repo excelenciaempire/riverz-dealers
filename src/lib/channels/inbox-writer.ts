@@ -13,10 +13,19 @@ import { mimeToCategory } from "./media-ingest";
 import {
   maybeInstantOutreach,
   maybeRunCloser,
+  markCampaignReply,
+  hasInstagramAgent,
 } from "@/lib/instagram-agent/realtime";
 import { enrichContactProfile } from "@/lib/instagram-agent/profile-enrich";
 import { processCommentForDmRules } from "@/lib/comment-to-dm/engine";
 import { phonesMatch, sanitizePhoneForMeta } from "@/lib/whatsapp/phone-utils";
+import {
+  isOptOutKeyword,
+  isOptInKeyword,
+  markOptedOut,
+  markOptedIn,
+} from "@/lib/whatsapp/opt-out";
+import { getAdapter } from "./registry";
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -378,6 +387,37 @@ export async function ingestInboundEvent(
   // gate a instagram para no cambiar el comportamiento de otros canales (un
   // email solo-asunto o una ubicación de Messenger SÍ deben responderse; sus
   // adapters además emiten texto de fallback, así que no aplica).
+  // ── Baja / alta por palabra clave, en TODOS los canales de mensajería ──
+  // Antes esto solo existía en el webhook de WhatsApp: un "no me escribas más"
+  // por Instagram o Messenger no daba de baja a nadie y el agente proactivo
+  // seguía escribiéndole. El mensaje ya quedó guardado (hace falta como prueba
+  // del pedido de baja); cortamos antes de la IA para que ningún bot le
+  // conteste salvo el acuse.
+  if (
+    !event.outbound &&
+    !event.historical &&
+    (channel === "instagram" || channel === "messenger") &&
+    event.text?.trim()
+  ) {
+    const optOut = isOptOutKeyword(event.text);
+    const optIn = !optOut && isOptInKeyword(event.text);
+    if (optOut || optIn) {
+      if (optOut) {
+        await markOptedOut(db, workspaceId, contact.id, "inbound_keyword");
+      } else {
+        await markOptedIn(db, workspaceId, contact.id);
+      }
+      await acknowledgeOptChange(db, {
+        channel,
+        connection: event.connection,
+        conversation,
+        contact,
+        optedOut: optOut,
+      });
+      return { contact, conversation, message: message as Message };
+    }
+  }
+
   const igEmptyDm =
     channel === "instagram" &&
     !(
@@ -413,36 +453,49 @@ export async function ingestInboundEvent(
           connection: event.connection,
         }).catch(() => {});
       }
-      // If this DM is a reply from a live campaign recipient, the campaign
-      // closer answers in-context (their offer, code, brand voice) and we
-      // suppress the generic assistant so they don't both reply. Otherwise
-      // fall through to the normal customer-service agent.
-      maybeRunCloser(db, {
-        workspaceId,
-        contact: {
-          id: contact.id,
-          external_id: contact.external_id ?? null,
-          name: contact.name ?? null,
-        },
-        connection: event.connection,
-        inboundText: event.text,
-        // Para respetar los controles del chat (kill-switch / toma por
-        // humano / cerrado) y el debounce anti-ráfaga dentro del cerrador.
-        conversation: {
-          id: conversation.id,
-          ai_enabled:
-            (conversation as { ai_enabled?: boolean | null }).ai_enabled ?? null,
-          assigned_agent_id: conversation.assigned_agent_id ?? null,
-          status: conversation.status ?? null,
-        },
-        inboundMessage: {
-          id: (message as Message).id,
-          created_at: (message as Message).created_at,
-        },
-      })
-        .then((handled) => {
-          if (!handled) dispatchGeneric();
+      // Si respondió alguien de una campaña, queda marcado en el embudo pase
+      // lo que pase después (responda el agente configurado o el respaldo).
+      void markCampaignReply(db, contact.id).catch(() => {});
+
+      // Quién contesta: SIEMPRE el agente de IA que el comercio configuró para
+      // Instagram — lleva su catálogo, sus reglas y sus herramientas (crear el
+      // pedido, generar checkout, escalar a un humano), y recibe el contexto de
+      // la campaña por loadInstagramContext. El cerrador de campaña queda solo
+      // como respaldo para workspaces sin ningún agente activo, para que el
+      // cliente no se quede en silencio.
+      const runCampaignCloserFallback = () =>
+        maybeRunCloser(db, {
+          workspaceId,
+          contact: {
+            id: contact.id,
+            external_id: contact.external_id ?? null,
+            name: contact.name ?? null,
+          },
+          connection: event.connection,
+          inboundText: event.text,
+          // Para respetar los controles del chat (kill-switch / toma por
+          // humano / cerrado) y el debounce anti-ráfaga dentro del cerrador.
+          conversation: {
+            id: conversation.id,
+            ai_enabled:
+              (conversation as { ai_enabled?: boolean | null }).ai_enabled ?? null,
+            assigned_agent_id: conversation.assigned_agent_id ?? null,
+            status: conversation.status ?? null,
+          },
+          inboundMessage: {
+            id: (message as Message).id,
+            created_at: (message as Message).created_at,
+          },
         })
+          .then((handled) => {
+            if (!handled) dispatchGeneric();
+          })
+          .catch(() => dispatchGeneric());
+
+      void hasInstagramAgent(db, workspaceId)
+        .then((hasAgent) =>
+          hasAgent ? dispatchGeneric() : runCampaignCloserFallback(),
+        )
         .catch(() => dispatchGeneric());
     } else {
       dispatchGeneric();
@@ -567,6 +620,47 @@ async function upsertContact(
     return null;
   }
   return created as Contact;
+}
+
+/**
+ * Acuse del alta/baja por el mismo canal, como hace el webhook de WhatsApp:
+ * la persona tiene que saber que su pedido se registró. Best-effort — si el
+ * envío falla, la baja YA quedó guardada, que es lo que importa.
+ */
+async function acknowledgeOptChange(
+  db: SupabaseClient,
+  input: {
+    channel: Channel;
+    connection: InboundEvent["connection"];
+    conversation: Conversation;
+    contact: Contact;
+    optedOut: boolean;
+  },
+): Promise<void> {
+  const text = input.optedOut
+    ? "Listo, no volverás a recibir mensajes nuestros. Si cambias de opinión, escribe SUSCRIBIR."
+    : "Bienvenido nuevamente. Volverás a recibir nuestros mensajes.";
+  try {
+    const adapter = getAdapter(input.channel);
+    const result = await adapter.sendText({
+      channel: input.channel,
+      connection: input.connection,
+      conversation: input.conversation,
+      contact: input.contact,
+      text,
+    });
+    await db.from("messages").insert({
+      conversation_id: input.conversation.id,
+      channel: input.channel,
+      sender_type: "bot",
+      content_type: "text",
+      content_text: text,
+      message_id: result?.externalMessageId ?? null,
+      status: "sent",
+    });
+  } catch (err) {
+    console.error("[inbox-writer] acuse de baja/alta falló:", err);
+  }
 }
 
 /**
