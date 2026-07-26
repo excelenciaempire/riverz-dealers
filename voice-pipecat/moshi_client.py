@@ -126,10 +126,12 @@ class MoshiClient:
         `on_audio` recibe PCM int16 mono a 24 kHz; `on_text` los tokens."""
         if not self._ws:
             return
+        _msgs = 0
         try:
             async for message in self._ws:
                 if isinstance(message, str) or not message:
                     continue
+                _msgs += 1
                 tag, payload = message[0], message[1:]
                 if tag == TAG_AUDIO:
                     try:
@@ -153,10 +155,19 @@ class MoshiClient:
                         text = ""
                     if text:
                         await on_text(text)
-        except websockets.ConnectionClosed:
-            logger.info("moshi: conexión cerrada")
+        except websockets.ConnectionClosed as e:
+            logger.info("moshi: conexión cerrada (msgs=%d, %s)", _msgs, e)
         except Exception as e:
-            logger.warning("moshi recv_loop error: %s", e)
+            logger.warning("moshi recv_loop error (msgs=%d): %s", _msgs, e)
+        else:
+            # `async for` terminó sin excepción = el server cerró el WS. Registrar
+            # el código/razón de cierre para ubicar POR QUÉ cae en la llamada real.
+            cc = getattr(self._ws, "close_code", None)
+            cr = getattr(self._ws, "close_reason", None)
+            logger.warning(
+                "moshi: recv_loop terminó sin datos útiles (msgs=%d, close_code=%s, reason=%r)",
+                _msgs, cc, cr,
+            )
 
     async def close(self) -> None:
         if self._ws:
