@@ -338,6 +338,10 @@ def _make_tts(cfg: dict):
         )
     provider = (cfg.get("provider") or "").lower()
     try:
+        if provider == "deepgram":
+            # Deepgram Aura-2 (voz "Celeste" español colombiano). Baja latencia y
+            # usa la DEEPGRAM_API_KEY del entorno (ya presente en el worker).
+            return deepgram.TTS(model=cfg.get("model") or "aura-2-celeste-es")
         if provider == "cartesia":
             from livekit.plugins import cartesia
 
