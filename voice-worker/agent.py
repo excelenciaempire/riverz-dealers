@@ -321,9 +321,21 @@ def _make_llm(cfg: dict):
     no OpenAI la empresa."""
     base_url = cfg.get("base_url")
     if base_url:
+        # La key puede venir en la config (cifrada) o, si no, de una env var del
+        # worker según el host (así no hay que meter la key en la DB). Cerebras =
+        # Llama ultra-rápido (~2-3x Groq), API OpenAI-compatible.
+        key = cfg.get("api_key")
+        if not key:
+            bl = base_url.lower()
+            if "cerebras" in bl:
+                key = os.getenv("CEREBRAS_API_KEY")
+            elif "groq" in bl:
+                key = os.getenv("GROQ_API_KEY")
+            elif "openai.com" in bl:
+                key = os.getenv("OPENAI_API_KEY")
         return openai.LLM(
             base_url=base_url,
-            api_key=cfg.get("api_key") or _OAI_PLACEHOLDER_KEY,
+            api_key=key or _OAI_PLACEHOLDER_KEY,
             model=cfg.get("model") or "gpt-4o-mini",
         )
     # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
