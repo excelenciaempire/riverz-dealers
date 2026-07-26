@@ -191,7 +191,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protected pages - redirect to login if not authenticated
-  const protectedPaths = ['/panel', '/bandeja', '/contactos', '/campanas', '/automatizaciones', '/menus', '/ajustes']
+  const protectedPaths = ['/panel', '/bandeja', '/contactos', '/campanas', '/automatizaciones', '/menus', '/ajustes', '/admin']
   if (!user && protectedPaths.some(path => canonicalPath.startsWith(path))) {
     return redirectTo('/ingresar')
   }

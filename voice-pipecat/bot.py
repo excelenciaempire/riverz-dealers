@@ -296,24 +296,48 @@ async def selftest(
                     await ws.send(_json.dumps({"event": "media", "media": {"payload": _b(SIL)}}))
                     await _a.sleep(0.02)
 
+            async def wait_quiet(max_s: float = 8.0):
+                """Espera a que el bot deje de hablar (sin audio por 0.6s) para no
+                medir solapado con el turno anterior."""
+                deadline = _t.monotonic() + max_s
+                last = st["bot_ms"]
+                quiet_since = _t.monotonic()
+                while _t.monotonic() < deadline:
+                    await _a.sleep(0.1)
+                    if st["bot_ms"] != last:
+                        last = st["bot_ms"]
+                        quiet_since = _t.monotonic()
+                    elif _t.monotonic() - quiet_since > 0.6:
+                        return
+
             # Ventana del saludo del bot
             st["listening"] = True
-            await _a.sleep(5.0)
+            await _a.sleep(0.5)
+            await wait_quiet()
             report["greeting_bot_ms"] = st["bot_ms"]
 
             for ph in plist:
-                st["bot_ms"] = 0
-                st["first_bot"] = None
                 ulaw = await _el_ulaw8(ph)
                 if not ulaw:
                     report["turns"].append({"said": ph, "error": "TTS vacío (¿ELEVENLABS_API_KEY?)"})
                     continue
-                await send_silence(0.4)
+                await wait_quiet()               # asegura silencio del bot antes
+                st["bot_ms"] = 0
+                st["first_bot"] = None
+                await send_silence(0.3)
                 await send_ulaw(ulaw)
                 t_end = _t.monotonic()
+                st["first_bot"] = None           # medir desde que YO terminé
                 await send_silence(1.2)          # gatilla el fin de turno (VAD)
-                await _a.sleep(turn_wait)         # espera la respuesta del bot
+                # espera la respuesta (hasta turn_wait, corta antes si ya respondió mucho)
+                waited = 0.0
+                while waited < turn_wait:
+                    await _a.sleep(0.2)
+                    waited += 0.2
+                    if st["bot_ms"] > 400 and st["first_bot"]:
+                        break
                 lat = int((st["first_bot"] - t_end) * 1000) if st["first_bot"] else None
+                await wait_quiet()               # dejar que termine de responder
                 report["turns"].append({
                     "said": ph,
                     "bot_responded": st["bot_ms"] > 200,

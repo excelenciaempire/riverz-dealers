@@ -34,7 +34,7 @@ import {
   Sun,
   BarChart3,
   PhoneCall,
-  SlidersHorizontal,
+  ShieldCheck,
   MessageSquareReply,
 } from "lucide-react";
 import { isPlatformAdminClient } from "@/lib/auth/platform-admin";
@@ -326,11 +326,12 @@ export function Sidebar({
             collapsed={collapsed}
             totalUnread={0}
           />
-          {/* Platform admin only — global voice model stack. Nav visibility is
-              a client hint; the /api/admin route enforces the real gate. */}
+          {/* Platform admin only — atajo al panel de plataforma (/admin).
+              Mostrarlo es una pista de cliente; el layout de /admin y cada
+              ruta /api/admin son la puerta real. */}
           {isPlatformAdminClient(profile?.email) && (
             <NavLink
-              item={{ href: "/admin/voz", label: "nav.adminVoiceModel", icon: SlidersHorizontal }}
+              item={{ href: "/admin", label: "nav.admin", icon: ShieldCheck }}
               pathname={pathname} fullPath={fullPath}
               collapsed={collapsed}
               totalUnread={0}

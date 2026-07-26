@@ -4,6 +4,7 @@ import type { MessageEntry, Namespace } from "./types";
 // Each feature area's strings live in its own file (one namespace = one
 // file). The flat MESSAGES map is keyed "<namespace>.<key>".
 // Keep this list alphabetized for easy merges.
+import { admin } from "./admin";
 import { assistant } from "./assistant";
 import { auth } from "./auth";
 import { automations } from "./automations";
@@ -34,6 +35,7 @@ import { templates } from "./templates";
 import { voice } from "./voice";
 
 const NAMESPACES: Record<string, Namespace> = {
+  admin,
   assistant,
   auth,
   automations,

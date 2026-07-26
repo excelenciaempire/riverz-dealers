@@ -7,6 +7,7 @@ import type { MetadataRoute } from "next";
 const DISALLOW = [
   "/api/",
   "/auth/",
+  "/admin",
   "/panel",
   "/bandeja",
   "/contactos",

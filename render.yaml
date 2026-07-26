@@ -138,9 +138,11 @@ services:
       # (Authorization: Bearer). Set the SAME value on the voice-worker.
       - key: VOICE_WORKER_SECRET
         sync: false
-      # Platform (super) admin allowlist — who can open /admin/voz (global voice
-      # model stack). Comma-separated emails. NEXT_PUBLIC_* is the client mirror
-      # that only toggles the sidebar link (server API is the real gate).
+      # Platform (super) admin allowlist — EXTRA emails that can open the
+      # platform panel (riverz.co/admin), on top of the built-in Riverz team
+      # list in src/lib/auth/platform-admin.ts. Optional and additive: leaving
+      # these unset never locks the team out. Comma-separated; NEXT_PUBLIC_* is
+      # the client mirror that only toggles the sidebar link.
       - key: PLATFORM_ADMIN_EMAILS
         sync: false
       - key: NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS
