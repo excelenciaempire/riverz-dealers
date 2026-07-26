@@ -97,6 +97,7 @@ async def moshi_test(
     speak: bool = Query(default=False),
     text: str = Query(default="Hola, prueba."),
     chunk_ms: int = Query(default=80),
+    via8k: bool = Query(default=False),
 ):
     """Debug (no phone call): connect the moshi client, optionally feed it silence,
     and log EVERY raw frame PersonaPlex returns (tag+len). Iterate the bridge safely."""
@@ -157,6 +158,15 @@ async def moshi_test(
             frames: list[bytes] = []
             if speak:
                 pcm_in = await _el_pcm24(text)
+                if via8k:
+                    # Replica EXACTA del camino de una llamada: 24k -> 8k (banda
+                    # telefónica) -> 24k con el mismo create_stream_resampler que el
+                    # bridge. Aísla si el up-resampler 8k->24k es el que mata el audio.
+                    down8 = create_stream_resampler()
+                    up24 = create_stream_resampler()
+                    pcm8 = await down8.resample(pcm_in, 24000, 8000)
+                    pcm_in = await up24.resample(pcm8, 8000, 24000)
+                    res["via8k"] = True
                 res["input_pcm_bytes"] = len(pcm_in)
                 frames = [pcm_in[i:i + chunk] for i in range(0, len(pcm_in), chunk)]
             silence = b"\x00\x00" * spc
