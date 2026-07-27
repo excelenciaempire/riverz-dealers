@@ -111,6 +111,14 @@ def _map_sip_status(code) -> str:
     return "failed"
 
 
+def _is_ring_timeout(err) -> bool:
+    """Cuando se agota el repique, LiveKit devuelve un error de timeout SIN
+    sip_status_code ("sip request timed out"). Sin esto la llamada queda como
+    'failed' con un error críptico en el registro, cuando simplemente no
+    contestaron."""
+    return "timed out" in str(getattr(err, "message", err) or "").lower()
+
+
 def _sip_status_code(err) -> int | None:
     """SIP status code que viene en el TwirpError del marcado, si lo trae."""
     meta = getattr(err, "metadata", None) or {}
@@ -787,7 +795,10 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
             await asyncio.sleep(DIAL_RETRY_DELAY_SECS)
 
     if last_error is not None:
-        call_state.status = _map_sip_status(last_code)
+        call_state.status = (
+            "no_answer" if last_code is None and _is_ring_timeout(last_error)
+            else _map_sip_status(last_code)
+        )
         logger.warning(
             "fallo al marcar SIP: %s (status %s, %s intentos)",
             getattr(last_error, "message", last_error), last_code, attempt,
