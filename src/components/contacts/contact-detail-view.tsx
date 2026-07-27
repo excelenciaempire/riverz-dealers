@@ -303,7 +303,7 @@ export function ContactDetailView({
                       )}
                     </div>
                   )}
-                  {renderShopifyData(contact, t) ??
+                  {renderShopifyData(contact, t, fmt) ??
                     (enriching ? (
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Loader2 className="size-3 animate-spin" />
@@ -447,7 +447,11 @@ export function ContactDetailView({
  * `contacts.shopify_customer_data` (jsonb snapshot). No repite email/teléfono
  * (ya están en el formulario). Devuelve null si no hay data de Shopify.
  */
-function renderShopifyData(contact: Contact, t: TFn) {
+function renderShopifyData(
+  contact: Contact,
+  t: TFn,
+  fmt: { currency: (v: number, currency?: string) => string },
+) {
   const sd = (contact as unknown as { shopify_customer_data?: Record<string, unknown> | null })
     .shopify_customer_data;
   if (!sd) return null;
@@ -456,7 +460,14 @@ function renderShopifyData(contact: Contact, t: TFn) {
   const push = (label: string, v: unknown) => {
     if (v != null && String(v).trim() !== '') rows.push([label, String(v)]);
   };
-  push(t('contacts.shopTotalSpent'), sd.total_spent ?? sd.totalSpent);
+  // Lo gastado es plata: se muestra como plata. Salía "39990" pelado.
+  const spent = Number(sd.total_spent ?? sd.totalSpent);
+  if (Number.isFinite(spent) && spent > 0) {
+    push(
+      t('contacts.shopTotalSpent'),
+      fmt.currency(spent, typeof sd.currency === 'string' ? sd.currency : undefined),
+    );
+  }
   push(t('contacts.shopOrders'), sd.orders_count ?? sd.ordersCount);
   if (addr) {
     push(t('contacts.shopAddress'), [addr.address1, addr.address2].filter(Boolean).join(' '));

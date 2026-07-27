@@ -203,7 +203,8 @@ export function RangeCalendar({
         >
           <ChevronLeft className="size-4" />
         </button>
-        <span className="text-xs font-medium capitalize text-foreground">
+        {/* `capitalize` ponía mayúscula en CADA palabra: "Julio De 2026". */}
+        <span className="text-xs font-medium text-foreground first-letter:uppercase">
           {fmt.date(month, { month: 'long', year: 'numeric' })}
         </span>
         <button
