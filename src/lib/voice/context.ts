@@ -30,7 +30,7 @@ import {
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
-import { normalizeForDialing } from '@/lib/whatsapp/phone-utils';
+import { countryOfPhone, normalizeForDialing } from '@/lib/whatsapp/phone-utils';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -65,6 +65,27 @@ export interface VoiceContextPayload {
   sip: { trunk_id: string | null; caller_number: string | null };
   contact: { id: string; name: string | null };
   tools_enabled: string[];
+}
+
+/**
+ * País por defecto para marcar, deducido del número de WhatsApp del comercio.
+ * Sólo se usa cuando el teléfono del contacto está guardado en formato local
+ * (sin código de país) y no hay dirección de Shopify de donde sacarlo.
+ */
+async function workspaceDialCountry(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('channel_connections')
+    .select('config')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'whatsapp')
+    .limit(1)
+    .maybeSingle();
+  const display = (data as { config?: { display_phone_number?: string } } | null)
+    ?.config?.display_phone_number;
+  return countryOfPhone(display);
 }
 
 function langOf(agent: AiAgent, call: VoiceCall): 'es' | 'en' {
@@ -283,11 +304,14 @@ export async function buildVoiceContext(
 
   // El sistema decide el formato marcable ANTES de llamar: normaliza el teléfono
   // a E.164 por país (incl. el 9 de móvil AR) en vez de marcar lo que venga
-  // guardado. defaultCountry viene de la dirección de Shopify si el número está
-  // en formato local. Fail-soft: si no se puede, usa el guardado.
+  // guardado. El país sólo hace falta cuando el número está en formato local:
+  // primero la dirección de Shopify, y si no hay, el país del propio número de
+  // WhatsApp del comercio (sus clientes suelen ser del mismo país). Fail-soft:
+  // si no se puede resolver, marca lo guardado.
   const dialCountry =
     (shopifySnapshot as { default_address?: { country_code?: string | null } } | null)
-      ?.default_address?.country_code ?? null;
+      ?.default_address?.country_code ??
+    (await workspaceDialCountry(db, call.workspace_id));
   const dialPhone = normalizeForDialing(call.phone, dialCountry) || call.phone;
 
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are

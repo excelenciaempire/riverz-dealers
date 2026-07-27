@@ -62,6 +62,25 @@ export function normalizeToWhatsApp(
 }
 
 /**
+ * Argentina: el `9` es lo único que hace marcable un móvil desde el exterior
+ * (`+54 9 <área> <número>`), y ni Shopify ni los CSV lo traen de forma
+ * consistente. No se puede deducir del número: en formato nacional un móvil sin
+ * el `15` se escribe igual que un fijo, y `getType()` viene vacío para AR con la
+ * metadata que usa el proyecto. Asumimos **móvil**, porque en un CRM alimentado
+ * por WhatsApp y checkouts de Shopify el teléfono del cliente es su celular.
+ * Intercambio aceptado: un fijo argentino queda mal marcado — a cambio dejan de
+ * fallar todos los móviles sin el 9, que hoy son el caso real (SIP 404).
+ *
+ * Sólo toca números de 10 dígitos nacionales (el largo de un AR sin el 9); si ya
+ * lo trae, o no encaja, lo devuelve tal cual.
+ */
+function withArgentineMobile9(e164: string): string {
+  if (!e164.startsWith('+54') || e164.startsWith('+549')) return e164
+  const nacional = e164.slice(3)
+  return nacional.length === 10 ? `+549${nacional}` : e164
+}
+
+/**
  * Normaliza un número al E.164 **marcable** (CON `+`) para telefonía SIP, antes
  * de llamar. A diferencia de `normalizeToWhatsApp` (que devuelve dígitos sin `+`
  * para la API de Meta), esto devuelve el formato internacional que la operadora
@@ -94,22 +113,35 @@ export function normalizeForDialing(
   const p =
     parse(undefined) ?? (region.length === 2 ? parse(region as CountryCode) : undefined)
   if (p && p.isValid()) {
-    let e164 = p.number // "+54911…"
-    // Red de seguridad AR: móvil sin el 9 → insertarlo tras +54.
-    if (
-      p.country === 'AR' &&
-      p.getType() === 'MOBILE' &&
-      e164.startsWith('+54') &&
-      !e164.startsWith('+549')
-    ) {
-      e164 = '+549' + e164.slice(3)
-    }
-    return e164
+    const e164 = p.number // "+54911…"
+    return p.country === 'AR' ? withArgentineMobile9(e164) : e164
   }
   // Último recurso: dígitos con `+` (no regresa peor que lo guardado).
   const d = String(raw).replace(/[^\d+]/g, '')
   if (!d) return ''
   return d.startsWith('+') ? d : `+${d}`
+}
+
+/**
+ * ISO-2 del país de un número ya internacional (`+54 9 11…` o `5491161…`).
+ * Se usa para deducir el país del comercio a partir de su propio número y poder
+ * así marcar contactos guardados en formato local: sin esa pista, un
+ * "11 5808-2948" se marca como `+1 158…` y no entra nunca.
+ *
+ * @returns ISO-3166 alpha-2, o null si el número no se puede resolver.
+ */
+export function countryOfPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const s = String(raw).trim()
+  try {
+    const parsed = parsePhoneNumberFromString(
+      s.startsWith('+') ? s : `+${s.replace(/\D/g, '')}`,
+    )
+    if (parsed && parsed.isValid()) return parsed.country ?? null
+  } catch {
+    /* junk in, null out */
+  }
+  return null
 }
 
 /**

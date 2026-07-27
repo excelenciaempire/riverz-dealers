@@ -1,13 +1,76 @@
 import { describe, expect, it } from "vitest";
 import {
+  countryOfPhone,
   isRecipientNotAllowedError,
   isValidE164,
+  normalizeForDialing,
   normalizePhone,
   normalizeToWhatsApp,
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
 } from "./phone-utils";
+
+describe("normalizeForDialing", () => {
+  it("deja intacto un E.164 ya internacional, sea cual sea el país", () => {
+    expect(normalizeForDialing("+5491161047646", null)).toBe("+5491161047646");
+    expect(normalizeForDialing("+1 954-494-5872", null)).toBe("+19544945872");
+    expect(normalizeForDialing("+34 612 34 56 78", null)).toBe("+34612345678");
+    expect(normalizeForDialing("+61 412 345 678", null)).toBe("+61412345678");
+  });
+
+  it("agrega el código de país a números locales usando el país del cliente", () => {
+    expect(normalizeForDialing("3001234567", "CO")).toBe("+573001234567");
+    expect(normalizeForDialing("5512345678", "MX")).toBe("+525512345678");
+    expect(normalizeForDialing("11987654321", "BR")).toBe("+5511987654321");
+    expect(normalizeForDialing("612345678", "ES")).toBe("+34612345678");
+    expect(normalizeForDialing("2125551234", "US")).toBe("+12125551234");
+    expect(normalizeForDialing("9876543210", "IN")).toBe("+919876543210");
+  });
+
+  it("descarta el 0 de tránsito nacional (GB, AU, TR)", () => {
+    expect(normalizeForDialing("07400123456", "GB")).toBe("+447400123456");
+    expect(normalizeForDialing("0412345678", "AU")).toBe("+61412345678");
+    expect(normalizeForDialing("05321234567", "TR")).toBe("+905321234567");
+  });
+
+  it("resuelve el 9 de los móviles argentinos desde formato local", () => {
+    expect(normalizeForDialing("1158082948", "AR")).toBe("+5491158082948");
+    expect(normalizeForDialing("2994088030", "AR")).toBe("+5492994088030");
+    expect(normalizeForDialing("11 15 5808-2948", "AR")).toBe("+5491158082948");
+  });
+
+  it("agrega el 9 que Shopify se come al guardar móviles argentinos", () => {
+    // Este es el número real que dio SIP 404 al marcarse sin el 9.
+    expect(normalizeForDialing("+541161047646", null)).toBe("+5491161047646");
+    expect(normalizeForDialing("541161047646", "AR")).toBe("+5491161047646");
+    // Y no lo duplica si ya venía bien.
+    expect(normalizeForDialing("+5491161047646", null)).toBe("+5491161047646");
+  });
+
+  it("nunca devuelve algo peor que lo guardado", () => {
+    expect(normalizeForDialing("", null)).toBe("");
+    expect(normalizeForDialing(null, "AR")).toBe("");
+    expect(normalizeForDialing("basura", null)).toBe("");
+    // Sin país y en formato local no hay forma de acertar: se marca lo guardado.
+    expect(normalizeForDialing("1158082948", null)).toBe("+1158082948");
+  });
+});
+
+describe("countryOfPhone", () => {
+  it("deduce el país del número del comercio, con o sin +", () => {
+    expect(countryOfPhone("+54 9 11 7678-3848")).toBe("AR");
+    expect(countryOfPhone("5491176783848")).toBe("AR");
+    expect(countryOfPhone("+12099793169")).toBe("US");
+    expect(countryOfPhone("+34612345678")).toBe("ES");
+  });
+
+  it("devuelve null cuando no se puede resolver", () => {
+    expect(countryOfPhone("basura")).toBeNull();
+    expect(countryOfPhone("")).toBeNull();
+    expect(countryOfPhone(null)).toBeNull();
+  });
+});
 
 describe("sanitizePhoneForMeta", () => {
   it("strips +, spaces, and dashes leaving only digits", () => {
