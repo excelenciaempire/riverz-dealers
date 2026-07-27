@@ -57,6 +57,10 @@ export interface PullResult {
   posts: number;
   /** Respuestas nuestras vistas en Graph (ingeridas + ya guardadas). */
   seen: number;
+  /** Vistas cuyo comentario padre no está en la bandeja (nada a dónde llevarlas). */
+  sinHilo: number;
+  /** Vistas que ya estaban guardadas (enviadas desde Riverz o de otra corrida). */
+  yaEstaba: number;
   reason: PullReason;
 }
 
@@ -69,6 +73,8 @@ export async function pullSelfRepliesForConnection(
     ingested: 0,
     posts: 0,
     seen: 0,
+    sinHilo: 0,
+    yaEstaba: 0,
     reason,
   });
   if (connection.channel !== "ig_comment") return empty("sin_config");
@@ -95,6 +101,8 @@ export async function pullSelfRepliesForConnection(
 
   let ingested = 0;
   let seen = 0;
+  let sinHilo = 0;
+  let yaEstaba = 0;
   for (const postId of postIds) {
     const comments = await fetchCommentsWithReplies(postId, token);
     for (const comment of comments) {
@@ -112,16 +120,20 @@ export async function pullSelfRepliesForConnection(
           text: reply.text ?? "",
           receivedAt: parseIgTimestamp(reply.timestamp),
         });
-        if (!event) continue;
+        if (!event) {
+          sinHilo++;
+          continue;
+        }
         // ingestInboundEvent es idempotente por id externo: si la respuesta ya
         // está (la escribimos desde Riverz, o la trajo una corrida anterior)
         // devuelve null y no duplica nada.
         const written = await ingestInboundEvent(db, event);
         if (written) ingested++;
+        else yaEstaba++;
       }
     }
   }
-  return { ingested, posts: postIds.length, seen, reason: "ok" };
+  return { ingested, posts: postIds.length, seen, sinHilo, yaEstaba, reason: "ok" };
 }
 
 /** Corre el pull en todas las conexiones de comentarios de Instagram. */
