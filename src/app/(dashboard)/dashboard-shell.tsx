@@ -9,6 +9,8 @@ import { NavProgress } from "@/components/layout/nav-progress";
 import { ShopifyClaimGuard } from "@/components/settings/shopify-claim-guard";
 import { SectionGuard } from "@/components/layout/section-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
+import { FeatureFlagsProvider } from "@/hooks/use-feature-flags";
+import type { FeatureFlags } from "@/lib/admin/feature-flags";
 import { useT } from "@/hooks/use-locale";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
@@ -113,11 +115,21 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({
+  children,
+  flags = {},
+  isPlatformAdmin = false,
+}: {
+  children: React.ReactNode;
+  flags?: FeatureFlags;
+  isPlatformAdmin?: boolean;
+}) {
   return (
     <AuthProvider>
       <CsrfProvider>
-        <DashboardShellInner>{children}</DashboardShellInner>
+        <FeatureFlagsProvider value={{ flags, isPlatformAdmin }}>
+          <DashboardShellInner>{children}</DashboardShellInner>
+        </FeatureFlagsProvider>
       </CsrfProvider>
     </AuthProvider>
   );

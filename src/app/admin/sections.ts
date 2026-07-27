@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, ToggleRight } from "lucide-react";
 
 /** Secciones del panel de plataforma. Fuente única: barra superior + home. */
 export const ADMIN_SECTIONS = [
@@ -7,5 +7,11 @@ export const ADMIN_SECTIONS = [
     label: "admin.sectionVoice",
     description: "admin.sectionVoiceDesc",
     icon: SlidersHorizontal,
+  },
+  {
+    href: "/admin/funcionalidades",
+    label: "admin.sectionFeatures",
+    description: "admin.sectionFeaturesDesc",
+    icon: ToggleRight,
   },
 ] as const;

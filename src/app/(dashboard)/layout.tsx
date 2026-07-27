@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { ensureWorkspace } from "@/lib/workspaces/ensure";
 import { needsReconsent } from "@/lib/legal/version";
 import { ReconsentGate } from "@/components/legal/reconsent-gate";
+import { getFeatureFlags, type FeatureFlags } from "@/lib/admin/feature-flags";
+import { isPlatformAdmin } from "@/lib/auth/platform-admin";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -43,11 +45,17 @@ export default async function DashboardLayout({
   // in the common case). A failure here must NOT block the dashboard from
   // rendering — the bootstrap route remains as a manual retry path.
   let mustReconsent = false;
+  let flags: FeatureFlags = {};
+  let platformAdmin = false;
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    platformAdmin = isPlatformAdmin(user?.email);
+    // Feature flags (plataforma-wide) para esconder funcionalidades del menú y
+    // bloquear su URL. Fail-soft: ante error, todo habilitado.
+    flags = await getFeatureFlags(supabaseAdmin());
     if (user) {
       await ensureWorkspace(
         supabaseAdmin(),
@@ -75,7 +83,9 @@ export default async function DashboardLayout({
   return (
     <>
       {mustReconsent && <ReconsentGate />}
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardShell flags={flags} isPlatformAdmin={platformAdmin}>
+        {children}
+      </DashboardShell>
     </>
   );
 }

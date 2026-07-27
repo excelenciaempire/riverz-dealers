@@ -12,6 +12,8 @@ import { useT } from "@/hooks/use-locale";
 import { useSetupStatus } from "@/hooks/use-setup-status";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
+import { canUsePath } from "@/lib/admin/feature-flags";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import {
   Home,
   Inbox,
@@ -150,10 +152,17 @@ export function Sidebar({
   // navigation. Not a security boundary — data is RLS-scoped to membership.
   const allowedSections =
     membership?.role === "admin" ? null : (membership?.allowed_sections ?? null);
+  // Feature flags: esconde funcionalidades apagadas plataforma-wide (ej. Flujos),
+  // salvo para platform admins que siempre las ven.
+  const { flags, isPlatformAdmin } = useFeatureFlags();
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => canAccessSection(allowedSections, item.href)),
+      items: group.items.filter(
+        (item) =>
+          canAccessSection(allowedSections, item.href) &&
+          canUsePath(item.href, flags, isPlatformAdmin),
+      ),
     }))
     .filter((group) => group.items.length > 0);
   const canSeeIntegrations = canAccessSection(allowedSections, "/integraciones");

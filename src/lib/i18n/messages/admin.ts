@@ -10,6 +10,25 @@ export const admin = {
     es: "Stack STT · LLM · TTS que usan todas las cuentas.",
     en: "STT · LLM · TTS stack used by every account.",
   },
+  // Funcionalidades (feature flags)
+  sectionFeatures: { es: "Funcionalidades", en: "Features" },
+  sectionFeaturesDesc: {
+    es: "Prende o apaga funciones de la app para todas las cuentas.",
+    en: "Turn app features on or off for every account.",
+  },
+  featuresTitle: { es: "Funcionalidades", en: "Features" },
+  featuresDesc: {
+    es: "Al apagar una, se esconde del menú y su URL queda bloqueada para todos (los admins la siguen viendo).",
+    en: "Turning one off hides it from the menu and blocks its URL for everyone (admins still see it).",
+  },
+  featureFlows: { es: "Flujos", en: "Flows" },
+  featureFlowsDesc: {
+    es: "Constructor visual de flujos/menús conversacionales.",
+    en: "Visual builder for conversational flows/menus.",
+  },
+  featureSaved: { es: "Guardado", en: "Saved" },
+  featureSaveError: { es: "No se pudo guardar", en: "Couldn't save" },
+  forbidden: { es: "Solo para administradores de la plataforma.", en: "Platform admins only." },
   // Panel de infraestructura (saldo + estado en vivo de todo lo conectado)
   infraTitle: { es: "Infraestructura", en: "Infrastructure" },
   infraDesc: {
