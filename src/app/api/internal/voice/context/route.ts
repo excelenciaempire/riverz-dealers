@@ -81,6 +81,7 @@ export async function GET(request: Request) {
           recording_enabled?: boolean;
           transfer_number?: string;
           greeting_delay_seconds?: number;
+          silence_timeout_seconds?: number;
           inbound_first_speaker?: 'agent' | 'customer';
           outbound_first_speaker?: 'agent' | 'customer';
         };
@@ -106,6 +107,8 @@ export async function GET(request: Request) {
       transferNumber: cfg.transfer_number ?? null,
       agentGreetsFirst: firstSpeaker === 'agent',
       greetingDelaySeconds: Number(cfg.greeting_delay_seconds) || 0,
+      silenceTimeoutSeconds:
+        cfg.silence_timeout_seconds != null ? Number(cfg.silence_timeout_seconds) : 8,
     });
     return NextResponse.json(payload);
   } catch (err) {

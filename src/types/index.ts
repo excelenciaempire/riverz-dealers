@@ -927,6 +927,9 @@ export interface VoiceConnectionConfig {
   transfer_number?: string;
   /** Segundos de espera antes de que el agente hable (0–10; sin apuro para el cliente). */
   greeting_delay_seconds?: number;
+  /** Segundos de silencio del cliente antes de avisar "¿sigues ahí?" y luego colgar
+   *  (0 = desactivado; default 8). */
+  silence_timeout_seconds?: number;
   /** Quién habla primero en llamadas ENTRANTES (default 'customer': el que llamó). */
   inbound_first_speaker?: 'agent' | 'customer';
   /** Quién habla primero en llamadas SALIENTES (default 'agent': saluda el bot). */

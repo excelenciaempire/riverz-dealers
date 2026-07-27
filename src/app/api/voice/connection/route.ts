@@ -91,6 +91,10 @@ export async function PUT(request: Request) {
       body.config?.greeting_delay_seconds != null
         ? Math.max(0, Math.min(Number(body.config.greeting_delay_seconds), 10))
         : undefined,
+    silence_timeout_seconds:
+      body.config?.silence_timeout_seconds != null
+        ? Math.max(0, Math.min(Number(body.config.silence_timeout_seconds), 60))
+        : undefined,
     inbound_first_speaker:
       body.config?.inbound_first_speaker === 'agent' ? 'agent' : 'customer',
     outbound_first_speaker:

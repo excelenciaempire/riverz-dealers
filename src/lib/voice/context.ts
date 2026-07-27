@@ -53,6 +53,8 @@ export interface VoiceContextPayload {
   agent_greets_first: boolean;
   /** Segundos de espera antes de que el agente hable (sin apuro). */
   greeting_delay_seconds: number;
+  /** Segundos de silencio del cliente antes de "¿sigues ahí?" y colgar (0 = off). */
+  silence_timeout_seconds: number;
   system_prompt: string;
   /** Conversation engine mode (global admin setting). */
   mode: VoiceMode;
@@ -208,6 +210,8 @@ export async function buildVoiceContext(
     agentGreetsFirst?: boolean;
     /** Segundos de espera antes de que el agente hable (sin apuro). */
     greetingDelaySeconds?: number;
+    /** Segundos de silencio del cliente antes de "¿sigues ahí?" y colgar (0 = off). */
+    silenceTimeoutSeconds?: number;
   },
 ): Promise<VoiceContextPayload> {
   const { data: agentRow } = await db
@@ -343,6 +347,7 @@ export async function buildVoiceContext(
     greeting,
     agent_greets_first: opts.agentGreetsFirst !== false,
     greeting_delay_seconds: Math.max(0, Math.min(Number(opts.greetingDelaySeconds) || 0, 10)),
+    silence_timeout_seconds: Math.max(0, Math.min(Number(opts.silenceTimeoutSeconds ?? 8), 60)),
     system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {

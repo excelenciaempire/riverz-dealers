@@ -142,6 +142,7 @@ export const voice = {
     en: "Immediately stops outbound and inbound calls.",
   },
   greetingDelay: { es: "Espera antes de hablar (seg)", en: "Delay before speaking (sec)" },
+  silenceTimeout: { es: "Colgar por silencio (seg, 0=off)", en: "Hang up on silence (sec, 0=off)" },
   outboundFirstSpeaker: { es: "Quién habla primero (salientes)", en: "Who speaks first (outbound)" },
   inboundFirstSpeaker: { es: "Quién habla primero (entrantes)", en: "Who speaks first (inbound)" },
   speakerAgent: { es: "El agente saluda", en: "Agent greets" },

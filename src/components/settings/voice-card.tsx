@@ -34,6 +34,7 @@ export function VoiceCard() {
     recording_enabled: true,
     transfer_number: '',
     greeting_delay_seconds: 0,
+    silence_timeout_seconds: 8,
     inbound_first_speaker: 'customer',
     outbound_first_speaker: 'agent',
   });
@@ -66,6 +67,7 @@ export function VoiceCard() {
           order_writeback: json.config.order_writeback ?? { enabled: false },
           dedupe_hours: json.config.dedupe_hours ?? 0.25,
           greeting_delay_seconds: json.config.greeting_delay_seconds ?? 0,
+          silence_timeout_seconds: json.config.silence_timeout_seconds ?? 8,
           inbound_first_speaker: json.config.inbound_first_speaker ?? 'customer',
           outbound_first_speaker: json.config.outbound_first_speaker ?? 'agent',
         });
@@ -217,6 +219,20 @@ export function VoiceCard() {
                   setCfg({
                     ...cfg,
                     greeting_delay_seconds: Math.max(0, Math.min(10, Number(e.target.value) || 0)),
+                  })
+                }
+              />
+            </Field>
+            <Field label={t('voice.silenceTimeout')}>
+              <Input
+                type="number"
+                min={0}
+                max={60}
+                value={cfg.silence_timeout_seconds ?? 8}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    silence_timeout_seconds: Math.max(0, Math.min(60, Number(e.target.value) || 0)),
                   })
                 }
               />
