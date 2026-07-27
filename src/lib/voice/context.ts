@@ -30,6 +30,7 @@ import {
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
+import { normalizeForDialing } from '@/lib/whatsapp/phone-utils';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -280,6 +281,15 @@ export async function buildVoiceContext(
       ]
     : [];
 
+  // El sistema decide el formato marcable ANTES de llamar: normaliza el teléfono
+  // a E.164 por país (incl. el 9 de móvil AR) en vez de marcar lo que venga
+  // guardado. defaultCountry viene de la dirección de Shopify si el número está
+  // en formato local. Fail-soft: si no se puede, usa el guardado.
+  const dialCountry =
+    (shopifySnapshot as { default_address?: { country_code?: string | null } } | null)
+      ?.default_address?.country_code ?? null;
+  const dialPhone = normalizeForDialing(call.phone, dialCountry) || call.phone;
+
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
   // platform-wide; the LLM model still honors a per-agent override when set.
   const model = await getVoiceModelResolved(db);
@@ -296,7 +306,7 @@ export async function buildVoiceContext(
     call_id: call.id,
     direction: call.direction,
     call_type: call.call_type,
-    phone: call.phone,
+    phone: dialPhone,
     language: lang,
     greeting,
     system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,

@@ -62,6 +62,57 @@ export function normalizeToWhatsApp(
 }
 
 /**
+ * Normaliza un número al E.164 **marcable** (CON `+`) para telefonía SIP, antes
+ * de llamar. A diferencia de `normalizeToWhatsApp` (que devuelve dígitos sin `+`
+ * para la API de Meta), esto devuelve el formato internacional que la operadora
+ * necesita para enrutar la llamada.
+ *
+ * Clave para Argentina: los móviles se marcan internacionalmente como
+ * `+54 9 <área> <número>`. libphonenumber ya incluye el `9` en el E.164 de un
+ * móvil AR; si por origen inconsistente (Shopify a veces guarda `+5411…` sin el
+ * 9) faltara, lo insertamos. Así el sistema decide el formato correcto por país
+ * en vez de marcar lo que venga guardado.
+ *
+ * @param raw            número guardado (E.164, local, o sucio)
+ * @param defaultCountry ISO-2 del cliente (del envío Shopify) para números locales
+ * @returns E.164 con `+`, o el mejor esfuerzo dígito+`+` si no se pudo parsear
+ */
+export function normalizeForDialing(
+  raw: string | null | undefined,
+  defaultCountry?: string | null,
+): string {
+  if (!raw) return ''
+  const region = (defaultCountry || '').trim().toUpperCase()
+  const parse = (country?: CountryCode) => {
+    try {
+      return parsePhoneNumberFromString(String(raw), country)
+    } catch {
+      return undefined
+    }
+  }
+  // 1) Ya-internacional; 2) con país por defecto (números locales).
+  const p =
+    parse(undefined) ?? (region.length === 2 ? parse(region as CountryCode) : undefined)
+  if (p && p.isValid()) {
+    let e164 = p.number // "+54911…"
+    // Red de seguridad AR: móvil sin el 9 → insertarlo tras +54.
+    if (
+      p.country === 'AR' &&
+      p.getType() === 'MOBILE' &&
+      e164.startsWith('+54') &&
+      !e164.startsWith('+549')
+    ) {
+      e164 = '+549' + e164.slice(3)
+    }
+    return e164
+  }
+  // Último recurso: dígitos con `+` (no regresa peor que lo guardado).
+  const d = String(raw).replace(/[^\d+]/g, '')
+  if (!d) return ''
+  return d.startsWith('+') ? d : `+${d}`
+}
+
+/**
  * Normalize phone number by removing all non-digit characters.
  * Used for comparing phone numbers in different formats.
  */
