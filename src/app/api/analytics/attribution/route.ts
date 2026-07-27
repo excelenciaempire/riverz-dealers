@@ -45,6 +45,19 @@ interface AttrRow {
   currency: string;
 }
 
+/** Totales de comercio (todas las órdenes del rango, no solo las atribuidas). */
+interface CommerceTotals {
+  revenue: { current: number; previous: number };
+  orders: { current: number; previous: number };
+  currency: string;
+}
+
+const EMPTY_TOTALS: CommerceTotals = {
+  revenue: { current: 0, previous: 0 },
+  orders: { current: 0, previous: 0 },
+  currency: 'USD',
+};
+
 function emptyResponse(days: number) {
   return {
     days,
@@ -52,6 +65,7 @@ function emptyResponse(days: number) {
     by_flow: [] as AttrRow[],
     by_automation: [] as AttrRow[],
     by_instagram_agent: [] as AttrRow[],
+    totals: EMPTY_TOTALS,
   };
 }
 
@@ -113,14 +127,24 @@ export async function GET(request: Request) {
 
   // Órdenes recientes desde Shopify (fetch desde `since`), recortadas a la
   // ventana [since, until) — `until` solo limita en rangos personalizados/pasados.
+  const sinceMs = Date.parse(sinceIso);
+  const untilMs = Date.parse(untilIso);
+  // Ventana previa de igual duración, para los deltas de los totales de comercio.
+  const prevSinceIso = new Date(sinceMs - (untilMs - sinceMs)).toISOString();
+  const prevSinceMs = Date.parse(prevSinceIso);
   let orders;
+  let prevOrders;
   try {
-    orders = await fetchRecentOrders(conn, sinceIso);
-    const sinceMs = Date.parse(sinceIso);
-    const untilMs = Date.parse(untilIso);
-    orders = orders.filter((o) => {
+    // Un solo fetch desde el inicio de la ventana previa; luego separamos en
+    // actual [since,until) y previa [prevSince,since).
+    const all = await fetchRecentOrders(conn, prevSinceIso);
+    orders = all.filter((o) => {
       const t = Date.parse(o.created_at);
       return t >= sinceMs && t < untilMs;
+    });
+    prevOrders = all.filter((o) => {
+      const t = Date.parse(o.created_at);
+      return t >= prevSinceMs && t < sinceMs;
     });
   } catch {
     return NextResponse.json({
@@ -128,6 +152,16 @@ export async function GET(request: Request) {
       error: 'shopify_fetch_failed',
     });
   }
+
+  // Totales de comercio: TODAS las órdenes del rango (no solo las atribuidas),
+  // con su periodo previo para el delta. AOV se calcula en el cliente.
+  const sumRevenue = (arr: typeof orders) =>
+    Math.round(arr.reduce((s, o) => s + Number(o.total_price ?? '0'), 0) * 100) / 100;
+  const totals: CommerceTotals = {
+    revenue: { current: sumRevenue(orders), previous: sumRevenue(prevOrders) },
+    orders: { current: orders.length, previous: prevOrders.length },
+    currency: orders[0]?.currency || prevOrders[0]?.currency || 'USD',
+  };
 
   // Agente de IG: revenue ya persistido por su motor (no depende del fetch de
   // arriba, pero solo lo mostramos en el camino feliz para no contradecir el
@@ -263,6 +297,7 @@ export async function GET(request: Request) {
     by_flow: sortByRevenue(byFlow),
     by_automation: sortByRevenue(byAutomation),
     by_instagram_agent,
+    totals,
   });
 }
 

@@ -24,7 +24,7 @@ export const nav = {
   comments: { es: "Comentarios", en: "Comments" },
   products: { es: "Productos", en: "Products" },
   orders: { es: "Pedidos", en: "Orders" },
-  metrics: { es: "Métricas", en: "Metrics" },
+  metrics: { es: "Rendimiento", en: "Performance" },
   team: { es: "Equipo", en: "Team" },
   integrations: { es: "Integraciones", en: "Integrations" },
   settings: { es: "Ajustes", en: "Settings" },

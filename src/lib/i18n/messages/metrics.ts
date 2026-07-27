@@ -5,7 +5,41 @@ import type { Namespace } from "./types";
 export const metrics = {
   // Metrics page header
   eyebrow: { es: "Análisis", en: "Analytics" },
-  title: { es: "Métricas y atribución", en: "Metrics & attribution" },
+  title: { es: "Rendimiento", en: "Performance" },
+
+  // Section headers
+  secCommerce: { es: "Comercio", en: "Commerce" },
+  secAttributed: { es: "Ingresos atribuidos", en: "Attributed revenue" },
+  secConversations: { es: "Conversaciones", en: "Conversations" },
+  secMessages: { es: "Mensajes", en: "Messages" },
+  secCalls: { es: "Llamadas", en: "Calls" },
+
+  // Commerce KPIs
+  kpiRevenue: { es: "Ingresos", en: "Revenue" },
+  kpiOrders: { es: "Pedidos", en: "Orders" },
+  kpiAov: { es: "Ticket promedio", en: "Avg. order value" },
+
+  // Conversation KPIs
+  kpiConversations: { es: "Conversaciones", en: "Conversations" },
+  kpiNewContacts: { es: "Contactos nuevos", en: "New contacts" },
+  kpiResolved: { es: "Resueltas", en: "Resolved" },
+  kpiResponseTime: { es: "Tiempo de respuesta", en: "Response time" },
+  kpiReceived: { es: "Recibidos", en: "Received" },
+  kpiSent: { es: "Enviados", en: "Sent" },
+
+  // Call KPIs
+  kpiCalls: { es: "Llamadas", en: "Calls" },
+  kpiAnswered: { es: "Contestadas", en: "Answered" },
+  kpiConfirmed: { es: "Confirmadas", en: "Confirmed" },
+  kpiMinutes: { es: "Minutos", en: "Minutes" },
+  kpiUpsell: { es: "Upsell", en: "Upsell" },
+  callsAnswered: { es: "{n} contestadas", en: "{n} answered" },
+  ofTotal: { es: "del total", en: "of total" },
+  ofAnswered: { es: "de contestadas", en: "of answered" },
+
+  // Shared value formatters
+  minutesValue: { es: "{n} min", en: "{n} min" },
+  vsPrevValue: { es: "{v} vs. anterior", en: "{v} vs. previous" },
 
   // Shopify-not-connected empty state
   connectShopifyTitle: {
