@@ -29,7 +29,9 @@ export function VoiceCard() {
     inbound_enabled: false,
     monthly_minutes_limit: null,
     kill_switch: false,
-    recording_enabled: false,
+    // Grabación: el backend graba por defecto (solo se apaga con false explícito),
+    // así que el toggle arranca en ON para reflejar la realidad.
+    recording_enabled: true,
     transfer_number: '',
     greeting_delay_seconds: 0,
     inbound_first_speaker: 'customer',
@@ -57,7 +59,8 @@ export function VoiceCard() {
           inbound_enabled: !!json.config.inbound_enabled,
           monthly_minutes_limit: json.config.monthly_minutes_limit ?? null,
           kill_switch: !!json.config.kill_switch,
-          recording_enabled: !!json.config.recording_enabled,
+          // Refleja el default-on del backend: ON salvo que esté explícito en false.
+          recording_enabled: json.config.recording_enabled !== false,
           transfer_number: json.config.transfer_number ?? '',
           cod_mode: !!json.config.cod_mode,
           order_writeback: json.config.order_writeback ?? { enabled: false },
