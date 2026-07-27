@@ -5,6 +5,7 @@ import {
   type MetaSendResult,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { renderTemplateBody } from '@/lib/whatsapp/template-render'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -27,14 +28,8 @@ import { supabaseAdmin } from './admin-client'
 // converge in a later refactor.
 // ------------------------------------------------------------
 
-/** Reemplaza los {{1}}, {{2}}… del cuerpo de una plantilla por sus valores
- *  posicionales, para guardar/mostrar el texto real que recibió el cliente. */
-function renderTemplateBody(body: string, params: string[]): string {
-  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => {
-    const v = params[Number(n) - 1]
-    return v != null && String(v).trim() ? String(v) : `{{${n}}}`
-  })
-}
+// El render vive en `lib/whatsapp/template-render` (puro, sin server-only)
+// para que también lo use el envío en vivo desde el navegador.
 
 interface SendTextArgs {
   workspaceId: string

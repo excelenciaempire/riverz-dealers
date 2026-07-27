@@ -667,6 +667,11 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
     .select('id')
     .eq('workspace_id', args.automation.workspace_id)
     .eq('contact_id', args.contactId)
+    // El mensaje sale por WhatsApp (ver el INSERT de abajo, que crea el hilo
+    // con channel='whatsapp'), pero la búsqueda no filtraba por canal: si el
+    // contacto tenía un hilo MÁS VIEJO de Instagram, Gmail o Mercado Libre,
+    // la plantilla de WhatsApp se colgaba de esa conversación equivocada.
+    .eq('channel', 'whatsapp')
     // Soft-delete (migración 085): don't resolve to a thread deleted from the
     // bandeja — the automation reply would vanish into an invisible row. Skip
     // it so we reuse a live thread or create a fresh visible one below.
@@ -718,6 +723,7 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
       .select('id')
       .eq('workspace_id', args.automation.workspace_id)
       .eq('contact_id', args.contactId)
+      .eq('channel', 'whatsapp')
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()

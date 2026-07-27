@@ -7,6 +7,7 @@ import type {
 } from "@/types";
 import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
+import { dispatchAutomationsAndFlows } from "./inbound-dispatch";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
@@ -94,16 +95,21 @@ export async function ingestInboundEvent(
     Number.isFinite(evMs) && evMs < nowMs ? event.receivedAt : undefined;
 
   // 1. Upsert contact by (workspace_id, channel, external_id).
-  const contact = await upsertContact(db, {
-    workspace_id: workspaceId,
-    channel,
-    external_id: event.externalContactId,
-    name: event.contactName,
-    avatar_url: event.contactAvatarUrl,
-    email: channel === "gmail" || channel === "outlook" ? event.externalContactId : undefined,
-    phone: channel === "whatsapp" ? event.externalContactId : undefined,
-    created_at: historicalCreatedAt,
-  });
+  const contactOutcome = { wasCreated: false };
+  const contact = await upsertContact(
+    db,
+    {
+      workspace_id: workspaceId,
+      channel,
+      external_id: event.externalContactId,
+      name: event.contactName,
+      avatar_url: event.contactAvatarUrl,
+      email: channel === "gmail" || channel === "outlook" ? event.externalContactId : undefined,
+      phone: channel === "whatsapp" ? event.externalContactId : undefined,
+      created_at: historicalCreatedAt,
+    },
+    contactOutcome,
+  );
   if (!contact) return null;
 
   // 1b. Cross-channel dedupe (migration 050). Si este contact comparte
@@ -434,15 +440,33 @@ export async function ingestInboundEvent(
     channel !== "fb_comment" &&
     channel !== "ig_comment"
   ) {
+    // Automatizaciones y flujos ANTES que la IA. Vivían sólo en el webhook
+    // legacy de WhatsApp, así que por este camino no disparaban nunca — y en
+    // Instagram/Messenger/correo/Mercado Libre no existían en absoluto.
+    // Si un flujo consume el mensaje, el cliente está contestando un guion
+    // interactivo y la IA no debe hablar encima; una automatización que
+    // responde NO la silencia (la IA conversa con ese contexto).
+    const flowConsumed = await dispatchAutomationsAndFlows(db, {
+      workspaceId,
+      channel,
+      conversation,
+      contact,
+      message: message as Message,
+      isFirstInboundMessage: await isFirstInboundFromContact(db, contact.id, message as Message),
+      contactWasCreated: contactOutcome.wasCreated,
+    });
+
     const dispatchGeneric = () =>
-      runAiAgent(db, {
-        workspaceId,
-        channel,
-        conversation,
-        contact,
-        connection: event.connection,
-        inboundMessage: message as Message,
-      }).catch((err) => console.error("[ai] dispatch failed:", err));
+      flowConsumed
+        ? Promise.resolve()
+        : runAiAgent(db, {
+            workspaceId,
+            channel,
+            conversation,
+            contact,
+            connection: event.connection,
+            inboundMessage: message as Message,
+          }).catch((err) => console.error("[ai] dispatch failed:", err));
 
     if (channel === "instagram") {
       // A DM makes this person Profile-API-eligible — enrich who they are
@@ -521,9 +545,41 @@ export interface UpsertContactInput {
   created_at?: string;
 }
 
+/**
+ * ¿Es este el PRIMER mensaje que nos escribe este contacto?
+ *
+ * Alimenta el trigger `first_inbound_message` de las automatizaciones, que
+ * hasta ahora sólo existía en el webhook legacy de WhatsApp. Cuenta los
+ * mensajes de cliente del contacto: si el único es el que acabamos de
+ * guardar, es el primero. Ante un error de DB devuelve `false` (mejor no
+ * disparar de más que dispararle a alguien que ya venía conversando).
+ */
+async function isFirstInboundFromContact(
+  db: SupabaseClient,
+  contactId: string,
+  justWritten: Message,
+): Promise<boolean> {
+  try {
+    const { data } = await db
+      .from("messages")
+      .select("id, conversations!inner(contact_id)")
+      .eq("conversations.contact_id", contactId)
+      .eq("sender_type", "customer")
+      .limit(2);
+    const rows = (data ?? []) as Array<{ id: string }>;
+    return rows.length <= 1 && rows.every((r) => r.id === justWritten.id);
+  } catch {
+    return false;
+  }
+}
+
 export async function upsertContact(
   db: SupabaseClient,
   input: UpsertContactInput,
+  /** Out-param opcional: queda en `true` sólo si esta llamada CREÓ la fila.
+   *  Lo necesita el trigger de automatización `new_contact_created`, que
+   *  antes sólo existía en el webhook legacy de WhatsApp. */
+  outcome?: { wasCreated: boolean },
 ): Promise<Contact | null> {
   // We rely on the (workspace_id, channel, external_id) unique index
   // created in migration 013 (`uq_contact_identity`).
@@ -636,6 +692,7 @@ export async function upsertContact(
     console.error("[inbox-writer] upsert contact failed:", error);
     return null;
   }
+  if (outcome) outcome.wasCreated = true;
   return created as Contact;
 }
 

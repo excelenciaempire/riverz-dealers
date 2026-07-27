@@ -15,6 +15,7 @@ import {
   isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
+import { renderTemplateBody } from '@/lib/whatsapp/template-render'
 import { assertCronAuthAny } from '@/lib/auth/cron'
 import { pingCron } from '@/lib/cron/heartbeat'
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
@@ -145,13 +146,17 @@ async function sendOneBroadcast(
 
   // Categoría de la plantilla, para el gate de marketing a EE.UU. (Meta no
   // entrega marketing a +1 US; quedaría en 'sent' para siempre).
+  // `body_text` además de la categoría: lo necesitamos para guardar en la
+  // conversación el texto REAL que recibió el cliente (ver más abajo).
   const { data: tplRow } = await admin
     .from('message_templates')
-    .select('category')
+    .select('category, body_text')
     .eq('user_id', userId)
     .eq('name', templateName)
     .limit(1)
     .maybeSingle()
+  const templateBody =
+    (tplRow as { body_text?: string | null } | null)?.body_text ?? null
   const isMarketingTemplate =
     String((tplRow as { category?: string } | null)?.category ?? '').toLowerCase() ===
     'marketing'
@@ -350,7 +355,15 @@ async function sendOneBroadcast(
               workspaceId: (recipient.contact.workspace_id as string) ?? null,
               connectionId,
               templateName,
-              bodyPreview: templateName,
+              // El texto REAL que recibió esta persona, con sus variables
+              // ya sustituidas. Antes se guardaba el NOMBRE de la plantilla
+              // ("carrito_abandonado_v3"), y como la IA lee el historial de
+              // la conversación como contexto, le llegaba ese identificador
+              // en vez del mensaje — justo cuando el cliente responde a la
+              // campaña y la IA tiene que continuar la charla.
+              bodyPreview: templateBody
+                ? renderTemplateBody(templateBody, params)
+                : templateName,
               whatsappMessageId: sentId,
             })
           } catch (convErr) {

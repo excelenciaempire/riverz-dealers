@@ -188,6 +188,14 @@ export function VoiceSettings({
     });
   }
 
+  // El horario de atención valida inicio < fin; el de llamadas no validaba
+  // nada, así que una franja invertida (20:00 → 09:00) se guardaba y las
+  // llamadas simplemente dejaban de salir, sin explicación. Avisamos en el
+  // sitio en vez de bloquear el guardado de toda la pestaña.
+  const hoursInvalid =
+    value.voice_calling_hours.start >= value.voice_calling_hours.end;
+  const noDays = value.voice_calling_hours.days.length === 0;
+
   function toggleDay(day: number) {
     const days = value.voice_calling_hours.days.includes(day)
       ? value.voice_calling_hours.days.filter((d) => d !== day)
@@ -199,10 +207,9 @@ export function VoiceSettings({
     <div className="space-y-6">
       {/* Enable */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-foreground">{t('voice.enable')}</p>
-          <p className="text-xs text-muted-foreground">{t('voice.enableHint')}</p>
-        </div>
+        {/* La explicación vive en el encabezado de la tarjeta ("Voz"); aquí
+            solo la etiqueta del switch, para no repetir la misma frase. */}
+        <p className="text-sm font-medium text-foreground">{t('voice.enable')}</p>
         <Switch
           checked={value.voice_enabled}
           onCheckedChange={(c) => set({ voice_enabled: c })}
@@ -433,6 +440,11 @@ export function VoiceSettings({
                 );
               })}
             </div>
+            {(hoursInvalid || noDays) && (
+              <p className="mt-2 text-xs text-destructive">
+                {t(hoursInvalid ? 'voice.hoursInvalid' : 'voice.hoursNoDays')}
+              </p>
+            )}
           </div>
 
           {/* Opciones avanzadas — ocultas por defecto para no abrumar. */}

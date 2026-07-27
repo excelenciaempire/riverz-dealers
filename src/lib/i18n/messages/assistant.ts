@@ -171,6 +171,10 @@ export const assistant = {
   },
   someChannels: { es: "Solo algunos", en: "Only some" },
   someChannelsHint: { es: "Elige los canales abajo.", en: "Choose the channels below." },
+  channelsRequired: {
+    es: "Elige al menos un canal.",
+    en: "Choose at least one channel.",
+  },
   responseRulesLabel: { es: "Reglas de respuesta", en: "Response rules" },
   replyWhenAssignedTitle: {
     es: "Responder aunque haya agente asignado",

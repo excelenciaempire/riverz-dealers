@@ -12,7 +12,7 @@ export const voice = {
     es: "Permite que este agente haga y conteste llamadas por teléfono.",
     en: "Let this agent place and answer phone calls.",
   },
-  voiceLabel: { es: "Voz", en: "Voice" },
+  voiceLabel: { es: "Voz del agente", en: "Agent voice" },
   voicePickHint: {
     es: "La voz con la que hablará el agente. Escúchala antes de elegir.",
     en: "The voice the agent speaks with. Listen before choosing.",
@@ -45,6 +45,14 @@ export const voice = {
   from: { es: "Desde", en: "From" },
   to: { es: "Hasta", en: "To" },
   days: { es: "Días", en: "Days" },
+  hoursInvalid: {
+    es: "La hora de inicio debe ser anterior a la de fin.",
+    en: "The start time must be earlier than the end time.",
+  },
+  hoursNoDays: {
+    es: "Elige al menos un día.",
+    en: "Choose at least one day.",
+  },
   retries: { es: "Reintentos si no contesta", en: "Retries if no answer" },
   retryDelay: { es: "Espera entre reintentos (min)", en: "Wait between retries (min)" },
 

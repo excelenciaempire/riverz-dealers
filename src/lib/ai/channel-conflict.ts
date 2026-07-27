@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { translate } from '@/lib/i18n/translate';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 
 /**
  * Un solo chatbot ACTIVO por canal.
@@ -14,6 +16,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // Canales sobre los que el asistente de IA puede responder (DM + email). Un
 // agente de scope 'workspace' ocupa TODOS estos; uno de scope 'channels' solo
 // los suyos.
+// 'voice' entra aquí porque `pickVoiceAgent` lo trata como un canal más:
+// un agente de scope 'workspace' también contesta llamadas, así que debe
+// ocuparlo para que dos agentes activos no se peleen el teléfono.
 export const AI_CHANNELS = [
   'whatsapp',
   'instagram',
@@ -21,8 +26,12 @@ export const AI_CHANNELS = [
   'gmail',
   'outlook',
   'mercadolibre',
+  'voice',
 ] as const;
 
+// Los canales son marcas y no se traducen; las llamadas sí son una palabra
+// común, así que sale del catálogo i18n en vez de quedar fija en español
+// dentro de un mensaje de error que el usuario puede estar leyendo en inglés.
 const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
@@ -32,8 +41,14 @@ const CHANNEL_LABELS: Record<string, string> = {
   mercadolibre: 'Mercado Libre',
 };
 
-export function channelLabels(channels: string[]): string {
-  return channels.map((c) => CHANNEL_LABELS[c] ?? c).join(', ');
+export function channelLabels(channels: string[], locale?: Locale): string {
+  return channels
+    .map((c) =>
+      c === 'voice'
+        ? translate(locale ?? DEFAULT_LOCALE, 'nav.voice')
+        : (CHANNEL_LABELS[c] ?? c),
+    )
+    .join(', ');
 }
 
 function effectiveChannels(scope: string, channels: string[]): string[] {

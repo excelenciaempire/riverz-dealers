@@ -14,7 +14,12 @@ import type {
 } from '@/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
-import type { AiAgent, AiResponseMode, AiTone, BusinessHours } from './types';
+import type { AiAgent, AiResponseMode, AiTone } from './types';
+import { MIN_DEBOUNCE_SECONDS } from './types';
+import {
+  withinBusinessHours,
+  containsEscalationKeyword as hasEscalationKeyword,
+} from './business-hours';
 import {
   detectProductMention,
   type CandidateProduct,
@@ -95,6 +100,7 @@ export async function runAiAgent(
     }
 
     if (containsEscalationKeyword(agent, args.inboundMessage.content_text ?? '')) {
+      await flagNeedsHuman(db, args.conversation);
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'escalation_keyword',
@@ -117,6 +123,9 @@ export async function runAiAgent(
         .eq('agent_id', agent.id)
         .eq('status', 'sent');
       if ((priorSentCount ?? 0) >= agent.escalate_after_messages) {
+        // Mismo criterio que las palabras clave: agotar el cupo de
+        // respuestas ES un escalamiento, no un silencio.
+        await flagNeedsHuman(db, args.conversation);
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'escalate_after_messages',
@@ -133,8 +142,10 @@ export async function runAiAgent(
     // Always run the debounce gate — closes the "feature disabled"
     // hole on pre-034 agents that still have inbound_debounce_seconds=0
     // (those let 20 concurrent runners race on a 20-message burst).
-    // Floor at 8s if the agent has it set lower than that.
-    const debounceMs = Math.max(agent.inbound_debounce_seconds, 8) * 1000;
+    // Floor at MIN_DEBOUNCE_SECONDS if the agent has it set lower — the
+    // editor ofrece ese mismo mínimo, así que UI y runtime coinciden.
+    const debounceMs =
+      Math.max(agent.inbound_debounce_seconds, MIN_DEBOUNCE_SECONDS) * 1000;
     await sleep(debounceMs);
     const inboundId = args.inboundMessage.id;
     const inboundTs = args.inboundMessage.created_at;
@@ -352,6 +363,31 @@ export async function runAiAgent(
         skip_reason: 'stale_by_newer_inbound',
       });
       return;
+    }
+
+    // Mismo problema, otra dimensión: durante el debounce + la llamada al
+    // LLM un humano pudo tomar el chat, apagar la IA o cerrarlo. Releemos
+    // el estado antes de enviar para no hablar encima de una persona
+    // (el closer de campañas ya hacía esto; el runner no).
+    const { data: freshConv } = await db
+      .from('conversations')
+      .select('ai_enabled, assigned_agent_id, status')
+      .eq('id', args.conversation.id)
+      .maybeSingle();
+    if (freshConv) {
+      const fresh = freshConv as {
+        ai_enabled?: boolean | null;
+        assigned_agent_id?: string | null;
+        status?: string | null;
+      };
+      const nowSkip = shouldSkip(agent, {
+        ...args,
+        conversation: { ...args.conversation, ...fresh } as Conversation,
+      });
+      if (nowSkip) {
+        await logReply(db, agent, args, { status: 'skipped', skip_reason: nowSkip });
+        return;
+      }
     }
 
     if (agent.reply_delay_seconds > 0) {
@@ -626,52 +662,43 @@ function shouldSkip(
   return null;
 }
 
-function containsEscalationKeyword(agent: AiAgent, text: string): boolean {
-  const kws = agent.escalate_keywords ?? [];
-  if (!kws.length || !text) return false;
-  const t = text.toLowerCase();
-  return kws.some((k) => k && t.includes(k.toLowerCase()));
+/**
+ * Escalamiento real a un humano.
+ *
+ * Antes, detectar una palabra clave (o agotar `escalate_after_messages`)
+ * sólo hacía que la IA se callara: no se asignaba a nadie, no se marcaba
+ * la conversación y nadie se enteraba — el cliente quedaba en silencio.
+ * La etiqueta del editor promete "Pasar a un humano", así que ahora lo
+ * hacemos de verdad:
+ *
+ *   - `ai_enabled = false` → la IA deja de responder este chat aunque
+ *     el cliente siga escribiendo (mismo interruptor que el toggle
+ *     manual de la bandeja, migración 082).
+ *   - `status = 'pending'` → queda destacada en la bandeja como que
+ *     espera a una persona.
+ *
+ * No asignamos a nadie en concreto: elegir la persona es del equipo, y
+ * las reglas de asignación ya existen para eso. Tampoco le escribimos
+ * al cliente — el humano decide qué decir.
+ *
+ * Nunca lanza: si la marca falla, el runner igual sale sin responder.
+ */
+async function flagNeedsHuman(
+  db: SupabaseClient,
+  conversation: Conversation,
+): Promise<void> {
+  try {
+    await db
+      .from('conversations')
+      .update({ ai_enabled: false, status: 'pending' })
+      .eq('id', conversation.id);
+  } catch (err) {
+    console.error('[ai] no se pudo marcar la conversación para humano:', err);
+  }
 }
 
-function withinBusinessHours(hours: BusinessHours | null): boolean {
-  if (!hours) return true;
-  try {
-    const now = new Date();
-    // We just match the wall-clock the formatter renders in the
-    // configured tz — good enough for "9:00-18:00" type windows.
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: hours.timezone,
-      weekday: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(now);
-    const dayMap: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-      Sun: 0,
-      Mon: 1,
-      Tue: 2,
-      Wed: 3,
-      Thu: 4,
-      Fri: 5,
-      Sat: 6,
-    };
-    const weekday = fmt.find((p) => p.type === 'weekday')?.value ?? 'Mon';
-    const hh = fmt.find((p) => p.type === 'hour')?.value ?? '00';
-    const mm = fmt.find((p) => p.type === 'minute')?.value ?? '00';
-    const nowMin = Number(hh) * 60 + Number(mm);
-    const windows = hours.windows[dayMap[weekday]] ?? [];
-    return windows.some((w) => {
-      const [from, to] = w.split('-');
-      if (!from || !to) return false;
-      const [fh, fm] = from.split(':').map(Number);
-      const [th, tm] = to.split(':').map(Number);
-      const fMin = (fh || 0) * 60 + (fm || 0);
-      const tMin = (th || 0) * 60 + (tm || 0);
-      return nowMin >= fMin && nowMin < tMin;
-    });
-  } catch {
-    return true;
-  }
+function containsEscalationKeyword(agent: AiAgent, text: string): boolean {
+  return hasEscalationKeyword(agent.escalate_keywords, text);
 }
 
 interface ContextMessage {

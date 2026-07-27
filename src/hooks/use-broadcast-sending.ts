@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Contact, MessageTemplate } from '@/types';
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
+import { renderTemplateBody } from '@/lib/whatsapp/template-render';
 import { resolveSegment } from '@/lib/segments/resolve';
 import { escapeLike } from '@/lib/security/like';
 import type { ContactSegment } from '@/lib/segments/types';
@@ -584,8 +585,24 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                     workspaceId: recipient.contact.workspace_id ?? null,
                     connectionId,
                     templateName: payload.template.name,
-                    bodyPreview:
-                      payload.template.body_text || payload.template.name,
+                    // Texto REAL que recibió esta persona. Antes se guardaba
+                    // el cuerpo crudo con {{1}} {{2}} sin sustituir (idéntico
+                    // para todos), y la IA lee el historial como contexto: al
+                    // responder la campaña, le llegaban los marcadores en vez
+                    // del mensaje. Los params ya se resuelven para el envío;
+                    // aquí reusamos exactamente los mismos.
+                    bodyPreview: payload.template.body_text
+                      ? renderTemplateBody(
+                          payload.template.body_text,
+                          recipient.contact
+                            ? resolveVariables(
+                                payload.variables,
+                                recipient.contact,
+                                customValueIndex.get(recipient.contact.id),
+                              )
+                            : [],
+                        )
+                      : payload.template.name,
                     whatsappMessageId: result.whatsapp_message_id ?? null,
                   });
                 } catch (convErr) {

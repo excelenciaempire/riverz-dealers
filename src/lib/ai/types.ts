@@ -4,6 +4,16 @@ import type {
   VoiceObjectives,
 } from '@/types';
 
+/**
+ * Piso real de la espera antes de responder (`inbound_debounce_seconds`).
+ *
+ * El runner SIEMPRE espera al menos esto para agrupar ráfagas del cliente
+ * (tres mensajes seguidos = una sola respuesta), así que valores menores
+ * no hacen nada. La UI usa la misma constante para no ofrecer un "0" que
+ * en realidad espera 8 segundos.
+ */
+export const MIN_DEBOUNCE_SECONDS = 8;
+
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';

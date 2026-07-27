@@ -58,14 +58,31 @@ export default function VoicePage() {
     setLoading(true);
     try {
       const supabase = createClient();
+      // Mismo criterio que `pickVoiceAgent`: sólo un agente ACTIVO cuyo
+      // alcance cubra las llamadas puede contestar. Antes se listaban
+      // todos los que tuvieran la voz encendida, así que aparecían aquí
+      // agentes pausados o acotados a otros canales que nunca iban a
+      // atender el teléfono.
       const { data: agentRows } = await supabase
         .from('ai_agents')
-        .select('id, name')
+        .select('id, name, scope, is_active, ai_agent_channels(channel)')
         .eq('workspace_id', workspace.id)
         .eq('voice_enabled', true)
         .is('deleted_at', null)
         .order('priority', { ascending: false });
-      setAgents((agentRows ?? []) as { id: string; name: string }[]);
+      const usable = ((agentRows ?? []) as Array<{
+        id: string;
+        name: string;
+        scope: string;
+        is_active: boolean;
+        ai_agent_channels?: Array<{ channel: string }> | null;
+      }>).filter(
+        (a) =>
+          a.is_active &&
+          (a.scope === 'workspace' ||
+            (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice')),
+      );
+      setAgents(usable.map((a) => ({ id: a.id, name: a.name })));
 
       const res = await fetch(`/api/voice/calls?workspace_id=${workspace.id}&limit=50`, {
         cache: 'no-store',

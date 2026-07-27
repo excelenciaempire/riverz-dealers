@@ -106,6 +106,16 @@ export async function POST(request: Request) {
       { status: 403 },
     );
 
+  // scope='channels' sin canales = agente que no responde en ninguna parte
+  // (y que el detector de conflictos ignora porque no ocupa nada). Estado
+  // inservible: lo rechazamos también desde el server, no sólo en la UI.
+  if (body.scope === 'channels' && (body.channels ?? []).length === 0) {
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.channelsRequired') },
+      { status: 400 },
+    );
+  }
+
   // Un solo chatbot activo por canal: si este nace activo y pisa los canales
   // de otro agente activo, lo bloqueamos con un mensaje claro.
   if (body.is_active) {
@@ -120,7 +130,7 @@ export async function POST(request: Request) {
         {
           error: translate(locale, 'errAi.channelConflict', {
             agent: conflict.agentName,
-            channels: channelLabels(conflict.channels),
+            channels: channelLabels(conflict.channels, locale),
           }),
         },
         { status: 409 },

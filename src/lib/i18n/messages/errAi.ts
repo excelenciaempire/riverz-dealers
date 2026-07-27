@@ -164,4 +164,8 @@ export const errAi = {
     es: 'El asistente "{agent}" ya está activo en {channels}. Solo puede haber un asistente activo por canal: pausa el otro o ajusta los canales.',
     en: 'The assistant "{agent}" is already active on {channels}. Only one assistant can be active per channel: pause the other one or adjust the channels.',
   },
+  channelsRequired: {
+    es: "Elige al menos un canal.",
+    en: "Choose at least one channel.",
+  },
 } satisfies Namespace;

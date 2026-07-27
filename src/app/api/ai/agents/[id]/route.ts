@@ -119,7 +119,7 @@ export async function PATCH(
   // activo y choca con otro agente activo, bloqueamos antes de tocar nada.
   const willBeActive =
     'is_active' in update ? Boolean(update.is_active) : undefined;
-  if (willBeActive !== false) {
+  {
     const { data: cur } = await admin
       .from('ai_agents')
       .select('is_active, scope, ai_agent_channels(channel)')
@@ -130,11 +130,22 @@ export async function PATCH(
       | null;
     const finalActive =
       willBeActive ?? Boolean(curRow?.is_active);
+    const finalScope = (update.scope as string | undefined) ?? curRow?.scope ?? 'workspace';
+    const finalChannels = Array.isArray(body.channels)
+      ? body.channels
+      : (curRow?.ai_agent_channels ?? []).map((c) => c.channel);
+
+    // scope='channels' sin canales deja al agente sin ningún lugar donde
+    // responder, y el detector de conflictos no lo ve porque no ocupa nada.
+    // Se valida sobre el estado final, activo o pausado.
+    if (finalScope === 'channels' && finalChannels.length === 0) {
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.channelsRequired') },
+        { status: 400 },
+      );
+    }
+
     if (finalActive) {
-      const finalScope = (update.scope as string | undefined) ?? curRow?.scope ?? 'workspace';
-      const finalChannels = Array.isArray(body.channels)
-        ? body.channels
-        : (curRow?.ai_agent_channels ?? []).map((c) => c.channel);
       const conflict = await findChannelConflict(admin, {
         workspaceId: target.workspace_id,
         agentId: id,
@@ -146,7 +157,7 @@ export async function PATCH(
           {
             error: translate(locale, 'errAi.channelConflict', {
               agent: conflict.agentName,
-              channels: channelLabels(conflict.channels),
+              channels: channelLabels(conflict.channels, locale),
             }),
           },
           { status: 409 },

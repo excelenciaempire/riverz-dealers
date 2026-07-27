@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
 
 /**
  * Voice channel connection config (per workspace). Stores the merchant's DID,
@@ -66,7 +67,11 @@ export async function PUT(request: Request) {
   if (!body?.workspace_id) {
     return NextResponse.json({ error: 'workspace_id required' }, { status: 400 });
   }
-  if (!(await requireMember(user.id, body.workspace_id))) {
+  // Comprar/liberar un número y enviar la documentación regulatoria exigen
+  // admin, pero esta ruta pedía sólo ser miembro — así que cualquiera podía
+  // reescribir el caller ID, el número de transferencia o el kill switch de
+  // un número que sólo un admin pudo comprar. Mismo guard para todo.
+  if (!(await isVoiceAdmin(user.id, body.workspace_id))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
@@ -104,11 +109,20 @@ export async function PUT(request: Request) {
       .eq('channel', 'voice')
       .maybeSingle();
 
-    // Preserve the self-serve number id: it's owned by the numbers flow and is
-    // NOT part of this settings form, so rebuilding cfg from the whitelist must
-    // not drop it (else the paid number is orphaned / can't be released).
+    // Preserve everything owned by the numbers/regulatory flow: NADA de esto
+    // viene en este formulario, así que reconstruir cfg desde la lista blanca
+    // los borraba. El id del número ya se conservaba; el expediente
+    // regulatorio no, así que guardar cualquier ajuste de la tarjeta de voz
+    // tiraba a la basura una documentación YA APROBADA por Telnyx y obligaba
+    // a rehacer el trámite.
     const prevConfig = (existing as { config?: VoiceConnectionConfig } | null)?.config;
     if (prevConfig?.telnyx_number_id) cfg.telnyx_number_id = prevConfig.telnyx_number_id;
+    if (prevConfig?.regulatory_group_id) {
+      cfg.regulatory_group_id = prevConfig.regulatory_group_id;
+    }
+    if (prevConfig?.regulatory_status) {
+      cfg.regulatory_status = prevConfig.regulatory_status;
+    }
 
     if (existing) {
       await admin

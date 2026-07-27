@@ -198,6 +198,14 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   if (!agentRow) return { enqueued: false, reason: 'agent_not_found' };
   const agent = agentRow as AiAgent;
   if (!agent.voice_enabled) return { enqueued: false, reason: 'voice_disabled' };
+  // Pausar o borrar un agente frenaba las llamadas ENTRANTES y el
+  // auto-encolado, pero no las salientes disparadas a mano, por una
+  // automatización o por una campaña: seguía marcando. Mismo criterio que
+  // `pickVoiceAgent` y `pickAgentForObjective`.
+  if ((agent as { deleted_at?: string | null }).deleted_at) {
+    return { enqueued: false, reason: 'agent_deleted' };
+  }
+  if (!agent.is_active) return { enqueued: false, reason: 'agent_paused' };
 
   // Contact + opt-out + phone. Scope by workspace so a caller can't enqueue a
   // call against a contact from another tenant (the dashboard route validates

@@ -7,7 +7,7 @@ import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
 import { scoreLeads, type LeadScore } from './lead-scoring';
-import { resolveIgAgent } from './agent-link';
+import { resolveIgAgent, igAgentCanAutoReply } from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
@@ -295,6 +295,9 @@ export async function maybeInstantOutreach(
   // the DM goes out now or waits for a human. Brand voice comes from the SAME
   // linked agent, so proactive copy matches the reactive assistant.
   const agent = await resolveIgAgent(db, opts.workspaceId, campaign.ai_agent_id);
+  // Mismo contrato que la respuesta reactiva (pausado / alcance / horario /
+  // "quiero un humano"). Antes el alcance de campaña ignoraba todo esto.
+  if (!igAgentCanAutoReply(agent, opts.engagementText ?? '')) return;
   const brand = await loadBrandContext(db, opts.workspaceId, agent.id);
   // Enlaces reales de la tienda: sin ellos el modelo escribía marcadores tipo
   // "[enlace de la tienda web]" y le llegaban así al cliente.
@@ -335,6 +338,21 @@ export async function maybeInstantOutreach(
   // recipient queued (the cron is gated too) so nothing is lost, just deferred.
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;
+
+  // Nivel de automatización del agente enlazado. Se guardaba y se leía en
+  // `resolveIgAgent`, pero NINGUNA rama comparaba el valor: elegir
+  // "approval" mandaba igual, automáticamente. Ahora se respeta:
+  //   - approval      → nunca sale solo; la fila queda 'queued' esperando
+  //                     a una persona (no la perdemos).
+  //   - hybrid_intent → sale sola sólo si hay intención real (lead alto);
+  //                     el resto queda 'queued'.
+  //   - auto          → sale siempre (comportamiento histórico).
+  if (
+    agent.proactive_send_mode === 'approval' ||
+    (agent.proactive_send_mode === 'hybrid_intent' && leadScore !== 'high')
+  ) {
+    return;
+  }
 
   // Auto mode. One private reply per comment across BOTH systems: claim the
   // shared lock first; if the comment-to-DM engine already replied, skip.
@@ -604,6 +622,17 @@ async function autonomousCommentReply(
   }
 
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
+  // Mismo contrato que la respuesta reactiva: pausado, fuera de alcance,
+  // fuera de horario o pidiendo un humano ⇒ no contestamos solos.
+  if (!igAgentCanAutoReply(agent, engagement)) return;
+  // Nivel de automatización: 'approval' nunca sale solo; 'hybrid_intent'
+  // sólo con intención real.
+  if (
+    agent.proactive_send_mode === 'approval' ||
+    (agent.proactive_send_mode === 'hybrid_intent' && score !== 'high')
+  ) {
+    return;
+  }
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;
@@ -738,20 +767,24 @@ export async function hasInstagramAgent(
 ): Promise<boolean> {
   const { data } = await db
     .from('ai_agents')
-    .select('id, ai_agent_channels(channel)')
+    .select('id, scope, ai_agent_channels(channel)')
     .eq('workspace_id', workspaceId)
     .eq('is_active', true)
     .is('deleted_at', null);
   const rows = (data ?? []) as Array<{
     id: string;
+    scope: string;
     ai_agent_channels?: Array<{ channel: string }> | null;
   }>;
-  // Sin canales asignados, el agente atiende todo (mismo criterio que el
-  // runner): cualquier agente activo cuenta.
+  // Mismo criterio EXACTO que `pickAgent` del runner: manda el `scope`, no
+  // la ausencia de filas. Antes mirábamos sólo los canales, así que un
+  // agente con scope='channels' y la lista vacía contaba como "atiende
+  // Instagram" — el closer de respaldo se saltaba y `pickAgent` devolvía
+  // null, dejando el hilo completamente mudo.
   return rows.some(
     (a) =>
-      !a.ai_agent_channels?.length ||
-      a.ai_agent_channels.some((c) => c.channel === 'instagram'),
+      a.scope === 'workspace' ||
+      (a.ai_agent_channels ?? []).some((c) => c.channel === 'instagram'),
   );
 }
 

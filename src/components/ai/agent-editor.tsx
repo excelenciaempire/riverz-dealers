@@ -58,6 +58,7 @@ import type {
   BusinessHours,
   ShopifyProductSummary,
 } from '@/lib/ai/types';
+import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
 
@@ -94,7 +95,9 @@ function isDefaultPersona(persona: string): boolean {
   return s === '' || s === DEFAULT_PERSONAS.es || s === DEFAULT_PERSONAS.en;
 }
 
-const CHANNELS: { value: Channel; label: string; icon: string }[] = [
+// `icon` es la ruta del logo de la marca; los canales sin logo propio
+// (las llamadas) se dibujan con un ícono de la librería.
+const CHANNELS: { value: Channel; label: string; icon: string | null }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '/channels/whatsapp.svg' },
   { value: 'instagram', label: 'Instagram', icon: '/channels/instagram.svg' },
   { value: 'messenger', label: 'Messenger', icon: '/channels/messenger.svg' },
@@ -102,6 +105,19 @@ const CHANNELS: { value: Channel; label: string; icon: string }[] = [
   { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
   { value: 'mercadolibre', label: 'Mercado Libre', icon: '/channels/mercadolibre.svg' },
 ];
+
+/**
+ * Las llamadas son un canal más para el runtime (`pickVoiceAgent` acepta
+ * scope='workspace' o el canal 'voice'), pero no se ofrecía aquí: un agente
+ * puesto en "Solo algunos" quedaba excluido de las llamadas aunque tuviera
+ * la voz activada. Sólo aparece si la voz está encendida — no tiene sentido
+ * elegir el canal de llamadas para un agente que no llama.
+ */
+const VOICE_CHANNEL: { value: Channel; label: string; icon: string | null } = {
+  value: 'voice',
+  label: 'nav.voice',
+  icon: null,
+};
 
 // label es una clave i18n resuelta con t() en el render.
 const LANGUAGES: { code: string; label: string }[] = [
@@ -585,6 +601,15 @@ export function AgentEditor({
       toast.error(t('assistant.productRequired'));
       return;
     }
+    // "Solo algunos" sin ningún canal marcado guardaba un agente que no
+    // responde en ninguna parte, y sin aviso: el detector de conflictos
+    // también lo ignora (no ocupa ningún canal) y en Instagram deja el
+    // hilo mudo. Es un estado inservible, así que lo bloqueamos.
+    if (scope === 'channels' && channels.length === 0) {
+      setTab('reach');
+      toast.error(t('assistant.channelsRequired'));
+      return;
+    }
     if (inboundDebounce < 0 || inboundDebounce > 60) {
       toast.error(t('assistant.debounceRange'));
       return;
@@ -610,6 +635,20 @@ export function AgentEditor({
       }
       if (hoursDays.length === 0) {
         toast.error(t('assistant.hoursDayRequired'));
+        return;
+      }
+    }
+    // El horario de llamadas se validaba en ningún lado: una franja
+    // invertida o sin días se guardaba y las llamadas dejaban de salir.
+    if (voice.voice_enabled) {
+      if (voice.voice_calling_hours.start >= voice.voice_calling_hours.end) {
+        setTab('voice');
+        toast.error(t('voice.hoursInvalid'));
+        return;
+      }
+      if (voice.voice_calling_hours.days.length === 0) {
+        setTab('voice');
+        toast.error(t('voice.hoursNoDays'));
         return;
       }
     }
@@ -666,7 +705,12 @@ export function AgentEditor({
       voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
       model: DEFAULT_MODEL,
       scope,
-      channels: scope === 'channels' ? channels : [],
+      // Si apagaron la voz, el canal de llamadas deja de tener sentido:
+      // lo soltamos para no dejar un alcance que ya no aplica.
+      channels:
+        scope === 'channels'
+          ? channels.filter((c) => c !== 'voice' || voice.voice_enabled)
+          : [],
       product_scope: productScope,
       product_ids: productScope === 'specific' ? selectedProducts : [],
     };
@@ -1127,7 +1171,7 @@ export function AgentEditor({
               </div>
               {scope === 'channels' && (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {CHANNELS.map((c) => {
+                  {(voice.voice_enabled ? [...CHANNELS, VOICE_CHANNEL] : CHANNELS).map((c) => {
                     const on = channels.includes(c.value);
                     return (
                       <button
@@ -1141,14 +1185,18 @@ export function AgentEditor({
                             : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
                         )}
                       >
-                        <Image
-                          src={c.icon}
-                          alt=""
-                          width={16}
-                          height={16}
-                          className="shrink-0"
-                        />
-                        {c.label}
+                        {c.icon ? (
+                          <Image
+                            src={c.icon}
+                            alt=""
+                            width={16}
+                            height={16}
+                            className="shrink-0"
+                          />
+                        ) : (
+                          <PhoneCall className="h-4 w-4 shrink-0" />
+                        )}
+                        {c.icon ? c.label : t(c.label)}
                       </button>
                     );
                   })}
@@ -1316,14 +1364,21 @@ export function AgentEditor({
                   </Field>
 
                   <Field label={t('assistant.debounceLabel')}>
+                    {/* El runner aplica un piso de 8s (agrupa ráfagas del
+                        cliente), así que aceptar 0 aquí era mentir: se
+                        esperaba igual. El mínimo de la UI = el real. */}
                     <Input
                       type="number"
-                      min={0}
+                      min={MIN_DEBOUNCE_SECONDS}
                       max={60}
                       value={inboundDebounce}
                       onChange={(e) => {
                         const n = Number(e.target.value);
-                        setInboundDebounce(Number.isFinite(n) ? Math.max(0, Math.min(60, n)) : 0);
+                        setInboundDebounce(
+                          Number.isFinite(n)
+                            ? Math.max(MIN_DEBOUNCE_SECONDS, Math.min(60, n))
+                            : MIN_DEBOUNCE_SECONDS,
+                        );
                       }}
                       className="bg-background"
                     />

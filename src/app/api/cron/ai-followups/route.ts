@@ -8,6 +8,7 @@ import { runFollowUp } from '@/lib/ai/followup';
 import { campaignFollowUpHint } from '@/lib/instagram-agent/campaign-followup';
 import { runVoiceFollowups } from '@/lib/voice/followup';
 import type { AiAgent, BusinessHours } from '@/lib/ai/types';
+import { withinBusinessHours as sharedWithinBusinessHours } from '@/lib/ai/business-hours';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 
 /**
@@ -107,6 +108,10 @@ async function processWorkspace(
     .select('*')
     .eq('workspace_id', workspaceId)
     .eq('status', 'open')
+    // El interruptor por conversación (migración 082) lo respetaba el runner
+    // pero NO este cron: apagar la IA en un chat lo callaba en vivo y aun así
+    // le llegaba un seguimiento automático horas después. Mismo criterio.
+    .eq('ai_enabled', true)
     .is('deleted_at', null)
     .in('last_sender_type', ['bot', 'agent'])
     .in('channel', DM_CHANNELS as unknown as string[])
@@ -256,40 +261,8 @@ async function loadConnection(
   return (data as ChannelConnection | null) ?? null;
 }
 
-/** ¿`date` cae dentro de alguna ventana de `business_hours`? */
-function isWithinHours(bh: BusinessHours, date: Date): boolean {
-  if (!bh?.windows) return true;
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: bh.timezone || 'America/Bogota',
-      weekday: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(date);
-    const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
-    let hh = parts.find((p) => p.type === 'hour')?.value ?? '00';
-    const mm = parts.find((p) => p.type === 'minute')?.value ?? '00';
-    if (hh === '24') hh = '00';
-    const dayMap: Record<string, number> = {
-      Sun: 0,
-      Mon: 1,
-      Tue: 2,
-      Wed: 3,
-      Thu: 4,
-      Fri: 5,
-      Sat: 6,
-    };
-    const day = dayMap[wd];
-    if (day === undefined) return true;
-    const windows = bh.windows[day as 0 | 1 | 2 | 3 | 4 | 5 | 6];
-    if (!windows || windows.length === 0) return false;
-    const cur = `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
-    return windows.some((w) => {
-      const [a, b] = w.split('-');
-      return a && b && cur >= a && cur <= b;
-    });
-  } catch {
-    return true;
-  }
-}
+// El horario de atención tenía TRES implementaciones (runner, este cron y
+// nada en comentarios), con bordes distintos: una incluía la hora de fin y
+// la otra no. Ahora hay una sola definición compartida.
+const isWithinHours = (bh: BusinessHours, date: Date) =>
+  sharedWithinBusinessHours(bh, date);
