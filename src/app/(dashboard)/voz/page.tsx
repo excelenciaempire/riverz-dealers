@@ -97,14 +97,8 @@ export default function VoicePage() {
   }, [workspace?.id]);
 
   useEffect(() => {
+    // El registro se carga al entrar/refrescar la página (sin auto-refresco).
     load();
-    // Auto-refresco: las llamadas EN CURSO (dialing/in_progress) aparecen y se
-    // actualizan en el registro sin recargar. Sondea cada 6 s mientras la
-    // pestaña está visible (no gasta en tabs de fondo).
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') load();
-    }, 6000);
-    return () => clearInterval(id);
   }, [load]);
 
   return (
