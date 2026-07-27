@@ -48,6 +48,11 @@ class CallState:
     egress_id: str = ""
     recording_key: str | None = None
     recording_url: str | None = None
+    # Reloj monotónico de actividad (para el guard de silencio). last_activity_at
+    # se refresca con CADA turno (cliente o agente); last_user_at solo cuando
+    # habla el CLIENTE. 0.0 = todavía sin marcar (el guard lo inicializa).
+    last_activity_at: float = 0.0
+    last_user_at: float = 0.0
 
 
 async def hangup() -> None:

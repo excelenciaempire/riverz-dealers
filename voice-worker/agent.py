@@ -25,6 +25,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -96,6 +97,12 @@ def _goodbye(lang: str) -> str:
     # Mensaje al cliente -> sigue el idioma del agente (no se traduce vía i18n del app).
     return "Thank you for your time. Goodbye!" if (lang or "es").startswith("en") \
         else "Gracias por tu tiempo. ¡Hasta luego!"
+
+
+def _still_there(lang: str) -> str:
+    # Empujoncito cuando el cliente lleva rato callado, antes de colgar.
+    return "Are you still there?" if (lang or "es").startswith("en") \
+        else "¿Sigues ahí?"
 
 
 def _map_sip_status(code) -> str:
@@ -187,6 +194,12 @@ def _wire_events(session: AgentSession, call_state: CallState, usage_collector) 
             role = getattr(item, "role", None)
             if role not in ("assistant", "user"):
                 return
+            # Marca de actividad para el guard de silencio: cualquier turno
+            # refresca last_activity_at; solo el cliente refresca last_user_at.
+            now = time.monotonic()
+            call_state.last_activity_at = now
+            if role == "user":
+                call_state.last_user_at = now
             text = getattr(item, "text_content", None)
             if not text:
                 return
@@ -708,6 +721,56 @@ async def _timeout_guard(session: AgentSession, context: dict, call_state: CallS
     await _hangup()
 
 
+async def _silence_guard(session: AgentSession, context: dict, call_state: CallState) -> None:
+    """Cuelga si el cliente deja de hablar. En dos tiempos: al acumular
+    `silence_timeout_seconds` de silencio, un "¿sigues ahí?"; si sigue callado
+    otro tramo igual, despedida breve y colgar. Cualquier turno (cliente o
+    agente) reinicia el reloj, así no corta al agente mientras habla."""
+    try:
+        total = float(
+            context.get("silence_timeout_seconds")
+            or os.getenv("VOICE_SILENCE_TIMEOUT_SECS")
+            or 8
+        )
+    except (TypeError, ValueError):
+        total = 8.0
+    if total <= 0:
+        return
+    # Arranca el reloj al iniciar la sesión (no colgar durante el setup).
+    call_state.last_activity_at = time.monotonic()
+    nudged_at = 0.0
+    try:
+        while True:
+            await asyncio.sleep(1.0)
+            now = time.monotonic()
+            idle = now - (call_state.last_activity_at or now)
+            # El cliente volvió a hablar tras el aviso -> reinicia el ciclo.
+            if nudged_at and call_state.last_user_at > nudged_at:
+                nudged_at = 0.0
+            if idle < total:
+                continue
+            if not nudged_at:
+                # Primer tramo de silencio: empujoncito (cuenta como turno del
+                # agente y refresca last_activity_at vía el evento).
+                nudged_at = now
+                try:
+                    await session.say(_still_there(context.get("language", "es")))
+                except Exception:
+                    pass
+                continue
+            break  # ya avisamos y siguió callado -> colgar
+    except asyncio.CancelledError:
+        return
+    logger.info("silencio prolongado del cliente; despido y cuelgo")
+    try:
+        await session.say(_goodbye(context.get("language", "es")))
+    except Exception:
+        pass
+    if call_state.status is None:
+        call_state.status = "completed"
+    await _hangup()
+
+
 async def _deliver_greeting(session, context: dict) -> None:
     """Speak the opening line, tolerant of the engine.
 
@@ -854,6 +917,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     await _deliver_greeting(session, context)
 
     _spawn(_timeout_guard(session, context, call_state))
+    _spawn(_silence_guard(session, context, call_state))
 
 
 async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, vad) -> None:
@@ -898,6 +962,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     await _deliver_greeting(session, context)
 
     _spawn(_timeout_guard(session, context, call_state))
+    _spawn(_silence_guard(session, context, call_state))
 
 
 async def entrypoint(ctx: JobContext) -> None:
