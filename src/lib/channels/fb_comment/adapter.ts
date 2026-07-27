@@ -15,6 +15,7 @@ import { handleMetaGraphError } from "../meta-auth";
 import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { applyCommentLifecycle } from "../comment-sync";
+import { buildSelfCommentEvent } from "../comment-echo";
 
 /**
  * Facebook ad / post comments via Graph API.
@@ -124,7 +125,30 @@ export const fbCommentAdapter: ChannelAdapter = {
         }
         const fromObj = value.from as { id?: string; name?: string } | undefined;
         if (!fromObj?.id) continue;
-        if (selfIds.has(String(fromObj.id))) continue;
+        if (selfIds.has(String(fromObj.id))) {
+          // Una respuesta que el comercio escribió desde Facebook: va al hilo
+          // de quien comentó como mensaje saliente, no se descarta.
+          const self = await buildSelfCommentEvent(supabaseAdmin(), {
+            channel: "fb_comment",
+            connection,
+            commentId: String(value.comment_id ?? ""),
+            parentCommentId: value.parent_id ? String(value.parent_id) : null,
+            postId: value.post_id ? String(value.post_id) : null,
+            text: String(value.message ?? ""),
+            receivedAt: new Date(
+              value.created_time
+                ? Number(value.created_time) * 1000
+                : entry.time
+                  ? Number(entry.time) * 1000
+                  : Date.now(),
+            ).toISOString(),
+          }).catch((err) => {
+            console.error("[fb_comment] respuesta propia no sincronizada:", err);
+            return null;
+          });
+          if (self) events.push(self);
+          continue;
+        }
         // Un comentario puede venir con foto (`value.photo`), video o GIF
         // (`value.video`) o un sticker (`value.sticker`). Los re-hospedamos en
         // Storage para que se vean en la bandeja — las URL del CDN caducan.

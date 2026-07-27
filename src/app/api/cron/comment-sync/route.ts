@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
+import { pullSelfRepliesAll } from "@/lib/channels/comment-pull";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron } from "@/lib/cron/heartbeat";
 
@@ -11,6 +12,9 @@ import { pingCron } from "@/lib/cron/heartbeat";
  * connected FB/IG comment account and converges the stored inbox rows:
  *   - a comment (or our own reply) deleted natively → marked deleted
  *   - a comment hidden / unhidden natively → is_hidden updated
+ *   - una respuesta que el comercio escribió DESDE Instagram → entra al hilo
+ *     como mensaje saliente (Meta no notifica los comentarios de la propia
+ *     cuenta, así que hay que ir a buscarlos)
  * Facebook also gets these in real time via `feed` webhooks; Instagram has no
  * such webhook, so this cron is the ONLY way IG deletions/hides sync back.
  *
@@ -26,8 +30,15 @@ export async function GET(request: Request) {
   void pingCron("comment-sync");
 
   try {
-    const result = await reconcileAllCommentConnections(supabaseAdmin());
-    return NextResponse.json(result, { status: 200 });
+    const db = supabaseAdmin();
+    const result = await reconcileAllCommentConnections(db);
+    // Best-effort: si el tirón de respuestas propias falla, la reconciliación
+    // (borrados / ocultos) ya se aplicó y no se pierde.
+    const selfReplies = await pullSelfRepliesAll(db).catch((err) => {
+      console.error("[comment-sync] pull de respuestas propias falló:", err);
+      return { connections: 0, ingested: 0 };
+    });
+    return NextResponse.json({ ...result, selfReplies }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

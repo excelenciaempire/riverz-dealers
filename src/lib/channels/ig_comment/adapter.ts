@@ -13,6 +13,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { handleMetaGraphError } from "../meta-auth";
 import { withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { buildSelfCommentEvent } from "../comment-echo";
 
 /**
  * Instagram ad / post comments via Graph API.
@@ -75,8 +76,11 @@ export const igCommentAdapter: ChannelAdapter = {
     const body = (ctx.payload ?? {}) as Record<string, unknown>;
     const events: InboundEvent[] = [];
     const entries = (body.entry as Array<Record<string, unknown>> | undefined) ?? [];
-    // Our OWN account ids — skip comments the business makes on its own
-    // posts / replies it leaves, so it isn't ingested as a "customer".
+    // Our OWN account ids — un comentario nuestro nunca entra como "cliente".
+    // Si es una RESPUESTA que el comercio escribió desde Instagram, en vez de
+    // tirarla la guardamos como mensaje saliente del hilo de quien comentó
+    // (buildSelfCommentEvent); si es un comentario suelto en su propio post,
+    // se descarta como siempre.
     const cfg = (connection.config ?? {}) as Record<string, unknown>;
     const selfIds = new Set(
       [String(cfg.ig_user_id ?? ""), String(cfg.page_id ?? "")].filter(Boolean),
@@ -89,7 +93,25 @@ export const igCommentAdapter: ChannelAdapter = {
         if (!value) continue;
         const fromObj = value.from as { id?: string; username?: string } | undefined;
         if (!fromObj?.id) continue;
-        if (selfIds.has(String(fromObj.id))) continue;
+        const receivedAt = new Date(
+          entry.time ? Number(entry.time) * 1000 : Date.now(),
+        ).toISOString();
+        if (selfIds.has(String(fromObj.id))) {
+          const self = await buildSelfCommentEvent(supabaseAdmin(), {
+            channel: "ig_comment",
+            connection,
+            commentId: String(value.id ?? ""),
+            parentCommentId: value.parent_id ? String(value.parent_id) : null,
+            postId: String((value.media as { id?: string } | undefined)?.id ?? ""),
+            text: String(value.text ?? ""),
+            receivedAt,
+          }).catch((err) => {
+            console.error("[ig_comment] respuesta propia no sincronizada:", err);
+            return null;
+          });
+          if (self) events.push(self);
+          continue;
+        }
         // Render IG handles as "@usuario" — matches how IG DMs and the
         // meta-contact-names backfill cron store them, so the same person
         // reads consistently whether they DM'd or commented (and the
@@ -108,9 +130,7 @@ export const igCommentAdapter: ChannelAdapter = {
             parentCommentId: value.parent_id ? String(value.parent_id) : undefined,
           },
           // Meta's entry.time is Unix SECONDS; Date() wants ms.
-          receivedAt: new Date(
-            entry.time ? Number(entry.time) * 1000 : Date.now(),
-          ).toISOString(),
+          receivedAt,
           raw: c,
         });
       }
