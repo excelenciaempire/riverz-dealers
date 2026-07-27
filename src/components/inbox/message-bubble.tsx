@@ -1111,9 +1111,12 @@ export function MessageBubble({
         />
       )}
       {!isCommentDeleted(message) &&
-        (message.channel === "fb_comment" || message.channel === "ig_comment") &&
-        message.sender_type === "customer" && (
-          <CommentModerationBar message={message} channel={message.channel} />
+        (message.channel === "fb_comment" || message.channel === "ig_comment") && (
+          <CommentModerationBar
+            message={message}
+            channel={message.channel}
+            own={message.sender_type !== "customer"}
+          />
         )}
     </div>
   );
@@ -1212,10 +1215,13 @@ function NativeComment({
           )}
         </div>
         {!deleted &&
-          (message.channel === "fb_comment" || message.channel === "ig_comment") &&
-          message.sender_type === "customer" && (
+          (message.channel === "fb_comment" || message.channel === "ig_comment") && (
             <div className="mt-1">
-              <CommentModerationBar message={message} channel={message.channel} />
+              <CommentModerationBar
+                message={message}
+                channel={message.channel}
+                own={message.sender_type !== "customer"}
+              />
             </div>
           )}
       </div>

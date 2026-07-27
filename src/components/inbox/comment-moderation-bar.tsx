@@ -12,6 +12,10 @@ interface CommentModerationBarProps {
   message: Message;
   channel: Channel;
   permalink?: string;
+  /** El comentario es NUESTRO (una respuesta del comercio o del agente).
+   *  Sobre lo propio sólo se puede borrar: ni Facebook ni Instagram dejan
+   *  ocultar ni likear un comentario de la misma cuenta que lo escribió. */
+  own?: boolean;
 }
 
 /**
@@ -19,7 +23,12 @@ interface CommentModerationBarProps {
  * (channel = 'fb_comment' | 'ig_comment'). Mirrors the actions
  * available in business.facebook.com's comment inbox.
  */
-export function CommentModerationBar({ message, channel, permalink }: CommentModerationBarProps) {
+export function CommentModerationBar({
+  message,
+  channel,
+  permalink,
+  own = false,
+}: CommentModerationBarProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,12 +65,16 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
   };
 
   if (channel !== "fb_comment" && channel !== "ig_comment") return null;
+  // Sin id externo no hay nada que moderar en Meta: el botón sólo podría
+  // devolver un error. (Pasa con alguna respuesta vieja que se guardó sin el
+  // id que devuelve el envío.)
+  if (!message.message_id) return null;
 
   return (
     <div className="mt-1 flex items-center gap-1.5 text-xs">
       {/* Liking a comment only exists on Facebook. Instagram's Graph API has no
           like-comment endpoint, so the button would always fail there. */}
-      {channel === "fb_comment" && (
+      {!own && channel === "fb_comment" && (
         <button
           onClick={() => act(liked ? "unlike" : "like")}
           disabled={busy !== null}
@@ -72,15 +85,17 @@ export function CommentModerationBar({ message, channel, permalink }: CommentMod
           <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
         </button>
       )}
-      <button
-        onClick={() => act(hidden ? "unhide" : "hide")}
-        disabled={busy !== null}
-        title={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
-        aria-label={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
-        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
-      >
-        {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
-      </button>
+      {!own && (
+        <button
+          onClick={() => act(hidden ? "unhide" : "hide")}
+          disabled={busy !== null}
+          title={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
+          aria-label={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
+        >
+          {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+        </button>
+      )}
       <button
         onClick={() => {
           if (confirm(t("inbox.deleteCommentConfirm"))) act("delete");

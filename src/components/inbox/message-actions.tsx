@@ -60,6 +60,17 @@ export function MessageActions({
   const canQuickAct = ["whatsapp", "instagram", "messenger"].includes(
     message.channel,
   );
+  // En un comentario el tacho de acá NO va: la barra de moderación ya tiene el
+  // suyo, y hacen cosas distintas —éste borra la fila de la bandeja, aquél
+  // borra el comentario en Instagram/Facebook— detrás del mismo ícono y a dos
+  // centímetros de distancia. Dos tachos iguales, uno local y otro público e
+  // irreversible, es una trampa. Queda el de la barra, que es el que el
+  // comercio quiere el 99% de las veces; copiar sigue disponible.
+  const isComment =
+    message.channel === "fb_comment" ||
+    message.channel === "ig_comment" ||
+    message.channel === "tiktok_comment";
+  const canDelete = Boolean(onDelete) && !isComment;
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -187,7 +198,7 @@ export function MessageActions({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
-        {onDelete && (
+        {canDelete && (
           <button
             type="button"
             onClick={handleDelete}
