@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { syncContactsBatch } from '@/lib/contacts/sync-all';
+import { syncAllWorkspaces } from '@/lib/contacts/bulk-sync';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { pingCron } from '@/lib/cron/heartbeat';
 
 /**
  * GET /api/cron/contacts-sync
  *
- * Completa y reclasifica la ficha de los contactos por lotes: trae de Shopify
- * dirección, pedidos y gasto, y deriva de ahí las etiquetas (comprador,
+ * Completa y reclasifica la ficha de los contactos: dirección, pedidos y
+ * gasto desde Shopify, y de ahí las etiquetas (comprador,
  * comprador-recurrente, oferta, unidades).
  *
- * Prioriza los que nunca se sincronizaron —o sea, los nuevos— y después rota
- * por los más viejos, así ningún dato queda congelado. El resultado incluye
- * `pending`: cuántos contactos faltan. Cuando llega a 0, la base está al día.
+ * Trae la lista de clientes de la tienda de una sola vez y empareja en
+ * memoria, así que una corrida cubre hasta 800 contactos en segundos en vez
+ * de las decenas que permitía preguntar de a uno. Prioriza los que nunca se
+ * sincronizaron —los nuevos— y después rota por los más viejos.
+ *
+ * `pending` dice cuántos faltan: en 0, la base está al día.
  *
  * Auth: `x-cron-secret` header must match `AUTOMATION_CRON_SECRET`.
  */
@@ -27,8 +30,17 @@ export async function GET(request: Request) {
   void pingCron('contacts-sync');
 
   try {
-    const result = await syncContactsBatch(supabaseAdmin());
-    return NextResponse.json({ ok: true, ...result }, { status: 200 });
+    const results = await syncAllWorkspaces(supabaseAdmin());
+    const totals = results.reduce(
+      (acc, r) => ({
+        processed: acc.processed + r.processed,
+        matched: acc.matched + r.matched,
+        unmatched: acc.unmatched + r.unmatched,
+        pending: acc.pending + r.pending,
+      }),
+      { processed: 0, matched: 0, unmatched: 0, pending: 0 },
+    );
+    return NextResponse.json({ ok: true, ...totals, workspaces: results }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

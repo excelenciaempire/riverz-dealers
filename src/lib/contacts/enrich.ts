@@ -41,7 +41,7 @@ export interface ShopifyConnectionForEnrich {
   apiVersion: string;
 }
 
-interface ShopifyCustomer {
+export interface ShopifyCustomer {
   id: number;
   email: string | null;
   phone: string | null;
@@ -61,7 +61,7 @@ interface ShopifyCustomer {
   } | null;
 }
 
-interface ShopifyOrderLite {
+export interface ShopifyOrderLite {
   name: string;
   total_price: string;
   created_at: string;
@@ -299,7 +299,7 @@ async function fetchCustomerOrders(
   return data.orders ?? [];
 }
 
-function buildSnapshot(
+export function buildSnapshot(
   customer: ShopifyCustomer,
   orders: ShopifyOrderLite[],
 ): ShopifyCustomerSnapshot {
