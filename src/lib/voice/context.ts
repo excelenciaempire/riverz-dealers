@@ -127,9 +127,13 @@ function buildVoiceInstructions(
       `Objective of THIS call: ${objective}`,
       contextLines ? `Call context:\n${contextLines}` : '',
       extra ? `Extra instructions: ${extra}` : '',
-      'How to end: once the objective is met (or the customer wants to stop), briefly confirm the outcome, call the report_outcome tool with the result, thank them, and use end_call to hang up.',
-      'If you reach a voicemail or an automated system, call detected_answering_machine and hang up without leaving a message.',
-      'If the customer asks not to be called again, call customer_requests_no_more_calls, apologize briefly and hang up.',
+      '## Ending the call (important — always end cleanly)',
+      'ALWAYS end by saying a short, warm goodbye OUT LOUD and THEN calling end_call to hang up — never go silent or leave the line open.',
+      'End the call when ANY of these happens: the objective is met; the customer says goodbye ("thanks, bye", "that\'s all", "nothing else"); the customer clearly has nothing more to ask; or the conversation has naturally finished.',
+      'To end: (1) briefly confirm the outcome, (2) call report_outcome with the result, (3) say a cordial one-line goodbye ("Perfect, thank you so much, have a great day!"), (4) call end_call. Do this promptly — do not linger or repeat yourself.',
+      '## Voicemail / answering machine',
+      'You spoke the greeting first. If what answers is NOT a real person talking WITH you but a recording — a voicemail/answering-machine greeting ("you\'ve reached…", "leave a message after the tone", "I\'m not available"), an automated menu/IVR, a beep, or a long one-way message that ignores you — then call detected_answering_machine IMMEDIATELY and hang up. Do NOT leave a message and do NOT keep talking.',
+      'If the customer asks not to be called again, call customer_requests_no_more_calls, apologize briefly, say goodbye and hang up.',
     ]
       .filter(Boolean)
       .join('\n');
@@ -149,9 +153,13 @@ function buildVoiceInstructions(
     `Objetivo de ESTA llamada: ${objective}`,
     contextLines ? `Contexto de la llamada:\n${contextLines}` : '',
     extra ? `Instrucciones adicionales: ${extra}` : '',
-    'Cómo terminar: cuando cumplas el objetivo (o el cliente quiera cortar), confirma brevemente el resultado, llama a la herramienta report_outcome con el resultado, agradece y usa end_call para colgar.',
-    'Si cae un buzón de voz o un sistema automático, llama a detected_answering_machine y cuelga sin dejar mensaje.',
-    'Si el cliente pide que no lo llamen más, llama a customer_requests_no_more_calls, discúlpate brevemente y cuelga.',
+    '## Cómo terminar la llamada (importante — siempre cierra bien)',
+    'SIEMPRE termina diciendo una despedida corta y cordial EN VOZ ALTA y LUEGO llama a end_call para colgar — nunca te quedes en silencio ni dejes la línea abierta.',
+    'Termina la llamada cuando pase CUALQUIERA de estas: cumpliste el objetivo; el cliente se despide ("listo, gracias", "eso es todo", "nada más"); el cliente claramente no tiene más que preguntar; o la conversación terminó de forma natural.',
+    'Para terminar: (1) confirma brevemente el resultado, (2) llama a report_outcome con el resultado, (3) di una despedida cordial de una línea ("¡Perfecto, muchas gracias, que tengas un lindo día!"), (4) llama a end_call. Hazlo pronto — no te quedes dando vueltas ni repitas lo mismo.',
+    '## Buzón de voz / contestador',
+    'Vos saludaste primero. Si lo que contesta NO es una persona real hablando CON vos sino una grabación —un saludo de buzón/contestador ("dejá tu mensaje después del tono", "no estoy disponible", "has llamado a…"), un menú automático/IVR, un tono/beep, o un mensaje largo de una sola vía que te ignora— entonces llama a detected_answering_machine DE INMEDIATO y cuelga. NO dejes mensaje y NO sigas hablando.',
+    'Si el cliente pide que no lo llamen más, llama a customer_requests_no_more_calls, discúlpate brevemente, despídete y cuelga.',
   ]
     .filter(Boolean)
     .join('\n');
