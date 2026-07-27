@@ -64,6 +64,36 @@ interface CustomerIndex {
   size: number;
 }
 
+/** Pedido con lo que hace falta para reconocer a quien compró sin cuenta. */
+interface OrderRow extends ShopifyOrderLite {
+  customer?: { id?: number } | null;
+  email?: string | null;
+  phone?: string | null;
+  currency?: string | null;
+  shipping_address?: ShopifyAddress | null;
+  billing_address?: ShopifyAddress | null;
+}
+
+interface ShopifyAddress {
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  country?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+}
+
+interface OrderIndex {
+  /** Pedidos del cliente registrado, para el detalle de la ficha. */
+  byCustomer: Map<string, ShopifyOrderLite[]>;
+  /** Pedidos SIN cuenta, por email y por los últimos 8 dígitos del teléfono.
+   *  Quien compra como invitado no genera ficha de cliente en Shopify: sin
+   *  esto quedaba marcado como comprador y con la ficha vacía para siempre. */
+  guestByEmail: Map<string, OrderRow[]>;
+  guestByPhone: Map<string, OrderRow[]>;
+}
+
 export async function syncAllWorkspaces(db: SupabaseClient): Promise<BulkSyncResult[]> {
   const { data } = await db
     .from('shopify_connections')
@@ -130,7 +160,7 @@ export async function syncWorkspaceContacts(
   // puede afirmar que alguien no es cliente, y marcarlo como revisado sería
   // grabar una mentira que dura una semana.
   const index = await buildCustomerIndex(connection);
-  const ordersByCustomer = await fetchOrdersByCustomer(connection);
+  const orders = await fetchOrders(connection);
 
   const now = new Date().toISOString();
   let matched = 0;
@@ -139,7 +169,12 @@ export async function syncWorkspaceContacts(
 
   await mapWithConcurrency(contacts, WRITE_CONCURRENCY, async (contact) => {
     const customer = lookup(index, contact);
-    if (!customer) {
+    // Sin cuenta de cliente, todavía puede haber comprado como invitado: los
+    // pedidos guardan su email, su teléfono y su dirección de envío.
+    const snapshot: ShopifyCustomerSnapshot | null = customer
+      ? buildSnapshot(customer, orders.byCustomer.get(String(customer.id)) ?? [])
+      : guestSnapshot(orders, contact);
+    if (!snapshot) {
       // Certeza, no conjetura: se revisó la lista completa de la tienda.
       unmatched++;
       await db
@@ -148,10 +183,6 @@ export async function syncWorkspaceContacts(
         .eq('id', contact.id);
       return;
     }
-    const snapshot: ShopifyCustomerSnapshot = buildSnapshot(
-      customer,
-      ordersByCustomer.get(String(customer.id)) ?? [],
-    );
     await db
       .from('contacts')
       .update({
@@ -252,33 +283,44 @@ async function buildCustomerIndex(
   return { byEmail, byPhone, size };
 }
 
-/** Pedidos recientes agrupados por cliente, para el detalle de la ficha. */
-async function fetchOrdersByCustomer(
-  connection: ShopifyConnectionForEnrich,
-): Promise<Map<string, ShopifyOrderLite[]>> {
-  const out = new Map<string, ShopifyOrderLite[]>();
-  const fields = 'name,total_price,created_at,line_items,customer';
+/**
+ * Pedidos recientes: agrupados por cliente para el detalle de la ficha, y
+ * además indexados por email/teléfono cuando el pedido NO tiene cuenta —
+ * esas son las compras de invitado.
+ */
+async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<OrderIndex> {
+  const byCustomer = new Map<string, ShopifyOrderLite[]>();
+  const guestByEmail = new Map<string, OrderRow[]>();
+  const guestByPhone = new Map<string, OrderRow[]>();
+  const fields =
+    'name,total_price,created_at,line_items,customer,email,phone,currency,shipping_address,billing_address';
   try {
-    for await (const page of paginate<{
-      orders?: Array<ShopifyOrderLite & { customer?: { id?: number } }>;
-    }>(
+    for await (const page of paginate<{ orders?: OrderRow[] }>(
       connection,
       `orders.json?status=any&limit=250&fields=${encodeURIComponent(fields)}`,
       MAX_ORDER_PAGES,
     )) {
       for (const o of page.orders ?? []) {
         const cid = o.customer?.id ? String(o.customer.id) : '';
-        if (!cid) continue;
-        const list = out.get(cid) ?? [];
-        // El snapshot sólo guarda los 10 más recientes; no acumulamos de más.
-        if (list.length < 10) {
-          list.push({
-            name: o.name,
-            total_price: o.total_price,
-            created_at: o.created_at,
-            line_items: o.line_items,
-          });
-          out.set(cid, list);
+        if (cid) {
+          const list = byCustomer.get(cid) ?? [];
+          // El snapshot sólo guarda los 10 más recientes.
+          if (list.length < 10) {
+            list.push({
+              name: o.name,
+              total_price: o.total_price,
+              created_at: o.created_at,
+              line_items: o.line_items,
+            });
+            byCustomer.set(cid, list);
+          }
+          continue;
+        }
+        const email = o.email?.trim().toLowerCase();
+        if (email) push(guestByEmail, email, o);
+        for (const raw of [o.phone, o.shipping_address?.phone, o.billing_address?.phone]) {
+          const digits = normalizePhone(raw ?? '');
+          if (digits.length >= 8) push(guestByPhone, digits.slice(-8), o);
         }
       }
     }
@@ -287,7 +329,53 @@ async function fetchOrdersByCustomer(
     // dirección, gasto y cantidad de pedidos, que es lo que se muestra.
     console.warn('[contacts/bulk-sync] no se pudieron leer los pedidos:', err);
   }
-  return out;
+  return { byCustomer, guestByEmail, guestByPhone };
+}
+
+function push(map: Map<string, OrderRow[]>, key: string, order: OrderRow): void {
+  const list = map.get(key) ?? [];
+  if (list.length < 10) {
+    list.push(order);
+    map.set(key, list);
+  }
+}
+
+/**
+ * Ficha armada con los pedidos de quien compró SIN cuenta. Shopify no le crea
+ * un cliente, así que la única huella es el pedido: de ahí salen la dirección
+ * de envío, el total gastado y cuántas veces compró.
+ */
+function guestSnapshot(orders: OrderIndex, contact: Contact): ShopifyCustomerSnapshot | null {
+  const email = contact.email?.trim().toLowerCase();
+  const digits = normalizePhone(contact.phone ?? '');
+  const found =
+    (email ? orders.guestByEmail.get(email) : undefined) ??
+    (digits.length >= 8 ? orders.guestByPhone.get(digits.slice(-8)) : undefined);
+  if (!found || found.length === 0) return null;
+
+  const sorted = [...found].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  const latest = sorted[0];
+  const addr = latest.shipping_address ?? latest.billing_address ?? null;
+  return {
+    total_spent: sorted.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0),
+    currency: latest.currency ?? undefined,
+    orders_count: sorted.length,
+    last_order_date: latest.created_at ?? null,
+    tags: [],
+    default_address: {
+      address1: addr?.address1 ?? null,
+      address2: addr?.address2 ?? null,
+      city: addr?.city ?? null,
+      province: addr?.province ?? null,
+      country: addr?.country ?? null,
+      zip: addr?.zip ?? null,
+    },
+    lifetime_orders: sorted.slice(0, 10).map((o) => ({
+      name: o.name,
+      total_price: o.total_price,
+      line_items_titles: (o.line_items ?? []).map((li) => li.title).filter(Boolean),
+    })),
+  };
 }
 
 /**
