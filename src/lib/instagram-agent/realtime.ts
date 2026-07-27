@@ -430,6 +430,7 @@ export async function maybeInstantOutreach(
       externalId: opts.contact.external_id,
       connection,
       text,
+      commentContactId: opts.commentId ? opts.contact.id : null,
     });
     await logProactiveSend(db, {
       workspaceId: opts.workspaceId,
@@ -685,6 +686,7 @@ async function autonomousCommentReply(
       externalId: opts.contact.external_id,
       connection,
       text,
+      commentContactId: opts.commentId ? opts.contact.id : null,
     });
     await logProactiveSend(db, {
       workspaceId: opts.workspaceId,

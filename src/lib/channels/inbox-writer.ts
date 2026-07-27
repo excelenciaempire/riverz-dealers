@@ -508,7 +508,7 @@ export async function ingestInboundEvent(
   return { contact, conversation, message: message as Message };
 }
 
-interface UpsertContactInput {
+export interface UpsertContactInput {
   workspace_id: string;
   channel: Channel;
   external_id: string;
@@ -521,7 +521,7 @@ interface UpsertContactInput {
   created_at?: string;
 }
 
-async function upsertContact(
+export async function upsertContact(
   db: SupabaseClient,
   input: UpsertContactInput,
 ): Promise<Contact | null> {
