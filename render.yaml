@@ -466,6 +466,25 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Keeps every contact's record complete and classified: pulls address /
+  # orders / spend from Shopify and derives the category tags from it. Batches
+  # of 45, never-synced first (so a brand-new contact is complete within one
+  # run), then oldest — nothing stays frozen. Uses AUTOMATION_CRON_SECRET.
+  - type: cron
+    name: cron-contacts-sync
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/contacts-sync
+    schedule: "*/10 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   # Two-way comment sync (pull side): reflects native FB/IG deletes/hides back
   # into the inbox — Instagram emits NO lifecycle webhook, so this is its only
   # sync path. It also re-pulls the replies the merchant wrote from the IG/FB

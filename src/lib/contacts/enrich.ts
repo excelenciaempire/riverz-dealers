@@ -51,8 +51,12 @@ interface ShopifyCustomer {
   currency?: string;
   last_order_id?: number | null;
   default_address?: {
+    address1?: string | null;
+    address2?: string | null;
     country?: string | null;
+    province?: string | null;
     city?: string | null;
+    zip?: string | null;
   } | null;
 }
 
@@ -268,9 +272,17 @@ function buildSnapshot(
     orders_count: customer.orders_count ?? orders.length,
     last_order_date,
     tags,
+    // La dirección COMPLETA. Antes el snapshot sólo guardaba país y ciudad, así
+    // que la ficha del contacto pedía calle, provincia y código postal a un
+    // objeto que nunca los tuvo: la dirección no podía verse ni con los datos
+    // sincronizados. Es, además, lo que hace falta para despachar un pedido.
     default_address: {
-      country: customer.default_address?.country ?? null,
+      address1: customer.default_address?.address1 ?? null,
+      address2: customer.default_address?.address2 ?? null,
       city: customer.default_address?.city ?? null,
+      province: customer.default_address?.province ?? null,
+      country: customer.default_address?.country ?? null,
+      zip: customer.default_address?.zip ?? null,
     },
     accepts_marketing: !!customer.accepts_marketing,
     lifetime_orders,

@@ -156,9 +156,15 @@ export interface ShopifyCustomerSnapshot {
   orders_count?: number;
   last_order_date?: string | null;
   tags?: string[];
+  /** Dirección completa: es lo que se muestra en la ficha del contacto y lo
+   *  que hace falta para despachar. */
   default_address?: {
-    country?: string | null;
+    address1?: string | null;
+    address2?: string | null;
     city?: string | null;
+    province?: string | null;
+    country?: string | null;
+    zip?: string | null;
   };
   accepts_marketing?: boolean;
   lifetime_orders?: Array<{
