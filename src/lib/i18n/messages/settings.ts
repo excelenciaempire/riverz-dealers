@@ -8,7 +8,6 @@ export const settings = {
   // Tabs
   tabProfile: { es: "Perfil", en: "Profile" },
   tabWorkspace: { es: "Equipo", en: "Team" },
-  tabRules: { es: "Reglas", en: "Rules" },
   tabAppearance: { es: "Apariencia", en: "Appearance" },
 
   // Appearance
@@ -29,20 +28,6 @@ export const settings = {
   // Language
   language: { es: "Idioma", en: "Language" },
   useLanguage: { es: "Usar {name}", en: "Use {name}" },
-
-  // Comment view (inbox comments: native FB/IG look vs. chat bubbles)
-  commentView: { es: "Comentarios", en: "Comments" },
-  commentViewNative: { es: "Nativa", en: "Native" },
-  commentViewNativeTagline: {
-    es: "Como en Facebook e Instagram: foto, nombre y respuestas anidadas.",
-    en: "Like Facebook and Instagram: photo, name and nested replies.",
-  },
-  commentViewClassic: { es: "Chat", en: "Chat" },
-  commentViewClassicTagline: {
-    es: "Igual que el resto de la bandeja, en burbujas de chat.",
-    en: "Same as the rest of the inbox, as chat bubbles.",
-  },
-  useCommentView: { es: "Usar la vista {name}", en: "Use the {name} view" },
 
   // Settings page header
   backToSettings: { es: "Volver a Ajustes", en: "Back to Settings" },
@@ -336,12 +321,9 @@ export const settings = {
     en: "teammate@email.com",
   },
   send: { es: "Enviar", en: "Send" },
-  monthlyUsage: { es: "Uso del mes", en: "Monthly usage" },
-  messagesSent: { es: "Mensajes enviados", en: "Messages sent" },
-  aiReplies: { es: "Respuestas de IA", en: "AI replies" },
-  usageHint: {
-    es: "Contadores del mes calendario actual, según la zona horaria del espacio de trabajo.",
-    en: "Counters for the current calendar month, based on the workspace timezone.",
+  inviteAccessTitle: {
+    es: "Acceso de {email}",
+    en: "Access for {email}",
   },
   pendingInvites: {
     es: "Invitaciones pendientes",

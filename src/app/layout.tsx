@@ -6,7 +6,6 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { LocaleProvider } from "@/hooks/use-locale";
-import { CommentViewProvider } from "@/hooks/use-comment-view";
 import { getLocale } from "@/lib/i18n/server";
 import {
   DEFAULT_LANDING_THEME,
@@ -185,9 +184,7 @@ export default async function RootLayout({
       >
         <ThemeProvider>
           <LocaleProvider initialLocale={locale}>
-            <CommentViewProvider>
-              {children}
-            </CommentViewProvider>
+            {children}
             <Toaster
               position="top-right"
               toastOptions={{

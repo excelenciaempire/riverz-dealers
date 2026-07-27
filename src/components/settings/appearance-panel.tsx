@@ -1,10 +1,9 @@
 "use client";
 
-import { Check, Languages, MessageCircle, MessageSquare, Moon, Sun } from "lucide-react";
+import { Check, Languages, Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useLocale, useT } from "@/hooks/use-locale";
-import { useCommentView, type CommentView } from "@/hooks/use-comment-view";
 import { THEMES, type ThemeId } from "@/lib/themes";
 import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
@@ -22,28 +21,7 @@ import { cn } from "@/lib/utils";
 export function AppearancePanel() {
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
-  const { commentView, setCommentView } = useCommentView();
   const t = useT();
-
-  const commentViews: {
-    id: CommentView;
-    name: string;
-    tagline: string;
-    icon: typeof MessageSquare;
-  }[] = [
-    {
-      id: "native",
-      name: t("settings.commentViewNative"),
-      tagline: t("settings.commentViewNativeTagline"),
-      icon: MessageCircle,
-    },
-    {
-      id: "classic",
-      name: t("settings.commentViewClassic"),
-      tagline: t("settings.commentViewClassicTagline"),
-      icon: MessageSquare,
-    },
-  ];
 
   return (
     <section className="space-y-8">
@@ -96,81 +74,7 @@ export function AppearancePanel() {
           ))}
         </div>
       </div>
-
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">
-            {t("settings.commentView")}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {commentViews.map((cv) => (
-            <IconCard
-              key={cv.id}
-              name={cv.name}
-              tagline={cv.tagline}
-              icon={cv.icon}
-              isActive={cv.id === commentView}
-              ariaLabel={t("settings.useCommentView", { name: cv.name })}
-              onPick={() => setCommentView(cv.id)}
-            />
-          ))}
-        </div>
-      </div>
     </section>
-  );
-}
-
-/** Card with an icon, name and tagline — used for the comment-view picker. */
-function IconCard({
-  name,
-  tagline,
-  icon: Icon,
-  isActive,
-  ariaLabel,
-  onPick,
-}: {
-  name: string;
-  tagline: string;
-  icon: typeof MessageSquare;
-  isActive: boolean;
-  ariaLabel: string;
-  onPick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      aria-pressed={isActive}
-      aria-label={ariaLabel}
-      className={cn(
-        "flex flex-col gap-3 rounded-xl border bg-card p-4 text-left transition-colors",
-        isActive
-          ? "border-primary/60 ring-2 ring-primary/40"
-          : "border-border hover:border-foreground/30 hover:bg-accent",
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span
-          aria-hidden
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground"
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-        {isActive && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-foreground">
-            <Check className="h-3 w-3" />
-          </span>
-        )}
-      </div>
-      <div>
-        <div className="text-sm font-semibold text-foreground">{name}</div>
-        <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {tagline}
-        </div>
-      </div>
-    </button>
   );
 }
 

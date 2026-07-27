@@ -292,11 +292,6 @@ export function MessageThread({
     adId?: string;
   } | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
-  // Native comment view extras: likes per comment (keyed by the comment's Meta
-  // id = message.message_id) and which of our comment messages is a reply to
-  // another (keyed by our internal message id → parent comment's Meta id).
-  const [commentLikes, setCommentLikes] = useState<Map<string, number>>(new Map());
-  const [commentParents, setCommentParents] = useState<Map<string, string>>(new Map());
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -372,7 +367,6 @@ export function MessageThread({
   // renders if it fails.
   useEffect(() => {
     setCommentCount(null);
-    setCommentLikes(new Map());
     const convId = conversation?.id;
     const ch = conversation?.channel;
     if (!convId || (ch !== "fb_comment" && ch !== "ig_comment")) return;
@@ -382,47 +376,12 @@ export function MessageThread({
       .then((data) => {
         if (cancelled || !Array.isArray(data?.comments)) return;
         setCommentCount(data.comments.length);
-        const likes = new Map<string, number>();
-        for (const c of data.comments as { id?: string; likeCount?: number }[]) {
-          if (c.id && typeof c.likeCount === "number") likes.set(String(c.id), c.likeCount);
-        }
-        setCommentLikes(likes);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [conversation?.id, conversation?.channel]);
-
-  // Reply threading for the native comment view: comments_meta carries each
-  // comment's parent_comment_id (Meta id). Client-readable (members SELECT
-  // policy). Keyed by post so it doesn't depend on which page of messages is
-  // loaded. Best-effort — if it fails, comments just don't nest.
-  useEffect(() => {
-    setCommentParents(new Map());
-    const ch = conversation?.channel;
-    const postId = conversation?.thread_external_id;
-    if (!postId || (ch !== "fb_comment" && ch !== "ig_comment")) return;
-    let cancelled = false;
-    const supabase = createClient();
-    (async () => {
-      const { data } = await supabase
-        .from("comments_meta")
-        .select("message_id, parent_comment_id")
-        .eq("post_id", postId);
-      if (cancelled || !data) return;
-      const map = new Map<string, string>();
-      for (const row of data as { message_id?: string; parent_comment_id?: string }[]) {
-        if (row.message_id && row.parent_comment_id) {
-          map.set(String(row.message_id), String(row.parent_comment_id));
-        }
-      }
-      setCommentParents(map);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [conversation?.thread_external_id, conversation?.channel]);
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
@@ -1626,16 +1585,6 @@ export function MessageThread({
                           reactions={msgReactions}
                           currentUserId={user?.id}
                           senderName={senderName}
-                          commentAuthorName={authorLabelFor(msg)}
-                          commentAuthorAvatarUrl={
-                            msg.sender_type === "customer"
-                              ? (contact?.avatar_url ?? null)
-                              : null
-                          }
-                          commentLikeCount={
-                            msg.message_id ? commentLikes.get(msg.message_id) : undefined
-                          }
-                          commentIsReply={commentParents.has(msg.id)}
                           contactName={contact?.name}
                           contactPhone={
                             contact?.phone ??

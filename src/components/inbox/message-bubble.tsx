@@ -16,13 +16,11 @@ import {
   CornerDownLeft,
   ExternalLink,
   Phone,
-  Heart,
   Mic,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
-import { useT, useLocale } from "@/hooks/use-locale";
-import { useCommentView } from "@/hooks/use-comment-view";
+import { useT } from "@/hooks/use-locale";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
   isUnsupportedSnippet,
@@ -32,7 +30,6 @@ import {
   stripLeadingMentions,
 } from "@/lib/channels/display";
 import { findLinks } from "@/lib/inbox/linkify";
-import { dateFnsLocale } from "@/lib/i18n/format";
 import { PhoneActions } from "./phone-actions";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
@@ -48,15 +45,6 @@ interface MessageBubbleProps {
   /** Author name to show above the bubble — set for the bot and for
    *  teammates' messages, undefined for the current user's own messages. */
   senderName?: string;
-  /** For comment channels in the native view: the comment author's display
-   *  name + avatar (the commenter for customer comments, the page for agent
-   *  replies). Ignored outside the native comment layout. */
-  commentAuthorName?: string;
-  commentAuthorAvatarUrl?: string | null;
-  /** Native comment view: likes on this comment (Graph like_count) + whether
-   *  it's a reply to another comment (nests it under the thread). */
-  commentLikeCount?: number;
-  commentIsReply?: boolean;
   /** Nombre del contacto — lo hereda el atajo de WhatsApp para nombrar el
    *  contacto nuevo cuando el cliente deja su teléfono escrito. */
   contactName?: string | null;
@@ -926,10 +914,6 @@ export function MessageBubble({
   reactions,
   currentUserId,
   senderName,
-  commentAuthorName,
-  commentAuthorAvatarUrl,
-  commentLikeCount,
-  commentIsReply,
   contactName,
   contactPhone,
   onToggleReaction,
@@ -938,29 +922,13 @@ export function MessageBubble({
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const tz = useTimezone();
   const time = formatInTimeZone(new Date(message.created_at), tz, "HH:mm");
-  const { commentView } = useCommentView();
 
-  // Native comment view: FB/IG/TikTok comments render like the source app —
-  // avatar + author + a rounded comment, page replies nested under the
-  // commenter. Toggled in Ajustes → Apariencia; default is native.
+  // Los comentarios de FB/IG/TikTok se leen en burbujas de chat, igual que el
+  // resto de la bandeja.
   const isComment =
     message.channel === "fb_comment" ||
     message.channel === "ig_comment" ||
     message.channel === "tiktok_comment";
-  if (isComment && commentView === "native") {
-    return (
-      <NativeComment
-        message={message}
-        authorName={commentAuthorName ?? (isAgent ? t("inbox.you") : t("inbox.customer"))}
-        avatarUrl={commentAuthorAvatarUrl ?? null}
-        isPage={isAgent}
-        likeCount={commentLikeCount}
-        isReply={commentIsReply}
-        contactName={contactName}
-        contactPhone={contactPhone}
-      />
-    );
-  }
 
   // Email channels render as full-width cards rather than chat bubbles —
   // an email thread reads better as stacked messages with an explicit
@@ -1118,113 +1086,6 @@ export function MessageBubble({
             own={message.sender_type !== "customer"}
           />
         )}
-    </div>
-  );
-}
-
-/**
- * Native comment layout — mirrors the Facebook/Instagram comment thread:
- * a round avatar, the author's name in a rounded comment, and the page's own
- * replies nested (indented) under the commenter with an "Autor" badge. Real
- * moderation (hide / like / delete / open) stays on the existing bar; reply +
- * react come from the hover toolbar (MessageActions) that wraps the row.
- */
-function NativeComment({
-  message,
-  authorName,
-  avatarUrl,
-  isPage,
-  likeCount,
-  isReply,
-  contactName,
-  contactPhone,
-}: {
-  message: Message;
-  authorName: string;
-  avatarUrl: string | null;
-  isPage: boolean;
-  likeCount?: number;
-  isReply?: boolean;
-  contactName?: string | null;
-  contactPhone?: string | null;
-}) {
-  const t = useT();
-  const tz = useTimezone();
-  const { locale } = useLocale();
-  const [imgError, setImgError] = useState(false);
-  // A reply (to another comment) or the page's own reply nests under the
-  // thread — the indented, native "respuesta" look.
-  const nested = isReply || isPage;
-  // Day + month AND the hour it was sent (HH:mm) — same send-time every other
-  // channel's bubble shows, localized month names.
-  const when = formatInTimeZone(new Date(message.created_at), tz, "d MMM · HH:mm", {
-    locale: dateFnsLocale(locale),
-  });
-  const deleted = isCommentDeleted(message);
-  const initial = (authorName.trim().charAt(0) || "?").toUpperCase();
-  const showImg = avatarUrl && !imgError;
-  return (
-    <div className={cn("flex w-full gap-2", nested && "pl-7 sm:pl-9")}>
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-foreground">
-        {showImg ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <span aria-hidden>{initial}</span>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="inline-block max-w-full rounded-2xl bg-muted px-3 py-2 text-left">
-          <div className="mb-0.5 flex items-center gap-1.5">
-            <span className="text-[13px] font-semibold text-foreground">
-              {authorName}
-            </span>
-            {isPage && (
-              <span className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium text-accent-ink">
-                {t("inbox.commentAuthorBadge")}
-              </span>
-            )}
-          </div>
-          <div className="text-sm text-foreground">
-            {deleted ? (
-              <span className="italic text-muted-foreground">
-                {t("inbox.commentDeleted")}
-              </span>
-            ) : (
-              <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
-            )}
-          </div>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] font-medium text-muted-foreground">
-          <span>{when}</span>
-          {!deleted && typeof likeCount === "number" && likeCount > 0 && (
-            <span className="inline-flex items-center gap-0.5">
-              <Heart className="h-3 w-3 fill-current text-rose-500" />
-              {likeCount}
-            </span>
-          )}
-          {!deleted && message.is_hidden && (
-            <span className="text-amber-600 dark:text-amber-400">
-              {t("inbox.moderationHidden")}
-            </span>
-          )}
-        </div>
-        {!deleted &&
-          (message.channel === "fb_comment" || message.channel === "ig_comment") && (
-            <div className="mt-1">
-              <CommentModerationBar
-                message={message}
-                channel={message.channel}
-                own={message.sender_type !== "customer"}
-              />
-            </div>
-          )}
-      </div>
     </div>
   );
 }

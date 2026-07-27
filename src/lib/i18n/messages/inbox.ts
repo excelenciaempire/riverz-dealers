@@ -161,7 +161,6 @@ export const inbox = {
   moderationDone: { es: "Hecho", en: "Done" },
 
   // Native comment view
-  commentAuthorBadge: { es: "Autor", en: "Author" },
   commentLike: { es: "Me gusta", en: "Like" },
   commentDeleted: { es: "Comentario eliminado", en: "Comment deleted" },
 

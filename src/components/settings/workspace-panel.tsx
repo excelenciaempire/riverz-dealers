@@ -11,7 +11,6 @@ import {
   UserPlus,
   ShieldCheck,
   Shield,
-  Activity,
   AlertTriangle,
   SlidersHorizontal,
 } from "lucide-react";
@@ -26,13 +25,14 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
 import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
 import { GATEABLE_SECTIONS } from "@/lib/rbac/sections";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types";
-
-interface UsageData {
-  messages_sent: number;
-  ai_replies: number;
-  period_start: string;
-}
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -48,12 +48,13 @@ export function WorkspacePanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
   const [inviting, setInviting] = useState(false);
+  // El rol y el acceso se eligen en el diálogo que abre el botón Invitar.
+  const [inviteOpen, setInviteOpen] = useState(false);
   // RBAC: pre-assigned menu access for the invite (null = full access).
   const [inviteAllowed, setInviteAllowed] = useState<string[] | null>(null);
   // Per-member access editor (which member's access is open + its draft).
   const [accessEdit, setAccessEdit] = useState<{ id: string; value: string[] | null } | null>(null);
   const [savingAccess, setSavingAccess] = useState(false);
-  const [usage, setUsage] = useState<UsageData | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
@@ -87,22 +88,6 @@ export function WorkspacePanel() {
   useEffect(() => {
     void fetchMembersAndInvites();
   }, [fetchMembersAndInvites]);
-
-  useEffect(() => {
-    if (!workspace) return;
-    let cancelled = false;
-    void (async () => {
-      const res = await fetch(
-        `/api/workspaces/usage?workspace_id=${encodeURIComponent(workspace.id)}`,
-      );
-      if (!res.ok || cancelled) return;
-      const data = (await res.json()) as UsageData;
-      if (!cancelled) setUsage(data);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspace]);
 
   const handleDeleteWorkspace = useCallback(async () => {
     if (!workspace) return;
@@ -186,7 +171,9 @@ export function WorkspacePanel() {
     }
     toast.success(t("settings.inviteSent", { email: inviteEmail }));
     setInviteEmail("");
+    setInviteRole("agent");
     setInviteAllowed(null);
+    setInviteOpen(false);
     await fetchMembersAndInvites();
   }, [workspace, inviteEmail, inviteRole, inviteAllowed, fetchMembersAndInvites, fetchWithCsrf, t]);
 
@@ -427,66 +414,68 @@ export function WorkspacePanel() {
               <UserPlus className="size-4 text-accent-ink" />
               {t("settings.invite")}
             </h3>
-            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
+            <form
+              className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (inviteEmail.trim()) setInviteOpen(true);
+              }}
+            >
               <Input
+                type="email"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder={t("settings.invitePlaceholder")}
                 className="bg-muted text-foreground"
               />
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
-                className="rounded-md border border-border bg-muted px-2 text-sm text-foreground"
-              >
-                <option value="agent">{t("settings.roleAgent")}</option>
-                <option value="admin">{t("settings.roleAdmin")}</option>
-              </select>
               <Button
-                onClick={handleInvite}
-                disabled={inviting || !inviteEmail.trim()}
+                type="submit"
+                disabled={!inviteEmail.trim()}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {inviting ? <Loader2 className="size-4 animate-spin" /> : t("settings.send")}
+                {t("settings.invite")}
               </Button>
-            </div>
-            {inviteRole === "agent" && (
-              <div className="mt-3">
-                <SectionAccessEditor value={inviteAllowed} onChange={setInviteAllowed} />
-              </div>
-            )}
+            </form>
           </div>
         )}
       </section>
 
-      {/* Usage card */}
-      <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex items-center gap-3">
-          <Activity className="size-5 text-accent-ink" />
-          <h2 className="text-base font-semibold text-foreground">{t("settings.monthlyUsage")}</h2>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t("settings.messagesSent")}
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
-              {usage ? fmt.number(usage.messages_sent) : "—"}
-            </p>
+      {/* Acceso de la invitación — rol + secciones antes de enviar. */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("settings.inviteAccessTitle", { email: inviteEmail })}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{t("settings.roleLabel")}</Label>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
+                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground"
+              >
+                <option value="agent">{t("settings.roleAgent")}</option>
+                <option value="admin">{t("settings.roleAdmin")}</option>
+              </select>
+            </div>
+            {inviteRole === "agent" && (
+              <SectionAccessEditor value={inviteAllowed} onChange={setInviteAllowed} />
+            )}
           </div>
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t("settings.aiReplies")}
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
-              {usage ? fmt.number(usage.ai_replies) : "—"}
-            </p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          {t("settings.usageHint")}
-        </p>
-      </section>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInviteOpen(false)} disabled={inviting}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={handleInvite}
+              disabled={inviting}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {inviting ? <Loader2 className="size-4 animate-spin" /> : t("settings.send")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Pending invites */}
       {invites.length > 0 && (
