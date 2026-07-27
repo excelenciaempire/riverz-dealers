@@ -39,36 +39,62 @@ interface IgComment extends IgReply {
   replies?: { data?: IgReply[] };
 }
 
+/**
+ * Por qué una conexión no trajo nada. Sin esto, "0 respuestas" es ambiguo:
+ * puede ser que no haya ninguna que sincronizar o que Meta nos esté negando
+ * la lectura de comentarios (`instagram_manage_comments`) — dos situaciones
+ * opuestas que se ven igual desde afuera.
+ */
+export type PullReason =
+  | "ok"
+  | "sin_config"
+  | "graph_denegado"
+  | "sin_publicaciones";
+
+export interface PullResult {
+  ingested: number;
+  /** Publicaciones revisadas. */
+  posts: number;
+  /** Respuestas nuestras vistas en Graph (ingeridas + ya guardadas). */
+  seen: number;
+  reason: PullReason;
+}
+
 /** Trae al inbox las respuestas propias que falten en UNA conexión de IG. */
 export async function pullSelfRepliesForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
-): Promise<{ ingested: number; posts: number; skipped: boolean }> {
-  if (connection.channel !== "ig_comment") {
-    return { ingested: 0, posts: 0, skipped: true };
-  }
+): Promise<PullResult> {
+  const empty = (reason: PullReason): PullResult => ({
+    ingested: 0,
+    posts: 0,
+    seen: 0,
+    reason,
+  });
+  if (connection.channel !== "ig_comment") return empty("sin_config");
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const igUserId = String(cfg.ig_user_id ?? "");
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const enc = String(secrets.access_token ?? "");
-  if (!igUserId || !enc) return { ingested: 0, posts: 0, skipped: true };
+  if (!igUserId || !enc) return empty("sin_config");
   let token: string;
   try {
     token = decrypt(enc);
   } catch {
-    return { ingested: 0, posts: 0, skipped: true };
+    return empty("sin_config");
   }
 
   // Nuestro @usuario: es lo que Graph devuelve en cada comentario y la única
   // forma de distinguir lo que escribimos nosotros de lo que escribió el
   // cliente. Sin esto no se puede decidir nada — mejor no tocar nada.
   const selfUsername = await fetchSelfUsername(igUserId, token);
-  if (!selfUsername) return { ingested: 0, posts: 0, skipped: true };
+  if (!selfUsername) return empty("graph_denegado");
 
   const postIds = await recentPostIds(db, connection);
-  if (postIds.length === 0) return { ingested: 0, posts: 0, skipped: false };
+  if (postIds.length === 0) return empty("sin_publicaciones");
 
   let ingested = 0;
+  let seen = 0;
   for (const postId of postIds) {
     const comments = await fetchCommentsWithReplies(postId, token);
     for (const comment of comments) {
@@ -76,6 +102,7 @@ export async function pullSelfRepliesForConnection(
       if (!parentId) continue;
       for (const reply of comment.replies?.data ?? []) {
         if (!reply.id || reply.username !== selfUsername) continue;
+        seen++;
         const event = await buildSelfCommentEvent(db, {
           channel: "ig_comment",
           connection,
@@ -94,13 +121,16 @@ export async function pullSelfRepliesForConnection(
       }
     }
   }
-  return { ingested, posts: postIds.length, skipped: false };
+  return { ingested, posts: postIds.length, seen, reason: "ok" };
 }
 
 /** Corre el pull en todas las conexiones de comentarios de Instagram. */
-export async function pullSelfRepliesAll(
-  db: SupabaseClient,
-): Promise<{ connections: number; ingested: number }> {
+export async function pullSelfRepliesAll(db: SupabaseClient): Promise<{
+  connections: number;
+  ingested: number;
+  seen: number;
+  detail: Array<{ connection_id: string } & PullResult>;
+}> {
   const { data: conns } = await db
     .from("channel_connections")
     .select("*")
@@ -109,15 +139,19 @@ export async function pullSelfRepliesAll(
   const list = (conns ?? []) as ChannelConnection[];
 
   let ingested = 0;
+  let seen = 0;
+  const detail: Array<{ connection_id: string } & PullResult> = [];
   for (const c of list) {
     try {
       const r = await pullSelfRepliesForConnection(db, c);
       ingested += r.ingested;
+      seen += r.seen;
+      detail.push({ connection_id: c.id, ...r });
     } catch (err) {
       console.error("[comment-pull] conexión falló:", c.id, err);
     }
   }
-  return { connections: list.length, ingested };
+  return { connections: list.length, ingested, seen, detail };
 }
 
 /** Publicaciones con comentarios recientes ya guardados en esta conexión. */

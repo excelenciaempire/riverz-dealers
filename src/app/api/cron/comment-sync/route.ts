@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     // (borrados / ocultos) ya se aplicó y no se pierde.
     const selfReplies = await pullSelfRepliesAll(db).catch((err) => {
       console.error("[comment-sync] pull de respuestas propias falló:", err);
-      return { connections: 0, ingested: 0 };
+      return { connections: 0, ingested: 0, seen: 0, detail: [] };
     });
     return NextResponse.json({ ...result, selfReplies }, { status: 200 });
   } catch (err) {
