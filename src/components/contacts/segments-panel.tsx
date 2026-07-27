@@ -266,6 +266,7 @@ export function SegmentsPanel() {
             workspace.id,
             s.rules ?? [],
             s.match_mode,
+            { excludeOptedOut: true },
           );
           next[s.id] = contacts.length;
         } catch {
@@ -472,6 +473,7 @@ export function SegmentEditor({
           workspaceId,
           rules,
           matchMode,
+          { excludeOptedOut: true },
         );
         if (!cancelled) {
           setPreview(contacts);

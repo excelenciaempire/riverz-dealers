@@ -88,8 +88,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/asistente", label: "nav.assistant", icon: Sparkles },
       { href: "/menus", label: "nav.flows", icon: Workflow },
-      { href: "/comentarios", label: "nav.comments", icon: MessageSquareReply, beta: true },
-      { href: "/voz", label: "nav.voice", icon: PhoneCall, beta: true },
+      { href: "/comentarios", label: "nav.comments", icon: MessageSquareReply },
+      { href: "/voz", label: "nav.voice", icon: PhoneCall },
     ],
   },
   {
@@ -98,7 +98,7 @@ const navGroups: NavGroup[] = [
       { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
       { href: "/automatizaciones", label: "nav.automations", icon: Zap },
       { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
-      { href: "/agente-instagram", label: "nav.instagramAgent", icon: InstagramIcon, beta: true },
+      { href: "/agente-instagram", label: "nav.instagramAgent", icon: InstagramIcon },
     ],
   },
   {

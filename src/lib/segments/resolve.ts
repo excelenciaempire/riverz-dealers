@@ -22,6 +22,7 @@ export async function resolveSegment(
   workspaceId: string,
   rules: SegmentRule[],
   matchMode: SegmentMatchMode,
+  opts: { excludeOptedOut?: boolean } = {},
 ): Promise<{ contacts: Contact[]; total: number }> {
   // ── Step 1: candidate pool ────────────────────────────────────
   // Page through ALL contacts so large workspaces (e.g. after the Shopify
@@ -93,7 +94,7 @@ export async function resolveSegment(
   }
 
   // ── Step 3: evaluate rules ────────────────────────────────────
-  const matched = contacts.filter((c) =>
+  let matched = contacts.filter((c) =>
     evaluateContact(
       c,
       rules,
@@ -102,6 +103,15 @@ export async function resolveSegment(
       customByContact.get(c.id) ?? null,
     ),
   );
+
+  // Precisión: al mostrar el conteo "enviable" (preview del editor), excluir a
+  // quienes se dieron de baja — así el número coincide con lo que realmente se
+  // envía (broadcasts filtran opted_out al despachar).
+  if (opts.excludeOptedOut) {
+    matched = matched.filter(
+      (c) => (c as unknown as { opted_out?: boolean }).opted_out !== true,
+    );
+  }
 
   return { contacts: matched, total };
 }
