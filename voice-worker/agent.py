@@ -234,11 +234,24 @@ async def _finalize(
     context: dict | None,
     *,
     error: str | None = None,
+    lk_api=None,
 ) -> None:
     """POST /result exactamente una vez (idempotente también en el servidor)."""
     if call_state.result_posted:
         return
     call_state.result_posted = True
+
+    # Cortar el egress AHORA (al terminar la llamada), no esperar a que la sala se
+    # cierre sola por timeout — si no, la grabación queda más larga que la llamada
+    # (capturaba el silencio posterior a que el cliente colgó).
+    if call_state.egress_id and lk_api is not None:
+        try:
+            await lk_api.egress.stop_egress(
+                lkapi.StopEgressRequest(egress_id=call_state.egress_id)
+            )
+            logger.info("egress detenido (%s)", call_state.egress_id)
+        except Exception:
+            logger.warning("no se pudo detener el egress", exc_info=True)
 
     ended_at = _now_iso()
     status = call_state.status or ("completed" if call_state.answered_at else "failed")
@@ -684,7 +697,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     )
 
     # El reporte de resultado se hace SIEMPRE en el shutdown (guardado por flag).
-    ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context))
+    ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context, lk_api=ctx.api))
 
     # Arranca la sesión en paralelo mientras marcamos (patrón del ejemplo oficial).
     session_task = _spawn(
@@ -758,7 +771,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
         ),
     )
 
-    ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context))
+    ctx.add_shutdown_callback(lambda *_: _finalize(api, call_state, usage_collector, context, lk_api=ctx.api))
 
     # Grabación (si está habilitada).
     await _start_recording(ctx, context, call_state)
