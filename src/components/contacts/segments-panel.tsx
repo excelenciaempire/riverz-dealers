@@ -8,13 +8,16 @@ import {
   Database,
   Gift,
   History,
+  DollarSign,
   Layers,
   Loader2,
+  MapPin,
   MessageCircle,
   Package,
   Pencil,
   Plus,
   ShoppingBag,
+  ShoppingCart,
   Tag as TagIcon,
   Trash2,
   Type as TypeIcon,
@@ -129,6 +132,9 @@ const RULE_TYPES: {
   { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', descriptionKey: 'contacts.ruleShopifyDesc', Icon: ShoppingBag },
   { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
   { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
+  { type: 'spend', labelKey: 'contacts.ruleSpendLabel', descriptionKey: 'contacts.ruleSpendDesc', Icon: DollarSign },
+  { type: 'orders', labelKey: 'contacts.ruleOrdersLabel', descriptionKey: 'contacts.ruleOrdersDesc', Icon: ShoppingCart },
+  { type: 'location', labelKey: 'contacts.ruleLocationLabel', descriptionKey: 'contacts.ruleLocationDesc', Icon: MapPin },
   { type: 'activity_date', labelKey: 'contacts.ruleActivityDateLabel', descriptionKey: 'contacts.ruleActivityDateDesc', Icon: History },
 ];
 
@@ -168,6 +174,21 @@ const OP_LABEL_KEYS = {
     gte: 'contacts.opUnitsGte',
     lte: 'contacts.opUnitsLte',
     between: 'contacts.opUnitsBetween',
+  },
+  spend: {
+    gte: 'contacts.opSpendGte',
+    lte: 'contacts.opSpendLte',
+    between: 'contacts.opSpendBetween',
+  },
+  orders: {
+    eq: 'contacts.opOrdersEq',
+    gte: 'contacts.opOrdersGte',
+    lte: 'contacts.opOrdersLte',
+    between: 'contacts.opOrdersBetween',
+  },
+  location: {
+    is: 'contacts.opLocationIs',
+    contains: 'contacts.opLocationContains',
   },
 } as const;
 
@@ -1124,6 +1145,99 @@ function RuleControls({
         </>
       );
     }
+    case 'spend': {
+      const opSpend = resolveOpLabels(OP_LABEL_KEYS.spend, t);
+      return (
+        <>
+          <MiniSelect
+            value={rule.op}
+            labels={opSpend}
+            options={Object.entries(opSpend).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) => onChange({ ...rule, op: v as 'gte' | 'lte' | 'between' })}
+          />
+          <Input
+            type="number"
+            min={0}
+            value={rule.value}
+            onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
+            className="h-8 w-24 bg-background text-xs"
+          />
+          {rule.op === 'between' && (
+            <>
+              <span className="text-xs text-muted-foreground">{t('contacts.unitsAndWord')}</span>
+              <Input
+                type="number"
+                min={0}
+                value={rule.value2 ?? ''}
+                onChange={(e) => onChange({ ...rule, value2: Number(e.target.value) })}
+                className="h-8 w-24 bg-background text-xs"
+              />
+            </>
+          )}
+        </>
+      );
+    }
+    case 'orders': {
+      const opOrders = resolveOpLabels(OP_LABEL_KEYS.orders, t);
+      return (
+        <>
+          <MiniSelect
+            value={rule.op}
+            labels={opOrders}
+            options={Object.entries(opOrders).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) => onChange({ ...rule, op: v as 'eq' | 'gte' | 'lte' | 'between' })}
+          />
+          <Input
+            type="number"
+            min={0}
+            value={rule.value}
+            onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
+            className="h-8 w-20 bg-background text-xs"
+          />
+          {rule.op === 'between' && (
+            <>
+              <span className="text-xs text-muted-foreground">{t('contacts.unitsAndWord')}</span>
+              <Input
+                type="number"
+                min={0}
+                value={rule.value2 ?? ''}
+                onChange={(e) => onChange({ ...rule, value2: Number(e.target.value) })}
+                className="h-8 w-20 bg-background text-xs"
+              />
+            </>
+          )}
+        </>
+      );
+    }
+    case 'location': {
+      const opLoc = resolveOpLabels(OP_LABEL_KEYS.location, t);
+      const fieldLabels: Record<string, string> = {
+        country: t('contacts.locationCountry'),
+        city: t('contacts.locationCity'),
+      };
+      return (
+        <>
+          <MiniSelect
+            value={rule.field}
+            labels={fieldLabels}
+            options={Object.entries(fieldLabels).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) => onChange({ ...rule, field: v as 'country' | 'city' })}
+          />
+          <MiniSelect
+            value={rule.op}
+            labels={opLoc}
+            options={Object.entries(opLoc).map(([v, l]) => ({ value: v, label: l }))}
+            onChange={(v) => onChange({ ...rule, op: v as 'is' | 'contains' })}
+          />
+          <Input
+            value={rule.value}
+            onChange={(e) => onChange({ ...rule, value: e.target.value })}
+            placeholder={t('contacts.locationPlaceholder')}
+            className="h-8 w-36 bg-background text-xs"
+          />
+        </>
+      );
+    }
     default:
       return null;
   }
@@ -1189,6 +1303,12 @@ function stubRuleFor(
       return { type: 'offer', op: 'any', value: '' };
     case 'units':
       return { type: 'units', op: 'gte', value: 1 };
+    case 'spend':
+      return { type: 'spend', op: 'gte', value: 0 };
+    case 'orders':
+      return { type: 'orders', op: 'gte', value: 1 };
+    case 'location':
+      return { type: 'location', field: 'country', op: 'is', value: '' };
     case 'activity_date':
       return { type: 'activity_date', field: 'last_purchase', op: 'last_n_days', value: '30' };
   }

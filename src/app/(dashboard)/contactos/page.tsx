@@ -41,12 +41,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Layers,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
-import { SegmentsPanel } from '@/components/contacts/segments-panel';
+import { SegmentsPanel, SegmentEditor } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
+import type { SegmentRule } from '@/lib/segments/types';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -131,6 +133,8 @@ export default function ContactsPage() {
   const [exportCols, setExportCols] = useState<Set<string>>(
     () => new Set(EXPORT_COLUMNS.map((c) => c.key)),
   );
+  // "Guardar como segmento" — abre el editor con las reglas derivadas del filtro.
+  const [saveSegmentOpen, setSaveSegmentOpen] = useState(false);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -419,6 +423,23 @@ export default function ContactsPage() {
     }
   }
 
+  // Un segmento es "un filtro guardado". Mapeamos el filtro actual (fecha +
+  // etiquetas) a reglas del segmento; el editor muestra el conteo real en vivo
+  // antes de guardar, así queda preciso. (La búsqueda es ad-hoc → no se guarda.)
+  const filtersActive = selectedTagIds.length > 0 || datePreset !== 'all';
+  function draftSegment() {
+    const rules: SegmentRule[] = [];
+    if (datePreset !== 'all') {
+      rules.push({
+        type: 'created',
+        op: 'last_n_days',
+        value: datePreset === '7d' ? '7' : datePreset === '30d' ? '30' : '90',
+      });
+    }
+    for (const tid of selectedTagIds) rules.push({ type: 'tag', op: 'has', tagId: tid });
+    return { name: '', description: '', rules, match_mode: 'all' as const };
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -592,6 +613,21 @@ export default function ContactsPage() {
               {t('contacts.clear')}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Guardar el filtro actual como segmento reutilizable */}
+      {filtersActive && (
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSaveSegmentOpen(true)}
+            className="border-border text-foreground hover:bg-accent"
+          >
+            <Layers className="size-4" />
+            {t('contacts.saveAsSegment')}
+          </Button>
         </div>
       )}
 
@@ -902,6 +938,22 @@ export default function ContactsPage() {
         onOpenChange={setImportOpen}
         onImported={fetchContacts}
       />
+
+      {/* Guardar filtro como segmento — reusa el editor de Segmentos con las
+          reglas derivadas del filtro; su preview en vivo confirma el conteo. */}
+      {saveSegmentOpen && workspaceId && (
+        <SegmentEditor
+          workspaceId={workspaceId}
+          segment={draftSegment()}
+          tags={Object.values(tagsMap)}
+          customFields={[]}
+          onClose={() => setSaveSegmentOpen(false)}
+          onSaved={() => {
+            setSaveSegmentOpen(false);
+            toast.success(t('contacts.segmentSavedFromFilter'));
+          }}
+        />
+      )}
 
       {/* Export column picker */}
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>

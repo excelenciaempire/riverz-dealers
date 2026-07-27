@@ -50,6 +50,27 @@ export type SegmentRule =
       field: 'last_purchase' | 'last_activity' | 'last_ai';
       op: 'last_n_days' | 'before' | 'after';
       value: string;
+    }
+  // Shopify lifetime value/frequency + ubicación. Leen el snapshot jsonb
+  // `contacts.shopify_customer_data` (total_spent / orders_count /
+  // default_address.country|city) — sin fetch auxiliar.
+  | {
+      type: 'spend';
+      op: 'gte' | 'lte' | 'between';
+      value: number;
+      value2?: number;
+    }
+  | {
+      type: 'orders';
+      op: 'eq' | 'gte' | 'lte' | 'between';
+      value: number;
+      value2?: number;
+    }
+  | {
+      type: 'location';
+      field: 'country' | 'city';
+      op: 'is' | 'contains';
+      value: string;
     };
 
 export type SegmentMatchMode = 'all' | 'any';
@@ -65,17 +86,3 @@ export interface ContactSegment {
   created_at: string;
   updated_at: string;
 }
-
-/** Display label per rule type — used in the rule chip + tooltip. */
-export const RULE_TYPE_LABEL: Record<SegmentRule['type'], string> = {
-  tag: 'Etiqueta',
-  channel: 'Canal',
-  created: 'Fecha de creación',
-  has_field: 'Tiene dato',
-  text: 'Texto del contacto',
-  custom_field: 'Campo personalizado',
-  shopify: 'Cliente Shopify',
-  offer: 'Oferta elegida',
-  units: 'Unidades compradas',
-  activity_date: 'Fecha de actividad',
-};

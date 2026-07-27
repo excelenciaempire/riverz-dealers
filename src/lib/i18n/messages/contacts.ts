@@ -65,6 +65,11 @@ export const contacts = {
   exportColumnsHint: { es: "{count} contactos · marca las columnas del CSV", en: "{count} contacts · pick the CSV columns" },
   selectAllCols: { es: "Todas", en: "All" },
   selectNoneCols: { es: "Ninguna", en: "None" },
+  saveAsSegment: { es: "Guardar como segmento", en: "Save as segment" },
+  segmentSavedFromFilter: {
+    es: "Segmento guardado desde el filtro",
+    en: "Segment saved from filter",
+  },
 
   // Row actions
   edit: { es: "Editar", en: "Edit" },
@@ -401,6 +406,33 @@ export const contacts = {
     es: "Cuántas unidades compró en su último pedido.",
     en: "How many units they bought in their last order.",
   },
+  ruleSpendLabel: { es: "Total gastado", en: "Total spent" },
+  ruleSpendDesc: {
+    es: "Cuánto gastó en total (histórico de Shopify).",
+    en: "How much they spent in total (Shopify history).",
+  },
+  ruleOrdersLabel: { es: "Pedidos totales", en: "Total orders" },
+  ruleOrdersDesc: {
+    es: "Cuántos pedidos hizo en total (histórico de Shopify).",
+    en: "How many orders they placed in total (Shopify history).",
+  },
+  ruleLocationLabel: { es: "Ubicación", en: "Location" },
+  ruleLocationDesc: {
+    es: "País o ciudad de la dirección de Shopify.",
+    en: "Country or city from the Shopify address.",
+  },
+  opSpendGte: { es: "gastó al menos", en: "spent at least" },
+  opSpendLte: { es: "gastó como mucho", en: "spent at most" },
+  opSpendBetween: { es: "gastó entre", en: "spent between" },
+  opOrdersEq: { es: "pedidos =", en: "orders =" },
+  opOrdersGte: { es: "al menos", en: "at least" },
+  opOrdersLte: { es: "como mucho", en: "at most" },
+  opOrdersBetween: { es: "entre", en: "between" },
+  opLocationIs: { es: "es", en: "is" },
+  opLocationContains: { es: "contiene", en: "contains" },
+  locationCountry: { es: "País", en: "Country" },
+  locationCity: { es: "Ciudad", en: "City" },
+  locationPlaceholder: { es: "ej. Argentina", en: "e.g. Argentina" },
   ruleActivityDateLabel: { es: "Fecha de actividad", en: "Activity date" },
   ruleActivityDateDesc: {
     es: "Última compra, última actividad o última conversación con la IA.",

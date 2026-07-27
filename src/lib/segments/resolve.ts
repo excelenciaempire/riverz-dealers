@@ -220,7 +220,60 @@ function evaluateRule(
       if (Number.isNaN(ref)) return false;
       return rule.op === 'before' ? ts < ref : ts > ref;
     }
+    case 'spend': {
+      const n = shopNumber(contact, ['total_spent', 'totalSpent']);
+      if (n == null) return false;
+      const a = Number(rule.value);
+      if (!Number.isFinite(a)) return false;
+      if (rule.op === 'gte') return n >= a;
+      if (rule.op === 'lte') return n <= a;
+      const b = Number(rule.value2); // between
+      if (!Number.isFinite(b)) return false;
+      return n >= Math.min(a, b) && n <= Math.max(a, b);
+    }
+    case 'orders': {
+      const n = shopNumber(contact, ['orders_count', 'ordersCount']);
+      if (n == null) return false;
+      const a = Number(rule.value);
+      if (!Number.isFinite(a)) return false;
+      if (rule.op === 'eq') return n === a;
+      if (rule.op === 'gte') return n >= a;
+      if (rule.op === 'lte') return n <= a;
+      const b = Number(rule.value2); // between
+      if (!Number.isFinite(b)) return false;
+      return n >= Math.min(a, b) && n <= Math.max(a, b);
+    }
+    case 'location': {
+      const addr = shopAddress(contact);
+      const v = String(addr?.[rule.field] ?? '').toLowerCase();
+      const needle = String(rule.value ?? '').toLowerCase();
+      if (!needle) return false;
+      return rule.op === 'is' ? v === needle : v.includes(needle);
+    }
     default:
       return false;
   }
+}
+
+/** Snapshot jsonb de Shopify del contacto. */
+function shopData(contact: Contact): Record<string, unknown> | null {
+  return (
+    (contact as unknown as { shopify_customer_data?: Record<string, unknown> | null })
+      .shopify_customer_data ?? null
+  );
+}
+/** Lee un número del snapshot probando varias claves (snake/camel). */
+function shopNumber(contact: Contact, keys: string[]): number | null {
+  const sd = shopData(contact);
+  if (!sd) return null;
+  for (const k of keys) {
+    const n = Number(sd[k]);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+/** Dirección por defecto del snapshot de Shopify. */
+function shopAddress(contact: Contact): Record<string, unknown> | null {
+  const sd = shopData(contact);
+  return (sd?.default_address ?? sd?.address ?? null) as Record<string, unknown> | null;
 }
