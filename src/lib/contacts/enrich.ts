@@ -9,7 +9,7 @@
  *   - orders_count
  *   - last_order_date
  *   - tags
- *   - default_address.country / city
+ *   - default_address completa (calle, ciudad, provincia, país, CP)
  *   - accepts_marketing
  *   - lifetime_orders: top-10 pedidos con titles de cada line item
  *
@@ -31,6 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, ShopifyCustomerSnapshot } from '@/types';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
+import { normalizePhone, phoneVariants, phonesMatch } from '@/lib/whatsapp/phone-utils';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -207,32 +208,71 @@ async function findShopifyCustomer(
     'Content-Type': 'application/json',
   };
 
-  // Probamos primero por email (Shopify es exacto e indexado), después
-  // por teléfono. El operador `phone:` no normaliza E.164 de forma
-  // perfecta — si falla, probamos con el último dígito sólo como sufijo.
+  const search = async (query: string, limit = 1): Promise<ShopifyCustomer[]> => {
+    const r = await fetch(
+      `${base}/customers/search.json?query=${encodeURIComponent(query)}&limit=${limit}`,
+      { headers },
+    );
+    if (!r.ok) return [];
+    const data = (await r.json()) as { customers?: ShopifyCustomer[] };
+    return data.customers ?? [];
+  };
+
+  // 1. Email: exacto e indexado, es el match más confiable.
   if (contact.email) {
-    const r = await fetch(
-      `${base}/customers/search.json?query=${encodeURIComponent('email:' + contact.email)}&limit=1`,
-      { headers },
-    );
-    if (r.ok) {
-      const data = (await r.json()) as { customers?: ShopifyCustomer[] };
-      const c = data.customers?.[0];
-      if (c) return c;
-    }
+    const [c] = await search(`email:${contact.email}`);
+    if (c) return c;
   }
-  if (contact.phone) {
-    const r = await fetch(
-      `${base}/customers/search.json?query=${encodeURIComponent('phone:' + contact.phone)}&limit=1`,
-      { headers },
+
+  if (!contact.phone) return null;
+
+  // 2. Teléfono. `phone:` en Shopify es una comparación literal contra lo que
+  //    el cliente cargó, y ahí es donde se perdía la mayoría de los matches:
+  //    el mismo argentino es "5493472500967" para WhatsApp y "543472500967"
+  //    en Shopify (el 9 de móvil), o está guardado con "+", con 0 de trunk, o
+  //    con espacios. Probamos las variantes conocidas antes de rendirnos.
+  const digits = normalizePhone(contact.phone);
+  const tried = new Set<string>();
+  for (const variant of phoneQueryVariants(digits)) {
+    if (tried.has(variant)) continue;
+    tried.add(variant);
+    const [c] = await search(`phone:${variant}`);
+    if (c) return c;
+  }
+
+  // 3. Último recurso: búsqueda libre por los últimos 8 dígitos, que es lo que
+  //    no cambia entre formatos. Es laxa, así que el resultado sólo se acepta
+  //    si el teléfono del cliente encontrado REALMENTE coincide — un match
+  //    equivocado pegaría la dirección de otra persona en esta ficha, que es
+  //    peor que no mostrar nada.
+  if (digits.length >= 8) {
+    const candidates = await search(digits.slice(-8), 10);
+    const hit = candidates.find(
+      (c) => c.phone && phonesMatch(c.phone, contact.phone as string),
     );
-    if (r.ok) {
-      const data = (await r.json()) as { customers?: ShopifyCustomer[] };
-      const c = data.customers?.[0];
-      if (c) return c;
-    }
+    if (hit) return hit;
   }
   return null;
+}
+
+/**
+ * Formas en que el mismo número puede estar cargado en Shopify: E.164 con y
+ * sin "+", con y sin 0 de trunk, y —para móviles argentinos— con y sin el 9
+ * que WhatsApp exige pero la tienda no suele guardar.
+ */
+function phoneQueryVariants(digits: string): string[] {
+  if (!digits) return [];
+  const out = new Set<string>();
+  const add = (d: string) => {
+    if (!d || d.length < 8) return;
+    out.add(d);
+    out.add(`+${d}`);
+  };
+  for (const v of phoneVariants(digits)) add(v);
+  // Argentina: 54 9 XXXX… ↔ 54 XXXX…
+  if (digits.startsWith('549')) add(`54${digits.slice(3)}`);
+  else if (digits.startsWith('54')) add(`549${digits.slice(2)}`);
+  return [...out];
 }
 
 async function fetchCustomerOrders(
@@ -288,3 +328,6 @@ function buildSnapshot(
     lifetime_orders,
   };
 }
+
+/** Sólo para los tests: variantes de teléfono con las que se busca en Shopify. */
+export const __testing = { phoneQueryVariants };
