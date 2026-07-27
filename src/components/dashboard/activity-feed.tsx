@@ -4,6 +4,8 @@ import Link from "@/components/i18n/locale-link"
 import { useEffect, useState } from 'react'
 import {
   MessageSquare,
+  MessageCircle,
+  PhoneCall,
   UserPlus,
   Radio,
   Zap,
@@ -34,6 +36,8 @@ interface KindTheme {
 
 const KIND_THEME: Record<ActivityKind, KindTheme> = {
   message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  comment: { icon: MessageCircle, badge: 'bg-pink-500/10 text-pink-600 dark:text-pink-400' },
+  call: { icon: PhoneCall, badge: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' },
   contact: { icon: UserPlus, badge: 'bg-primary/10 text-accent-ink' },
   broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
   automation: { icon: Zap, badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
@@ -74,7 +78,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{t('dashboard.recentActivity')}</h2>
         <Link
-          href="/bandeja"
+          href="/actividad"
           className="text-xs font-medium text-accent-ink hover:text-accent-ink/80"
         >
           {t('dashboard.viewAll')} →

@@ -41,8 +41,10 @@ export interface ConversationsSeriesPoint {
 }
 
 export interface ResponseTimeBucket {
-  /** 0 = Mon … 6 = Sun (Monday-first). */
-  dow: number
+  /** Bucket key in workspace tz (matches the conversations series buckets):
+   *  `YYYY-MM-DD` (daily) or `YYYY-MM-DDTHH` (hourly). Range-aware so the chart
+   *  reflects exactly the selected date range, not a fixed Mon–Sun week. */
+  key: string
   /** Average first-response time in minutes. Null means no samples. */
   avgMinutes: number | null
   samples: number
@@ -58,6 +60,8 @@ export interface ResponseTimeSummary {
 
 export type ActivityKind =
   | 'message'
+  | 'comment'
+  | 'call'
   | 'broadcast'
   | 'automation'
   | 'contact'

@@ -2,7 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   bucketGranularity,
   bucketKeyOf,
-  mondayIndex,
   rangeBucketKeys,
   type DateRange,
 } from './date-utils'
@@ -265,8 +264,13 @@ export async function loadResponseTime(
 
   const inRange = (d: Date, r: DateRange) => d >= r.start && d < r.end
 
-  const byDow = new Map<number, number[]>()
-  for (let i = 0; i < 7; i++) byDow.set(i, [])
+  // Buckets que siguen el RANGO elegido (hora para Hoy/Ayer, día para 7d/30d/
+  // custom) — mismos que la gráfica de conversaciones, para que el chart sea
+  // preciso con las fechas seleccionadas y no un Lun–Dom fijo.
+  const gran = bucketGranularity(range)
+  const keys = rangeBucketKeys(tz, range, gran)
+  const byKey = new Map<string, number[]>()
+  for (const k of keys) byKey.set(k, [])
   const curMins: number[] = []
   const prevMins: number[] = []
 
@@ -274,7 +278,8 @@ export async function loadResponseTime(
     const diffMin = (sple.responseAt.getTime() - sple.customerAt.getTime()) / 60_000
     if (diffMin < 0) continue
     if (inRange(sple.customerAt, range)) {
-      byDow.get(mondayIndex(tz, sple.customerAt))!.push(diffMin)
+      const k = bucketKeyOf(tz, sple.customerAt.toISOString(), gran)
+      byKey.get(k)?.push(diffMin)
       curMins.push(diffMin)
     } else if (inRange(sple.customerAt, prev)) {
       prevMins.push(diffMin)
@@ -283,9 +288,9 @@ export async function loadResponseTime(
 
   const avg = (arr: number[]) => (arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length)
 
-  const buckets: ResponseTimeBucket[] = Array.from({ length: 7 }, (_, dow) => {
-    const list = byDow.get(dow) ?? []
-    return { dow, avgMinutes: avg(list), samples: list.length }
+  const buckets: ResponseTimeBucket[] = keys.map((key) => {
+    const list = byKey.get(key) ?? []
+    return { key, avgMinutes: avg(list), samples: list.length }
   })
 
   return {
@@ -299,50 +304,42 @@ export async function loadResponseTime(
 
 export async function loadActivity(
   db: DB,
-  range: DateRange,
   t: TFn,
   limit = 20,
 ): Promise<ActivityItem[]> {
-  const s = iso(range.start)
-  const e = iso(range.end)
-  // Los joins de contacto traen channel + external_id + email para que el
-  // fallback por canal (contactLabel) muestre "Cliente Instagram · …id" en vez
-  // de "null"/"Desconocido" cuando el contacto aún no resolvió su nombre real.
+  // Actividad reciente GLOBAL de todo Riverz — NO se filtra por el rango de
+  // fechas del panel. Siempre son los eventos más recientes (mensajes,
+  // comentarios, llamadas, contactos, campañas, automatizaciones), ordenados por
+  // fecha desc. Cada fuente trae sus N más recientes y luego se mezclan.
   const contactCols = 'name, phone, email, channel, external_id'
-  const [msgs, contacts, broadcasts, autoLogs] = await Promise.all([
-    // `conversations!inner` + the deleted_at filter drop messages whose
-    // conversation was soft-deleted from the bandeja (migración 085) — otherwise
-    // a deleted chat keeps surfacing in the /panel activity feed as "Nuevo
-    // mensaje de X". Messages are preserved on soft-delete, so we scope by the
-    // parent conversation's deleted_at, not the message (which has none).
+  const [msgs, calls, contacts, broadcasts, autoLogs] = await Promise.all([
+    // `conversations!inner` + deleted_at filter: no mostrar mensajes de chats
+    // borrados de la bandeja. content_type + channel distinguen comentario de DM.
     db
       .from('messages')
-      .select(`id, content_text, sender_type, created_at, conversation_id, conversations!inner(deleted_at, contact_id, contacts(${contactCols}))`)
+      .select(`id, content_type, sender_type, created_at, conversation_id, conversations!inner(deleted_at, channel, contact_id, contacts(${contactCols}))`)
       .eq('sender_type', 'customer')
       .is('conversations.deleted_at', null)
-      .gte('created_at', s)
-      .lt('created_at', e)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    db
+      .from('voice_calls')
+      .select(`id, direction, status, outcome, phone, created_at, contact:contacts(${contactCols})`)
       .order('created_at', { ascending: false })
       .limit(limit),
     db
       .from('contacts')
       .select(`id, ${contactCols}, created_at`)
-      .gte('created_at', s)
-      .lt('created_at', e)
       .order('created_at', { ascending: false })
       .limit(limit),
     db
       .from('broadcasts')
       .select('id, name, status, total_recipients, created_at')
-      .gte('created_at', s)
-      .lt('created_at', e)
       .order('created_at', { ascending: false })
       .limit(limit),
     db
       .from('automation_logs')
       .select(`id, trigger_event, status, created_at, automation:automations(name), contact:contacts(${contactCols})`)
-      .gte('created_at', s)
-      .lt('created_at', e)
       .order('created_at', { ascending: false })
       .limit(limit),
   ])
@@ -361,11 +358,12 @@ export async function loadActivity(
   // the foreign key is 1:1. We normalise by taking [0] on each level.
   for (const m of (msgs.data ?? []) as unknown as Array<{
     id: string
+    content_type: string | null
     created_at: string
     conversation_id: string
     conversations:
-      | { contacts: ContactRow[] | ContactRow | null }[]
-      | { contacts: ContactRow[] | ContactRow | null }
+      | { channel?: string | null; contacts: ContactRow[] | ContactRow | null }[]
+      | { channel?: string | null; contacts: ContactRow[] | ContactRow | null }
       | null
   }>) {
     const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations
@@ -373,12 +371,38 @@ export async function loadActivity(
     const who = contact
       ? contactLabel(t, contact)
       : t('dashboard.activityUnknownContact')
+    const isComment = m.content_type === 'comment' || (conv?.channel ?? '').includes('comment')
     items.push({
       id: `msg-${m.id}`,
-      kind: 'message',
-      text: t('dashboard.activityNewMessage', { who }),
+      kind: isComment ? 'comment' : 'message',
+      text: isComment
+        ? t('dashboard.activityNewComment', { who })
+        : t('dashboard.activityNewMessage', { who }),
       at: m.created_at,
       href: `/bandeja?c=${m.conversation_id}`,
+    })
+  }
+
+  // Llamadas de voz (entrantes + salientes).
+  for (const c of (calls.data ?? []) as unknown as Array<{
+    id: string
+    direction: string | null
+    status: string | null
+    phone: string | null
+    created_at: string
+    contact: ContactRow[] | ContactRow | null
+  }>) {
+    const contact = Array.isArray(c.contact) ? c.contact[0] : c.contact
+    const who = contact ? contactLabel(t, contact) : c.phone || t('dashboard.activitySomeContact')
+    items.push({
+      id: `call-${c.id}`,
+      kind: 'call',
+      text:
+        c.direction === 'inbound'
+          ? t('dashboard.activityCallInbound', { who })
+          : t('dashboard.activityCallOutbound', { who }),
+      at: c.created_at,
+      href: '/voz',
     })
   }
 

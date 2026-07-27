@@ -1,7 +1,6 @@
 "use client"
 
 import { Clock } from 'lucide-react'
-import { DOW_SHORT_MON_FIRST } from '@/lib/dashboard/date-utils'
 import type { ResponseTimeSummary } from '@/lib/dashboard/types'
 import { useT } from '@/hooks/use-locale'
 import type { TFn } from '@/lib/i18n/translate'
@@ -79,24 +78,29 @@ function Bars({
   const chartW = VB_W - PADDING.left - PADDING.right
   const chartH = VB_H - PADDING.top - PADDING.bottom
 
+  const n = Math.max(1, data.buckets.length)
   const values = data.buckets.map((b) => b.avgMinutes ?? 0)
   const rawMax = Math.max(thresholdMinutes * 1.2, ...values)
   const maxY = niceCeil(rawMax)
   const yFor = (v: number) =>
     maxY === 0 ? PADDING.top + chartH : PADDING.top + chartH - (v / maxY) * chartH
 
-  const barSlot = chartW / 7
-  const barW = Math.min(44, barSlot * 0.55)
+  const barSlot = chartW / n
+  const barW = Math.min(44, barSlot * 0.6)
 
   const ticks = [0, maxY / 2, maxY].map((t) => Math.round(t))
+  // Con muchos buckets (ej. 30 días) no caben todas las etiquetas → mostramos ~8.
+  const labelEvery = Math.max(1, Math.ceil(n / 8))
+  const showThreshold = thresholdMinutes > 0 && thresholdMinutes <= maxY
+  const thY = yFor(thresholdMinutes)
 
   return (
     <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-[220px] w-full" role="img">
       {/* Y grid */}
-      {ticks.map((t) => {
-        const y = yFor(t)
+      {ticks.map((tick) => {
+        const y = yFor(tick)
         return (
-          <g key={t}>
+          <g key={tick}>
             <line
               x1={PADDING.left}
               x2={VB_W - PADDING.right}
@@ -112,38 +116,11 @@ function Bars({
               dominantBaseline="middle"
               className="fill-muted-foreground text-[10px]"
             >
-              {fmt(t)}
+              {fmt(tick)}
             </text>
           </g>
         )
       })}
-
-      {/* Threshold line — rendered after grid so it sits on top, but
-          we keep it muted so bars remain the visual focus. */}
-      {thresholdMinutes > 0 && thresholdMinutes <= maxY && (
-        <g>
-          <line
-            x1={PADDING.left}
-            x2={VB_W - PADDING.right}
-            y1={yFor(thresholdMinutes)}
-            y2={yFor(thresholdMinutes)}
-            stroke="rgb(244 63 94)"
-            strokeDasharray="4 4"
-            strokeWidth={1.25}
-            opacity={0.8}
-          />
-          {/* Left-anchored so the label never collides with the (usually
-              taller) bars on the right side of the chart. */}
-          <text
-            x={PADDING.left + 4}
-            y={yFor(thresholdMinutes) - 4}
-            textAnchor="start"
-            className="fill-rose-600 dark:fill-rose-300 text-[10px]"
-          >
-            {t('dashboard.target', { value: fmt(thresholdMinutes) })}
-          </text>
-        </g>
-      )}
 
       {/* Bars */}
       {data.buckets.map((b, i) => {
@@ -152,8 +129,9 @@ function Bars({
         const y = yFor(v)
         const h = PADDING.top + chartH - y
         const muted = b.avgMinutes == null
+        const label = bucketLabel(b.key)
         return (
-          <g key={i}>
+          <g key={b.key}>
             <rect
               x={x}
               y={muted ? PADDING.top + chartH - 2 : y}
@@ -164,7 +142,7 @@ function Bars({
               opacity={muted ? 0.6 : 1}
             >
               <title>
-                {DOW_SHORT_MON_FIRST[i]}:{' '}
+                {label}:{' '}
                 {b.avgMinutes == null
                   ? t('dashboard.noSamples')
                   : t('dashboard.averageValue', { value: fmt(b.avgMinutes) })}
@@ -177,19 +155,65 @@ function Bars({
                   : ''}
               </title>
             </rect>
-            <text
-              x={x + barW / 2}
-              y={VB_H - 10}
-              textAnchor="middle"
-              className="fill-muted-foreground text-[11px]"
-            >
-              {DOW_SHORT_MON_FIRST[i]}
-            </text>
+            {i % labelEvery === 0 && (
+              <text
+                x={x + barW / 2}
+                y={VB_H - 10}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[11px]"
+              >
+                {label}
+              </text>
+            )}
           </g>
         )
       })}
+
+      {/* Threshold "objetivo" line — rendered LAST so it sits ON TOP of the bars
+          (before it hid behind a tall bar). Label right-anchored with a small
+          background chip so it's always legible over any bar. */}
+      {showThreshold && (
+        <g>
+          <line
+            x1={PADDING.left}
+            x2={VB_W - PADDING.right}
+            y1={thY}
+            y2={thY}
+            stroke="rgb(244 63 94)"
+            strokeDasharray="4 4"
+            strokeWidth={1.25}
+          />
+          <rect
+            x={VB_W - PADDING.right - 82}
+            y={thY - 15}
+            width={82}
+            height={13}
+            rx={3}
+            fill="var(--card)"
+            opacity={0.9}
+          />
+          <text
+            x={VB_W - PADDING.right - 4}
+            y={thY - 5}
+            textAnchor="end"
+            className="fill-rose-600 dark:fill-rose-300 text-[10px]"
+          >
+            {t('dashboard.target', { value: fmt(thresholdMinutes) })}
+          </text>
+        </g>
+      )}
     </svg>
   )
+}
+
+/** Etiqueta legible de un bucket-key: `YYYY-MM-DDTHH` → "HH:00"; `YYYY-MM-DD` → "D/M". */
+function bucketLabel(key: string): string {
+  if (key.includes('T')) {
+    const hh = key.slice(11, 13)
+    return `${hh}:00`
+  }
+  const [, m, d] = key.split('-')
+  return d && m ? `${Number(d)}/${Number(m)}` : key
 }
 
 function fmt(mins: number | null): string {

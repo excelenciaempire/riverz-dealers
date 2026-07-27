@@ -118,7 +118,7 @@ export default function DashboardPage() {
         if (fresh()) setResponseTimeLoading(false)
       })
 
-    void loadActivity(db, range, tRef.current, 50)
+    void loadActivity(db, tRef.current, 50)
       .then((a) => {
         if (fresh()) setActivity(a)
       })

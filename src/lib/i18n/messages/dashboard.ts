@@ -60,11 +60,15 @@ export const dashboard = {
 
   // Activity feed
   recentActivity: { es: "Actividad reciente", en: "Recent activity" },
+  loading: { es: "Cargando…", en: "Loading…" },
   viewAll: { es: "Ver todo", en: "View all" },
   noActivity: { es: "Sin actividad", en: "No activity" },
 
   // Activity feed — item text
   activityNewMessage: { es: "Nuevo mensaje de {who}", en: "New message from {who}" },
+  activityNewComment: { es: "Nuevo comentario de {who}", en: "New comment from {who}" },
+  activityCallInbound: { es: "Llamada de {who}", en: "Call from {who}" },
+  activityCallOutbound: { es: "Llamada a {who}", en: "Call to {who}" },
   activityNewContact: { es: "Nuevo contacto: {who}", en: "New contact: {who}" },
   activityUnknownContact: { es: "Desconocido", en: "Unknown" },
   activitySomeContact: { es: "un contacto", en: "a contact" },
