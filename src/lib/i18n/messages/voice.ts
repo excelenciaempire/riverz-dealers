@@ -6,7 +6,7 @@ import type { Namespace } from "./types";
  */
 export const voice = {
   // ── Agent editor · Voz tab ──
-  tab: { es: "Voz", en: "Voice" },
+  tab: { es: "Llamadas", en: "Calls" },
   enable: { es: "Agente de voz", en: "Voice agent" },
   enableHint: {
     es: "Permite que este agente haga y conteste llamadas por teléfono.",

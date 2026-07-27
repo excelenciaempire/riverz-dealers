@@ -204,17 +204,9 @@ export function VoiceSettings({
 
   return (
     <div className="space-y-6">
-      {/* Enable */}
-      <div className="flex items-start justify-between gap-4">
-        {/* La explicación vive en el encabezado de la tarjeta ("Voz"); aquí
-            solo la etiqueta del switch, para no repetir la misma frase. */}
-        <p className="text-sm font-medium text-foreground">{t('voice.enable')}</p>
-        <Switch
-          checked={value.voice_enabled}
-          onCheckedChange={(c) => set({ voice_enabled: c })}
-        />
-      </div>
-
+      {/* El interruptor de encendido vive en el encabezado de la tarjeta
+          (junto al título "Agente de voz" y su descripción): tenerlo también
+          acá era decir dos veces lo mismo, una debajo de la otra. */}
       {value.voice_enabled && (
         <>
           {/* AI-assisted setup — describe it in words, we fill the form. */}

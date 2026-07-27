@@ -1320,7 +1320,21 @@ export function AgentEditor({
             )}
 
             {tab === 'voice' && (
-              <SectionCard title={t('voice.tab')} hint={t('voice.enableHint')}>
+              // El encabezado de la tarjeta ES el interruptor: antes decía
+              // "Voz · Permite que este agente haga y conteste llamadas" y
+              // justo debajo repetía "Agente de voz" con el switch, dos veces
+              // lo mismo. Ahora es una sola fila: qué es, qué hace y el
+              // interruptor.
+              <SectionCard
+                title={t('voice.enable')}
+                hint={t('voice.enableHint')}
+                right={
+                  <Switch
+                    checked={voice.voice_enabled}
+                    onCheckedChange={(c) => setVoice({ ...voice, voice_enabled: c })}
+                  />
+                }
+              >
                 <VoiceSettings
                   value={voice}
                   onChange={setVoice}
