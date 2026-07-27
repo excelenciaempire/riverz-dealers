@@ -6,14 +6,18 @@ import { buildSelfCommentEvent } from "./comment-echo";
 import { ingestInboundEvent } from "./inbox-writer";
 
 /**
- * Respuestas del comercio hechas DESDE Instagram — lado pull.
+ * Respuestas del comercio hechas DESDE Instagram — lado pull (RED DE SEGURIDAD).
  *
- * Facebook manda un webhook `feed` por cada comentario, también por los de la
- * propia página, así que ahí alcanza con no descartarlos (lo hace el adapter).
- * Instagram NO notifica los comentarios de la cuenta dueña del post: por más
- * que el webhook esté bien suscrito, la respuesta que el comercio escribe
- * desde la app de Instagram no llega nunca. La única forma de verla es ir a
- * buscarla, y eso es lo que hace este módulo desde el cron de comentarios.
+ * El camino normal es el webhook: **medido en producción el 2026-07-27,
+ * Instagram SÍ notifica los comentarios de la cuenta dueña del post** (una
+ * respuesta escrita en la app apareció en la bandeja 1 segundo después), igual
+ * que Facebook con su webhook `feed`. Los adapters ya no los descartan, así
+ * que en la práctica llegan solos y al instante.
+ *
+ * Este módulo existe para lo que el webhook pierda: una entrega que Meta no
+ * reintente, una caída del servicio, un período con la conexión en error. Por
+ * eso corre en el cron y no al revés — y por eso todo lo que trae pasa igual
+ * por el corte de duplicados de `ingestInboundEvent`.
  *
  * Para no recorrer la cuenta entera, sólo mira las publicaciones donde ya hay
  * comentarios en la bandeja: una respuesta a un comentario que Riverz nunca

@@ -224,3 +224,23 @@ export function channelLabel(channel: Channel, t: TFn): string {
   if (channel === "ig_comment") return t("common.channelIgComments");
   return CHANNEL_DISPLAY[channel].label;
 }
+
+/**
+ * Quita las menciones que encabezan un comentario ("@usuario texto…").
+ *
+ * Instagram y Facebook anteponen el @ de la persona a toda respuesta dentro de
+ * un hilo —es como notifican a quien comentó— y nuestro propio agente hace lo
+ * mismo al contestar. En la bandeja ese @ no informa nada: el hilo ya muestra
+ * de quién es cada burbuja y bajo qué comentario cuelga. Se saca sólo al
+ * MOSTRAR; el texto guardado y el que sale publicado conservan la mención,
+ * porque de ella depende que a la persona le llegue el aviso.
+ *
+ * Sólo al principio: un @ en medio de la frase es parte de lo que se dijo. Y
+ * si el comentario era nada más que la mención, se devuelve intacto — antes
+ * una burbuja vacía que una que miente.
+ */
+export function stripLeadingMentions(text: string | null | undefined): string {
+  const raw = text ?? "";
+  const rest = raw.replace(/^(?:@[A-Za-z0-9._]{1,30}[ \t]*)+/, "").trimStart();
+  return rest || raw;
+}

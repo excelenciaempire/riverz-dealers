@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isUnsupportedMediaSnippet, isUnsupportedSnippet } from "./display";
+import {
+  isUnsupportedMediaSnippet,
+  isUnsupportedSnippet,
+  stripLeadingMentions,
+} from "./display";
 
 describe("isUnsupportedSnippet", () => {
   it("reconoce los sentinelas que guardan los adaptadores", () => {
@@ -22,3 +26,28 @@ describe("isUnsupportedMediaSnippet", () => {
     expect(isUnsupportedMediaSnippet(null)).toBe(false);
   });
 });
+
+describe("stripLeadingMentions", () => {
+  it("saca la mención con la que IG encabeza una respuesta", () => {
+    expect(stripLeadingMentions("@soyjuanrios winning")).toBe("winning");
+  });
+
+  it("saca varias menciones seguidas", () => {
+    expect(stripLeadingMentions("@ana @luis_2 gracias!")).toBe("gracias!");
+  });
+
+  it("respeta un @ en medio de la frase", () => {
+    expect(stripLeadingMentions("escribinos a @riverz por DM")).toBe(
+      "escribinos a @riverz por DM",
+    );
+  });
+
+  it("deja intacto un comentario que era sólo la mención", () => {
+    expect(stripLeadingMentions("@soyjuanrios")).toBe("@soyjuanrios");
+  });
+
+  it("no toca un texto sin menciones ni un vacío", () => {
+    expect(stripLeadingMentions("hola")).toBe("hola");
+    expect(stripLeadingMentions(null)).toBe("");
+  });
+})

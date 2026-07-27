@@ -8,7 +8,11 @@ import { cn } from "@/lib/utils";
 import type { Channel, Conversation, ConversationStatus, MessageStatus } from "@/types";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
-import { isUnsupportedSnippet, localizeContentToken } from "@/lib/channels/display";
+import {
+  isUnsupportedSnippet,
+  localizeContentToken,
+  stripLeadingMentions,
+} from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import {
   MESSAGE_CHANNELS,
@@ -735,7 +739,17 @@ const ConversationItem = memo(function ConversationItem({
               ) : null}
               {isUnsupportedSnippet(conversation.last_message_text)
                 ? t("inbox.unsupported")
-                : localizeContentToken(conversation.last_message_text, t) ||
+                : // Mismo criterio que la burbuja: el "@usuario" que IG/FB
+                  // anteponen a cada respuesta no se muestra. Sólo en los
+                  // canales de comentarios — en un chat, un texto que arranca
+                  // con @ es lo que la persona escribió.
+                  (conversation.channel === "ig_comment" ||
+                  conversation.channel === "fb_comment" ||
+                  conversation.channel === "tiktok_comment"
+                    ? stripLeadingMentions(
+                        localizeContentToken(conversation.last_message_text, t),
+                      )
+                    : localizeContentToken(conversation.last_message_text, t)) ||
                   t("inbox.noMessages")}
             </span>
           </p>

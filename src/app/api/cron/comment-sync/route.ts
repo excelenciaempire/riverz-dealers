@@ -10,22 +10,19 @@ import { pingCron } from "@/lib/cron/heartbeat";
  *
  * Two-way comment sync (pull side), con DOS ritmos en un solo cron:
  *
- *   - Cada corrida (*​/2 min) — respuestas que el comercio escribió DESDE
- *     Instagram. Meta no notifica los comentarios de la cuenta dueña del post,
- *     así que la única forma de verlas es ir a buscarlas; son ~1 llamada a
- *     Graph por publicación con actividad, o sea barato de correr seguido.
+ *   - Cada corrida — respuestas que el comercio escribió desde la app de
+ *     Instagram / Facebook. Es sólo una RED DE SEGURIDAD: medido en producción
+ *     el 2026-07-27, esas respuestas llegan por webhook en ~1 segundo. Esto
+ *     recoge lo que el webhook pierda (una entrega sin reintento, una caída,
+ *     la conexión en error). Cuesta ~1 llamada a Graph por publicación.
  *   - Cada ~10 min — reconciliación de borrados / ocultos (hasta 300 sondeos a
- *     Graph por cuenta). Correrla cada 2 minutos multiplicaría por cinco el
- *     consumo contra Meta sin ganar nada: nadie necesita ver un comentario
- *     borrado al instante, pero sí su propia respuesta.
+ *     Graph por cuenta). Instagram no emite webhook de borrado/ocultado, así
+ *     que acá el pull no es respaldo: es el único camino.
  *
  * Los dos ritmos viven en el MISMO cron a propósito: Render cobra un mínimo
  * mensual por cada cron job, así que partirlo en dos servicios costaría plata
  * para hacer exactamente lo mismo. El reloj del trabajo caro sale de
  * `cron_runs` (el mismo heartbeat que ya alimenta /api/health/crons).
- *
- * Facebook no depende de nada de esto: sus comentarios, respuestas y
- * borrados llegan en vivo por el webhook `feed`.
  *
  * Auth: `x-cron-secret` header must match `AUTOMATION_CRON_SECRET`.
  */

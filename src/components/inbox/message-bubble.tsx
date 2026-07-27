@@ -29,6 +29,7 @@ import {
   isUnsupportedMediaSnippet,
   isCommentDeleted,
   localizeContentToken,
+  stripLeadingMentions,
 } from "@/lib/channels/display";
 import { findLinks } from "@/lib/inbox/linkify";
 import { dateFnsLocale } from "@/lib/i18n/format";
@@ -609,17 +610,24 @@ function MessageContent({
       );
     }
 
-    default:
+    default: {
       if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia />;
       // Acá caen, entre otros, los comentarios de Facebook/Instagram: dejar
       // el teléfono en un comentario es de lo más común para pedir precio.
+      // El "@usuario" con el que IG/FB encabezan cada respuesta de un hilo no
+      // se muestra: el hilo ya dice quién habla y a qué contesta. Se saca sólo
+      // de la vista — el texto publicado lo conserva, porque de esa mención
+      // depende que a la persona le llegue la notificación.
+      const commentText = isCommentChannel(message.channel)
+        ? stripLeadingMentions(message.content_text)
+        : message.content_text;
       return (
         <div>
           <p className="whitespace-pre-wrap break-words text-sm">
             {isUnsupportedSnippet(message.content_text)
               ? t("inbox.unsupported")
-              : message.content_text
-                ? linkifyNodes(message.content_text)
+              : commentText
+                ? linkifyNodes(commentText)
                 : t("inbox.unsupported")}
           </p>
           {message.content_text && !isUnsupportedSnippet(message.content_text)
@@ -627,7 +635,17 @@ function MessageContent({
             : null}
         </div>
       );
+    }
   }
+}
+
+/** Canales donde el cuerpo es un comentario público, no un mensaje 1:1. */
+function isCommentChannel(channel: Message["channel"]): boolean {
+  return (
+    channel === "fb_comment" ||
+    channel === "ig_comment" ||
+    channel === "tiktok_comment"
+  );
 }
 
 /**
