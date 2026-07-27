@@ -126,6 +126,11 @@ export default function ContactsPage() {
   // Selección para exportar. Set de ids seleccionados (a través de páginas).
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
+  // Diálogo de export: elegir qué columnas se incluyen en el CSV.
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportCols, setExportCols] = useState<Set<string>>(
+    () => new Set(EXPORT_COLUMNS.map((c) => c.key)),
+  );
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -399,8 +404,14 @@ export default function ContactsPage() {
         if (!name) return;
         (tagsByContact[ct.contact_id] ??= []).push(name);
       });
-      downloadContactsCsv(rows, tagsByContact, fmt);
+      // Solo las columnas elegidas por el usuario, en el orden del catálogo.
+      const cols = EXPORT_COLUMNS.filter((c) => exportCols.has(c.key)).map((c) => ({
+        header: t(c.labelKey),
+        get: c.get,
+      }));
+      downloadContactsCsv(rows, tagsByContact, fmt, cols);
       toast.success(t('contacts.exported', { count: rows.length }));
+      setExportOpen(false);
     } catch {
       toast.error(t('contacts.exportError'));
     } finally {
@@ -608,11 +619,10 @@ export default function ContactsPage() {
           </button>
           <Button
             size="sm"
-            onClick={exportCsv}
-            disabled={exporting}
+            onClick={() => setExportOpen(true)}
             className="ml-auto bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            <Download className="size-4" />
             {t('contacts.exportCsv')}
           </Button>
         </div>
@@ -893,6 +903,75 @@ export default function ContactsPage() {
         onImported={fetchContacts}
       />
 
+      {/* Export column picker */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">{t('contacts.exportColumnsTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {t('contacts.exportColumnsHint', { count: selectedIds.size })}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="text-accent-ink hover:underline"
+                  onClick={() => setExportCols(new Set(EXPORT_COLUMNS.map((c) => c.key)))}
+                >
+                  {t('contacts.selectAllCols')}
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setExportCols(new Set())}
+                >
+                  {t('contacts.selectNoneCols')}
+                </button>
+              </div>
+            </div>
+            <div className="grid max-h-72 grid-cols-2 gap-x-4 gap-y-2 overflow-y-auto pr-1">
+              {EXPORT_COLUMNS.map((col) => (
+                <label key={col.key} className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={exportCols.has(col.key)}
+                    onChange={() =>
+                      setExportCols((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(col.key)) next.delete(col.key);
+                        else next.add(col.key);
+                        return next;
+                      })
+                    }
+                    className="size-4 cursor-pointer accent-primary"
+                  />
+                  {t(col.labelKey)}
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setExportOpen(false)}
+              className="border-border text-foreground hover:bg-accent"
+            >
+              {t('contacts.cancel')}
+            </Button>
+            <Button
+              onClick={exportCsv}
+              disabled={exporting || exportCols.size === 0}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {t('contacts.exportCsv')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-card border-border text-foreground sm:max-w-sm">
@@ -927,12 +1006,44 @@ export default function ContactsPage() {
 }
 
 
-// --- Exportación CSV -------------------------------------------------------
+// --- Exportación CSV (columnas elegibles) ----------------------------------
 
-type ShopAddr = {
-  address1?: string; address2?: string; city?: string;
-  province?: string; country?: string; zip?: string;
-} | null;
+type FmtLike = { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string };
+
+function sdOf(c: Contact): Record<string, unknown> | null {
+  return (c as unknown as { shopify_customer_data?: Record<string, unknown> | null })
+    .shopify_customer_data ?? null;
+}
+function addrOf(c: Contact): Record<string, unknown> | null {
+  const s = sdOf(c);
+  return (s?.default_address ?? s?.address ?? null) as Record<string, unknown> | null;
+}
+
+interface ExportColumn {
+  key: string;
+  labelKey: string;
+  get: (c: Contact, tags: string[], fmt: FmtLike) => string;
+}
+
+/** Todas las columnas exportables. El usuario elige cuáles antes de exportar. */
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'name', labelKey: 'contacts.colName', get: (c) => c.name ?? '' },
+  { key: 'phone', labelKey: 'contacts.colPhone', get: (c) => c.phone ?? '' },
+  { key: 'email', labelKey: 'contacts.colEmail', get: (c) => c.email ?? '' },
+  { key: 'company', labelKey: 'contacts.colCompany', get: (c) => c.company ?? '' },
+  { key: 'tags', labelKey: 'contacts.colTags', get: (_c, tags) => tags.join('; ') },
+  { key: 'shopify', labelKey: 'contacts.shopifyCustomer', get: (c) => (c.is_shopify_customer ? 'Sí' : 'No') },
+  { key: 'total_spent', labelKey: 'contacts.shopTotalSpent', get: (c) => String(sdOf(c)?.total_spent ?? sdOf(c)?.totalSpent ?? '') },
+  { key: 'currency', labelKey: 'contacts.shopCurrency', get: (c) => String(sdOf(c)?.currency ?? '') },
+  { key: 'orders', labelKey: 'contacts.shopOrders', get: (c) => String(sdOf(c)?.orders_count ?? sdOf(c)?.ordersCount ?? '') },
+  { key: 'address', labelKey: 'contacts.shopAddress', get: (c) => { const a = addrOf(c); return a ? [a.address1, a.address2].filter(Boolean).join(' ') : ''; } },
+  { key: 'city', labelKey: 'contacts.shopCity', get: (c) => String(addrOf(c)?.city ?? '') },
+  { key: 'province', labelKey: 'contacts.shopProvince', get: (c) => String(addrOf(c)?.province ?? '') },
+  { key: 'country', labelKey: 'contacts.shopCountry', get: (c) => String(addrOf(c)?.country ?? '') },
+  { key: 'zip', labelKey: 'contacts.shopZip', get: (c) => String(addrOf(c)?.zip ?? '') },
+  { key: 'channel', labelKey: 'contacts.colChannel', get: (c) => String((c as unknown as { channel?: string }).channel ?? '') },
+  { key: 'created', labelKey: 'contacts.colCreated', get: (c, _tags, fmt) => (c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '') },
+];
 
 /** Escapa un valor para CSV (comillas, comas, saltos de línea). */
 function csvCell(v: unknown): string {
@@ -941,50 +1052,20 @@ function csvCell(v: unknown): string {
 }
 
 /**
- * Descarga los contactos seleccionados como CSV organizado, incluyendo la
- * dirección y la data de Shopify (total gastado, pedidos, dirección completa).
- * BOM UTF-8 para que Excel abra bien las tildes/ñ.
+ * Descarga los contactos como CSV usando SOLO las columnas elegidas por el
+ * usuario (en el orden de EXPORT_COLUMNS). BOM UTF-8 para que Excel abra bien
+ * tildes/ñ.
  */
 function downloadContactsCsv(
   rows: Contact[],
   tagsByContact: Record<string, string[]>,
-  fmt: { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string },
+  fmt: FmtLike,
+  columns: Array<{ header: string; get: ExportColumn['get'] }>,
 ): void {
-  const headers = [
-    'Nombre', 'Teléfono', 'Email', 'Empresa', 'Etiquetas',
-    'Cliente Shopify', 'Total gastado', 'Moneda', 'Pedidos',
-    'Dirección', 'Ciudad', 'Provincia', 'País', 'Código postal',
-    'Canal', 'Creado',
-  ];
-  const lines = [headers.join(',')];
+  const lines = [columns.map((col) => csvCell(col.header)).join(',')];
   for (const c of rows) {
-    const sd = (c as unknown as { shopify_customer_data?: Record<string, unknown> | null })
-      .shopify_customer_data ?? null;
-    const addr: ShopAddr =
-      (sd?.default_address as ShopAddr) ?? (sd?.address as ShopAddr) ?? null;
-    const totalSpent = sd?.total_spent ?? sd?.totalSpent ?? '';
-    const currency = sd?.currency ?? '';
-    const ordersCount = sd?.orders_count ?? sd?.ordersCount ?? '';
-    const street = [addr?.address1, addr?.address2].filter(Boolean).join(' ');
-    const row = [
-      c.name ?? '',
-      c.phone ?? '',
-      c.email ?? '',
-      c.company ?? '',
-      (tagsByContact[c.id] ?? []).join('; '),
-      c.is_shopify_customer ? 'Sí' : 'No',
-      totalSpent,
-      currency,
-      ordersCount,
-      street,
-      addr?.city ?? '',
-      addr?.province ?? '',
-      addr?.country ?? '',
-      addr?.zip ?? '',
-      (c as unknown as { channel?: string }).channel ?? '',
-      c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
-    ];
-    lines.push(row.map(csvCell).join(','));
+    const tags = tagsByContact[c.id] ?? [];
+    lines.push(columns.map((col) => csvCell(col.get(c, tags, fmt))).join(','));
   }
   const csv = '\uFEFF' + lines.join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

@@ -59,6 +59,12 @@ export const contacts = {
   shopProvince: { es: "Provincia", en: "Province" },
   shopCountry: { es: "País", en: "Country" },
   shopZip: { es: "Código postal", en: "Zip code" },
+  shopCurrency: { es: "Moneda", en: "Currency" },
+  colChannel: { es: "Canal", en: "Channel" },
+  exportColumnsTitle: { es: "Elige las columnas a exportar", en: "Choose columns to export" },
+  exportColumnsHint: { es: "{count} contactos · marca las columnas del CSV", en: "{count} contacts · pick the CSV columns" },
+  selectAllCols: { es: "Todas", en: "All" },
+  selectNoneCols: { es: "Ninguna", en: "None" },
 
   // Row actions
   edit: { es: "Editar", en: "Edit" },
