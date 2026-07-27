@@ -213,6 +213,14 @@ async function findShopifyCustomer(
       `${base}/customers/search.json?query=${encodeURIComponent(query)}&limit=${limit}`,
       { headers },
     );
+    // Un 429 (límite de tasa) o un 5xx NO significan "no es cliente". Si los
+    // tragáramos devolviendo vacío, el contacto quedaría marcado como
+    // revisado-sin-datos y no se volvería a mirar durante días: una tienda
+    // ocupada terminaría con media base marcada como "no compró" por un pico
+    // de tráfico. Cortamos para que el lote lo reintente.
+    if (r.status === 429 || r.status >= 500) {
+      throw new Error(`shopify search ${r.status}`);
+    }
     if (!r.ok) return [];
     const data = (await r.json()) as { customers?: ShopifyCustomer[] };
     return data.customers ?? [];

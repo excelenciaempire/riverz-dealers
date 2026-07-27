@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
-import { enrichContactFromShopify } from './enrich';
+import {
+  enrichContactFromShopify,
+  resolveShopifyConnection,
+  type ShopifyConnectionForEnrich,
+} from './enrich';
 import { applyCategoryTags } from './tags';
 
 /**
@@ -40,6 +44,10 @@ export interface SyncAllResult {
   matched: number;
   /** Cuántos quedaron reclasificados con etiquetas. */
   tagged: number;
+  /** Cuántos se saltearon por no tener con qué buscarlos (ni teléfono ni
+   *  email) o por no haber Shopify conectado en su workspace. Quedan marcados
+   *  como revisados para que no vuelvan a la cola en la corrida siguiente. */
+  skipped: number;
   /** Cuántos quedan pendientes por sincronizar (0 = base al día). */
   pending: number;
 }
@@ -65,9 +73,35 @@ export async function syncContactsBatch(db: SupabaseClient): Promise<SyncAllResu
   let tagged = 0;
   const tagCache = new Map<string, string>();
 
+  // La conexión de Shopify se resuelve UNA vez por workspace, no una por
+  // contacto: antes cada uno pagaba su propia consulta (o dos) para leer
+  // siempre la misma fila.
+  const connections = new Map<string, ShopifyConnectionForEnrich | null>();
+  const connectionFor = async (
+    workspaceId: string,
+  ): Promise<ShopifyConnectionForEnrich | null> => {
+    if (!connections.has(workspaceId)) {
+      connections.set(workspaceId, await resolveShopifyConnection(db, workspaceId));
+    }
+    return connections.get(workspaceId) ?? null;
+  };
+
+  // Contactos que no se pueden enriquecer: hay que marcarlos igual. Sin esto
+  // el enriquecedor los descartaba sin sellar `shopify_data_synced_at`, así
+  // que volvían a encabezar la cola en CADA corrida y tapaban la entrada — la
+  // base nunca terminaba de completarse. Son muchos: 842 comentaristas de
+  // IG/FB no tienen ni teléfono ni email con qué buscarlos en Shopify.
+  const unreachable: string[] = [];
+
   await mapWithConcurrency(contacts, CONCURRENCY, async (contact) => {
     try {
-      const snapshot = await enrichContactFromShopify(db, contact);
+      const hasIdentity = Boolean(contact.email || contact.phone);
+      const connection = hasIdentity ? await connectionFor(contact.workspace_id) : null;
+      if (!hasIdentity || !connection) {
+        unreachable.push(contact.id);
+        return;
+      }
+      const snapshot = await enrichContactFromShopify(db, contact, { connection });
       if (!snapshot) return;
       matched++;
       // Reclasificar con lo que acaba de llegar. `last_offer_*` los sella el
@@ -95,6 +129,16 @@ export async function syncContactsBatch(db: SupabaseClient): Promise<SyncAllResu
     }
   });
 
+  // Sellar de una sola vez a los que no se pueden buscar, para que la cola
+  // avance. Vuelven a revisarse en la ventana de refresco por si más adelante
+  // se les carga un teléfono o el comercio conecta Shopify.
+  if (unreachable.length > 0) {
+    await db
+      .from('contacts')
+      .update({ shopify_data_synced_at: new Date().toISOString() })
+      .in('id', unreachable);
+  }
+
   const { count } = await db
     .from('contacts')
     .select('id', { count: 'exact', head: true })
@@ -104,6 +148,7 @@ export async function syncContactsBatch(db: SupabaseClient): Promise<SyncAllResu
     processed: contacts.length,
     matched,
     tagged,
+    skipped: unreachable.length,
     pending: Math.max(0, (count ?? 0) - contacts.length),
   };
 }
