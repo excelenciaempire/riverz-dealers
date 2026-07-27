@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { escapeLike } from '@/lib/security/like';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, Channel } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -169,9 +169,11 @@ export default function ContactsPage() {
   const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
     'all',
   );
-  // Filtro visible por cliente Shopify. Para segmentaciones más ricas (gasto,
-  // pedidos, país…) está la pestaña Segmentos + "Guardar como segmento".
+  // Filtros visibles (dropdowns). Para segmentaciones más ricas (gasto, pedidos,
+  // país…) está la pestaña Segmentos + "Guardar como segmento".
   const [shopifyFilter, setShopifyFilter] = useState<'all' | 'customers' | 'non'>('all');
+  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [hasFilter, setHasFilter] = useState<'all' | 'phone' | 'email'>('all');
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -224,6 +226,13 @@ export default function ContactsPage() {
     // Filtro por cliente Shopify.
     if (shopifyFilter === 'customers') query = query.eq('is_shopify_customer', true);
     else if (shopifyFilter === 'non') query = query.eq('is_shopify_customer', false);
+
+    // Filtro por canal de origen.
+    if (channelFilter !== 'all') query = query.eq('channel', channelFilter);
+
+    // Filtro por dato de contacto disponible.
+    if (hasFilter === 'phone') query = query.not('phone', 'is', null);
+    else if (hasFilter === 'email') query = query.not('email', 'is', null);
 
     // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
     // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
@@ -284,7 +293,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, shopifyFilter, workspaceId, t]);
+  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, shopifyFilter, channelFilter, hasFilter, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -434,7 +443,11 @@ export default function ContactsPage() {
   // etiquetas) a reglas del segmento; el editor muestra el conteo real en vivo
   // antes de guardar, así queda preciso. (La búsqueda es ad-hoc → no se guarda.)
   const filtersActive =
-    selectedTagIds.length > 0 || datePreset !== 'all' || shopifyFilter !== 'all';
+    selectedTagIds.length > 0 ||
+    datePreset !== 'all' ||
+    shopifyFilter !== 'all' ||
+    channelFilter !== 'all' ||
+    hasFilter !== 'all';
   function draftSegment() {
     const rules: SegmentRule[] = [];
     if (datePreset !== 'all') {
@@ -449,6 +462,12 @@ export default function ContactsPage() {
         type: 'shopify',
         op: shopifyFilter === 'customers' ? 'is_customer' : 'is_not_customer',
       });
+    }
+    if (channelFilter !== 'all') {
+      rules.push({ type: 'channel', op: 'is', channel: channelFilter as Channel });
+    }
+    if (hasFilter !== 'all') {
+      rules.push({ type: 'has_field', field: hasFilter, op: 'present' });
     }
     for (const tid of selectedTagIds) rules.push({ type: 'tag', op: 'has', tagId: tid });
     return { name: '', description: '', rules, match_mode: 'all' as const };
@@ -545,62 +564,64 @@ export default function ContactsPage() {
         />
       </div>
 
-      {/* Date filter (created_at) */}
-      <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
-        {(['all', '7d', '30d', '90d'] as const).map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => {
-              setDatePreset(d);
-              setPage(0);
-            }}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-              datePreset === d
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t(
-              d === 'all'
-                ? 'contacts.actRangeAll'
-                : d === '7d'
-                  ? 'contacts.actRange7'
-                  : d === '30d'
-                    ? 'contacts.actRange30'
-                    : 'contacts.actRange90',
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Filtro por cliente Shopify (visible) */}
-      <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
-        {(['all', 'customers', 'non'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => {
-              setShopifyFilter(v);
-              setPage(0);
-            }}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-              shopifyFilter === v
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t(
-              v === 'all'
-                ? 'contacts.shopFilterAll'
-                : v === 'customers'
-                  ? 'contacts.shopFilterCustomers'
-                  : 'contacts.shopFilterNon',
-            )}
-          </button>
-        ))}
+      {/* Filtros (dropdowns): fecha · Shopify · canal · dato de contacto */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSelect
+          value={datePreset}
+          onChange={(v) => {
+            setDatePreset(v as 'all' | '7d' | '30d' | '90d');
+            setPage(0);
+          }}
+          options={[
+            { value: 'all', label: t('contacts.filterAnyDate') },
+            { value: '7d', label: t('contacts.actRange7') },
+            { value: '30d', label: t('contacts.actRange30') },
+            { value: '90d', label: t('contacts.actRange90') },
+          ]}
+        />
+        <FilterSelect
+          value={shopifyFilter}
+          onChange={(v) => {
+            setShopifyFilter(v as 'all' | 'customers' | 'non');
+            setPage(0);
+          }}
+          options={[
+            { value: 'all', label: t('contacts.filterAnyShopify') },
+            { value: 'customers', label: t('contacts.shopFilterCustomers') },
+            { value: 'non', label: t('contacts.shopFilterNon') },
+          ]}
+        />
+        <FilterSelect
+          value={channelFilter}
+          onChange={(v) => {
+            setChannelFilter(v);
+            setPage(0);
+          }}
+          options={[
+            { value: 'all', label: t('contacts.filterAnyChannel') },
+            { value: 'whatsapp', label: 'WhatsApp' },
+            { value: 'instagram', label: 'Instagram' },
+            { value: 'messenger', label: 'Messenger' },
+            { value: 'ig_comment', label: t('contacts.filterChIgComment') },
+            { value: 'fb_comment', label: t('contacts.filterChFbComment') },
+            { value: 'voice', label: t('contacts.filterChVoice') },
+            { value: 'mercadolibre', label: 'Mercado Libre' },
+            { value: 'gmail', label: 'Gmail' },
+            { value: 'outlook', label: 'Outlook' },
+          ]}
+        />
+        <FilterSelect
+          value={hasFilter}
+          onChange={(v) => {
+            setHasFilter(v as 'all' | 'phone' | 'email');
+            setPage(0);
+          }}
+          options={[
+            { value: 'all', label: t('contacts.filterAnyContact') },
+            { value: 'phone', label: t('contacts.filterHasPhone') },
+            { value: 'email', label: t('contacts.filterHasEmail') },
+          ]}
+        />
       </div>
 
       {/* Tag filter */}
@@ -1167,4 +1188,29 @@ function downloadContactsCsv(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/** Dropdown de filtro estilo pill (nativo, minimalista). */
+function FilterSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="cursor-pointer rounded-full border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent focus:outline-none focus:ring-1 focus:ring-ring"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
 }
