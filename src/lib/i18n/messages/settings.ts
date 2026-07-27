@@ -160,18 +160,6 @@ export const settings = {
   joinedOn: { es: "Registrado el", en: "Joined on" },
   userId: { es: "ID de usuario", en: "User ID" },
 
-  // Sessions card
-  activeSessions: { es: "Sesiones activas", en: "Active sessions" },
-  signOutAllDevices: {
-    es: "Cerrar sesión en todos los dispositivos",
-    en: "Sign out on all devices",
-  },
-  signOutAllConfirm: {
-    es: "¿Cerrar sesión en todos los dispositivos?",
-    en: "Sign out on all devices?",
-  },
-  signOut: { es: "Cerrar sesión", en: "Sign out" },
-
   // Shopify card
   shopifyConnected: { es: "Shopify conectado", en: "Shopify connected" },
   shopifyConnectError: {

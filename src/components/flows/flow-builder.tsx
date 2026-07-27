@@ -2423,16 +2423,16 @@ export function FlowBuilder({
             para agregar un paso sin importar dónde estés viendo el árbol.
             El paso recién creado aparece como "huérfano" abajo y el
             usuario lo conecta donde quiera con el selector "Avanza a". */}
-        {state.nodes.length > 0 && (
-          // Bottom-LEFT — los controles de zoom del CanvasViewport viven
-          // en bottom-right, así que llevamos la paleta al otro lado
-          // para que no se solape con los controles de zoom.
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2 pb-[env(safe-area-inset-bottom)]">
-            <div className="pointer-events-auto">
-              <FloatingAddPalette onAdd={addNode} />
-            </div>
+        {/* Bottom-LEFT — los controles de zoom del CanvasViewport viven en
+            bottom-right, así que llevamos la paleta al otro lado. SIEMPRE
+            visible (incl. flujo vacío): es la forma de agregar el primer paso.
+            Antes se ocultaba con nodes.length > 0 y en un flujo nuevo no
+            dejaba agregar nada. */}
+        <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col items-start gap-2 pb-[env(safe-area-inset-bottom)]">
+          <div className="pointer-events-auto">
+            <FloatingAddPalette onAdd={addNode} />
           </div>
-        )}
+        </div>
         {/* Constructor IA — chat embebido en la esquina superior derecha
             del lienzo. Recibe getSnapshot (no el state directo) para
             mandar siempre la versión más reciente al endpoint. */}

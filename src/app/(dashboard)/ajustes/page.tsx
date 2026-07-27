@@ -6,7 +6,6 @@ import { User, Palette, Building2, GitBranch } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
-import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
 import { AssignmentRulesPanel } from '@/components/settings/assignment-rules-panel';
@@ -79,7 +78,6 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="space-y-6">
           <ProfileForm />
-          <SessionsCard />
         </TabsContent>
 
         <TabsContent value="workspace">

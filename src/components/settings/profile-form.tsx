@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, Mail } from 'lucide-react';
+import { Loader2, Upload, Trash2, Mail, Copy, Check } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -50,6 +50,7 @@ export function ProfileForm() {
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
 
   // Seed form state once the profile loads.
   useEffect(() => {
@@ -71,6 +72,24 @@ export function ProfileForm() {
   const initial = (fullName || profile?.full_name || profile?.email || 'U')
     .charAt(0)
     .toUpperCase();
+
+  // El UUID completo sólo importa para soporte: se muestra el prefijo y
+  // el botón copia el ID entero.
+  const shortId = user?.id ? user.id.slice(0, 8) : null;
+
+  const onCopyId = async () => {
+    if (!user?.id) return;
+    try {
+      await navigator.clipboard.writeText(user.id);
+      setIdCopied(true);
+      toast.success(
+        t('settings.copiedToClipboard', { label: t('settings.userId') }),
+      );
+      setTimeout(() => setIdCopied(false), 1500);
+    } catch {
+      toast.error(t('settings.couldNotCopy'));
+    }
+  };
 
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -317,10 +336,26 @@ export function ProfileForm() {
                 <dt className="text-muted-foreground">{t('settings.joinedOn')}</dt>
                 <dd className="mt-0.5 text-foreground">{joined}</dd>
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <dt className="text-muted-foreground">{t('settings.userId')}</dt>
-                <dd className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
-                  {user?.id ?? '—'}
+                <dd className="mt-0.5 flex items-center gap-1.5">
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {shortId ?? '—'}
+                  </span>
+                  {shortId && (
+                    <button
+                      type="button"
+                      onClick={onCopyId}
+                      aria-label={t('settings.userId')}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {idCopied ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </button>
+                  )}
                 </dd>
               </div>
             </dl>
