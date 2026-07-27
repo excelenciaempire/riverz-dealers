@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { TemplateMetrics } from '@/components/templates/template-metrics';
 import type { TFn } from '@/lib/i18n/translate';
 import type { MessageTemplate, Broadcast } from '@/types';
 
@@ -382,6 +383,9 @@ export default function TemplateDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Métricas de la plantilla — bajo la vista previa */}
+      <TemplateMetrics templateId={template.id} />
     </div>
   );
 }

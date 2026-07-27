@@ -222,6 +222,22 @@ export const templates = {
     en: "It's a draft. Submit it to Meta for approval so you can use it in bulk sends.",
   },
   viewInMetaBusiness: { es: "Ver en Meta Business", en: "View in Meta Business" },
+  metricsTitle: { es: "Métricas", en: "Metrics" },
+  metricsPeriod: { es: "Últimos 30 días", en: "Last 30 days" },
+  metricsLoading: { es: "Cargando métricas…", en: "Loading metrics…" },
+  metricsUnavailable: {
+    es: "Sin métricas todavía (aparecen cuando la plantilla se envía).",
+    en: "No metrics yet (they show once the template is sent).",
+  },
+  metricSent: { es: "Enviados", en: "Sent" },
+  metricDelivered: { es: "Entregados", en: "Delivered" },
+  metricRead: { es: "Leídos", en: "Read" },
+  metricClicks: { es: "Clics en botón", en: "Button clicks" },
+  metricCtr: { es: "{pct} de entregados", en: "{pct} of delivered" },
+  metricCartTitle: { es: "Conversión de carrito", en: "Cart conversion" },
+  metricCartRecovered: { es: "Recuperados", en: "Recovered" },
+  metricCartRate: { es: "Tasa de conversión", en: "Conversion rate" },
+  metricCartRevenue: { es: "Ingreso recuperado", en: "Recovered revenue" },
   usedIn: { es: "Usada en", en: "Used in" },
 
   // ── Layout ──
