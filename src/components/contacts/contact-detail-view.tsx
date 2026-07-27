@@ -21,6 +21,7 @@ import { ContactTags } from '@/components/contacts/contact-tags';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { TFn } from '@/lib/i18n/translate';
 import {
   Loader2,
@@ -46,15 +47,16 @@ export function ContactDetailView({
   const supabase = createClient();
   const t = useT();
   const fmt = useFormat();
+  const fetchWithCsrf = useFetchWithCsrf();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editCompany, setEditCompany] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Notes tab
@@ -78,7 +80,6 @@ export function ContactDetailView({
       setEditName(data.name ?? '');
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
-      setEditCompany(data.company ?? '');
     }
     setLoading(false);
   }, [contactId, supabase]);
@@ -97,12 +98,37 @@ export function ContactDetailView({
     setLoadingNotes(false);
   }, [contactId, supabase]);
 
+  /**
+   * Pide a Shopify lo que falte de este cliente (dirección, pedidos, gasto) al
+   * abrir la ficha. Antes esto sólo pasaba cuando el agente de IA atendía un
+   * mensaje, así que la dirección no aparecía nunca. Silencioso y sin bloquear:
+   * si Shopify no contesta o la persona no es cliente, la ficha se ve igual con
+   * el resto de los datos.
+   */
+  const enrichFromShopify = useCallback(async () => {
+    if (!contactId) return;
+    setEnriching(true);
+    try {
+      const res = await fetchWithCsrf(`/api/contacts/${contactId}/enrich`, {
+        method: 'POST',
+      });
+      const payload = (await res.json().catch(() => null)) as { data?: unknown } | null;
+      // Sólo relee si Shopify devolvió algo nuevo que mostrar.
+      if (res.ok && payload?.data) fetchContact();
+    } catch {
+      /* la ficha ya está mostrando todo lo demás */
+    } finally {
+      setEnriching(false);
+    }
+  }, [contactId, fetchContact, fetchWithCsrf]);
+
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
       fetchNotes();
+      void enrichFromShopify();
     }
-  }, [open, contactId, fetchContact, fetchNotes]);
+  }, [open, contactId, fetchContact, fetchNotes, enrichFromShopify]);
 
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
@@ -117,7 +143,6 @@ export function ContactDetailView({
         name: editName.trim() || null,
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
-        company: editCompany.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -278,7 +303,13 @@ export function ContactDetailView({
                       )}
                     </div>
                   )}
-                  {renderShopifyData(contact, t)}
+                  {renderShopifyData(contact, t) ??
+                    (enriching ? (
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="size-3 animate-spin" />
+                        {t('contacts.shopLoading')}
+                      </p>
+                    ) : null)}
                   {renderContactInfo(contact, t, fmt)}
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('contacts.fieldName')}</Label>
@@ -303,14 +334,6 @@ export function ContactDetailView({
                     <Input
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
-                      className="bg-muted border-border text-foreground h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-muted-foreground text-xs">{t('contacts.fieldCompany')}</Label>
-                    <Input
-                      value={editCompany}
-                      onChange={(e) => setEditCompany(e.target.value)}
                       className="bg-muted border-border text-foreground h-8 text-sm"
                     />
                   </div>

@@ -45,11 +45,15 @@ import {
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
+import { DateAddedFilter, type DatePreset } from '@/components/contacts/date-added-filter';
+import type { CustomRange } from '@/components/dashboard/date-range-filter';
+import { rangeForPreset } from '@/lib/dashboard/date-utils';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { SegmentsPanel, SegmentEditor } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
 import type { SegmentRule } from '@/lib/segments/types';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useTimezone } from '@/hooks/use-timezone';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
@@ -117,6 +121,7 @@ export default function ContactsPage() {
   const workspaceId = workspace?.id ?? null;
   const t = useT();
   const fmt = useFormat();
+  const tz = useTimezone();
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,9 +171,9 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
-  const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
-    'all',
-  );
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  /** Rango a medida elegido en el calendario (sólo con datePreset==='custom'). */
+  const [dateCustom, setDateCustom] = useState<CustomRange | null>(null);
   // Filtros visibles (dropdowns). Para segmentaciones más ricas (gasto, pedidos,
   // país…) está la pestaña Segmentos + "Guardar como segmento".
   const [shopifyFilter, setShopifyFilter] = useState<'all' | 'customers' | 'non'>('all');
@@ -213,15 +218,10 @@ export default function ContactsPage() {
       query = query.in('id', taggedIds);
     }
 
-    // Date filter on created_at (Todo / 7d / 30d / 90d).
-    const dateDays =
-      datePreset === '7d' ? 7 : datePreset === '30d' ? 30 : datePreset === '90d' ? 90 : 0;
-    if (dateDays > 0) {
-      query = query.gte(
-        'created_at',
-        new Date(Date.now() - dateDays * 24 * 60 * 60 * 1000).toISOString(),
-      );
-    }
+    // Filtro por fecha de alta: atajo (7/30/90 días) o rango del calendario.
+    const bounds = dateBounds(datePreset, dateCustom, tz);
+    if (bounds.from) query = query.gte('created_at', bounds.from);
+    if (bounds.to) query = query.lt('created_at', bounds.to);
 
     // Filtro por cliente Shopify.
     if (shopifyFilter === 'customers') query = query.eq('is_shopify_customer', true);
@@ -293,7 +293,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, shopifyFilter, channelFilter, hasFilter, workspaceId, t]);
+  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, dateCustom, tz, shopifyFilter, channelFilter, hasFilter, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -392,8 +392,9 @@ export default function ContactsPage() {
     }
     let q = supabase.from('contacts').select('id').eq('workspace_id', workspaceId).limit(10000);
     if (taggedIds) q = q.in('id', taggedIds);
-    const dateDays = datePreset === '7d' ? 7 : datePreset === '30d' ? 30 : datePreset === '90d' ? 90 : 0;
-    if (dateDays > 0) q = q.gte('created_at', new Date(Date.now() - dateDays * 864e5).toISOString());
+    const selBounds = dateBounds(datePreset, dateCustom, tz);
+    if (selBounds.from) q = q.gte('created_at', selBounds.from);
+    if (selBounds.to) q = q.lt('created_at', selBounds.to);
     const rawSearch = search.trim();
     if (rawSearch) {
       const cleaned = rawSearch.replace(/[,()\\:*]/g, ' ').trim();
@@ -450,7 +451,12 @@ export default function ContactsPage() {
     hasFilter !== 'all';
   function draftSegment() {
     const rules: SegmentRule[] = [];
-    if (datePreset !== 'all') {
+    if (datePreset === 'custom' && dateCustom) {
+      // Un rango a medida son dos reglas: desde y hasta. El segmento sigue
+      // siendo exacto — no se pierde nada al guardarlo.
+      rules.push({ type: 'created', op: 'after', value: dateCustom.start });
+      rules.push({ type: 'created', op: 'before', value: dateCustom.end });
+    } else if (datePreset !== 'all') {
       rules.push({
         type: 'created',
         op: 'last_n_days',
@@ -566,20 +572,17 @@ export default function ContactsPage() {
 
       {/* Filtros (dropdowns): fecha · Shopify · canal · dato de contacto */}
       <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect
-          value={datePreset}
-          onChange={(v) => {
-            setDatePreset(v as 'all' | '7d' | '30d' | '90d');
+        <DateAddedFilter
+          preset={datePreset}
+          custom={dateCustom}
+          onChange={(p, c) => {
+            setDatePreset(p);
+            setDateCustom(c);
             setPage(0);
           }}
-          options={[
-            { value: 'all', label: t('contacts.filterAnyDate') },
-            { value: '7d', label: t('contacts.actRange7') },
-            { value: '30d', label: t('contacts.actRange30') },
-            { value: '90d', label: t('contacts.actRange90') },
-          ]}
         />
         <FilterSelect
+          label={t('contacts.filterShopifyLabel')}
           value={shopifyFilter}
           onChange={(v) => {
             setShopifyFilter(v as 'all' | 'customers' | 'non');
@@ -592,6 +595,7 @@ export default function ContactsPage() {
           ]}
         />
         <FilterSelect
+          label={t('contacts.filterChannelLabel')}
           value={channelFilter}
           onChange={(v) => {
             setChannelFilter(v);
@@ -611,6 +615,7 @@ export default function ContactsPage() {
           ]}
         />
         <FilterSelect
+          label={t('contacts.filterContactLabel')}
           value={hasFilter}
           onChange={(v) => {
             setHasFilter(v as 'all' | 'phone' | 'email');
@@ -1191,24 +1196,61 @@ function downloadContactsCsv(
 }
 
 /** Dropdown de filtro estilo pill (nativo, minimalista). */
+/**
+ * Ventana de fechas de alta a consultar. Los atajos son móviles (los últimos N
+ * días hasta ahora); el rango del calendario se resuelve en la zona horaria del
+ * WORKSPACE con el mismo `rangeForPreset` del panel, así el día que se toca en
+ * el calendario es el mismo día que cuenta la consulta. `to` es EXCLUSIVO.
+ */
+function dateBounds(
+  preset: DatePreset,
+  custom: CustomRange | null,
+  tz: string,
+): { from?: string; to?: string } {
+  if (preset === 'custom') {
+    if (!custom) return {};
+    const r = rangeForPreset(tz, 'custom', custom);
+    return { from: r.start.toISOString(), to: r.end.toISOString() };
+  }
+  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : preset === '90d' ? 90 : 0;
+  if (days === 0) return {};
+  return { from: new Date(Date.now() - days * 864e5).toISOString() };
+}
+
+/**
+ * Desplegable de filtro. Cada opción se muestra como "Dimensión: valor"
+ * ("Canal: Instagram") porque un `select` cerrado sólo muestra la opción
+ * elegida: sin el prefijo, "todos" o "compraron" sueltos no dejaban saber qué
+ * se estaba filtrando — y en reposo decía "Cualquier dato", que no significa
+ * nada. Se resalta cuando el filtro está aplicado.
+ */
 function FilterSelect({
+  label,
   value,
   onChange,
   options,
 }: {
+  label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const active = value !== 'all';
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="cursor-pointer rounded-full border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent focus:outline-none focus:ring-1 focus:ring-ring"
+      aria-label={label}
+      className={cn(
+        'cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-ring',
+        active
+          ? 'border-accent/40 bg-accent/15 text-foreground'
+          : 'border-border bg-muted/60 text-foreground hover:bg-accent',
+      )}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
-          {o.label}
+          {label}: {o.label}
         </option>
       ))}
     </select>

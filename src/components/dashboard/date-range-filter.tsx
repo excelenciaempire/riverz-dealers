@@ -142,7 +142,12 @@ const WEEKDAY_KEYS = [
   'dashboard.weekdaySun',
 ]
 
-function RangeCalendar({
+/**
+ * Calendario de rango (dos clics: inicio y fin), resuelto en la zona horaria
+ * del workspace. Exportado para que cualquier filtro con fechas —el panel, los
+ * contactos— use EL MISMO, en vez de que cada pantalla invente el suyo.
+ */
+export function RangeCalendar({
   tz,
   value,
   onSelect,
