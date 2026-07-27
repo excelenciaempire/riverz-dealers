@@ -62,6 +62,21 @@ logger.setLevel(logging.INFO)
 
 AGENT_NAME = "riverz-voice"
 
+# Repique: el default de LiveKit corta a los 30 s, y a móviles de LatAm eso llega
+# a cancelar llamadas que recién estaban sonando (medido: CDRs con 487 a los 30 s
+# exactos). Se puede ajustar sin redeploy con VOICE_RING_TIMEOUT_SECS.
+RING_TIMEOUT_SECS = int(os.getenv("VOICE_RING_TIMEOUT_SECS", "45"))
+
+# Reintento de marcado. La ruta internacional del carrier rebota de a ratos con
+# 404 "unallocated" sobre números que sí existen (medido a Argentina: mismo
+# número, 404 y contestada con minutos de diferencia), y Telnyx no reintenta por
+# otra ruta. Un 404 real no cuesta nada ni hace sonar el teléfono, así que
+# reintentar es barato. NO se reintentan ocupado/no contesta: son respuestas
+# legítimas del destino.
+DIAL_ATTEMPTS = int(os.getenv("VOICE_DIAL_ATTEMPTS", "3"))
+DIAL_RETRY_DELAY_SECS = float(os.getenv("VOICE_DIAL_RETRY_DELAY_SECS", "6"))
+_RETRYABLE_SIP_STATUS = {404, 500, 502, 503, 504}
+
 # Mantiene refs fuertes a tasks de fondo (asyncio sólo guarda refs débiles).
 _BG_TASKS: set[asyncio.Task] = set()
 
@@ -94,6 +109,31 @@ def _map_sip_status(code) -> str:
     if code in (408, 480, 484, 487):  # Timeout / Unavailable / Address Incomplete / Terminated
         return "no_answer"
     return "failed"
+
+
+def _sip_status_code(err) -> int | None:
+    """SIP status code que viene en el TwirpError del marcado, si lo trae."""
+    meta = getattr(err, "metadata", None) or {}
+    try:
+        return int(meta.get("sip_status_code"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _duration(seconds: float):
+    """`google.protobuf.Duration` para los campos de tiempo de LiveKit. Devuelve
+    None si el SDK instalado no expone el campo o falta protobuf: en ese caso el
+    marcado sigue con el default del SDK en vez de romperse."""
+    if not seconds or seconds <= 0:
+        return None
+    try:
+        from google.protobuf.duration_pb2 import Duration
+
+        if "ringing_timeout" not in lkapi.CreateSIPParticipantRequest.DESCRIPTOR.fields_by_name:
+            return None
+        return Duration(seconds=int(seconds))
+    except Exception:  # pragma: no cover
+        return None
 
 
 def _parse_call_metadata(ctx: JobContext) -> dict | None:
@@ -714,17 +754,48 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     # sip_number fija el caller ID (número "From"); sólo si viene definido.
     if sip.get("caller_number"):
         req_kwargs["sip_number"] = sip["caller_number"]
+    ring_timeout = _duration(RING_TIMEOUT_SECS)
+    if ring_timeout is not None:
+        req_kwargs["ringing_timeout"] = ring_timeout
 
-    try:
-        # NOTE: create_sip_participant + wait_until_answered lanza TwirpError con
-        # metadata['sip_status_code'] al fallar el marcado:
-        # https://docs.livekit.io/sip/outbound-calls/
-        await ctx.api.sip.create_sip_participant(lkapi.CreateSIPParticipantRequest(**req_kwargs))
-    except lkapi.TwirpError as e:
-        code = e.metadata.get("sip_status_code") if getattr(e, "metadata", None) else None
-        call_state.status = _map_sip_status(code)
-        logger.warning("fallo al marcar SIP: %s (status %s)", getattr(e, "message", e), code)
-        await _finalize(api, call_state, usage_collector, context, error=f"sip:{code}:{getattr(e, 'message', '')}")
+    last_error: Exception | None = None
+    last_code = None
+    for attempt in range(1, max(DIAL_ATTEMPTS, 1) + 1):
+        try:
+            # NOTE: create_sip_participant + wait_until_answered lanza TwirpError con
+            # metadata['sip_status_code'] al fallar el marcado:
+            # https://docs.livekit.io/sip/outbound-calls/
+            await ctx.api.sip.create_sip_participant(lkapi.CreateSIPParticipantRequest(**req_kwargs))
+            last_error = None
+            break
+        except lkapi.TwirpError as e:
+            last_error, last_code = e, _sip_status_code(e)
+            if last_code not in _RETRYABLE_SIP_STATUS or attempt >= max(DIAL_ATTEMPTS, 1):
+                break
+            logger.warning(
+                "marcado rebotó con %s (intento %s/%s); reintento en %ss",
+                last_code, attempt, DIAL_ATTEMPTS, DIAL_RETRY_DELAY_SECS,
+            )
+            # El participante fallido puede quedar colgando en la sala y chocar con
+            # el reintento por identity repetida; lo sacamos antes (fail-soft).
+            try:
+                await ctx.api.room.remove_participant(
+                    lkapi.RoomParticipantIdentity(room=ctx.room.name, identity=identity)
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(DIAL_RETRY_DELAY_SECS)
+
+    if last_error is not None:
+        call_state.status = _map_sip_status(last_code)
+        logger.warning(
+            "fallo al marcar SIP: %s (status %s, %s intentos)",
+            getattr(last_error, "message", last_error), last_code, attempt,
+        )
+        await _finalize(
+            api, call_state, usage_collector, context,
+            error=f"sip:{last_code}:{getattr(last_error, 'message', '')}",
+        )
         ctx.shutdown()
         return
 
