@@ -32,7 +32,6 @@ import {
   PanelLeftOpen,
   Moon,
   Sun,
-  BarChart3,
   PhoneCall,
   MessageSquareReply,
 } from "lucide-react";
@@ -106,12 +105,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/productos", label: "nav.products", icon: ShoppingBag },
       { href: "/pedidos", label: "nav.orders", icon: Receipt },
-    ],
-  },
-  {
-    title: "nav.groupAnalytics",
-    items: [
-      { href: "/metricas", label: "nav.metrics", icon: BarChart3 },
     ],
   },
 ];

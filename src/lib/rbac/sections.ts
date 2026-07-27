@@ -31,7 +31,6 @@ export const GATEABLE_SECTIONS: GateableSection[] = [
   { key: "/agente-instagram", labelKey: "nav.instagramAgent" },
   { key: "/productos", labelKey: "nav.products" },
   { key: "/pedidos", labelKey: "nav.orders" },
-  { key: "/metricas", labelKey: "nav.metrics" },
   { key: "/integraciones", labelKey: "nav.integrations" },
 ];
 

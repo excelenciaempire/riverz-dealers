@@ -7,7 +7,6 @@ import {
   Check,
   CheckCircle2,
   Inbox,
-  LineChart,
   RefreshCw,
   X,
 } from 'lucide-react';
@@ -115,10 +114,6 @@ export function SetupChecklist() {
             <Button render={<Link href="/bandeja" />} size="sm" variant="default">
               <Inbox className="size-3.5" aria-hidden />
               {t('dashboard.openInbox')}
-            </Button>
-            <Button render={<Link href="/metricas" />} size="sm" variant="outline">
-              <LineChart className="size-3.5" aria-hidden />
-              {t('dashboard.viewMetrics')}
             </Button>
             <Button
               size="sm"

@@ -18,7 +18,6 @@ const DISALLOW = [
   "/campanas",
   "/plantillas",
   "/menus",
-  "/metricas",
   "/integraciones",
   "/ajustes",
 ];
