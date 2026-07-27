@@ -87,7 +87,11 @@ export async function GET(request: Request) {
     const payload = await buildVoiceContext(db, call, {
       trunkId,
       callerNumber: cfg.phone_number ?? null,
-      recordingEnabled: Boolean(cfg.recording_enabled),
+      // Grabar por defecto (con aviso en el saludo) — así TODAS las llamadas
+      // quedan grabadas sin depender de un flag por-conexión que puede no existir
+      // (ej. workspaces sin fila de conexión de voz). Se apaga sólo si el comercio
+      // pone recording_enabled=false explícito.
+      recordingEnabled: cfg.recording_enabled !== false,
       transferNumber: cfg.transfer_number ?? null,
     });
     return NextResponse.json(payload);
