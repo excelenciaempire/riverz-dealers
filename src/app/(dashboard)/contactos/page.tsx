@@ -40,6 +40,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -51,7 +52,8 @@ import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZES = [25, 50, 100] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
 
 /**
  * Ordena las etiquetas por color para que el filtro se lea como una
@@ -118,8 +120,12 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<PageSize>(25);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  // Selección para exportar. Set de ids seleccionados (a través de páginas).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -154,10 +160,6 @@ export default function ContactsPage() {
   const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
     'all',
   );
-  // Filtro por SEÑAL: de qué interacción viene la persona y si el agente puede
-  // escribirle ahora. Es lo que la automatización de Instagram genera, y la
-  // lista de contactos no sabía leerlo.
-  const [signal, setSignal] = useState<Signal>('all');
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -166,8 +168,8 @@ export default function ContactsPage() {
     if (!workspaceId) return;
     setLoading(true);
 
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
 
     // Filtro por etiquetas: trae los contactos que tienen cualquiera de
     // las etiquetas seleccionadas (semántica "alguna"), luego restringe.
@@ -186,16 +188,6 @@ export default function ContactsPage() {
       }
     }
 
-    // Señal: resolvemos primero el conjunto que la cumple y luego acotamos,
-    // igual que con las etiquetas.
-    const signalIds = await resolveSignalIds(supabase, workspaceId, signal);
-    if (signalIds && signalIds.length === 0) {
-      setContacts([]);
-      setTotalCount(0);
-      setLoading(false);
-      return;
-    }
-
     let query = supabase
       .from('contacts')
       .select('*', { count: 'exact' })
@@ -205,9 +197,6 @@ export default function ContactsPage() {
 
     if (taggedIds) {
       query = query.in('id', taggedIds);
-    }
-    if (signalIds) {
-      query = query.in('id', signalIds);
     }
 
     // Date filter on created_at (Todo / 7d / 30d / 90d).
@@ -279,7 +268,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap, selectedTagIds, datePreset, signal, workspaceId, t]);
+  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -342,9 +331,82 @@ export default function ContactsPage() {
     setDeleteTarget(null);
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / pageSize);
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
+
+  // --- Selección + exportación CSV ---
+  const pageIds = contacts.map((c) => c.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function togglePage() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  // Selecciona TODOS los que cumplen el filtro actual (a través de páginas).
+  async function selectAllMatching() {
+    if (!workspaceId) return;
+    let taggedIds: string[] | null = null;
+    if (selectedTagIds.length > 0) {
+      const { data: links } = await supabase
+        .from('contact_tags').select('contact_id').in('tag_id', selectedTagIds);
+      taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
+    }
+    let q = supabase.from('contacts').select('id').eq('workspace_id', workspaceId).limit(10000);
+    if (taggedIds) q = q.in('id', taggedIds);
+    const dateDays = datePreset === '7d' ? 7 : datePreset === '30d' ? 30 : datePreset === '90d' ? 90 : 0;
+    if (dateDays > 0) q = q.gte('created_at', new Date(Date.now() - dateDays * 864e5).toISOString());
+    const rawSearch = search.trim();
+    if (rawSearch) {
+      const cleaned = rawSearch.replace(/[,()\\:*]/g, ' ').trim();
+      if (cleaned) { const term = `%${escapeLike(cleaned)}%`; q = q.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`); }
+    }
+    const { data } = await q;
+    setSelectedIds(new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id)));
+  }
+
+  async function exportCsv() {
+    if (!workspaceId || selectedIds.size === 0) return;
+    setExporting(true);
+    try {
+      // Traemos las filas completas (incluida la data de Shopify) por lotes.
+      const ids = [...selectedIds];
+      const rows: Contact[] = [];
+      for (let i = 0; i < ids.length; i += 500) {
+        const { data } = await supabase
+          .from('contacts').select('*').in('id', ids.slice(i, i + 500));
+        rows.push(...((data ?? []) as Contact[]));
+      }
+      // Etiquetas por contacto para incluirlas en el CSV.
+      const { data: cts } = await supabase
+        .from('contact_tags').select('contact_id, tag_id').in('contact_id', ids);
+      const tagsByContact: Record<string, string[]> = {};
+      (cts ?? []).forEach((ct) => {
+        const name = tagsMap[ct.tag_id]?.name;
+        if (!name) return;
+        (tagsByContact[ct.contact_id] ??= []).push(name);
+      });
+      downloadContactsCsv(rows, tagsByContact, fmt);
+      toast.success(t('contacts.exported', { count: rows.length }));
+    } catch {
+      toast.error(t('contacts.exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -467,29 +529,6 @@ export default function ContactsPage() {
         ))}
       </div>
 
-      {/* Señal (de dónde viene / si se le puede escribir ahora) */}
-      <select
-        value={signal}
-        onChange={(e) => {
-          setSignal(e.target.value as Signal);
-          setPage(0);
-        }}
-        className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
-      >
-        {(
-          [
-            ['all', 'contacts.signalAll'],
-            ['story', 'contacts.signalStory'],
-            ['commenters', 'contacts.signalCommenters'],
-            ['customers', 'contacts.signalCustomers'],
-          ] as const
-        ).map(([v, k]) => (
-          <option key={v} value={v}>
-            {t(k)}
-          </option>
-        ))}
-      </select>
-
       {/* Tag filter */}
       {Object.keys(tagsMap).length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -545,11 +584,54 @@ export default function ContactsPage() {
         </div>
       )}
 
+      {/* Barra de selección + exportar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
+          <span className="text-sm text-foreground">
+            {t('contacts.selectedCount', { count: selectedIds.size })}
+          </span>
+          {selectedIds.size < totalCount && (
+            <button
+              type="button"
+              onClick={selectAllMatching}
+              className="text-xs font-medium text-accent-ink hover:underline"
+            >
+              {t('contacts.selectAllMatching', { count: totalCount })}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {t('contacts.clearSelection')}
+          </button>
+          <Button
+            size="sm"
+            onClick={exportCsv}
+            disabled={exporting}
+            className="ml-auto bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            {t('contacts.exportCsv')}
+          </Button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  aria-label={t('contacts.selectPage')}
+                  checked={allPageSelected}
+                  onChange={togglePage}
+                  className="size-4 cursor-pointer accent-primary"
+                />
+              </TableHead>
               <TableHead className="text-muted-foreground">{t('contacts.colName')}</TableHead>
               <TableHead className="text-muted-foreground">{t('contacts.colPhone')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('contacts.colEmail')}</TableHead>
@@ -562,7 +644,7 @@ export default function ContactsPage() {
           <TableBody>
             {loading ? (
               <TableRow className="border-border">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-accent-ink" />
                   </div>
@@ -570,7 +652,7 @@ export default function ContactsPage() {
               </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow className="border-border">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   {search || selectedTagIds.length > 0 ? (
                     <div className="flex flex-col items-center gap-2">
                       <Users className="size-8 text-muted-foreground" />
@@ -602,6 +684,15 @@ export default function ContactsPage() {
                   className="border-border hover:bg-accent cursor-pointer"
                   onClick={() => openDetail(contact.id)}
                 >
+                  <TableCell onClick={(e) => e.stopPropagation()} className="w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={t('contacts.selectOne')}
+                      checked={selectedIds.has(contact.id)}
+                      onChange={() => toggleOne(contact.id)}
+                      className="size-4 cursor-pointer accent-primary"
+                    />
+                  </TableCell>
                   <TableCell className="text-foreground font-medium">
                     <div className="flex items-center gap-2">
                       <span>
@@ -708,39 +799,65 @@ export default function ContactsPage() {
         </Table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            {t('contacts.paginationRange', {
-              from: page * PAGE_SIZE + 1,
-              to: Math.min((page + 1) * PAGE_SIZE, totalCount),
-              total: totalCount,
-            })}
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasPrev}
-              onClick={() => setPage((p) => p - 1)}
-              className="border-border text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground px-2">
-              {t('contacts.pageOf', { page: page + 1, total: totalPages })}
-            </span>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasNext}
-              onClick={() => setPage((p) => p + 1)}
-              className="border-border text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
+      {/* Pagination + page size */}
+      {totalCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">
+              {t('contacts.paginationRange', {
+                from: page * pageSize + 1,
+                to: Math.min((page + 1) * pageSize, totalCount),
+                total: totalCount,
+              })}
+            </p>
+            {/* Tamaño de página: 25 / 50 / 100 */}
+            <div className="inline-flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">{t('contacts.perPage')}</span>
+              {PAGE_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => {
+                    setPageSize(size);
+                    setPage(0);
+                  }}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-xs font-medium tabular-nums transition-colors',
+                    pageSize === size
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={!hasPrev}
+                onClick={() => setPage((p) => p - 1)}
+                className="border-border text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground px-2">
+                {t('contacts.pageOf', { page: page + 1, total: totalPages })}
+              </span>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={!hasNext}
+                onClick={() => setPage((p) => p + 1)}
+                className="border-border text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -809,62 +926,74 @@ export default function ContactsPage() {
   );
 }
 
+
+// --- Exportación CSV -------------------------------------------------------
+
+type ShopAddr = {
+  address1?: string; address2?: string; city?: string;
+  province?: string; country?: string; zip?: string;
+} | null;
+
+/** Escapa un valor para CSV (comillas, comas, saltos de línea). */
+function csvCell(v: unknown): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 /**
- * Filtros por SEÑAL — lo que la automatización de Instagram genera y la lista
- * de contactos no sabía leer.
- *
- *   story      — quien respondió o mencionó una historia: la audiencia más
- *                caliente que Meta permite contactar.
- *   commenters — quien llegó por un comentario, no por un DM.
- *   customers  — quien ya compró (historial de Shopify sincronizado).
+ * Descarga los contactos seleccionados como CSV organizado, incluyendo la
+ * dirección y la data de Shopify (total gastado, pedidos, dirección completa).
+ * BOM UTF-8 para que Excel abra bien las tildes/ñ.
  */
-type Signal = 'all' | 'story' | 'commenters' | 'customers';
-
-
-async function resolveSignalIds(
-  supabase: ReturnType<typeof createClient>,
-  workspaceId: string,
-  signal: Signal,
-): Promise<string[] | null> {
-  if (signal === 'all') return null;
-
-  if (signal === 'customers') {
-    const { data } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .not('shopify_customer_data', 'is', null)
-      .limit(5000);
-    return [...new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id))];
-  }
-
-  if (signal === 'commenters') {
-    const { data } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .in('channel', ['ig_comment', 'fb_comment'])
-      .limit(5000);
-    return [...new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id))];
-  }
-
-  if (signal === 'story') {
-    const { data } = await supabase
-      .from('messages')
-      .select('conversations!inner(contact_id, workspace_id)')
-      .in('engagement_kind', ['story_reply', 'story_mention'])
-      .eq('conversations.workspace_id', workspaceId)
-      .order('created_at', { ascending: false })
-      .limit(2000);
-    const rows = (data ?? []) as unknown as Array<{
-      conversations: { contact_id: string | null } | null;
-    }>;
-    return [
-      ...new Set(
-        rows.map((r) => r.conversations?.contact_id).filter((id): id is string => Boolean(id)),
-      ),
+function downloadContactsCsv(
+  rows: Contact[],
+  tagsByContact: Record<string, string[]>,
+  fmt: { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string },
+): void {
+  const headers = [
+    'Nombre', 'Teléfono', 'Email', 'Empresa', 'Etiquetas',
+    'Cliente Shopify', 'Total gastado', 'Moneda', 'Pedidos',
+    'Dirección', 'Ciudad', 'Provincia', 'País', 'Código postal',
+    'Canal', 'Creado',
+  ];
+  const lines = [headers.join(',')];
+  for (const c of rows) {
+    const sd = (c as unknown as { shopify_customer_data?: Record<string, unknown> | null })
+      .shopify_customer_data ?? null;
+    const addr: ShopAddr =
+      (sd?.default_address as ShopAddr) ?? (sd?.address as ShopAddr) ?? null;
+    const totalSpent = sd?.total_spent ?? sd?.totalSpent ?? '';
+    const currency = sd?.currency ?? '';
+    const ordersCount = sd?.orders_count ?? sd?.ordersCount ?? '';
+    const street = [addr?.address1, addr?.address2].filter(Boolean).join(' ');
+    const row = [
+      c.name ?? '',
+      c.phone ?? '',
+      c.email ?? '',
+      c.company ?? '',
+      (tagsByContact[c.id] ?? []).join('; '),
+      c.is_shopify_customer ? 'Sí' : 'No',
+      totalSpent,
+      currency,
+      ordersCount,
+      street,
+      addr?.city ?? '',
+      addr?.province ?? '',
+      addr?.country ?? '',
+      addr?.zip ?? '',
+      (c as unknown as { channel?: string }).channel ?? '',
+      c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '',
     ];
+    lines.push(row.map(csvCell).join(','));
   }
-
-  return null;
+  const csv = '\uFEFF' + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `contactos-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

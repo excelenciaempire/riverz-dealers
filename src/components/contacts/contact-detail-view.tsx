@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, ContactNote, CustomField } from '@/types';
+import type { Contact, ContactNote } from '@/types';
 import {
   Sheet,
   SheetContent,
@@ -21,12 +21,8 @@ import { ContactTags } from '@/components/contacts/contact-tags';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import type { TFn } from '@/lib/i18n/translate';
 import {
-  Phone,
-  Mail,
-  Building2,
-  Copy,
-  Check,
   Loader2,
   Plus,
   Trash2,
@@ -53,7 +49,6 @@ export function ContactDetailView({
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
-  const [copiedPhone, setCopiedPhone] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -67,12 +62,6 @@ export function ContactDetailView({
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
-
-  // Custom fields tab
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [customValues, setCustomValues] = useState<Record<string, string>>({});
-  const [savingCustom, setSavingCustom] = useState(false);
-  const [loadingCustom, setLoadingCustom] = useState(false);
 
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
@@ -108,43 +97,12 @@ export function ContactDetailView({
     setLoadingNotes(false);
   }, [contactId, supabase]);
 
-  const fetchCustomFields = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingCustom(true);
-
-    const [fieldsRes, valuesRes] = await Promise.all([
-      supabase.from('custom_fields').select('*').order('field_name'),
-      supabase
-        .from('contact_custom_values')
-        .select('*')
-        .eq('contact_id', contactId),
-    ]);
-
-    if (fieldsRes.data) setCustomFields(fieldsRes.data);
-    if (valuesRes.data) {
-      const map: Record<string, string> = {};
-      valuesRes.data.forEach((v) => {
-        map[v.custom_field_id] = v.value ?? '';
-      });
-      setCustomValues(map);
-    }
-    setLoadingCustom(false);
-  }, [contactId, supabase]);
-
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
       fetchNotes();
-      fetchCustomFields();
     }
-  }, [open, contactId, fetchContact, fetchNotes, fetchCustomFields]);
-
-  async function copyPhone() {
-    if (!contact?.phone) return;
-    await navigator.clipboard.writeText(contact.phone);
-    setCopiedPhone(true);
-    setTimeout(() => setCopiedPhone(false), 2000);
-  }
+  }, [open, contactId, fetchContact, fetchNotes]);
 
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
@@ -218,39 +176,6 @@ export function ContactDetailView({
     }
   }
 
-  async function saveCustomFields() {
-    if (!contactId) return;
-    setSavingCustom(true);
-
-    try {
-      // Delete existing values and re-insert
-      await supabase
-        .from('contact_custom_values')
-        .delete()
-        .eq('contact_id', contactId);
-
-      const rows = Object.entries(customValues)
-        .filter(([, val]) => val.trim())
-        .map(([fieldId, val]) => ({
-          contact_id: contactId,
-          custom_field_id: fieldId,
-          value: val.trim(),
-        }));
-
-      if (rows.length > 0) {
-        const { error } = await supabase
-          .from('contact_custom_values')
-          .insert(rows);
-        if (error) throw error;
-      }
-
-      toast.success(t('contacts.saved'));
-    } catch {
-      toast.error(t('contacts.saveCustomFieldsError'));
-    }
-    setSavingCustom(false);
-  }
-
   function getInitials(name?: string | null) {
     if (!name) return '?';
     return name
@@ -288,32 +213,6 @@ export function ContactDetailView({
                   <SheetDescription className="sr-only">
                     {contact.name || contact.phone}
                   </SheetDescription>
-                  <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                    <button
-                      onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-accent-ink transition-colors cursor-pointer"
-                    >
-                      <Phone className="size-3" />
-                      {contact.phone}
-                      {copiedPhone ? (
-                        <Check className="size-3 text-accent-ink" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </button>
-                    {contact.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="size-3" />
-                        {contact.email}
-                      </span>
-                    )}
-                    {contact.company && (
-                      <span className="flex items-center gap-1">
-                        <Building2 className="size-3" />
-                        {contact.company}
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
             </SheetHeader>
@@ -344,12 +243,6 @@ export function ContactDetailView({
                   className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
                 >
                   {t('contacts.detailNotes')}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="custom"
-                  className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
-                >
-                  {t('contacts.detailCustomFields')}
                 </TabsTrigger>
               </TabsList>
 
@@ -385,6 +278,7 @@ export function ContactDetailView({
                       )}
                     </div>
                   )}
+                  {renderShopifyData(contact, t)}
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('contacts.fieldName')}</Label>
                     <Input
@@ -515,56 +409,50 @@ export function ContactDetailView({
                 </div>
               </TabsContent>
 
-              {/* Custom Fields Tab */}
-              <TabsContent value="custom" className="flex-1 overflow-y-auto px-4 py-3">
-                {loadingCustom ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : customFields.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    {t('contacts.noCustomFields')}
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {customFields.map((field) => (
-                      <div key={field.id} className="space-y-1.5">
-                        <Label className="text-muted-foreground text-xs capitalize">
-                          {field.field_name}
-                        </Label>
-                        <Input
-                          value={customValues[field.id] ?? ''}
-                          onChange={(e) =>
-                            setCustomValues((prev) => ({
-                              ...prev,
-                              [field.id]: e.target.value,
-                            }))
-                          }
-                          className="bg-muted border-border text-foreground h-8 text-sm placeholder:text-muted-foreground"
-                        />
-                      </div>
-                    ))}
-                    <Button
-                      onClick={saveCustomFields}
-                      disabled={savingCustom}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
-                      size="sm"
-                    >
-                      {savingCustom ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      {t('contacts.save')}
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
-
             </Tabs>
           </div>
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Muestra la dirección y toda la data que sincroniza Shopify (total gastado,
+ * pedidos, dirección completa) como una tarjeta de solo lectura. La data vive en
+ * `contacts.shopify_customer_data` (jsonb snapshot). No repite email/teléfono
+ * (ya están en el formulario). Devuelve null si no hay data de Shopify.
+ */
+function renderShopifyData(contact: Contact, t: TFn) {
+  const sd = (contact as unknown as { shopify_customer_data?: Record<string, unknown> | null })
+    .shopify_customer_data;
+  if (!sd) return null;
+  const addr = (sd.default_address ?? sd.address) as Record<string, unknown> | null;
+  const rows: Array<[string, string]> = [];
+  const push = (label: string, v: unknown) => {
+    if (v != null && String(v).trim() !== '') rows.push([label, String(v)]);
+  };
+  push(t('contacts.shopTotalSpent'), sd.total_spent ?? sd.totalSpent);
+  push(t('contacts.shopOrders'), sd.orders_count ?? sd.ordersCount);
+  if (addr) {
+    push(t('contacts.shopAddress'), [addr.address1, addr.address2].filter(Boolean).join(' '));
+    push(t('contacts.shopCity'), addr.city);
+    push(t('contacts.shopProvince'), addr.province);
+    push(t('contacts.shopCountry'), addr.country);
+    push(t('contacts.shopZip'), addr.zip);
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+      <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Shopify</div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        {rows.map(([label, val]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-foreground break-words">{val}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
