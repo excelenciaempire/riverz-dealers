@@ -6,6 +6,10 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { enqueueCall } from '@/lib/voice/queue';
 import { pickVoiceAgent } from '@/lib/voice/inbound';
+import { escapeLike } from '@/lib/security/like';
+
+/** Tope de filas por exportación: un CSV, no un volcado de la base. */
+const EXPORT_MAX_ROWS = 5000;
 
 /**
  * Voice calls — dashboard endpoints.
@@ -99,14 +103,73 @@ export async function GET(request: Request) {
   if (!(await requireMember(user.id, workspaceId))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
-  const limit = Math.min(200, Number(url.searchParams.get('limit')) || 100);
+  // Modo exportación: una sola tanda con TODO lo que cumple el filtro (sin
+  // paginar), acotada para no traerse un workspace entero a memoria.
+  const isExport = url.searchParams.get('export') === '1';
+  const limit = isExport
+    ? Math.min(EXPORT_MAX_ROWS, Number(url.searchParams.get('limit')) || EXPORT_MAX_ROWS)
+    : Math.min(200, Number(url.searchParams.get('limit')) || 25);
+  const offset = isExport ? 0 : Math.max(0, Number(url.searchParams.get('offset')) || 0);
 
-  const { data, error } = await supabaseAdmin()
+  const admin = supabaseAdmin();
+  let query = admin
     .from('voice_calls')
-    .select('*, contact:contacts(id, name, phone)')
-    .eq('workspace_id', workspaceId)
+    .select('*, contact:contacts(id, name, phone), agent:ai_agents(id, name)', {
+      count: isExport ? undefined : 'exact',
+    })
+    .eq('workspace_id', workspaceId);
+
+  // --- Filtros (todos opcionales; vacío = sin filtrar) ---
+  // Cada uno admite varios valores separados por coma: dentro de un filtro basta
+  // con cumplir cualquiera, y entre filtros distintos las condiciones se suman.
+  const anyOf = (param: string, column: string) => {
+    const values = (url.searchParams.get(param) ?? '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 1) query = query.eq(column, values[0]);
+    else if (values.length > 1) query = query.in(column, values);
+  };
+  anyOf('status', 'status');
+  anyOf('outcome', 'outcome');
+  anyOf('direction', 'direction');
+  anyOf('call_type', 'call_type');
+  anyOf('agent_id', 'agent_id');
+
+  // Rango de fechas: instantes ya resueltos en la zona horaria del workspace
+  // por el cliente, así el corte del día es el mismo que en el resto del panel.
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
+  if (from && !Number.isNaN(Date.parse(from))) query = query.gte('created_at', from);
+  if (to && !Number.isNaN(Date.parse(to))) query = query.lt('created_at', to);
+
+  // Búsqueda por nombre de contacto o teléfono. El nombre vive en `contacts`,
+  // así que se resuelve a ids primero: filtrar sobre la tabla embebida sólo
+  // recorta el embed, no las llamadas.
+  // `or()` de PostgREST separa condiciones por coma y agrupa con paréntesis:
+  // esos caracteres (y las comillas) se sacan del término antes de armarlo.
+  const q = url.searchParams.get('q')?.replace(/[(),"']/g, ' ').trim();
+  if (q) {
+    const like = `%${escapeLike(q)}%`;
+    const { data: matches } = await admin
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .or(`name.ilike.${like},phone.ilike.${like}`)
+      .limit(1000);
+    const ids = (matches ?? []).map((c: { id: string }) => c.id);
+    query = ids.length
+      ? query.or(`phone.ilike.${like},contact_id.in.(${ids.join(',')})`)
+      : query.ilike('phone', like);
+  }
+
+  const { data, error, count } = await query
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
   if (error) return serverError(error);
-  return NextResponse.json({ calls: data ?? [] });
+  return NextResponse.json({
+    calls: data ?? [],
+    total: count ?? (data ?? []).length,
+    truncated: isExport && (data ?? []).length >= EXPORT_MAX_ROWS,
+  });
 }

@@ -767,7 +767,6 @@ export default function NewBroadcastPage() {
         <SegmentEditor
           workspaceId={workspace.id}
           tags={tags}
-          customFields={customFields}
           segment={{ name: '', description: '', match_mode: 'all', rules: [] }}
           onClose={() => setShowSegmentModal(false)}
           onSaved={async (saved) => {

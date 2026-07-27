@@ -7,37 +7,12 @@ import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
-import type { VoiceCall, VoiceCallOutcome, VoiceCallStatus } from '@/types';
-
-const STATUS_KEY: Record<VoiceCallStatus, string> = {
-  queued: 'voice.statusQueued',
-  dialing: 'voice.statusDialing',
-  in_progress: 'voice.statusInProgress',
-  completed: 'voice.statusCompleted',
-  failed: 'voice.statusFailed',
-  no_answer: 'voice.statusNoAnswer',
-  busy: 'voice.statusBusy',
-  voicemail: 'voice.statusVoicemail',
-  canceled: 'voice.statusCanceled',
-};
-
-const OUTCOME_KEY: Record<VoiceCallOutcome, string> = {
-  confirmed: 'voice.outcomeConfirmed',
-  cancelled_by_customer: 'voice.outcomeCancelled',
-  rescheduled: 'voice.outcomeRescheduled',
-  recovered: 'voice.outcomeRecovered',
-  declined: 'voice.outcomeDeclined',
-  callback_requested: 'voice.outcomeCallback',
-  opt_out: 'voice.outcomeOptOut',
-  no_outcome: 'voice.outcomeNone',
-};
-
-function fmtDuration(sec: number | null): string {
-  if (!sec || sec < 0) return '—';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
+import {
+  VOICE_OUTCOME_KEY,
+  VOICE_STATUS_KEY,
+  fmtCallDuration,
+} from '@/lib/voice/labels';
+import type { VoiceCall } from '@/types';
 
 /** Compact call card shown above the transcript for a voice conversation. */
 export function VoiceCallCard({ conversationId }: { conversationId: string }) {
@@ -81,17 +56,17 @@ export function VoiceCallCard({ conversationId }: { conversationId: string }) {
           {inbound ? t('voice.callInbound') : t('voice.callOutbound')}
         </span>
         <span className="ml-auto rounded-full bg-yellow-500/10 px-2 py-0.5 text-[11px] text-yellow-500">
-          {t(STATUS_KEY[call.status])}
+          {t(VOICE_STATUS_KEY[call.status])}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
         <span>
-          {t('voice.duration')}: <span className="text-foreground">{fmtDuration(call.duration_seconds)}</span>
+          {t('voice.duration')}: <span className="text-foreground">{fmtCallDuration(call.duration_seconds)}</span>
         </span>
         {call.outcome && (
           <span>
             {t('voice.outcome')}:{' '}
-            <span className="text-foreground">{t(OUTCOME_KEY[call.outcome])}</span>
+            <span className="text-foreground">{t(VOICE_OUTCOME_KEY[call.outcome])}</span>
           </span>
         )}
       </div>

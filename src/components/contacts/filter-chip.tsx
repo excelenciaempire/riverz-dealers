@@ -1,8 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Select as SelectPrimitive } from '@base-ui/react/select';
-import { Select, SelectContent, SelectItem } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 /**
@@ -22,40 +22,72 @@ export function filterChipClass(active: boolean): string {
   );
 }
 
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
 /**
- * Desplegable de filtro. Muestra "Dimensión: valor" ("Canal: Instagram")
- * porque cerrado sólo se ve la opción elegida: sin el prefijo, "todos" suelto
- * no dejaba saber qué se estaba filtrando. El menú es el del sistema de diseño
- * — la lista nativa del navegador se abría en blanco sobre la app oscura.
+ * Filtro de varias opciones: el chip queda compacto ("Canal: WhatsApp +2") y al
+ * abrirlo son casillas, así se pueden ver dos canales a la vez.
+ *
+ * La regla es la misma en toda la barra y se lee en una línea: dentro de un
+ * filtro basta con cualquiera de las opciones marcadas; entre filtros distintos
+ * las condiciones se suman. Sin nada marcado, el filtro no filtra.
  */
-export function FilterSelect({
+export function FilterMultiSelect({
   label,
-  value,
+  allLabel,
+  values,
   onChange,
   options,
 }: {
   label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  /** Texto del chip cuando no hay nada marcado ("todos"). */
+  allLabel: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: FilterOption[];
 }) {
-  const active = value !== 'all';
-  const current = options.find((o) => o.value === value)?.label ?? '';
+  const [open, setOpen] = useState(false);
+  const chosen = options.filter((o) => values.includes(o.value));
+  const summary =
+    chosen.length === 0
+      ? allLabel
+      : chosen.length === 1
+        ? chosen[0].label
+        : `${chosen[0].label} +${chosen.length - 1}`;
+
   return (
-    <Select value={value} onValueChange={(v) => onChange(String(v ?? 'all'))}>
-      <SelectPrimitive.Trigger aria-label={label} className={filterChipClass(active)}>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger aria-label={label} className={filterChipClass(chosen.length > 0)}>
         <span className="whitespace-nowrap">
-          {label}: {current}
+          {label}: {summary}
         </span>
         <ChevronDown className="size-3 shrink-0 opacity-60" />
-      </SelectPrimitive.Trigger>
-      <SelectContent align="start">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto min-w-44 gap-0 p-1">
         {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
+          <label
+            key={o.value}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+          >
+            <input
+              type="checkbox"
+              checked={values.includes(o.value)}
+              onChange={() =>
+                onChange(
+                  values.includes(o.value)
+                    ? values.filter((v) => v !== o.value)
+                    : [...values, o.value],
+                )
+              }
+              className="size-3.5 cursor-pointer accent-primary"
+            />
             {o.label}
-          </SelectItem>
+          </label>
         ))}
-      </SelectContent>
-    </Select>
+      </PopoverContent>
+    </Popover>
   );
 }

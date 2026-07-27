@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import {
   CalendarClock,
   CircleSlash,
-  Database,
   Download,
   Gift,
   History,
@@ -64,7 +63,7 @@ import type {
   SegmentMatchMode,
   SegmentRule,
 } from '@/lib/segments/types';
-import type { Channel, Contact, CustomField, Tag } from '@/types';
+import type { Channel, Contact, Tag } from '@/types';
 import { cn } from '@/lib/utils';
 
 type EditableSegment = {
@@ -136,7 +135,6 @@ const RULE_TYPES: {
   { type: 'created', labelKey: 'contacts.ruleCreatedLabel', descriptionKey: 'contacts.ruleCreatedDesc', Icon: CalendarClock },
   { type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
   { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', descriptionKey: 'contacts.ruleHasFieldDesc', Icon: CircleSlash },
-  { type: 'custom_field', labelKey: 'contacts.ruleCustomFieldLabel', descriptionKey: 'contacts.ruleCustomFieldDesc', Icon: Database },
   { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', descriptionKey: 'contacts.ruleShopifyDesc', Icon: ShoppingBag },
   { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
   { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
@@ -161,11 +159,6 @@ const OP_LABEL_KEYS = {
     contains: 'contacts.opTextContains',
     equals: 'contacts.opTextEquals',
     starts_with: 'contacts.opTextStartsWith',
-  },
-  custom_field: {
-    equals: 'contacts.opCustomEquals',
-    not_equals: 'contacts.opCustomNotEquals',
-    contains: 'contacts.opCustomContains',
   },
   shopify: {
     is_customer: 'contacts.opShopifyIsCustomer',
@@ -218,7 +211,6 @@ export function SegmentsPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditableSegment | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Exportar un segmento a CSV eligiendo columnas (mismo diálogo que la lista).
@@ -229,21 +221,16 @@ export function SegmentsPanel() {
   const reload = useCallback(async () => {
     if (!workspace) return;
     setLoading(true);
-    const [{ data: seg }, { data: tg }, { data: cf }] = await Promise.all([
+    const [{ data: seg }, { data: tg }] = await Promise.all([
       supabase
         .from('contact_segments')
         .select('*')
         .eq('workspace_id', workspace.id)
         .order('created_at', { ascending: false }),
       supabase.from('tags').select('*').eq('workspace_id', workspace.id),
-      supabase
-        .from('custom_fields')
-        .select('*')
-        .eq('workspace_id', workspace.id),
     ]);
     setSegments((seg ?? []) as ContactSegment[]);
     setTags((tg ?? []) as Tag[]);
-    setCustomFields((cf ?? []) as CustomField[]);
     setLoading(false);
   }, [supabase, workspace]);
 
@@ -479,7 +466,6 @@ export function SegmentsPanel() {
         <SegmentEditor
           workspaceId={workspace.id}
           tags={tags}
-          customFields={customFields}
           segment={editing}
           onClose={() => setEditing(null)}
           onSaved={async () => {
@@ -506,7 +492,6 @@ export interface EditorProps {
   workspaceId: string;
   segment: EditableSegment;
   tags: Tag[];
-  customFields: CustomField[];
   onClose: () => void;
   /** Receives the saved row so callers (e.g. the campaign wizard) can select
    *  the just-created segment and continue. */
@@ -519,7 +504,6 @@ export function SegmentEditor({
   workspaceId,
   segment,
   tags,
-  customFields,
   onClose,
   onSaved,
 }: EditorProps) {
@@ -564,13 +548,9 @@ export function SegmentEditor({
   }, [rules, matchMode, supabase, workspaceId]);
 
   function addRule(type: SegmentRule['type']) {
-    const stub = stubRuleFor(type, tags, customFields);
+    const stub = stubRuleFor(type, tags);
     if (!stub) {
-      toast.error(
-        type === 'tag'
-          ? t('contacts.noTagsRule')
-          : t('contacts.noCustomFieldsRule'),
-      );
+      toast.error(t('contacts.noTagsRule'));
       return;
     }
     setRules((rs) => [...rs, stub]);
@@ -682,7 +662,7 @@ export function SegmentEditor({
             <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-foreground">{t('contacts.rules')}</p>
-                <AddRuleMenu onAdd={addRule} hasCustomFields={customFields.length > 0} />
+                <AddRuleMenu onAdd={addRule} />
               </div>
 
               {rules.length > 0 && (
@@ -692,7 +672,6 @@ export function SegmentEditor({
                       key={i}
                       rule={r}
                       tags={tags}
-                      customFields={customFields}
                       onChange={(next) => updateRule(i, next)}
                       onRemove={() => removeRule(i)}
                     />
@@ -802,10 +781,8 @@ function MatchModeButton({
 
 function AddRuleMenu({
   onAdd,
-  hasCustomFields,
 }: {
   onAdd: (type: SegmentRule['type']) => void;
-  hasCustomFields: boolean;
 }) {
   const t = useT();
   return (
@@ -826,26 +803,19 @@ function AddRuleMenu({
         align="end"
         className="w-72 border-border bg-card"
       >
-        {RULE_TYPES.map((r) => {
-          const disabled = r.type === 'custom_field' && !hasCustomFields;
-          return (
-            <DropdownMenuItem
-              key={r.type}
-              disabled={disabled}
-              onClick={() => onAdd(r.type)}
-              className="flex items-start gap-2 py-2 text-foreground focus:bg-accent focus:text-foreground"
-            >
-              <r.Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{t(r.labelKey)}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {t(r.descriptionKey)}
-                  {disabled ? t('contacts.noCustomFieldsHint') : ''}
-                </p>
-              </div>
-            </DropdownMenuItem>
-          );
-        })}
+        {RULE_TYPES.map((r) => (
+          <DropdownMenuItem
+            key={r.type}
+            onClick={() => onAdd(r.type)}
+            className="flex items-start gap-2 py-2 text-foreground focus:bg-accent focus:text-foreground"
+          >
+            <r.Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">{t(r.labelKey)}</p>
+              <p className="text-[11px] text-muted-foreground">{t(r.descriptionKey)}</p>
+            </div>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -854,13 +824,11 @@ function AddRuleMenu({
 function RuleRow({
   rule,
   tags,
-  customFields,
   onChange,
   onRemove,
 }: {
   rule: SegmentRule;
   tags: Tag[];
-  customFields: CustomField[];
   onChange: (next: SegmentRule) => void;
   onRemove: () => void;
 }) {
@@ -872,7 +840,6 @@ function RuleRow({
         <RuleControls
           rule={rule}
           tags={tags}
-          customFields={customFields}
           onChange={onChange}
         />
         <button
@@ -902,12 +869,10 @@ function RuleHeader({ rule }: { rule: SegmentRule }) {
 function RuleControls({
   rule,
   tags,
-  customFields,
   onChange,
 }: {
   rule: SegmentRule;
   tags: Tag[];
-  customFields: CustomField[];
   onChange: (next: SegmentRule) => void;
 }) {
   const t = useT();
@@ -1051,40 +1016,6 @@ function RuleControls({
             value={rule.value}
             onChange={(e) => onChange({ ...rule, value: e.target.value })}
             placeholder={t('contacts.textPlaceholder')}
-            className="h-8 w-full sm:w-44 bg-background text-xs"
-          />
-        </>
-      );
-    }
-    case 'custom_field': {
-      const cfLabels = Object.fromEntries(
-        customFields.map((f) => [f.id, f.field_name]),
-      );
-      const opCustom = resolveOpLabels(OP_LABEL_KEYS.custom_field, t);
-      return (
-        <>
-          <MiniSelect
-            value={rule.fieldId}
-            labels={cfLabels}
-            options={customFields.map((f) => ({
-              value: f.id,
-              label: f.field_name,
-            }))}
-            onChange={(v) => onChange({ ...rule, fieldId: v })}
-            placeholder={t('contacts.fieldPlaceholder')}
-          />
-          <MiniSelect
-            value={rule.op}
-            labels={opCustom}
-            options={Object.entries(opCustom).map(([v, l]) => ({ value: v, label: l }))}
-            onChange={(v) =>
-              onChange({ ...rule, op: v as 'equals' | 'not_equals' | 'contains' })
-            }
-          />
-          <Input
-            value={rule.value}
-            onChange={(e) => onChange({ ...rule, value: e.target.value })}
-            placeholder={t('contacts.valuePlaceholder')}
             className="h-8 w-full sm:w-44 bg-background text-xs"
           />
         </>
@@ -1351,7 +1282,6 @@ function MiniSelect({
 function stubRuleFor(
   type: SegmentRule['type'],
   tags: Tag[],
-  customFields: CustomField[],
 ): SegmentRule | null {
   switch (type) {
     case 'tag':
@@ -1365,14 +1295,6 @@ function stubRuleFor(
       return { type: 'has_field', field: 'email', op: 'present' };
     case 'text':
       return { type: 'text', field: 'name', op: 'contains', value: '' };
-    case 'custom_field':
-      if (customFields.length === 0) return null;
-      return {
-        type: 'custom_field',
-        fieldId: customFields[0].id,
-        op: 'equals',
-        value: '',
-      };
     case 'shopify':
       return { type: 'shopify', op: 'is_customer' };
     case 'offer':
@@ -1387,6 +1309,8 @@ function stubRuleFor(
       return { type: 'location', field: 'country', op: 'is', value: '' };
     case 'activity_date':
       return { type: 'activity_date', field: 'last_purchase', op: 'last_n_days', value: '30' };
+    default:
+      return null;
   }
 }
 

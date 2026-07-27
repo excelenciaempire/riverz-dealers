@@ -355,14 +355,6 @@ export const contacts = {
   addRule: { es: "Añadir regla", en: "Add rule" },
   removeRule: { es: "Quitar regla", en: "Remove rule" },
   noTagsRule: { es: "No hay etiquetas.", en: "No tags." },
-  noCustomFieldsRule: {
-    es: "No hay campos personalizados.",
-    en: "No custom fields.",
-  },
-  noCustomFieldsHint: {
-    es: " (no tienes campos personalizados)",
-    en: " (you have no custom fields)",
-  },
 
   // Channel labels
   channelFbComment: {
@@ -403,11 +395,6 @@ export const contacts = {
   ruleHasFieldDesc: {
     es: "Si el contacto tiene cargado un campo.",
     en: "Whether the contact has a field filled in.",
-  },
-  ruleCustomFieldLabel: { es: "Campo personalizado", en: "Custom field" },
-  ruleCustomFieldDesc: {
-    es: "Filtra por un campo que tú creaste.",
-    en: "Filter by a field you created.",
   },
   ruleShopifyLabel: { es: "Cliente Shopify", en: "Shopify customer" },
   ruleShopifyDesc: {
@@ -482,9 +469,6 @@ export const contacts = {
   opTextContains: { es: "contiene", en: "contains" },
   opTextEquals: { es: "es exactamente", en: "is exactly" },
   opTextStartsWith: { es: "empieza con", en: "starts with" },
-  opCustomEquals: { es: "es", en: "is" },
-  opCustomNotEquals: { es: "no es", en: "is not" },
-  opCustomContains: { es: "contiene", en: "contains" },
   opShopifyIsCustomer: { es: "es cliente", en: "is a customer" },
   opShopifyIsNotCustomer: { es: "no es cliente", en: "is not a customer" },
   opOfferIs: { es: "es", en: "is" },
@@ -500,7 +484,6 @@ export const contacts = {
   theWord: { es: "El", en: "The" },
   daysWord: { es: "días", en: "days" },
   tagPlaceholder: { es: "Etiqueta…", en: "Tag…" },
-  fieldPlaceholder: { es: "Campo…", en: "Field…" },
   textPlaceholder: { es: "texto", en: "text" },
   valuePlaceholder: { es: "valor", en: "value" },
   offerPlaceholder: { es: "oferta…", en: "offer…" },

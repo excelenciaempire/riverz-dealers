@@ -11,30 +11,12 @@ import {
 } from '@/components/ui/dialog';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
-import type { VoiceCall, VoiceCallOutcome, VoiceCallStatus } from '@/types';
-
-const STATUS_KEY: Record<VoiceCallStatus, string> = {
-  queued: 'voice.statusQueued',
-  dialing: 'voice.statusDialing',
-  in_progress: 'voice.statusInProgress',
-  completed: 'voice.statusCompleted',
-  failed: 'voice.statusFailed',
-  no_answer: 'voice.statusNoAnswer',
-  busy: 'voice.statusBusy',
-  voicemail: 'voice.statusVoicemail',
-  canceled: 'voice.statusCanceled',
-};
-
-const OUTCOME_KEY: Record<VoiceCallOutcome, string> = {
-  confirmed: 'voice.outcomeConfirmed',
-  cancelled_by_customer: 'voice.outcomeCancelled',
-  rescheduled: 'voice.outcomeRescheduled',
-  recovered: 'voice.outcomeRecovered',
-  declined: 'voice.outcomeDeclined',
-  callback_requested: 'voice.outcomeCallback',
-  opt_out: 'voice.outcomeOptOut',
-  no_outcome: 'voice.outcomeNone',
-};
+import {
+  VOICE_OUTCOME_KEY,
+  VOICE_STATUS_KEY,
+  fmtCallDuration,
+} from '@/lib/voice/labels';
+import type { VoiceCall } from '@/types';
 
 interface TranscriptTurn {
   role: 'agent' | 'customer';
@@ -43,13 +25,6 @@ interface TranscriptTurn {
 }
 
 type CallRow = VoiceCall & { contact?: { id: string; name: string | null; phone: string | null } };
-
-function fmtDuration(sec: number | null): string {
-  if (!sec || sec < 0) return '—';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 /** Per-call drill-down: metadata, recording playback and the transcript.
  *  Controlled by `callId`; renders nothing until one is selected. */
@@ -107,12 +82,12 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
           <div className="space-y-4">
             {/* Metadata */}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              <Meta label={t('voice.colStatus')} value={t(STATUS_KEY[call.status])} />
+              <Meta label={t('voice.colStatus')} value={t(VOICE_STATUS_KEY[call.status])} />
               <Meta
                 label={t('voice.outcome')}
-                value={call.outcome ? t(OUTCOME_KEY[call.outcome]) : '—'}
+                value={call.outcome ? t(VOICE_OUTCOME_KEY[call.outcome]) : '—'}
               />
-              <Meta label={t('voice.duration')} value={fmtDuration(call.duration_seconds)} />
+              <Meta label={t('voice.duration')} value={fmtCallDuration(call.duration_seconds)} />
               <Meta label={t('voice.colWhen')} value={format.dateTime(new Date(call.created_at))} />
               {call.city && <Meta label={t('voice.city')} value={call.city} />}
               {call.max_attempts > 1 && (

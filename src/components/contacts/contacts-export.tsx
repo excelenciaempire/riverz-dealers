@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useT } from '@/hooks/use-locale';
+import { downloadCsv } from '@/lib/export/csv';
 
 type FmtLike = { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string };
 
@@ -54,16 +55,9 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'created', labelKey: 'contacts.colCreated', get: (c, _tags, fmt) => (c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '') },
 ];
 
-/** Escapa un valor para CSV (comillas, comas, saltos de línea). */
-function csvCell(v: unknown): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 /**
  * Descarga los contactos como CSV usando SOLO las columnas elegidas por el
- * usuario (en el orden de EXPORT_COLUMNS). BOM UTF-8 para que Excel abra bien
- * tildes/ñ.
+ * usuario (en el orden de EXPORT_COLUMNS).
  */
 export function downloadContactsCsv(
   rows: Contact[],
@@ -72,21 +66,11 @@ export function downloadContactsCsv(
   columns: ResolvedColumn[],
   filename = 'contactos',
 ): void {
-  const lines = [columns.map((col) => csvCell(col.header)).join(',')];
-  for (const c of rows) {
-    const tags = tagsByContact[c.id] ?? [];
-    lines.push(columns.map((col) => csvCell(col.get(c, tags, fmt))).join(','));
-  }
-  const csv = '﻿' + lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadCsv(
+    filename,
+    columns.map((col) => col.header),
+    rows.map((c) => columns.map((col) => col.get(c, tagsByContact[c.id] ?? [], fmt))),
+  );
 }
 
 /**

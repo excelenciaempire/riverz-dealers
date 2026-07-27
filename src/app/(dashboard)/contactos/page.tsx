@@ -45,7 +45,7 @@ import {
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { DateAddedFilter, type DatePreset } from '@/components/contacts/date-added-filter';
-import { FilterSelect } from '@/components/contacts/filter-chip';
+import { FilterMultiSelect } from '@/components/contacts/filter-chip';
 import {
   ExportColumnsDialog,
   downloadContactsCsv,
@@ -53,7 +53,7 @@ import {
   type ResolvedColumn,
 } from '@/components/contacts/contacts-export';
 import type { CustomRange } from '@/components/dashboard/date-range-filter';
-import { rangeForPreset } from '@/lib/dashboard/date-utils';
+import { dateChipBounds } from '@/components/common/date-range-chip';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { SegmentsPanel } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
@@ -120,6 +120,20 @@ interface ContactWithTags extends Contact {
   tags?: Tag[];
 }
 
+/**
+ * Lo mínimo que necesita una consulta de Supabase para que le apliquemos los
+ * filtros de la lista. Estructural a propósito: así el mismo filtro sirve para
+ * traer la página de la tabla (`select('*')`) y para seleccionar todos los que
+ * coinciden (`select('id')`) sin duplicar la lógica.
+ */
+interface FilterableQuery {
+  in(column: string, values: string[]): FilterableQuery;
+  gte(column: string, value: string): FilterableQuery;
+  lt(column: string, value: string): FilterableQuery;
+  eq(column: string, value: string | boolean): FilterableQuery;
+  or(filters: string): FilterableQuery;
+}
+
 export default function ContactsPage() {
   const supabase = createClient();
   const { workspace } = useWorkspace();
@@ -174,10 +188,78 @@ export default function ContactsPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
   /** Rango a medida elegido en el calendario (sólo con datePreset==='custom'). */
   const [dateCustom, setDateCustom] = useState<CustomRange | null>(null);
-  // Filtros visibles (dropdowns). Para segmentaciones más ricas (gasto, pedidos,
-  // país…) está la pestaña Segmentos.
-  const [shopifyFilter, setShopifyFilter] = useState<'all' | 'customers' | 'non'>('all');
-  const [channelFilter, setChannelFilter] = useState<string>('all');
+  // Filtros visibles. Cada uno admite varias opciones a la vez; lista vacía =
+  // no filtra. Para segmentaciones más ricas (gasto, pedidos, país…) está la
+  // pestaña Segmentos.
+  const [shopifyFilter, setShopifyFilter] = useState<string[]>([]);
+  const [channelFilter, setChannelFilter] = useState<string[]>([]);
+
+  /**
+   * Los filtros de la lista, en un solo lugar.
+   *
+   * La lógica es una sola y vale para todo: cada dimensión (búsqueda · alta ·
+   * Shopify · canal · etiquetas) se SUMA a las demás — "Shopify: compraron" +
+   * "Canal: Instagram" = los que compraron Y llegaron por Instagram —; dentro
+   * de las etiquetas basta con tener alguna de las marcadas. Esta misma query
+   * la usan la tabla y "seleccionar todos los que coinciden", que antes se
+   * saltaba los desplegables y llegaba a seleccionar contactos que la lista no
+   * mostraba.
+   *
+   * Devuelve `null` cuando el filtro ya no puede coincidir con nadie (etiqueta
+   * sin contactos, búsqueda que se queda vacía al sanearla). La consulta viaja
+   * envuelta en un objeto porque el builder de Supabase es "thenable": si la
+   * devolviéramos suelta, el `await` la ejecutaría en vez de dejarnos seguir
+   * encadenando `.range()` / `.limit()`.
+   */
+  const applyFilters = useCallback(
+    async (query: FilterableQuery): Promise<{ query: FilterableQuery } | null> => {
+      if (!workspaceId) return null;
+
+      let taggedIds: string[] | null = null;
+      if (selectedTagIds.length > 0) {
+        const { data: links } = await supabase
+          .from('contact_tags')
+          .select('contact_id')
+          .in('tag_id', selectedTagIds);
+        taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
+        if (taggedIds.length === 0) return null;
+      }
+
+      // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
+      // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
+      //     escapables ahí (`,` `(` `)` `:` `*` y `\`), y
+      // (2) escapamos los comodines ilike (`%` `_`) con escapeLike para tratarlos
+      //     como literales — sin esto, `juan_perez` no matchearía su propio `_`.
+      // La query ya está acotada por workspace_id + RLS.
+      const rawSearch = search.trim();
+      const cleaned = rawSearch ? rawSearch.replace(/[,()\\:*]/g, ' ').trim() : '';
+      if (rawSearch && !cleaned) return null;
+
+      if (taggedIds) query = query.in('id', taggedIds);
+
+      // Filtro por fecha de alta: atajo (7/30/90 días) o rango del calendario.
+      const bounds = dateChipBounds(datePreset, dateCustom, tz);
+      if (bounds.from) query = query.gte('created_at', bounds.from);
+      if (bounds.to) query = query.lt('created_at', bounds.to);
+
+      // Filtro por cliente Shopify. Marcar las dos opciones es lo mismo que no
+      // marcar ninguna: entran todos.
+      if (shopifyFilter.length === 1) {
+        query = query.eq('is_shopify_customer', shopifyFilter[0] === 'customers');
+      }
+
+      // Filtro por canal de origen: cualquiera de los canales marcados.
+      if (channelFilter.length > 0) query = query.in('channel', channelFilter);
+
+      if (cleaned) {
+        const term = `%${escapeLike(cleaned)}%`;
+        query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+      }
+
+      return { query };
+    },
+    [supabase, workspaceId, selectedTagIds, search, datePreset, dateCustom, tz, shopifyFilter, channelFilter],
+  );
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -189,68 +271,20 @@ export default function ContactsPage() {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
-    // Filtro por etiquetas: trae los contactos que tienen cualquiera de
-    // las etiquetas seleccionadas (semántica "alguna"), luego restringe.
-    let taggedIds: string[] | null = null;
-    if (selectedTagIds.length > 0) {
-      const { data: links } = await supabase
-        .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', selectedTagIds);
-      taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
-      if (taggedIds.length === 0) {
-        setContacts([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
-    }
-
-    let query = supabase
+    const base = supabase
       .from('contacts')
       .select('*', { count: 'exact' })
       .eq('workspace_id', workspaceId)
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    if (taggedIds) {
-      query = query.in('id', taggedIds);
+      .order('created_at', { ascending: false });
+    const filtered = await applyFilters(base as unknown as FilterableQuery);
+    if (!filtered) {
+      setContacts([]);
+      setTotalCount(0);
+      setLoading(false);
+      return;
     }
 
-    // Filtro por fecha de alta: atajo (7/30/90 días) o rango del calendario.
-    const bounds = dateBounds(datePreset, dateCustom, tz);
-    if (bounds.from) query = query.gte('created_at', bounds.from);
-    if (bounds.to) query = query.lt('created_at', bounds.to);
-
-    // Filtro por cliente Shopify.
-    if (shopifyFilter === 'customers') query = query.eq('is_shopify_customer', true);
-    else if (shopifyFilter === 'non') query = query.eq('is_shopify_customer', false);
-
-    // Filtro por canal de origen.
-    if (channelFilter !== 'all') query = query.eq('channel', channelFilter);
-
-    // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
-    // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
-    //     escapables ahí (`,` `(` `)` `:` `*` y `\`), y
-    // (2) escapamos los comodines ilike (`%` `_`) con escapeLike para tratarlos
-    //     como literales — sin esto, `juan_perez` no matchearía su propio `_`.
-    // La query ya está acotada por workspace_id + RLS.
-    const rawSearch = search.trim();
-    if (rawSearch) {
-      const cleaned = rawSearch.replace(/[,()\\:*]/g, ' ').trim();
-      if (!cleaned) {
-        // Término compuesto solo por caracteres saneados: sin resultados, en
-        // vez de listar todo el workspace.
-        setContacts([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
-      const term = `%${escapeLike(cleaned)}%`;
-      query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
-    }
-
-    const { data, count, error } = await query;
+    const { data, count, error } = await (filtered.query as unknown as typeof base).range(from, to);
 
     if (error) {
       toast.error(t('contacts.loadContactsError'));
@@ -266,8 +300,10 @@ export default function ContactsPage() {
       return;
     }
 
+    const rows = data as unknown as Contact[];
+
     // Fetch tags for these contacts
-    const contactIds = data.map((c) => c.id);
+    const contactIds = rows.map((c) => c.id);
     const { data: contactTags } = await supabase
       .from('contact_tags')
       .select('contact_id, tag_id')
@@ -279,7 +315,7 @@ export default function ContactsPage() {
       tagsByContact[ct.contact_id].push(ct.tag_id);
     });
 
-    const enriched: ContactWithTags[] = data.map((c) => ({
+    const enriched: ContactWithTags[] = rows.map((c) => ({
       ...c,
       tags: (tagsByContact[c.id] ?? [])
         .map((tid) => tagsMap[tid])
@@ -288,7 +324,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, dateCustom, tz, shopifyFilter, channelFilter, workspaceId, t]);
+  }, [supabase, page, pageSize, tagsMap, applyFilters, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -303,6 +339,14 @@ export default function ContactsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContacts();
   }, [fetchContacts]);
+
+  // Al cambiar el filtro se vacía la selección: si no, "exportar" se llevaría
+  // contactos que la lista ya no muestra. La paginación no la toca — la
+  // selección es a través de páginas a propósito.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedIds(new Set());
+  }, [selectedTagIds, datePreset, dateCustom, shopifyFilter, channelFilter, search]);
 
   function openAddForm() {
     setEditContact(null);
@@ -351,6 +395,22 @@ export default function ContactsPage() {
     setDeleteTarget(null);
   }
 
+  // Un solo "Limpiar" para todos los filtros: etiquetas incluidas, porque
+  // filtran junto a los chips, no aparte.
+  const filtersActive =
+    selectedTagIds.length > 0 ||
+    datePreset !== 'all' ||
+    shopifyFilter.length > 0 ||
+    channelFilter.length > 0;
+  function clearFilters() {
+    setSelectedTagIds([]);
+    setDatePreset('all');
+    setDateCustom(null);
+    setShopifyFilter([]);
+    setChannelFilter([]);
+    setPage(0);
+  }
+
   const totalPages = Math.ceil(totalCount / pageSize);
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
@@ -377,25 +437,19 @@ export default function ContactsPage() {
   }
 
   // Selecciona TODOS los que cumplen el filtro actual (a través de páginas).
+  // Mismo filtro que la tabla, sin excepciones: lo que dice el contador es lo
+  // que se selecciona.
   async function selectAllMatching() {
     if (!workspaceId) return;
-    let taggedIds: string[] | null = null;
-    if (selectedTagIds.length > 0) {
-      const { data: links } = await supabase
-        .from('contact_tags').select('contact_id').in('tag_id', selectedTagIds);
-      taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
+    const base = supabase.from('contacts').select('id').eq('workspace_id', workspaceId);
+    // El cast evita que TS recorra el tipo del `select('id')` columna por
+    // columna al compararlo con FilterableQuery (instanciación infinita).
+    const filtered = await applyFilters(base as unknown as FilterableQuery);
+    if (!filtered) {
+      setSelectedIds(new Set());
+      return;
     }
-    let q = supabase.from('contacts').select('id').eq('workspace_id', workspaceId).limit(10000);
-    if (taggedIds) q = q.in('id', taggedIds);
-    const selBounds = dateBounds(datePreset, dateCustom, tz);
-    if (selBounds.from) q = q.gte('created_at', selBounds.from);
-    if (selBounds.to) q = q.lt('created_at', selBounds.to);
-    const rawSearch = search.trim();
-    if (rawSearch) {
-      const cleaned = rawSearch.replace(/[,()\\:*]/g, ' ').trim();
-      if (cleaned) { const term = `%${escapeLike(cleaned)}%`; q = q.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`); }
-    }
-    const { data } = await q;
+    const { data } = await (filtered.query as unknown as typeof base).limit(10000);
     setSelectedIds(new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id)));
   }
 
@@ -513,7 +567,7 @@ export default function ContactsPage() {
         />
       </div>
 
-      {/* Filtros (dropdowns): fecha · Shopify · canal · dato de contacto */}
+      {/* Filtros (dropdowns): fecha · Shopify · canal */}
       <div className="flex flex-wrap items-center gap-2">
         <DateAddedFilter
           preset={datePreset}
@@ -524,28 +578,28 @@ export default function ContactsPage() {
             setPage(0);
           }}
         />
-        <FilterSelect
+        <FilterMultiSelect
           label={t('contacts.filterShopifyLabel')}
-          value={shopifyFilter}
+          allLabel={t('contacts.filterAnyShopify')}
+          values={shopifyFilter}
           onChange={(v) => {
-            setShopifyFilter(v as 'all' | 'customers' | 'non');
+            setShopifyFilter(v);
             setPage(0);
           }}
           options={[
-            { value: 'all', label: t('contacts.filterAnyShopify') },
             { value: 'customers', label: t('contacts.shopFilterCustomers') },
             { value: 'non', label: t('contacts.shopFilterNon') },
           ]}
         />
-        <FilterSelect
+        <FilterMultiSelect
           label={t('contacts.filterChannelLabel')}
-          value={channelFilter}
+          allLabel={t('contacts.filterAnyChannel')}
+          values={channelFilter}
           onChange={(v) => {
             setChannelFilter(v);
             setPage(0);
           }}
           options={[
-            { value: 'all', label: t('contacts.filterAnyChannel') },
             { value: 'whatsapp', label: 'WhatsApp' },
             { value: 'instagram', label: 'Instagram' },
             { value: 'messenger', label: 'Messenger' },
@@ -557,6 +611,14 @@ export default function ContactsPage() {
             { value: 'outlook', label: 'Outlook' },
           ]}
         />
+        {filtersActive && (
+          <button
+            onClick={clearFilters}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t('contacts.clear')}
+          </button>
+        )}
       </div>
 
       {/* Tag filter */}
@@ -600,17 +662,6 @@ export default function ContactsPage() {
               </button>
             );
           })}
-          {selectedTagIds.length > 0 && (
-            <button
-              onClick={() => {
-                setSelectedTagIds([]);
-                setPage(0);
-              }}
-              className="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {t('contacts.clear')}
-            </button>
-          )}
         </div>
       )}
 
@@ -961,23 +1012,3 @@ export default function ContactsPage() {
 }
 
 
-/**
- * Ventana de fechas de alta a consultar. Los atajos son móviles (los últimos N
- * días hasta ahora); el rango del calendario se resuelve en la zona horaria del
- * WORKSPACE con el mismo `rangeForPreset` del panel, así el día que se toca en
- * el calendario es el mismo día que cuenta la consulta. `to` es EXCLUSIVO.
- */
-function dateBounds(
-  preset: DatePreset,
-  custom: CustomRange | null,
-  tz: string,
-): { from?: string; to?: string } {
-  if (preset === 'custom') {
-    if (!custom) return {};
-    const r = rangeForPreset(tz, 'custom', custom);
-    return { from: r.start.toISOString(), to: r.end.toISOString() };
-  }
-  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : preset === '90d' ? 90 : 0;
-  if (days === 0) return {};
-  return { from: new Date(Date.now() - days * 864e5).toISOString() };
-}
