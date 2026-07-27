@@ -339,20 +339,10 @@ export async function maybeInstantOutreach(
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;
 
-  // Nivel de automatización del agente enlazado. Se guardaba y se leía en
-  // `resolveIgAgent`, pero NINGUNA rama comparaba el valor: elegir
-  // "approval" mandaba igual, automáticamente. Ahora se respeta:
-  //   - approval      → nunca sale solo; la fila queda 'queued' esperando
-  //                     a una persona (no la perdemos).
-  //   - hybrid_intent → sale sola sólo si hay intención real (lead alto);
-  //                     el resto queda 'queued'.
-  //   - auto          → sale siempre (comportamiento histórico).
-  if (
-    agent.proactive_send_mode === 'approval' ||
-    (agent.proactive_send_mode === 'hybrid_intent' && leadScore !== 'high')
-  ) {
-    return;
-  }
+  // El alcance proactivo es SIEMPRE automático: no hay nada que aprobar.
+  // Lo que decide si se escribe o no son las puertas reales de arriba —
+  // spam/intención (`scoreLeads`), el contrato del agente
+  // (`igAgentCanAutoReply`) y el límite de confianza (`proactiveGate`).
 
   // Auto mode. One private reply per comment across BOTH systems: claim the
   // shared lock first; if the comment-to-DM engine already replied, skip.
@@ -625,14 +615,6 @@ async function autonomousCommentReply(
   // Mismo contrato que la respuesta reactiva: pausado, fuera de alcance,
   // fuera de horario o pidiendo un humano ⇒ no contestamos solos.
   if (!igAgentCanAutoReply(agent, engagement)) return;
-  // Nivel de automatización: 'approval' nunca sale solo; 'hybrid_intent'
-  // sólo con intención real.
-  if (
-    agent.proactive_send_mode === 'approval' ||
-    (agent.proactive_send_mode === 'hybrid_intent' && score !== 'high')
-  ) {
-    return;
-  }
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;

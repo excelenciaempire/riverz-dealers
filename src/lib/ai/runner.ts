@@ -100,7 +100,7 @@ export async function runAiAgent(
     }
 
     if (containsEscalationKeyword(agent, args.inboundMessage.content_text ?? '')) {
-      await flagNeedsHuman(db, args.conversation);
+      await flagNeedsHuman(db, args.conversation, 'escalation_keyword');
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'escalation_keyword',
@@ -125,7 +125,7 @@ export async function runAiAgent(
       if ((priorSentCount ?? 0) >= agent.escalate_after_messages) {
         // Mismo criterio que las palabras clave: agotar el cupo de
         // respuestas ES un escalamiento, no un silencio.
-        await flagNeedsHuman(db, args.conversation);
+        await flagNeedsHuman(db, args.conversation, 'escalate_after_messages');
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'escalate_after_messages',
@@ -518,7 +518,12 @@ async function pickAgent(
     .eq('is_active', true)
     .is('deleted_at', null)
     .order('priority', { ascending: false })
-    .order('updated_at', { ascending: false });
+    // Desempate por ANTIGÜEDAD, no por `updated_at`. Como `priority` no se
+    // edita desde la UI, todos valen 0 y el desempate decidía de verdad:
+    // con updated_at, editarle la persona al agente B le robaba el tráfico
+    // nuevo al A sin que nadie tocara nada de enrutamiento. Con created_at
+    // el ganador es estable y editar un agente ya no reasigna a nadie.
+    .order('created_at', { ascending: true });
 
   if (!rows || rows.length === 0) return null;
   type AgentWithLinks = AiAgent & {
@@ -686,6 +691,7 @@ function shouldSkip(
 async function flagNeedsHuman(
   db: SupabaseClient,
   conversation: Conversation,
+  reason?: string,
 ): Promise<void> {
   try {
     await db
@@ -693,7 +699,10 @@ async function flagNeedsHuman(
       .update({ ai_enabled: false, status: 'pending' })
       .eq('id', conversation.id);
   } catch (err) {
-    console.error('[ai] no se pudo marcar la conversación para humano:', err);
+    console.error(
+      `[ai] no se pudo marcar la conversación para humano${reason ? ` (${reason})` : ''}:`,
+      err,
+    );
   }
 }
 

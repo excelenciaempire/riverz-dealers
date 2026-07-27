@@ -99,10 +99,19 @@ export async function processCommentForDmRules(
     })
     .select('id')
     .single();
-  // 23505 (ya atendido por otra entrega del webhook) o insert fallido. En el
-  // primer caso ESTE comentario sí es de una regla: devolvemos true para que el
-  // router no lo mande además por el camino del agente.
-  if (claimErr || !claim) return Boolean(claimErr);
+  // SÓLO 23505 significa "otra entrega del webhook ya lo atendió": ahí sí
+  // devolvemos true para que el router no lo mande además por el camino del
+  // agente. Antes cualquier error de DB (una caída, un timeout) se reportaba
+  // igual que un duplicado, y ese comentario quedaba sin respuesta de nadie:
+  // ni la regla, que falló, ni el agente, al que acabábamos de frenar.
+  if (claimErr) {
+    const isDuplicate = (claimErr as { code?: string }).code === '23505';
+    if (!isDuplicate) {
+      console.error('[comment-to-dm] claim falló, se deja pasar al agente:', claimErr);
+    }
+    return isDuplicate;
+  }
+  if (!claim) return false;
 
   const logId = (claim as { id: string }).id;
   let publicReplyStatus: 'sent' | 'failed' | 'skipped' = 'skipped';

@@ -189,6 +189,10 @@ export const assistant = {
     es: "Si lo activas, solo responde dentro de la ventana. Si no, 24/7.",
     en: "When on, it only replies within the window. Otherwise, 24/7.",
   },
+  hoursOvernight: {
+    es: "Turno noche: sigue hasta esa hora del día siguiente.",
+    en: "Overnight: runs until that time the next day.",
+  },
   startLabel: { es: "Inicio", en: "Start" },
   endLabel: { es: "Fin", en: "End" },
   timezoneLabel: { es: "Zona horaria", en: "Time zone" },
@@ -407,10 +411,8 @@ export const assistant = {
     es: "El seguimiento necesita al menos 1 mensaje",
     en: "Follow-up needs at least 1 message",
   },
-  hoursStartBeforeEnd: {
-    es: "La hora de inicio debe ser menor que la de fin",
-    en: "The start time must be earlier than the end time",
-  },
+  // `hoursStartBeforeEnd` se eliminó: fin <= inicio ya no es un error, es
+  // turno noche (22:00 → 02:00). Ahora se explica con `hoursOvernight`.
   hoursDayRequired: {
     es: "Elige al menos un día del horario",
     en: "Choose at least one day for the schedule",

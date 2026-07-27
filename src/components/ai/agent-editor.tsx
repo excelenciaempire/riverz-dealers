@@ -628,29 +628,18 @@ export function AgentEditor({
         return;
       }
     }
-    if (hoursEnabled) {
-      if (hoursStart >= hoursEnd) {
-        toast.error(t('assistant.hoursStartBeforeEnd'));
-        return;
-      }
-      if (hoursDays.length === 0) {
-        toast.error(t('assistant.hoursDayRequired'));
-        return;
-      }
+    // Un fin menor o igual que el inicio ya NO es un error: es turno noche
+    // (22:00 → 02:00), que antes era inexpresable. Sólo exigimos días.
+    if (hoursEnabled && hoursDays.length === 0) {
+      toast.error(t('assistant.hoursDayRequired'));
+      return;
     }
-    // El horario de llamadas se validaba en ningún lado: una franja
-    // invertida o sin días se guardaba y las llamadas dejaban de salir.
-    if (voice.voice_enabled) {
-      if (voice.voice_calling_hours.start >= voice.voice_calling_hours.end) {
-        setTab('voice');
-        toast.error(t('voice.hoursInvalid'));
-        return;
-      }
-      if (voice.voice_calling_hours.days.length === 0) {
-        setTab('voice');
-        toast.error(t('voice.hoursNoDays'));
-        return;
-      }
+    // El horario de llamadas no se validaba en ningún lado: sin días se
+    // guardaba y las llamadas dejaban de salir sin explicación.
+    if (voice.voice_enabled && voice.voice_calling_hours.days.length === 0) {
+      setTab('voice');
+      toast.error(t('voice.hoursNoDays'));
+      return;
     }
     setSaving(true);
     const payload: Partial<AiAgent> & {
@@ -1244,6 +1233,13 @@ export function AgentEditor({
                           />
                         </Field>
                       </div>
+                      {/* Fin <= inicio = turno noche. Se explica aquí para que
+                          no parezca un dato mal cargado. */}
+                      {hoursStart >= hoursEnd && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {t('assistant.hoursOvernight')}
+                        </p>
+                      )}
                       <Field label={t('assistant.timezoneLabel')}>
                         <Select
                           value={hoursTimezone}

@@ -108,12 +108,19 @@ export function nextAllowedTime(
   const startMin = hhmmToMinutes(startStr);
   const endMin = hhmmToMinutes(hours.end || DEFAULT_CALLING_HOURS.end);
 
-  // Already inside a valid window today?
+  // Already inside a valid window?
+  // Si el fin es <= al inicio, la franja cruza medianoche (turno noche,
+  // 22:00 → 02:00): además de la parte nocturna del día permitido, cuenta
+  // la cola de madrugada que arrancó el día ANTERIOR.
   const todayDow = isoWeekday(tz, from);
+  const prevDow = todayDow === 1 ? 7 : todayDow - 1;
   const nowMin = minutesOfDay(tz, from);
-  if (days.includes(todayDow) && nowMin >= startMin && nowMin < endMin) {
-    return from;
-  }
+  const crossesMidnight = endMin <= startMin;
+  const insideNow = crossesMidnight
+    ? (days.includes(todayDow) && nowMin >= startMin) ||
+      (days.includes(prevDow) && nowMin < endMin)
+    : days.includes(todayDow) && nowMin >= startMin && nowMin < endMin;
+  if (insideNow) return from;
 
   // Walk forward up to 8 days to the next allowed day; schedule at `start`.
   let ymd = ymdInTz(tz, from);

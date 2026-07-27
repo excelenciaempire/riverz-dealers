@@ -5,13 +5,15 @@ import {
   containsEscalationKeyword,
 } from '@/lib/ai/business-hours';
 
-export type ProactiveSendMode = 'auto' | 'hybrid_intent' | 'approval';
+// `proactive_send_mode` (auto | hybrid_intent | approval) SE ELIMINÓ: el
+// alcance proactivo es siempre automático, no hay nada que aprobar. Se
+// guardaba pero ninguna rama lo leía, así que "approval" enviaba igual.
+// Quién habla lo deciden las puertas reales: spam/intención, el contrato
+// del agente (`igAgentCanAutoReply`) y el límite diario del workspace.
 
 export interface IgAgentConfig {
   /** The agent whose brand voice + guardrails govern proactive Instagram. */
   id: string | null;
-  /** How much runs automatically vs. waits for human approval. */
-  proactive_send_mode: ProactiveSendMode;
   /** Pausado en el editor ⇒ no habla por ningún canal, comentarios incluidos. */
   is_active: boolean;
   /** 'workspace' | 'channels' — junto con `channels` define el alcance. */
@@ -22,12 +24,9 @@ export interface IgAgentConfig {
   escalate_keywords: string[];
 }
 
-const VALID_MODES: ProactiveSendMode[] = ['auto', 'hybrid_intent', 'approval'];
-
 /** Config vacía: ningún agente gobierna, así que nada se envía solo. */
 const NO_AGENT: IgAgentConfig = {
   id: null,
-  proactive_send_mode: 'auto',
   is_active: false,
   scope: 'workspace',
   channels: [],
@@ -38,14 +37,13 @@ const NO_AGENT: IgAgentConfig = {
 
 /** Columnas mínimas para poder aplicar el MISMO contrato que el runner. */
 const AGENT_BASE =
-  'id, proactive_send_mode, is_active, scope, business_hours, reply_outside_hours, escalate_keywords, priority, updated_at';
+  'id, is_active, scope, business_hours, reply_outside_hours, escalate_keywords, priority, created_at';
 const AGENT_FIELDS = `${AGENT_BASE}, ai_agent_channels(channel)`;
 /** Variante con inner join: obligatoria para poder filtrar por canal. */
 const AGENT_FIELDS_IG = `${AGENT_BASE}, ai_agent_channels!inner(channel)`;
 
 interface AgentRow {
   id: string;
-  proactive_send_mode?: string | null;
   is_active?: boolean | null;
   scope?: string | null;
   business_hours?: BusinessHours | null;
@@ -55,10 +53,8 @@ interface AgentRow {
 }
 
 function normalize(row: AgentRow): IgAgentConfig {
-  const mode = row.proactive_send_mode as ProactiveSendMode;
   return {
     id: row.id,
-    proactive_send_mode: VALID_MODES.includes(mode) ? mode : 'auto',
     is_active: Boolean(row.is_active),
     scope: row.scope ?? 'workspace',
     channels: (row.ai_agent_channels ?? []).map((c) => c.channel),
@@ -135,7 +131,9 @@ export async function resolveIgAgent(
     .eq('ai_agent_channels.channel', 'instagram')
     .order('is_active', { ascending: false })
     .order('priority', { ascending: false })
-    .order('updated_at', { ascending: false })
+    // Mismo desempate estable que `pickAgent`: por antigüedad, para que
+    // editar un agente no cambie quién habla en Instagram.
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   if (igOwned) {
@@ -149,7 +147,9 @@ export async function resolveIgAgent(
     .is('deleted_at', null)
     .order('is_active', { ascending: false })
     .order('priority', { ascending: false })
-    .order('updated_at', { ascending: false })
+    // Mismo desempate estable que `pickAgent`: por antigüedad, para que
+    // editar un agente no cambie quién habla en Instagram.
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!data) return NO_AGENT;

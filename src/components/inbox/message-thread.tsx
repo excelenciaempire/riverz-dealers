@@ -13,6 +13,7 @@ import type {
   Contact,
   ConversationStatus,
   MessageTemplate,
+  NeedsHumanReason,
   Profile,
 } from "@/types";
 import {
@@ -26,6 +27,7 @@ import {
   ChevronUp,
   PanelRight,
   Bot,
+  UserRound,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -146,6 +148,13 @@ function groupMessagesByDate(messages: Message[], tz: string) {
 
   return groups;
 }
+
+/** Motivo del escalamiento → clave i18n del aviso (migración 122). */
+const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
+  escalation_keyword: "inbox.needsHumanKeyword",
+  escalate_after_messages: "inbox.needsHumanMaxReplies",
+  flow_handoff: "inbox.needsHumanFlow",
+};
 
 const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [
   { labelKey: "inbox.statusOpen", value: "open", color: "text-accent-ink" },
@@ -826,10 +835,21 @@ export function MessageThread({
       // closed_at gates the "Resueltas hoy" dashboard metric. We stamp
       // it on transitions into 'closed' and clear it when the user
       // re-opens a previously-closed thread so the count stays honest.
-      const patch: { status: ConversationStatus; closed_at: string | null } = {
+      const patch: {
+        status: ConversationStatus;
+        closed_at: string | null;
+        needs_human_reason?: null;
+        needs_human_at?: null;
+      } = {
         status,
         closed_at: status === "closed" ? new Date().toISOString() : null,
       };
+      // Sacarla de 'pendiente' significa que alguien ya la atendió: se cierra
+      // el escalamiento para que el contador de la bandeja no quede inflado.
+      if (status !== "pending") {
+        patch.needs_human_reason = null;
+        patch.needs_human_at = null;
+      }
       await supabase
         .from("conversations")
         .update(patch)
@@ -1367,6 +1387,18 @@ export function MessageThread({
           )}
         </div>
       </div>
+
+      {/* La IA escaló y dejó el hilo a una persona. Sin este aviso, quien lo
+          abre no sabe por qué el asistente dejó de responder ni desde cuándo
+          espera el cliente — antes el escalamiento era completamente mudo. */}
+      {conversation.needs_human_reason && (
+        <div className="flex items-center gap-2 border-b border-border bg-amber-500/10 px-3 py-2 sm:px-4">
+          <UserRound className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="min-w-0 flex-1 text-xs text-amber-700 dark:text-amber-300">
+            {t(NEEDS_HUMAN_REASON_KEY[conversation.needs_human_reason])}
+          </p>
+        </div>
+      )}
 
       {/* Email subject banner — surfaces the thread title up top
           instead of letting it disappear into the conversation row in

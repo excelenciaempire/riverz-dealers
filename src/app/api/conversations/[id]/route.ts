@@ -80,7 +80,14 @@ export async function PATCH(
 
   const { error } = await admin
     .from("conversations")
-    .update({ ai_enabled: body.ai_enabled, updated_at: new Date().toISOString() })
+    .update({
+      ai_enabled: body.ai_enabled,
+      updated_at: new Date().toISOString(),
+      // Volver a encender la IA cierra el escalamiento: alguien ya se hizo
+      // cargo. Sin esto la marca "necesita humano" quedaba pegada para
+      // siempre y el contador de la bandeja no bajaba nunca.
+      ...(body.ai_enabled ? { needs_human_reason: null, needs_human_at: null } : {}),
+    })
     .eq("id", id);
   if (error) return serverError(error);
   return NextResponse.json({ ok: true, ai_enabled: body.ai_enabled });

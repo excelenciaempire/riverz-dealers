@@ -488,6 +488,13 @@ async function executeHandoff(
   const convUpdate: Record<string, unknown> = {
     status: "pending",
     updated_at: new Date().toISOString(),
+    // Un traspaso a humano tiene que CALLAR a la IA. Antes sólo se ponía
+    // 'pending', y `shouldSkip` del runner únicamente frena en 'closed':
+    // el agente seguía contestando encima de la persona que acababa de
+    // recibir el caso. Con `assign_to` vacío ni siquiera quedaba asignada.
+    ai_enabled: false,
+    needs_human_reason: "flow_handoff",
+    needs_human_at: new Date().toISOString(),
   };
   if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
   if (run.conversation_id) {

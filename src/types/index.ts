@@ -208,11 +208,20 @@ export interface ContactNote {
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
+/** Por qué la IA dejó el hilo a una persona (migración 122). */
+export type NeedsHumanReason =
+  | 'escalation_keyword'
+  | 'escalate_after_messages'
+  | 'flow_handoff';
+
 export interface Conversation {
   id: string;
   workspace_id: string;
   contact_id: string;
   channel: Channel;
+  /** Escalamiento: la IA se apagó y el hilo espera a una persona. NULL = no escaló. */
+  needs_human_reason?: NeedsHumanReason | null;
+  needs_human_at?: string | null;
   /** Connection that produced this conversation (Meta page, mailbox, …). */
   connection_id?: string;
   /** Email-style subject, or the post/ad title for comment threads. */

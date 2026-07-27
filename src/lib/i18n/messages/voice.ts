@@ -45,9 +45,9 @@ export const voice = {
   from: { es: "Desde", en: "From" },
   to: { es: "Hasta", en: "To" },
   days: { es: "Días", en: "Days" },
-  hoursInvalid: {
-    es: "La hora de inicio debe ser anterior a la de fin.",
-    en: "The start time must be earlier than the end time.",
+  hoursOvernight: {
+    es: "Turno noche: sigue hasta esa hora del día siguiente.",
+    en: "Overnight: runs until that time the next day.",
   },
   hoursNoDays: {
     es: "Elige al menos un día.",

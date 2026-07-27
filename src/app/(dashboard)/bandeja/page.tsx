@@ -20,7 +20,7 @@ import {
 } from "@/components/inbox/inbox-tabs";
 import { ResizablePane } from "@/components/inbox/resizable-pane";
 import Link from "@/components/i18n/locale-link";
-import { Plug2 } from "lucide-react";
+import { Plug2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
@@ -42,6 +42,9 @@ export default function InboxPage() {
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [channelFilter, setChannelFilter] = useState<Channel | null>(null);
+  // Filtro "Necesita humano": hilos donde la IA escaló (palabra clave, cupo
+  // agotado o traspaso de un flujo) y que esperan a una persona.
+  const [needsHumanOnly, setNeedsHumanOnly] = useState(false);
   // Secondary filter within the MercadoLibre chip: all / questions / messages.
   const [mlKindFilter, setMlKindFilter] = useState<MlKindFilter>("all");
   const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
@@ -636,8 +639,19 @@ export default function InboxPage() {
         (c) => mlThreadKind(c.channel, c.thread_external_id) === mlKindFilter,
       );
     }
+    // "Necesita humano": la IA escaló y dejó el hilo esperando a una persona.
+    if (needsHumanOnly) {
+      list = list.filter((c) => Boolean(c.needs_human_reason));
+    }
     return list;
-  }, [conversations, inboxTab, channelFilter, mlKindFilter]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly]);
+
+  // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
+  // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
+  const needsHumanCount = useMemo(
+    () => conversations.filter((c) => Boolean(c.needs_human_reason)).length,
+    [conversations],
+  );
 
   // Counts for the ML sub-filter chips (question vs message), across all
   // loaded ML conversations regardless of the active sub-filter so the
@@ -731,6 +745,26 @@ export default function InboxPage() {
                 onChange={setMlKindFilter}
                 counts={mlCounts}
               />
+            )}
+            {/* Sólo aparece si hay algo que atender: un filtro permanentemente
+                en cero es ruido. */}
+            {needsHumanCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setNeedsHumanOnly((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 border-b border-border px-3 py-2 text-xs font-medium transition-colors",
+                  needsHumanOnly
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <UserRound className="h-3.5 w-3.5" />
+                {t("inbox.needsHuman")}
+                <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
+                  {needsHumanCount}
+                </span>
+              </button>
             )}
             <div className="flex-1 overflow-hidden">
               <ConversationList

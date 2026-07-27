@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
-import { resolveIgAgent, type ProactiveSendMode } from '@/lib/instagram-agent/agent-link';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -10,12 +9,14 @@ import { translate } from '@/lib/i18n/translate';
  * GET/POST /api/ai/instagram-agent/settings
  *
  * The workspace's proactive Instagram controls: `paused` (kill-switch) +
- * `daily_cap` (rolling-24h max, both on ig_proactive_settings, migration 093)
- * AND `send_mode` (auto | hybrid_intent | approval), which lives on the active
- * agent (ai_agents.proactive_send_mode) — surfaced here so it's configurable in
- * one place instead of buried in the agent editor. RLS scopes to members.
+ * `daily_cap` (rolling-24h max) + `auto_reply_comments` + `outreach_enabled`
+ * (todos en ig_proactive_settings, migración 093). RLS scopes to members.
+ *
+ * Ya NO expone `send_mode`: el alcance proactivo es siempre automático y no
+ * hay nada que aprobar. La opción se guardaba pero ninguna rama la leía, así
+ * que elegir "approval" enviaba igual — una promesa que el producto no
+ * cumplía. Se quita en vez de construir una cola de aprobación que nadie pidió.
  */
-const VALID_MODES: ProactiveSendMode[] = ['auto', 'hybrid_intent', 'approval'];
 
 export async function GET() {
   const supabase = await createClient();
@@ -28,22 +29,16 @@ export async function GET() {
       daily_cap: 500,
       auto_reply_comments: true,
       outreach_enabled: true,
-      send_mode: 'auto',
     });
 
   const workspaceId = await resolveWorkspaceId(supabase, user.id);
-  const [{ data }, agent] = await Promise.all([
-    workspaceId
-      ? supabase
-          .from('ig_proactive_settings')
-          .select('paused, daily_cap, auto_reply_comments, outreach_enabled')
-          .eq('workspace_id', workspaceId)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    workspaceId
-      ? resolveIgAgent(supabase, workspaceId)
-      : Promise.resolve({ id: null, proactive_send_mode: 'auto' as ProactiveSendMode }),
-  ]);
+  const { data } = workspaceId
+    ? await supabase
+        .from('ig_proactive_settings')
+        .select('paused, daily_cap, auto_reply_comments, outreach_enabled')
+        .eq('workspace_id', workspaceId)
+        .maybeSingle()
+    : { data: null };
   const s = data as {
     paused?: boolean;
     daily_cap?: number;
@@ -56,7 +51,6 @@ export async function GET() {
     // Sin fila de ajustes, ambas funcionalidades están encendidas (default BD).
     auto_reply_comments: s?.auto_reply_comments !== false,
     outreach_enabled: s?.outreach_enabled !== false,
-    send_mode: agent.proactive_send_mode,
   });
 }
 
@@ -113,19 +107,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // Automation mode lives on the active agent.
-  if (
-    typeof body.send_mode === 'string' &&
-    VALID_MODES.includes(body.send_mode as ProactiveSendMode)
-  ) {
-    const agent = await resolveIgAgent(supabase, workspaceId);
-    if (agent.id) {
-      await supabase
-        .from('ai_agents')
-        .update({ proactive_send_mode: body.send_mode })
-        .eq('id', agent.id);
-    }
-  }
+  // `send_mode` ya no existe: el alcance proactivo es siempre automático,
+  // no hay nada que aprobar. Lo que decide si se escribe son las puertas
+  // reales — spam/intención, el contrato del agente y el límite diario.
 
   return NextResponse.json({ success: true });
 }

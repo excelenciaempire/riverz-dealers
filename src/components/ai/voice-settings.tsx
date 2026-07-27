@@ -188,11 +188,10 @@ export function VoiceSettings({
     });
   }
 
-  // El horario de atención valida inicio < fin; el de llamadas no validaba
-  // nada, así que una franja invertida (20:00 → 09:00) se guardaba y las
-  // llamadas simplemente dejaban de salir, sin explicación. Avisamos en el
-  // sitio en vez de bloquear el guardado de toda la pestaña.
-  const hoursInvalid =
+  // Fin <= inicio significa turno noche: la franja sigue hasta el día
+  // siguiente (22:00 → 02:00). Lo decimos en el sitio para que no parezca
+  // un dato mal cargado.
+  const crossesMidnight =
     value.voice_calling_hours.start >= value.voice_calling_hours.end;
   const noDays = value.voice_calling_hours.days.length === 0;
 
@@ -440,11 +439,13 @@ export function VoiceSettings({
                 );
               })}
             </div>
-            {(hoursInvalid || noDays) && (
-              <p className="mt-2 text-xs text-destructive">
-                {t(hoursInvalid ? 'voice.hoursInvalid' : 'voice.hoursNoDays')}
+            {noDays ? (
+              <p className="mt-2 text-xs text-destructive">{t('voice.hoursNoDays')}</p>
+            ) : crossesMidnight ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t('voice.hoursOvernight')}
               </p>
-            )}
+            ) : null}
           </div>
 
           {/* Opciones avanzadas — ocultas por defecto para no abrumar. */}
