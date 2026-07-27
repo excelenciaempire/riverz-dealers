@@ -925,6 +925,12 @@ export interface VoiceConnectionConfig {
   recording_enabled?: boolean;
   /** E.164 number the agent can warm/cold-transfer a call to (human handoff). */
   transfer_number?: string;
+  /** Segundos de espera antes de que el agente hable (0–10; sin apuro para el cliente). */
+  greeting_delay_seconds?: number;
+  /** Quién habla primero en llamadas ENTRANTES (default 'customer': el que llamó). */
+  inbound_first_speaker?: 'agent' | 'customer';
+  /** Quién habla primero en llamadas SALIENTES (default 'agent': saluda el bot). */
+  outbound_first_speaker?: 'agent' | 'customer';
   // ── COD / dropshipping mode (opt-in; off for normal merchants) ──
   /** Master toggle for the COD confirmation surface (write-back, Dropi, etc.). */
   cod_mode?: boolean;

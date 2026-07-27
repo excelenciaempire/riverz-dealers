@@ -493,6 +493,23 @@ def _make_tts(cfg: dict):
     )
 
 
+# Voces válidas de Gemini Live (native audio). El pipeline usa el voice_id de
+# ElevenLabs/Deepgram, que Gemini NO entiende → si la voz configurada no es una
+# de estas, caemos a una multilingüe natural. Override por env VOICE_GEMINI_VOICE.
+_GEMINI_VOICES = {
+    "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr",
+}
+
+
+def _gemini_voice(v) -> str:
+    if v and v in _GEMINI_VOICES:
+        return v
+    env = os.getenv("VOICE_GEMINI_VOICE")
+    if env and env in _GEMINI_VOICES:
+        return env
+    return "Aoede"  # multilingüe, natural en español
+
+
 def _try_build_realtime(context: dict):
     """Construye un RealtimeModel speech-to-speech (full-duplex) desde
     context.realtime, o None → cae al pipeline.
@@ -528,11 +545,16 @@ def _try_build_realtime(context: dict):
         try:
             from livekit.plugins import google
 
-            g_kwargs: dict = {}
-            if rt.get("model"):
-                g_kwargs["model"] = rt["model"]
-            if voice_id:
-                g_kwargs["voice"] = voice_id
+            g_kwargs: dict = {
+                # Modelo Live de audio nativo. El default es un modelo REAL de la
+                # familia native-audio; el nombre viejo "gemini-live-2.5-flash-preview"
+                # NO existe y cerraba el WS con 1008 (no era falta de cuota).
+                "model": rt.get("model") or "gemini-2.5-flash-native-audio-latest",
+                # Voz: Gemini usa NOMBRES propios (Aoede, Kore, Puck…), NO el
+                # voice_id de ElevenLabs/Deepgram del pipeline. Si la voz configurada
+                # no es una válida de Gemini, cae a una multilingüe por defecto.
+                "voice": _gemini_voice(rt.get("voice") or voice_id),
+            }
             key = rt.get("api_key") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             if key:
                 g_kwargs["api_key"] = key
@@ -694,9 +716,22 @@ async def _deliver_greeting(session, context: dict) -> None:
       not support say()/generate_reply — the model self-drives the greeting.
     Never throws: a greeting failure must not kill the call.
     """
+    # ¿Habla primero el agente? Configurable por dirección (context.ts lo resuelve
+    # según inbound/outbound). Si NO, no saludamos: esperamos a que hable el
+    # cliente y el modelo responde a lo que diga (típico en entrantes: llamó él).
+    if not context.get("agent_greets_first", True):
+        return
     greeting = context.get("greeting")
     if not greeting:
         return
+    # Delay opcional antes de que el agente hable: le da aire al cliente para
+    # atender y ubicarse sin apuro. Tope de seguridad de 10 s.
+    try:
+        delay = float(context.get("greeting_delay_seconds") or 0)
+        if delay > 0:
+            await asyncio.sleep(min(delay, 10.0))
+    except (TypeError, ValueError):
+        pass
     if context.get("mode") == "realtime":
         # Try to nudge the model to greet; if unsupported, let it drive itself.
         try:

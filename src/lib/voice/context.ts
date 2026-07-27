@@ -49,6 +49,10 @@ export interface VoiceContextPayload {
   phone: string;
   language: string;
   greeting: string;
+  /** ¿El agente habla primero? Si es false, el worker no saluda y espera al cliente. */
+  agent_greets_first: boolean;
+  /** Segundos de espera antes de que el agente hable (sin apuro). */
+  greeting_delay_seconds: number;
   system_prompt: string;
   /** Conversation engine mode (global admin setting). */
   mode: VoiceMode;
@@ -200,6 +204,10 @@ export async function buildVoiceContext(
     callerNumber: string | null;
     recordingEnabled?: boolean;
     transferNumber?: string | null;
+    /** ¿El agente habla primero? (resuelto por dirección en el route). */
+    agentGreetsFirst?: boolean;
+    /** Segundos de espera antes de que el agente hable (sin apuro). */
+    greetingDelaySeconds?: number;
   },
 ): Promise<VoiceContextPayload> {
   const { data: agentRow } = await db
@@ -333,6 +341,8 @@ export async function buildVoiceContext(
     phone: dialPhone,
     language: lang,
     greeting,
+    agent_greets_first: opts.agentGreetsFirst !== false,
+    greeting_delay_seconds: Math.max(0, Math.min(Number(opts.greetingDelaySeconds) || 0, 10)),
     system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {

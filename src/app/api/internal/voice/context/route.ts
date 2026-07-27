@@ -80,9 +80,20 @@ export async function GET(request: Request) {
           phone_number?: string;
           recording_enabled?: boolean;
           transfer_number?: string;
+          greeting_delay_seconds?: number;
+          inbound_first_speaker?: 'agent' | 'customer';
+          outbound_first_speaker?: 'agent' | 'customer';
         };
       } | null)?.config ?? {};
     const trunkId = process.env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID ?? null;
+
+    // ¿Habla primero el agente? Por dirección: en salientes el agente saluda
+    // (default 'agent'); en entrantes suele hablar primero el cliente que llamó
+    // (default 'customer'). Configurable por el comercio.
+    const firstSpeaker =
+      call.direction === 'inbound'
+        ? cfg.inbound_first_speaker ?? 'customer'
+        : cfg.outbound_first_speaker ?? 'agent';
 
     const payload = await buildVoiceContext(db, call, {
       trunkId,
@@ -93,6 +104,8 @@ export async function GET(request: Request) {
       // pone recording_enabled=false explícito.
       recordingEnabled: cfg.recording_enabled !== false,
       transferNumber: cfg.transfer_number ?? null,
+      agentGreetsFirst: firstSpeaker === 'agent',
+      greetingDelaySeconds: Number(cfg.greeting_delay_seconds) || 0,
     });
     return NextResponse.json(payload);
   } catch (err) {

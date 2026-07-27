@@ -86,6 +86,15 @@ export async function PUT(request: Request) {
     kill_switch: Boolean(body.config?.kill_switch),
     recording_enabled: Boolean(body.config?.recording_enabled),
     transfer_number: body.config?.transfer_number?.trim() || undefined,
+    // Saludo: espera antes de hablar (sin apuro) + quién habla primero por dirección.
+    greeting_delay_seconds:
+      body.config?.greeting_delay_seconds != null
+        ? Math.max(0, Math.min(Number(body.config.greeting_delay_seconds), 10))
+        : undefined,
+    inbound_first_speaker:
+      body.config?.inbound_first_speaker === 'agent' ? 'agent' : 'customer',
+    outbound_first_speaker:
+      body.config?.outbound_first_speaker === 'customer' ? 'customer' : 'agent',
     // COD / dropshipping mode (opt-in)
     cod_mode: Boolean(body.config?.cod_mode),
     order_writeback: body.config?.order_writeback

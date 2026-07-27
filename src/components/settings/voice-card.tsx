@@ -31,6 +31,9 @@ export function VoiceCard() {
     kill_switch: false,
     recording_enabled: false,
     transfer_number: '',
+    greeting_delay_seconds: 0,
+    inbound_first_speaker: 'customer',
+    outbound_first_speaker: 'agent',
   });
   const [usage, setUsage] = useState<{
     minutes_used: number;
@@ -59,6 +62,9 @@ export function VoiceCard() {
           cod_mode: !!json.config.cod_mode,
           order_writeback: json.config.order_writeback ?? { enabled: false },
           dedupe_hours: json.config.dedupe_hours ?? 0.25,
+          greeting_delay_seconds: json.config.greeting_delay_seconds ?? 0,
+          inbound_first_speaker: json.config.inbound_first_speaker ?? 'customer',
+          outbound_first_speaker: json.config.outbound_first_speaker ?? 'agent',
         });
         setConnected(json.status === 'connected');
       }
@@ -195,6 +201,47 @@ export function VoiceCard() {
               checked={!!cfg.cod_mode}
               onChange={(c) => setCfg({ ...cfg, cod_mode: c })}
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <Field label={t('voice.greetingDelay')}>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                value={cfg.greeting_delay_seconds ?? 0}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    greeting_delay_seconds: Math.max(0, Math.min(10, Number(e.target.value) || 0)),
+                  })
+                }
+              />
+            </Field>
+            <Field label={t('voice.outboundFirstSpeaker')}>
+              <select
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                value={cfg.outbound_first_speaker ?? 'agent'}
+                onChange={(e) =>
+                  setCfg({ ...cfg, outbound_first_speaker: e.target.value as 'agent' | 'customer' })
+                }
+              >
+                <option value="agent">{t('voice.speakerAgent')}</option>
+                <option value="customer">{t('voice.speakerCustomer')}</option>
+              </select>
+            </Field>
+            <Field label={t('voice.inboundFirstSpeaker')}>
+              <select
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                value={cfg.inbound_first_speaker ?? 'customer'}
+                onChange={(e) =>
+                  setCfg({ ...cfg, inbound_first_speaker: e.target.value as 'agent' | 'customer' })
+                }
+              >
+                <option value="agent">{t('voice.speakerAgent')}</option>
+                <option value="customer">{t('voice.speakerCustomer')}</option>
+              </select>
+            </Field>
           </div>
 
           {cfg.cod_mode && (

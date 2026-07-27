@@ -141,6 +141,11 @@ export const voice = {
     es: "Detiene de inmediato las llamadas salientes y entrantes.",
     en: "Immediately stops outbound and inbound calls.",
   },
+  greetingDelay: { es: "Espera antes de hablar (seg)", en: "Delay before speaking (sec)" },
+  outboundFirstSpeaker: { es: "Quién habla primero (salientes)", en: "Who speaks first (outbound)" },
+  inboundFirstSpeaker: { es: "Quién habla primero (entrantes)", en: "Who speaks first (inbound)" },
+  speakerAgent: { es: "El agente saluda", en: "Agent greets" },
+  speakerCustomer: { es: "Espera al cliente", en: "Wait for the customer" },
   recordingEnabled: { es: "Grabar llamadas", en: "Record calls" },
   recordingHint: {
     es: "Agrega un aviso hablado de grabación al saludo, por cumplimiento.",
