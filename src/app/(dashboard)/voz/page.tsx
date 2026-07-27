@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { VoiceCard } from '@/components/settings/voice-card';
 import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
+import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 
@@ -116,6 +117,9 @@ export default function VoicePage() {
           </ul>
         )}
       </section>
+
+      {/* Estadísticas de llamadas (contestadas, confirmación, minutos, upsell, por hora/ciudad) */}
+      <VoiceAnalytics />
 
       {/* Call log — filtros, paginado y exportación */}
       <CallLog workspaceId={workspaceId} agents={voiceAgents} />

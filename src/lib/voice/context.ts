@@ -289,7 +289,14 @@ export async function buildVoiceContext(
         : `## Upsell\nDespués de confirmar el pedido, ofrecé con naturalidad llevar más unidades${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} Si acepta, llamá update_order con las unidades extra — actualiza el pedido real. Una sola vez, sólo cuando diga que sí claramente.`)
     : '';
 
-  const voiceBlock = buildVoiceInstructions(agent, call, objective) + upsellBlock;
+  // Instrucciones de sistema propias de las llamadas (campo del agente). Se suman
+  // al persona base + bloque de voz; el comercio las edita en la pestaña Llamadas.
+  const voiceSystem = agent.voice_system_prompt?.trim();
+  const voiceSystemBlock = voiceSystem
+    ? `\n\n${lang0 === 'en' ? '## Call instructions' : '## Instrucciones de la llamada'}\n${voiceSystem}`
+    : '';
+
+  const voiceBlock = buildVoiceInstructions(agent, call, objective) + upsellBlock + voiceSystemBlock;
 
   // El system prompt se re-envía en CADA turno, así que su tamaño multiplica el
   // costo y los tokens-por-minuto (los tiers gratis, ej. Groq, cortan en ~12k

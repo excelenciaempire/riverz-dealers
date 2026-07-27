@@ -687,6 +687,7 @@ export function AgentEditor({
       voice_ai_decides: voice.voice_ai_decides,
       voice_id: voice.voice_id,
       voice_greeting: voice.voice_greeting.trim() || null,
+      voice_system_prompt: voice.voice_system_prompt.trim() || null,
       voice_objectives: voice.voice_objectives,
       voice_max_call_seconds: voice.voice_max_call_seconds,
       voice_calling_hours: voice.voice_calling_hours,

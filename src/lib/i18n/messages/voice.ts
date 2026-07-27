@@ -20,6 +20,15 @@ export const voice = {
   preview: { es: "Escuchar", en: "Play sample" },
   previewPlaying: { es: "Reproduciendo…", en: "Playing…" },
   customVoiceId: { es: "O pega un ID de voz de ElevenLabs", en: "Or paste an ElevenLabs voice ID" },
+  systemPrompt: { es: "Instrucciones del sistema (llamadas)", en: "System prompt (calls)" },
+  systemPromptHint: {
+    es: "Instrucciones propias de las llamadas, además del persona del agente. Tono, qué priorizar, qué evitar.",
+    en: "Call-specific instructions on top of the agent's persona. Tone, what to prioritize, what to avoid.",
+  },
+  systemPromptPlaceholder: {
+    es: "Ej: Sé breve y cálido. Confirmá datos de envío. No prometas descuentos que no estén autorizados.",
+    en: "E.g. Be brief and warm. Confirm shipping details. Don't promise unauthorized discounts.",
+  },
   greeting: { es: "Saludo inicial", en: "Opening line" },
   greetingHint: {
     es: "Lo primero que dice al conectar. Usa {{contact_name}} para el nombre.",

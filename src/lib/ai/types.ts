@@ -107,6 +107,9 @@ export interface AiAgent {
   voice_id: string | null;
   /** First line the agent speaks; supports {{contact_name}}. */
   voice_greeting: string | null;
+  /** Instrucciones de sistema propias de las llamadas (se suman al persona base;
+   *  vacío = solo persona + objetivos). */
+  voice_system_prompt: string | null;
   /** Per-call-type objectives/scripts. */
   voice_objectives: VoiceObjectives;
   /** Hard cap on call length (seconds). */

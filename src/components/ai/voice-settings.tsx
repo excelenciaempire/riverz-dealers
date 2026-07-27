@@ -24,6 +24,7 @@ export interface VoiceState {
   voice_ai_decides: boolean;
   voice_id: string | null;
   voice_greeting: string;
+  voice_system_prompt: string;
   voice_objectives: VoiceObjectives;
   voice_max_call_seconds: number;
   voice_calling_hours: VoiceCallingHours;
@@ -36,6 +37,7 @@ export function initialVoiceState(agent?: {
   voice_ai_decides?: boolean;
   voice_id?: string | null;
   voice_greeting?: string | null;
+  voice_system_prompt?: string | null;
   voice_objectives?: VoiceObjectives | null;
   voice_max_call_seconds?: number;
   voice_calling_hours?: VoiceCallingHours | null;
@@ -47,6 +49,7 @@ export function initialVoiceState(agent?: {
     voice_ai_decides: agent?.voice_ai_decides ?? false,
     voice_id: agent?.voice_id ?? null,
     voice_greeting: agent?.voice_greeting ?? '',
+    voice_system_prompt: agent?.voice_system_prompt ?? '',
     voice_objectives: agent?.voice_objectives ?? {},
     voice_max_call_seconds: agent?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS,
     voice_calling_hours: agent?.voice_calling_hours ?? DEFAULT_CALLING_HOURS,
@@ -291,6 +294,18 @@ export function VoiceSettings({
               className="min-h-16 bg-muted text-foreground"
               value={value.voice_greeting}
               onChange={(e) => set({ voice_greeting: e.target.value })}
+            />
+          </div>
+
+          {/* System prompt específico de llamadas (se suma al persona base) */}
+          <div>
+            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.systemPrompt')}</p>
+            <p className="mb-2 text-xs text-muted-foreground">{t('voice.systemPromptHint')}</p>
+            <Textarea
+              className="min-h-20 bg-muted text-foreground"
+              placeholder={t('voice.systemPromptPlaceholder')}
+              value={value.voice_system_prompt}
+              onChange={(e) => set({ voice_system_prompt: e.target.value })}
             />
           </div>
 

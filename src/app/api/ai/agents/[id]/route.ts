@@ -101,6 +101,7 @@ export async function PATCH(
     'voice_provider',
     'voice_id',
     'voice_greeting',
+    'voice_system_prompt',
     'voice_objectives',
     'voice_max_call_seconds',
     'voice_calling_hours',
