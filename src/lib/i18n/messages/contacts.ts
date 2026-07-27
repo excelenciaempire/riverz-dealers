@@ -74,15 +74,11 @@ export const contacts = {
   dateLast90: { es: "últimos 90 días", en: "last 90 days" },
   filterShopifyLabel: { es: "Shopify", en: "Shopify" },
   filterChannelLabel: { es: "Canal", en: "Channel" },
-  filterContactLabel: { es: "Datos", en: "Details" },
   filterAnyShopify: { es: "todos", en: "all" },
   filterAnyChannel: { es: "todos", en: "all" },
-  filterAnyContact: { es: "todos", en: "all" },
   filterChIgComment: { es: "Comentarios IG", en: "IG comments" },
   filterChFbComment: { es: "Comentarios FB", en: "FB comments" },
   filterChVoice: { es: "Llamadas", en: "Calls" },
-  filterHasPhone: { es: "con teléfono", en: "with phone" },
-  filterHasEmail: { es: "con email", en: "with email" },
   infoChannel: { es: "Canal de origen", en: "Source channel" },
   infoCreated: { es: "Alta", en: "Added" },
   infoLastActivity: { es: "Última actividad", en: "Last activity" },
@@ -91,11 +87,6 @@ export const contacts = {
   exportColumnsHint: { es: "{count} contactos · marca las columnas del CSV", en: "{count} contacts · pick the CSV columns" },
   selectAllCols: { es: "Todas", en: "All" },
   selectNoneCols: { es: "Ninguna", en: "None" },
-  saveAsSegment: { es: "Guardar como segmento", en: "Save as segment" },
-  segmentSavedFromFilter: {
-    es: "Segmento guardado desde el filtro",
-    en: "Segment saved from filter",
-  },
 
   // Row actions
   edit: { es: "Editar", en: "Edit" },
@@ -307,6 +298,7 @@ export const contacts = {
 
   // Segments panel
   savedSegments: { es: "Segmentos guardados", en: "Saved segments" },
+  exportSegment: { es: "Exportar", en: "Export" },
   newSegment: { es: "Nuevo segmento", en: "New segment" },
   noSegments: { es: "No hay segmentos.", en: "No segments yet." },
   ruleCountSingular: { es: "{count} regla", en: "{count} rule" },

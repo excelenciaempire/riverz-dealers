@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CircleSlash,
   Database,
+  Download,
   Gift,
   History,
   DollarSign,
@@ -50,6 +51,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  ExportColumnsDialog,
+  downloadContactsCsv,
+  tagNamesByContact,
+  type ResolvedColumn,
+} from '@/components/contacts/contacts-export';
+import { useFormat } from '@/hooks/use-format';
 import { resolveSegment } from '@/lib/segments/resolve';
 import type {
   ContactSegment,
@@ -213,6 +221,10 @@ export function SegmentsPanel() {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Exportar un segmento a CSV eligiendo columnas (mismo diálogo que la lista).
+  const fmt = useFormat();
+  const [exportTarget, setExportTarget] = useState<ContactSegment | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const reload = useCallback(async () => {
     if (!workspace) return;
@@ -297,6 +309,39 @@ export function SegmentsPanel() {
       match_mode: s.match_mode,
       rules: s.rules ?? [],
     });
+  }
+
+  /**
+   * Exporta el segmento a CSV con las columnas elegidas. Resuelve el segmento
+   * en el momento (mismo cálculo que el contador de la fila, opt-out excluido),
+   * así el archivo refleja a quién alcanza HOY.
+   */
+  async function exportSegment(cols: ResolvedColumn[]) {
+    if (!workspace || !exportTarget) return;
+    setExporting(true);
+    try {
+      const { contacts } = await resolveSegment(
+        supabase,
+        workspace.id,
+        exportTarget.rules ?? [],
+        exportTarget.match_mode,
+        { excludeOptedOut: true },
+      );
+      const tagsById: Record<string, Tag> = {};
+      for (const tg of tags) tagsById[tg.id] = tg;
+      const tagsByContact = await tagNamesByContact(
+        supabase,
+        contacts.map((c) => c.id),
+        tagsById,
+      );
+      downloadContactsCsv(contacts, tagsByContact, fmt, cols, fileSlug(exportTarget.name));
+      toast.success(t('contacts.exported', { count: contacts.length }));
+      setExportTarget(null);
+    } catch {
+      toast.error(t('contacts.exportError'));
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -385,6 +430,13 @@ export function SegmentsPanel() {
                       {count == null ? '…' : count}
                     </span>
                     <button
+                      onClick={() => setExportTarget(s)}
+                      title={t('contacts.exportSegment')}
+                      className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <Download className="size-4" />
+                    </button>
+                    <button
                       onClick={() => startEdit(s)}
                       title={t('contacts.edit')}
                       className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -411,6 +463,18 @@ export function SegmentsPanel() {
         )}
       </div>
 
+      {exportTarget && (
+        <ExportColumnsDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setExportTarget(null);
+          }}
+          count={counts[exportTarget.id] ?? 0}
+          exporting={exporting}
+          onExport={exportSegment}
+        />
+      )}
+
       {editing && (
         <SegmentEditor
           workspaceId={workspace.id}
@@ -426,6 +490,16 @@ export function SegmentsPanel() {
       )}
     </div>
   );
+}
+
+/** Nombre de archivo a partir del nombre del segmento (sin tildes ni símbolos). */
+function fileSlug(name: string): string {
+  const slug = name
+    .normalize('NFD')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'segmento';
 }
 
 export interface EditorProps {

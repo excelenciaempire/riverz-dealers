@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RangeCalendar, type CustomRange } from '@/components/dashboard/date-range-filter';
+import { filterChipClass } from '@/components/contacts/filter-chip';
 import { useTimezone } from '@/hooks/use-timezone';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -49,16 +50,11 @@ export function DateAddedFilter({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn(
-          'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-ring',
-          active
-            ? 'border-accent/40 bg-accent/15 text-foreground'
-            : 'border-border bg-muted/60 text-foreground hover:bg-accent',
-        )}
-      >
-        {t('contacts.dateAddedLabel')}: {label}
-        <ChevronDown className="size-3 opacity-60" />
+      <PopoverTrigger className={filterChipClass(active)}>
+        <span className="whitespace-nowrap">
+          {t('contacts.dateAddedLabel')}: {label}
+        </span>
+        <ChevronDown className="size-3 shrink-0 opacity-60" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto space-y-2">
         <div className="flex flex-col">
@@ -73,7 +69,7 @@ export function DateAddedFilter({
               className={cn(
                 'rounded-md px-2 py-1.5 text-left text-xs transition-colors',
                 preset === p.value
-                  ? 'bg-accent/20 font-medium text-foreground'
+                  ? 'bg-accent-ink/10 font-medium text-accent-ink'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >

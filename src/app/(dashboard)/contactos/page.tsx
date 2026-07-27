@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { escapeLike } from '@/lib/security/like';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, Channel } from '@/types';
+import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -41,17 +41,22 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Layers,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { DateAddedFilter, type DatePreset } from '@/components/contacts/date-added-filter';
+import { FilterSelect } from '@/components/contacts/filter-chip';
+import {
+  ExportColumnsDialog,
+  downloadContactsCsv,
+  tagNamesByContact,
+  type ResolvedColumn,
+} from '@/components/contacts/contacts-export';
 import type { CustomRange } from '@/components/dashboard/date-range-filter';
 import { rangeForPreset } from '@/lib/dashboard/date-utils';
 import { ImportModal } from '@/components/contacts/import-modal';
-import { SegmentsPanel, SegmentEditor } from '@/components/contacts/segments-panel';
+import { SegmentsPanel } from '@/components/contacts/segments-panel';
 import { TagsPanel } from '@/components/contacts/tags-panel';
-import type { SegmentRule } from '@/lib/segments/types';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useTimezone } from '@/hooks/use-timezone';
 import { useT } from '@/hooks/use-locale';
@@ -135,11 +140,6 @@ export default function ContactsPage() {
   const [exporting, setExporting] = useState(false);
   // Diálogo de export: elegir qué columnas se incluyen en el CSV.
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportCols, setExportCols] = useState<Set<string>>(
-    () => new Set(EXPORT_COLUMNS.map((c) => c.key)),
-  );
-  // "Guardar como segmento" — abre el editor con las reglas derivadas del filtro.
-  const [saveSegmentOpen, setSaveSegmentOpen] = useState(false);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -175,10 +175,9 @@ export default function ContactsPage() {
   /** Rango a medida elegido en el calendario (sólo con datePreset==='custom'). */
   const [dateCustom, setDateCustom] = useState<CustomRange | null>(null);
   // Filtros visibles (dropdowns). Para segmentaciones más ricas (gasto, pedidos,
-  // país…) está la pestaña Segmentos + "Guardar como segmento".
+  // país…) está la pestaña Segmentos.
   const [shopifyFilter, setShopifyFilter] = useState<'all' | 'customers' | 'non'>('all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
-  const [hasFilter, setHasFilter] = useState<'all' | 'phone' | 'email'>('all');
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -229,10 +228,6 @@ export default function ContactsPage() {
 
     // Filtro por canal de origen.
     if (channelFilter !== 'all') query = query.eq('channel', channelFilter);
-
-    // Filtro por dato de contacto disponible.
-    if (hasFilter === 'phone') query = query.not('phone', 'is', null);
-    else if (hasFilter === 'email') query = query.not('email', 'is', null);
 
     // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
     // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
@@ -293,7 +288,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, dateCustom, tz, shopifyFilter, channelFilter, hasFilter, workspaceId, t]);
+  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, dateCustom, tz, shopifyFilter, channelFilter, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -404,7 +399,7 @@ export default function ContactsPage() {
     setSelectedIds(new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id)));
   }
 
-  async function exportCsv() {
+  async function exportCsv(cols: ResolvedColumn[]) {
     if (!workspaceId || selectedIds.size === 0) return;
     setExporting(true);
     try {
@@ -416,20 +411,7 @@ export default function ContactsPage() {
           .from('contacts').select('*').in('id', ids.slice(i, i + 500));
         rows.push(...((data ?? []) as Contact[]));
       }
-      // Etiquetas por contacto para incluirlas en el CSV.
-      const { data: cts } = await supabase
-        .from('contact_tags').select('contact_id, tag_id').in('contact_id', ids);
-      const tagsByContact: Record<string, string[]> = {};
-      (cts ?? []).forEach((ct) => {
-        const name = tagsMap[ct.tag_id]?.name;
-        if (!name) return;
-        (tagsByContact[ct.contact_id] ??= []).push(name);
-      });
-      // Solo las columnas elegidas por el usuario, en el orden del catálogo.
-      const cols = EXPORT_COLUMNS.filter((c) => exportCols.has(c.key)).map((c) => ({
-        header: t(c.labelKey),
-        get: c.get,
-      }));
+      const tagsByContact = await tagNamesByContact(supabase, ids, tagsMap);
       downloadContactsCsv(rows, tagsByContact, fmt, cols);
       toast.success(t('contacts.exported', { count: rows.length }));
       setExportOpen(false);
@@ -438,45 +420,6 @@ export default function ContactsPage() {
     } finally {
       setExporting(false);
     }
-  }
-
-  // Un segmento es "un filtro guardado". Mapeamos el filtro actual (fecha +
-  // etiquetas) a reglas del segmento; el editor muestra el conteo real en vivo
-  // antes de guardar, así queda preciso. (La búsqueda es ad-hoc → no se guarda.)
-  const filtersActive =
-    selectedTagIds.length > 0 ||
-    datePreset !== 'all' ||
-    shopifyFilter !== 'all' ||
-    channelFilter !== 'all' ||
-    hasFilter !== 'all';
-  function draftSegment() {
-    const rules: SegmentRule[] = [];
-    if (datePreset === 'custom' && dateCustom) {
-      // Un rango a medida son dos reglas: desde y hasta. El segmento sigue
-      // siendo exacto — no se pierde nada al guardarlo.
-      rules.push({ type: 'created', op: 'after', value: dateCustom.start });
-      rules.push({ type: 'created', op: 'before', value: dateCustom.end });
-    } else if (datePreset !== 'all') {
-      rules.push({
-        type: 'created',
-        op: 'last_n_days',
-        value: datePreset === '7d' ? '7' : datePreset === '30d' ? '30' : '90',
-      });
-    }
-    if (shopifyFilter !== 'all') {
-      rules.push({
-        type: 'shopify',
-        op: shopifyFilter === 'customers' ? 'is_customer' : 'is_not_customer',
-      });
-    }
-    if (channelFilter !== 'all') {
-      rules.push({ type: 'channel', op: 'is', channel: channelFilter as Channel });
-    }
-    if (hasFilter !== 'all') {
-      rules.push({ type: 'has_field', field: hasFilter, op: 'present' });
-    }
-    for (const tid of selectedTagIds) rules.push({ type: 'tag', op: 'has', tagId: tid });
-    return { name: '', description: '', rules, match_mode: 'all' as const };
   }
 
   return (
@@ -614,19 +557,6 @@ export default function ContactsPage() {
             { value: 'outlook', label: 'Outlook' },
           ]}
         />
-        <FilterSelect
-          label={t('contacts.filterContactLabel')}
-          value={hasFilter}
-          onChange={(v) => {
-            setHasFilter(v as 'all' | 'phone' | 'email');
-            setPage(0);
-          }}
-          options={[
-            { value: 'all', label: t('contacts.filterAnyContact') },
-            { value: 'phone', label: t('contacts.filterHasPhone') },
-            { value: 'email', label: t('contacts.filterHasEmail') },
-          ]}
-        />
       </div>
 
       {/* Tag filter */}
@@ -681,21 +611,6 @@ export default function ContactsPage() {
               {t('contacts.clear')}
             </button>
           )}
-        </div>
-      )}
-
-      {/* Guardar el filtro actual como segmento reutilizable */}
-      {filtersActive && (
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSaveSegmentOpen(true)}
-            className="border-border text-foreground hover:bg-accent"
-          >
-            <Layers className="size-4" />
-            {t('contacts.saveAsSegment')}
-          </Button>
         </div>
       )}
 
@@ -1003,90 +918,14 @@ export default function ContactsPage() {
         onImported={fetchContacts}
       />
 
-      {/* Guardar filtro como segmento — reusa el editor de Segmentos con las
-          reglas derivadas del filtro; su preview en vivo confirma el conteo. */}
-      {saveSegmentOpen && workspaceId && (
-        <SegmentEditor
-          workspaceId={workspaceId}
-          segment={draftSegment()}
-          tags={Object.values(tagsMap)}
-          customFields={[]}
-          onClose={() => setSaveSegmentOpen(false)}
-          onSaved={() => {
-            setSaveSegmentOpen(false);
-            toast.success(t('contacts.segmentSavedFromFilter'));
-          }}
-        />
-      )}
-
       {/* Export column picker */}
-      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
-        <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">{t('contacts.exportColumnsTitle')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {t('contacts.exportColumnsHint', { count: selectedIds.size })}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="text-accent-ink hover:underline"
-                  onClick={() => setExportCols(new Set(EXPORT_COLUMNS.map((c) => c.key)))}
-                >
-                  {t('contacts.selectAllCols')}
-                </button>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setExportCols(new Set())}
-                >
-                  {t('contacts.selectNoneCols')}
-                </button>
-              </div>
-            </div>
-            <div className="grid max-h-72 grid-cols-2 gap-x-4 gap-y-2 overflow-y-auto pr-1">
-              {EXPORT_COLUMNS.map((col) => (
-                <label key={col.key} className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={exportCols.has(col.key)}
-                    onChange={() =>
-                      setExportCols((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(col.key)) next.delete(col.key);
-                        else next.add(col.key);
-                        return next;
-                      })
-                    }
-                    className="size-4 cursor-pointer accent-primary"
-                  />
-                  {t(col.labelKey)}
-                </label>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setExportOpen(false)}
-              className="border-border text-foreground hover:bg-accent"
-            >
-              {t('contacts.cancel')}
-            </Button>
-            <Button
-              onClick={exportCsv}
-              disabled={exporting || exportCols.size === 0}
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              {t('contacts.exportCsv')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExportColumnsDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        count={selectedIds.size}
+        exporting={exporting}
+        onExport={exportCsv}
+      />
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -1122,80 +961,6 @@ export default function ContactsPage() {
 }
 
 
-// --- Exportación CSV (columnas elegibles) ----------------------------------
-
-type FmtLike = { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string };
-
-function sdOf(c: Contact): Record<string, unknown> | null {
-  return (c as unknown as { shopify_customer_data?: Record<string, unknown> | null })
-    .shopify_customer_data ?? null;
-}
-function addrOf(c: Contact): Record<string, unknown> | null {
-  const s = sdOf(c);
-  return (s?.default_address ?? s?.address ?? null) as Record<string, unknown> | null;
-}
-
-interface ExportColumn {
-  key: string;
-  labelKey: string;
-  get: (c: Contact, tags: string[], fmt: FmtLike) => string;
-}
-
-/** Todas las columnas exportables. El usuario elige cuáles antes de exportar. */
-const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: 'name', labelKey: 'contacts.colName', get: (c) => c.name ?? '' },
-  { key: 'phone', labelKey: 'contacts.colPhone', get: (c) => c.phone ?? '' },
-  { key: 'email', labelKey: 'contacts.colEmail', get: (c) => c.email ?? '' },
-  { key: 'company', labelKey: 'contacts.colCompany', get: (c) => c.company ?? '' },
-  { key: 'tags', labelKey: 'contacts.colTags', get: (_c, tags) => tags.join('; ') },
-  { key: 'shopify', labelKey: 'contacts.shopifyCustomer', get: (c) => (c.is_shopify_customer ? 'Sí' : 'No') },
-  { key: 'total_spent', labelKey: 'contacts.shopTotalSpent', get: (c) => String(sdOf(c)?.total_spent ?? sdOf(c)?.totalSpent ?? '') },
-  { key: 'currency', labelKey: 'contacts.shopCurrency', get: (c) => String(sdOf(c)?.currency ?? '') },
-  { key: 'orders', labelKey: 'contacts.shopOrders', get: (c) => String(sdOf(c)?.orders_count ?? sdOf(c)?.ordersCount ?? '') },
-  { key: 'address', labelKey: 'contacts.shopAddress', get: (c) => { const a = addrOf(c); return a ? [a.address1, a.address2].filter(Boolean).join(' ') : ''; } },
-  { key: 'city', labelKey: 'contacts.shopCity', get: (c) => String(addrOf(c)?.city ?? '') },
-  { key: 'province', labelKey: 'contacts.shopProvince', get: (c) => String(addrOf(c)?.province ?? '') },
-  { key: 'country', labelKey: 'contacts.shopCountry', get: (c) => String(addrOf(c)?.country ?? '') },
-  { key: 'zip', labelKey: 'contacts.shopZip', get: (c) => String(addrOf(c)?.zip ?? '') },
-  { key: 'channel', labelKey: 'contacts.colChannel', get: (c) => String((c as unknown as { channel?: string }).channel ?? '') },
-  { key: 'created', labelKey: 'contacts.colCreated', get: (c, _tags, fmt) => (c.created_at ? fmt.date(c.created_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) : '') },
-];
-
-/** Escapa un valor para CSV (comillas, comas, saltos de línea). */
-function csvCell(v: unknown): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/**
- * Descarga los contactos como CSV usando SOLO las columnas elegidas por el
- * usuario (en el orden de EXPORT_COLUMNS). BOM UTF-8 para que Excel abra bien
- * tildes/ñ.
- */
-function downloadContactsCsv(
-  rows: Contact[],
-  tagsByContact: Record<string, string[]>,
-  fmt: FmtLike,
-  columns: Array<{ header: string; get: ExportColumn['get'] }>,
-): void {
-  const lines = [columns.map((col) => csvCell(col.header)).join(',')];
-  for (const c of rows) {
-    const tags = tagsByContact[c.id] ?? [];
-    lines.push(columns.map((col) => csvCell(col.get(c, tags, fmt))).join(','));
-  }
-  const csv = '\uFEFF' + lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `contactos-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/** Dropdown de filtro estilo pill (nativo, minimalista). */
 /**
  * Ventana de fechas de alta a consultar. Los atajos son móviles (los últimos N
  * días hasta ahora); el rango del calendario se resuelve en la zona horaria del
@@ -1215,44 +980,4 @@ function dateBounds(
   const days = preset === '7d' ? 7 : preset === '30d' ? 30 : preset === '90d' ? 90 : 0;
   if (days === 0) return {};
   return { from: new Date(Date.now() - days * 864e5).toISOString() };
-}
-
-/**
- * Desplegable de filtro. Cada opción se muestra como "Dimensión: valor"
- * ("Canal: Instagram") porque un `select` cerrado sólo muestra la opción
- * elegida: sin el prefijo, "todos" o "compraron" sueltos no dejaban saber qué
- * se estaba filtrando — y en reposo decía "Cualquier dato", que no significa
- * nada. Se resalta cuando el filtro está aplicado.
- */
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  const active = value !== 'all';
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className={cn(
-        'cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-ring',
-        active
-          ? 'border-accent/40 bg-accent/15 text-foreground'
-          : 'border-border bg-muted/60 text-foreground hover:bg-accent',
-      )}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {label}: {o.label}
-        </option>
-      ))}
-    </select>
-  );
 }
