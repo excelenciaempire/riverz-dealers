@@ -467,9 +467,15 @@ services:
         sync: false
 
   # Two-way comment sync (pull side): re-reads recent FB/IG comments and
-  # reflects native deletes/hides back into the inbox. Instagram pushes no
-  # comment lifecycle webhook, so this cron is the only IG sync path (Facebook
-  # also gets it in real time via feed webhooks). Uses AUTOMATION_CRON_SECRET.
+  # reflects native deletes/hides back into the inbox, AND pulls the replies the
+  # merchant wrote from the Instagram app. Instagram pushes no comment lifecycle
+  # webhook and doesn't notify the post owner's own comments either, so this
+  # cron is the only IG sync path (Facebook gets both live via feed webhooks).
+  # Runs every 2 min for the cheap part (self replies — a couple of Graph calls);
+  # the endpoint itself throttles the expensive reconcile to ~10 min via
+  # `cron_runs`. One cron on purpose: Render bills a monthly minimum PER cron
+  # job, so splitting the two rhythms into two services would cost money for
+  # nothing. Uses AUTOMATION_CRON_SECRET.
   - type: cron
     name: cron-comment-sync
     runtime: node
@@ -478,7 +484,7 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/comment-sync
-    schedule: "*/10 * * * *"
+    schedule: "*/2 * * * *"
     envVars:
       - key: BASE_URL
         sync: false
