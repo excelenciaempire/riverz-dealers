@@ -98,6 +98,13 @@ export default function VoicePage() {
 
   useEffect(() => {
     load();
+    // Auto-refresco: las llamadas EN CURSO (dialing/in_progress) aparecen y se
+    // actualizan en el registro sin recargar. Sondea cada 6 s mientras la
+    // pestaña está visible (no gasta en tabs de fondo).
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 6000);
+    return () => clearInterval(id);
   }, [load]);
 
   return (
@@ -191,7 +198,14 @@ export default function VoicePage() {
                         {c.recording_url && <Mic className="h-3 w-3 text-muted-foreground" />}
                       </span>
                     </td>
-                    <td className="py-2 pr-4 text-muted-foreground">{t(STATUS_KEY[c.status])}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        {(c.status === 'dialing' || c.status === 'in_progress') && (
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                        )}
+                        {t(STATUS_KEY[c.status])}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4 text-muted-foreground">
                       {c.outcome ? t(OUTCOME_KEY[c.outcome]) : '—'}
                     </td>
