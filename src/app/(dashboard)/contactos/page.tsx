@@ -169,6 +169,9 @@ export default function ContactsPage() {
   const [datePreset, setDatePreset] = useState<'all' | '7d' | '30d' | '90d'>(
     'all',
   );
+  // Filtro visible por cliente Shopify. Para segmentaciones más ricas (gasto,
+  // pedidos, país…) está la pestaña Segmentos + "Guardar como segmento".
+  const [shopifyFilter, setShopifyFilter] = useState<'all' | 'customers' | 'non'>('all');
 
   const fetchContacts = useCallback(async () => {
     // Wait for the workspace to resolve — otherwise without an
@@ -217,6 +220,10 @@ export default function ContactsPage() {
         new Date(Date.now() - dateDays * 24 * 60 * 60 * 1000).toISOString(),
       );
     }
+
+    // Filtro por cliente Shopify.
+    if (shopifyFilter === 'customers') query = query.eq('is_shopify_customer', true);
+    else if (shopifyFilter === 'non') query = query.eq('is_shopify_customer', false);
 
     // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
     // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
@@ -277,7 +284,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, workspaceId, t]);
+  }, [supabase, page, pageSize, search, tagsMap, selectedTagIds, datePreset, shopifyFilter, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -426,7 +433,8 @@ export default function ContactsPage() {
   // Un segmento es "un filtro guardado". Mapeamos el filtro actual (fecha +
   // etiquetas) a reglas del segmento; el editor muestra el conteo real en vivo
   // antes de guardar, así queda preciso. (La búsqueda es ad-hoc → no se guarda.)
-  const filtersActive = selectedTagIds.length > 0 || datePreset !== 'all';
+  const filtersActive =
+    selectedTagIds.length > 0 || datePreset !== 'all' || shopifyFilter !== 'all';
   function draftSegment() {
     const rules: SegmentRule[] = [];
     if (datePreset !== 'all') {
@@ -434,6 +442,12 @@ export default function ContactsPage() {
         type: 'created',
         op: 'last_n_days',
         value: datePreset === '7d' ? '7' : datePreset === '30d' ? '30' : '90',
+      });
+    }
+    if (shopifyFilter !== 'all') {
+      rules.push({
+        type: 'shopify',
+        op: shopifyFilter === 'customers' ? 'is_customer' : 'is_not_customer',
       });
     }
     for (const tid of selectedTagIds) rules.push({ type: 'tag', op: 'has', tagId: tid });
@@ -561,6 +575,34 @@ export default function ContactsPage() {
         ))}
       </div>
 
+      {/* Filtro por cliente Shopify (visible) */}
+      <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5">
+        {(['all', 'customers', 'non'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => {
+              setShopifyFilter(v);
+              setPage(0);
+            }}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              shopifyFilter === v
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t(
+              v === 'all'
+                ? 'contacts.shopFilterAll'
+                : v === 'customers'
+                  ? 'contacts.shopFilterCustomers'
+                  : 'contacts.shopFilterNon',
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Tag filter */}
       {Object.keys(tagsMap).length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -681,7 +723,6 @@ export default function ContactsPage() {
               <TableHead className="text-muted-foreground">{t('contacts.colName')}</TableHead>
               <TableHead className="text-muted-foreground">{t('contacts.colPhone')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('contacts.colEmail')}</TableHead>
-              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('contacts.colCompany')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('contacts.colTags')}</TableHead>
               <TableHead className="text-muted-foreground hidden lg:table-cell">{t('contacts.colCreated')}</TableHead>
               <TableHead className="text-muted-foreground w-12" />
@@ -690,7 +731,7 @@ export default function ContactsPage() {
           <TableBody>
             {loading ? (
               <TableRow className="border-border">
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-accent-ink" />
                   </div>
@@ -698,7 +739,7 @@ export default function ContactsPage() {
               </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow className="border-border">
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   {search || selectedTagIds.length > 0 ? (
                     <div className="flex flex-col items-center gap-2">
                       <Users className="size-8 text-muted-foreground" />
@@ -760,9 +801,6 @@ export default function ContactsPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
                     {contact.email || <span className="text-muted-foreground">-</span>}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-muted-foreground">-</span>}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">

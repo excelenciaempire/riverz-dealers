@@ -279,6 +279,7 @@ export function ContactDetailView({
                     </div>
                   )}
                   {renderShopifyData(contact, t)}
+                  {renderContactInfo(contact, t, fmt)}
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">{t('contacts.fieldName')}</Label>
                     <Input
@@ -445,6 +446,38 @@ function renderShopifyData(contact: Contact, t: TFn) {
   return (
     <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
       <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Shopify</div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        {rows.map(([label, val]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-foreground break-words">{val}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * Datos de solo lectura del contacto (canal de origen, alta, última actividad)
+ * para que al abrir el contacto se vea TODA la información de un vistazo, sin
+ * duplicar los campos editables (nombre/teléfono/email/empresa).
+ */
+function renderContactInfo(
+  contact: Contact,
+  t: TFn,
+  fmt: { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string },
+) {
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  const rows: Array<[string, string]> = [];
+  const ch = (contact as unknown as { channel?: string | null }).channel;
+  if (ch) rows.push([t('contacts.infoChannel'), ch]);
+  if (contact.created_at) rows.push([t('contacts.infoCreated'), fmt.date(contact.created_at, opts)]);
+  const lastIn = (contact as unknown as { last_inbound_at?: string | null }).last_inbound_at;
+  if (lastIn) rows.push([t('contacts.infoLastActivity'), fmt.date(lastIn, opts)]);
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
         {rows.map(([label, val]) => (
           <div key={label}>
