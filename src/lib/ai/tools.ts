@@ -13,6 +13,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import {
   createCheckoutLink,
@@ -355,11 +356,25 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
  * Ejecuta una `tool_use` que devuelve Claude. Devuelve el `tool_result`
  * con un payload JSON que el modelo pueda interpretar fácilmente.
  */
+/**
+ * Pedidos que Riverz ya tiene espejados, para los canales donde NO se puede
+ * consultar en vivo. Mercado Libre es el caso: entrega al comprador
+ * anonimizado —sin nombre, sin email y con el teléfono enmascarado— así que no
+ * hay ningún dato con el que interrogar su API después. Lo único que ata el
+ * pedido a la persona es el vínculo que guardó el sincronizador.
+ */
+export interface LocalOrdersContext {
+  db: SupabaseClient
+  workspaceId: string
+  contactId: string
+}
+
 export async function runTool(
   toolName: string,
   toolInput: unknown,
   shopify: ShopifyToolContext | null,
   voice: VoiceEscalationContext | null = null,
+  localOrders: LocalOrdersContext | null = null,
 ): Promise<string> {
   if (toolName === 'escalate_to_call') {
     if (!voice) {
@@ -446,6 +461,13 @@ export async function runTool(
     })
   }
   if (toolName === 'lookup_order') {
+    // Sin Shopify, pero con pedidos espejados (Mercado Libre), se contesta con
+    // lo guardado. Antes esto devolvía "el workspace no tiene Shopify
+    // conectado" a una compradora de Mercado Libre preguntando por SU pedido,
+    // que es una respuesta a la vez cierta e inútil.
+    if (!shopify && localOrders) {
+      return await lookupLocalOrders(localOrders)
+    }
     if (!shopify) {
       return JSON.stringify({
         error: 'no_shopify_connection',
@@ -681,6 +703,30 @@ export async function runTool(
  * El caller controla `tools` — si pasa [] desactiva tool-use entero,
  * que es lo que hacemos cuando no hay Shopify conectado.
  */
+/** Pedidos espejados del contacto, en el mismo formato que la búsqueda viva. */
+async function lookupLocalOrders(ctx: LocalOrdersContext): Promise<string> {
+  const { data } = await ctx.db
+    .from('orders')
+    .select(
+      'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, shipping_status, order_status_url, created_at',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('contact_id', ctx.contactId)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const orders = (data ?? []) as Array<Record<string, unknown>>
+  if (orders.length === 0) {
+    return JSON.stringify({
+      found: false,
+      orders: [],
+      instruction:
+        'No se encontró ningún pedido de este cliente. NO inventes información del pedido (estado, tracking, fecha de envío). Decile que no lo encontraste y pedile el número de pedido.',
+    })
+  }
+  return JSON.stringify({ found: true, orders })
+}
+
 export async function runWithTools(
   client: Anthropic,
   args: {
@@ -692,6 +738,9 @@ export async function runWithTools(
     shopify: ShopifyToolContext | null
     /** Present → the escalate_to_call tool can place a phone call. */
     voice?: VoiceEscalationContext | null
+    /** Present → lookup_order puede responder con los pedidos ya espejados
+     *  cuando el canal no permite consultarlos en vivo. */
+    localOrders?: LocalOrdersContext | null
   },
 ): Promise<{
   text: string
@@ -775,7 +824,13 @@ export async function runWithTools(
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
-      const result = await runTool(block.name, block.input, args.shopify, args.voice ?? null)
+      const result = await runTool(
+        block.name,
+        block.input,
+        args.shopify,
+        args.voice ?? null,
+        args.localOrders ?? null,
+      )
       toolResults.push({
         type: 'tool_result',
         tool_use_id: block.id,

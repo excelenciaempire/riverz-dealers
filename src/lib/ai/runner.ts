@@ -1233,6 +1233,11 @@ async function generateReply(
     ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
   ];
   const result = await runWithTools(client, {
+    // Mercado Libre no permite consultar pedidos en vivo (comprador
+    // anonimizado), así que lookup_order cae a lo ya espejado.
+    localOrders: primaryContact.id
+      ? { db, workspaceId: agent.workspace_id, contactId: primaryContact.id }
+      : null,
     model: agent.model || 'claude-haiku-4-5-20251001',
     max_tokens: Math.max(
       64,

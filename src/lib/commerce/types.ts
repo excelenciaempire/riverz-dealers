@@ -12,7 +12,14 @@
  * dispara un pedido) vive en la capa de ingesta, una sola vez.
  */
 
-export type CommercePlatform = 'shopify' | 'tiendanube' | 'woocommerce'
+export type CommercePlatform =
+  | 'shopify'
+  | 'tiendanube'
+  | 'woocommerce'
+  // Mercado Libre no se conecta como TIENDA: ya viene conectado como canal de
+  // mensajes y usa ese mismo token. Es plataforma sólo a efectos de catálogo y
+  // de pedidos espejados.
+  | 'mercadolibre'
 
 export const COMMERCE_PLATFORMS: CommercePlatform[] = [
   'shopify',

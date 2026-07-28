@@ -9,6 +9,7 @@ import type {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
@@ -28,6 +29,7 @@ import { translate } from "@/lib/i18n/translate";
  */
 
 const ML = "https://api.mercadolibre.com";
+const log = getLogger("channels.mercadolibre");
 
 interface MlNotification {
   resource?: string; // e.g. "/questions/123" or "/messages/packs/456/sellers/789"
@@ -360,7 +362,34 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       return events;
     }
 
-    // orders_v2 / others: ignored here (the poll discovers packs).
+    // ── Pedidos, envíos y reclamos ──
+    //
+    // No producen un mensaje en la bandeja: producen un CAMBIO DE ESTADO. Por
+    // eso se atienden acá pero devuelven [] — quien los persiste es el
+    // sincronizador, que ya sabe normalizar un pedido de ML y traer el envío
+    // que le cuelga. El webhook sólo adelanta el reloj: sin él el cambio
+    // llegaría en la próxima corrida del cron, hasta 15 minutos después.
+    if (
+      n.topic === "orders_v2" ||
+      n.topic === "shipments" ||
+      n.topic?.startsWith("post_purchase.claims")
+    ) {
+      // Import perezoso: orders.ts importa este módulo para el token, así que
+      // hacerlo arriba cerraría el ciclo.
+      const { syncAllMercadoLibreOrders } = await import("./orders");
+      await syncAllMercadoLibreOrders().catch(() => ({}));
+      return [];
+    }
+
+    // Todo lo demás se descarta — pero se DEJA CONSTANCIA. La aplicación está
+    // suscrita a 30 temas y sólo se atienden cinco; un `return []` mudo hace
+    // que "no llega tal cosa de Mercado Libre" sea indistinguible de un fallo,
+    // que es exactamente lo que volvió invisible el problema de Outlook.
+    log.info("mercadolibre notification ignored — topic not handled", {
+      topic: n.topic,
+      resource: n.resource,
+      connectionId: connection.id,
+    });
     return [];
   },
 };
