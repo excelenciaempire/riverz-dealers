@@ -438,6 +438,7 @@ interface TiendanubeOrder {
   shipping_option?: string | null
   cart_id?: number | string | null
   token?: string | null
+  created_at?: string | null
 }
 
 /**
@@ -514,10 +515,14 @@ export function normalizeTiendanubeOrder(
     shippingAddress: formatAddress(shipping),
     state,
     orderStatusUrl: '',
+    // Tiendanube tiene su propio recurso de carritos abandonados (con su
+    // `abandoned_checkout_url`), así que no derivamos nada desde el pedido.
+    payUrl: '',
     trackingNumber: o.shipping_tracking_number ?? '',
     trackingCompany: o.shipping_option ?? '',
     trackingUrl: o.shipping_tracking_url ?? '',
     checkoutToken: o.cart_id != null ? String(o.cart_id) : (o.token ?? null),
+    createdAt: o.created_at ?? null,
     raw: o as unknown as Record<string, unknown>,
   }
 }

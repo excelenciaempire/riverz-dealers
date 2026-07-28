@@ -388,11 +388,15 @@ interface WooOrder {
   shipping_total?: string
   date_paid?: string | null
   date_completed?: string | null
+  date_created?: string | null
   billing?: WooAddress
   shipping?: WooAddress
   line_items?: WooLineItem[]
   customer_id?: number
   cart_hash?: string
+  order_key?: string
+  /** WooCommerce ya arma el link de pago; solo lo construimos si falta. */
+  payment_url?: string
   meta_data?: WooMeta[]
 }
 
@@ -526,7 +530,31 @@ function extractWooTracking(meta: WooMeta[] | undefined): {
   return empty
 }
 
-export function normalizeWooOrder(raw: unknown): NormalizedOrder | null {
+/**
+ * Link para terminar de pagar un pedido que quedó sin cobrar.
+ *
+ * WooCommerce lo devuelve en `payment_url`, pero ese campo no está en
+ * todas las versiones ni en todos los payloads de webhook, así que lo
+ * reconstruimos: `/checkout/order-pay/{id}/?pay_for_order=true&key=…`.
+ * El `order_key` es lo que autoriza al comprador a abrir un pedido ajeno
+ * sin tener sesión — sin él, el link lleva a un error.
+ */
+export function buildWooPayUrl(
+  siteUrl: string,
+  order: { id: number; order_key?: string; payment_url?: string },
+): string {
+  if (order.payment_url) return order.payment_url
+  if (!order.order_key || !siteUrl) return ''
+  return (
+    `https://${siteUrl}/checkout/order-pay/${order.id}/` +
+    `?pay_for_order=true&key=${encodeURIComponent(order.order_key)}`
+  )
+}
+
+export function normalizeWooOrder(
+  raw: unknown,
+  ctx?: { siteUrl?: string },
+): NormalizedOrder | null {
   const o = raw as WooOrder
   if (!o || typeof o.id !== 'number') return null
 
@@ -571,10 +599,12 @@ export function normalizeWooOrder(raw: unknown): NormalizedOrder | null {
     },
     state: normalizeWooState(o.status ?? ''),
     orderStatusUrl: '',
+    payUrl: buildWooPayUrl(ctx?.siteUrl ?? '', o),
     trackingNumber: tracking.number,
     trackingCompany: tracking.company,
     trackingUrl: tracking.url,
     checkoutToken: o.cart_hash || null,
+    createdAt: o.date_created ?? null,
     raw: o as unknown as Record<string, unknown>,
   }
 }

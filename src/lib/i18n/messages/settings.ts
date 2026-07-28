@@ -273,9 +273,25 @@ export const settings = {
     es: "Completa la dirección, la clave y el secreto.",
     en: "Fill in the address, key and secret.",
   },
-  woocommerceNoCartRecovery: {
-    es: "WooCommerce no expone carritos abandonados: esa recuperación no aplica.",
-    en: "WooCommerce doesn't expose abandoned carts, so that recovery doesn't apply.",
+  woocommerceCartPlugin: {
+    es: "Recuperar carritos",
+    en: "Recover carts",
+  },
+  woocommerceCartPluginHint: {
+    es: "WooCommerce no registra carritos abandonados. Ya recuperamos los pedidos que quedaron sin pagar; instala el plugin para alcanzar también a quien se va antes de enviar el pedido.",
+    en: "WooCommerce doesn't track abandoned carts. We already recover orders left unpaid; install the plugin to also reach people who leave before placing the order.",
+  },
+  woocommerceDownloadPlugin: {
+    es: "Descargar plugin",
+    en: "Download plugin",
+  },
+  woocommercePluginReady: {
+    es: "El plugin viene con tus datos ya cargados: instálalo y actívalo.",
+    en: "The plugin comes preconfigured: just install and activate it.",
+  },
+  woocommercePluginError: {
+    es: "No se pudo preparar el plugin.",
+    en: "Couldn't prepare the plugin.",
   },
 
   // Común a las tarjetas de tienda

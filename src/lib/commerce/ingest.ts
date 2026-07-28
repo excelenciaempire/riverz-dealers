@@ -218,6 +218,7 @@ export async function ingestOrder(
     }
   }
   await reconcileOrder(admin, { shopDomain, order })
+  await trackUnpaidOrder(admin, { platform, workspaceId, shopDomain, order })
 
   if (!trigger) return { status: 'no_transition' }
 
@@ -289,6 +290,83 @@ export async function ingestOrder(
   }
 
   return { status: 'dispatched', trigger, contactId }
+}
+
+/**
+ * Convierte un pedido que quedó SIN COBRAR en un carrito recuperable.
+ *
+ * WooCommerce no tiene carritos abandonados en el núcleo, pero sí crea un
+ * pedido en estado `pending` o `failed` cuando alguien aprieta "realizar
+ * pedido" y el pago no prospera (tarjeta rechazada, abandono en la
+ * pasarela, transferencia que nunca llega). Ese pedido trae teléfono,
+ * correo, productos y —lo decisivo— un link que lleva directo a pagarlo.
+ * Es un abandono real y hasta ahora se perdía.
+ *
+ * Se escribe en la misma tabla que el resto de los carritos, así que el
+ * cron de recuperación lo levanta sin saber de dónde salió: espera sus 2
+ * horas, aplica el antispam por teléfono y manda el mensaje.
+ *
+ * Cubre a quien llegó a enviar el pedido. Para quien abandona ANTES de
+ * eso está el plugin de WordPress, que captura el checkout en curso
+ * (`/api/woocommerce/webhooks/cart`).
+ */
+async function trackUnpaidOrder(
+  admin: SupabaseClient,
+  args: {
+    platform: CommercePlatform
+    workspaceId: string
+    shopDomain: string
+    order: NormalizedOrder
+  },
+): Promise<void> {
+  const { platform, workspaceId, shopDomain, order } = args
+  // Sin link de pago no hay recuperación posible: el mensaje no tendría a
+  // dónde mandar a la persona.
+  if (!order.payUrl) return
+
+  // Prefijo propio para no chocar nunca con la clave de un carrito real
+  // capturado por el plugin.
+  const checkoutId = `order:${order.externalId}`
+  const { financialStatus, fulfillmentStatus, cancelled } = order.state
+
+  const recoverable =
+    !cancelled &&
+    fulfillmentStatus !== 'fulfilled' &&
+    (financialStatus === 'pending' || financialStatus === 'voided')
+
+  if (!recoverable) {
+    // Pagó, se despachó o se canceló: cerramos el carrito para que el cron
+    // no le escriba "dejaste tu compra a medias" a alguien que ya pagó.
+    const now = new Date().toISOString()
+    await admin
+      .from('shopify_checkouts')
+      .update({ status: 'completed', completed_at: now, updated_at: now })
+      .eq('shop_domain', shopDomain)
+      .eq('checkout_id', checkoutId)
+      .is('completed_at', null)
+    return
+  }
+
+  await ingestCheckout(admin, {
+    platform,
+    workspaceId,
+    shopDomain,
+    checkout: {
+      checkoutId,
+      customer: order.customer,
+      totalPrice: Number.isFinite(parseFloat(order.totalPrice))
+        ? parseFloat(order.totalPrice)
+        : null,
+      currency: order.currency || null,
+      lineItems: order.lineItems,
+      recoveryUrl: order.payUrl,
+      completedAt: null,
+      // El reloj del abandono corre desde el alta del pedido, no desde que
+      // nos enteramos: si no, un pedido descubierto tarde arrancaría de
+      // cero y el recordatorio saldría con horas de retraso.
+      createdAt: order.createdAt,
+    },
+  })
 }
 
 /**

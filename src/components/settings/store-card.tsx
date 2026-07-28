@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -278,6 +278,20 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
               )}
             </button>
           </li>
+          {platform === 'woocommerce' && (
+            <li className="rounded-md bg-muted/40 px-2 py-2 ring-1 ring-border/50">
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                {t('settings.woocommerceCartPluginHint')}
+              </p>
+              <a
+                href="/api/woocommerce/plugin"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground hover:underline"
+              >
+                <Download className="size-3" />
+                {t('settings.woocommerceDownloadPlugin')}
+              </a>
+            </li>
+          )}
         </ul>
       ) : null}
 

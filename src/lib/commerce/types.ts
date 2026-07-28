@@ -129,11 +129,22 @@ export interface NormalizedOrder {
   state: NormalizedOrderState
   /** URL de seguimiento del pedido para el cliente, si la plataforma la da. */
   orderStatusUrl: string
+  /**
+   * Link para que el comprador termine de pagar un pedido que quedó sin
+   * cobrar. Es lo que convierte un pedido pendiente en un carrito
+   * recuperable: sin un link que lleve directo al pago, el mensaje de
+   * recuperación no tiene a dónde mandar a la persona.
+   *
+   * Vacío en las plataformas que no exponen esa URL.
+   */
+  payUrl: string
   trackingNumber: string
   trackingCompany: string
   trackingUrl: string
   /** Token del carrito que originó el pedido, para cerrarlo al comprar. */
   checkoutToken: string | null
+  /** Alta del pedido en la plataforma (ISO). El reloj del abandono corre desde acá. */
+  createdAt: string | null
   raw: Record<string, unknown>
 }
 

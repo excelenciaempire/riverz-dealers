@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     const store = await getStoreByDomain(admin, 'woocommerce', shopDomain)
     if (!store) return NextResponse.json({ ok: true, skipped: 'no_connection' })
 
-    const order = normalizeWooOrder(JSON.parse(rawBody))
+    const order = normalizeWooOrder(JSON.parse(rawBody), { siteUrl: shopDomain })
     if (!order) return NextResponse.json({ ok: true, skipped: 'unparsable' })
 
     // Dedupe por entrega. WooCommerce reintenta y, con varios webhooks
