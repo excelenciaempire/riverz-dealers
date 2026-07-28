@@ -414,7 +414,7 @@ services:
     branch: main
     buildCommand: npm install
     startCommand: node scripts/cron-ping.mjs api/cron/outlook-poll
-    schedule: "*/5 * * * *"
+    schedule: "*/2 * * * *"
     envVars:
       - key: BASE_URL
         sync: false
