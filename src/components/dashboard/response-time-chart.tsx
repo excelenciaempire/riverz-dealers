@@ -16,8 +16,6 @@ import { Skeleton } from './skeleton'
 interface ResponseTimeChartProps {
   data: ResponseTimeReport | null
   loading: boolean
-  /** Minutes. Horizontal dashed line rendered at this height. */
-  thresholdMinutes?: number
 }
 
 const VB_W = 760
@@ -27,7 +25,6 @@ const PADDING = { top: 24, right: 16, bottom: 32, left: 44 }
 export function ResponseTimeChart({
   data,
   loading,
-  thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
   const t = useT()
   // Las dos lecturas vienen calculadas de la misma consulta, así que
@@ -84,7 +81,7 @@ export function ResponseTimeChart({
             title={t('dashboard.noResponsesRecorded')}
           />
         ) : (
-          <Bars data={summary} thresholdMinutes={thresholdMinutes} t={t} />
+          <Bars data={summary} t={t} />
         )}
       </div>
     </section>
@@ -117,33 +114,22 @@ function ModeButton({
   )
 }
 
-function Bars({
-  data,
-  thresholdMinutes,
-  t,
-}: {
-  data: ResponseTimeSummary
-  thresholdMinutes: number
-  t: TFn
-}) {
+function Bars({ data, t }: { data: ResponseTimeSummary; t: TFn }) {
   const chartW = VB_W - PADDING.left - PADDING.right
   const chartH = VB_H - PADDING.top - PADDING.bottom
 
   const n = Math.max(1, data.buckets.length)
   const values = data.buckets.map((b) => b.avgMinutes ?? 0)
-  const rawMax = Math.max(thresholdMinutes * 1.2, ...values)
-  const maxY = niceCeil(rawMax)
+  const maxY = niceScale(Math.max(1, ...values))
   const yFor = (v: number) =>
     maxY === 0 ? PADDING.top + chartH : PADDING.top + chartH - (v / maxY) * chartH
 
   const barSlot = chartW / n
-  const barW = Math.min(44, barSlot * 0.6)
+  const barW = Math.min(44, barSlot * 0.7)
 
-  const ticks = [0, maxY / 2, maxY].map((t) => Math.round(t))
+  const ticks = [0, maxY / 2, maxY]
   // Con muchos buckets (ej. 30 días) no caben todas las etiquetas → mostramos ~8.
   const labelEvery = Math.max(1, Math.ceil(n / 8))
-  const showThreshold = thresholdMinutes > 0 && thresholdMinutes <= maxY
-  const thY = yFor(thresholdMinutes)
 
   return (
     <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-[220px] w-full" role="img">
@@ -175,28 +161,54 @@ function Bars({
 
       {/* Bars */}
       {data.buckets.map((b, i) => {
-        const v = b.avgMinutes ?? 0
         const x = PADDING.left + barSlot * i + (barSlot - barW) / 2
-        const y = yFor(v)
-        const h = PADDING.top + chartH - y
-        const muted = b.avgMinutes == null
         const label = bucketLabel(b.key)
+        // Los buckets sin muestras no dibujan nada. Antes ponían un tocón de
+        // 2px que, con un día casi vacío, formaba una hilera de manchitas en
+        // la base indistinguible de valores reales muy chicos.
+        if (b.avgMinutes == null) {
+          return (
+            <g key={b.key}>
+              <rect
+                x={x}
+                y={PADDING.top}
+                width={barW}
+                height={chartH}
+                fill="transparent"
+              >
+                <title>{`${label}: ${t('dashboard.noSamples')}`}</title>
+              </rect>
+              {i % labelEvery === 0 && (
+                <text
+                  x={x + barW / 2}
+                  y={VB_H - 10}
+                  textAnchor="middle"
+                  className="fill-muted-foreground text-[11px]"
+                >
+                  {label}
+                </text>
+              )}
+            </g>
+          )
+        }
+        const y = yFor(b.avgMinutes)
+        // Altura mínima visible: un valor real muy por debajo del pico no
+        // puede desaparecer del gráfico — "respondimos rápido" y "no hubo
+        // nada" tienen que verse distinto.
+        const h = Math.max(3, PADDING.top + chartH - y)
         return (
           <g key={b.key}>
             <rect
               x={x}
-              y={muted ? PADDING.top + chartH - 2 : y}
+              y={PADDING.top + chartH - h}
               width={barW}
-              height={muted ? 2 : Math.max(1, h)}
+              height={h}
               rx={4}
-              fill={muted ? 'var(--muted)' : '#7c3aed'}
-              opacity={muted ? 0.6 : 1}
+              fill="#7c3aed"
             >
               <title>
                 {label}:{' '}
-                {b.avgMinutes == null
-                  ? t('dashboard.noSamples')
-                  : t('dashboard.averageValue', { value: fmt(b.avgMinutes) })}
+                {t('dashboard.averageValue', { value: fmt(b.avgMinutes) })}
                 {b.samples > 0
                   ? ` (${
                       b.samples === 1
@@ -220,39 +232,6 @@ function Bars({
         )
       })}
 
-      {/* Threshold "objetivo" line — rendered LAST so it sits ON TOP of the bars
-          (before it hid behind a tall bar). Label right-anchored with a small
-          background chip so it's always legible over any bar. */}
-      {showThreshold && (
-        <g>
-          <line
-            x1={PADDING.left}
-            x2={VB_W - PADDING.right}
-            y1={thY}
-            y2={thY}
-            stroke="rgb(244 63 94)"
-            strokeDasharray="4 4"
-            strokeWidth={1.25}
-          />
-          <rect
-            x={VB_W - PADDING.right - 82}
-            y={thY - 15}
-            width={82}
-            height={13}
-            rx={3}
-            fill="var(--card)"
-            opacity={0.9}
-          />
-          <text
-            x={VB_W - PADDING.right - 4}
-            y={thY - 5}
-            textAnchor="end"
-            className="fill-rose-600 dark:fill-rose-300 text-[10px]"
-          >
-            {t('dashboard.target', { value: fmt(thresholdMinutes) })}
-          </text>
-        </g>
-      )}
     </svg>
   )
 }
@@ -267,22 +246,36 @@ function bucketLabel(key: string): string {
   return d && m ? `${Number(d)}/${Number(m)}` : key
 }
 
-function fmt(mins: number | null): string {
+export function fmt(mins: number | null): string {
   if (mins == null) return '—'
   if (mins <= 0) return '0'
   if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`
   if (mins < 60) return `${Math.round(mins)}m`
-  return `${(mins / 60).toFixed(1)}h`
+  const hours = mins / 60
+  // Las horas exactas se escriben "2h", no "2.0h". Es lo que hace que la
+  // escala del eje se lea como una escala y no como una medición.
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`
 }
 
-function niceCeil(max: number): number {
-  if (max <= 0) return 10
-  const pow = Math.pow(10, Math.floor(Math.log10(max)))
-  const n = max / pow
-  let nice: number
-  if (n <= 1) nice = 1
-  else if (n <= 2) nice = 2
-  else if (n <= 5) nice = 5
-  else nice = 10
-  return nice * pow
+/**
+ * Tope del eje en un valor redondo PARA LA UNIDAD EN QUE SE MUESTRA.
+ *
+ * El redondeo genérico a potencias de 10 trabajaba sobre minutos: para un
+ * pico de 4 horas daba 500 minutos, que en el eje aparecía como "8.3h".
+ * Redondo en minutos, ilegible en pantalla. Acá los escalones son los que
+ * uno esperaría ver escritos: 15m, 30m, 1h, 2h, 6h, 12h, 1d…
+ *
+ * Todos los escalones son divisibles por 2, porque el eje dibuja también
+ * la marca intermedia (maxY/2) y esa también tiene que quedar redonda.
+ */
+export function niceScale(maxMinutes: number): number {
+  // Sin el escalón de 3h a propósito: su marca intermedia caería en 1.5h.
+  // Cada escalón de acá parte en dos dando una unidad entera, que es lo
+  // que hace que el eje se lea de un vistazo.
+  const STEPS = [5, 10, 20, 30, 60, 90, 120, 240, 360, 480, 720, 1440]
+  for (const step of STEPS) {
+    if (maxMinutes <= step) return step
+  }
+  // Más de un día: se sube de a días enteros.
+  return Math.ceil(maxMinutes / 1440) * 1440
 }

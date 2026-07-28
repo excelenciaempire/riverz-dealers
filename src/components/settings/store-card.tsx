@@ -48,7 +48,8 @@ const META: Record<StorePlatform, Meta> = {
   },
 };
 
-type Mode = 'idle' | 'site' | 'keys';
+/** 'keys' es el desvío para instalaciones donde la aprobación automática no prospera. */
+type Mode = 'idle' | 'keys';
 
 /**
  * Tarjeta de Ajustes → Canales para las tiendas Tiendanube y WooCommerce.
@@ -351,45 +352,41 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                 </button>
               </div>
             </>
-          ) : mode === 'site' ? (
+          ) : (
+            // WooCommerce no tiene un servidor central al que mandar al
+            // comercio: hay que saber la dirección de SU tienda. El campo va
+            // a la vista desde el principio — antes había que apretar
+            // "Conectar" para que apareciera y volver a apretar "Conectar"
+            // para conectar, dos botones idénticos en fila.
             <>
               <Input
                 placeholder={t('settings.woocommerceSitePlaceholder')}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleWooConnect()
+                }}
                 className="bg-background text-sm"
               />
-              <div className="flex gap-2">
-                <button
-                  onClick={handleWooConnect}
-                  disabled={busy}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                >
-                  {busy && <Loader2 className="size-3.5 animate-spin" />}
-                  {t('common.connect')}
-                </button>
-                <button
-                  onClick={() => setMode('idle')}
-                  className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
-                >
-                  {t('common.cancel')}
-                </button>
-              </div>
+              <button
+                onClick={handleWooConnect}
+                disabled={busy}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                {busy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Image src={meta.logo} alt="" width={16} height={16} />
+                )}
+                {t('common.connect')}
+              </button>
               <button
                 onClick={() => setMode('keys')}
-                className="w-full rounded-lg px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                className="w-full px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {t('settings.woocommerceUseKeysLink')}
               </button>
             </>
-          ) : (
-            <button
-              onClick={() => setMode('site')}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Image src={meta.logo} alt="" width={16} height={16} />
-              {t('common.connect')}
-            </button>
           )}
         </div>
       )}

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
+import { CheckCircle2, Loader2, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -181,7 +181,9 @@ export function ShopifyCard() {
               {disconnecting ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <RefreshCcw className="size-3.5" />
+                // Papelera, no flecha de recargar: el icono anterior decía
+                // "sincronizar" y la acción desconecta la tienda.
+                <Trash2 className="size-3.5" />
               )}
             </button>
           </li>

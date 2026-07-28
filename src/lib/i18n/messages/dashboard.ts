@@ -58,7 +58,6 @@ export const dashboard = {
   average: { es: "Promedio", en: "Average" },
   previousPeriod: { es: "Período anterior", en: "Previous period" },
   noResponsesRecorded: { es: "Sin respuestas registradas", en: "No responses recorded" },
-  target: { es: "objetivo {value}", en: "target {value}" },
   noSamples: { es: "sin muestras", en: "no samples" },
   averageValue: { es: "{value} promedio", en: "{value} avg" },
   sampleCountOne: { es: "{n} muestra", en: "{n} sample" },
