@@ -200,6 +200,10 @@ export const templates = {
     es: "Qué reemplaza cada variable:",
     en: "What each variable replaces:",
   },
+  buttonLinkPerCustomer: {
+    es: "enlace propio de cada cliente",
+    en: "each customer's own link",
+  },
   dynamicValueHint: {
     es: "valor dinámico (define un ejemplo al crearla)",
     en: "dynamic value (set an example when creating it)",
@@ -235,9 +239,13 @@ export const templates = {
   metricClicks: { es: "Clics en botón", en: "Button clicks" },
   metricCtr: { es: "{pct} de entregados", en: "{pct} of delivered" },
   metricCartTitle: { es: "Conversión de carrito", en: "Cart conversion" },
-  metricCartRecovered: { es: "Recuperados", en: "Recovered" },
-  metricCartRate: { es: "Tasa de conversión", en: "Conversion rate" },
+  metricCartRecovered: { es: "Carritos recuperados", en: "Carts recovered" },
   metricCartRevenue: { es: "Ingreso recuperado", en: "Recovered revenue" },
+  metricCartBuyers: {
+    es: "Compraron tras recibir el mensaje:",
+    en: "Bought after receiving the message:",
+  },
+  metricCartBuyerUnknown: { es: "Cliente sin nombre", en: "Unnamed customer" },
   usedIn: { es: "Usada en", en: "Used in" },
 
   // ── Layout ──

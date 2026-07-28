@@ -108,21 +108,54 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     }
 
     // ── Conversión de carrito abandonado (si la plantilla es de recuperación) ──
-    let cart: { dispatched: number; recovered: number; revenue: number } | null = null;
+    // Sólo cuenta como recuperado el checkout que se completó DESPUÉS de que
+    // salió el mensaje: es la única lectura honesta de "compró gracias a la
+    // automatización". Se devuelven también los nombres, para poder mostrar
+    // quién compró en vez de un número suelto.
+    let cart: {
+      recovered: number;
+      revenue: number;
+      buyers: Array<{ name: string; amount: number; at: string | null }>;
+    } | null = null;
     if (/carrito|cart|abandon/i.test(tpl.name)) {
       const { data: dispatchedRows } = await db
         .from('shopify_checkouts')
-        .select('completed_at, total_price')
+        .select('customer_name, customer_email, customer_phone, completed_at, recovery_dispatched_at, total_price')
         .eq('workspace_id', tpl.workspace_id)
         .not('recovery_dispatched_at', 'is', null)
+        .not('completed_at', 'is', null)
         .limit(10000);
       const rows = (dispatchedRows ?? []) as Array<{
+        customer_name: string | null;
+        customer_email: string | null;
+        customer_phone: string | null;
         completed_at: string | null;
+        recovery_dispatched_at: string | null;
         total_price: number | string | null;
       }>;
-      const recoveredRows = rows.filter((c) => c.completed_at != null);
+      const recoveredRows = rows.filter(
+        (c) =>
+          c.completed_at != null &&
+          c.recovery_dispatched_at != null &&
+          new Date(c.completed_at).getTime() >= new Date(c.recovery_dispatched_at).getTime(),
+      );
       const revenue = recoveredRows.reduce((s, c) => s + (Number(c.total_price) || 0), 0);
-      cart = { dispatched: rows.length, recovered: recoveredRows.length, revenue };
+      const buyers = recoveredRows
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.completed_at ?? 0).getTime() - new Date(a.completed_at ?? 0).getTime(),
+        )
+        .slice(0, 20)
+        .map((c) => ({
+          name:
+            (c.customer_name ?? '').trim() ||
+            (c.customer_email ?? '').trim() ||
+            (c.customer_phone ?? '').trim(),
+          amount: Number(c.total_price) || 0,
+          at: c.completed_at,
+        }));
+      cart = { recovered: recoveredRows.length, revenue, buyers };
     }
 
     return NextResponse.json({

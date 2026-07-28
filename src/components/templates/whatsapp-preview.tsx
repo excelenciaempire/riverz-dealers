@@ -11,8 +11,52 @@ interface WhatsappPreviewProps {
   headerType: TemplateHeaderType;
   headerText?: string;
   bodyText: string;
+  /** Tramos de `bodyText` que vienen del ejemplo de una variable. Se pintan
+   *  resaltados para que "los valores resaltados son ejemplos" sea literal. */
+  bodyHighlights?: Array<{ start: number; end: number }>;
   footerText?: string;
   buttons?: TemplateButtonInput[];
+}
+
+/**
+ * Destino real de un botón para el preview. Un botón URL dinámico (carrito,
+ * tracking…) recibe su link por cliente recién al enviar, así que no tiene
+ * destino acá y se deja sin enlazar.
+ */
+function buttonHref(b: TemplateButtonInput): string | null {
+  if (b.type === 'PHONE_NUMBER') {
+    const phone = (b.phone_number ?? '').replace(/[^\d+]/g, '');
+    return phone ? `tel:${phone}` : null;
+  }
+  if (b.type !== 'URL' || b.url_variable) return null;
+  const url = (b.url ?? '').trim();
+  // Un {{n}} sin resolver no es un destino navegable.
+  if (!url || /\{\{\s*\d+\s*\}\}/.test(url)) return null;
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+/** Cuerpo con los tramos de ejemplo resaltados (el resto, texto plano). */
+function renderBody(
+  body: string,
+  highlights?: Array<{ start: number; end: number }>,
+): React.ReactNode {
+  if (!highlights || highlights.length === 0) return body;
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  highlights.forEach((h, i) => {
+    if (h.start > cursor) parts.push(body.slice(cursor, h.start));
+    parts.push(
+      <mark
+        key={i}
+        className="rounded bg-[#fff3c4] px-0.5 text-[#111b21]"
+      >
+        {body.slice(h.start, h.end)}
+      </mark>,
+    );
+    cursor = h.end;
+  });
+  if (cursor < body.length) parts.push(body.slice(cursor));
+  return parts;
 }
 
 const MEDIA_ICON: Record<string, React.ReactNode> = {
@@ -32,6 +76,7 @@ export function WhatsappPreview({
   headerType,
   headerText,
   bodyText,
+  bodyHighlights,
   footerText,
   buttons,
 }: WhatsappPreviewProps) {
@@ -76,7 +121,9 @@ export function WhatsappPreview({
 
             {/* Body */}
             <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-[#111b21]">
-              {bodyText.trim() || (
+              {bodyText.trim() ? (
+                renderBody(bodyText, bodyHighlights)
+              ) : (
                 <span className="text-[#667781]">{t('templates.messageAppearsHere')}</span>
               )}
             </p>
@@ -96,24 +143,43 @@ export function WhatsappPreview({
             </div>
           </div>
 
-          {/* Buttons render as separate tappable rows under the bubble */}
+          {/* Buttons render as separate tappable rows under the bubble.
+              Los que tienen destino real se abren de verdad al hacer clic. */}
           {activeButtons.length > 0 && (
             <div className="mt-1 max-w-[85%] space-y-0.5">
-              {activeButtons.map((b, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm"
-                >
-                  {b.type === 'URL' ? (
+              {activeButtons.map((b, i) => {
+                const icon =
+                  b.type === 'URL' ? (
                     <ExternalLink className="h-3.5 w-3.5" />
                   ) : b.type === 'PHONE_NUMBER' ? (
                     <Phone className="h-3.5 w-3.5" />
                   ) : (
                     <Reply className="h-3.5 w-3.5" />
-                  )}
-                  {b.text}
-                </div>
-              ))}
+                  );
+                const cls =
+                  'flex items-center justify-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm';
+                const href = buttonHref(b);
+                if (href) {
+                  return (
+                    <a
+                      key={i}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`${cls} hover:bg-white/80`}
+                    >
+                      {icon}
+                      {b.text}
+                    </a>
+                  );
+                }
+                return (
+                  <div key={i} className={cls}>
+                    {icon}
+                    {b.text}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -16,6 +16,7 @@ import type {
   TemplateHeaderType,
   TemplateButtonInput,
 } from '@/lib/whatsapp/template-components';
+import type { ButtonUrlVariable } from '@/lib/whatsapp/dynamic-links';
 import type { TFn } from '@/lib/i18n/translate';
 import type { MessageTemplate, Broadcast } from '@/types';
 
@@ -30,6 +31,14 @@ const CATEGORY_KEYS: Record<string, string> = {
   Marketing: 'templates.categoryMarketing',
   Utility: 'templates.categoryUtility',
   Authentication: 'templates.categoryAuthentication',
+};
+
+/** Qué link de Shopify representa cada botón dinámico (mismo mapa que el builder). */
+const URL_VARIABLE_KEYS: Record<ButtonUrlVariable, string> = {
+  abandoned_checkout: 'templates.linkVarAbandonedCheckout',
+  order_status: 'templates.linkVarOrderStatus',
+  tracking: 'templates.linkVarTracking',
+  product: 'templates.linkVarProduct',
 };
 
 const STATUS_KEYS: Record<string, string> = {
@@ -167,15 +176,43 @@ export default function TemplateDetailPage() {
   ).sort((a, b) => a - b);
 
   // Cuerpo con cada {{n}} reemplazado por su valor de ejemplo (o el token si no
-  // hay ejemplo), para el mockup de WhatsApp.
-  const filledBody = (template.body_text ?? '').replace(
-    /\{\{(\d+)\}\}/g,
-    (_, n) => samples[Number(n) - 1] || `{{${n}}}`,
-  );
+  // hay ejemplo), para el mockup de WhatsApp. Se guarda el rango de cada valor
+  // sustituido para poder resaltarlo — es lo que promete el subtítulo.
+  const bodyHighlights: Array<{ start: number; end: number }> = [];
+  let filledBody = '';
+  {
+    const src = template.body_text ?? '';
+    const re = /\{\{(\d+)\}\}/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) {
+      filledBody += src.slice(last, m.index);
+      const sample = samples[Number(m[1]) - 1];
+      const piece = sample || m[0];
+      if (sample) {
+        bodyHighlights.push({ start: filledBody.length, end: filledBody.length + piece.length });
+      }
+      filledBody += piece;
+      last = m.index + m[0].length;
+    }
+    filledBody += src.slice(last);
+  }
   const previewHeaderType = (template.header_type as TemplateHeaderType) ?? 'none';
   const previewButtons = (Array.isArray(template.buttons)
     ? template.buttons
     : []) as unknown as TemplateButtonInput[];
+  // Botones cuyo enlace se arma por cliente al enviar: no tienen destino que
+  // abrir en la vista previa, así que se explican en la leyenda.
+  const dynamicButtons = previewButtons.filter(
+    (b) => b.type === 'URL' && b.url_variable,
+  );
+  // El subtítulo sólo se muestra si describe algo que está pasando en el mockup.
+  const previewHint =
+    bodyHighlights.length > 0
+      ? t('templates.previewHintWithSamples')
+      : varNums.length > 0
+        ? t('templates.previewHintNoSamples')
+        : null;
 
   return (
     <div className="space-y-5">
@@ -270,23 +307,22 @@ export default function TemplateDetailPage() {
             <h2 className="text-sm font-medium text-foreground">
               {t('templates.preview')}
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {samples.length > 0
-                ? t('templates.previewHintWithSamples')
-                : t('templates.previewHintNoSamples')}
-            </p>
+            {previewHint && (
+              <p className="mt-1 text-xs text-muted-foreground">{previewHint}</p>
+            )}
 
             <div className="mt-4">
               <WhatsappPreview
                 headerType={previewHeaderType}
                 headerText={template.header_content ?? undefined}
                 bodyText={filledBody}
+                bodyHighlights={bodyHighlights}
                 footerText={template.footer_text ?? undefined}
                 buttons={previewButtons}
               />
             </div>
 
-            {varNums.length > 0 && (
+            {(varNums.length > 0 || dynamicButtons.length > 0) && (
               <div className="mt-4">
                 <p className="text-xs text-muted-foreground">
                   {t('templates.whatEachVariableReplaces')}
@@ -306,6 +342,19 @@ export default function TemplateDetailPage() {
                       </div>
                     );
                   })}
+                  {dynamicButtons.map((b, i) => (
+                    <div key={`btn-${i}`} className="flex items-center gap-2 text-[12px]">
+                      <span className="truncate rounded-full border border-border bg-muted px-2 py-0.5 font-medium text-foreground">
+                        {b.text}
+                      </span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="text-foreground">
+                        {t(URL_VARIABLE_KEYS[b.url_variable!])}
+                        {' · '}
+                        {t('templates.buttonLinkPerCustomer')}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -9,7 +9,11 @@ interface AnalyticsResponse {
   hasButtons: boolean;
   metaOk: boolean;
   metrics: { sent: number; delivered: number; read: number; clicked: number };
-  cart: { dispatched: number; recovered: number; revenue: number } | null;
+  cart: {
+    recovered: number;
+    revenue: number;
+    buyers: Array<{ name: string; amount: number; at: string | null }>;
+  } | null;
 }
 
 /**
@@ -88,20 +92,45 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
                 <ShoppingCart className="h-3.5 w-3.5" />
                 {t('templates.metricCartTitle')}
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <Tile
                   label={t('templates.metricCartRecovered')}
-                  value={`${fmt.number(data.cart.recovered)}/${fmt.number(data.cart.dispatched)}`}
-                />
-                <Tile
-                  label={t('templates.metricCartRate')}
-                  value={pct(data.cart.recovered, data.cart.dispatched)}
+                  value={fmt.number(data.cart.recovered)}
                 />
                 <Tile
                   label={t('templates.metricCartRevenue')}
                   value={`$${fmt.number(Math.round(data.cart.revenue))}`}
                 />
               </div>
+
+              {/* Quiénes compraron después de recibir el mensaje */}
+              {data.cart.buyers.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {t('templates.metricCartBuyers')}
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {data.cart.buyers.map((b, i) => (
+                      <li
+                        key={`${b.name}-${i}`}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-2.5 py-1.5 text-xs"
+                      >
+                        <span className="truncate text-foreground">
+                          {b.name || t('templates.metricCartBuyerUnknown')}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                          ${fmt.number(Math.round(b.amount))}
+                          {b.at && (
+                            <span className="ml-2">
+                              {fmt.date(b.at, { day: '2-digit', month: 'short' })}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </>
