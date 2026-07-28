@@ -1,16 +1,18 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { useT } from "@/hooks/use-locale";
-import { cn } from "@/lib/utils";
-import { ADMIN_SECTIONS } from "./sections";
 
 /**
- * Shell del panel de plataforma: barra superior con las secciones y salida
- * de vuelta a la app del merchant. Sin sidebar — el admin no es un tenant.
+ * Shell del panel de plataforma.
+ *
+ * Barra superior mínima: la marca (que vuelve al índice), quién está mirando y
+ * la salida a la app del comercio. Sin sidebar — el admin no es un tenant — y
+ * sin lista de secciones arriba: once nombres no entran, así que la barra
+ * terminaba con scroll horizontal, que es peor que no tener menú. El índice
+ * agrupado del home es la navegación.
  */
 export function AdminShell({
   email,
@@ -20,7 +22,6 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const t = useT();
-  const pathname = usePathname();
 
   return (
     <CsrfProvider>
@@ -38,22 +39,7 @@ export function AdminShell({
               <span className="text-xs lowercase text-muted-foreground">admin</span>
             </Link>
 
-            <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
-              {ADMIN_SECTIONS.map((s) => (
-                <Link
-                  key={s.href}
-                  href={s.href}
-                  className={cn(
-                    "whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors",
-                    pathname.startsWith(s.href)
-                      ? "bg-muted font-medium text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t(s.label)}
-                </Link>
-              ))}
-            </nav>
+            <div className="flex-1" />
 
             <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
             <Link

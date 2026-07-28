@@ -104,7 +104,17 @@ export function RefreshButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-/** `from` ISO para un rango de N días hacia atrás desde ahora. */
+/**
+ * `from` ISO para un rango de N días hacia atrás.
+ *
+ * Se ancla al comienzo de la hora en curso a propósito. Sin eso el valor cambia
+ * en cada milisegundo, y como se usa para armar la URL que consume
+ * `useAdminData`, la URL cambiaba en cada render: pedir → renderizar → nueva
+ * URL → pedir otra vez, para siempre. Anclado, el valor es estable dentro de la
+ * hora y la pantalla hace una sola consulta.
+ */
 export function fromDays(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const hour = 60 * 60 * 1000;
+  const anchored = Math.floor(Date.now() / hour) * hour;
+  return new Date(anchored - days * 24 * hour).toISOString();
 }

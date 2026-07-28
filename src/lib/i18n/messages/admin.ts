@@ -149,8 +149,8 @@ export const admin = {
   // ── Resumen de plataforma ──
   overviewTitle: { es: "Resumen", en: "Overview" },
   overviewDesc: {
-    es: "Cómo va la plataforma entera.",
-    en: "How the whole platform is doing.",
+    es: "Cómo va la plataforma entera, en los últimos 30 días.",
+    en: "How the whole platform is doing, over the last 30 days.",
   },
   kpiWorkspaces: { es: "Comercios activos", en: "Active merchants" },
   kpiWorkspacesNew: { es: "nuevos en el período", en: "new in the period" },

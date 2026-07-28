@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
@@ -15,7 +14,7 @@ import {
   LoadError,
   Stat,
 } from "./_components/admin-ui";
-import { RangePicker, RefreshButton, fromDays } from "./_components/filters";
+import { RefreshButton, fromDays } from "./_components/filters";
 import { Sparkline } from "./_components/sparkline";
 
 interface Payload {
@@ -23,13 +22,20 @@ interface Payload {
   series: ActivityPoint[];
 }
 
-/** Cómo va la plataforma entera, y el índice de secciones. */
+/**
+ * Cómo va la plataforma entera, y el índice de secciones.
+ *
+ * El período está fijo en 30 días y no hay selector: esta pantalla contesta
+ * "¿cómo venimos?" de un vistazo. Comparar rangos es el trabajo de Uso y
+ * costos y de Registros, y ahí sí hay filtro.
+ */
+const PERIOD_DAYS = 30;
+
 export default function AdminHomePage() {
   const t = useT();
   const format = useFormat();
-  const [days, setDays] = useState(30);
 
-  const url = `/api/admin/overview?from=${encodeURIComponent(fromDays(days))}`;
+  const url = `/api/admin/overview?from=${encodeURIComponent(fromDays(PERIOD_DAYS))}`;
   const { data, loading, error, reload } = useAdminData<Payload>(url);
   const o = data?.overview ?? null;
   const series = data?.series ?? [];
@@ -47,12 +53,7 @@ export default function AdminHomePage() {
       <PageHeader
         title={t("admin.overviewTitle")}
         description={t("admin.overviewDesc")}
-        actions={
-          <>
-            <RangePicker days={days} onChange={setDays} />
-            <RefreshButton onClick={reload} />
-          </>
-        }
+        actions={<RefreshButton onClick={reload} />}
       />
 
       {loading ? (
