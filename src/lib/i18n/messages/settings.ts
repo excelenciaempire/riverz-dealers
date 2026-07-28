@@ -78,6 +78,10 @@ export const settings = {
   klaviyoConnected: { es: "Klaviyo conectado", en: "Klaviyo connected" },
   networkError: { es: "Error de red", en: "Network error" },
   disconnectError: { es: "No se pudo desconectar", en: "Couldn't disconnect" },
+  connectionsLoadError: {
+    es: "No se pudieron cargar tus conexiones",
+    en: "Couldn't load your connections",
+  },
   klaviyoDisconnected: { es: "Klaviyo desconectado", en: "Klaviyo disconnected" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
@@ -762,6 +766,10 @@ export const settings = {
   c2dmEmpty: {
     es: "Sin reglas: la IA responde todo.",
     en: "No rules: the AI answers everything.",
+  },
+  c2dmEmptyAiOff: {
+    es: "Sin reglas y con la IA apagada, nadie responde los comentarios.",
+    en: "With no rules and the AI off, nobody answers comments.",
   },
   c2dmActionReplyAndDm: { es: "responde y manda DM", en: "public reply + DM" },
   c2dmActionDmOnly: { es: "manda DM", en: "DM only" },

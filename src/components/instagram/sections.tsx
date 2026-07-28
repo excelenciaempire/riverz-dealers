@@ -1433,7 +1433,7 @@ export function CommentsSection({ settings }: { settings: ProactiveSettings }) {
   return (
     <div className="space-y-10">
       <CommentAutoReply settings={settings} />
-      <CommentToDmPanel />
+      <CommentToDmPanel aiOn={settings.autoReply} />
     </div>
   );
 }
