@@ -168,6 +168,16 @@ export const inbox = {
   adBadge: { es: "Anuncio", en: "Ad" },
   storyReplyBadge: { es: "Historia", en: "Story" },
   storyMentionBadge: { es: "Te mencionó", en: "Mentioned you" },
+
+  // Perfil de Instagram investigado (contact_ig_profile)
+  igProfileTitle: { es: "Su perfil", en: "Their profile" },
+  igFollowers: { es: "{n} seguidores", en: "{n} followers" },
+  igFollowsYou: { es: "Te sigue", en: "Follows you" },
+  igVerified: { es: "Verificada", en: "Verified" },
+  igPrivateAccount: {
+    es: "Perfil privado: no se pudo investigar.",
+    en: "Private profile: nothing to research.",
+  },
   repliedToAd: { es: "Respondió a un anuncio", en: "Replied to an ad" },
   viewAd: { es: "Ver anuncio", en: "View ad" },
 

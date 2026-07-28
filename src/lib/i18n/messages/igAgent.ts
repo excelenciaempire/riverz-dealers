@@ -161,6 +161,7 @@ export const igAgent = {
     en: "Public replies",
   },
   statLastDays: { es: "Últimos {n} días", en: "Last {n} days" },
+  researchedSub: { es: "{n} con perfil investigado", en: "{n} profiles researched" },
 
   // Página Comentarios
   commentsSubtitle: {

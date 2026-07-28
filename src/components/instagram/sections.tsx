@@ -59,6 +59,8 @@ export interface PlanContext {
   in_window_24h?: number;
   /** Commenters from the last 7 days (private reply). */
   comment_window_7d?: number;
+  /** Personas con el perfil ya investigado — lo que hace que el DM sea 1:1. */
+  researched?: number;
   instagram_connected?: boolean;
   /** Agentes del workspace: cuál de sus voces escribe los DMs. */
   agents?: Array<{ id: string; name: string }>;
@@ -480,6 +482,16 @@ export function IgStats({ overview }: { overview: IgOverview }) {
       <StatCell
         label={t('igAgent.reachableNow')}
         value={fmt.number(reachable)}
+        // Cuántos de ellos llevan el perfil investigado: es la diferencia entre
+        // un DM 1:1 y uno con el nombre puesto, y sin esto no se veía en ningún
+        // lado si ese trabajo estaba pasando.
+        sub={
+          context?.researched
+            ? t('igAgent.researchedSub', {
+                n: fmt.number(context.researched),
+              })
+            : undefined
+        }
         title={t('igAgent.reachHint', {
           dm: fmt.number(context?.in_window_24h ?? 0),
           comments: fmt.number(context?.comment_window_7d ?? 0),

@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
+import { IgProfilePanel } from "@/components/inbox/ig-profile-panel";
 import { CallWithAiButton } from "@/components/inbox/voice-call-view";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -277,6 +278,10 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
             contactEmail={contact.email ?? null}
             contactPhone={contact.phone ?? null}
           />
+
+          {/* Lo que la IA investigó de su perfil de Instagram antes de
+              escribirle. Sin datos no renderiza nada. */}
+          <IgProfilePanel contactId={contact.id} channel={contact.channel} />
 
           {/* Segmento IA — perfil enriquecido estilo CRM (Blueberry). Solo
               aparece cuando la IA ya pudo inferir un segmento real; si el

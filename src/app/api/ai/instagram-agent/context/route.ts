@@ -41,6 +41,7 @@ export async function GET() {
     { count: igConns },
     { data: agentRows },
     defaultAgent,
+    { count: researchedCount },
   ] = await Promise.all([
       supabase.from('contacts').select('*', { count: 'exact', head: true }),
       loadAudienceStats(supabase),
@@ -69,6 +70,13 @@ export async function GET() {
       workspaceId
         ? resolveIgAgent(supabase, workspaceId)
         : Promise.resolve({ id: null }),
+      // Cuántas personas tienen el perfil ya investigado. Es lo único que
+      // distingue un DM personalizado de uno con el nombre puesto, así que la
+      // pantalla tiene que poder decir si ese trabajo está pasando.
+      supabase
+        .from('contact_ig_profile')
+        .select('contact_id', { count: 'exact', head: true })
+        .not('opener_hint', 'is', null),
     ]);
 
   return NextResponse.json({
@@ -80,6 +88,8 @@ export async function GET() {
     reachable_now: audience.reachable_now,
     in_window_24h: audience.dm_window_24h,
     comment_window_7d: audience.comment_window_7d,
+    /** Personas con el perfil ya investigado (tienen gancho de apertura). */
+    researched: researchedCount ?? 0,
     instagram_connected: (igConns ?? 0) > 0,
     agents: (agentRows ?? []) as Array<{ id: string; name: string }>,
     default_agent_id: defaultAgent.id,
