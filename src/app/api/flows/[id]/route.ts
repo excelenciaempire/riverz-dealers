@@ -5,6 +5,7 @@ import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { idColumn } from '@/lib/short-id'
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.
@@ -27,6 +28,8 @@ async function requireOwnership(
   | {
       ok: true
       userId: string
+      /** UUID completo resuelto (el param puede venir como short id de 8). */
+      id: string
       supabase: Awaited<ReturnType<typeof createClient>>
     }
   | { ok: false; status: number; body: { error: string } }
@@ -39,26 +42,26 @@ async function requireOwnership(
     return { ok: false, status: 401, body: { error: 'Unauthorized' } }
   }
   // RLS scopes this to the caller — a flow owned by another user
-  // returns null (404 below).
+  // returns null (404 below). Resuelve short id (8) o UUID completo.
   const { data: flow } = await supabase
     .from('flows')
     .select('id')
-    .eq('id', flowId)
+    .eq(idColumn(flowId), flowId)
     .maybeSingle()
   if (!flow) {
     return { ok: false, status: 404, body: { error: 'Not found' } }
   }
-  return { ok: true, userId: user.id, supabase }
+  return { ok: true, userId: user.id, id: (flow as { id: string }).id, supabase }
 }
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params
-  const guard = await requireOwnership(id)
+  const { id: rawId } = await context.params
+  const guard = await requireOwnership(rawId)
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
-  const { supabase } = guard
+  const { supabase, id } = guard
 
   const [{ data: flow }, { data: nodes }] = await Promise.all([
     supabase.from('flows').select('*').eq('id', id).maybeSingle(),
@@ -99,9 +102,10 @@ export async function PUT(
 ) {
   const block = await csrfGuard(request)
   if (block) return block
-  const { id } = await context.params
-  const guard = await requireOwnership(id)
+  const { id: rawId } = await context.params
+  const guard = await requireOwnership(rawId)
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  const id = guard.id
   const locale = await getLocale()
 
   const body = (await request.json().catch(() => null)) as PutBody | null
@@ -209,9 +213,10 @@ export async function DELETE(
 ) {
   const block = await csrfGuard(request)
   if (block) return block
-  const { id } = await context.params
-  const guard = await requireOwnership(id)
+  const { id: rawId } = await context.params
+  const guard = await requireOwnership(rawId)
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  const id = guard.id
 
   // Soft-delete via migration 059's `deleted_at` column. The CASCADE
   // on flow_runs / flow_run_events does NOT fire because the row stays

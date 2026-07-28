@@ -95,6 +95,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toShortId } from "@/lib/short-id";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
@@ -2332,7 +2333,7 @@ export function FlowBuilder({
           onDelete={handleDelete}
           canActivate={canActivate}
           onBack={() => router.push("/menus")}
-          onViewRuns={() => !templatePreview && router.push(`/menus/${initialFlow.id}/usos`)}
+          onViewRuns={() => !templatePreview && router.push(`/menus/${toShortId(initialFlow.id)}/usos`)}
           onOpenVersions={() => setVersionsOpen(true)}
           showAnalytics={analyticsOn}
           onToggleAnalytics={() => !templatePreview && setAnalyticsOn((v) => !v)}

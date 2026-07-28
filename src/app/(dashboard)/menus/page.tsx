@@ -41,6 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { SupportModeSwitcher } from "@/components/support/mode-switcher";
 import { cn } from "@/lib/utils";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { toShortId } from "@/lib/short-id";
 import { useT, useLocale } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
 import {
@@ -214,7 +215,7 @@ export default function FlowsPage() {
             <FlowCard
               key={flow.id}
               flow={flow}
-              onEdit={() => router.push(`/menus/${flow.id}`)}
+              onEdit={() => router.push(`/menus/${toShortId(flow.id)}`)}
               onDelete={() => handleDelete(flow)}
               onToggle={async (next) => {
                 // Optimistic flip así el switch se siente instantáneo.

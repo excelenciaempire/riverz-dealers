@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { serverError } from '@/lib/api/errors'
+import { idColumn } from '@/lib/short-id'
 
 /**
  * GET /api/flows/[id]/runs
@@ -36,11 +37,12 @@ export async function GET(
   const { data: flow } = await supabase
     .from('flows')
     .select('id, name')
-    .eq('id', id)
+    .eq(idColumn(id), id)
     .maybeSingle()
   if (!flow) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
+  const flowId = (flow as { id: string }).id
 
   // Pull runs + each run's contact name + each run's events. Two
   // joined selects keep the round-trip count to the runs query + one
@@ -50,7 +52,7 @@ export async function GET(
     .select(
       'id, status, current_node_key, started_at, last_advanced_at, ended_at, end_reason, vars, reprompt_count, contact:contacts(id, name, phone)',
     )
-    .eq('flow_id', id)
+    .eq('flow_id', flowId)
     .order('started_at', { ascending: false })
     .limit(50)
   if (runsErr) {
