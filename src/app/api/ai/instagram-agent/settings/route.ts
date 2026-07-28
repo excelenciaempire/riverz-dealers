@@ -36,7 +36,7 @@ export async function GET() {
     ? await supabase
         .from('ig_proactive_settings')
         .select(
-          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies',
+          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook',
         )
         .eq('workspace_id', workspaceId)
         .maybeSingle()
@@ -48,6 +48,8 @@ export async function GET() {
     outreach_enabled?: boolean;
     comment_audience?: string;
     comment_max_thread_replies?: number;
+    comment_public_reply?: boolean;
+    comment_facebook?: boolean;
   } | null;
   return NextResponse.json({
     paused: s?.paused ?? false,
@@ -61,6 +63,8 @@ export async function GET() {
       typeof s?.comment_max_thread_replies === 'number'
         ? s.comment_max_thread_replies
         : 3,
+    comment_public_reply: s?.comment_public_reply === true,
+    comment_facebook: s?.comment_facebook === true,
   });
 }
 
@@ -95,13 +99,21 @@ export async function POST(request: Request) {
     typeof body.auto_reply_comments === 'boolean' ||
     typeof body.outreach_enabled === 'boolean' ||
     body.comment_audience != null ||
-    body.comment_max_thread_replies != null
+    body.comment_max_thread_replies != null ||
+    typeof body.comment_public_reply === 'boolean' ||
+    typeof body.comment_facebook === 'boolean'
   ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
     // A quién contesta la IA en comentarios y cuánto insiste (migración 132).
     // Valor desconocido ⇒ se ignora, no se guarda basura que rompa el CHECK.
     if (body.comment_audience === 'intent' || body.comment_audience === 'all') {
       patch.comment_audience = body.comment_audience;
+    }
+    if (typeof body.comment_public_reply === 'boolean') {
+      patch.comment_public_reply = body.comment_public_reply;
+    }
+    if (typeof body.comment_facebook === 'boolean') {
+      patch.comment_facebook = body.comment_facebook;
     }
     if (body.comment_max_thread_replies != null) {
       patch.comment_max_thread_replies = Math.max(

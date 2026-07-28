@@ -1336,12 +1336,18 @@ export interface ProactiveSettings {
   audience: CommentAudience;
   /** Cuántas veces insiste en un mismo hilo. 0 = sin tope. */
   maxThreadReplies: number;
+  /** Además del DM, publica una respuesta en el propio comentario. */
+  publicReply: boolean;
+  /** Contesta también los comentarios de Facebook. */
+  facebook: boolean;
   setPaused: (v: boolean) => void;
   setAutoReply: (v: boolean) => void;
   setOutreach: (v: boolean) => void;
   setCap: (v: number) => void;
   setAudience: (v: CommentAudience) => void;
   setMaxThreadReplies: (v: number) => void;
+  setPublicReply: (v: boolean) => void;
+  setFacebook: (v: boolean) => void;
   save: (next: {
     paused?: boolean;
     daily_cap?: number;
@@ -1349,6 +1355,8 @@ export interface ProactiveSettings {
     outreach_enabled?: boolean;
     comment_audience?: CommentAudience;
     comment_max_thread_replies?: number;
+    comment_public_reply?: boolean;
+    comment_facebook?: boolean;
   }) => void;
 }
 
@@ -1360,6 +1368,8 @@ export function useProactiveSettings(): ProactiveSettings {
   const [cap, setCap] = useState(500);
   const [audience, setAudience] = useState<CommentAudience>('intent');
   const [maxThreadReplies, setMaxThreadReplies] = useState(3);
+  const [publicReply, setPublicReply] = useState(false);
+  const [facebook, setFacebook] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -1378,6 +1388,8 @@ export function useProactiveSettings(): ProactiveSettings {
               ? j.comment_max_thread_replies
               : 3,
           );
+          setPublicReply(j.comment_public_reply === true);
+          setFacebook(j.comment_facebook === true);
           setLoaded(true);
         }
       })
@@ -1395,6 +1407,8 @@ export function useProactiveSettings(): ProactiveSettings {
       outreach_enabled?: boolean;
       comment_audience?: CommentAudience;
       comment_max_thread_replies?: number;
+      comment_public_reply?: boolean;
+      comment_facebook?: boolean;
     }) => {
       void fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
@@ -1413,12 +1427,16 @@ export function useProactiveSettings(): ProactiveSettings {
     cap,
     audience,
     maxThreadReplies,
+    publicReply,
+    facebook,
     setPaused,
     setAutoReply,
     setOutreach,
     setCap,
     setAudience,
     setMaxThreadReplies,
+    setPublicReply,
+    setFacebook,
     save,
   };
 }
@@ -1604,6 +1622,26 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
         </p>
       </div>
 
+      <OptionRow
+        title={t('igAgent.publicReplyLabel')}
+        hint={t('igAgent.publicReplyHint')}
+        checked={settings.publicReply}
+        onChange={(v) => {
+          settings.setPublicReply(v);
+          settings.save({ comment_public_reply: v });
+        }}
+      />
+
+      <OptionRow
+        title={t('igAgent.facebookLabel')}
+        hint={t('igAgent.facebookHint')}
+        checked={settings.facebook}
+        onChange={(v) => {
+          settings.setFacebook(v);
+          settings.save({ comment_facebook: v });
+        }}
+      />
+
       <label className="flex items-center justify-between gap-4">
         <span>
           <span className="block text-[13px] font-medium text-foreground">
@@ -1628,6 +1666,36 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
         />
       </label>
     </div>
+  );
+}
+
+function OptionRow({
+  title,
+  hint,
+  checked,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4">
+      <span>
+        <span className="block text-[13px] font-medium text-foreground">
+          {title}
+        </span>
+        <span className="mt-0.5 block max-w-md text-[11px] leading-snug text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+      <Switch
+        className="mt-0.5 shrink-0"
+        checked={checked}
+        onCheckedChange={(v) => onChange(!!v)}
+      />
+    </label>
   );
 }
 

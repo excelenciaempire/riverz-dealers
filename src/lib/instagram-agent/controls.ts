@@ -64,6 +64,10 @@ export async function featureEnabled(
 export interface CommentReplySettings {
   audience: 'intent' | 'all';
   maxThreadReplies: number;
+  /** Además del DM, publicar una respuesta en el propio comentario. */
+  publicReply: boolean;
+  /** Contestar también los comentarios de Facebook, no solo los de Instagram. */
+  facebook: boolean;
 }
 
 export async function loadCommentSettings(
@@ -72,12 +76,16 @@ export async function loadCommentSettings(
 ): Promise<CommentReplySettings> {
   const { data } = await db
     .from('ig_proactive_settings')
-    .select('comment_audience, comment_max_thread_replies')
+    .select(
+      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook',
+    )
     .eq('workspace_id', workspaceId)
     .maybeSingle();
   const s = data as {
     comment_audience?: string | null;
     comment_max_thread_replies?: number | null;
+    comment_public_reply?: boolean | null;
+    comment_facebook?: boolean | null;
   } | null;
   return {
     audience: s?.comment_audience === 'all' ? 'all' : 'intent',
@@ -85,6 +93,8 @@ export async function loadCommentSettings(
       typeof s?.comment_max_thread_replies === 'number'
         ? Math.max(0, s.comment_max_thread_replies)
         : 3,
+    publicReply: s?.comment_public_reply === true,
+    facebook: s?.comment_facebook === true,
   };
 }
 

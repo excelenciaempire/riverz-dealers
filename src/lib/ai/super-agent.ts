@@ -68,8 +68,10 @@ export interface SuperAgentInput {
   workspaceId: string;
   /** El agente que gobierna esta superficie (resolveIgAgent(..., 'comment')). */
   agentId: string;
-  /** El contacto del canal `ig_comment` que acaba de comentar. */
+  /** El contacto del canal de comentarios que acaba de comentar. */
   commentContactId: string;
+  /** En qué red está su hilo de comentarios. */
+  commentChannel?: 'ig_comment' | 'fb_comment';
   /** Lo que escribió en el comentario. */
   commentText: string;
   /** Lo que el llamador ya averiguó (estado del pedido, cerebro del producto,
@@ -114,7 +116,7 @@ export async function composeSuperAgentReply(
       .from('conversations')
       .select('*')
       .eq('contact_id', contact.id)
-      .eq('channel', 'ig_comment')
+      .eq('channel', input.commentChannel ?? 'ig_comment')
       .order('last_message_at', { ascending: false })
       .limit(1)
       .maybeSingle();

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection } from '@/types';
 import { processCommentForDmRules } from '@/lib/comment-to-dm/engine';
 import { maybeInstantOutreach } from '@/lib/instagram-agent/realtime';
+import { loadCommentSettings } from '@/lib/instagram-agent/controls';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -59,12 +60,19 @@ export async function routeComment(
   }
   if (handledByRule) return;
 
-  // 2. El agente. Solo Instagram (en Facebook no existe la respuesta privada
-  //    por comentario). Las respuestas DENTRO de un hilo también entran: si la
+  // 2. El agente. Las respuestas DENTRO de un hilo también entran: si la
   //    persona contesta nuestra respuesta, la conversación siguió y dejarla sin
   //    atender era el peor momento para callarse. El bucle lo corta el agente,
-  //    que lee el hilo y no insiste más de tres veces.
-  if (ev.channel !== 'ig_comment') return;
+  //    que lee el hilo y respeta el tope de respuestas del comercio.
+  //
+  //    Facebook entra solo si el comercio lo pidió. El comentario que decía
+  //    "en Facebook no existe la respuesta privada por comentario" era falso —
+  //    el motor de reglas lleva tiempo mandándolas por Messenger— pero dejaba
+  //    a la IA muda en toda una red.
+  if (ev.channel === 'fb_comment') {
+    const cfg = await loadCommentSettings(db, ev.workspaceId);
+    if (!cfg.facebook) return;
+  }
   try {
     await maybeInstantOutreach(db, {
       workspaceId: ev.workspaceId,
@@ -74,6 +82,7 @@ export async function routeComment(
       parentCommentId: ev.parentCommentId,
       connection: ev.connection,
       engagementText: ev.text,
+      commentChannel: ev.channel,
     });
   } catch (err) {
     console.error('[comment-router] agente falló:', err);

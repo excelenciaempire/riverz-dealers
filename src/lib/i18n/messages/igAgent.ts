@@ -198,6 +198,22 @@ export const igAgent = {
     es: "El spam se filtra y se oculta en los dos casos.",
     en: "Spam is filtered and hidden either way.",
   },
+  publicReplyLabel: {
+    es: "Responder también en el comentario",
+    en: "Also reply on the comment",
+  },
+  publicReplyHint: {
+    es: "Una línea corta en público avisando de que escribiste por privado; el mensaje con precios y códigos va solo en el DM. Requiere los permisos de comentarios de Meta.",
+    en: "A short public line saying you wrote privately; the message with prices and codes stays in the DM. Requires Meta's comment permissions.",
+  },
+  facebookLabel: {
+    es: "Contestar también Facebook",
+    en: "Also reply on Facebook",
+  },
+  facebookHint: {
+    es: "Los comentarios de tus posts de Facebook, respondidos por Messenger.",
+    en: "Comments on your Facebook posts, answered through Messenger.",
+  },
   threadCapLabel: { es: "Respuestas por hilo", en: "Replies per thread" },
   threadCapHint: {
     es: "Después deja la conversación a una persona. 0 = sin tope.",

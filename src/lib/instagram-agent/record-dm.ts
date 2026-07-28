@@ -33,14 +33,23 @@ export async function recordProactiveDm(
   input: {
     workspaceId: string;
     contactId: string;
-    /** Id de Instagram del destinatario (el que usará el eco de Meta). */
+    /** Id de Instagram/Facebook del destinatario (el que usará el eco de Meta). */
     externalId?: string | null;
+    /**
+     * Canal del DM: 'instagram' o 'messenger'. Un comentario de Facebook se
+     * contesta por Messenger, y su copia va al hilo 'fb_comment' — sin esto
+     * ambos quedaban escritos a mano como Instagram y la respuesta aparecía en
+     * la conversación equivocada.
+     */
+    dmChannel?: 'instagram' | 'messenger';
+    /** Canal del hilo de comentarios donde se espeja la copia. */
+    commentChannel?: 'ig_comment' | 'fb_comment';
     connection: ChannelConnection;
     text: string;
     /**
-     * Si el DM responde a un COMENTARIO, el id del contacto del comentario
-     * (canal `ig_comment`). Refleja la respuesta también en el hilo del
-     * comentario para que se vea en la pestaña Comentarios.
+     * Si el DM responde a un COMENTARIO, el id del contacto del comentario.
+     * Refleja la respuesta también en el hilo del comentario para que se vea
+     * en la pestaña Comentarios.
      */
     commentContactId?: string | null;
   },
@@ -48,6 +57,8 @@ export async function recordProactiveDm(
   try {
     const now = new Date().toISOString();
     const preview = input.text.slice(0, 200);
+    const dmChannel = input.dmChannel ?? 'instagram';
+    const commentChannel = input.commentChannel ?? 'ig_comment';
 
     // 1. Contacto CANÓNICO del lado DM (canal 'instagram', mismo IGSID que usará
     //    el eco). upsertContact es race-safe y hereda el nombre del comentario
@@ -56,7 +67,7 @@ export async function recordProactiveDm(
     if (input.externalId) {
       const dm = await upsertContact(db, {
         workspace_id: input.workspaceId,
-        channel: 'instagram',
+        channel: dmChannel,
         external_id: input.externalId,
       });
       if (dm?.id) contactId = dm.id;
@@ -67,7 +78,7 @@ export async function recordProactiveDm(
       .select('id')
       .eq('workspace_id', input.workspaceId)
       .eq('contact_id', contactId)
-      .eq('channel', 'instagram')
+      .eq('channel', dmChannel)
       .is('deleted_at', null)
       .order('last_message_at', { ascending: false })
       .limit(1)
@@ -80,7 +91,7 @@ export async function recordProactiveDm(
         .insert({
           workspace_id: input.workspaceId,
           contact_id: contactId,
-          channel: 'instagram',
+          channel: dmChannel,
           connection_id: input.connection.id,
           status: 'open',
           last_message_text: preview,
@@ -108,7 +119,7 @@ export async function recordProactiveDm(
     if (!dupe) {
       await db.from('messages').insert({
         conversation_id: conversationId,
-        channel: 'instagram',
+        channel: dmChannel,
         sender_type: 'agent',
         content_type: 'text',
         content_text: input.text,
@@ -133,6 +144,7 @@ export async function recordProactiveDm(
       await mirrorReplyToCommentThread(db, {
         workspaceId: input.workspaceId,
         commentContactId: input.commentContactId,
+        commentChannel,
         text: input.text,
         preview,
         now,
@@ -154,6 +166,7 @@ async function mirrorReplyToCommentThread(
   args: {
     workspaceId: string;
     commentContactId: string;
+    commentChannel: 'ig_comment' | 'fb_comment';
     text: string;
     preview: string;
     now: string;
@@ -164,7 +177,7 @@ async function mirrorReplyToCommentThread(
     .select('id')
     .eq('workspace_id', args.workspaceId)
     .eq('contact_id', args.commentContactId)
-    .eq('channel', 'ig_comment')
+    .eq('channel', args.commentChannel)
     .is('deleted_at', null)
     .order('last_message_at', { ascending: false })
     .limit(1)
@@ -185,7 +198,7 @@ async function mirrorReplyToCommentThread(
 
   await db.from('messages').insert({
     conversation_id: convId,
-    channel: 'ig_comment',
+    channel: args.commentChannel,
     sender_type: 'agent',
     content_type: 'text',
     content_text: args.text,

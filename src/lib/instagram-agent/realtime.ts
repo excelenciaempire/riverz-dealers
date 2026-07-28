@@ -3,6 +3,8 @@ import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
+import { messengerAdapter } from '@/lib/channels/messenger/adapter';
+import { getAdapter } from '@/lib/channels/registry';
 import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
@@ -117,20 +119,26 @@ async function isOptedOut(db: SupabaseClient, contactId: string): Promise<boolea
   return (data as { opted_out?: boolean } | null)?.opted_out === true;
 }
 
-async function igConnection(
+/** La conexión de DM del workspace para una red concreta. */
+async function dmConnection(
   db: SupabaseClient,
   workspaceId: string,
+  channel: 'instagram' | 'messenger' = 'instagram',
 ): Promise<ChannelConnection | null> {
   const { data } = await db
     .from('channel_connections')
     .select('*')
     .eq('workspace_id', workspaceId)
-    .eq('channel', 'instagram')
+    .eq('channel', channel)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   return (data as ChannelConnection) ?? null;
 }
+
+/** Alias histórico: el resto del archivo solo habla de Instagram. */
+const igConnection = (db: SupabaseClient, workspaceId: string) =>
+  dmConnection(db, workspaceId, 'instagram');
 
 /**
  * Conexión para MANDAR el DM: la cuenta que recibió el comentario, nunca
@@ -143,14 +151,15 @@ async function dmConnectionFor(
   db: SupabaseClient,
   workspaceId: string,
   source: ChannelConnection | null | undefined,
+  channel: 'instagram' | 'messenger' = 'instagram',
 ): Promise<ChannelConnection | null> {
-  if (!source) return igConnection(db, workspaceId);
-  if (source.channel === 'instagram') return source;
+  if (!source) return dmConnection(db, workspaceId, channel);
+  if (source.channel === channel) return source;
   const { data } = await db
     .from('channel_connections')
     .select('*')
     .eq('workspace_id', workspaceId)
-    .eq('channel', 'instagram')
+    .eq('channel', channel)
     .eq('external_account_id', source.external_account_id ?? '')
     .neq('status', 'disconnected')
     .order('updated_at', { ascending: false })
@@ -190,6 +199,8 @@ export async function maybeInstantOutreach(
     /** Si viene, es una respuesta dentro de un hilo, no un comentario nuevo. */
     parentCommentId?: string | null;
     engagementText: string | null;
+    /** De qué red viene el comentario (Instagram si no se dice). */
+    commentChannel?: 'ig_comment' | 'fb_comment';
   },
 ): Promise<void> {
   if (!opts.contact.external_id) return;
@@ -572,12 +583,23 @@ async function autonomousCommentReply(
     sourcePostId?: string | null;
     connection?: ChannelConnection | null;
     engagementText: string | null;
+    /** De qué red viene el comentario. Por defecto Instagram, que era el único
+     *  canal que llegaba aquí antes de que Facebook se habilitara. */
+    commentChannel?: 'ig_comment' | 'fb_comment';
   },
 ): Promise<void> {
   // Solo aplica al camino comentario → DM privado: sin id de comentario no hay
   // ruta permitida por Meta para escribirle.
   if (!opts.commentId || !opts.contact.external_id) return;
   if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) return;
+
+  // Instagram ↔ Messenger: mismo camino, distinta red. El comentario se
+  // contesta por el DM de SU plataforma — un comentario de Facebook no se
+  // responde por Instagram.
+  const commentChannel = opts.commentChannel ?? 'ig_comment';
+  const isFacebook = commentChannel === 'fb_comment';
+  const dmChannel = isFacebook ? ('messenger' as const) : ('instagram' as const);
+  const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
   if (!hasLlm(apiKey)) return;
@@ -618,8 +640,9 @@ async function autonomousCommentReply(
     const [s] = await scoreLeads(apiKey, [engagement]);
     if (!s) return;
     if (s.spam) {
-      const conn = opts.connection ?? (await igConnection(db, opts.workspaceId));
-      if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
+      const conn =
+        opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
+      if (conn) await setCommentHidden(conn, commentChannel, opts.commentId);
       return;
     }
     // El desinterés solo descarta cuando NO hay una duda de post-venta detrás.
@@ -651,7 +674,12 @@ async function autonomousCommentReply(
   );
   if (!won) return;
 
-  const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
+  const connection = await dmConnectionFor(
+    db,
+    opts.workspaceId,
+    opts.connection,
+    dmChannel,
+  );
   if (!connection) return;
 
   const [brand, links, profile, customer, thread, product] = await Promise.all([
@@ -703,6 +731,7 @@ async function autonomousCommentReply(
         workspaceId: opts.workspaceId,
         agentId: agent.id,
         commentContactId: opts.contact.id,
+        commentChannel,
         commentText: engagement,
         extraBrief:
           [customer?.brief, orderStatus, thread?.brief, product?.brief]
@@ -740,8 +769,8 @@ async function autonomousCommentReply(
   if (!text.trim()) return;
 
   try {
-    await instagramAdapter.sendText({
-      channel: 'instagram',
+    await adapter.sendText({
+      channel: dmChannel,
       connection,
       conversation: { id: '' } as unknown as Conversation,
       contact: {
@@ -755,10 +784,36 @@ async function autonomousCommentReply(
       workspaceId: opts.workspaceId,
       contactId: opts.contact.id,
       externalId: opts.contact.external_id,
+      dmChannel,
+      commentChannel,
       connection,
       text,
       commentContactId: opts.commentId ? opts.contact.id : null,
     });
+
+    // Respuesta pública en el propio comentario, si el comercio la pidió.
+    // Va DESPUÉS del DM y en su propio try: es lo que puede fallar por
+    // permisos de Meta, y un fallo aquí no debe tumbar un DM ya enviado.
+    if (commentCfg.publicReply) {
+      try {
+        await getAdapter(commentChannel).sendText({
+          channel: commentChannel,
+          connection: opts.connection ?? connection,
+          conversation: {
+            id: '',
+            thread_external_id: opts.commentId,
+          } as unknown as Conversation,
+          contact: { id: opts.contact.id } as unknown as Contact,
+          text: publicReplyFrom(text),
+          replyToExternalId: opts.commentId,
+        } satisfies OutboundText);
+      } catch (pubErr) {
+        console.error(
+          '[ig-agent] respuesta pública falló (¿permisos de Meta?):',
+          pubErr,
+        );
+      }
+    }
     // 'comment', no 'outreach': esto es Comentarios contestando, no una
     // campaña saliendo a buscar. Compartían el mismo kind y las dos pantallas
     // se apuntaban el mismo envío.
@@ -771,6 +826,20 @@ async function autonomousCommentReply(
   } catch (err) {
     console.error('[ig-agent] respuesta autónoma falló:', err);
   }
+}
+
+/**
+ * El texto que se publica EN el comentario, derivado del DM.
+ *
+ * Lo lee cualquiera que pase por el post, así que no repite el mensaje privado
+ * —que lleva precios, códigos y datos del pedido— sino que avisa de que la
+ * respuesta ya salió por privado. Corto: Meta corta los comentarios largos y
+ * un párrafo bajo una foto se lee como spam.
+ */
+function publicReplyFrom(dmText: string): string {
+  const first = dmText.split('\n')[0]?.trim() ?? '';
+  const short = first.length > 120 ? `${first.slice(0, 117).trimEnd()}…` : first;
+  return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
 }
 
 /**
