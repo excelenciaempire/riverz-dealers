@@ -4,20 +4,18 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
-import {
-  ArrowLeft,
-  Loader2,
-  Trash2,
-  ExternalLink,
-  Phone,
-  Reply,
-} from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { TemplateMetrics } from '@/components/templates/template-metrics';
+import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
+import type {
+  TemplateHeaderType,
+  TemplateButtonInput,
+} from '@/lib/whatsapp/template-components';
 import type { TFn } from '@/lib/i18n/translate';
 import type { MessageTemplate, Broadcast } from '@/types';
 
@@ -168,24 +166,16 @@ export default function TemplateDetailPage() {
     ),
   ).sort((a, b) => a - b);
 
-  // Render the body with each {{n}} swapped for its example value, lightly
-  // highlighted — so the message reads naturally AND the variable slots are
-  // visible. Falls back to the {{n}} token when no example exists.
-  const renderBody = (text: string) =>
-    (text ?? '').split(/(\{\{\d+\}\})/g).map((part, i) => {
-      const m = part.match(/^\{\{(\d+)\}\}$/);
-      if (!m) return <span key={i}>{part}</span>;
-      const sample = samples[Number(m[1]) - 1];
-      return (
-        <span
-          key={i}
-          className="rounded bg-emerald-100 px-1 font-medium text-emerald-900"
-          title={t('templates.variableTitle', { n: m[1] })}
-        >
-          {sample || `{{${m[1]}}}`}
-        </span>
-      );
-    });
+  // Cuerpo con cada {{n}} reemplazado por su valor de ejemplo (o el token si no
+  // hay ejemplo), para el mockup de WhatsApp.
+  const filledBody = (template.body_text ?? '').replace(
+    /\{\{(\d+)\}\}/g,
+    (_, n) => samples[Number(n) - 1] || `{{${n}}}`,
+  );
+  const previewHeaderType = (template.header_type as TemplateHeaderType) ?? 'none';
+  const previewButtons = (Array.isArray(template.buttons)
+    ? template.buttons
+    : []) as unknown as TemplateButtonInput[];
 
   return (
     <div className="space-y-5">
@@ -286,57 +276,14 @@ export default function TemplateDetailPage() {
                 : t('templates.previewHintNoSamples')}
             </p>
 
-            <div
-              className="mt-4 rounded-lg p-3"
-              style={{
-                backgroundColor: '#e5ddd5',
-                backgroundImage:
-                  'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-                backgroundSize: '10px 10px',
-              }}
-            >
-              <div className="max-w-sm space-y-1.5 rounded-md rounded-tl-none bg-white p-3 shadow-sm">
-                {template.header_content && (
-                  <p className="text-sm font-semibold text-[#111b21] break-words">
-                    {template.header_content}
-                  </p>
-                )}
-                <p className="whitespace-pre-wrap break-words text-sm leading-snug text-[#111b21]">
-                  {samples.length > 0 ? renderBody(template.body_text) : template.body_text}
-                </p>
-                {template.footer_text && (
-                  <p className="text-[11px] italic text-[#667781]">
-                    {template.footer_text}
-                  </p>
-                )}
-                <p className="text-right text-[10px] text-[#667781]">12:00 ✓✓</p>
-              </div>
-
-              {/* Botones — filas tappables bajo la burbuja, como en WhatsApp */}
-              {Array.isArray(template.buttons) &&
-                (template.buttons as { type?: string; text?: string }[]).filter(
-                  (b) => b.text?.trim(),
-                ).length > 0 && (
-                  <div className="mt-1 max-w-sm space-y-0.5">
-                    {(template.buttons as { type?: string; text?: string }[])
-                      .filter((b) => b.text?.trim())
-                      .map((b, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm"
-                        >
-                          {b.type === 'URL' ? (
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          ) : b.type === 'PHONE_NUMBER' ? (
-                            <Phone className="h-3.5 w-3.5" />
-                          ) : (
-                            <Reply className="h-3.5 w-3.5" />
-                          )}
-                          {b.text}
-                        </div>
-                      ))}
-                  </div>
-                )}
+            <div className="mt-4">
+              <WhatsappPreview
+                headerType={previewHeaderType}
+                headerText={template.header_content ?? undefined}
+                bodyText={filledBody}
+                footerText={template.footer_text ?? undefined}
+                buttons={previewButtons}
+              />
             </div>
 
             {varNums.length > 0 && (
