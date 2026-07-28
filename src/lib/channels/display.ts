@@ -80,6 +80,15 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#25F4EE",
     replyOnly: true,
   },
+  ml_review: {
+    channel: "ml_review",
+    label: "Opiniones ML",
+    shortLabel: "ML·",
+    badge: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
+    accent: "#FFE600",
+    // Mercado Libre no expone forma de contestar una opinión.
+    replyOnly: true,
+  },
   voice: {
     channel: "voice",
     label: "Voz",
@@ -222,6 +231,7 @@ export function localizeContentToken(
 export function channelLabel(channel: Channel, t: TFn): string {
   if (channel === "fb_comment") return t("common.channelFbComments");
   if (channel === "ig_comment") return t("common.channelIgComments");
+  if (channel === "ml_review") return t("common.channelMlReviews");
   return CHANNEL_DISPLAY[channel].label;
 }
 
