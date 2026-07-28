@@ -50,3 +50,9 @@ next-env.d.ts
 *.mp4
 *.mov
 *.mkv
+
+# Volcados de la API de PyPI que quedaron de una sesión anterior de voz.
+fishpkg.json
+la.json
+la167.json
+nv.json
