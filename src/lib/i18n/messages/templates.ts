@@ -238,8 +238,8 @@ export const templates = {
   metricRead: { es: "Leídos", en: "Read" },
   metricClicks: { es: "Clics en botón", en: "Button clicks" },
   metricCtr: { es: "{pct} de entregados", en: "{pct} of delivered" },
-  metricCartTitle: { es: "Conversión de carrito", en: "Cart conversion" },
-  metricCartRecovered: { es: "Carritos recuperados", en: "Carts recovered" },
+  metricCartTitle: { es: "Recuperación de carrito", en: "Cart recovery" },
+  metricCartRecovered: { es: "Clientes recuperados", en: "Customers recovered" },
   metricCartRevenue: { es: "Ingreso recuperado", en: "Recovered revenue" },
   metricCartBuyers: {
     es: "Compraron tras recibir el mensaje:",

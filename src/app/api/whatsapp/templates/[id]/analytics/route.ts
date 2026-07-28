@@ -144,13 +144,16 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       }
     }
 
-    // ── Conversión de carrito abandonado ──
+    // ── Recuperación de carrito ──
     // La atribución "compró gracias a este mensaje" sólo se puede calcular
-    // cuando el recorrido entero es observable: el carrito abandonado de
-    // Shopify es hoy el único caso (shopify_checkouts guarda el abandono y su
-    // completado). Por eso el bloque NO se muestra por el nombre de la
-    // plantilla, sino sólo si ESTA plantilla es la que envía una automatización
-    // con disparador `shopify_abandoned_checkout` de este workspace.
+    // cuando el recorrido entero es observable: el carrito abandonado es hoy el
+    // único caso (queda registrado el abandono y su desenlace). Por eso el
+    // bloque NO se muestra por el nombre de la plantilla, sino sólo si ESTA
+    // plantilla es la que envía una automatización con disparador
+    // `shopify_abandoned_checkout` de este workspace.
+    //
+    // La compra se busca por los dos caminos posibles: volver al checkout
+    // (shopify_checkouts) o cerrar por la conversación (orders).
     let cart: {
       recovered: number;
       revenue: number;
@@ -198,10 +201,17 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
         // prefijos móviles varían entre Shopify y WhatsApp).
         const { data: contactRows } = await db
           .from('contacts')
-          .select('id, phone')
+          .select('id, name, phone')
           .in('id', [...firstSendByContact.keys()]);
+        const contacts = (contactRows ?? []) as Array<{
+          id: string;
+          name: string | null;
+          phone: string | null;
+        }>;
         const sentAtByPhone = new Map<string, number>();
-        for (const c of (contactRows ?? []) as Array<{ id: string; phone: string | null }>) {
+        const nameByContact = new Map<string, string>();
+        for (const c of contacts) {
+          nameByContact.set(c.id, (c.name ?? '').trim());
           const key = phoneKey(c.phone);
           const at = firstSendByContact.get(c.id);
           if (!key || at === undefined) continue;
@@ -209,6 +219,11 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           if (prev === undefined || at < prev) sentAtByPhone.set(key, at);
         }
 
+        // Una compra atribuida, venga del checkout o del pedido.
+        type Purchase = { key: string; name: string; amount: number; at: string };
+        const purchases: Purchase[] = [];
+
+        // 1) Volvió al checkout y lo completó (el camino normal del carrito).
         const { data: checkoutRows } = await db
           .from('shopify_checkouts')
           .select('customer_name, customer_email, customer_phone, completed_at, total_price')
@@ -216,37 +231,83 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           .not('completed_at', 'is', null)
           .gte('completed_at', sinceIso)
           .limit(10000);
-
-        // Recuperado = ese cliente recibió esta plantilla y COMPLETÓ el
-        // checkout después. Sin las dos condiciones no hay atribución posible.
-        const recoveredRows = (
-          (checkoutRows ?? []) as Array<{
-            customer_name: string | null;
-            customer_email: string | null;
-            customer_phone: string | null;
-            completed_at: string;
-            total_price: number | string | null;
-          }>
-        ).filter((c) => {
-          const sentAt = sentAtByPhone.get(phoneKey(c.customer_phone));
-          return sentAt !== undefined && new Date(c.completed_at).getTime() >= sentAt;
-        });
-
-        const revenue = recoveredRows.reduce((s, c) => s + (Number(c.total_price) || 0), 0);
-        const buyers = recoveredRows
-          .slice()
-          .sort(
-            (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime(),
-          )
-          .slice(0, 20)
-          .map((c) => ({
+        for (const c of (checkoutRows ?? []) as Array<{
+          customer_name: string | null;
+          customer_email: string | null;
+          customer_phone: string | null;
+          completed_at: string;
+          total_price: number | string | null;
+        }>) {
+          const key = phoneKey(c.customer_phone);
+          const sentAt = sentAtByPhone.get(key);
+          if (sentAt === undefined) continue;
+          if (new Date(c.completed_at).getTime() < sentAt) continue;
+          purchases.push({
+            key: key || (c.customer_email ?? '').trim().toLowerCase(),
             name:
               (c.customer_name ?? '').trim() ||
               (c.customer_email ?? '').trim() ||
               (c.customer_phone ?? '').trim(),
             amount: Number(c.total_price) || 0,
             at: c.completed_at,
-          }));
+          });
+        }
+
+        // 2) Cerró la compra por la conversación, sin volver al checkout: el
+        // pedido nace del asistente y no completa ningún carrito, así que la
+        // única huella está en `orders` (espejo de pedidos originados aquí).
+        const { data: orderRows } = await db
+          .from('orders')
+          .select('contact_id, customer_name, customer_phone, total_price, status, created_at')
+          .eq('workspace_id', tpl.workspace_id)
+          .gte('created_at', sinceIso)
+          .limit(5000);
+        for (const o of (orderRows ?? []) as Array<{
+          contact_id: string | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          total_price: number | string | null;
+          status: string | null;
+          created_at: string;
+        }>) {
+          // Un pedido cancelado, devuelto o fallido no es una recuperación.
+          if (['cancelled', 'refunded', 'failed'].includes(String(o.status ?? ''))) continue;
+          const key = phoneKey(o.customer_phone);
+          const sentAt =
+            (o.contact_id ? firstSendByContact.get(o.contact_id) : undefined) ??
+            sentAtByPhone.get(key);
+          if (sentAt === undefined) continue;
+          if (new Date(o.created_at).getTime() < sentAt) continue;
+          purchases.push({
+            key: key || o.contact_id || '',
+            name:
+              (o.customer_name ?? '').trim() ||
+              (o.contact_id ? nameByContact.get(o.contact_id) ?? '' : '') ||
+              (o.customer_phone ?? '').trim(),
+            amount: Number(o.total_price) || 0,
+            at: o.created_at,
+          });
+        }
+
+        // Un mismo cliente puede aparecer por los dos caminos (el pedido del
+        // asistente termina generando su checkout). Se cuenta una vez, con la
+        // compra más temprana — la que de verdad siguió al mensaje.
+        const byCustomer = new Map<string, Purchase>();
+        for (const p of purchases) {
+          const k = p.key || `${p.name}|${p.at}`;
+          const prev = byCustomer.get(k);
+          if (!prev || new Date(p.at).getTime() < new Date(prev.at).getTime()) {
+            byCustomer.set(k, p);
+          }
+        }
+        const recoveredRows = [...byCustomer.values()];
+
+        const revenue = recoveredRows.reduce((s, p) => s + p.amount, 0);
+        const buyers = recoveredRows
+          .slice()
+          .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+          .slice(0, 20)
+          .map((p) => ({ name: p.name, amount: p.amount, at: p.at }));
         cart = { recovered: recoveredRows.length, revenue, buyers };
       } else {
         cart = { recovered: 0, revenue: 0, buyers: [] };
