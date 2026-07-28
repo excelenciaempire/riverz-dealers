@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, RefreshCw, Trash2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { toShortId } from '@/lib/short-id';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -312,7 +313,7 @@ export default function TemplatesPage() {
                     <TableRow
                       key={template.id}
                       className="cursor-pointer border-border hover:bg-muted/40"
-                      onClick={() => router.push(`/plantillas/${template.id}`)}
+                      onClick={() => router.push(`/plantillas/${toShortId(template.id)}`)}
                     >
                       <TableCell className="font-medium text-foreground">
                         {template.name}

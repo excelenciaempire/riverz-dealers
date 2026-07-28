@@ -12,6 +12,7 @@ import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { TemplateMetrics } from '@/components/templates/template-metrics';
 import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
+import { idColumn } from '@/lib/short-id';
 import type {
   TemplateHeaderType,
   TemplateButtonInput,
@@ -90,7 +91,7 @@ export default function TemplateDetailPage() {
         const { data, error: err } = await supabase
           .from('message_templates')
           .select('*')
-          .eq('id', templateId)
+          .eq(idColumn(templateId), templateId)
           .maybeSingle();
         if (err) throw err;
         if (!data) {

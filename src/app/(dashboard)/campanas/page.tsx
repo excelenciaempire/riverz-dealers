@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { createClient } from '@/lib/supabase/client';
+import { toShortId } from '@/lib/short-id';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -277,7 +278,7 @@ export default function BroadcastsPage() {
                       'border-border',
                       'cursor-pointer hover:bg-muted/40',
                     )}
-                    onClick={() => router.push(`/campanas/${broadcast.id}`)}
+                    onClick={() => router.push(`/campanas/${toShortId(broadcast.id)}`)}
                   >
                     <TableCell className="font-medium text-foreground">
                       {broadcast.name}

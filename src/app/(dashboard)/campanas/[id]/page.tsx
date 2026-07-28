@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { createClient } from '@/lib/supabase/client';
+import { idColumn } from '@/lib/short-id';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -214,7 +215,7 @@ export default function BroadcastDetailPage() {
         const { data: bc, error: bcError } = await supabase
           .from('broadcasts')
           .select('*')
-          .eq('id', broadcastId)
+          .eq(idColumn(broadcastId), broadcastId)
           .single();
 
         if (bcError) throw bcError;
