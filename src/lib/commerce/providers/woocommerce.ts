@@ -1,0 +1,630 @@
+/**
+ * Adaptador de WooCommerce.
+ *
+ * WooCommerce no es un SaaS: es un plugin sobre WordPress alojado por el
+ * comercio. Eso define todo lo de acá:
+ *
+ *  1. No hay OAuth central. La autenticación es un par
+ *     consumer_key/consumer_secret por Basic auth sobre HTTPS. Se obtiene
+ *     por el endpoint `/wc-auth/v1/authorize` (el comercio aprueba en su
+ *     wp-admin y WooCommerce nos POSTea las claves) o pegándolas a mano.
+ *
+ *  2. Muchos hostings de WordPress descartan el header `Authorization`
+ *     (Apache con CGI, sobre todo). WooCommerce documenta el fallback por
+ *     query string justamente por eso, así que el cliente reintenta
+ *     automáticamente ante un 401.
+ *
+ *  3. NO existe carrito abandonado en el core. Es una feature de plugin.
+ *     La recuperación de carritos queda fuera para WooCommerce hasta que
+ *     integremos alguno; los pedidos y el catálogo sí funcionan completos.
+ *
+ * A diferencia de Tiendanube, los webhooks SÍ traen el recurso entero, así
+ * que el receptor no necesita volver a consultar la API.
+ */
+
+import { createHmac, timingSafeEqual } from 'crypto'
+import type {
+  NormalizedLineItem,
+  NormalizedOrder,
+  NormalizedProduct,
+} from '../types'
+import { StoreUnauthorizedError } from '../types'
+
+/** Nombre con el que aparece Riverz en la pantalla de aprobación del comercio. */
+export const WOO_APP_NAME = 'Riverz'
+
+/**
+ * Normaliza lo que escribe el comercio ("mitienda.com", "https://mitienda.com/",
+ * "www.mitienda.com/tienda") al host limpio que usamos como clave de tienda.
+ * Devuelve null si no parece un host válido.
+ */
+export function normalizeWooSiteUrl(input: string): string | null {
+  if (!input) return null
+  let s = input.trim().toLowerCase()
+  s = s.replace(/^https?:\/\//, '')
+  s = s.replace(/\/+$/, '')
+  // Nos quedamos con el host: la ruta la agrega el cliente (/wp-json/...).
+  // Un WordPress en subdirectorio ("midominio.com/tienda") queda fuera —
+  // es raro y soportarlo a ciegas rompería el armado de URLs.
+  s = s.split('/')[0]
+  s = s.split('?')[0]
+  if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(s)) return null
+  return s
+}
+
+// ── Flujo /wc-auth ───────────────────────────────────────────────────
+
+/**
+ * URL de aprobación. `user_id` NO es el usuario de WordPress: es un
+ * identificador NUESTRO que WooCommerce nos devuelve tal cual en el
+ * callback. Como ese callback llega sin sesión ni firma de WooCommerce,
+ * el `user_id` tiene que ser un token firmado e infalsificable — es lo
+ * único que ata las claves entrantes a un workspace. Ver `signWooState`.
+ */
+export function buildWooAuthorizeUrl(args: {
+  siteUrl: string
+  state: string
+  returnUrl: string
+  callbackUrl: string
+}): string {
+  const params = new URLSearchParams({
+    app_name: WOO_APP_NAME,
+    // Necesitamos escritura: crear los webhooks al conectar y, más
+    // adelante, que el asistente pueda cerrar pedidos.
+    scope: 'read_write',
+    user_id: args.state,
+    return_url: args.returnUrl,
+    callback_url: args.callbackUrl,
+  })
+  return `https://${args.siteUrl}/wc-auth/v1/authorize?${params.toString()}`
+}
+
+/** Lo que WooCommerce POSTea al `callback_url` una vez aprobado. */
+export interface WooAuthCallback {
+  key_id: number
+  user_id: string
+  consumer_key: string
+  consumer_secret: string
+  key_permissions: string
+}
+
+export function parseWooAuthCallback(body: unknown): WooAuthCallback | null {
+  const b = body as Partial<WooAuthCallback> | null
+  if (!b || typeof b.consumer_key !== 'string' || typeof b.consumer_secret !== 'string') {
+    return null
+  }
+  return {
+    key_id: Number(b.key_id ?? 0),
+    user_id: String(b.user_id ?? ''),
+    consumer_key: b.consumer_key,
+    consumer_secret: b.consumer_secret,
+    key_permissions: String(b.key_permissions ?? ''),
+  }
+}
+
+// ── Firma del estado del flujo de conexión ───────────────────────────
+
+/**
+ * `workspaceId.userId.expiración` firmado con HMAC. Viaja como `user_id`
+ * en el flujo de /wc-auth y vuelve en el callback, que es una ruta
+ * pública: sin la firma, cualquiera podría POSTear claves y hacer que un
+ * workspace ajeno quede apuntando a SU tienda.
+ */
+export function signWooState(args: {
+  workspaceId: string
+  userId: string
+  siteUrl: string
+  ttlMs?: number
+}): string {
+  const exp = Date.now() + (args.ttlMs ?? 15 * 60 * 1000)
+  const payload = `${args.workspaceId}|${args.userId}|${args.siteUrl}|${exp}`
+  const sig = createHmac('sha256', stateKey()).update(payload).digest('hex')
+  return Buffer.from(`${payload}|${sig}`, 'utf8').toString('base64url')
+}
+
+export interface WooState {
+  workspaceId: string
+  userId: string
+  siteUrl: string
+}
+
+export function verifyWooState(state: string): WooState | null {
+  try {
+    const decoded = Buffer.from(state, 'base64url').toString('utf8')
+    const parts = decoded.split('|')
+    if (parts.length !== 5) return null
+    const [workspaceId, userId, siteUrl, expRaw, sig] = parts
+    const payload = `${workspaceId}|${userId}|${siteUrl}|${expRaw}`
+    const expected = createHmac('sha256', stateKey()).update(payload).digest('hex')
+    const a = Buffer.from(expected, 'hex')
+    const b = Buffer.from(sig, 'hex')
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+    if (!Number.isFinite(Number(expRaw)) || Number(expRaw) < Date.now()) return null
+    return { workspaceId, userId, siteUrl }
+  } catch {
+    return null
+  }
+}
+
+function stateKey(): string {
+  const key = process.env.ENCRYPTION_KEY
+  if (!key) throw new Error('ENCRYPTION_KEY no configurada')
+  return key
+}
+
+// ── Verificación de webhooks ─────────────────────────────────────────
+
+/**
+ * WooCommerce firma la entrega con base64(HMAC-SHA256(cuerpo, secreto))
+ * en `x-wc-webhook-signature`. El secreto lo elegimos nosotros al crear
+ * el webhook y queda guardado en la conexión.
+ */
+export function verifyWooSignature(
+  rawBody: string,
+  header: string | null,
+  secret: string,
+): boolean {
+  if (!header || !secret) return false
+  const digest = createHmac('sha256', secret).update(rawBody, 'utf8').digest('base64')
+  try {
+    const a = Buffer.from(digest, 'base64')
+    const b = Buffer.from(header, 'base64')
+    if (a.length !== b.length) return false
+    return timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
+}
+
+// ── Cliente ──────────────────────────────────────────────────────────
+
+export class WooCommerceClient {
+  /** Se activa tras un 401 con Basic: el hosting come el header Authorization. */
+  private useQueryAuth = false
+
+  constructor(
+    private readonly siteUrl: string,
+    private readonly consumerKey: string,
+    private readonly consumerSecret: string,
+  ) {}
+
+  private url(path: string, query?: Record<string, string | number>): string {
+    const u = new URL(`https://${this.siteUrl}/wp-json/wc/v3${path}`)
+    for (const [k, v] of Object.entries(query ?? {})) {
+      u.searchParams.set(k, String(v))
+    }
+    if (this.useQueryAuth) {
+      u.searchParams.set('consumer_key', this.consumerKey)
+      u.searchParams.set('consumer_secret', this.consumerSecret)
+    }
+    return u.toString()
+  }
+
+  private headers(): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (!this.useQueryAuth) {
+      const basic = Buffer.from(
+        `${this.consumerKey}:${this.consumerSecret}`,
+        'utf8',
+      ).toString('base64')
+      h.Authorization = `Basic ${basic}`
+    }
+    return h
+  }
+
+  async request<T = unknown>(
+    path: string,
+    opts?: {
+      method?: string
+      body?: unknown
+      query?: Record<string, string | number>
+      /** Interno: evita reintentar en bucle el fallback de query string. */
+      isRetry?: boolean
+    },
+  ): Promise<{ data: T; totalPages: number }> {
+    const res = await fetch(this.url(path, opts?.query), {
+      method: opts?.method ?? 'GET',
+      headers: this.headers(),
+      body: opts?.body ? JSON.stringify(opts.body) : undefined,
+    })
+
+    if (res.status === 401 && !this.useQueryAuth && !opts?.isRetry) {
+      // El hosting descartó el header Authorization. Pasamos a query
+      // string de forma permanente para esta instancia y reintentamos:
+      // es el fallback que la propia documentación de WooCommerce
+      // recomienda, no una heurística nuestra.
+      this.useQueryAuth = true
+      return this.request<T>(path, { ...opts, isRetry: true })
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (res.status === 401 || res.status === 403) {
+        throw new StoreUnauthorizedError(
+          'woocommerce',
+          this.siteUrl,
+          `WooCommerce ${res.status}: ${text.slice(0, 200)}`,
+        )
+      }
+      throw new Error(`WooCommerce API ${res.status}: ${text.slice(0, 300)}`)
+    }
+
+    const totalPages = Number(res.headers.get('x-wp-totalpages') ?? '1')
+    return {
+      data: (await res.json()) as T,
+      totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
+    }
+  }
+
+  async get<T = unknown>(
+    path: string,
+    query?: Record<string, string | number>,
+  ): Promise<T> {
+    return (await this.request<T>(path, { query })).data
+  }
+
+  /** Pagina un listado usando `X-WP-TotalPages` (per_page tope 100). */
+  async paginate<T = unknown>(
+    path: string,
+    opts?: { perPage?: number; maxPages?: number; query?: Record<string, string | number> },
+  ): Promise<T[]> {
+    const perPage = Math.min(opts?.perPage ?? 100, 100)
+    const maxPages = opts?.maxPages ?? 25
+    const out: T[] = []
+    let totalPages = 1
+    for (let page = 1; page <= maxPages; page++) {
+      const { data, totalPages: tp } = await this.request<T[]>(path, {
+        query: { ...(opts?.query ?? {}), page, per_page: perPage },
+      })
+      totalPages = tp
+      if (!Array.isArray(data) || data.length === 0) break
+      out.push(...data)
+      if (page >= totalPages) break
+    }
+    return out
+  }
+
+  /**
+   * Nombre del sitio + moneda de la tienda. Vienen de dos lugares
+   * distintos: el nombre del sitio lo expone la raíz del REST de
+   * WordPress (pública) y la moneda los ajustes de WooCommerce (que
+   * exigen permisos de administrador sobre la clave). Cada uno falla por
+   * su cuenta sin tumbar la conexión: sin moneda el catálogo queda con
+   * precios sin símbolo, sin nombre mostramos el dominio.
+   */
+  async getStoreInfo(): Promise<{ name: string; currency: string }> {
+    let name = this.siteUrl
+    let currency = ''
+    try {
+      const root = await fetch(`https://${this.siteUrl}/wp-json`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (root.ok) {
+        const info = (await root.json()) as { name?: string }
+        if (info?.name) name = info.name
+      }
+    } catch {
+      /* el nombre es cosmético — seguimos con el dominio */
+    }
+    try {
+      const settings = await this.get<Array<{ id?: string; value?: unknown }>>(
+        '/settings/general',
+      )
+      currency = String(
+        settings.find((s) => s.id === 'woocommerce_currency')?.value ?? '',
+      )
+    } catch {
+      /* clave sin permiso sobre ajustes — no es motivo para fallar */
+    }
+    return { name, currency }
+  }
+
+  /**
+   * Alta de los webhooks que consumimos, todos firmados con el mismo
+   * secreto que guardamos en la conexión.
+   *
+   * WooCommerce NO deduplica por (topic, delivery_url): reconectar
+   * crearía webhooks repetidos y cada pedido llegaría N veces. Por eso
+   * primero listamos y borramos los nuestros anteriores.
+   */
+  async registerWebhooks(callbackBaseUrl: string, secret: string): Promise<void> {
+    const deliveryUrl = `${callbackBaseUrl}/api/woocommerce/webhooks`
+    const topics = [
+      'order.created',
+      'order.updated',
+      'customer.created',
+      'customer.updated',
+    ]
+
+    try {
+      const existing = await this.paginate<{ id?: number; delivery_url?: string }>(
+        '/webhooks',
+        { perPage: 100, maxPages: 3 },
+      )
+      for (const w of existing) {
+        if (w.delivery_url === deliveryUrl && w.id) {
+          await this.request(`/webhooks/${w.id}`, {
+            method: 'DELETE',
+            query: { force: 'true' },
+          }).catch(() => {})
+        }
+      }
+    } catch (err) {
+      // Si no podemos listar seguimos igual: peor es no registrar nada.
+      console.error('[woocommerce] no se pudieron listar webhooks previos:', err)
+    }
+
+    for (const topic of topics) {
+      try {
+        await this.request('/webhooks', {
+          method: 'POST',
+          body: {
+            name: `Riverz ${topic}`,
+            topic,
+            delivery_url: deliveryUrl,
+            secret,
+            status: 'active',
+          },
+        })
+      } catch (err) {
+        console.error(`[woocommerce] alta de webhook ${topic} falló:`, err)
+      }
+    }
+  }
+}
+
+// ── Formas crudas ────────────────────────────────────────────────────
+
+interface WooImage {
+  src?: string
+}
+
+interface WooTerm {
+  name?: string
+}
+
+interface WooProduct {
+  id: number
+  name?: string
+  slug?: string
+  permalink?: string
+  description?: string
+  short_description?: string
+  type?: string
+  status?: string
+  price?: string
+  regular_price?: string
+  sale_price?: string
+  categories?: WooTerm[]
+  tags?: WooTerm[]
+  images?: WooImage[]
+}
+
+interface WooLineItem {
+  name?: string
+  quantity?: number
+  price?: number | string
+  total?: string
+  product_id?: number
+  variation_id?: number
+  image?: { src?: string }
+}
+
+interface WooAddress {
+  first_name?: string
+  last_name?: string
+  address_1?: string
+  address_2?: string
+  city?: string
+  state?: string
+  postcode?: string
+  country?: string
+  email?: string
+  phone?: string
+}
+
+interface WooMeta {
+  key?: string
+  value?: unknown
+}
+
+interface WooOrder {
+  id: number
+  number?: string
+  status?: string
+  currency?: string
+  total?: string
+  discount_total?: string
+  shipping_total?: string
+  date_paid?: string | null
+  date_completed?: string | null
+  billing?: WooAddress
+  shipping?: WooAddress
+  line_items?: WooLineItem[]
+  customer_id?: number
+  cart_hash?: string
+  meta_data?: WooMeta[]
+}
+
+function stripHtml(html: string): string {
+  if (!html) return ''
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2000)
+}
+
+function toNumber(v: unknown): number | null {
+  if (v == null || v === '') return null
+  const n = typeof v === 'number' ? v : parseFloat(String(v))
+  return Number.isFinite(n) ? n : null
+}
+
+// ── Normalizadores ───────────────────────────────────────────────────
+
+export function normalizeWooProduct(raw: unknown): NormalizedProduct | null {
+  const p = raw as WooProduct
+  if (!p || typeof p.id !== 'number') return null
+
+  // Para productos variables WooCommerce devuelve `price` con el precio
+  // de la variante más barata y no incluye las variantes en el payload.
+  // Traerlas sería una request extra POR producto — inviable en tiendas
+  // de cientos de SKUs — así que el rango colapsa al precio efectivo.
+  const effective = toNumber(p.sale_price) ?? toNumber(p.price) ?? toNumber(p.regular_price)
+
+  return {
+    externalId: p.id,
+    handle: p.slug || String(p.id),
+    title: p.name || `#${p.id}`,
+    description: stripHtml(p.description || p.short_description || ''),
+    productType: p.categories?.[0]?.name ?? null,
+    vendor: null,
+    tags: (p.tags ?? []).map((t) => t.name ?? '').filter(Boolean),
+    priceMin: effective,
+    priceMax: effective,
+    imageUrl: p.images?.[0]?.src ?? null,
+    url: p.permalink ?? null,
+    raw: p as unknown as Record<string, unknown>,
+  }
+}
+
+function normalizeWooLineItems(items: unknown): NormalizedLineItem[] {
+  if (!Array.isArray(items)) return []
+  return (items as WooLineItem[]).map((li) => ({
+    title: li.name ?? null,
+    quantity: li.quantity ?? null,
+    price: li.price != null ? String(li.price) : (li.total ?? null),
+    variantId: li.variation_id || null,
+    productId: li.product_id ?? null,
+    imageUrl: li.image?.src ?? null,
+  }))
+}
+
+/**
+ * WooCommerce colapsa pago y envío en un solo `status`. Lo abrimos en el
+ * par financial/fulfillment que usan las automatizaciones y los RPC de
+ * transición.
+ *
+ * `processing` = pago recibido, todavía sin despachar (es el estado por
+ * defecto de un pedido pagado). `completed` = despachado, y como
+ * WooCommerce no permite completar sin cobrar, implica pagado.
+ */
+function normalizeWooState(status: string) {
+  const s = (status || '').toLowerCase()
+  switch (s) {
+    case 'processing':
+      return { financialStatus: 'paid', fulfillmentStatus: null, cancelled: false, delivered: false }
+    case 'completed':
+      return { financialStatus: 'paid', fulfillmentStatus: 'fulfilled', cancelled: false, delivered: false }
+    case 'cancelled':
+      return { financialStatus: null, fulfillmentStatus: null, cancelled: true, delivered: false }
+    case 'refunded':
+      return { financialStatus: 'refunded', fulfillmentStatus: null, cancelled: false, delivered: false }
+    case 'failed':
+      return { financialStatus: 'voided', fulfillmentStatus: null, cancelled: false, delivered: false }
+    case 'pending':
+    case 'on-hold':
+    default:
+      return { financialStatus: 'pending', fulfillmentStatus: null, cancelled: false, delivered: false }
+  }
+}
+
+/**
+ * El seguimiento no existe en el core de WooCommerce: lo agregan plugins
+ * que lo guardan en `meta_data`. Leemos las claves de los más usados
+ * (WooCommerce Shipment Tracking, AST) y, si no hay ninguna, devolvemos
+ * vacío — la automatización de tracking simplemente no dispara.
+ */
+function extractWooTracking(meta: WooMeta[] | undefined): {
+  number: string
+  company: string
+  url: string
+} {
+  const empty = { number: '', company: '', url: '' }
+  if (!Array.isArray(meta)) return empty
+  const find = (keys: string[]): string => {
+    for (const m of meta) {
+      if (m.key && keys.includes(m.key) && typeof m.value === 'string' && m.value) {
+        return m.value
+      }
+    }
+    return ''
+  }
+  const direct = {
+    number: find(['_tracking_number', 'tracking_number']),
+    company: find(['_tracking_provider', 'tracking_provider', '_custom_tracking_provider']),
+    url: find(['_custom_tracking_link', 'tracking_url']),
+  }
+  if (direct.number) return direct
+
+  // Shipment Tracking guarda un array serializado en una sola clave.
+  for (const m of meta) {
+    if (m.key !== '_wc_shipment_tracking_items' || !Array.isArray(m.value)) continue
+    const first = (m.value as Array<Record<string, unknown>>)[0]
+    if (!first) continue
+    return {
+      number: String(first.tracking_number ?? ''),
+      company: String(first.tracking_provider ?? first.custom_tracking_provider ?? ''),
+      url: String(first.custom_tracking_link ?? ''),
+    }
+  }
+  return empty
+}
+
+export function normalizeWooOrder(raw: unknown): NormalizedOrder | null {
+  const o = raw as WooOrder
+  if (!o || typeof o.id !== 'number') return null
+
+  const billing = o.billing ?? {}
+  const shipping = o.shipping ?? {}
+  const name =
+    [shipping.first_name, shipping.last_name].filter(Boolean).join(' ') ||
+    [billing.first_name, billing.last_name].filter(Boolean).join(' ')
+
+  const total = toNumber(o.total) ?? 0
+  const discount = toNumber(o.discount_total) ?? 0
+  const tracking = extractWooTracking(o.meta_data)
+
+  return {
+    externalId: o.id,
+    name: `#${o.number ?? o.id}`,
+    orderNumber: String(o.number ?? o.id),
+    totalPrice: String(o.total ?? ''),
+    // WooCommerce no manda subtotal a nivel pedido; lo reconstruimos
+    // desde el total menos descuentos para que las variables de las
+    // plantillas no queden vacías.
+    subtotalPrice: String(total + discount),
+    totalDiscounts: String(o.discount_total ?? ''),
+    currency: o.currency ?? '',
+    lineItems: normalizeWooLineItems(o.line_items),
+    customer: {
+      name: name || null,
+      email: billing.email || null,
+      // El envío no lleva teléfono/email en el core; la facturación sí.
+      phone: billing.phone || shipping.phone || null,
+      countryCode: shipping.country || billing.country || null,
+      ordersCount: 0,
+    },
+    shippingAddress: {
+      address: [shipping.address_1 || billing.address_1, shipping.address_2 || billing.address_2]
+        .filter((p) => p && String(p).trim())
+        .join(', '),
+      city: shipping.city || billing.city || '',
+      province: shipping.state || billing.state || '',
+      zip: shipping.postcode || billing.postcode || '',
+      country: shipping.country || billing.country || '',
+    },
+    state: normalizeWooState(o.status ?? ''),
+    orderStatusUrl: '',
+    trackingNumber: tracking.number,
+    trackingCompany: tracking.company,
+    trackingUrl: tracking.url,
+    checkoutToken: o.cart_hash || null,
+    raw: o as unknown as Record<string, unknown>,
+  }
+}

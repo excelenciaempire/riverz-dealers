@@ -22,7 +22,9 @@ import {
   Check,
   CheckCheck,
   RotateCcw,
+  BarChart3,
 } from 'lucide-react';
+import { AgentStats } from '@/components/ai/agent-stats';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -380,13 +382,17 @@ export function AgentEditor({
   // Voice AI config — one state object, edited by <VoiceSettings>.
   const [voice, setVoice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
 
-  type TabKey = 'business' | 'reach' | 'voice' | 'advanced';
+  type TabKey = 'business' | 'reach' | 'voice' | 'advanced' | 'stats';
   const [tab, setTab] = useState<TabKey>('business');
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
     { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
     { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
     { key: 'voice', label: t('voice.tab'), icon: PhoneCall },
     { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
+    // La pestaña de estadísticas solo aplica a un agente ya creado.
+    ...(agent?.id
+      ? [{ key: 'stats' as TabKey, label: t('assistant.tabStats'), icon: BarChart3 }]
+      : []),
   ];
 
   // Mapas valor→etiqueta para <SelectValue labels={...}>, resueltos con t()
@@ -1344,6 +1350,8 @@ export function AgentEditor({
                 />
               </SectionCard>
             )}
+
+            {tab === 'stats' && agent?.id && <AgentStats agentId={agent.id} />}
 
             {tab === 'advanced' && (
               <>

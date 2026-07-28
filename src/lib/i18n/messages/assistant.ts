@@ -54,6 +54,18 @@ export const assistant = {
   tabBusiness: { es: "Mi negocio", en: "My business" },
   tabReach: { es: "Alcance", en: "Reach" },
   tabAdvanced: { es: "Avanzado", en: "Advanced" },
+  tabStats: { es: "Estadísticas", en: "Stats" },
+  statsRange: { es: "Últimos 30 días", en: "Last 30 days" },
+  statsActivity: { es: "Actividad", en: "Activity" },
+  statsSent: { es: "Respuestas enviadas", en: "Replies sent" },
+  statsConversations: { es: "Conversaciones", en: "Conversations" },
+  statsSkipped: { es: "Omitidas", en: "Skipped" },
+  statsResults: { es: "Resultados", en: "Results" },
+  statsCalls: { es: "Llamadas", en: "Calls" },
+  statsConfirmed: { es: "Confirmadas", en: "Confirmed" },
+  statsCost: { es: "Costo / uso", en: "Cost / usage" },
+  statsTokens: { es: "Tokens", en: "Tokens" },
+  statsEmpty: { es: "Sin datos todavía.", en: "No data yet." },
 
   // ── Editor: business tab — product ─────────────────────────
   productFieldNew: {
