@@ -422,6 +422,13 @@ export const inbox = {
   mlQuestion: { es: "Pregunta", en: "Question" },
   mlMessage: { es: "Mensaje", en: "Message" },
   mlReview: { es: "Opinión", en: "Review" },
+  mlFilterClaims: { es: "Reclamos", en: "Claims" },
+  mlClaim: { es: "Reclamo", en: "Claim" },
+  mlNoClaims: { es: "Sin reclamos abiertos", en: "No open claims" },
+  mlNoClaimsHint: {
+    es: "Un reclamo sin atender afecta tu reputación en Mercado Libre.",
+    en: "An unattended claim hurts your Mercado Libre reputation.",
+  },
   mlReviewPublic: { es: "Opinión de producto", en: "Product review" },
   mlFilterReviews: { es: "Opiniones", en: "Reviews" },
   mlReviewNoReply: {

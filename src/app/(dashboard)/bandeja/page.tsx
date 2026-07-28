@@ -3,9 +3,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useWorkspace } from "@/hooks/use-workspace";
 import type { Channel, Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
+import { MlClaimsPanel } from "@/components/inbox/ml-claims-panel";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
@@ -27,6 +29,7 @@ import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
 
 export default function InboxPage() {
   const t = useT();
+  const { workspace } = useWorkspace();
   const { locale } = useLocale();
   const searchParams = useSearchParams();
   /**
@@ -633,8 +636,14 @@ export default function InboxPage() {
     if (channelFilter) {
       list = list.filter((c) => c.channel === channelFilter);
     }
-    // Tertiary filter — only under MercadoLibre: pregunta vs mensaje.
-    if (channelFilter === "mercadolibre" && mlKindFilter !== "all") {
+    // Filtro terciario, sólo bajo Mercado Libre. "claim" queda fuera a
+    // propósito: un reclamo no es una conversación, así que no filtra esta
+    // lista — la sustituye por su propio panel (ver más abajo).
+    if (
+      channelFilter === "mercadolibre" &&
+      mlKindFilter !== "all" &&
+      mlKindFilter !== "claim"
+    ) {
       list = list.filter(
         (c) => mlThreadKind(c.channel, c.thread_external_id) === mlKindFilter,
       );
@@ -668,6 +677,26 @@ export default function InboxPage() {
     }
     return { question, message, review };
   }, [conversations]);
+
+  // Reclamos ABIERTOS del workspace. Se cuentan aparte de las conversaciones
+  // porque no viven en `conversations`: son expedientes, no hilos.
+  const [mlClaimCount, setMlClaimCount] = useState(0);
+  useEffect(() => {
+    const wsId = workspace?.id;
+    if (!wsId) return;
+    let cancelled = false;
+    void (async () => {
+      const { count } = await createClient()
+        .from("ml_claims")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wsId)
+        .neq("status", "closed");
+      if (!cancelled) setMlClaimCount(count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace?.id]);
 
   // Switching the channel chip resets the ML sub-filter so a stale
   // "solo preguntas" doesn't hide everything under another channel.
@@ -745,7 +774,7 @@ export default function InboxPage() {
               <MlSubFilter
                 value={mlKindFilter}
                 onChange={setMlKindFilter}
-                counts={mlCounts}
+                counts={{ ...mlCounts, claim: mlClaimCount }}
               />
             )}
             {/* Sólo aparece si hay algo que atender: un filtro permanentemente
@@ -769,6 +798,9 @@ export default function InboxPage() {
               </button>
             )}
             <div className="flex-1 overflow-hidden">
+              {channelFilter === "mercadolibre" && mlKindFilter === "claim" ? (
+                <MlClaimsPanel workspaceId={workspace?.id ?? null} />
+              ) : (
               <ConversationList
                 activeConversationId={activeConversation?.id ?? null}
                 onSelect={handleSelectConversation}
@@ -781,6 +813,7 @@ export default function InboxPage() {
                 hasAnyConnection={hasAnyConnection !== false}
                 resyncToken={resyncToken}
               />
+              )}
             </div>
           </div>
         </ResizablePane>
