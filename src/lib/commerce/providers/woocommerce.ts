@@ -113,31 +113,40 @@ export async function probeWooStore(siteUrl: string): Promise<WooProbe> {
     }
   }
 
-  let root: { status: number; body: string }
+  // Se comprueba la URL EXACTA a la que vamos a mandar al comercio. Es la
+  // única señal que no se puede discutir: si acá da 404, en su navegador
+  // también va a dar 404.
+  //
+  // Sin parámetros, un WooCommerce vivo responde con un error de la propia
+  // pantalla de aprobación (401/400), nunca con 404. Y un cortafuegos que
+  // nos bloquee contesta 403 o 503, tampoco 404 — por eso el 404 es
+  // evidencia y el resto no.
+  let auth: { status: number; body: string }
+  try {
+    auth = await get(`https://${siteUrl}/wc-auth/v1/authorize`)
+  } catch {
+    return { ok: false, reason: 'unreachable' }
+  }
+  if (auth.status !== 404) return { ok: true }
+
+  // A partir de acá sabemos que NO va a funcionar. Lo que queda es
+  // averiguar por qué, para poder decir algo útil.
+  let root: { status: number; body: string } | null = null
   try {
     root = await get(`https://${siteUrl}/wp-json/`)
   } catch {
-    // Ni siquiera resuelve o no contesta a tiempo. Es lo único que
-    // podemos afirmar sin margen de error.
-    return { ok: false, reason: 'unreachable' }
+    /* seguimos con las otras señales */
   }
 
-  const ns = root.status === 200 ? namespacesOf(root.body) : null
+  const ns = root?.status === 200 ? namespacesOf(root.body) : null
   if (ns) {
-    return ns.some((n) => n.startsWith('wc/'))
-      ? { ok: true }
-      : { ok: false, reason: 'no_woocommerce' }
+    // El REST contesta pero la ruta de aprobación no existe: falta
+    // WooCommerce. (Si estuviera, expondría su namespace y la ruta.)
+    return { ok: false, reason: 'no_woocommerce' }
   }
 
-  // Cualquier respuesta que NO sea 404 (401, 403, 429, 5xx…) indica que
-  // hay algo montado que decide no contestarnos. Un WordPress detrás de
-  // autenticación básica o de un cortafuegos entra acá, y bloquearlo
-  // sería un falso positivo caro. Se deja pasar.
-  if (root.status !== 404) return { ok: true }
-
-  // 404 en la raíz del REST: o no hay WordPress, o los enlaces
-  // permanentes están en "Simple". La API por query string funciona sin
-  // rutas amigables, así que distingue los dos casos.
+  // La API por query string funciona sin rutas amigables: si responde,
+  // hay WordPress y el problema son los enlaces permanentes.
   try {
     const alt = await get(`https://${siteUrl}/?rest_route=/`)
     if (alt.status === 200 && namespacesOf(alt.body)) {
@@ -147,12 +156,13 @@ export async function probeWooStore(siteUrl: string): Promise<WooProbe> {
     /* sigue el último chequeo */
   }
 
-  // Último recurso antes de afirmar que no hay WordPress: mirar la
-  // portada. `wp-content` y `wp-includes` aparecen en el HTML de
-  // prácticamente cualquier WordPress, aunque tenga el REST cerrado.
+  // `wp-content` y `wp-includes` aparecen en el HTML de prácticamente
+  // cualquier WordPress, incluso con el REST cerrado por un cortafuegos.
   try {
     const home = await get(`https://${siteUrl}/`)
-    if (/wp-content|wp-includes/i.test(home.body)) return { ok: true }
+    if (/wp-content|wp-includes/i.test(home.body)) {
+      return { ok: false, reason: 'no_woocommerce' }
+    }
   } catch {
     /* sin portada legible, nos quedamos con el diagnóstico de abajo */
   }
