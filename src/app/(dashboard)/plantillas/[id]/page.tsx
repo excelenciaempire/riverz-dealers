@@ -240,120 +240,11 @@ export default function TemplateDetailPage() {
         </Button>
       </div>
 
-      {/* Preview + datos */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
-        {/* Vista previa del mensaje */}
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-sm font-medium text-foreground">
-            {t('templates.preview')}
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {samples.length > 0
-              ? t('templates.previewHintWithSamples')
-              : t('templates.previewHintNoSamples')}
-          </p>
-
-          <div
-            className="mt-4 rounded-lg p-3"
-            style={{
-              backgroundColor: '#e5ddd5',
-              backgroundImage:
-                'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-              backgroundSize: '10px 10px',
-            }}
-          >
-            <div className="max-w-sm space-y-1.5 rounded-md rounded-tl-none bg-white p-3 shadow-sm">
-              {template.header_content && (
-                <p className="text-sm font-semibold text-[#111b21] break-words">
-                  {template.header_content}
-                </p>
-              )}
-              <p className="whitespace-pre-wrap break-words text-sm leading-snug text-[#111b21]">
-                {samples.length > 0 ? renderBody(template.body_text) : template.body_text}
-              </p>
-              {template.footer_text && (
-                <p className="text-[11px] italic text-[#667781]">
-                  {template.footer_text}
-                </p>
-              )}
-              <p className="text-right text-[10px] text-[#667781]">12:00 ✓✓</p>
-            </div>
-
-            {/* Botones — filas tappables bajo la burbuja, como en WhatsApp */}
-            {Array.isArray(template.buttons) &&
-              (template.buttons as { type?: string; text?: string }[]).filter(
-                (b) => b.text?.trim(),
-              ).length > 0 && (
-                <div className="mt-1 max-w-sm space-y-0.5">
-                  {(template.buttons as { type?: string; text?: string }[])
-                    .filter((b) => b.text?.trim())
-                    .map((b, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm"
-                      >
-                        {b.type === 'URL' ? (
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        ) : b.type === 'PHONE_NUMBER' ? (
-                          <Phone className="h-3.5 w-3.5" />
-                        ) : (
-                          <Reply className="h-3.5 w-3.5" />
-                        )}
-                        {b.text}
-                      </div>
-                    ))}
-                </div>
-              )}
-          </div>
-
-          {varNums.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs text-muted-foreground">
-                {t('templates.whatEachVariableReplaces')}
-              </p>
-              <div className="mt-1.5 space-y-1">
-                {varNums.map((n) => {
-                  const sample = samples[n - 1];
-                  return (
-                    <div key={n} className="flex items-center gap-2 text-[12px]">
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-medium tabular-nums text-foreground">
-                        {`{{${n}}}`}
-                      </span>
-                      <span className="text-muted-foreground">→</span>
-                      <span className="text-foreground">
-                        {sample ? sample : t('templates.dynamicValueHint')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Estado de aprobación + sync */}
-        <div className="space-y-3">
-          <div className="rounded-lg border border-border bg-card p-4">
-            <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t('templates.metaApproval')}
-            </h3>
-            <p className="mt-2 text-sm text-foreground">
-              {template.status === 'Approved' && t('templates.approvalApproved')}
-              {template.status === 'Pending' && t('templates.approvalPending')}
-              {template.status === 'Rejected' && t('templates.approvalRejected')}
-              {(!template.status || template.status === 'Draft') &&
-                t('templates.approvalDraft')}
-            </p>
-            <a
-              href="https://business.facebook.com/wa/manage/message-templates/"
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground hover:text-accent-ink"
-            >
-              {t('templates.viewInMetaBusiness')}
-              <ExternalLink className="size-3" />
-            </a>
-          </div>
+      {/* Métricas (izquierda) + vista previa (derecha, como al crear una plantilla) */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_360px] lg:items-start">
+        {/* Izquierda: métricas + dónde se usa */}
+        <div className="min-w-0 space-y-3">
+          <TemplateMetrics templateId={template.id} />
 
           {usedIn.length > 0 && (
             <div className="rounded-lg border border-border bg-card p-4">
@@ -382,10 +273,98 @@ export default function TemplateDetailPage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Métricas de la plantilla — bajo la vista previa */}
-      <TemplateMetrics templateId={template.id} />
+        {/* Derecha: vista previa del mensaje (sticky en desktop) */}
+        <div className="lg:sticky lg:top-4">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h2 className="text-sm font-medium text-foreground">
+              {t('templates.preview')}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {samples.length > 0
+                ? t('templates.previewHintWithSamples')
+                : t('templates.previewHintNoSamples')}
+            </p>
+
+            <div
+              className="mt-4 rounded-lg p-3"
+              style={{
+                backgroundColor: '#e5ddd5',
+                backgroundImage:
+                  'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
+                backgroundSize: '10px 10px',
+              }}
+            >
+              <div className="max-w-sm space-y-1.5 rounded-md rounded-tl-none bg-white p-3 shadow-sm">
+                {template.header_content && (
+                  <p className="text-sm font-semibold text-[#111b21] break-words">
+                    {template.header_content}
+                  </p>
+                )}
+                <p className="whitespace-pre-wrap break-words text-sm leading-snug text-[#111b21]">
+                  {samples.length > 0 ? renderBody(template.body_text) : template.body_text}
+                </p>
+                {template.footer_text && (
+                  <p className="text-[11px] italic text-[#667781]">
+                    {template.footer_text}
+                  </p>
+                )}
+                <p className="text-right text-[10px] text-[#667781]">12:00 ✓✓</p>
+              </div>
+
+              {/* Botones — filas tappables bajo la burbuja, como en WhatsApp */}
+              {Array.isArray(template.buttons) &&
+                (template.buttons as { type?: string; text?: string }[]).filter(
+                  (b) => b.text?.trim(),
+                ).length > 0 && (
+                  <div className="mt-1 max-w-sm space-y-0.5">
+                    {(template.buttons as { type?: string; text?: string }[])
+                      .filter((b) => b.text?.trim())
+                      .map((b, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-center gap-1.5 rounded-md bg-white px-2 py-1.5 text-[13px] font-medium text-[#00a5f4] shadow-sm"
+                        >
+                          {b.type === 'URL' ? (
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          ) : b.type === 'PHONE_NUMBER' ? (
+                            <Phone className="h-3.5 w-3.5" />
+                          ) : (
+                            <Reply className="h-3.5 w-3.5" />
+                          )}
+                          {b.text}
+                        </div>
+                      ))}
+                  </div>
+                )}
+            </div>
+
+            {varNums.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground">
+                  {t('templates.whatEachVariableReplaces')}
+                </p>
+                <div className="mt-1.5 space-y-1">
+                  {varNums.map((n) => {
+                    const sample = samples[n - 1];
+                    return (
+                      <div key={n} className="flex items-center gap-2 text-[12px]">
+                        <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-medium tabular-nums text-foreground">
+                          {`{{${n}}}`}
+                        </span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="text-foreground">
+                          {sample ? sample : t('templates.dynamicValueHint')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
