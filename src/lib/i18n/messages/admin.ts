@@ -40,6 +40,21 @@ export const admin = {
     es: "Estado de cada conexión de la plataforma y su último error.",
     en: "Status of every connection on the platform and its last error.",
   },
+
+  // Recursos que el equipo entrega a un comercio
+  resourcesTitle: { es: "Recursos", en: "Resources" },
+  wooPluginDesc: {
+    es: "Plugin de WordPress para recuperar carritos abandonados en WooCommerce. La tienda ya recupera los pedidos que quedaron sin pagar; el plugin agrega a quien se va antes de enviar el pedido.",
+    en: "WordPress plugin to recover abandoned carts on WooCommerce. Stores already recover orders left unpaid; the plugin adds those who leave before placing the order.",
+  },
+  wooPluginDownload: {
+    es: "Descargar plugin de WooCommerce",
+    en: "Download WooCommerce plugin",
+  },
+  wooPluginNoSecret: {
+    es: "Copia sin credenciales. Cada comercio pega su secreto desde Ajustes → Canales, o baja desde ahí una copia ya configurada.",
+    en: "Copy without credentials. Each merchant pastes their secret from Settings → Channels, or downloads a preconfigured copy there.",
+  },
   sectionOps: { es: "Operación", en: "Operations" },
   sectionOpsDesc: {
     es: "Trabajos de fondo: cuándo corrió cada uno y cuáles fallaron.",

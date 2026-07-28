@@ -27,7 +27,11 @@ export type AdminAction =
   | 'view.waitlist'
   | 'view.infrastructure'
   | 'update.feature_flag'
-  | 'update.voice_model';
+  | 'update.voice_model'
+  // Descarga de recursos que el equipo entrega a un comercio. No lleva
+  // datos de nadie, pero queda registrada igual: es una salida de archivo
+  // desde el panel y conviene poder decir quién la pidió.
+  | 'download.woocommerce_plugin';
 
 interface AuditEntry {
   action: AdminAction;

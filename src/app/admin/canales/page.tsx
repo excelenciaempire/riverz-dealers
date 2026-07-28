@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { toShortId } from '@/lib/short-id';
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
@@ -173,6 +174,24 @@ export default function AdminChannelsPage() {
         ) : (
           <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
         )}
+      </Panel>
+
+      <Panel title={t("admin.resourcesTitle")}>
+        <div className="px-4 pb-4">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t("admin.wooPluginDesc")}
+          </p>
+          <a
+            href="/api/admin/woocommerce-plugin"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+          >
+            <Download className="size-3.5" />
+            {t("admin.wooPluginDownload")}
+          </a>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {t("admin.wooPluginNoSecret")}
+          </p>
+        </div>
       </Panel>
     </div>
   );
