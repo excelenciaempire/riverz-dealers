@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshMLToken } from "./adapter";
+import { upsertContact } from "../inbox-writer";
 import { getLogger } from "@/lib/log/logger";
 
 const ML = "https://api.mercadolibre.com";
@@ -169,19 +170,29 @@ async function upsertOrder(
 ): Promise<void> {
   const shipment = o.shipping?.id ? await fetchShipment(o.shipping.id, auth) : null;
 
-  // El comprador ya existe como contacto si alguna vez escribió: el canal usa
-  // su id de Mercado Libre como identificador externo. Se busca, no se crea —
-  // un pedido sin conversación no justifica inventar un contacto vacío.
+  // El comprador SE CREA como contacto si no existe.
+  //
+  // La primera versión sólo lo buscaba, para no "inventar un contacto vacío".
+  // Estaba mal por dos motivos. Uno: un comprador de Mercado Libre no es
+  // vacío — tiene apodo, ciudad e historial de compra; es un cliente, y el
+  // comercio quiere verlo entre sus contactos. Dos, y más grave: quien compra
+  // hoy y escribe mañana —el caso normal— llegaba a un pedido con contact_id
+  // nulo, así que lookup_order no encontraba nada y el agente le contestaba
+  // "no encontré tu pedido" teniéndolo delante.
+  //
+  // Se usa el upsert canónico, el mismo que la bandeja: la clave
+  // (workspace_id, channel, external_id) es idéntica, de modo que cuando esa
+  // persona escriba se reutiliza esta fila en vez de duplicarla.
   let contactId: string | null = null;
   if (o.buyer?.id) {
-    const { data } = await db
-      .from("contacts")
-      .select("id")
-      .eq("workspace_id", conn.workspace_id)
-      .eq("channel", "mercadolibre")
-      .eq("external_id", String(o.buyer.id))
-      .maybeSingle();
-    contactId = (data as { id?: string } | null)?.id ?? null;
+    const contact = await upsertContact(db, {
+      workspace_id: conn.workspace_id,
+      channel: "mercadolibre",
+      external_id: String(o.buyer.id),
+      name: o.buyer.nickname || undefined,
+      created_at: o.date_created ?? undefined,
+    });
+    contactId = contact?.id ?? null;
   }
 
   const addr = shipment?.receiver_address;
