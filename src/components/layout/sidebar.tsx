@@ -96,9 +96,9 @@ const navGroups: NavGroup[] = [
   {
     title: "nav.groupOutbound",
     items: [
+      { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
       { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
       { href: "/automatizaciones", label: "nav.automations", icon: Zap },
-      { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
       { href: "/agente-instagram", label: "nav.instagramAgent", icon: Radar },
     ],
   },
