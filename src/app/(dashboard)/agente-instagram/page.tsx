@@ -30,16 +30,18 @@ export default function VentasInstagramPage() {
   const t = useT();
   const settings = useProactiveSettings();
   const overview = useIgOverview();
-  const connected = overview.context
-    ? !!overview.context.instagram_connected
-    : undefined;
+  // Solo se avisa cuando Instagram NO está conectado: que lo esté es lo normal,
+  // y una insignia verde permanente es ruido. Que no lo esté sí hay que decirlo,
+  // porque sin conexión nada de esto envía.
+  const disconnected =
+    overview.context && !overview.context.instagram_connected;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="app-page-title">{t('igAgent.title')}</h1>
         <div className="flex items-center gap-1.5">
-          <ConnectionPill connected={connected} />
+          {disconnected && <ConnectionPill connected={false} />}
           <AgentSettingsMenu settings={settings} />
         </div>
       </header>

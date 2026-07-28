@@ -3,12 +3,11 @@ import type { Namespace } from "./types";
 /** Instagram Agent: stats strip, campaign planner, plan panel, saved campaigns + detail. */
 export const igAgent = {
   // Page header
-  title: { es: "Ventas por Instagram", en: "Instagram Sales" },
+  title: { es: "Prospección IA", en: "AI Prospecting" },
   settingsMenu: { es: "Ajustes del agente", en: "Agent settings" },
 
   // Goal box
   goalLabel: { es: "¿Cuál es tu objetivo?", en: "What's your goal?" },
-  generateHint: { es: "⌘ Enter para generar", en: "⌘ Enter to generate" },
   example1: {
     es: "Reactiva a quienes comentaron mi último reel con un 15% de descuento.",
     en: "Re-engage everyone who commented on my last reel with 15% off.",
@@ -199,7 +198,7 @@ export const igAgent = {
   errorNetwork: { es: "Error de red", en: "Network error" },
 
   // Campaign detail — header
-  backToAgent: { es: "Ventas por Instagram", en: "Instagram Sales" },
+  backToAgent: { es: "Prospección IA", en: "AI Prospecting" },
   instagramCampaign: { es: "Campaña de Instagram", en: "Instagram campaign" },
   campaignNotFound: { es: "Campaña no encontrada.", en: "Campaign not found." },
   errorLoadCampaign: {

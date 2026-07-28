@@ -13,7 +13,6 @@ import {
   Wand2,
   Radio,
   Save,
-  Send,
   Settings2,
   RotateCw,
   Trash2,
@@ -673,10 +672,7 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
               }}
             />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <span className="text-[11px] text-muted-foreground">
-                {t('igAgent.generateHint')}
-              </span>
+            <div className="mt-3 flex justify-end">
               <Button
                 size="lg"
                 onClick={generate}
@@ -895,22 +891,22 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
         <p className="text-sm font-medium text-foreground">
           {t('igAgent.instagramDm')}
         </p>
-        <div className="rounded-xl bg-[#0b0b0f] p-3">
-          {/* Cabecera de chat tipo Instagram para que la vista previa se lea
-              como una conversación real. */}
-          <div className="mb-2.5 flex items-center gap-2 border-b border-white/10 pb-2.5">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-[11px] font-semibold text-white">
+        {/* Cabecera de chat para que la vista previa se lea como una
+            conversación real, en la paleta de la casa. */}
+        <div className="rounded-xl border border-border bg-muted/40 p-3">
+          <div className="mb-2.5 flex items-center gap-2 border-b border-border pb-2.5">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-ink">
               {plan.message.preview_name.slice(0, 1).toUpperCase()}
             </span>
-            <p className="truncate text-xs font-medium text-white">
+            <p className="truncate text-xs font-medium text-foreground">
               {plan.message.preview_name}
             </p>
           </div>
-          <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-white">
+          <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-primary-foreground">
             {messagePreview}
           </div>
           {plan.offer && (
-            <div className="ml-auto mt-1.5 max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] text-white">
+            <div className="ml-auto mt-1.5 max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[13px] text-primary-foreground">
               🎁 {t('igAgent.offerCodeLabel')}{' '}
               <span className="font-semibold">{plan.offer.code}</span> —{' '}
               {plan.offer.discount}
@@ -1100,73 +1096,84 @@ function CampaignsSection({
           {t('igAgent.noCampaignsYet')}
         </p>
       ) : (
-        <ul className="divide-y divide-border rounded-2xl border border-border bg-card px-5 shadow-sm">
+        <ul className="space-y-2">
           {campaigns.map((c) => (
-            <li key={c.id} className="group flex items-center gap-3 py-3">
-              <Link
-                href={`/agente-instagram/${c.id}`}
-                className="min-w-0 flex-1"
-              >
-                <p className="truncate text-sm font-medium text-foreground group-hover:underline">
-                  {c.name}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {c.offer_code
-                    ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
-                    : ''}
-                  {fmt.date(c.updated_at, {
-                    day: 'numeric',
-                    month: 'numeric',
-                    year: 'numeric',
-                  })}
-                </p>
-              </Link>
+            <li
+              key={c.id}
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-sm transition-colors hover:border-accent-ink/40"
+            >
+              {/* Filo lima: de un vistazo se ve cuál está trabajando ahora. */}
+              {c.status === 'active' && (
+                <span className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
+              )}
+
+              <div className="flex items-start justify-between gap-3">
+                <Link
+                  href={`/agente-instagram/${c.id}`}
+                  className="min-w-0 flex-1"
+                >
+                  <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-accent-ink">
+                    {c.name}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {c.offer_code
+                      ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
+                      : ''}
+                    {fmt.date(c.updated_at, {
+                      day: 'numeric',
+                      month: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </p>
+                </Link>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Badge
+                    variant={
+                      c.status === 'active'
+                        ? 'default'
+                        : c.status === 'paused'
+                          ? 'outline'
+                          : 'secondary'
+                    }
+                  >
+                    {t(STATUS_LABEL[c.status])}
+                  </Badge>
+
+                  {confirming === c.id ? (
+                    <span className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirming(null)}
+                      >
+                        {t('igAgent.cancel')}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setConfirming(null);
+                          onDelete(c.id);
+                        }}
+                      >
+                        {t('igAgent.confirmDelete')}
+                      </Button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirming(c.id)}
+                      aria-label={t('igAgent.deleteCampaign')}
+                      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
               <CampaignResults metrics={c.metrics} />
-
-              <Badge
-                variant={
-                  c.status === 'active'
-                    ? 'default'
-                    : c.status === 'paused'
-                      ? 'outline'
-                      : 'secondary'
-                }
-                className="shrink-0"
-              >
-                {t(STATUS_LABEL[c.status])}
-              </Badge>
-
-              {confirming === c.id ? (
-                <span className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setConfirming(null)}
-                  >
-                    {t('igAgent.cancel')}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      setConfirming(null);
-                      onDelete(c.id);
-                    }}
-                  >
-                    {t('igAgent.confirmDelete')}
-                  </Button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirming(c.id)}
-                  aria-label={t('igAgent.deleteCampaign')}
-                  className="inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
             </li>
           ))}
         </ul>
@@ -1175,7 +1182,12 @@ function CampaignsSection({
   );
 }
 
-/** Enviados · respuestas · ingresos de una campaña, en la propia fila. */
+/**
+ * Lo que logró una campaña, dentro de su propia tarjeta: el embudo como una
+ * barra y las tres cifras debajo. Un solo tono —el lima de la casa en tres
+ * intensidades— en vez de un color por etapa: el embudo es una sola cosa que
+ * se estrecha, no tres cosas distintas.
+ */
 function CampaignResults({
   metrics,
 }: {
@@ -1185,27 +1197,50 @@ function CampaignResults({
   const fmt = useFormat();
   const sent = Number(metrics?.contacted) || 0;
   const replies = Number(metrics?.replies) || 0;
+  const conversions = Number(metrics?.conversions) || 0;
   const revenue = Number(metrics?.revenue) || 0;
   if (sent === 0 && replies === 0 && revenue === 0) return null;
 
+  /** Ancho relativo al total contactado; 0 no dibuja nada. */
+  const width = (n: number) =>
+    sent > 0 && n > 0 ? `${Math.max(3, Math.round((n / sent) * 100))}%` : '0%';
+
   return (
-    <span className="hidden shrink-0 items-center gap-3 text-[11px] tabular-nums text-muted-foreground sm:flex">
-      <span className="flex items-center gap-1" title={t('igAgent.sent')}>
-        <Send className="h-3 w-3" />
-        {fmt.number(sent)}
-      </span>
-      <span className="flex items-center gap-1" title={t('igAgent.replies')}>
-        <CornerDownRight className="h-3 w-3" />
-        {fmt.number(replies)}
-      </span>
-      {revenue > 0 && (
-        <span
-          className="font-medium text-accent-ink"
-          title={t('igAgent.statRevenue')}
-        >
-          {fmt.currency(revenue, metrics?.currency ?? 'USD')}
-        </span>
-      )}
+    <div className="mt-3 space-y-2">
+      <div className="relative h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="absolute inset-y-0 left-0 w-full bg-accent-ink/25" />
+        <div
+          className="absolute inset-y-0 left-0 bg-accent-ink/60 transition-all duration-500"
+          style={{ width: width(replies) }}
+        />
+        <div
+          className="absolute inset-y-0 left-0 bg-accent-ink transition-all duration-500"
+          style={{ width: width(conversions) }}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+        <ResultStat n={fmt.number(sent)} label={t('igAgent.sent')} />
+        <ResultStat n={fmt.number(replies)} label={t('igAgent.replies')} />
+        <ResultStat
+          n={fmt.number(conversions)}
+          label={t('igAgent.conversions')}
+        />
+        {revenue > 0 && (
+          <span className="ml-auto font-semibold tabular-nums text-accent-ink">
+            {fmt.currency(revenue, metrics?.currency ?? 'USD')}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResultStat({ n, label }: { n: string; label: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span className="font-semibold tabular-nums text-foreground">{n}</span>
+      <span className="lowercase">{label}</span>
     </span>
   );
 }

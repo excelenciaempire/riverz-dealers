@@ -36,6 +36,7 @@ import {
   Sun,
   PhoneCall,
   MessageSquareReply,
+  Radar,
 } from "lucide-react";
 import {
   Avatar,
@@ -50,7 +51,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { InstagramIcon } from "@/components/layout/instagram-icon";
 
 interface NavItem {
   href: string;
@@ -99,7 +99,7 @@ const navGroups: NavGroup[] = [
       { href: "/campanas", label: "nav.campaigns", icon: Megaphone },
       { href: "/automatizaciones", label: "nav.automations", icon: Zap },
       { href: "/plantillas", label: "nav.templates", icon: LayoutTemplate },
-      { href: "/agente-instagram", label: "nav.instagramAgent", icon: InstagramIcon },
+      { href: "/agente-instagram", label: "nav.instagramAgent", icon: Radar },
     ],
   },
   {

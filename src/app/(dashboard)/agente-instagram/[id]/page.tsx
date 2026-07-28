@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { InstagramIcon } from '@/components/layout/instagram-icon';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -284,12 +283,12 @@ export default function CampaignDetailPage() {
               {
                 label: t('igAgent.funnelContacted'),
                 value: contacted,
-                color: 'bg-[#c13584]/70',
+                color: 'bg-accent-ink/25',
               },
               {
                 label: t('igAgent.funnelReplies'),
                 value: replied,
-                color: 'bg-[#5b51d8]/70',
+                color: 'bg-accent-ink/60',
               },
               {
                 label: t('igAgent.funnelConversions'),
@@ -392,12 +391,11 @@ export default function CampaignDetailPage() {
       {/* Plan */}
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
-          <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <InstagramIcon className="h-4 w-4" />
+          <p className="mb-3 text-sm font-medium text-foreground">
             {t('igAgent.instagramDm')}
           </p>
-          <div className="rounded-xl bg-[#0b0b0f] p-3">
-            <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-gradient-to-br from-[#5b51d8] to-[#c13584] px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-white">
+          <div className="rounded-xl border border-border bg-muted/40 p-3">
+            <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-primary-foreground">
               {messagePreview}
             </div>
           </div>
