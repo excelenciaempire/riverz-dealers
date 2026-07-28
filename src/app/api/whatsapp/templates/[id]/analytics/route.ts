@@ -16,6 +16,43 @@ export const dynamic = 'force-dynamic';
 
 const META_API = 'https://graph.facebook.com/v21.0';
 
+/** Últimos 8 dígitos de un teléfono: los prefijos móviles difieren entre
+ *  Shopify y WhatsApp (54911… vs 5411…), la cola no. */
+function phoneKey(phone: string | null | undefined): string {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  return digits.length >= 8 ? digits.slice(-8) : digits;
+}
+
+/**
+ * ¿Esta plantilla es la que manda la recuperación de carrito de Shopify?
+ * Es la condición para poder atribuir compras: sin el disparador
+ * `shopify_abandoned_checkout` no hay abandono ni completado que observar.
+ * No se filtra por `is_active` — si la automatización se pausó hoy, las
+ * recuperaciones que ya ocurrieron siguen siendo reales.
+ */
+async function usedByAbandonedCartAutomation(
+  db: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  templateName: string,
+): Promise<boolean> {
+  const { data: autos } = await db
+    .from('automations')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('trigger_type', 'shopify_abandoned_checkout');
+  const ids = (autos ?? []).map((a) => (a as { id: string }).id);
+  if (ids.length === 0) return false;
+
+  const { data: steps } = await db
+    .from('automation_steps')
+    .select('step_config')
+    .in('automation_id', ids)
+    .eq('step_type', 'send_template');
+  return (steps ?? []).some(
+    (s) => (s as { step_config?: { template_name?: string } }).step_config?.template_name === templateName,
+  );
+}
+
 export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const supabase = await createClient();
@@ -107,55 +144,113 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       }
     }
 
-    // ── Conversión de carrito abandonado (si la plantilla es de recuperación) ──
-    // Sólo cuenta como recuperado el checkout que se completó DESPUÉS de que
-    // salió el mensaje: es la única lectura honesta de "compró gracias a la
-    // automatización". Se devuelven también los nombres, para poder mostrar
-    // quién compró en vez de un número suelto.
+    // ── Conversión de carrito abandonado ──
+    // La atribución "compró gracias a este mensaje" sólo se puede calcular
+    // cuando el recorrido entero es observable: el carrito abandonado de
+    // Shopify es hoy el único caso (shopify_checkouts guarda el abandono y su
+    // completado). Por eso el bloque NO se muestra por el nombre de la
+    // plantilla, sino sólo si ESTA plantilla es la que envía una automatización
+    // con disparador `shopify_abandoned_checkout` de este workspace.
     let cart: {
       recovered: number;
       revenue: number;
       buyers: Array<{ name: string; amount: number; at: string | null }>;
     } | null = null;
-    if (/carrito|cart|abandon/i.test(tpl.name)) {
-      const { data: dispatchedRows } = await db
-        .from('shopify_checkouts')
-        .select('customer_name, customer_email, customer_phone, completed_at, recovery_dispatched_at, total_price')
-        .eq('workspace_id', tpl.workspace_id)
-        .not('recovery_dispatched_at', 'is', null)
-        .not('completed_at', 'is', null)
-        .limit(10000);
-      const rows = (dispatchedRows ?? []) as Array<{
-        customer_name: string | null;
-        customer_email: string | null;
-        customer_phone: string | null;
-        completed_at: string | null;
-        recovery_dispatched_at: string | null;
-        total_price: number | string | null;
+
+    const isCartRecoveryTemplate = await usedByAbandonedCartAutomation(
+      db,
+      tpl.workspace_id,
+      tpl.name,
+    );
+
+    if (isCartRecoveryTemplate) {
+      const sinceIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Envíos REALES de esta plantilla (no de otra plantilla de carrito del
+      // mismo workspace), con el contacto que los recibió.
+      const { data: sendRows } = await db
+        .from('messages')
+        .select('created_at, conversations!inner(workspace_id, contact_id)')
+        .eq('template_name', tpl.name)
+        .eq('conversations.workspace_id', tpl.workspace_id)
+        .in('status', ['sent', 'delivered', 'read'])
+        .gte('created_at', sinceIso)
+        .limit(5000);
+      const sends = (sendRows ?? []) as unknown as Array<{
+        created_at: string;
+        conversations: { contact_id: string } | { contact_id: string }[];
       }>;
-      const recoveredRows = rows.filter(
-        (c) =>
-          c.completed_at != null &&
-          c.recovery_dispatched_at != null &&
-          new Date(c.completed_at).getTime() >= new Date(c.recovery_dispatched_at).getTime(),
-      );
-      const revenue = recoveredRows.reduce((s, c) => s + (Number(c.total_price) || 0), 0);
-      const buyers = recoveredRows
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(b.completed_at ?? 0).getTime() - new Date(a.completed_at ?? 0).getTime(),
-        )
-        .slice(0, 20)
-        .map((c) => ({
-          name:
-            (c.customer_name ?? '').trim() ||
-            (c.customer_email ?? '').trim() ||
-            (c.customer_phone ?? '').trim(),
-          amount: Number(c.total_price) || 0,
-          at: c.completed_at,
-        }));
-      cart = { recovered: recoveredRows.length, revenue, buyers };
+
+      // contact_id → primer envío de esta plantilla.
+      const firstSendByContact = new Map<string, number>();
+      for (const s of sends) {
+        const conv = Array.isArray(s.conversations) ? s.conversations[0] : s.conversations;
+        const cid = conv?.contact_id;
+        if (!cid) continue;
+        const at = new Date(s.created_at).getTime();
+        const prev = firstSendByContact.get(cid);
+        if (prev === undefined || at < prev) firstSendByContact.set(cid, at);
+      }
+
+      if (firstSendByContact.size > 0) {
+        // El checkout guarda teléfono, no contact_id: se emparejan por los
+        // últimos 8 dígitos (mismo criterio que el resto del CRM, porque los
+        // prefijos móviles varían entre Shopify y WhatsApp).
+        const { data: contactRows } = await db
+          .from('contacts')
+          .select('id, phone')
+          .in('id', [...firstSendByContact.keys()]);
+        const sentAtByPhone = new Map<string, number>();
+        for (const c of (contactRows ?? []) as Array<{ id: string; phone: string | null }>) {
+          const key = phoneKey(c.phone);
+          const at = firstSendByContact.get(c.id);
+          if (!key || at === undefined) continue;
+          const prev = sentAtByPhone.get(key);
+          if (prev === undefined || at < prev) sentAtByPhone.set(key, at);
+        }
+
+        const { data: checkoutRows } = await db
+          .from('shopify_checkouts')
+          .select('customer_name, customer_email, customer_phone, completed_at, total_price')
+          .eq('workspace_id', tpl.workspace_id)
+          .not('completed_at', 'is', null)
+          .gte('completed_at', sinceIso)
+          .limit(10000);
+
+        // Recuperado = ese cliente recibió esta plantilla y COMPLETÓ el
+        // checkout después. Sin las dos condiciones no hay atribución posible.
+        const recoveredRows = (
+          (checkoutRows ?? []) as Array<{
+            customer_name: string | null;
+            customer_email: string | null;
+            customer_phone: string | null;
+            completed_at: string;
+            total_price: number | string | null;
+          }>
+        ).filter((c) => {
+          const sentAt = sentAtByPhone.get(phoneKey(c.customer_phone));
+          return sentAt !== undefined && new Date(c.completed_at).getTime() >= sentAt;
+        });
+
+        const revenue = recoveredRows.reduce((s, c) => s + (Number(c.total_price) || 0), 0);
+        const buyers = recoveredRows
+          .slice()
+          .sort(
+            (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime(),
+          )
+          .slice(0, 20)
+          .map((c) => ({
+            name:
+              (c.customer_name ?? '').trim() ||
+              (c.customer_email ?? '').trim() ||
+              (c.customer_phone ?? '').trim(),
+            amount: Number(c.total_price) || 0,
+            at: c.completed_at,
+          }));
+        cart = { recovered: recoveredRows.length, revenue, buyers };
+      } else {
+        cart = { recovered: 0, revenue: 0, buyers: [] };
+      }
     }
 
     return NextResponse.json({
