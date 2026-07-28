@@ -24,24 +24,8 @@ export interface IgAgentConfig {
   escalate_keywords: string[];
 }
 
-/**
- * Por dónde vamos a hablar. NO es "qué agente elegir": es qué vinculación de
- * canal cuenta como válida para esta interacción.
- *
- * Separar las superficies no obliga a clonar al agente. Un comercio puede
- * querer una voz distinta para los comentarios —que los lee cualquiera— que
- * para el privado, y el editor ya deja marcarlo; pero por defecto es el mismo
- * agente en los dos sitios, porque es la misma marca contestando.
- */
-export type IgSurface = 'comment' | 'dm';
-
-/** Canales que sirven para cada superficie, en orden de preferencia. */
-const SURFACE_CHANNELS: Record<IgSurface, string[]> = {
-  comment: ['ig_comment', 'instagram'],
-  dm: ['instagram'],
-};
-
-/** Config vacía: ningún agente gobierna, así que nada se envía solo. */
+/** Config vacía: no hay agente. Los comentarios se contestan igual, con la
+ *  marca y el catálogo; lo que se pierde son las herramientas. */
 const NO_AGENT: IgAgentConfig = {
   id: null,
   is_active: false,
@@ -93,20 +77,10 @@ function normalize(row: AgentRow): IgAgentConfig {
  * `text` es lo que escribió la persona (comentario o DM), para las palabras
  * de escalamiento.
  */
-export function igAgentCanAutoReply(
-  agent: IgAgentConfig,
-  text: string,
-  surface: IgSurface = 'dm',
-): boolean {
+export function igAgentCanAutoReply(agent: IgAgentConfig, text: string): boolean {
   if (!agent.id || !agent.is_active) return false;
-  // Alcance: 'workspace' cubre todo; 'channels' debe incluir el canal por el
-  // que vamos a hablar. Antes exigía SIEMPRE 'instagram', así que un agente
-  // creado para comentarios —una opción que el editor ya ofrece— se rechazaba
-  // a sí mismo y contestaba el de DMs en su lugar.
-  if (
-    agent.scope === 'channels' &&
-    !SURFACE_CHANNELS[surface].some((c) => agent.channels.includes(c))
-  ) {
+  // Alcance: 'workspace' cubre todo; 'channels' debe incluir Instagram.
+  if (agent.scope === 'channels' && !agent.channels.includes('instagram')) {
     return false;
   }
   if (!agent.reply_outside_hours && !withinBusinessHours(agent.business_hours)) {
@@ -114,6 +88,26 @@ export function igAgentCanAutoReply(
   }
   if (containsEscalationKeyword(agent.escalate_keywords, text)) return false;
   return true;
+}
+
+/**
+ * Puerta de COMENTARIOS. Deliberadamente distinta de la de arriba.
+ *
+ * Asistentes IA gobierna las conversaciones por DM; Comentarios se gobierna
+ * solo, con su propio interruptor. Así que aquí NO se pregunta si el agente
+ * está activo ni qué canales tiene marcados: un agente acotado a "solo
+ * WhatsApp", o pausado, dejaba mudos los comentarios sin que nada en la
+ * pantalla de Comentarios lo explicara. Del agente se toma la VOZ, nunca el
+ * permiso.
+ *
+ * Lo único que sí se respeta es que la persona pida un humano: eso no es
+ * configuración de canal, es no venderle a quien está pidiendo ayuda.
+ */
+export function commentAgentCanReply(
+  agent: IgAgentConfig,
+  text: string,
+): boolean {
+  return !containsEscalationKeyword(agent.escalate_keywords, text);
 }
 
 /**
@@ -128,7 +122,6 @@ export async function resolveIgAgent(
   db: SupabaseClient,
   workspaceId: string,
   linkedAgentId?: string | null,
-  surface: IgSurface = 'dm',
 ): Promise<IgAgentConfig> {
   // Los agentes BORRADOS no gobiernan nada: su voz y su conocimiento ya no
   // representan a la marca. Sin este filtro, un agente eliminado de otro
@@ -148,26 +141,20 @@ export async function resolveIgAgent(
   // `priority` primero para empatar con `pickAgent` del runner — antes esto
   // ordenaba sólo por updated_at, así que editar otro agente podía cambiar
   // quién habla en Instagram sin tocar nada de Instagram.
-  // Se prueban los canales de la superficie EN ORDEN: para un comentario, el
-  // agente atado a 'ig_comment' manda sobre el de 'instagram'. Antes esto
-  // preguntaba siempre por 'instagram', así que un agente creado para
-  // comentarios existía en la pantalla y no gobernaba nada.
-  for (const channel of SURFACE_CHANNELS[surface]) {
-    const { data: owned } = await db
-      .from('ai_agents')
-      .select(AGENT_FIELDS_IG)
-      .eq('workspace_id', workspaceId)
-      .is('deleted_at', null)
-      .eq('ai_agent_channels.channel', channel)
-      .order('is_active', { ascending: false })
-      .order('priority', { ascending: false })
-      // Mismo desempate estable que `pickAgent`: por antigüedad, para que
-      // editar un agente no cambie quién habla en Instagram.
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (owned) return normalize(owned as unknown as AgentRow);
-  }
+  const { data: igOwned } = await db
+    .from('ai_agents')
+    .select(AGENT_FIELDS_IG)
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
+    .eq('ai_agent_channels.channel', 'instagram')
+    .order('is_active', { ascending: false })
+    .order('priority', { ascending: false })
+    // Mismo desempate estable que `pickAgent`: por antigüedad, para que
+    // editar un agente no cambie quién habla en Instagram.
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (igOwned) return normalize(igOwned as unknown as AgentRow);
 
   const { data } = await db
     .from('ai_agents')

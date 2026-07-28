@@ -84,6 +84,14 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
   const [key, setKey] = useState('');
   const [secret, setSecret] = useState('');
   const [dialog, setDialog] = useState<WooDialogPhase | null>(null);
+  /**
+   * Chrome ignora `autocomplete="off"` y ofrece el correo de la sesión
+   * sobre el campo de la dirección. Peor todavía: lo PINTA sin escribirlo
+   * —`value` queda vacío— así que el campo se ve lleno y al conectar
+   * falla. Un campo de solo lectura no lo autocompleta; se vuelve
+   * editable al enfocarlo, que es cuando la persona va a escribir.
+   */
+  const [urlReadOnly, setUrlReadOnly] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -342,6 +350,9 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                 name="riverz-store-url"
                 autoComplete="off"
                 inputMode="url"
+                readOnly={urlReadOnly}
+                onPointerDown={() => setUrlReadOnly(false)}
+                onFocus={() => setUrlReadOnly(false)}
                 placeholder={t('settings.woocommerceSitePlaceholder')}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
@@ -388,14 +399,13 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
             // para conectar, dos botones idénticos en fila.
             <>
               <Input
-                // El navegador rellenaba acá el correo de la sesión: sin
-                // pistas, su heurística toma el primer campo de texto de la
-                // tarjeta. `type=url` + autocompletado apagado + un `name`
-                // que no se parece a nada conocido lo desactivan.
                 type="url"
                 name="riverz-store-url"
                 autoComplete="off"
                 inputMode="url"
+                readOnly={urlReadOnly}
+                onPointerDown={() => setUrlReadOnly(false)}
+                onFocus={() => setUrlReadOnly(false)}
                 placeholder={t('settings.woocommerceSitePlaceholder')}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}

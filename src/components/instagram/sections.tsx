@@ -1446,21 +1446,8 @@ export function useProactiveSettings(): ProactiveSettings {
  * atiende. Es la conducta por defecto de la página, así que va primero y sin
  * caja: una caja lo habría dejado al mismo nivel que una regla cualquiera.
  */
-export function CommentAutoReply({
-  settings,
-  replyStatus,
-}: {
-  settings: ProactiveSettings;
-  replyStatus?: ReplyStatus;
-}) {
+export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
-  // Encendido pero sin nadie que pueda contestar: se dice AQUÍ, no en la otra
-  // pantalla. Quién contesta se configura en Asistente IA y desde Comentarios
-  // no había forma de saber que el interruptor no servía de nada.
-  const blockedKey =
-    settings.autoReply && replyStatus && replyStatus !== 'ok'
-      ? REPLY_STATUS_KEY[replyStatus]
-      : null;
   return (
     <label
       className={cn(
@@ -1475,15 +1462,6 @@ export function CommentAutoReply({
         <span className="mt-1 block max-w-md text-[13px] leading-relaxed text-muted-foreground">
           {t('igAgent.autoReplyCommentsHint')}
         </span>
-        {blockedKey && (
-          <Link
-            href="/asistente"
-            className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-medium text-destructive hover:underline"
-          >
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            {t(blockedKey)}
-          </Link>
-        )}
       </span>
       <Switch
         className="mt-1 shrink-0"
@@ -1499,19 +1477,7 @@ export function CommentAutoReply({
 
 /* ─────────────────── estadísticas propias de Comentarios ─────────────────── */
 
-type ReplyStatus = 'ok' | 'no_agent' | 'agent_paused' | 'not_covering';
-
-/** Por qué NO contestaría la IA, dicho donde está el interruptor. Vacío = todo
- *  en orden. Sin esto, "Responder con IA" podía estar encendido y no contestar
- *  nadie porque el agente vive en la otra pantalla. */
-const REPLY_STATUS_KEY: Record<Exclude<ReplyStatus, 'ok'>, string> = {
-  no_agent: 'igAgent.replyNoAgent',
-  agent_paused: 'igAgent.replyAgentPaused',
-  not_covering: 'igAgent.replyNotCovering',
-};
-
 interface CommentStats {
-  reply_status?: ReplyStatus;
   rule_dms: number;
   public_replies: number;
   ai_replies: number;
@@ -1713,10 +1679,7 @@ export function CommentsSection({
     <div className="space-y-10">
       <CommentStatsStrip stats={stats} />
       <div>
-        <CommentAutoReply
-          settings={settings}
-          replyStatus={stats?.reply_status}
-        />
+        <CommentAutoReply settings={settings} />
         <CommentReplyOptions settings={settings} />
       </div>
       <CommentToDmPanel aiOn={settings.autoReply} />

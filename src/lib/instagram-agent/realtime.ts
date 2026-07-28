@@ -10,7 +10,11 @@ import { loadBrandContext, brandBrief, type BrandContext } from './brand-context
 import { craftPersonalizedDM } from './personalize-dm';
 import { composeSuperAgentReply } from '@/lib/ai/super-agent';
 import { scoreLeads, type LeadScore } from './lead-scoring';
-import { resolveIgAgent, igAgentCanAutoReply } from './agent-link';
+import {
+  resolveIgAgent,
+  igAgentCanAutoReply,
+  commentAgentCanReply,
+} from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
@@ -656,12 +660,13 @@ async function autonomousCommentReply(
     if (!orderStatus && commentCfg.audience === 'intent') return;
   }
 
-  // Superficie 'comment': si el comercio creó un agente para comentarios, es
-  // ÉL quien contesta. Si no, el de Instagram, como hasta ahora.
-  const agent = await resolveIgAgent(db, opts.workspaceId, null, 'comment');
-  // Mismo contrato que la respuesta reactiva: pausado, fuera de alcance,
-  // fuera de horario o pidiendo un humano ⇒ no contestamos solos.
-  if (!igAgentCanAutoReply(agent, engagement, 'comment')) return;
+  // Del agente se toma la VOZ, nunca el permiso: Asistentes IA gobierna las
+  // conversaciones por DM y Comentarios se gobierna solo, con su propio
+  // interruptor. Sin agente, `NO_AGENT` — se contesta igual con la marca y el
+  // catálogo, solo que sin herramientas.
+  const agent = await resolveIgAgent(db, opts.workspaceId, null);
+  // Lo único que se respeta del agente aquí: que la persona pida un humano.
+  if (!commentAgentCanReply(agent, engagement)) return;
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;

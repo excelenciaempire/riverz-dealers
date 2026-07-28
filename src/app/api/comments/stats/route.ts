@@ -1,39 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { resolveIgAgent } from '@/lib/instagram-agent/agent-link';
 
 /**
- * ¿Hay alguien capaz de contestar un comentario ahora mismo?
+ * Antes esto devolvía por qué NO iba a contestar nadie: sin asistente, con el
+ * asistente pausado, o con un alcance que excluía los comentarios. Ese aviso
+ * dejó de tener sentido cuando Comentarios dejó de pedirle permiso al agente:
+ * ahora contesta con su propio interruptor, y sin agente lo hace igual con la
+ * marca y el catálogo (lo que pierde son las herramientas).
  *
- * "Responder con IA" vive en Comentarios, pero QUIÉN contesta se configura en
- * Asistente IA. Las dos pantallas podían contradecirse en silencio: el
- * interruptor encendido y ningún agente que cubriera comentarios ⇒ no
- * contestaba nadie y nada en la pantalla lo decía.
- *
- *   ok           — hay un agente activo que cubre comentarios
- *   no_agent     — no hay ningún agente
- *   agent_paused — el que gobierna está pausado
- *   not_covering — existe, pero su alcance excluye los comentarios
+ * Un aviso que manda al usuario a otra sección para arreglar algo que ya no
+ * está roto es peor que no tener aviso.
  */
-type ReplyStatus = 'ok' | 'no_agent' | 'agent_paused' | 'not_covering';
-
-async function resolveReplyStatus(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  workspaceId: string | null,
-): Promise<ReplyStatus> {
-  if (!workspaceId) return 'no_agent';
-  const agent = await resolveIgAgent(supabase, workspaceId, null, 'comment');
-  if (!agent.id) return 'no_agent';
-  if (!agent.is_active) return 'agent_paused';
-  if (
-    agent.scope === 'channels' &&
-    !agent.channels.includes('ig_comment') &&
-    !agent.channels.includes('instagram')
-  ) {
-    return 'not_covering';
-  }
-  return 'ok';
-}
 
 /**
  * GET /api/comments/stats[?workspace_id=&days=30]
@@ -58,7 +35,6 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({
-      reply_status: 'no_agent' as ReplyStatus,
       rule_dms: 0,
       public_replies: 0,
       ai_replies: 0,
@@ -114,7 +90,6 @@ export async function GET(request: Request) {
   }>;
 
   return NextResponse.json({
-    reply_status: await resolveReplyStatus(supabase, workspaceId),
     rule_dms: ruleDms.count ?? 0,
     public_replies: publicReplies.count ?? 0,
     ai_replies: aiReplies.count ?? 0,
