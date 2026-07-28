@@ -193,7 +193,9 @@ async function pollOneSeller(
     }
     log.info("ml reviews grew", {
       itemId,
-      from: prev.total,
+      // `prev` no existe en el sembrado — esta línea leía prev.total y
+      // reventaba justo el camino que acababa de habilitar.
+      from: prev?.total ?? 0,
       to: total,
       ingested: found,
     });
