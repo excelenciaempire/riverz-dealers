@@ -1,6 +1,6 @@
 "use client";
 
-import type { Channel } from "@/types";
+import type { Channel, Conversation } from "@/types";
 import { cn } from "@/lib/utils";
 import { MessageSquare, MessageSquareReply } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
@@ -20,6 +20,17 @@ export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment"];
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
   if (tab === "comments") return COMMENT_CHANNELS.includes(channel);
   return MESSAGE_CHANNELS.includes(channel);
+}
+
+/**
+ * ¿Nació este hilo de una historia? Contestar tu historia o mencionarte en la
+ * suya llega por el webhook de mensajes, así que ES un DM y ahí se queda —
+ * pero no es una consulta fría, y en la lista tiene que notarse.
+ */
+export function isStoryConversation(c: Conversation): boolean {
+  return (
+    c.engagement_kind === "story_reply" || c.engagement_kind === "story_mention"
+  );
 }
 
 interface InboxTabsProps {

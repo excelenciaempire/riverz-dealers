@@ -166,6 +166,8 @@ export const inbox = {
 
   // Ad-referral banner (customer arrived from a click-to-message ad)
   adBadge: { es: "Anuncio", en: "Ad" },
+  storyReplyBadge: { es: "Historia", en: "Story" },
+  storyMentionBadge: { es: "Te mencionó", en: "Mentioned you" },
   repliedToAd: { es: "Respondió a un anuncio", en: "Replied to an ad" },
   viewAd: { es: "Ver anuncio", en: "View ad" },
 

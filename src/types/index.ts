@@ -238,6 +238,11 @@ export interface Conversation {
    * (resolved via the comments_meta.is_ad → ad_posts lookup). Drives the
    * inbox's "Ads only" filter. */
   is_ad?: boolean;
+  /** De qué interacción con TU contenido nació el hilo, cuando no fue un DM
+   * normal: 'story_reply' (contestaron tu historia) o 'story_mention' (te
+   * mencionaron en la suya). Se estampa una vez y se queda (migración 130).
+   * Es lo que lleva estos hilos a la pestaña Comentarios de la bandeja. */
+  engagement_kind?: "story_reply" | "story_mention" | null;
   /** Click-to-WhatsApp/Messenger ad referral, stamped once (inbound) when the
    * customer arrived from an ad. camelCase, as written by the adapters.
    * Migration 092 (+ Messenger/IG capture). Drives the "replied to an ad"

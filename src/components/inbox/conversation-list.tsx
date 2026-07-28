@@ -17,6 +17,7 @@ import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import {
   MESSAGE_CHANNELS,
   COMMENT_CHANNELS,
+  isStoryConversation,
   type InboxTab,
 } from "@/components/inbox/inbox-tabs";
 import Link from "@/components/i18n/locale-link";
@@ -718,6 +719,18 @@ const ConversationItem = memo(function ConversationItem({
               channel={conversation.channel}
               threadExternalId={conversation.thread_external_id}
             />
+            {/* Nació de una historia. Es un DM, pero no una consulta fría:
+                quien contesta tu historia es la señal más caliente que Meta
+                deja contactar, y sin esto se leía igual que cualquier otra. */}
+            {isStoryConversation(conversation) && (
+              <span className="shrink-0 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {t(
+                  conversation.engagement_kind === "story_mention"
+                    ? "inbox.storyMentionBadge"
+                    : "inbox.storyReplyBadge",
+                )}
+              </span>
+            )}
           </div>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
@@ -788,6 +801,7 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.subject === b.conversation.subject &&
   a.conversation.thread_external_id === b.conversation.thread_external_id &&
   a.conversation.is_ad === b.conversation.is_ad &&
+  a.conversation.engagement_kind === b.conversation.engagement_kind &&
   a.conversation.contact?.name === b.conversation.contact?.name &&
   a.conversation.contact?.avatar_url === b.conversation.contact?.avatar_url &&
   a.conversation.contact?.email === b.conversation.contact?.email &&

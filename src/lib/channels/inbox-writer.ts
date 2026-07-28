@@ -329,6 +329,24 @@ export async function ingestInboundEvent(
     }
   }
 
+  // Una respuesta a nuestra historia (o una mención en la suya) es una reacción
+  // a NUESTRO contenido, igual que un comentario — y así se tiene que poder
+  // triar. Se sube a la conversación, como `is_ad`, para que la pestaña
+  // Comentarios de la bandeja la encuentre sin recorrer los mensajes. Solo la
+  // primera vez: el hilo nació de una historia y eso ya no cambia.
+  if (
+    !event.outbound &&
+    (event.engagementKind === "story_reply" ||
+      event.engagementKind === "story_mention") &&
+    !conversation.engagement_kind
+  ) {
+    await db
+      .from("conversations")
+      .update({ engagement_kind: event.engagementKind })
+      .eq("id", conversation.id)
+      .is("engagement_kind", null);
+  }
+
   // Un comentario entra por UN solo portero, que decide en orden fijo quién lo
   // atiende: primero las reglas que configuró el comercio, después el agente.
   // Antes eran dos caminos disparados en paralelo y quién atendía a la persona

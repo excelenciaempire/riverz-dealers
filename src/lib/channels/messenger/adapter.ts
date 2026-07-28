@@ -191,6 +191,7 @@ export const messengerAdapter: ChannelAdapter = {
               is_echo?: boolean;
               is_unsupported?: boolean;
               attachments?: Array<Record<string, unknown>>;
+              reply_to?: { story?: { id?: string; url?: string } };
             }
           | undefined;
         if (!sender?.id) continue;
@@ -312,11 +313,24 @@ export const messengerAdapter: ChannelAdapter = {
           Boolean(message.is_unsupported),
         );
         if (isMetaUnsupportedText(msText)) logUnrenderableMetaMessage("messenger", m);
+        // Respuesta a una historia NUESTRA de la página, o mención de la marca
+        // en la suya. Mismo criterio que Instagram: llegan por el webhook de
+        // mensajes como un DM cualquiera y quedaban indistinguibles. Facebook
+        // no siempre las manda —depende de la superficie—, así que esto es
+        // detección oportunista: si viene, se etiqueta; si no, no pasa nada.
+        const engagementKind = message.reply_to?.story
+          ? ("story_reply" as const)
+          : (message.attachments ?? []).some(
+                (att) => String((att as { type?: string }).type ?? "") === "story_mention",
+              )
+            ? ("story_mention" as const)
+            : null;
         events.push({
           channel: "messenger",
           connection,
           externalContactId: sender.id,
           externalMessageId: message.mid,
+          engagementKind,
           text: msText,
           attachments: parsed.media.length ? parsed.media : undefined,
           receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
