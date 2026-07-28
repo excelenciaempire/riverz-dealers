@@ -1,24 +1,14 @@
 import type { Namespace } from "./types";
 
-/** Instagram Agent: campaign planner, live "thinking" panel, saved campaigns + detail. */
+/** Instagram Agent: stats strip, campaign planner, plan panel, saved campaigns + detail. */
 export const igAgent = {
   // Page header
-  eyebrow: { es: "Marketing con IA", en: "AI marketing" },
   title: { es: "Ventas por Instagram", en: "Instagram Sales" },
-  subtitle: {
-    es: "Describe un objetivo y tu agente sale a buscar a quién venderle: audiencia, mensaje y oferta, listos para revisar y lanzar.",
-    en: "Describe a goal and your agent goes out to find who to sell to: audience, message and offer, ready to review and launch.",
-  },
+  settingsMenu: { es: "Ajustes del agente", en: "Agent settings" },
 
   // Goal box
   goalLabel: { es: "¿Cuál es tu objetivo?", en: "What's your goal?" },
-  startFromExample: { es: "Empieza con un ejemplo", en: "Start from an example" },
   generateHint: { es: "⌘ Enter para generar", en: "⌘ Enter to generate" },
-  poweredByAi: { es: "Diseñado por IA", en: "Designed by AI" },
-  goalPlaceholder: {
-    es: "Describe lo que quieres lograr. Ej: reactivar a quienes comentaron mi último reel con un 15% de descuento.",
-    en: "Describe what you want to achieve. E.g.: re-engage everyone who commented on my last reel with 15% off.",
-  },
   example1: {
     es: "Reactiva a quienes comentaron mi último reel con un 15% de descuento.",
     en: "Re-engage everyone who commented on my last reel with 15% off.",
@@ -35,37 +25,17 @@ export const igAgent = {
     es: "Convierte a quienes comentan en suscriptores de tu lista con un imán de leads.",
     en: "Turn commenters into email/SMS subscribers with a lead magnet.",
   },
-  reachablePeople: {
-    es: "alcanzables por Instagram",
-    en: "reachable on Instagram",
-  },
-  newCampaign: { es: "Nueva campaña", en: "New campaign" },
+  // Etiquetas cortas de los chips: la frase larga es la que se escribe al pulsar.
+  exampleShort1: { es: "Reactivar comentarios", en: "Re-engage commenters" },
+  exampleShort2: { es: "Convertir guardados", en: "Convert saves" },
+  exampleShort3: { es: "Recuperar clientes", en: "Win back customers" },
+  exampleShort4: { es: "Captar suscriptores", en: "Capture subscribers" },
 
-  // Pestañas
-  tabComments: { es: "Comentarios", en: "Comments" },
-  tabOutreach: { es: "Conversaciones", en: "Conversations" },
+  // Stats strip
+  statRevenue: { es: "Ingresos atribuidos", en: "Attributed revenue" },
+  statReplyRate: { es: "{n}% de respuesta", en: "{n}% reply rate" },
 
-  blockCommentsTitle: {
-    es: "Responde los comentarios",
-    en: "Answers your comments",
-  },
-  blockCommentsHint: {
-    es: "Qué pasa cuando alguien comenta en tus posts: a quién se le escribe por privado y con qué reglas.",
-    en: "What happens when someone comments on your posts: who gets a private reply and under which rules.",
-  },
-  blockOutreachTitle: {
-    es: "Inicia conversaciones",
-    en: "Starts conversations",
-  },
-  blockOutreachHint: {
-    es: "Sal a buscar tú: describe un objetivo y el agente elige a quién escribirle primero y con qué.",
-    en: "Go find them: describe a goal and the agent picks who to message first, and with what.",
-  },
   limitsSection: { es: "Límites", en: "Limits" },
-  limitsHint: {
-    es: "Mandan sobre todo lo que sale solo, esté encendido lo que esté.",
-    en: "They govern everything automatic, whatever is switched on.",
-  },
   outreachEnabled: {
     es: "Iniciar conversaciones automáticamente",
     en: "Start conversations automatically",
@@ -82,16 +52,6 @@ export const igAgent = {
   },
   igConnected: { es: "Instagram conectado", en: "Instagram connected" },
   igNotConnected: { es: "Instagram sin conectar", en: "Instagram not connected" },
-  inWindowInline: { es: "{n} en ventana", en: "{n} in window" },
-  inWindowHint: {
-    es: "Dentro de la ventana de 24h de Meta ahora mismo: {n}. Solo estas personas pueden recibir un DM libre ya; el resto, cuando vuelvan a interactuar.",
-    en: "Inside Meta's 24h window right now: {n}. Only these can receive a free-form DM immediately; the rest, when they interact again.",
-  },
-  catalogConnected: { es: "catálogo conectado", en: "catalog connected" },
-  groundedInAudience: {
-    es: "Aterrizado en tu audiencia y catálogo reales.",
-    en: "Grounded in your real audience and catalog.",
-  },
   designing: { es: "Diseñando…", en: "Designing…" },
   generatePlan: { es: "Generar plan", en: "Generate plan" },
   regeneratePlan: { es: "Regenerar plan", en: "Regenerate plan" },
@@ -151,10 +111,6 @@ export const igAgent = {
   // DM preview
   instagramDm: { es: "DM de Instagram", en: "Instagram DM" },
   offerCodeLabel: { es: "Código", en: "Code" },
-  dmBaseNote: {
-    es: "Este es el DM base. Al enviarse, el agente lo reescribe para cada persona en tu voz de marca, respondiendo a su interacción y con su propio código de descuento. Vista previa con “{name}”.",
-    en: "This is the base DM. When sent, the agent rewrites it for each person in your brand voice, responding to their interaction and with their own discount code. Preview with “{name}”.",
-  },
   followUpIfNoReply: {
     es: "Seguimiento si no responden",
     en: "Follow-up if they don't reply",
@@ -163,59 +119,24 @@ export const igAgent = {
     es: "Respuesta a comentarios de alta intención",
     en: "Reply to high-intent comments",
   },
-  commentToDmNote: {
-    es: "Mueve la conversación del comentario público al DM privado.",
-    en: "Moves the conversation from the public comment to a private DM.",
-  },
 
-  // Offer / products / next steps
+  // Offer / products
   offer: { es: "Oferta", en: "Offer" },
   productsToFeature: { es: "Productos a destacar", en: "Products to feature" },
-  nextSteps: { es: "Próximos pasos", en: "Next steps" },
 
   // Actions row
-  controlHoldout: { es: "Control (holdout)", en: "Control (holdout)" },
-  holdoutLabel: { es: "Grupo de control", en: "Control group" },
   saveDraft: { es: "Guardar borrador", en: "Save draft" },
   saveAndLaunch: { es: "Guardar y lanzar", en: "Save and launch" },
   cancel: { es: "Cancelar", en: "Cancel" },
   confirmDelete: { es: "Eliminar", en: "Delete" },
-  automationSection: { es: "Automatización", en: "Automation" },
-  holdoutTitle: {
-    es: "% de la audiencia que NO recibe DM, para medir incrementalidad real",
-    en: "% of the audience that does NOT receive a DM, to measure real incrementality",
-  },
-  regenerate: { es: "Regenerar", en: "Regenerate" },
-  saveCampaign: { es: "Guardar campaña", en: "Save campaign" },
-  activateAgentOnInstagram: {
-    es: "Activar respuestas con el Asistente",
-    en: "Enable replies with the Assistant",
-  },
 
   // Saved campaigns list
   myCampaigns: { es: "Mis campañas", en: "My campaigns" },
   codePrefix: { es: "Código {code}", en: "Code {code}" },
   deleteCampaign: { es: "Eliminar campaña", en: "Delete campaign" },
-
-  approvalsHint: {
-    es: "DMs que el agente preparó y esperan tu visto bueno antes de enviarse.",
-    en: "DMs the agent drafted, waiting for your go-ahead before sending.",
-  },
-  approvalUnknownContact: {
-    es: "Contacto de Instagram",
-    en: "Instagram contact",
-  },
-  approvalExpired: {
-    es: "La ventana de Meta se cerró: este DM ya no puede enviarse.",
-    en: "Meta's window closed: this DM can no longer be sent.",
-  },
-  approvalWindowClosed: {
-    es: "No se envió: la ventana de Meta ya se cerró.",
-    en: "Not sent: Meta's window has already closed.",
-  },
-  approvalError: {
-    es: "No se pudo procesar la aprobación",
-    en: "Could not process the approval",
+  noCampaignsYet: {
+    es: "Aún no hay campañas. Describe un objetivo y el agente arma la primera.",
+    en: "No campaigns yet. Describe a goal and the agent will build the first one.",
   },
 
   // Proactive controls (kill-switch + daily cap)
@@ -239,55 +160,17 @@ export const igAgent = {
     es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
     en: "Only people showing buying intent. Casual comments and spam get nothing.",
   },
-  modeAutoDesc: {
-    es: "El agente envía solo, dentro de tus límites.",
-    en: "The agent sends on its own, within your limits.",
-  },
-  modeHybridDesc: {
-    es: "Envía solo a quien muestra intención clara; el resto espera tu visto bueno.",
-    en: "Sends only to clear high-intent leads; the rest waits for your go-ahead.",
-  },
-  modeApprovalDesc: {
-    es: "Cada DM espera tu aprobación.",
-    en: "Every DM waits for your approval.",
-  },
 
   // Order attribution ledger
   attributedOrdersTitle: {
-    es: "Pedidos atribuidos a Instagram",
-    en: "Orders attributed to Instagram",
+    es: "Pedidos atribuidos",
+    en: "Attributed orders",
   },
-  attributedOrdersHint: {
-    es: "Ventas que ocurrieron gracias al agente — campaña, DM, comentario→DM o anuncio.",
-    en: "Sales that happened thanks to the agent — campaign, DM, comment→DM or ad.",
-  },
-  attributedOrdersTotal: { es: "Total atribuido", en: "Attributed total" },
   orderLabelName: { es: "Pedido {name}", en: "Order {name}" },
   orderSourceCampaign: { es: "campaña", en: "campaign" },
   orderSourceAgent: { es: "agente", en: "agent" },
   orderSourceCommentToDm: { es: "comentario→DM", en: "comment→DM" },
   orderSourceCtwa: { es: "anuncio", en: "ad" },
-
-  // Empty state — how it works
-  howItWorks: { es: "¿Cómo funciona?", en: "How does it work?" },
-  howStep1Title: { es: "Describe un objetivo", en: "Describe a goal" },
-  howStep1Desc: {
-    es: "En lenguaje natural, como se lo dirías a un marketer.",
-    en: "In plain language, just like you'd tell a marketer.",
-  },
-  howStep2Title: {
-    es: "El agente arma la campaña",
-    en: "The agent builds the campaign",
-  },
-  howStep2Desc: {
-    es: "Detecta el engagement, redacta el DM 1:1 y propone la oferta.",
-    en: "It detects engagement, drafts the 1:1 DM and proposes the offer.",
-  },
-  howStep3Title: { es: "Revisa y lanza", en: "Review and launch" },
-  howStep3Desc: {
-    es: "Ajusta lo que quieras y conviértelo en una campaña real.",
-    en: "Tweak whatever you want and turn it into a real campaign.",
-  },
 
   // Status labels
   statusDraft: { es: "Borrador", en: "Draft" },
@@ -341,6 +224,7 @@ export const igAgent = {
   live: { es: "En vivo", en: "Live" },
   queuedInline: { es: "{n} en cola", en: "{n} queued" },
   queued: { es: "En cola", en: "Queued" },
+  breakdownPending: { es: "pendientes", en: "pending" },
   breakdownSkipped: { es: "omitidos", en: "skipped" },
   breakdownFailed: { es: "fallidos", en: "failed" },
   breakdownSkippedNote: {

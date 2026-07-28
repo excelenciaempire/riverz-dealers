@@ -1,13 +1,13 @@
 'use client';
 
-import { InstagramIcon } from '@/components/layout/instagram-icon';
 import {
+  AgentSettingsMenu,
   AttributedOrders,
   ConnectionPill,
+  IgStats,
   OutreachSection,
-  OutreachToggle,
-  ProactiveLimits,
-  useIgConnected,
+  PausedBanner,
+  useIgOverview,
   useProactiveSettings,
 } from '@/components/instagram/sections';
 import { useT } from '@/hooks/use-locale';
@@ -15,6 +15,11 @@ import { useT } from '@/hooks/use-locale';
 /**
  * Ventas por Instagram — SALIR A BUSCAR. Describes un objetivo y el agente
  * elige a quién escribirle primero, con qué, y mide lo que vendió.
+ *
+ * Tres objetos y nada más: lo que la funcionalidad logró, el cuadro del
+ * objetivo y las campañas. Los interruptores del piloto automático viven en el
+ * menú del encabezado —se tocan una vez y estorban el resto del tiempo— y el
+ * plan generado se abre en su propio panel, con la decisión siempre a la vista.
  *
  * Responder comentarios ya no está aquí: tiene su propia entrada en el menú,
  * dentro de Servicio al cliente, porque atender a quien te habla y salir a
@@ -24,27 +29,28 @@ import { useT } from '@/hooks/use-locale';
 export default function VentasInstagramPage() {
   const t = useT();
   const settings = useProactiveSettings();
-  const connected = useIgConnected();
+  const overview = useIgOverview();
+  const connected = overview.context
+    ? !!overview.context.instagram_connected
+    : undefined;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#5b51d8] via-[#c13584] to-[#f58529] text-white shadow-sm">
-            <InstagramIcon className="h-5 w-5" />
-          </span>
-          <h1 className="app-page-title">{t('igAgent.title')}</h1>
+        <h1 className="app-page-title">{t('igAgent.title')}</h1>
+        <div className="flex items-center gap-1.5">
+          <ConnectionPill connected={connected} />
+          <AgentSettingsMenu settings={settings} />
         </div>
-        <ConnectionPill connected={connected} />
       </header>
 
+      <PausedBanner settings={settings} />
 
-      <OutreachToggle settings={settings} />
+      <IgStats overview={overview} />
 
-      <OutreachSection />
+      <OutreachSection overview={overview} />
 
-      <ProactiveLimits settings={settings} />
-      <AttributedOrders />
+      <AttributedOrders overview={overview} />
     </div>
   );
 }
