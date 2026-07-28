@@ -260,7 +260,7 @@ async def _summarize(context: dict, transcript: list[dict]) -> str | None:
     base_url = llm_cfg.get("base_url")
     # Camino 1: LLM OpenAI-compatible (Groq, etc.) — el que ya usa la llamada.
     if base_url:
-        key = llm_cfg.get("api_key") or _OAI_PLACEHOLDER_KEY
+        key = _llm_key(llm_cfg) or _OAI_PLACEHOLDER_KEY
         model = llm_cfg.get("model") or "llama-3.3-70b-versatile"
         try:
             from openai import AsyncOpenAI
@@ -406,34 +406,40 @@ def _make_stt(cfg: dict):
         )
 
 
+def _llm_key(cfg: dict) -> str | None:
+    """Key del LLM: la de la config (cifrada en la DB) o, si no hay, la env var
+    del worker según el host del endpoint — así no hace falta guardar la key en
+    la base. Lo usan `_make_llm` Y `_summarize`: cuando sólo lo tenía el
+    primero, el resumen post-llamada mandaba el placeholder y moría con un 401
+    en cada llamada cuya key vivía en el entorno."""
+    key = cfg.get("api_key")
+    if key:
+        return key
+    bl = (cfg.get("base_url") or "").lower()
+    for needle, envs in (
+        ("cerebras", ("CEREBRAS_API_KEY",)),
+        ("groq", ("GROQ_API_KEY",)),
+        ("googleapis", ("GEMINI_API_KEY", "GOOGLE_API_KEY")),
+        ("deepinfra", ("DEEPINFRA_API_KEY",)),
+        ("together", ("TOGETHER_API_KEY",)),
+        ("fireworks", ("FIREWORKS_API_KEY",)),
+        ("deepseek", ("DEEPSEEK_API_KEY",)),
+        ("openai.com", ("OPENAI_API_KEY",)),
+    ):
+        if needle in bl:
+            for env in envs:
+                if os.getenv(env):
+                    return os.getenv(env)
+    return None
+
+
 def _make_llm(cfg: dict):
     """LLM: Anthropic (Claude, default). Un `base_url` usa el plugin
     OpenAI-COMPATIBLE como protocolo para un endpoint self-hosted (vLLM/Modal),
     no OpenAI la empresa."""
     base_url = cfg.get("base_url")
     if base_url:
-        # La key puede venir en la config (cifrada) o, si no, de una env var del
-        # worker según el host (así no hay que meter la key en la DB). Cerebras =
-        # Llama ultra-rápido (~2-3x Groq), API OpenAI-compatible.
-        key = cfg.get("api_key")
-        if not key:
-            bl = base_url.lower()
-            if "cerebras" in bl:
-                key = os.getenv("CEREBRAS_API_KEY")
-            elif "groq" in bl:
-                key = os.getenv("GROQ_API_KEY")
-            elif "googleapis" in bl:  # Gemini vía endpoint OpenAI-compatible
-                key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            elif "deepinfra" in bl:
-                key = os.getenv("DEEPINFRA_API_KEY")
-            elif "together" in bl:
-                key = os.getenv("TOGETHER_API_KEY")
-            elif "fireworks" in bl:
-                key = os.getenv("FIREWORKS_API_KEY")
-            elif "deepseek" in bl:
-                key = os.getenv("DEEPSEEK_API_KEY")
-            elif "openai.com" in bl:
-                key = os.getenv("OPENAI_API_KEY")
+        key = _llm_key(cfg)
         model_name = cfg.get("model") or "gpt-4o-mini"
         llm_kwargs = dict(
             base_url=base_url,
