@@ -229,9 +229,14 @@ async function upsertOrder(
     updated_at: new Date().toISOString(),
   };
 
-  await db
+  const { error } = await db
     .from("orders")
     .upsert(row, { onConflict: "workspace_id,shop_domain,shopify_order_id" });
+  // Se propaga a propósito. La primera versión ignoraba este error y contaba
+  // el pedido igual: el endpoint informaba 42 pedidos con 0 filas escritas
+  // (el índice único era parcial y ON CONFLICT lo rechazaba). Un contador que
+  // miente es peor que un fallo ruidoso.
+  if (error) throw new Error(`orders upsert: ${error.message}`);
 }
 
 async function fetchShipment(
@@ -300,7 +305,7 @@ async function syncClaims(
     for (const c of rows) {
       const claimId = String(c.id ?? "");
       if (!claimId) continue;
-      await db.from("ml_claims").upsert(
+      const { error: claimErr } = await db.from("ml_claims").upsert(
         {
           workspace_id: conn.workspace_id,
           connection_id: conn.id,
@@ -317,6 +322,7 @@ async function syncClaims(
         },
         { onConflict: "workspace_id,claim_id" },
       );
+      if (claimErr) continue;
       n++;
     }
     return n;
