@@ -151,13 +151,13 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
-  // Estadísticas propias de Comentarios (nunca mezcladas con campañas)
-  statCommentAiReplies: { es: "Respondidos por IA", en: "Answered by AI" },
-  statCommentRuleDms: { es: "DMs de reglas", en: "Rule DMs" },
-  statCommentPublicReplies: {
-    es: "Respuestas públicas",
-    en: "Public replies",
+  // Estadísticas propias de Comentarios: las dos cosas que pasaron, sin
+  // repartirlas por quién las hizo.
+  statCommentsAnswered: {
+    es: "Comentarios respondidos",
+    en: "Comments answered",
   },
+  statDmsSent: { es: "DMs enviados", en: "DMs sent" },
   statLastDays: { es: "Últimos {n} días", en: "Last {n} days" },
   researchedSub: { es: "{n} con perfil investigado", en: "{n} profiles researched" },
 
@@ -171,40 +171,33 @@ export const igAgent = {
     en: "Reply with AI",
   },
   // A quién contesta y cuánto insiste (migración 132)
-  audienceLabel: { es: "A quién le contesta", en: "Who it replies to" },
   audienceIntent: {
     es: "Solo a quien quiere comprar",
     en: "Only people who want to buy",
   },
-  audienceAll: { es: "A todo el que pregunte", en: "Anyone who asks" },
-  audienceSpamNote: {
-    es: "El spam se filtra y se oculta en los dos casos.",
-    en: "Spam is filtered and hidden either way.",
+  audienceIntentHint: {
+    es: "Apágalo y contesta a todo el que pregunte algo.",
+    en: "Turn it off and it replies to anyone who asks something.",
   },
   publicReplyLabel: {
     es: "Responder también en el comentario",
     en: "Also reply on the comment",
   },
   publicReplyHint: {
-    es: "Una línea corta en público avisando de que escribiste por privado; el mensaje con precios y códigos va solo en el DM. Requiere los permisos de comentarios de Meta.",
-    en: "A short public line saying you wrote privately; the message with prices and codes stays in the DM. Requires Meta's comment permissions.",
+    es: "Una línea corta en el post; el precio y el código van en el DM.",
+    en: "A short line on the post; price and code go in the DM.",
   },
   facebookLabel: {
     es: "Contestar también Facebook",
     en: "Also reply on Facebook",
   },
   facebookHint: {
-    es: "Los comentarios de tus posts de Facebook, respondidos por Messenger.",
-    en: "Comments on your Facebook posts, answered through Messenger.",
-  },
-  threadCapLabel: { es: "Respuestas por hilo", en: "Replies per thread" },
-  threadCapHint: {
-    es: "Después deja la conversación a una persona. 0 = sin tope.",
-    en: "After that it hands the conversation to a person. 0 = no cap.",
+    es: "Igual que Instagram, pero por Messenger.",
+    en: "Same as Instagram, but through Messenger.",
   },
   autoReplyCommentsHint: {
-    es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
-    en: "Only people showing buying intent. Casual comments and spam get nothing.",
+    es: "Contesta por privado a quien comenta en tus posts.",
+    en: "Replies privately to whoever comments on your posts.",
   },
 
   // Order attribution ledger

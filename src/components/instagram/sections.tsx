@@ -1465,11 +1465,10 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
 /* ─────────────────── estadísticas propias de Comentarios ─────────────────── */
 
 interface CommentStats {
-  rule_dms: number;
+  /** Respuestas publicadas EN el comentario (IA + reglas). */
   public_replies: number;
-  ai_replies: number;
-  revenue: number;
-  currency: string;
+  /** DMs privados enviados (IA + reglas). */
+  dms_sent: number;
   days: number;
 }
 
@@ -1503,18 +1502,14 @@ function CommentStatsStrip({ stats }: { stats: CommentStats | null }) {
       {/* Sin "ingresos atribuidos": una venta que empieza en un comentario se
           cierra en la conversación, y adjudicársela a esta pantalla era
           apuntarse trabajo del agente. El dinero se mide donde se cierra. */}
-      <StatGrid className="grid-cols-3 shadow-sm">
+      <StatGrid className="grid-cols-2 shadow-sm">
         <StatCell
-          label={t('igAgent.statCommentAiReplies')}
-          value={fmt.number(stats.ai_replies)}
-        />
-        <StatCell
-          label={t('igAgent.statCommentRuleDms')}
-          value={fmt.number(stats.rule_dms)}
-        />
-        <StatCell
-          label={t('igAgent.statCommentPublicReplies')}
+          label={t('igAgent.statCommentsAnswered')}
           value={fmt.number(stats.public_replies)}
+        />
+        <StatCell
+          label={t('igAgent.statDmsSent')}
+          value={fmt.number(stats.dms_sent)}
         />
       </StatGrid>
       <p className="mt-2 text-[11px] text-muted-foreground">
@@ -1544,34 +1539,21 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
   if (!settings.autoReply) return null;
   return (
     <div className="mt-5 space-y-4 border-l-2 border-border pl-4">
-      <div>
-        <p className="text-[13px] font-medium text-foreground">
-          {t('igAgent.audienceLabel')}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(['intent', 'all'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => {
-                settings.setAudience(v);
-                settings.save({ comment_audience: v });
-              }}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-[13px] transition-colors',
-                settings.audience === v
-                  ? 'border-accent-ink/40 bg-accent/60 font-medium text-accent-ink'
-                  : 'border-border text-muted-foreground hover:bg-accent/30',
-              )}
-            >
-              {t(v === 'intent' ? 'igAgent.audienceIntent' : 'igAgent.audienceAll')}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-          {t('igAgent.audienceSpamNote')}
-        </p>
-      </div>
+      {/* Tres decisiones, tres filas idénticas. Antes eran pastillas, dos
+          interruptores y un campo numérico: cuatro lenguajes visuales para
+          cuatro preguntas, y la primera repetía lo que ya decía el subtítulo
+          de arriba. El tope por hilo salió de aquí — nadie elige un número de
+          veces que un bot puede insistir; se queda en 3 por dentro. */}
+      <OptionRow
+        title={t('igAgent.audienceIntent')}
+        hint={t('igAgent.audienceIntentHint')}
+        checked={settings.audience === 'intent'}
+        onChange={(v) => {
+          const next = v ? 'intent' : 'all';
+          settings.setAudience(next);
+          settings.save({ comment_audience: next });
+        }}
+      />
 
       <OptionRow
         title={t('igAgent.publicReplyLabel')}
@@ -1592,30 +1574,6 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
           settings.save({ comment_facebook: v });
         }}
       />
-
-      <label className="flex items-center justify-between gap-4">
-        <span>
-          <span className="block text-[13px] font-medium text-foreground">
-            {t('igAgent.threadCapLabel')}
-          </span>
-          <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-            {t('igAgent.threadCapHint')}
-          </span>
-        </span>
-        <input
-          type="number"
-          min={0}
-          max={10}
-          value={settings.maxThreadReplies}
-          onChange={(e) => settings.setMaxThreadReplies(Number(e.target.value))}
-          onBlur={() =>
-            settings.save({
-              comment_max_thread_replies: settings.maxThreadReplies,
-            })
-          }
-          className="w-16 shrink-0 rounded-md border border-border bg-background px-2 py-1 text-right text-[13px] tabular-nums text-foreground"
-        />
-      </label>
     </div>
   );
 }

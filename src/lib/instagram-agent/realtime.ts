@@ -812,6 +812,14 @@ async function autonomousCommentReply(
           text: publicReplyFrom(text),
           replyToExternalId: opts.commentId,
         } satisfies OutboundText);
+        // Se registra aparte del DM: son dos acciones distintas y la pantalla
+        // las cuenta por separado (lo que se ve en el post vs lo que llega al
+        // privado).
+        await logProactiveSend(db, {
+          workspaceId: opts.workspaceId,
+          contactId: opts.contact.id,
+          kind: 'comment_public',
+        });
       } catch (pubErr) {
         console.error(
           '[ig-agent] respuesta pública falló (¿permisos de Meta?):',

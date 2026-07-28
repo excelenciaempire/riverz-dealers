@@ -60,11 +60,35 @@ describe('probeWooStore', () => {
     stubFetch({
       '/wp-json/': { status: 404, body: '404 Not Found' },
       '?rest_route=/': { status: 200, body: '<!DOCTYPE html><html>…</html>' },
+      'https://sitioamedida.com/': {
+        status: 200,
+        body: '<!DOCTYPE html><html><body>landing a medida</body></html>',
+      },
     })
     expect(await probeWooStore('sitioamedida.com')).toEqual({
       ok: false,
       reason: 'not_wordpress',
     })
+  })
+
+  it('deja pasar un sitio que protege la raíz del REST', async () => {
+    // Hay tiendas legítimas detrás de autenticación básica o de un
+    // cortafuegos. Bloquearlas sería peor que el 404: el 404 se sortea,
+    // un "tu sitio no sirve" nuestro no.
+    stubFetch({ '/wp-json/': { status: 401, body: 'Unauthorized' } })
+    expect(await probeWooStore('tiendaprotegida.com')).toEqual({ ok: true })
+  })
+
+  it('deja pasar si la portada delata WordPress aunque el REST dé 404', async () => {
+    stubFetch({
+      '/wp-json/': { status: 404, body: 'Not Found' },
+      '?rest_route=/': { status: 404, body: 'Not Found' },
+      'https://raro.com/': {
+        status: 200,
+        body: '<html><link href="/wp-content/themes/x/style.css"></html>',
+      },
+    })
+    expect(await probeWooStore('raro.com')).toEqual({ ok: true })
   })
 
   it('marca como inalcanzable lo que no contesta', async () => {

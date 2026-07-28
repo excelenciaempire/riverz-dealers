@@ -34,13 +34,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({
-      rule_dms: 0,
-      public_replies: 0,
-      ai_replies: 0,
-      revenue: 0,
-      currency: 'USD',
-    });
+    return NextResponse.json({ dms_sent: 0, public_replies: 0 });
   }
 
   const params = new URL(request.url).searchParams;
@@ -53,12 +47,25 @@ export async function GET(request: Request) {
     return workspaceId ? query.eq('workspace_id', workspaceId) : q;
   };
 
-  const [ruleDms, publicReplies, aiReplies, orders] = await Promise.all([
+  // Dos cifras, las dos cosas que de verdad pasaron. Ya NO se reparten por
+  // quién las hizo (IA o regla): eso es un detalle de cómo funciona por dentro
+  // y al comercio le da igual quién escribió — le importa cuánto salió.
+  //
+  // Los DMs se cuentan SOLO en ig_proactive_log: las reglas también escriben en
+  // comment_to_dm_log y sumar las dos tablas los contaría dos veces.
+  const [dmsSent, aiPublic, rulePublic] = await Promise.all([
     scoped(
       supabase
-        .from('comment_to_dm_log')
+        .from('ig_proactive_log')
         .select('id', { count: 'exact', head: true })
-        .eq('dm_status', 'sent')
+        .in('kind', ['comment', 'comment_rule'])
+        .gte('created_at', since),
+    ),
+    scoped(
+      supabase
+        .from('ig_proactive_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('kind', 'comment_public')
         .gte('created_at', since),
     ),
     scoped(
@@ -68,33 +75,11 @@ export async function GET(request: Request) {
         .eq('public_reply_status', 'sent')
         .gte('created_at', since),
     ),
-    scoped(
-      supabase
-        .from('ig_proactive_log')
-        .select('id', { count: 'exact', head: true })
-        .eq('kind', 'comment')
-        .gte('created_at', since),
-    ),
-    scoped(
-      supabase
-        .from('ig_order_attributions')
-        .select('revenue, currency')
-        .eq('source', 'comment_to_dm')
-        .gte('created_at', since),
-    ),
   ]);
 
-  const orderRows = (orders.data ?? []) as Array<{
-    revenue: number | null;
-    currency: string | null;
-  }>;
-
   return NextResponse.json({
-    rule_dms: ruleDms.count ?? 0,
-    public_replies: publicReplies.count ?? 0,
-    ai_replies: aiReplies.count ?? 0,
-    revenue: orderRows.reduce((s, o) => s + (Number(o.revenue) || 0), 0),
-    currency: orderRows.find((o) => o.currency)?.currency ?? 'USD',
+    dms_sent: dmsSent.count ?? 0,
+    public_replies: (aiPublic.count ?? 0) + (rulePublic.count ?? 0),
     days,
   });
 }

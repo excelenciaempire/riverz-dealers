@@ -74,6 +74,12 @@ export type WooProbe =
  * salió mal. Pasó con un dominio que no tenía WordPress: la persona hizo
  * todo bien y vio una página en blanco.
  *
+ * REGLA: solo se rechaza con evidencia POSITIVA del problema. Ante la
+ * duda se deja pasar. Muchas tiendas legítimas protegen o esconden la
+ * raíz del REST —responden 401, 403 o directamente nada— y bloquearlas
+ * sería peor que el 404: el 404 se puede sortear, un "tu sitio no sirve"
+ * de nuestra parte no.
+ *
  * `/wc-auth/` y `/wp-json/` las sirve el sistema de rutas de WordPress,
  * así que con enlaces permanentes en "Simple" ambas dan 404 aunque todo
  * esté instalado. Ese caso se distingue por `?rest_route=/`, que funciona
@@ -111,6 +117,8 @@ export async function probeWooStore(siteUrl: string): Promise<WooProbe> {
   try {
     root = await get(`https://${siteUrl}/wp-json/`)
   } catch {
+    // Ni siquiera resuelve o no contesta a tiempo. Es lo único que
+    // podemos afirmar sin margen de error.
     return { ok: false, reason: 'unreachable' }
   }
 
@@ -121,15 +129,32 @@ export async function probeWooStore(siteUrl: string): Promise<WooProbe> {
       : { ok: false, reason: 'no_woocommerce' }
   }
 
-  // Sin rutas amigables `/wp-json/` no existe, pero la API sigue viva por
-  // query string. Si responde, hay WordPress y el problema es de enlaces
-  // permanentes; si no, no hay WordPress.
+  // Cualquier respuesta que NO sea 404 (401, 403, 429, 5xx…) indica que
+  // hay algo montado que decide no contestarnos. Un WordPress detrás de
+  // autenticación básica o de un cortafuegos entra acá, y bloquearlo
+  // sería un falso positivo caro. Se deja pasar.
+  if (root.status !== 404) return { ok: true }
+
+  // 404 en la raíz del REST: o no hay WordPress, o los enlaces
+  // permanentes están en "Simple". La API por query string funciona sin
+  // rutas amigables, así que distingue los dos casos.
   try {
     const alt = await get(`https://${siteUrl}/?rest_route=/`)
-    const altNs = alt.status === 200 ? namespacesOf(alt.body) : null
-    if (altNs) return { ok: false, reason: 'plain_permalinks' }
+    if (alt.status === 200 && namespacesOf(alt.body)) {
+      return { ok: false, reason: 'plain_permalinks' }
+    }
   } catch {
-    /* da igual: abajo se resuelve como sitio sin WordPress */
+    /* sigue el último chequeo */
+  }
+
+  // Último recurso antes de afirmar que no hay WordPress: mirar la
+  // portada. `wp-content` y `wp-includes` aparecen en el HTML de
+  // prácticamente cualquier WordPress, aunque tenga el REST cerrado.
+  try {
+    const home = await get(`https://${siteUrl}/`)
+    if (/wp-content|wp-includes/i.test(home.body)) return { ok: true }
+  } catch {
+    /* sin portada legible, nos quedamos con el diagnóstico de abajo */
   }
 
   return { ok: false, reason: 'not_wordpress' }

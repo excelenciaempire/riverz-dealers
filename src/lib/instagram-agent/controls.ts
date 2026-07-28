@@ -115,10 +115,14 @@ async function gateFromSettings(
   const cap = s?.daily_cap ?? DEFAULT_DAILY_CAP;
   if (cap <= 0) return { ok: true }; // 0 = unlimited
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // El tope protege la reputación de ENVÍO de la cuenta, así que cuenta DMs.
+  // Una respuesta pública en un comentario no es un DM: si contara, publicar
+  // en público consumiría el presupuesto de los privados.
   const { count } = await db
     .from('ig_proactive_log')
     .select('id', { count: 'exact', head: true })
     .eq('workspace_id', workspaceId)
+    .neq('kind', 'comment_public')
     .gte('created_at', since);
   if ((count ?? 0) >= cap) return { ok: false, reason: 'daily_cap' };
   return { ok: true };
@@ -130,8 +134,11 @@ async function gateFromSettings(
  * `kind` dice QUIÉN mandó el DM, y de ahí salen las cifras de cada pantalla:
  *
  *   outreach | batch | closer | approval — Prospección IA (campañas).
- *   comment                              — Comentarios: la IA contestando.
- *   comment_rule                         — Comentarios: una regla del comercio.
+ *   comment                              — Comentarios: DM de la IA.
+ *   comment_rule                         — Comentarios: DM de una regla.
+ *   comment_public                       — Comentarios: respuesta PÚBLICA en el
+ *                                          propio comentario (no es un DM y no
+ *                                          cuenta para el tope).
  *
  * Las reglas llevan además su propio libro (`comment_to_dm_log`, con el estado
  * de la respuesta pública); aquí entran solo para que cuenten en el tope
@@ -152,7 +159,8 @@ export async function logProactiveSend(
       | 'closer'
       | 'approval'
       | 'comment'
-      | 'comment_rule';
+      | 'comment_rule'
+      | 'comment_public';
     text?: string | null;
   },
 ): Promise<void> {
