@@ -3,6 +3,7 @@ import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
+import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -84,6 +85,18 @@ export async function processCommentForDmRules(
       commentMatches(r, ev.text),
   );
   if (!rule) return false;
+
+  // El freno de emergencia y el tope diario del workspace mandan también aquí.
+  // No lo hacían: "Pausar todo" frenaba a la IA y a las campañas, pero las
+  // reglas seguían mandando DMs — o sea, el interruptor prometía parar algo que
+  // no paraba. Se comprueba DESPUÉS de encontrar la regla para no gastar una
+  // consulta en cada comentario que no dispara nada.
+  const gate = await proactiveGate(db, ev.workspaceId);
+  if (!gate.ok) {
+    // `false` = "no lo atendí": el router lo pasa al agente, que está frenado
+    // por la misma puerta. Nadie escribe, que es justo lo que se pidió.
+    return false;
+  }
 
   // Idempotency claim: insert the log row BEFORE sending. A duplicate webhook
   // delivery for the same comment collides on UNIQUE (rule_id, comment) and we
@@ -175,6 +188,16 @@ export async function processCommentForDmRules(
       } satisfies OutboundText);
       dmStatus = 'sent';
       dmExternalId = res.externalMessageId ?? null;
+      // Cuenta para el tope diario: es un DM proactivo más saliendo de esta
+      // cuenta, y el límite protege la reputación del número, no una
+      // funcionalidad concreta. `kind` lo mantiene separado en las
+      // estadísticas.
+      await logProactiveSend(db, {
+        workspaceId: ev.workspaceId,
+        contactId: ev.contact.id,
+        kind: 'comment_rule',
+        text: dmText,
+      });
     } catch (err) {
       dmStatus = 'failed';
       errMsg =

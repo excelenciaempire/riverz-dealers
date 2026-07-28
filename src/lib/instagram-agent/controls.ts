@@ -82,14 +82,15 @@ async function gateFromSettings(
  * `kind` dice QUIÉN mandó el DM, y de ahí salen las cifras de cada pantalla:
  *
  *   outreach | batch | closer | approval — Prospección IA (campañas).
- *   comment                              — Comentarios: la IA contestando un
- *                                          comentario sin campaña de por medio.
+ *   comment                              — Comentarios: la IA contestando.
+ *   comment_rule                         — Comentarios: una regla del comercio.
  *
- * Los DMs de una regla no pasan por aquí: llevan su propio libro
- * (`comment_to_dm_log`), que además guarda si la respuesta pública salió.
+ * Las reglas llevan además su propio libro (`comment_to_dm_log`, con el estado
+ * de la respuesta pública); aquí entran solo para que cuenten en el tope
+ * diario, porque el límite protege la reputación de la cuenta y le da igual
+ * qué funcionalidad mandó el DM.
  *
- * El tope diario cuenta todos los kinds —es un límite de reputación de la
- * cuenta, no de una funcionalidad—, pero las estadísticas nunca los mezclan.
+ * Las estadísticas nunca mezclan los kinds.
  */
 export async function logProactiveSend(
   db: SupabaseClient,
@@ -97,7 +98,13 @@ export async function logProactiveSend(
     workspaceId: string;
     campaignId?: string | null;
     contactId?: string | null;
-    kind: 'outreach' | 'batch' | 'closer' | 'approval' | 'comment';
+    kind:
+      | 'outreach'
+      | 'batch'
+      | 'closer'
+      | 'approval'
+      | 'comment'
+      | 'comment_rule';
     text?: string | null;
   },
 ): Promise<void> {

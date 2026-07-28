@@ -172,6 +172,20 @@ export const igAgent = {
     es: "Responder con IA",
     en: "Reply with AI",
   },
+  // Por qué el interruptor está encendido y aun así no contesta nadie: quién
+  // contesta se configura en Asistente IA, y desde aquí no se veía.
+  replyNoAgent: {
+    es: "No hay ningún asistente creado. Créalo para que conteste.",
+    en: "No assistant exists yet. Create one so it can reply.",
+  },
+  replyAgentPaused: {
+    es: "El asistente está pausado, así que no contesta nadie.",
+    en: "The assistant is paused, so nobody replies.",
+  },
+  replyNotCovering: {
+    es: "El asistente no cubre los comentarios. Añádelos a su alcance.",
+    en: "The assistant doesn't cover comments. Add them to its reach.",
+  },
   autoReplyCommentsHint: {
     es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
     en: "Only people showing buying intent. Casual comments and spam get nothing.",

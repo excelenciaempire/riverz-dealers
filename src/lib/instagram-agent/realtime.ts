@@ -669,31 +669,34 @@ async function autonomousCommentReply(
     leadScore: score,
   });
 
-  // SUPER AGENTE (migración 131). Encendido, el primer mensaje lo escribe el
-  // MISMO agente completo que atiende los DMs, con sus herramientas: puede
-  // consultar el pedido, cotizar con el catálogo real, armar un checkout.
-  // Apagado, no se ejecuta nada de esto.
+  // Contesta el MISMO agente completo que atiende los DMs, con sus
+  // herramientas: puede consultar el pedido, cotizar con el catálogo real y
+  // armar un checkout desde la primera respuesta.
+  //
+  // Sin interruptor propio a propósito: "Responder con IA" de Comentarios ya
+  // dice que contesta la IA, y tener que encender un segundo botón para que
+  // esa IA pudiera hacer algo era pedirle al comercio que entendiera una
+  // distinción que solo existía por dentro.
   //
   // Va aquí, DESPUÉS de todas las guardas —limitador de ráfaga, spam/intención,
   // igAgentCanAutoReply, proactiveGate, candado por comentario, anti-bucle de
   // 3— y solo COMPONE: el envío de abajo no cambia.
-  let text: string | null = null;
-  if (agent.is_super && agent.id) {
-    text = await composeSuperAgentReply(db, {
-      workspaceId: opts.workspaceId,
-      agentId: agent.id,
-      commentContactId: opts.contact.id,
-      commentText: engagement,
-      extraBrief:
-        [customer?.brief, orderStatus, thread?.brief, product?.brief]
-          .filter(Boolean)
-          .join('\n\n') || null,
-    }).catch(() => null);
-  }
+  let text: string | null = agent.id
+    ? await composeSuperAgentReply(db, {
+        workspaceId: opts.workspaceId,
+        agentId: agent.id,
+        commentContactId: opts.contact.id,
+        commentText: engagement,
+        extraBrief:
+          [customer?.brief, orderStatus, thread?.brief, product?.brief]
+            .filter(Boolean)
+            .join('\n\n') || null,
+      }).catch(() => null)
+    : null;
 
-  // Respaldo: sin Super Agente, o si falló por lo que sea (sin clave, sin
-  // saldo, texto vacío), contesta el redactor de siempre. Un comentario no se
-  // queda sin respuesta por culpa de esto.
+  // Respaldo: si el agente completo falla por lo que sea (sin clave, sin saldo,
+  // texto vacío), contesta el redactor de una pasada. Un comentario no se queda
+  // sin respuesta por culpa de esto.
   if (!text?.trim()) {
     text = await craftPersonalizedDM({
       apiKey,

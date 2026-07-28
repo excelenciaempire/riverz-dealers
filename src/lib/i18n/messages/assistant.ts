@@ -339,18 +339,6 @@ export const assistant = {
   },
 
   // Advanced: sales close
-  // Advanced: Super Agente (migración 131)
-  superAgentTitle: { es: "Super Agente", en: "Super Agent" },
-  superAgentHint: {
-    es: "Este agente contesta también el primer mensaje a quien comenta, con todo su catálogo y sus herramientas. Solo uno por cuenta.",
-    en: "This agent also writes the first reply to anyone who comments, with its full catalog and tools. Only one per account.",
-  },
-  superAgentOn: {
-    es: "Puede consultar pedidos, cotizar con precios reales y armar el checkout desde la primera respuesta.",
-    en: "It can look up orders, quote real prices and build the checkout from the very first reply.",
-  },
-  superAgentBadge: { es: "Super", en: "Super" },
-
   salesCloseTitle: { es: "Cierre de ventas", en: "Sales closing" },
   salesCloseHint: {
     es: "Si está activo, el asistente arma el pedido con el cliente, confirma los datos y lo crea en Shopify. Si no, deja el cierre a una persona del equipo.",

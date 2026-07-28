@@ -89,13 +89,6 @@ export interface AiAgent {
    *  Requiere el scope write_orders (reconectar Shopify). */
   puede_crear_pedidos: boolean;
 
-  /** SUPER AGENTE. Si está ON, este agente escribe también el PRIMER mensaje
-   *  de una respuesta a un comentario —con todas sus herramientas— en vez del
-   *  redactor de una sola pasada que no puede consultar ni crear nada.
-   *  OFF (default): comportamiento idéntico al de siempre. Uno por workspace,
-   *  validado en la API. Migración 131. */
-  is_super: boolean;
-
   provider: AiProvider;
   model: string;
   /** Encrypted; never returned to the client. */

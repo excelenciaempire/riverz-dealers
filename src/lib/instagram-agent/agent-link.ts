@@ -19,15 +19,6 @@ export interface IgAgentConfig {
   /** 'workspace' | 'channels' — junto con `channels` define el alcance. */
   scope: string;
   channels: string[];
-  /**
-   * SUPER AGENTE (migración 131). Encendido, este agente escribe también el
-   * PRIMER mensaje de una respuesta a un comentario, con todas sus
-   * herramientas, en vez del redactor sin herramientas de siempre.
-   *
-   * Viaja en la misma fila que ya cargamos, así que apagado no cuesta ninguna
-   * consulta extra.
-   */
-  is_super: boolean;
   business_hours: BusinessHours | null;
   reply_outside_hours: boolean;
   escalate_keywords: string[];
@@ -56,7 +47,6 @@ const NO_AGENT: IgAgentConfig = {
   is_active: false,
   scope: 'workspace',
   channels: [],
-  is_super: false,
   business_hours: null,
   reply_outside_hours: true,
   escalate_keywords: [],
@@ -64,7 +54,7 @@ const NO_AGENT: IgAgentConfig = {
 
 /** Columnas mínimas para poder aplicar el MISMO contrato que el runner. */
 const AGENT_BASE =
-  'id, is_active, scope, is_super, business_hours, reply_outside_hours, escalate_keywords, priority, created_at';
+  'id, is_active, scope, business_hours, reply_outside_hours, escalate_keywords, priority, created_at';
 const AGENT_FIELDS = `${AGENT_BASE}, ai_agent_channels(channel)`;
 /** Variante con inner join: obligatoria para poder filtrar por canal. */
 const AGENT_FIELDS_IG = `${AGENT_BASE}, ai_agent_channels!inner(channel)`;
@@ -73,7 +63,6 @@ interface AgentRow {
   id: string;
   is_active?: boolean | null;
   scope?: string | null;
-  is_super?: boolean | null;
   business_hours?: BusinessHours | null;
   reply_outside_hours?: boolean | null;
   escalate_keywords?: string[] | null;
@@ -86,7 +75,6 @@ function normalize(row: AgentRow): IgAgentConfig {
     is_active: Boolean(row.is_active),
     scope: row.scope ?? 'workspace',
     channels: (row.ai_agent_channels ?? []).map((c) => c.channel),
-    is_super: Boolean(row.is_super),
     business_hours: row.business_hours ?? null,
     reply_outside_hours: row.reply_outside_hours ?? true,
     escalate_keywords: row.escalate_keywords ?? [],
