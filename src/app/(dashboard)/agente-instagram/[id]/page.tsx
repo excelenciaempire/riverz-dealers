@@ -99,11 +99,11 @@ export default function CampaignDetailPage() {
     body?: unknown,
     okMsg?: string,
   ) {
-    if (!id) return;
+    if (!campaign?.id) return;
     setBusy(true);
     try {
       const res = await fetchWithCsrf(
-        `/api/ai/instagram-agent/campaigns/${id}${path}`,
+        `/api/ai/instagram-agent/campaigns/${campaign.id}${path}`,
         {
           method,
           headers: body ? { 'Content-Type': 'application/json' } : undefined,

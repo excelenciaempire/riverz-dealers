@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { resolveShortId } from '@/lib/short-id';
 import { csrfGuard } from '@/lib/csrf';
 import { coercePlan, type CampaignStatus } from '@/lib/instagram-agent/types';
 import { getLocale } from '@/lib/i18n/server';
@@ -19,9 +20,10 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
   const locale = await getLocale();
   const supabase = await createClient();
+  const id = await resolveShortId(supabase, 'instagram_campaigns', rawId);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -105,10 +107,11 @@ export async function PATCH(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
   const locale = await getLocale();
 
   const supabase = await createClient();
+  const id = await resolveShortId(supabase, 'instagram_campaigns', rawId);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -174,10 +177,11 @@ export async function DELETE(
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
-  const { id } = await context.params;
+  const { id: rawId } = await context.params;
   const locale = await getLocale();
 
   const supabase = await createClient();
+  const id = await resolveShortId(supabase, 'instagram_campaigns', rawId);
   const {
     data: { user },
   } = await supabase.auth.getUser();

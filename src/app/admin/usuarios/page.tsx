@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toShortId } from '@/lib/short-id';
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
@@ -50,7 +51,7 @@ export default function AdminUsersPage() {
               {r.workspaces.map((w) => (
                 <Link
                   key={w.id}
-                  href={`/admin/comercios/${w.id}`}
+                  href={`/admin/comercios/${toShortId(w.id)}`}
                   className="rounded border border-border px-1.5 py-0.5 text-xs text-foreground transition-colors hover:border-primary/40"
                 >
                   {w.name}

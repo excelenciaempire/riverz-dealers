@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toShortId } from '@/lib/short-id';
 import Link from "@/components/i18n/locale-link";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
@@ -65,7 +66,7 @@ export default function AdminLogsPage() {
         cell: (e) =>
           e.workspaceId ? (
             <Link
-              href={`/admin/comercios/${e.workspaceId}`}
+              href={`/admin/comercios/${toShortId(e.workspaceId)}`}
               className="text-foreground underline-offset-2 hover:underline"
             >
               {e.workspaceName ?? e.workspaceId.slice(0, 8)}

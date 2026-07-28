@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toShortId } from '@/lib/short-id';
 import { useRouter } from "next/navigation";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
@@ -155,7 +156,7 @@ export default function AdminUsagePage() {
             columns={columns}
             rows={data?.rows ?? []}
             rowKey={(r) => r.workspace_id}
-            onRowClick={(r) => router.push(`/admin/comercios/${r.workspace_id}`)}
+            onRowClick={(r) => router.push(`/admin/comercios/${toShortId(r.workspace_id)}`)}
           />
         )}
       </Panel>

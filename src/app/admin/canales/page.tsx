@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toShortId } from '@/lib/short-id';
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
@@ -70,7 +71,7 @@ export default function AdminChannelsPage() {
         header: t("admin.workspace"),
         cell: (r) => (
           <Link
-            href={`/admin/comercios/${r.workspace_id}`}
+            href={`/admin/comercios/${toShortId(r.workspace_id)}`}
             className="text-foreground underline-offset-2 hover:underline"
           >
             {r.workspace_name ?? r.workspace_id.slice(0, 8)}

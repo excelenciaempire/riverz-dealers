@@ -43,6 +43,7 @@ import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
+import { toShortId } from '@/lib/short-id';
 import type {
   InstagramPlan,
   CampaignStatus,
@@ -252,15 +253,23 @@ export function ConnectionPill({ connected }: { connected?: boolean }) {
  */
 export function AgentSettingsMenu({
   settings,
+  showOutreach = true,
 }: {
   settings: ProactiveSettings;
+  /** En Comentarios el menú es solo los límites: salir a buscar no se decide
+   *  desde aquí, y ofrecerlo en las dos páginas era prometer que la misma
+   *  palanca hace dos cosas distintas. */
+  showOutreach?: boolean;
 }) {
   const t = useT();
+  const label = showOutreach
+    ? t('igAgent.settingsMenu')
+    : t('igAgent.limitsMenu');
   return (
     <Popover>
       <PopoverTrigger
-        aria-label={t('igAgent.settingsMenu')}
-        title={t('igAgent.settingsMenu')}
+        aria-label={label}
+        title={label}
         className={buttonVariants({
           variant: 'ghost',
           size: 'icon-sm',
@@ -279,23 +288,25 @@ export function AgentSettingsMenu({
             settings.loaded ? '' : 'pointer-events-none opacity-50',
           )}
         >
-          <label className="flex items-start gap-3 p-3">
-            <Switch
-              checked={settings.outreach}
-              onCheckedChange={(v) => {
-                settings.setOutreach(v);
-                settings.save({ outreach_enabled: v });
-              }}
-            />
-            <span>
-              <span className="block text-[13px] font-medium text-foreground">
-                {t('igAgent.outreachEnabled')}
+          {showOutreach && (
+            <label className="flex items-start gap-3 p-3">
+              <Switch
+                checked={settings.outreach}
+                onCheckedChange={(v) => {
+                  settings.setOutreach(v);
+                  settings.save({ outreach_enabled: v });
+                }}
+              />
+              <span>
+                <span className="block text-[13px] font-medium text-foreground">
+                  {t('igAgent.outreachEnabled')}
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  {t('igAgent.outreachEnabledHint')}
+                </span>
               </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                {t('igAgent.outreachEnabledHint')}
-              </span>
-            </span>
-          </label>
+            </label>
+          )}
 
           <label
             className="flex items-center justify-between gap-3 p-3"
@@ -585,11 +596,11 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
       if (!res.ok) {
         toast.error(json.error ?? t('igAgent.errorActionFailed'));
         reload();
-        router.push(`/agente-instagram/${id}`);
+        router.push(`/agente-instagram/${toShortId(id)}`);
         return;
       }
       toast.success(t('igAgent.toastCampaignLaunched'));
-      router.push(`/agente-instagram/${id}`);
+      router.push(`/agente-instagram/${toShortId(id)}`);
     } catch {
       toast.error(t('igAgent.errorNetwork'));
     } finally {
@@ -1109,7 +1120,7 @@ function CampaignsSection({
 
               <div className="flex items-start justify-between gap-3">
                 <Link
-                  href={`/agente-instagram/${c.id}`}
+                  href={`/agente-instagram/${toShortId(c.id)}`}
                   className="min-w-0 flex-1"
                 >
                   <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-accent-ink">
@@ -1374,111 +1385,53 @@ export function useProactiveSettings(): ProactiveSettings {
   };
 }
 
-/** Bloque 2 — el interruptor del piso autónomo. */
+/**
+ * El piso autónomo: lo que pasa con un comentario cuando ninguna regla lo
+ * atiende. Es la conducta por defecto de la página, así que va primero y sin
+ * caja: una caja lo habría dejado al mismo nivel que una regla cualquiera.
+ */
 export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   return (
     <label
       className={cn(
-        'flex max-w-3xl items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-opacity',
+        'flex items-start justify-between gap-6 transition-opacity',
         settings.loaded ? '' : 'pointer-events-none opacity-50',
       )}
     >
+      <span>
+        <span className="block text-[15px] font-medium text-foreground">
+          {t('igAgent.autoReplyComments')}
+        </span>
+        <span className="mt-1 block max-w-md text-[13px] leading-relaxed text-muted-foreground">
+          {t('igAgent.autoReplyCommentsHint')}
+        </span>
+      </span>
       <Switch
+        className="mt-1 shrink-0"
         checked={settings.autoReply}
         onCheckedChange={(v) => {
           settings.setAutoReply(v);
           settings.save({ auto_reply_comments: v });
         }}
       />
-      <span>
-        <span className="block text-[13px] font-medium text-foreground">
-          {t('igAgent.autoReplyComments')}
-        </span>
-        <span className="block text-[11px] leading-snug text-muted-foreground">
-          {t('igAgent.autoReplyCommentsHint')}
-        </span>
-      </span>
     </label>
   );
 }
 
 /**
- * Límites — mandan sobre TODO lo que sale solo, esté encendida la funcionalidad
- * que esté: el freno de emergencia y el tope diario.
- */
-export function ProactiveLimits({ settings }: { settings: ProactiveSettings }) {
-  const t = useT();
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border p-4 shadow-sm transition-colors',
-        settings.paused
-          ? 'border-destructive/40 bg-destructive/5'
-          : 'border-border bg-card',
-        settings.loaded ? '' : 'pointer-events-none opacity-50',
-      )}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-[13px] font-medium text-foreground">
-            {t('igAgent.limitsSection')}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-5">
-          <label className="flex flex-col gap-1.5 text-[13px]">
-            <span className="font-medium text-foreground">
-              {t('igAgent.controlsDailyCap')}
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={10000}
-              value={settings.cap}
-              onChange={(e) => settings.setCap(Number(e.target.value))}
-              onBlur={() => settings.save({ daily_cap: settings.cap })}
-              title={t('igAgent.controlsDailyCapHint')}
-              className="w-20 rounded-md border border-border bg-background px-2 py-1 tabular-nums text-foreground"
-            />
-          </label>
-
-          <label
-            className="flex flex-col gap-1.5 text-[13px]"
-            title={t('igAgent.controlsPauseHint')}
-          >
-            <span
-              className={cn(
-                'font-medium',
-                settings.paused ? 'text-destructive' : 'text-foreground',
-              )}
-            >
-              {settings.paused
-                ? t('igAgent.controlsPausedOn')
-                : t('igAgent.controlsPause')}
-            </span>
-            <Switch
-              checked={settings.paused}
-              onCheckedChange={(v) => {
-                settings.setPaused(v);
-                settings.save({ paused: v });
-              }}
-            />
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Bloque "Responde los comentarios": qué pasa cuando alguien comenta en tus
- * posts. El interruptor de contestar siempre + las reglas de palabra clave,
- * juntos y sin nada más alrededor.
+ * Qué pasa cuando alguien comenta: solo dos cosas pueden atenderlo, y en este
+ * orden —la regla que escribiste tú, y si ninguna encaja, la IA—. Se muestran
+ * en ese mismo orden invertido a propósito: arriba la conducta por defecto
+ * (siempre activa), abajo las excepciones, que es como se lee un contrato.
+ *
+ * El tope diario y el freno de emergencia se fueron al menú del encabezado:
+ * son los mismos de Ventas por Instagram, se tocan una vez y ocupaban una
+ * tarjeta del ancho de la página.
  */
 export function CommentsSection({ settings }: { settings: ProactiveSettings }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
       <CommentAutoReply settings={settings} />
       <CommentToDmPanel />
     </div>

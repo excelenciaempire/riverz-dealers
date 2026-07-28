@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { resolveShortId } from '@/lib/short-id';
 import { assertMetadataOnly } from './pii';
 
 /**
@@ -200,9 +201,12 @@ async function countIn(table: string, workspaceId: string): Promise<number> {
 }
 
 export async function getWorkspaceDetail(
-  id: string,
+  rawId: string,
 ): Promise<WorkspaceDetail | null> {
   const client = db();
+  // El parámetro puede venir como short id (8) o UUID completo; resolvemos una
+  // vez al UUID y el resto de las subconsultas (por workspace_id) usan ese.
+  const id = await resolveShortId(client, 'workspaces', rawId);
 
   const { data: ws } = await client
     .from('workspaces')
