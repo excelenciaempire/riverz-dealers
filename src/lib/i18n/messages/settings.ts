@@ -535,11 +535,6 @@ export const settings = {
     en: "Disconnect this channel?",
   },
   channelDisconnected: { es: "Canal desconectado", en: "Channel disconnected" },
-  deleteConnectionConfirm: {
-    es: "¿Eliminar esta conexión?",
-    en: "Delete this connection?",
-  },
-  connectionDeleted: { es: "Conexión eliminada", en: "Connection deleted" },
 
   // Channels panel — empty / read-only states
   workspaceNotFound: {

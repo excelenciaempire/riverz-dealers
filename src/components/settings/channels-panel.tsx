@@ -5,8 +5,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   Loader2,
-  RefreshCcw,
-  Trash2,
+  Unplug,
   XCircle,
   AlertCircle,
   Copy,
@@ -248,25 +247,6 @@ export function ChannelsPanel() {
     [fetchConnections, t],
   );
 
-  const handleDelete = useCallback(
-    async (ids: string[]) => {
-      if (!ids.length || !confirm(t("settings.deleteConnectionConfirm"))) return;
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("channel_connections")
-        .delete()
-        .in("id", ids);
-      if (error) {
-        toast.error(t("settings.genericError"));
-        return;
-      }
-      setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
-      toast.success(t("settings.connectionDeleted"));
-      void fetchConnections();
-    },
-    [fetchConnections, t],
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -458,25 +438,20 @@ export function ChannelsPanel() {
                               primary.external_account_id ??
                               t("settings.noLabel")}
                           </span>
+                          {/* Una sola acción por cuenta. Antes había dos
+                              iconos —"desconectar" y "eliminar"— que para
+                              quien mira hacen lo mismo: la fila desaparece
+                              y hay que volver a conectar. La diferencia era
+                              interna (marcar vs borrar la fila), no algo
+                              que el comercio pueda decidir con criterio. */}
                           {isAdmin && (
-                            <>
-                              {primary.status === "connected" && (
-                                <button
-                                  onClick={() => handleDisconnect(ids)}
-                                  title={t("settings.disconnectAction")}
-                                  className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-amber-400"
-                                >
-                                  <RefreshCcw className="size-3.5" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDelete(ids)}
-                                title={t("settings.deleteAction")}
-                                className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            </>
+                            <button
+                              onClick={() => handleDisconnect(ids)}
+                              title={t("settings.disconnectAction")}
+                              className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400"
+                            >
+                              <Unplug className="size-3.5" />
+                            </button>
                           )}
                         </div>
                         {errText && (
@@ -622,10 +597,10 @@ export function ChannelsPanel() {
                     </>
                   )}
 
-                  {/* Botón grande y claro para desconectar. El ícono ↻ por
-                      fila es fácil de no ver; este desconecta todas las
-                      cuentas de la tarjeta de una. */}
-                  {anyConnected && (
+                  {/* Solo con varias cuentas: ahí sí agrega algo, porque
+                      las desconecta todas de una. Con una sola cuenta era
+                      un segundo botón para lo mismo que el icono de arriba. */}
+                  {anyConnected && accounts.length > 1 && (
                     <button
                       onClick={() => {
                         const ids = accounts.flatMap((conns) =>
@@ -645,10 +620,8 @@ export function ChannelsPanel() {
                       }}
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
                     >
-                      <RefreshCcw className="size-4" />
-                      {accounts.length > 1
-                        ? t("settings.disconnectAllN", { n: accounts.length })
-                        : t("settings.disconnectAction")}
+                      <Unplug className="size-4" />
+                      {t("settings.disconnectAllN", { n: accounts.length })}
                     </button>
                   )}
                 </div>
