@@ -193,8 +193,25 @@ export async function maybeInstantOutreach(
   if (!opts.contact.external_id) return;
   // Respect opt-out — never re-engage a contact who asked to stop.
   if (await isOptedOut(db, opts.contact.id)) return;
-  // Una respuesta dentro de un hilo no inscribe a nadie en una campaña —
-  // esa persona ya está en conversación. La atiende el piso, que lee el hilo.
+  // UN COMENTARIO LO ATIENDE COMENTARIOS. Siempre.
+  //
+  // Antes, si había una campaña activa que cubría a esta persona, la campaña se
+  // quedaba el comentario: lo inscribía como destinatario y le mandaba SU copia
+  // y SU oferta. El mismo comentario acababa contestado por una funcionalidad u
+  // otra según qué campañas hubiera corriendo ese día, y las dos pantallas se
+  // apuntaban el envío.
+  //
+  // Ahora el reparto es por MOMENTO, no por audiencia:
+  //   - en vivo (alguien acaba de comentar) ⇒ Comentarios, y nadie más;
+  //   - por lote (a quien interactuó hace días y ya no está en conversación)
+  //     ⇒ Prospección, desde su propio cron (`send.ts`).
+  // La persona puede estar en las dos, pero nunca en el mismo instante.
+  if (opts.commentId) {
+    await autonomousCommentReply(db, opts);
+    return;
+  }
+  // Una respuesta dentro de un hilo tampoco inscribe a nadie: esa persona ya
+  // está en conversación. La atiende el piso, que lee el hilo.
   if (opts.parentCommentId) {
     await autonomousCommentReply(db, opts);
     return;
@@ -204,13 +221,6 @@ export async function maybeInstantOutreach(
     opts.workspaceId,
     opts.contact.id,
   );
-  // Sin campaña que la cubra, el agente NO se queda mudo: contesta igual a quien
-  // muestra intención de compra, con la voz del agente configurado (piso
-  // autónomo). Es lo que separa "una herramienta de campañas" de "un agente
-  // que atiende tu Instagram".
-  // Salir a buscar es una funcionalidad aparte y tiene su propio interruptor:
-  // apagada, nadie entra a una campaña aunque haya uno activa. El comentario
-  // igual se atiende por el piso autónomo, que es la otra funcionalidad.
   if (!campaign || !(await featureEnabled(db, opts.workspaceId, 'outreach'))) {
     await autonomousCommentReply(db, opts);
     return;
