@@ -51,6 +51,9 @@ export async function pollAllMercadoLibreReviews(): Promise<{
   sellers: number;
   items: number;
   ingested: number;
+  /** Por qué no trajo lo que se esperaba. Un cero sin motivo es
+   *  indistinguible de "no había nada", y eso ya costó dos diagnósticos. */
+  notes: string[];
 }> {
   const db = supabaseAdmin();
   const { data } = await db
@@ -62,27 +65,29 @@ export async function pollAllMercadoLibreReviews(): Promise<{
 
   let items = 0;
   let ingested = 0;
+  const notes: string[] = [];
   for (const conn of conns) {
     try {
       const r = await pollOneSeller(conn);
       items += r.items;
       ingested += r.ingested;
+      notes.push(...r.notes);
     } catch (err) {
-      log.warn("ml reviews poll failed for connection", {
-        connectionId: conn.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`conn ${conn.id}: ${msg}`);
+      log.warn("ml reviews poll failed for connection", { connectionId: conn.id, error: msg });
     }
   }
-  return { sellers: conns.length, items, ingested };
+  return { sellers: conns.length, items, ingested, notes };
 }
 
 async function pollOneSeller(
   conn: ChannelConnection,
-): Promise<{ items: number; ingested: number }> {
+): Promise<{ items: number; ingested: number; notes: string[] }> {
+  const notes: string[] = [];
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
-  if (!sellerId) return { items: 0, ingested: 0 };
+  if (!sellerId) return { items: 0, ingested: 0, notes: ["sin seller_id"] };
 
   const token = await getFreshMLToken(conn);
   const auth = { Authorization: `Bearer ${token}` };
@@ -91,9 +96,14 @@ async function pollOneSeller(
     `${ML}/users/${sellerId}/items/search?limit=${MAX_ITEMS}`,
     { headers: auth },
   );
-  if (!searchRes.ok) return { items: 0, ingested: 0 };
+  if (!searchRes.ok) {
+    const body = (await searchRes.text()).slice(0, 120);
+    return { items: 0, ingested: 0, notes: [`items/search ${searchRes.status}: ${body}`] };
+  }
   const itemIds = ((await searchRes.json()) as { results?: string[] }).results ?? [];
-  if (itemIds.length === 0) return { items: 0, ingested: 0 };
+  if (itemIds.length === 0) {
+    return { items: 0, ingested: 0, notes: ["el vendedor no tiene publicaciones"] };
+  }
 
   const state = { ...((cfg.reviews_state ?? {}) as Record<string, ItemState>) };
   const db = supabaseAdmin();
@@ -105,7 +115,10 @@ async function pollOneSeller(
     const headRes = await fetch(`${ML}/reviews/item/${itemId}?limit=1`, {
       headers: auth,
     });
-    if (!headRes.ok) continue;
+    if (!headRes.ok) {
+      notes.push(`${itemId} conteo ${headRes.status}`);
+      continue;
+    }
     const head = (await headRes.json()) as {
       paging?: { total?: number };
       rating_average?: number;
@@ -136,7 +149,10 @@ async function pollOneSeller(
         `${ML}/reviews/item/${itemId}?limit=${PAGE}&offset=${offset}`,
         { headers: auth },
       );
-      if (!pageRes.ok) break;
+      if (!pageRes.ok) {
+        notes.push(`${itemId} pagina ${pageRes.status}`);
+        break;
+      }
       const page = (await pageRes.json()) as { reviews?: MlReview[] };
       const reviews = page.reviews ?? [];
       if (reviews.length === 0) break;
@@ -169,6 +185,8 @@ async function pollOneSeller(
         if (wrote) {
           ingested++;
           found++;
+        } else {
+          notes.push(`opinion ${rev.id} no ingerida`);
         }
       }
       offset += PAGE;
@@ -187,7 +205,7 @@ async function pollOneSeller(
     .update({ config: { ...cfg, reviews_state: state } })
     .eq("id", conn.id);
 
-  return { items: itemIds.length, ingested };
+  return { items: itemIds.length, ingested, notes };
 }
 
 /** Título de la publicación, para que el hilo no se llame "MLA3567114684". */
