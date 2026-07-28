@@ -91,6 +91,11 @@ export async function getConnectionByShop(
   const { data } = await db
     .from('shopify_connections')
     .select('*')
+    // Migration 126 made this table multi-platform. Every Shopify path
+    // must scope itself: without this filter a workspace that also has
+    // Tiendanube or WooCommerce connected could hand a Woo consumer_key
+    // to the Shopify Admin API.
+    .eq('platform', 'shopify')
     .eq('shop_domain', shopDomain)
     .eq('status', 'active')
     .order('installed_at', { ascending: false })
@@ -141,6 +146,7 @@ export async function resolveShopWebhookSecret(
   const { data } = await db
     .from('shopify_connections')
     .select('connection_method, webhook_secret')
+    .eq('platform', 'shopify')
     .eq('shop_domain', shopDomain)
     .order('installed_at', { ascending: false })
     .limit(1)
@@ -178,6 +184,7 @@ export async function getConnectionForWorkspace(
     .select(
       'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
     )
+    .eq('platform', 'shopify')
     .eq('workspace_id', workspaceId)
     .order('installed_at', { ascending: false })
     .limit(1)
@@ -200,6 +207,7 @@ export async function getConnectionForUser(
     .select(
       'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
     )
+    .eq('platform', 'shopify')
     .eq('user_id', userId)
     .order('installed_at', { ascending: false })
     .limit(1)

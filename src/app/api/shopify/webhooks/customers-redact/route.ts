@@ -78,6 +78,7 @@ export async function POST(request: Request) {
         const { data: anyConn } = await admin
           .from('shopify_connections')
           .select('workspace_id, user_id')
+          .eq('platform', 'shopify')
           .eq('shop_domain', resolvedShop)
           .order('installed_at', { ascending: false })
           .limit(1)

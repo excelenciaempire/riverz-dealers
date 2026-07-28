@@ -104,6 +104,7 @@ export async function GET(request: Request) {
     ? await admin
         .from('shopify_connections')
         .select('id, shop_domain, status')
+        .eq('platform', 'shopify')
         .in('workspace_id', workspaceIds)
         .eq('status', 'active')
         .limit(1)

@@ -98,6 +98,7 @@ export async function syncAllWorkspaces(db: SupabaseClient): Promise<BulkSyncRes
   const { data } = await db
     .from('shopify_connections')
     .select('workspace_id')
+    .eq('platform', 'shopify')
     .eq('status', 'active');
   const workspaceIds = [
     ...new Set(

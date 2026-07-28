@@ -216,10 +216,8 @@ export async function ingestOrder(
         .eq('shop_domain', shopDomain)
         .eq('checkout_id', order.checkoutToken)
     }
-    await mirrorOrder(admin, { platform, workspaceId, shopDomain, order })
-  } else {
-    await reconcileOrder(admin, { shopDomain, order })
   }
+  await reconcileOrder(admin, { shopDomain, order })
 
   if (!trigger) return { status: 'no_transition' }
 
@@ -294,62 +292,18 @@ export async function ingestOrder(
 }
 
 /**
- * Espeja el pedido en la tabla `orders` de Riverz para que aparezca en
- * /pedidos sin importar en qué plataforma se haya cerrado.
+ * Actualiza el espejo del pedido en la tabla `orders`.
+ *
+ * IMPORTANTE: solo ACTUALIZA, nunca inserta. `orders` significa "pedidos
+ * que originó el asistente" —es lo que muestra /pedidos— así que volcar
+ * ahí todos los pedidos de la tienda cambiaría el sentido de esa página
+ * y la llenaría de ventas que Riverz no generó. Es exactamente el mismo
+ * criterio que aplica el receptor de Shopify: si el pedido no lo creó la
+ * IA no hay fila que matchear y el update es un no-op.
  *
  * `shopify_order_id` guarda el id del pedido en SU plataforma (el nombre
  * de la columna quedó por compatibilidad, ver migración 126).
  */
-async function mirrorOrder(
-  admin: SupabaseClient,
-  args: {
-    platform: CommercePlatform
-    workspaceId: string
-    shopDomain: string
-    order: NormalizedOrder
-  },
-): Promise<void> {
-  const { platform, workspaceId, shopDomain, order } = args
-  const total = parseFloat(order.totalPrice)
-
-  const { data: existing } = await admin
-    .from('orders')
-    .select('id')
-    .eq('shop_domain', shopDomain)
-    .eq('shopify_order_id', String(order.externalId))
-    .maybeSingle()
-
-  const row: Record<string, unknown> = {
-    platform,
-    workspace_id: workspaceId,
-    shop_domain: shopDomain,
-    shopify_order_id: String(order.externalId),
-    order_number: order.orderNumber,
-    order_status_url: order.orderStatusUrl || null,
-    total_price: Number.isFinite(total) ? total : null,
-    currency: order.currency || null,
-    financial_status: order.state.financialStatus,
-    fulfillment_status: order.state.fulfillmentStatus,
-    status: deriveOrderStatus(order),
-    updated_at: new Date().toISOString(),
-  }
-
-  // Si la fila ya existe (la creó el asistente con la tool de pedidos) la
-  // actualizamos en vez de insertar un duplicado: esa fila tiene el
-  // contacto, el agente y la conversación que originaron la venta, y eso
-  // no lo podemos reconstruir desde el webhook.
-  if (existing?.id) {
-    await admin.from('orders').update(row).eq('id', existing.id)
-    return
-  }
-
-  const { error } = await admin.from('orders').insert(row)
-  if (error) {
-    console.error(`[${platform}] espejo de pedido falló:`, error.message)
-  }
-}
-
-/** Actualiza el espejo ante un cambio de estado. */
 async function reconcileOrder(
   admin: SupabaseClient,
   args: { shopDomain: string; order: NormalizedOrder },
@@ -357,12 +311,18 @@ async function reconcileOrder(
   const { shopDomain, order } = args
   const total = parseFloat(order.totalPrice)
   const update: Record<string, unknown> = {
-    financial_status: order.state.financialStatus,
     fulfillment_status: order.state.fulfillmentStatus,
     status: deriveOrderStatus(order),
     updated_at: new Date().toISOString(),
   }
+  // `financial_status` es NOT NULL en la tabla: si la plataforma todavía
+  // no informa estado de pago dejamos el valor previo en lugar de
+  // intentar escribir null y que falle el update entero.
+  if (order.state.financialStatus) {
+    update.financial_status = order.state.financialStatus
+  }
   if (Number.isFinite(total)) update.total_price = total
+  if (order.orderStatusUrl) update.order_status_url = order.orderStatusUrl
 
   await admin
     .from('orders')
@@ -371,6 +331,11 @@ async function reconcileOrder(
     .eq('shopify_order_id', String(order.externalId))
 }
 
+/**
+ * Ciclo de vida del pedido del lado de Riverz. Los valores están atados
+ * al CHECK de la migración 080 — 'created' es el estado inicial, no
+ * existe 'pending'.
+ */
 function deriveOrderStatus(order: NormalizedOrder): string {
   const { financialStatus, fulfillmentStatus, cancelled } = order.state
   if (cancelled) return 'cancelled'
@@ -378,7 +343,7 @@ function deriveOrderStatus(order: NormalizedOrder): string {
   if (financialStatus === 'voided') return 'cancelled'
   if (fulfillmentStatus === 'fulfilled') return 'fulfilled'
   if (financialStatus === 'paid') return 'paid'
-  return 'pending'
+  return 'created'
 }
 
 /**

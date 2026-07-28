@@ -22,6 +22,7 @@ export async function loadStoreLinks(
     db
       .from('shopify_connections')
       .select('shop_domain')
+      .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .limit(1)

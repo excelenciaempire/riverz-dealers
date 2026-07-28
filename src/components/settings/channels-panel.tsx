@@ -25,6 +25,7 @@ import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
 import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
 import { ShopifyCard } from "@/components/settings/shopify-card";
+import { StoreCard } from "@/components/settings/store-card";
 import { MercadoLibreConnect } from "@/components/settings/mercadolibre-connect";
 import { cn } from "@/lib/utils";
 
@@ -647,6 +648,8 @@ export function ChannelsPanel() {
           );
         })}
         <ShopifyCard />
+        <StoreCard platform="tiendanube" />
+        <StoreCard platform="woocommerce" />
       </ul>
     </div>
   );

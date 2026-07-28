@@ -39,6 +39,7 @@ export async function syncShopifyProducts(
     await db
       .from('shopify_connections')
       .update({ currency: shopCurrency })
+      .eq('platform', 'shopify')
       .eq('workspace_id', args.workspaceId)
       .eq('shop_domain', args.shopDomain)
   }

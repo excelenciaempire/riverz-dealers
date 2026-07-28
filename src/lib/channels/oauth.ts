@@ -20,6 +20,13 @@ export interface OAuthState {
    *  HMAC-signed (tamper-proof); for a confidential client (we hold the
    *  client_secret) carrying the verifier here is safe. */
   codeVerifier?: string;
+  /** Usuario que inició la conexión. Lo usan los flujos de tienda, cuyo
+   *  callback puede llegar SIN cookie de sesión (WooCommerce postea las
+   *  claves servidor-a-servidor desde el WordPress del comercio), así que
+   *  el state es el único vínculo con quién conectó. */
+  userId?: string;
+  /** Dominio de la tienda que se está conectando (Tiendanube/WooCommerce). */
+  storeDomain?: string;
 }
 
 /** PKCE (RFC 7636, S256): random verifier + its SHA-256 challenge. */
@@ -55,8 +62,14 @@ export function decodeState(token: string): OAuthState | null {
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
   const expected = crypto.createHmac("sha256", getSigningKey()).update(body).digest("base64url");
-  // Constant-time compare.
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  // Constant-time compare. El chequeo de largo va PRIMERO porque
+  // timingSafeEqual lanza —no devuelve false— ante buffers de distinto
+  // tamaño: un `state` recortado o basura reventaría el callback con un
+  // 500 en vez de rechazarse como corresponde.
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return null;
+  if (!crypto.timingSafeEqual(sigBuf, expBuf)) return null;
   try {
     const decoded = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as OAuthState;
     if (Date.now() - decoded.iat > STATE_TTL_MS) return null;

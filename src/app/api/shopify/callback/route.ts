@@ -84,6 +84,7 @@ async function resolveOwnerUserId(
     const { data: existing } = await admin
       .from('shopify_connections')
       .select('user_id')
+      .eq('platform', 'shopify')
       .eq('shop_domain', shop)
       .order('installed_at', { ascending: false })
       .limit(1)

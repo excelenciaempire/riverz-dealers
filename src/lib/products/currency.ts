@@ -54,6 +54,7 @@ export async function resolveWorkspaceCurrency(
     const { data: conn } = await db
       .from('shopify_connections')
       .select('currency')
+      .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .not('currency', 'is', null)

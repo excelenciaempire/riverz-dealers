@@ -1280,6 +1280,7 @@ export async function resolveShopifyContext(
     const { data } = await db
       .from('shopify_connections')
       .select('shop_domain, access_token, status')
+      .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .order('installed_at', { ascending: false })
@@ -1306,6 +1307,7 @@ export async function resolveShopifyContext(
     const { data } = await db
       .from('shopify_connections')
       .select('shop_domain, access_token, status')
+      .eq('platform', 'shopify')
       .in('user_id', memberIds)
       .eq('status', 'active')
       .order('installed_at', { ascending: false })

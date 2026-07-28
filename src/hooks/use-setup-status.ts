@@ -111,6 +111,7 @@ export function useSetupStatus(): SetupStatus {
         supabase
           .from('shopify_connections')
           .select('id')
+          .eq('platform', 'shopify')
           .in('workspace_id', workspaceIds)
           .eq('status', 'active')
           .limit(1),

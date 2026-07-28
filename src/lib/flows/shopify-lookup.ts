@@ -34,6 +34,7 @@ export async function runShopifyLookup(args: {
     const { data } = await db
       .from('shopify_connections')
       .select('shop_domain, access_token')
+      .eq('platform', 'shopify')
       .eq('workspace_id', args.workspaceId)
       .eq('status', 'active')
       .order('installed_at', { ascending: false })
@@ -45,6 +46,7 @@ export async function runShopifyLookup(args: {
     const { data } = await db
       .from('shopify_connections')
       .select('shop_domain, access_token')
+      .eq('platform', 'shopify')
       .eq('user_id', args.userId)
       .eq('status', 'active')
       .order('installed_at', { ascending: false })

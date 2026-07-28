@@ -28,7 +28,6 @@ import type {
   NormalizedLineItem,
   NormalizedOrder,
   NormalizedProduct,
-  StoreCredentials,
 } from '../types'
 import { StoreUnauthorizedError } from '../types'
 

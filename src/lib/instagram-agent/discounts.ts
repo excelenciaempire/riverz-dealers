@@ -28,6 +28,7 @@ export async function getShopifyAdmin(
   const { data } = await db
     .from('shopify_connections')
     .select('shop_domain, access_token, status')
+    .eq('platform', 'shopify')
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
     .order('installed_at', { ascending: false })

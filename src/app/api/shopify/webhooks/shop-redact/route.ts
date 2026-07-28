@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     await admin
       .from('shopify_connections')
       .delete()
+      .eq('platform', 'shopify')
       .eq('shop_domain', shopDomain)
 
     // Best-effort cleanup of the remaining shop-scoped bookkeeping tables.

@@ -102,56 +102,6 @@ export function parseWooAuthCallback(body: unknown): WooAuthCallback | null {
   }
 }
 
-// ── Firma del estado del flujo de conexión ───────────────────────────
-
-/**
- * `workspaceId.userId.expiración` firmado con HMAC. Viaja como `user_id`
- * en el flujo de /wc-auth y vuelve en el callback, que es una ruta
- * pública: sin la firma, cualquiera podría POSTear claves y hacer que un
- * workspace ajeno quede apuntando a SU tienda.
- */
-export function signWooState(args: {
-  workspaceId: string
-  userId: string
-  siteUrl: string
-  ttlMs?: number
-}): string {
-  const exp = Date.now() + (args.ttlMs ?? 15 * 60 * 1000)
-  const payload = `${args.workspaceId}|${args.userId}|${args.siteUrl}|${exp}`
-  const sig = createHmac('sha256', stateKey()).update(payload).digest('hex')
-  return Buffer.from(`${payload}|${sig}`, 'utf8').toString('base64url')
-}
-
-export interface WooState {
-  workspaceId: string
-  userId: string
-  siteUrl: string
-}
-
-export function verifyWooState(state: string): WooState | null {
-  try {
-    const decoded = Buffer.from(state, 'base64url').toString('utf8')
-    const parts = decoded.split('|')
-    if (parts.length !== 5) return null
-    const [workspaceId, userId, siteUrl, expRaw, sig] = parts
-    const payload = `${workspaceId}|${userId}|${siteUrl}|${expRaw}`
-    const expected = createHmac('sha256', stateKey()).update(payload).digest('hex')
-    const a = Buffer.from(expected, 'hex')
-    const b = Buffer.from(sig, 'hex')
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
-    if (!Number.isFinite(Number(expRaw)) || Number(expRaw) < Date.now()) return null
-    return { workspaceId, userId, siteUrl }
-  } catch {
-    return null
-  }
-}
-
-function stateKey(): string {
-  const key = process.env.ENCRYPTION_KEY
-  if (!key) throw new Error('ENCRYPTION_KEY no configurada')
-  return key
-}
-
 // ── Verificación de webhooks ─────────────────────────────────────────
 
 /**

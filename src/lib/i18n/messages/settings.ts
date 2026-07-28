@@ -205,6 +205,86 @@ export const settings = {
     en: "Store {shop} connected",
   },
 
+  // Tiendanube card
+  tiendanubeDescription: {
+    es: "Carritos abandonados y pedidos hacia WhatsApp.",
+    en: "Abandoned carts and orders to WhatsApp.",
+  },
+  tiendanubeConnected: { es: "Tiendanube conectada", en: "Tiendanube connected" },
+  tiendanubeDisconnected: {
+    es: "Tiendanube desconectada",
+    en: "Tiendanube disconnected",
+  },
+  tiendanubeDisconnectConfirm: {
+    es: "¿Desconectar Tiendanube?",
+    en: "Disconnect Tiendanube?",
+  },
+  tiendanubeConnectError: {
+    es: "No se pudo conectar Tiendanube ({reason})",
+    en: "Couldn't connect Tiendanube ({reason})",
+  },
+
+  // WooCommerce card
+  woocommerceDescription: {
+    es: "Pedidos de tu tienda WordPress hacia WhatsApp.",
+    en: "Orders from your WordPress store to WhatsApp.",
+  },
+  woocommerceConnected: {
+    es: "WooCommerce conectado",
+    en: "WooCommerce connected",
+  },
+  woocommerceDisconnected: {
+    es: "WooCommerce desconectado",
+    en: "WooCommerce disconnected",
+  },
+  woocommerceDisconnectConfirm: {
+    es: "¿Desconectar WooCommerce?",
+    en: "Disconnect WooCommerce?",
+  },
+  woocommerceConnectError: {
+    es: "No se pudo conectar WooCommerce ({reason})",
+    en: "Couldn't connect WooCommerce ({reason})",
+  },
+  woocommerceSitePlaceholder: {
+    es: "mitienda.com",
+    en: "mystore.com",
+  },
+  woocommerceUseKeysLink: {
+    es: "o pegar claves de API",
+    en: "or paste API keys",
+  },
+  woocommerceKeysGuide: {
+    es: "En WooCommerce → Ajustes → Avanzado → API REST: crea una clave con permiso de lectura/escritura y copia la clave y el secreto.",
+    en: "In WooCommerce → Settings → Advanced → REST API: create a key with read/write permission and copy the key and secret.",
+  },
+  woocommerceKeyPlaceholder: {
+    es: "Clave de cliente (ck_…)",
+    en: "Consumer key (ck_…)",
+  },
+  woocommerceSecretPlaceholder: {
+    es: "Secreto de cliente (cs_…)",
+    en: "Consumer secret (cs_…)",
+  },
+  woocommerceKeysMissingFields: {
+    es: "Completa la dirección, la clave y el secreto.",
+    en: "Fill in the address, key and secret.",
+  },
+  woocommerceNoCartRecovery: {
+    es: "WooCommerce no expone carritos abandonados: esa recuperación no aplica.",
+    en: "WooCommerce doesn't expose abandoned carts, so that recovery doesn't apply.",
+  },
+
+  // Común a las tarjetas de tienda
+  storeSyncCatalog: { es: "Sincronizar catálogo", en: "Sync catalog" },
+  storeCatalogSynced: {
+    es: "{count} productos sincronizados",
+    en: "{count} products synced",
+  },
+  storeSyncError: {
+    es: "No se pudo sincronizar el catálogo.",
+    en: "Couldn't sync the catalog.",
+  },
+
   // Shopify embedded admin surface (App Bridge page inside Shopify admin)
   shopifyEmbeddedConnected: {
     es: "Tienda conectada a Riverz",

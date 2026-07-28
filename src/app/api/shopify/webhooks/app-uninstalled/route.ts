@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         uninstalled_at: new Date().toISOString(),
         last_error: 'app/uninstalled webhook',
       })
+      .eq('platform', 'shopify')
       .eq('shop_domain', shopDomain)
   }
   return NextResponse.json({ ok: true })

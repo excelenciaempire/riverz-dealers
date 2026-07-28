@@ -223,6 +223,24 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Descubre carritos abandonados de Tiendanube (no hay webhook para eso) y
+  # los deja en shopify_checkouts. Corre 15 minutos antes que la
+  # recuperación para que cada carrito nuevo llegue con la tabla al día.
+  - type: cron
+    name: cron-tiendanube-checkouts
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm install
+    startCommand: node scripts/cron-ping.mjs api/cron/tiendanube-checkouts
+    schedule: "15 * * * *"
+    envVars:
+      - key: BASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
   - type: cron
     name: cron-shopify-feedback
     runtime: node

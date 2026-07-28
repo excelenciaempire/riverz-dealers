@@ -90,6 +90,7 @@ export async function POST(request: Request) {
   let q = admin
     .from('shopify_connections')
     .select('workspace_id, shop_domain, access_token, status')
+    .eq('platform', 'shopify')
     .eq('status', 'active')
     .order('installed_at', { ascending: false })
   if (body.workspace_id) q = q.eq('workspace_id', body.workspace_id)

@@ -39,6 +39,7 @@ export async function markShopifyConnectionExpired(
         status: 'expired',
         last_error: 'Token revocado en Shopify — reconectar desde Ajustes',
       })
+      .eq('platform', 'shopify')
       .eq('shop_domain', shopDomain)
       .neq('status', 'expired')
   } catch {

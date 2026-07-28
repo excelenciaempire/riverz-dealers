@@ -50,6 +50,7 @@ export async function POST(req: Request) {
   const { data: row } = await admin
     .from('shopify_connections')
     .select('access_token, workspace_id')
+    .eq('platform', 'shopify')
     .eq('id', conn.id)
     .maybeSingle();
   if (!row)

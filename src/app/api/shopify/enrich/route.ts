@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   let q = admin
     .from('shopify_connections')
     .select('workspace_id, shop_domain, status')
+    .eq('platform', 'shopify')
     .eq('status', 'active')
   if (body.workspace_id) q = q.eq('workspace_id', body.workspace_id)
   const { data: conns, error } = await q

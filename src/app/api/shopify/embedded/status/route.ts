@@ -56,6 +56,7 @@ export async function GET(request: Request) {
   const { data: connection } = await admin
     .from('shopify_connections')
     .select('status')
+    .eq('platform', 'shopify')
     .eq('shop_domain', verified.shop)
     .eq('status', 'active')
     .limit(1)

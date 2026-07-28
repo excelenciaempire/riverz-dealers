@@ -45,6 +45,7 @@ export async function DELETE(req: Request) {
     const { error } = await supabase
       .from('shopify_connections')
       .delete()
+      .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
     if (error) return serverError(error)
   } else {
@@ -52,6 +53,7 @@ export async function DELETE(req: Request) {
     const { error } = await supabase
       .from('shopify_connections')
       .delete()
+      .eq('platform', 'shopify')
       .eq('user_id', user.id)
     if (error) return serverError(error)
   }
