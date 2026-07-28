@@ -9,6 +9,7 @@ import {
   useProactiveSettings,
 } from '@/components/instagram/sections';
 import { useT } from '@/hooks/use-locale';
+import { useWorkspace } from '@/hooks/use-workspace';
 
 /**
  * Comentarios — una de las tres cosas que Riverz automatiza, con su propia
@@ -29,6 +30,7 @@ export default function ComentariosPage() {
   const t = useT();
   const settings = useProactiveSettings();
   const connected = useIgConnected();
+  const { workspace } = useWorkspace();
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -47,7 +49,7 @@ export default function ComentariosPage() {
 
       <PausedBanner settings={settings} />
 
-      <CommentsSection settings={settings} />
+      <CommentsSection settings={settings} workspaceId={workspace?.id} />
     </div>
   );
 }

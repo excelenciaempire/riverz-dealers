@@ -76,14 +76,28 @@ async function gateFromSettings(
   return { ok: true };
 }
 
-/** Append one audit-log row per proactive DM. Best-effort; never throws. */
+/**
+ * Append one audit-log row per proactive DM. Best-effort; never throws.
+ *
+ * `kind` dice QUIÉN mandó el DM, y de ahí salen las cifras de cada pantalla:
+ *
+ *   outreach | batch | closer | approval — Prospección IA (campañas).
+ *   comment                              — Comentarios: la IA contestando un
+ *                                          comentario sin campaña de por medio.
+ *
+ * Los DMs de una regla no pasan por aquí: llevan su propio libro
+ * (`comment_to_dm_log`), que además guarda si la respuesta pública salió.
+ *
+ * El tope diario cuenta todos los kinds —es un límite de reputación de la
+ * cuenta, no de una funcionalidad—, pero las estadísticas nunca los mezclan.
+ */
 export async function logProactiveSend(
   db: SupabaseClient,
   row: {
     workspaceId: string;
     campaignId?: string | null;
     contactId?: string | null;
-    kind: 'outreach' | 'batch' | 'closer' | 'approval';
+    kind: 'outreach' | 'batch' | 'closer' | 'approval' | 'comment';
     text?: string | null;
   },
 ): Promise<void> {

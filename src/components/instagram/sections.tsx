@@ -178,7 +178,9 @@ export function useIgOverview(): IgOverview {
       const [ctx, camps, ords] = await Promise.all([
         getJson<PlanContext>('/api/ai/instagram-agent/context'),
         getJson<CampaignsResponse>('/api/ai/instagram-agent/campaigns'),
-        getJson<OrdersResponse>('/api/ai/instagram-agent/attributed-orders'),
+        getJson<OrdersResponse>(
+          '/api/ai/instagram-agent/attributed-orders?source=campaign',
+        ),
       ]);
       if (cancelled) return;
       if (ctx) setContext(ctx);
@@ -196,9 +198,9 @@ export function useIgOverview(): IgOverview {
     getJson<CampaignsResponse>('/api/ai/instagram-agent/campaigns').then(
       applyCampaigns,
     );
-    getJson<OrdersResponse>('/api/ai/instagram-agent/attributed-orders').then(
-      applyOrders,
-    );
+    getJson<OrdersResponse>(
+      '/api/ai/instagram-agent/attributed-orders?source=campaign',
+    ).then(applyOrders);
   }, [applyCampaigns, applyOrders]);
 
   const mergeContext = useCallback((patch: Partial<PlanContext>) => {
@@ -1419,6 +1421,71 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
   );
 }
 
+/* ─────────────────── estadísticas propias de Comentarios ─────────────────── */
+
+interface CommentStats {
+  rule_dms: number;
+  public_replies: number;
+  ai_replies: number;
+  revenue: number;
+  currency: string;
+  days: number;
+}
+
+/**
+ * Lo que hizo Comentarios, y nada más. Prospección IA tiene las suyas y el
+ * agente las suyas: la misma cifra en dos pantallas no significaría nada en
+ * ninguna de las dos.
+ */
+function useCommentStats(workspaceId?: string | null): CommentStats | null {
+  const [stats, setStats] = useState<CommentStats | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const qs = workspaceId ? `?workspace_id=${workspaceId}` : '';
+    getJson<CommentStats>(`/api/comments/stats${qs}`).then((json) => {
+      if (!cancelled && json) setStats(json);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+  return stats;
+}
+
+function CommentStatsStrip({ workspaceId }: { workspaceId?: string | null }) {
+  const t = useT();
+  const fmt = useFormat();
+  const stats = useCommentStats(workspaceId);
+  if (!stats) return null;
+
+  return (
+    <div>
+      <StatGrid className="grid-cols-2 shadow-sm sm:grid-cols-4">
+        <StatCell
+          label={t('igAgent.statCommentAiReplies')}
+          value={fmt.number(stats.ai_replies)}
+        />
+        <StatCell
+          label={t('igAgent.statCommentRuleDms')}
+          value={fmt.number(stats.rule_dms)}
+        />
+        <StatCell
+          label={t('igAgent.statCommentPublicReplies')}
+          value={fmt.number(stats.public_replies)}
+        />
+        <StatCell
+          label={t('igAgent.statRevenue')}
+          value={fmt.currency(stats.revenue, stats.currency)}
+          accent
+        />
+      </StatGrid>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        {t('igAgent.statLastDays', { n: stats.days })}
+      </p>
+    </div>
+  );
+}
+
 /**
  * Qué pasa cuando alguien comenta: solo dos cosas pueden atenderlo, y en este
  * orden —la regla que escribiste tú, y si ninguna encaja, la IA—. Se muestran
@@ -1429,9 +1496,16 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
  * son los mismos de Ventas por Instagram, se tocan una vez y ocupaban una
  * tarjeta del ancho de la página.
  */
-export function CommentsSection({ settings }: { settings: ProactiveSettings }) {
+export function CommentsSection({
+  settings,
+  workspaceId,
+}: {
+  settings: ProactiveSettings;
+  workspaceId?: string | null;
+}) {
   return (
     <div className="space-y-10">
+      <CommentStatsStrip workspaceId={workspaceId} />
       <CommentAutoReply settings={settings} />
       <CommentToDmPanel aiOn={settings.autoReply} />
     </div>

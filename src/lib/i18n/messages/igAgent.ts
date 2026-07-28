@@ -153,6 +153,15 @@ export const igAgent = {
 
   limitsMenu: { es: "Límites", en: "Limits" },
 
+  // Estadísticas propias de Comentarios (nunca mezcladas con campañas)
+  statCommentAiReplies: { es: "Respondidos por IA", en: "Answered by AI" },
+  statCommentRuleDms: { es: "DMs de reglas", en: "Rule DMs" },
+  statCommentPublicReplies: {
+    es: "Respuestas públicas",
+    en: "Public replies",
+  },
+  statLastDays: { es: "Últimos {n} días", en: "Last {n} days" },
+
   // Página Comentarios
   commentsSubtitle: {
     es: "Qué pasa cuando alguien comenta en tus posts.",

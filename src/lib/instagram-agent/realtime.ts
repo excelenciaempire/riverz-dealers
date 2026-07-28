@@ -699,10 +699,13 @@ async function autonomousCommentReply(
       text,
       commentContactId: opts.commentId ? opts.contact.id : null,
     });
+    // 'comment', no 'outreach': esto es Comentarios contestando, no una
+    // campaña saliendo a buscar. Compartían el mismo kind y las dos pantallas
+    // se apuntaban el mismo envío.
     await logProactiveSend(db, {
       workspaceId: opts.workspaceId,
       contactId: opts.contact.id,
-      kind: 'outreach',
+      kind: 'comment',
       text,
     });
   } catch (err) {
