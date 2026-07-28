@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
+import {
+  WooCommerceDialog,
+  type WooDialogPhase,
+} from '@/components/settings/woocommerce-dialog';
 
 type StorePlatform = 'tiendanube' | 'woocommerce';
 
@@ -79,6 +83,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
   const [site, setSite] = useState('');
   const [key, setKey] = useState('');
   const [secret, setSecret] = useState('');
+  const [dialog, setDialog] = useState<WooDialogPhase | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +111,11 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       if (count && Number(count) > 0) {
         toast.success(t('settings.storeCatalogSynced', { count }));
       }
+      // En WooCommerce la conexión no termina el trabajo: falta el plugin
+      // de carritos. Es el único momento en que el comercio tiene el
+      // contexto para entender para qué sirve, así que se le ofrece acá y
+      // no escondido en un rincón de la tarjeta.
+      if (platform === 'woocommerce') setDialog('after');
     } else if (result === 'error') {
       toast.error(t(meta.errorKey, { reason: params.get('reason') ?? 'error' }));
     }
@@ -114,6 +124,15 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
 
   function handleTiendanubeConnect() {
     window.location.href = '/api/tiendanube/oauth/start';
+  }
+
+  /** Valida la dirección y abre la guía; la salida ocurre al continuar. */
+  function handleWooStart() {
+    if (!site.trim()) {
+      toast.error(t('errStores.invalidSiteUrl'));
+      return;
+    }
+    setDialog('before');
   }
 
   async function handleWooConnect() {
@@ -177,6 +196,9 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       setSite('');
       setKey('');
       setSecret('');
+      // Mismo cierre que el camino automático: la conexión no termina el
+      // trabajo hasta que el plugin de carritos está puesto.
+      setDialog('after');
     } catch {
       toast.error(t(meta.errorKey, { reason: 'keys' }));
     } finally {
@@ -316,6 +338,10 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                 {t('settings.woocommerceKeysGuide')}
               </p>
               <Input
+                type="url"
+                name="riverz-store-url"
+                autoComplete="off"
+                inputMode="url"
                 placeholder={t('settings.woocommerceSitePlaceholder')}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
@@ -323,6 +349,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
               />
               <Input
                 type="password"
+                autoComplete="new-password"
                 placeholder={t('settings.woocommerceKeyPlaceholder')}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
@@ -330,6 +357,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
               />
               <Input
                 type="password"
+                autoComplete="new-password"
                 placeholder={t('settings.woocommerceSecretPlaceholder')}
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
@@ -360,16 +388,24 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
             // para conectar, dos botones idénticos en fila.
             <>
               <Input
+                // El navegador rellenaba acá el correo de la sesión: sin
+                // pistas, su heurística toma el primer campo de texto de la
+                // tarjeta. `type=url` + autocompletado apagado + un `name`
+                // que no se parece a nada conocido lo desactivan.
+                type="url"
+                name="riverz-store-url"
+                autoComplete="off"
+                inputMode="url"
                 placeholder={t('settings.woocommerceSitePlaceholder')}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleWooConnect()
+                  if (e.key === 'Enter') handleWooStart()
                 }}
                 className="bg-background text-sm"
               />
               <button
-                onClick={handleWooConnect}
+                onClick={handleWooStart}
                 disabled={busy}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
@@ -389,6 +425,15 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
             </>
           )}
         </div>
+      )}
+
+      {platform === 'woocommerce' && (
+        <WooCommerceDialog
+          phase={dialog}
+          onClose={() => setDialog(null)}
+          onContinue={handleWooConnect}
+          busy={busy}
+        />
       )}
     </li>
   );

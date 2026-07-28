@@ -37,11 +37,6 @@ export const nav = {
   // Badges
   beta: { es: "Beta", en: "Beta" },
   betaFeature: { es: "Función Beta", en: "Beta feature" },
-  connectCta: { es: "Conecta", en: "Connect" },
-  connectPending: {
-    es: "Falta conectar WhatsApp o Shopify",
-    en: "Connect WhatsApp or Shopify",
-  },
   unread: { es: "{n} sin leer", en: "{n} unread" },
 
   // Aria / controls

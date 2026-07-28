@@ -9,7 +9,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/hooks/use-locale";
-import { useSetupStatus } from "@/hooks/use-setup-status";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
@@ -143,7 +142,6 @@ export function Sidebar({
   const { membership } = useWorkspace();
   const totalUnread = useTotalUnread();
   const { theme, setTheme } = useTheme();
-  const setup = useSetupStatus();
   const t = useT();
 
   // RBAC: which sidebar sections this member may see. Admins/owners (and legacy
@@ -322,7 +320,6 @@ export function Sidebar({
               pathname={pathname} fullPath={fullPath}
               collapsed={collapsed}
               totalUnread={0}
-              setupPending={!setup.ready}
             />
           )}
           <NavLink
@@ -442,7 +439,6 @@ function NavLink({
   fullPath,
   collapsed,
   totalUnread,
-  setupPending = false,
 }: {
   item: NavItem;
   pathname: string;
@@ -451,9 +447,6 @@ function NavLink({
   fullPath: string;
   collapsed: boolean;
   totalUnread: number;
-  /** Cuando Integraciones todavía no tiene WhatsApp+Shopify conectados,
-   *  mostramos un chip "Conecta" para guiar el onboarding. */
-  setupPending?: boolean;
 }) {
   const t = useT();
   // Lógica de activo:
@@ -515,14 +508,6 @@ function NavLink({
           className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
         >
           {t("nav.beta")}
-        </span>
-      )}
-      {setupPending && !collapsed && (
-        <span
-          aria-label={t("nav.connectPending")}
-          className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
-        >
-          {t("nav.connectCta")}
         </span>
       )}
       {showUnreadBadge && !collapsed && (

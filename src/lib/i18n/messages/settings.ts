@@ -273,13 +273,62 @@ export const settings = {
     es: "Completa la dirección, la clave y el secreto.",
     en: "Fill in the address, key and secret.",
   },
+  // Guía de conexión de WooCommerce
+  wooDialogBeforeTitle: {
+    es: "Conectar tu tienda",
+    en: "Connect your store",
+  },
+  wooDialogBeforeIntro: {
+    es: "Te llevamos a tu WordPress para que autorices el acceso.",
+    en: "We'll take you to your WordPress so you can authorize access.",
+  },
+  wooDialogStep1: {
+    es: "Inicia sesión en tu tienda si te lo pide.",
+    en: "Sign in to your store if prompted.",
+  },
+  wooDialogStep2: {
+    es: 'Aprueba el acceso de Riverz con el botón "Approve".',
+    en: 'Approve Riverz access with the "Approve" button.',
+  },
+  wooDialogStep3: {
+    es: "Vuelves aquí y la tienda queda conectada.",
+    en: "You come back here and the store is connected.",
+  },
+  wooDialogContinue: {
+    es: "Ir a mi tienda",
+    en: "Go to my store",
+  },
+  wooDialogAfterTitle: {
+    es: "Tienda conectada",
+    en: "Store connected",
+  },
+  wooDialogAfterIntro: {
+    es: "Falta un paso para recuperar carritos abandonados: WooCommerce no los registra por su cuenta.",
+    en: "One step left to recover abandoned carts: WooCommerce doesn't track them on its own.",
+  },
+  wooDialogInstall1: {
+    es: "Descarga el plugin (viene con tus datos ya cargados).",
+    en: "Download the plugin (it comes preconfigured).",
+  },
+  wooDialogInstall2: {
+    es: "En tu WordPress: Plugins → Añadir nuevo → Subir plugin.",
+    en: "In your WordPress: Plugins → Add new → Upload plugin.",
+  },
+  wooDialogInstall3: {
+    es: "Actívalo. Listo, no hay nada más que configurar.",
+    en: "Activate it. Done, nothing else to configure.",
+  },
+  wooDialogLater: {
+    es: "Más tarde",
+    en: "Later",
+  },
   woocommerceCartPlugin: {
     es: "Recuperar carritos",
     en: "Recover carts",
   },
   woocommerceCartPluginHint: {
-    es: "WooCommerce no registra carritos abandonados. Ya recuperamos los pedidos que quedaron sin pagar; instala el plugin para alcanzar también a quien se va antes de enviar el pedido.",
-    en: "WooCommerce doesn't track abandoned carts. We already recover orders left unpaid; install the plugin to also reach people who leave before placing the order.",
+    es: "Recupera también los carritos que se abandonan antes de enviar el pedido.",
+    en: "Also recover carts abandoned before the order is placed.",
   },
   woocommerceDownloadPlugin: {
     es: "Descargar plugin",
