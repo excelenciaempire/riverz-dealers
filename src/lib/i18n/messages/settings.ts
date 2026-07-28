@@ -230,8 +230,8 @@ export const settings = {
 
   // WooCommerce card
   woocommerceDescription: {
-    es: "Pedidos de tu tienda WordPress hacia WhatsApp.",
-    en: "Orders from your WordPress store to WhatsApp.",
+    es: "Carritos abandonados y pedidos hacia WhatsApp.",
+    en: "Abandoned carts and orders to WhatsApp.",
   },
   woocommerceConnected: {
     es: "WooCommerce conectado",
