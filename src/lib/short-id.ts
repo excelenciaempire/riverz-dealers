@@ -20,3 +20,26 @@ export function toShortId(id: string): string {
 export function idColumn(param: string): 'id' | 'short_id' {
   return (param ?? '').length === 8 ? 'short_id' : 'id';
 }
+
+/**
+ * Resuelve un parámetro de URL (short id o UUID) al UUID COMPLETO. Para rutas
+ * de API donde el id se reusa en varias consultas/sub-recursos (steps, etc.):
+ * resolvés una vez arriba y el resto usa el id completo. Si no encuentra fila,
+ * devuelve el parámetro tal cual (la consulta siguiente dará 404).
+ *
+ * `db` es un SupabaseClient (import type — se borra en build, no rompe el uso
+ * client-side de este archivo).
+ */
+export async function resolveShortId(
+  db: import('@supabase/supabase-js').SupabaseClient,
+  table: string,
+  rawId: string,
+): Promise<string> {
+  if (!rawId || rawId.length !== 8) return rawId;
+  const { data } = await db
+    .from(table)
+    .select('id')
+    .eq('short_id', rawId)
+    .maybeSingle();
+  return (data as { id?: string } | null)?.id ?? rawId;
+}

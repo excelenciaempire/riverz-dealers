@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { resolveShortId } from '@/lib/short-id'
 import {
   loadStepsTree,
   replaceSteps,
@@ -84,12 +85,13 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params
+  const { id: rawId } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const locale = await getLocale()
 
   const admin = supabaseAdmin()
+  const id = await resolveShortId(admin, 'automations', rawId)
   const loaded = await loadAuthorizedAutomation(admin, id, user.id, locale, '*')
   if (!loaded.ok) return loaded.response
 
@@ -103,7 +105,7 @@ export async function PATCH(
 ) {
   const block = await csrfGuard(request)
   if (block) return block
-  const { id } = await params
+  const { id: rawId } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const locale = await getLocale()
@@ -116,6 +118,7 @@ export async function PATCH(
     )
 
   const admin = supabaseAdmin()
+  const id = await resolveShortId(admin, 'automations', rawId)
 
   // Workspace-membership gate (replaces the old user_id ownership
   // check). Loads the fields needed for post-patch validation in the
@@ -195,12 +198,13 @@ export async function DELETE(
 ) {
   const block = await csrfGuard(request)
   if (block) return block
-  const { id } = await params
+  const { id: rawId } = await params
   const user = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const locale = await getLocale()
 
   const admin = supabaseAdmin()
+  const id = await resolveShortId(admin, 'automations', rawId)
   // Must include workspace_id: loadAuthorizedAutomation reads it to run
   // the membership check. Selecting only 'id' left workspace_id undefined
   // and made every delete 404 with "Not found".

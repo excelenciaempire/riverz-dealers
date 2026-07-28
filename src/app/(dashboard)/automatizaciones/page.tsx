@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
+import { toShortId } from "@/lib/short-id"
 import { useWorkspace } from "@/hooks/use-workspace"
 import { useActiveConnections } from "@/hooks/use-active-connections"
 import type { Automation } from "@/types"
@@ -281,10 +282,10 @@ export default function AutomationsPage() {
                 onToggle={(next) => toggleActive(a, next)}
                 // Card click opens the canvas editor (where you build/add
                 // steps). "View stats" goes to the stats/detail page.
-                onOpen={() => router.push(`/automatizaciones/${a.id}/editar`)}
-                onEdit={() => router.push(`/automatizaciones/${a.id}/editar`)}
+                onOpen={() => router.push(`/automatizaciones/${toShortId(a.id)}/editar`)}
+                onEdit={() => router.push(`/automatizaciones/${toShortId(a.id)}/editar`)}
                 onDuplicate={() => duplicate(a)}
-                onStats={() => router.push(`/automatizaciones/${a.id}`)}
+                onStats={() => router.push(`/automatizaciones/${toShortId(a.id)}`)}
                 onDelete={() => setPendingDelete(a)}
               />
             ))}

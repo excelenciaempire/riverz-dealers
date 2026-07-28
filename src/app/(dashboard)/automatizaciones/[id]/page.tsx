@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { idColumn } from '@/lib/short-id';
 import type { Automation, AutomationLog } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -195,7 +196,7 @@ export default function AutomationDetailPage() {
           supabase
             .from('automations')
             .select('*')
-            .eq('id', automationId)
+            .eq(idColumn(automationId), automationId)
             .maybeSingle(),
           supabase
             .from('automation_logs')
