@@ -53,10 +53,12 @@ export default async function DashboardLayout({
       data: { user },
     } = await supabase.auth.getUser();
     platformAdmin = isPlatformAdmin(user?.email);
-    // Feature flags (plataforma-wide) para esconder funcionalidades del menú y
-    // bloquear su URL. Fail-soft: ante error, todo habilitado.
-    flags = await getFeatureFlags(supabaseAdmin());
     if (user) {
+      // Feature flags (plataforma-wide) para esconder funcionalidades del menú
+      // y bloquear su URL. Fail-soft: ante error, todo habilitado. Solo para
+      // sesiones reales — un visitante anónimo no llega a ver el menú, así que
+      // consultarlo fuera del `if` era una query de más en cada render.
+      flags = await getFeatureFlags(supabaseAdmin());
       await ensureWorkspace(
         supabaseAdmin(),
         user.id,

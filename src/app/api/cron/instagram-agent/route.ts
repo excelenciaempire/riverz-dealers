@@ -7,6 +7,7 @@ import { replyToComments } from '@/lib/instagram-agent/comment-reply';
 import { detectRepliesAndCapture } from '@/lib/instagram-agent/capture';
 import { attributeAndRollup } from '@/lib/instagram-agent/attribution';
 import { coercePlan, type InstagramCampaign } from '@/lib/instagram-agent/types';
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/instagram-agent
@@ -19,7 +20,7 @@ import { coercePlan, type InstagramCampaign } from '@/lib/instagram-agent/types'
  * Auth: header `x-cron-secret` == AUTOMATION_CRON_SECRET (mismo secreto
  * compartido que el resto de crons). Pensado para un pinger cada 1-5 min.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
@@ -115,3 +116,6 @@ export async function GET(request: Request) {
     { status },
   );
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("instagram-agent", cronHandler);

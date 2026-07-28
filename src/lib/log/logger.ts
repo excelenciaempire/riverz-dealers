@@ -95,12 +95,53 @@ async function loadSentry() {
   return sentryPromise
 }
 
+/**
+ * En el navegador, `loadSentry()` siempre devuelve null (la guarda de
+ * NEXT_RUNTIME), así que hasta ahora un error de cliente moría en la consola
+ * del usuario y no llegaba a ningún lado. Se reenvía al servidor, que sí puede
+ * emitirlo por el canal normal.
+ *
+ * Best-effort y silencioso: si el reporte falla, no se reporta el fallo del
+ * reporte — eso sería un bucle.
+ */
+function reportFromBrowser(err: unknown, ctx?: LogContext): void {
+  try {
+    const payload = JSON.stringify({
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      digest: typeof ctx?.digest === 'string' ? ctx.digest : undefined,
+      scope: typeof ctx?.scope === 'string' ? ctx.scope : undefined,
+      url: window.location?.href,
+    })
+    // sendBeacon sobrevive a que la pestaña se cierre justo después del error.
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon(
+        '/api/client-errors',
+        new Blob([payload], { type: 'application/json' }),
+      )
+      return
+    }
+    void fetch('/api/client-errors', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    /* nunca dejar que el reporte de un error genere otro */
+  }
+}
+
 export function captureException(err: unknown, ctx?: LogContext): void {
   const scope = typeof ctx?.scope === 'string' ? ctx.scope : 'app'
   emit('error', scope, 'exception', {
     ...(ctx ?? {}),
     error: serializeError(err),
   })
+  if (typeof window !== 'undefined') {
+    reportFromBrowser(err, ctx)
+    return
+  }
   if (!process.env.SENTRY_DSN) return
   void loadSentry().then((sentry) => {
     if (!sentry) return

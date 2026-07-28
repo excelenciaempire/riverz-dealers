@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { serverError } from '@/lib/api/errors';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { pingCron } from '@/lib/cron/heartbeat';
+import { withCronRun } from "@/lib/cron/heartbeat";
 import { runFollowUp } from '@/lib/ai/followup';
 import { campaignFollowUpHint } from '@/lib/instagram-agent/campaign-followup';
 import { runVoiceFollowups } from '@/lib/voice/followup';
@@ -40,14 +40,13 @@ const PER_WORKSPACE_LIMIT = 200;
 
 type AgentWithChannels = AiAgent & { ai_agent_channels?: { channel: string }[] };
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron('ai-followups');
 
   const admin = supabaseAdmin();
 
@@ -266,3 +265,6 @@ async function loadConnection(
 // la otra no. Ahora hay una sola definición compartida.
 const isWithinHours = (bh: BusinessHours, date: Date) =>
   sharedWithinBusinessHours(bh, date);
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("ai-followups", cronHandler);

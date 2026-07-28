@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { serverError } from '@/lib/api/errors'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * Watchdog de entrega de WhatsApp.
@@ -29,14 +29,13 @@ const STUCK_HOURS = Number(process.env.WATCHDOG_STUCK_HOURS || 24)
 // Piso: no re-escanear mensajes antiquísimos (ya son historia muerta).
 const MAX_AGE_DAYS = 30
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('delivery-watchdog')
 
   const admin = supabaseAdmin()
   const now = Date.now()
@@ -64,3 +63,6 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({ flagged, stuck_hours: STUCK_HOURS })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("delivery-watchdog", cronHandler);

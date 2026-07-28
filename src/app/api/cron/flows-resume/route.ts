@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resumeFlowRun } from '@/lib/flows/resume'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { nextRetryDelayMs } from '@/lib/flows/engine'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * Drain due `flow_pending_executions` rows — the `wait` flow node
@@ -16,14 +16,13 @@ import { pingCron } from '@/lib/cron/heartbeat'
  * 'running' filtered by 'pending') prevents double-processing under
  * overlapping invocations without needing FOR UPDATE locks.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('flows-resume')
 
   const admin = supabaseAdmin()
   const { data: due, error } = await admin
@@ -92,3 +91,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("flows-resume", cronHandler);

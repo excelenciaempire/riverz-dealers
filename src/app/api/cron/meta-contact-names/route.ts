@@ -5,6 +5,7 @@ import { assertCronAuth } from "@/lib/auth/cron";
 import { buildParticipantMap } from "@/lib/channels/meta-participants";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Contact } from "@/types";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -19,7 +20,7 @@ const GRAPH = "https://graph.facebook.com/v22.0";
  * Channels covered: messenger, instagram, fb_comment, ig_comment.
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
@@ -126,3 +127,6 @@ async function resolveName(
     return undefined;
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("meta-contact-names", cronHandler);

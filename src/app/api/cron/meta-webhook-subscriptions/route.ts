@@ -13,6 +13,7 @@ import {
   isWabaSubscribed,
 } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 const log = getLogger("cron.meta-webhook-subscriptions");
 
@@ -32,7 +33,7 @@ const log = getLogger("cron.meta-webhook-subscriptions");
  *
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET. Idempotent.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
@@ -224,3 +225,6 @@ export async function GET(request: Request) {
     { status: anyMissing || anyAppGap ? 207 : 200 },
   );
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("meta-webhook-subscriptions", cronHandler);

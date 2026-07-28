@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
 import { pullSelfRepliesAll } from "@/lib/channels/comment-pull";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron } from "@/lib/cron/heartbeat";
+import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/comment-sync
@@ -33,14 +33,13 @@ const RECONCILE_JOB = "comment-sync-reconcile";
  *  umbral de exactamente 10 se pasaría de largo hasta la corrida siguiente. */
 const RECONCILE_EVERY_MS = 9 * 60_000;
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron("comment-sync");
 
   try {
     const db = supabaseAdmin();
@@ -98,3 +97,6 @@ async function reconcileIsDue(
     return true;
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("comment-sync", cronHandler);

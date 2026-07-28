@@ -17,7 +17,7 @@ import {
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
 import { renderTemplateBody } from '@/lib/whatsapp/template-render'
 import { assertCronAuthAny } from '@/lib/auth/cron'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
 import {
@@ -43,7 +43,7 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     // Accept whichever cron secret the operator wired: the broadcasts cron
     // service sends CRON_SECRET, older config used BROADCAST_CRON_SECRET, and
@@ -58,7 +58,6 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('broadcasts')
 
   const admin = supabaseAdmin()
 
@@ -531,3 +530,6 @@ async function resolveParams(
 function readString(v: unknown): string {
   return typeof v === 'string' ? v : ''
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("broadcasts", cronHandler);

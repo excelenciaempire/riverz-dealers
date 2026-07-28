@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllTikTokConnections } from "@/lib/channels/tiktok_comment/poll";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron } from "@/lib/cron/heartbeat";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/tiktok-comments
@@ -11,14 +11,13 @@ import { pingCron } from "@/lib/cron/heartbeat";
  * comment_id). Also keeps the 24h access tokens fresh as a side effect.
  * Auth: `x-cron-secret` header must match `AUTOMATION_CRON_SECRET`.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron("tiktok-comments");
 
   try {
     const result = await pollAllTikTokConnections();
@@ -28,3 +27,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("tiktok-comments", cronHandler);

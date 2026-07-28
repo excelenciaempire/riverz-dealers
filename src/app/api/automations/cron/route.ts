@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 import { assertCronAuth } from '@/lib/auth/cron'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 import { serverError } from '@/lib/api/errors'
 
 /**
@@ -17,14 +17,13 @@ import { serverError } from '@/lib/api/errors'
  * only; expensive SELECT ... FOR UPDATE is avoided in favor of a
  * two-step UPDATE-by-id.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('automations')
 
   const admin = supabaseAdmin()
   const { data: due, error } = await admin
@@ -65,3 +64,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("automations", cronHandler);

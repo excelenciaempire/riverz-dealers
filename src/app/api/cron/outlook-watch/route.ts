@@ -5,6 +5,7 @@ import { baseUrl } from "@/lib/channels/oauth";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { serverError } from "@/lib/api/errors";
 import type { ChannelConnection } from "@/types";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/outlook-watch
@@ -17,7 +18,7 @@ import type { ChannelConnection } from "@/types";
  * Auth: `x-cron-secret` must match AUTOMATION_CRON_SECRET (same secret
  * the other crons use).
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
@@ -47,3 +48,6 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({ ok: true, results });
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("outlook-watch", cronHandler);

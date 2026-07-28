@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.pii-purge')
@@ -39,14 +39,13 @@ const DEFAULT_GRACE_DAYS = 30
 const MEDIA_BUCKET = 'message-media'
 const WORKSPACE_BATCH = 50
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('pii-purge')
 
   const graceDays = Number(process.env.PII_PURGE_GRACE_DAYS) || DEFAULT_GRACE_DAYS
   const cutoff = new Date(
@@ -261,3 +260,6 @@ async function purgeWorkspaceStorage(
   }
   return removed
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("pii-purge", cronHandler);

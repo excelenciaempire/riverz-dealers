@@ -6,7 +6,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.shopify-cart-recovery')
@@ -37,14 +37,13 @@ const log = getLogger('cron.shopify-cart-recovery')
  * el mensaje no se manda pero el flag igual se setea — preferimos no
  * spamear a costa de perder algunos recovery sobre intentarlo en loop.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('shopify-cart-recovery')
 
   const admin = supabaseAdmin()
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
@@ -224,3 +223,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed, dispatched })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("shopify-cart-recovery", cronHandler);

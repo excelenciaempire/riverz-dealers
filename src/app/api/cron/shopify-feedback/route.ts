@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * Cron de feedback post-entrega (Pilar).
@@ -44,14 +44,13 @@ import { pingCron } from '@/lib/cron/heartbeat'
  */
 const DEFAULT_DAYS_AFTER = 3
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('shopify-feedback')
 
   const admin = supabaseAdmin()
   const threeDaysAgo = new Date(
@@ -210,3 +209,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed: due.length, dispatched, skipped })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("shopify-feedback", cronHandler);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { enrichExternalProfile } from '@/lib/instagram-agent/external-enrich';
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/instagram-external-enrich
@@ -19,7 +20,7 @@ import { enrichExternalProfile } from '@/lib/instagram-agent/external-enrich';
 const BATCH = 5;
 const STALE_MS = 60 * 24 * 60 * 60 * 1000; // re-enrich at most every 60 days
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
@@ -79,3 +80,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ ok: true, processed: due.length, ...counts });
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("instagram-external-enrich", cronHandler);

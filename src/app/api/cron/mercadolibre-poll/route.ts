@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllMercadoLibreConnections } from "@/lib/channels/mercadolibre/poll";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron } from "@/lib/cron/heartbeat";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/mercadolibre-poll
@@ -11,14 +11,13 @@ import { pingCron } from "@/lib/cron/heartbeat";
  * are lost if the token was momentarily dead). Auth: `x-cron-secret` header
  * must match `AUTOMATION_CRON_SECRET`.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron("mercadolibre-poll");
 
   try {
     const result = await pollAllMercadoLibreConnections();
@@ -28,3 +27,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("mercadolibre-poll", cronHandler);

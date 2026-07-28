@@ -26,7 +26,7 @@ export function AdminShell({
     <CsrfProvider>
       <div className="min-h-dvh bg-background">
         <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4 sm:px-6">
+          <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
             <Link
               href="/admin"
               className="flex shrink-0 items-baseline gap-1.5"
@@ -66,7 +66,7 @@ export function AdminShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
       </div>
     </CsrfProvider>
   );

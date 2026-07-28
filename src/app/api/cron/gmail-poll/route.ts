@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllGmailConnections } from "@/lib/channels/gmail/poll";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron } from "@/lib/cron/heartbeat";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/gmail-poll
@@ -13,14 +13,13 @@ import { pingCron } from "@/lib/cron/heartbeat";
  *
  * Intended to be hit by Render Cron every 2-5 minutes.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron("gmail-poll");
 
   try {
     const results = await pollAllGmailConnections();
@@ -39,3 +38,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("gmail-poll", cronHandler);

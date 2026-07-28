@@ -5,6 +5,7 @@ import { assertCronAuth } from "@/lib/auth/cron";
 import { getLogger } from "@/lib/log/logger";
 import { listUserPages } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 const log = getLogger("cron.meta-token-refresh");
 
@@ -50,7 +51,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * `x-cron-secret` matches AUTOMATION_CRON_SECRET. Idempotent — a connection
  * not yet inside the window is skipped, so re-running is harmless.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
@@ -241,3 +242,6 @@ async function derivePageToken(
   const match = pages.find((p) => p.id === pageId);
   return match?.access_token;
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("meta-token-refresh", cronHandler);

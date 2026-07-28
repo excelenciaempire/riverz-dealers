@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resolveFallbackPolicy } from '@/lib/flows/fallback'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { serverError } from '@/lib/api/errors'
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * Sweep abandoned active flow runs.
@@ -27,7 +28,7 @@ import { serverError } from '@/lib/api/errors'
  * default; once per hour would also be acceptable for low-volume
  * tenants.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
@@ -100,3 +101,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ swept })
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("flows-cron", cronHandler);

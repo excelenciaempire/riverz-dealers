@@ -9,6 +9,7 @@ import {
   type MetaPlatform,
 } from "@/lib/channels/meta-dm-history";
 import type { ChannelConnection, Contact } from "@/types";
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -31,7 +32,7 @@ const BACKFILL_WINDOW_DAYS = 30;
  *
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, "AUTOMATION_CRON_SECRET");
   } catch (r) {
@@ -206,3 +207,6 @@ async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
   }
   return ingested;
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("meta-dm-backfill", cronHandler);

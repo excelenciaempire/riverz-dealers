@@ -3,7 +3,7 @@ import { serverError } from '@/lib/api/errors'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationById } from '@/lib/automations/engine'
-import { pingCron } from '@/lib/cron/heartbeat'
+import { withCronRun } from "@/lib/cron/heartbeat";
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -34,14 +34,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const DEFAULT_DAYS_THRESHOLD = 14
 const COOLDOWN_DAYS = 30
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
   } catch (r) {
     if (r instanceof Response) return r
     throw r
   }
-  void pingCron('reengagement')
 
   const admin = supabaseAdmin()
 
@@ -243,3 +242,6 @@ async function processWorkspace(
 
   return { processed: candidates.length, dispatched }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("reengagement", cronHandler);

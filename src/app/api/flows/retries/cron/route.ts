@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/flows/admin-client";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron } from "@/lib/cron/heartbeat";
+import { withCronRun } from "@/lib/cron/heartbeat";
 import {
   failRunFromRetry,
   nextRetryDelayMs,
@@ -21,7 +21,7 @@ import type { FlowNodeRow, FlowRunRow } from "@/lib/flows/types";
  *     (60s, 5min, 30min, 2h, 6h).
  *   - si falla y ya gastó max_attempts: marca el run como 'failed'.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     // Reuse AUTOMATION_CRON_SECRET — the value every Render cron already
     // sends — so this endpoint doesn't need a separate env var that isn't
@@ -31,7 +31,6 @@ export async function GET(request: Request) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron("flows-retries");
 
   const admin = supabaseAdmin();
   const nowIso = new Date().toISOString();
@@ -130,3 +129,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ processed });
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("flows-retries", cronHandler);

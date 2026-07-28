@@ -25,13 +25,65 @@ export interface FeatureDef {
   sections: string[];
 }
 
-/** Catálogo de funcionalidades que el admin puede prender/apagar. */
+/**
+ * Catálogo de funcionalidades que el admin puede prender/apagar.
+ *
+ * `sections` son rutas CANÓNICAS (carpetas en español). Quien las compare
+ * contra la URL del navegador debe pasar antes por `canonicalizePath()`, que
+ * es lo que hacen el sidebar (usa el href canónico) y el SectionGuard.
+ *
+ * No se listan aquí las secciones núcleo (Inicio, Bandeja, Contactos,
+ * Asistente, Productos, Integraciones, Ajustes): apagarlas dejaría la app sin
+ * nada utilizable.
+ */
 export const FEATURES: FeatureDef[] = [
   {
     key: 'flows',
     labelKey: 'admin.featureFlows',
     descKey: 'admin.featureFlowsDesc',
     sections: ['/menus'],
+  },
+  {
+    key: 'voice',
+    labelKey: 'admin.featureVoice',
+    descKey: 'admin.featureVoiceDesc',
+    sections: ['/voz'],
+  },
+  {
+    key: 'comments',
+    labelKey: 'admin.featureComments',
+    descKey: 'admin.featureCommentsDesc',
+    sections: ['/comentarios'],
+  },
+  {
+    key: 'instagram_agent',
+    labelKey: 'admin.featureInstagramAgent',
+    descKey: 'admin.featureInstagramAgentDesc',
+    sections: ['/agente-instagram'],
+  },
+  {
+    key: 'campaigns',
+    labelKey: 'admin.featureCampaigns',
+    descKey: 'admin.featureCampaignsDesc',
+    sections: ['/campanas'],
+  },
+  {
+    key: 'templates',
+    labelKey: 'admin.featureTemplates',
+    descKey: 'admin.featureTemplatesDesc',
+    sections: ['/plantillas'],
+  },
+  {
+    key: 'automations',
+    labelKey: 'admin.featureAutomations',
+    descKey: 'admin.featureAutomationsDesc',
+    sections: ['/automatizaciones'],
+  },
+  {
+    key: 'orders',
+    labelKey: 'admin.featureOrders',
+    descKey: 'admin.featureOrdersDesc',
+    sections: ['/pedidos'],
   },
 ];
 

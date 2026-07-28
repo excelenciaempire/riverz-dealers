@@ -3,7 +3,7 @@ import type { VoiceCall, VoiceConnectionConfig } from '@/types';
 import { serverError } from '@/lib/api/errors';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { pingCron } from '@/lib/cron/heartbeat';
+import { withCronRun } from "@/lib/cron/heartbeat";
 import {
   dispatchVoiceCall,
   isLiveKitConfigured,
@@ -24,14 +24,13 @@ const CLAIM_BATCH = 25;
 // Hard ceiling well above any per-agent voice_max_call_seconds (300s default).
 const STUCK_AFTER_MS = 20 * 60 * 1000;
 
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron('voice-calls');
 
   if (!isLiveKitConfigured()) {
     return NextResponse.json({ skipped: 'livekit_not_configured' });
@@ -144,3 +143,6 @@ export async function GET(request: Request) {
     return serverError(err, 'voice-calls cron failed');
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("voice-calls", cronHandler);

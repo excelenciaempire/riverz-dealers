@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { syncAllWorkspaces } from '@/lib/contacts/bulk-sync';
 import { assertCronAuth } from '@/lib/auth/cron';
-import { pingCron } from '@/lib/cron/heartbeat';
+import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/contacts-sync
@@ -20,14 +20,13 @@ import { pingCron } from '@/lib/cron/heartbeat';
  *
  * Auth: `x-cron-secret` header must match `AUTOMATION_CRON_SECRET`.
  */
-export async function GET(request: Request) {
+async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
   }
-  void pingCron('contacts-sync');
 
   try {
     const results = await syncAllWorkspaces(supabaseAdmin());
@@ -46,3 +45,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+/** Registra la corrida en cron_runs con duración y resultado reales. */
+export const GET = withCronRun("contacts-sync", cronHandler);

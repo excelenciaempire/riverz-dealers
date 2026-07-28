@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
-import { isPlatformAdmin } from '@/lib/auth/platform-admin';
+import { requireAdmin } from '@/lib/admin/guard';
+import { recordAdminAction } from '@/lib/admin/audit';
 import {
   getVoiceModelConfig,
   buildModelUpdate,
@@ -16,20 +16,6 @@ import {
  * PUT  → update (STT/LLM/TTS models, mode, realtime engine). Applies to every
  *        workspace; merchants can't reach this.
  */
-async function requireAdmin(): Promise<{ ok: true; userId: string } | { ok: false; res: NextResponse }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, res: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
-  }
-  if (!isPlatformAdmin(user.email)) {
-    return { ok: false, res: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
-  }
-  return { ok: true, userId: user.id };
-}
-
 export async function GET() {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
@@ -58,12 +44,25 @@ export async function PUT(request: Request) {
 
   const update = buildModelUpdate(body);
   update.updated_at = new Date().toISOString();
-  update.updated_by = gate.userId;
+  update.updated_by = gate.actor.userId;
 
   try {
     const admin = supabaseAdmin();
-    await admin.from('voice_model_config').update(update).eq('id', 1);
+    // `upsert` y no `update`: la tabla es de una sola fila sembrada por la
+    // migración 114. Si esa fila faltara, un `update` no afecta nada y devuelve
+    // éxito — la UI mostraría "Guardado" sin haber guardado. Además ahora se
+    // comprueba el error de Supabase, que antes se descartaba.
+    const { error } = await admin
+      .from('voice_model_config')
+      .upsert({ id: 1, ...update }, { onConflict: 'id' });
+    if (error) return serverError(error, 'save voice model config failed');
+
     const config = await getVoiceModelConfig(admin);
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.voice_model',
+      targetType: 'voice_model',
+      meta: { mode: body.mode ?? null },
+    });
     return NextResponse.json({ ok: true, config });
   } catch (err) {
     return serverError(err, 'save voice model config failed');
