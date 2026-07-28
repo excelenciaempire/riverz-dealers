@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -102,9 +103,11 @@ export async function POST(
 
   const a = agent as AiAgent;
   try {
-    const apiKey =
-      (a.api_key_encrypted ? safeDecrypt(a.api_key_encrypted) : null) ||
-      process.env.ANTHROPIC_API_KEY;
+    const resolvedKey = await resolveAnthropicKey(supabaseAdmin(), {
+      workspaceId: a.workspace_id,
+      agentKeyEncrypted: a.api_key_encrypted,
+    });
+    const apiKey = resolvedKey?.key;
     if (!apiKey) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.missingApiKey') },
@@ -183,13 +186,6 @@ export async function POST(
   }
 }
 
-function safeDecrypt(value: string): string | null {
-  try {
-    return decrypt(value);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Levanta el contexto Shopify del workspace del agente.

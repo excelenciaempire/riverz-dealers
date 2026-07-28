@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Mailbox,
   Server,
+  KeyRound,
 } from "lucide-react";
 
 /**
@@ -32,6 +33,13 @@ export interface AdminSection {
 }
 
 export const ADMIN_SECTIONS: AdminSection[] = [
+  {
+    href: "/admin/ia",
+    label: "admin.sectionAiKey",
+    description: "admin.sectionAiKeyDesc",
+    icon: KeyRound,
+    group: "configuracion",
+  },
   // ── Comercios y su consumo ──
   {
     href: "/admin/comercios",

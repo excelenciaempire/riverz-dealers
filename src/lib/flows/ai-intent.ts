@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic } from '@/lib/ai/anthropic-client'
+import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import { supabaseAdmin } from './admin-client'
-import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
  * Classify a customer's free-text reply into one of the declared intents
@@ -32,9 +32,11 @@ export async function classifyIntent(args: {
     .maybeSingle()
   const row = agent as { model: string; api_key_encrypted: string | null } | null
 
-  const apiKey =
-    (row?.api_key_encrypted ? safeDecrypt(row.api_key_encrypted) : null) ||
-    process.env.ANTHROPIC_API_KEY
+  const resolved = await resolveAnthropicKey(db, {
+    workspaceId: args.workspaceId,
+    agentKeyEncrypted: row?.api_key_encrypted,
+  })
+  const apiKey = resolved?.key
   if (!apiKey) return null
 
   const model = row?.model || 'claude-haiku-4-5-20251001'
@@ -73,10 +75,3 @@ export async function classifyIntent(args: {
   }
 }
 
-function safeDecrypt(value: string): string | null {
-  try {
-    return decrypt(value)
-  } catch {
-    return null
-  }
-}

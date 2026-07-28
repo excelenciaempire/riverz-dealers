@@ -28,6 +28,9 @@ export type AdminAction =
   | 'view.infrastructure'
   | 'update.feature_flag'
   | 'update.voice_model'
+  | 'view.ai_key'
+  | 'update.platform_ai_key'
+  | 'update.platform_ai_workspace'
   // Descarga de recursos que el equipo entrega a un comercio. No lleva
   // datos de nadie, pero queda registrada igual: es una salida de archivo
   // desde el panel y conviene poder decir quién la pidió.

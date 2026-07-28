@@ -23,10 +23,10 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from './anthropic-client';
+import { resolveAnthropicKey } from './platform-key';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Conversation, Contact } from '@/types';
 import type { AiAgent } from './types';
-import { decrypt } from '@/lib/whatsapp/encryption';
 
 const SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -38,16 +38,15 @@ const RECENT_TAIL_COUNT = 20;
  *  disparan un re-summarize. */
 const SUMMARIZE_EVERY_N = 30;
 
-function getApiKey(agent: AiAgent): string | null {
-  if (agent.api_key_encrypted) {
-    try {
-      const decoded = decrypt(agent.api_key_encrypted);
-      if (decoded) return decoded;
-    } catch {
-      /* fallthrough */
-    }
-  }
-  return process.env.ANTHROPIC_API_KEY ?? null;
+async function getApiKey(
+  db: SupabaseClient,
+  agent: AiAgent,
+): Promise<string | null> {
+  const resolved = await resolveAnthropicKey(db, {
+    workspaceId: agent.workspace_id,
+    agentKeyEncrypted: agent.api_key_encrypted,
+  });
+  return resolved?.key ?? null;
 }
 
 /**
@@ -88,7 +87,7 @@ export async function summarizeConversationIfNeeded(
       if ((newer ?? 0) < SUMMARIZE_EVERY_N) return;
     }
 
-    const apiKey = getApiKey(agent);
+    const apiKey = await getApiKey(db, agent);
     if (!apiKey) return;
 
     // ── Cargamos el bloque viejo (todo menos los últimos
@@ -176,7 +175,7 @@ export async function summarizeContactIfNeeded(
       if (!count || count < 25 || count % 25 !== 0) return;
     }
 
-    const apiKey = getApiKey(agent);
+    const apiKey = await getApiKey(db, agent);
     if (!apiKey) return;
 
     // Tomamos los últimos 60 mensajes de TODAS las conversaciones del

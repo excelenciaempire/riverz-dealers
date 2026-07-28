@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
+import { resolveAnthropicKey } from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { getAdapter } from '@/lib/channels/registry';
-import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from './types';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 
@@ -37,13 +37,6 @@ export interface FollowUpResult {
   reason?: string;
 }
 
-function safeDecrypt(s: string): string | null {
-  try {
-    return decrypt(s);
-  } catch {
-    return null;
-  }
-}
 
 function describeSilence(hours: number): string {
   if (hours < 1) return 'menos de una hora';
@@ -218,10 +211,12 @@ export async function runFollowUp(
     });
 
     // 3. Generación.
-    const apiKey =
-      (agent.api_key_encrypted ? safeDecrypt(agent.api_key_encrypted) : null) ||
-      process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return { sent: false, reason: 'no_api_key' };
+    const resolvedKey = await resolveAnthropicKey(db, {
+      workspaceId: agent.workspace_id,
+      agentKeyEncrypted: agent.api_key_encrypted,
+    });
+    if (!resolvedKey) return { sent: false, reason: 'no_api_key' };
+    const apiKey = resolvedKey.key;
 
     const client = getAnthropic(apiKey);
     const resp = await client.messages.create({

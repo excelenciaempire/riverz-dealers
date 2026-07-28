@@ -3,7 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
 import type { AiAgent } from './types';
 import { getAnthropic } from './anthropic-client';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { resolveAnthropicKey } from './platform-key';
 import {
   buildSystemPrompt,
   loadContext,
@@ -95,10 +95,12 @@ export async function composeSuperAgentReply(
     if (!agent) return null;
     if (agent.provider !== 'anthropic') return null;
 
-    const apiKey =
-      (agent.api_key_encrypted ? safeDecrypt(agent.api_key_encrypted) : null) ||
-      process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return null;
+    const resolvedKey = await resolveAnthropicKey(db, {
+      workspaceId: input.workspaceId,
+      agentKeyEncrypted: agent.api_key_encrypted,
+    });
+    if (!resolvedKey) return null;
+    const apiKey = resolvedKey.key;
 
     const { data: contactRow } = await db
       .from('contacts')
@@ -237,10 +239,3 @@ function commentTools(shopify: ShopifyToolContext): Anthropic.Tool[] {
   ];
 }
 
-function safeDecrypt(value: string): string | null {
-  try {
-    return decrypt(value);
-  } catch {
-    return null;
-  }
-}

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
+import { resolveAnthropicKey, type KeySource } from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { transcribeAudio } from './transcribe';
 import type {
@@ -464,6 +465,7 @@ export async function runAiAgent(
       message_id: insertedIds[0] ?? null,
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
+      key_source: reply.keySource,
       ...(truncatedFallback
         ? { skip_reason: 'tool_loop_truncated_fallback' }
         : {}),
@@ -841,6 +843,9 @@ interface ReplyResult {
   text: string;
   promptTokens?: number;
   completionTokens?: number;
+  /** Qué clave pagó la llamada — se guarda en ai_replies para poder separar
+   *  en /admin lo que gasta Riverz de lo que gasta el comercio. */
+  keySource?: KeySource;
   /** True iff the agentic tool loop hit its iteration cap without
    *  resolving — caller may swap in a fallback message when the model
    *  returned empty text. */
@@ -1112,12 +1117,15 @@ async function generateReply(
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
   }
-  const apiKey =
-    (agent.api_key_encrypted ? safeDecrypt(agent.api_key_encrypted) : null) ||
-    process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('Missing Anthropic API key (workspace key or ANTHROPIC_API_KEY).');
+  const resolved = await resolveAnthropicKey(db, {
+    workspaceId: agent.workspace_id,
+    agentKeyEncrypted: agent.api_key_encrypted,
+  });
+  if (!resolved) {
+    throw new Error('Missing Anthropic API key (agent, platform or ANTHROPIC_API_KEY).');
   }
+  const apiKey = resolved.key;
+  const keySource = resolved.source;
 
   const client = getAnthropic(apiKey);
   // "One brain": on Instagram, feed the reactive agent the same per-person
@@ -1247,6 +1255,7 @@ async function generateReply(
     promptTokens: result.promptTokens,
     completionTokens: result.completionTokens,
     truncated: result.truncated,
+    keySource,
   };
 }
 
@@ -1782,13 +1791,6 @@ function formatProductLine(p: ProductRow): string {
   }`;
 }
 
-function safeDecrypt(value: string): string | null {
-  try {
-    return decrypt(value);
-  } catch {
-    return null;
-  }
-}
 
 /** Devuelve las 3 notas más recientes del equipo sobre este contact,
  *  como strings. Falla en silencio — la falta de notas no es un error. */
@@ -1875,6 +1877,7 @@ async function logReply(
     message_id?: string | null;
     prompt_tokens?: number;
     completion_tokens?: number;
+    key_source?: KeySource;
   },
 ): Promise<void> {
   await db.from('ai_replies').insert({
@@ -1887,6 +1890,7 @@ async function logReply(
     error: patch.error ?? null,
     prompt_tokens: patch.prompt_tokens ?? null,
     completion_tokens: patch.completion_tokens ?? null,
+    key_source: patch.key_source ?? null,
   });
 }
 

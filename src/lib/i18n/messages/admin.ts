@@ -321,4 +321,48 @@ export const admin = {
   // ── Lista de espera ──
   waitlistTitle: { es: "Lista de espera", en: "Waitlist" },
   colSource: { es: "Origen", en: "Source" },
+
+  // ── Clave de IA de la plataforma ──
+  sectionAiKey: { es: "IA", en: "AI" },
+  sectionAiKeyDesc: {
+    es: "Quién paga la IA de cada cuenta",
+    en: "Who pays for each account's AI",
+  },
+  aiKeyTitle: { es: "Clave de IA", en: "AI key" },
+  aiKeySubtitle: {
+    es: "Riverz pone la clave y decide a qué cuentas cubre. Las demás traen la suya.",
+    en: "Riverz supplies the key and decides which accounts it covers. The rest bring their own.",
+  },
+  aiKeyTheKey: { es: "Clave de Anthropic", en: "Anthropic key" },
+  aiKeyLoaded: { es: "cargada", en: "loaded" },
+  aiKeyReplace: { es: "Pegar una clave nueva para reemplazarla", en: "Paste a new key to replace it" },
+  aiKeyWhoTitle: { es: "A quién cubre", en: "Who it covers" },
+  aiKeyModeAll: { es: "Todas", en: "All" },
+  aiKeyModeAllHint: {
+    es: "Cualquier cuenta usa la clave de Riverz",
+    en: "Every account uses the Riverz key",
+  },
+  aiKeyModeSelected: { es: "Solo las elegidas", en: "Selected only" },
+  aiKeyModeSelectedHint: {
+    es: "El resto trae la suya",
+    en: "The rest bring their own",
+  },
+  aiKeyModeOff: { es: "Ninguna", en: "None" },
+  aiKeyModeOffHint: { es: "Todas traen la suya", en: "Everyone brings their own" },
+  aiKeySpendPlatform: { es: "Paga Riverz · {days} días", en: "Riverz pays · {days} days" },
+  aiKeySpendOwn: { es: "Paga el comercio · {days} días", en: "Merchant pays · {days} days" },
+  aiKeyCovered: { es: "Cuentas cubiertas", en: "Accounts covered" },
+  aiKeyByAccount: { es: "Por cuenta", en: "By account" },
+  aiKeyColAccount: { es: "Cuenta", en: "Account" },
+  aiKeyColCalls: { es: "Respuestas", en: "Replies" },
+  aiKeyColRiverz: { es: "Paga Riverz", en: "Riverz pays" },
+  aiKeyColOwn: { es: "Paga el comercio", en: "Merchant pays" },
+  aiKeyColCovered: { es: "Cubierta", en: "Covered" },
+  aiKeyAllOn: { es: "Todas", en: "All" },
+  aiKeySaved: { es: "Guardado", en: "Saved" },
+  aiKeySaveError: { es: "No se pudo guardar", en: "Could not save" },
+  aiKeyNoFallback: {
+    es: "{name} queda sin clave propia: dejará de responder",
+    en: "{name} has no key of its own: it will stop replying",
+  },
 } satisfies Namespace;
