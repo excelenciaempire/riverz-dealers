@@ -178,12 +178,34 @@ nada que liberar: la cuenta que se entregue funciona completa desde el
 primer minuto. Si se agrega un plan pago antes de la revisión, hay que
 crear una cuenta exenta y avisarlo en la solicitud.
 
-- **Tienda demo de Tiendanube:** "Riverz Demo" (Colombia), creada el
-  2026-07-27 desde el portal de socios. Usuario
-  `riverzoficial+tndemo@gmail.com`; la contraseña está fuera de este
-  archivo.
-- **Cuenta Riverz para el revisor:** pendiente de crear. No usar la de
-  ningún comercio real.
+- **Tienda demo de Tiendanube:** "Riverz Demo" (Colombia, tienda
+  `#8018159`, dominio `riverzdemo.mitiendanube.com`), creada el
+  2026-07-27. Usuario `riverzoficial+tndemo@gmail.com`. El acceso al
+  administrador NO es por `tiendanube.com/login` —ese correo no está
+  registrado como login— sino por el enlace SSO del portal de socios:
+  Tiendas → Riverz Demo → "Administrar tienda".
+- **Cuenta Riverz para el revisor:** `riverzoficial+tnreview@gmail.com`,
+  creada el 2026-07-27. Espacio de trabajo limpio, con la tienda demo ya
+  conectada. Las contraseñas están fuera de este archivo.
+
+## 4.1 Instalación verificada de punta a punta
+
+Ejecutada el 2026-07-28 contra la tienda demo, con el código en
+producción (`riverz.co`). Lo que quedó comprobado:
+
+| Paso | Resultado |
+| --- | --- |
+| Redirección a `tiendanube.com/apps/37693/authorize` | El `state` firmado sobrevive el ida y vuelta |
+| Canje del código y persistencia | Conexión `active`, método `oauth` |
+| Lectura de `/store` | Nombre "Riverz Demo", dominio y moneda `COP` correctos |
+| Alta de webhooks | Sin errores en los registros del servidor |
+| Sincronización de catálogo | 1 producto, con nombre localizado aplanado y URL bien armada |
+| Precio efectivo | Con lista 89.000 y promocional 69.000, el catálogo guarda **69.000** — el agente cotiza lo que el cliente paga |
+
+Nota de la prueba: el asistente de alta de la tienda demo (encuesta de
+onboarding) se interpone la primera vez y hay que completarlo antes de
+que la pantalla de autorización aparezca. Conviene dejarlo hecho antes de
+grabar el video.
 
 ---
 
@@ -223,7 +245,8 @@ cambia el tamaño del trabajo.
 | Endpoints en producción, verificados | Hecho |
 | Tienda demo creada | Hecho |
 | Diagrama de secuencia | Hecho (sección 2) |
-| Instalación probada de punta a punta | **Pendiente** |
+| Instalación probada de punta a punta | Hecho (sección 4.1) |
+| Cuenta Riverz para el revisor | Hecho |
+| Webhook de pedido recibido con un pedido real | Pendiente |
 | Video demo | Pendiente (guion en la sección 3) |
-| Cuenta Riverz para el revisor | Pendiente |
 | Definición sobre NubeSDK | **Pendiente — bloquea el envío** |
