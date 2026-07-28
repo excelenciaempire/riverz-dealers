@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { mlThreadKind } from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type {
   Conversation,
@@ -1611,6 +1612,14 @@ export function MessageThread({
           no composer (you can't type a reply to a phone call). */}
       {conversation.channel === "voice" ? (
         <VoiceCallCard conversationId={conversation.id} />
+      ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
+        "review" ? (
+        /* Una opinión no se contesta: Mercado Libre no expone ningún endpoint
+           para hacerlo. Mostrar el compositor sería ofrecer algo que al pulsar
+           "enviar" iba a fallar — mejor decirlo antes de que lo escriba. */
+        <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+          {t("inbox.mlReviewNoReply")}
+        </div>
       ) : (
         /* Composer — the 24h session-window check only applies to
            WhatsApp; for every other channel the agent can reply any

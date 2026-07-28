@@ -659,12 +659,14 @@ export default function InboxPage() {
   const mlCounts = useMemo(() => {
     let question = 0;
     let message = 0;
+    let review = 0;
     for (const c of conversations) {
       const kind = mlThreadKind(c.channel, c.thread_external_id);
       if (kind === "question") question++;
       else if (kind === "message") message++;
+      else if (kind === "review") review++;
     }
-    return { question, message };
+    return { question, message, review };
   }, [conversations]);
 
   // Switching the channel chip resets the ML sub-filter so a stale

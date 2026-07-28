@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { pollAllMercadoLibreConnections } from "@/lib/channels/mercadolibre/poll";
 import { syncAllMercadoLibreOrders } from "@/lib/channels/mercadolibre/orders";
 import { syncAllMercadoLibreCatalogs } from "@/lib/channels/mercadolibre/catalog";
-import { pollAllMercadoLibreReviews } from "@/lib/channels/ml_review/poll";
+import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun, pingCron } from "@/lib/cron/heartbeat";
 

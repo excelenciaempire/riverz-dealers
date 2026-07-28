@@ -1,7 +1,7 @@
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
-import { getFreshMLToken } from "../mercadolibre/adapter";
+import { getFreshMLToken } from "./adapter";
 import { getLogger } from "@/lib/log/logger";
 
 const ML = "https://api.mercadolibre.com";
@@ -14,6 +14,8 @@ const PAGE = 50;
 /** Tope de opiniones recorridas por publicación, para no barrer un histórico
  *  de miles cuando el contador se dispara. */
 const MAX_SCAN = 400;
+/** Cuánto histórico trae la PRIMERA vez que se ve una publicación. */
+const SEED_DAYS = 30;
 
 /**
  * Estado por publicación: cuántas opiniones tenía la última vez y cuándo se
@@ -111,18 +113,21 @@ async function pollOneSeller(
     const total = Number(head.paging?.total ?? 0);
     const prev = state[itemId];
 
-    // 2. Primera vez: sembrar el conteo sin importar el histórico.
-    if (!prev) {
-      state[itemId] = { total, checkedAt: now };
-      continue;
-    }
-    if (total <= prev.total) {
+    // 2. Nada que hacer si el conteo no se movió.
+    if (prev && total <= prev.total) {
       state[itemId] = { total, checkedAt: prev.checkedAt };
       continue;
     }
 
-    // 3. Creció: recorrer buscando las posteriores a la última revisión.
-    const since = Date.parse(prev.checkedAt) || 0;
+    // 3. Desde cuándo importar.
+    //
+    // La primera vez NO se trae el histórico entero —una publicación con 492
+    // opiniones enterraría el resto de la bandeja— pero tampoco cero: una
+    // sección vacía no le dice al comercio si esto funciona o está roto. Se
+    // traen las de los últimos SEED_DAYS y de ahí en adelante sólo lo nuevo.
+    const since = prev
+      ? Date.parse(prev.checkedAt) || 0
+      : Date.now() - SEED_DAYS * 86_400_000;
     const title = await itemTitle(itemId, auth);
     let offset = 0;
     let found = 0;
@@ -141,16 +146,21 @@ async function pollOneSeller(
         const created = Date.parse(rev.date_created ?? "") || 0;
         if (created <= since) continue;
         const wrote = await ingestInboundEvent(db, {
-          channel: "ml_review",
+          // MISMO canal que las preguntas y los mensajes post-venta. Las tres
+          // cosas pasan en Mercado Libre y el comercio las piensa como un solo
+          // lugar; el tipo de hilo se distingue por el prefijo del hilo
+          // (`q:` / `pack:` / `rev:`), que es como ya se distinguían las otras
+          // dos, y la bandeja lo muestra como etiqueta.
+          channel: "mercadolibre",
           connection: conn,
           // El hilo es el PRODUCTO, no la persona: Mercado Libre anonimiza a
           // quien opina, así que no hay contacto que representar. Agrupadas por
           // publicación, además, es como el comercio las quiere leer ("¿qué
           // dicen del sérum?").
-          externalContactId: `item:${itemId}`,
+          externalContactId: `rev:${itemId}`,
           contactName: title || itemId,
           externalMessageId: `rev:${rev.id}`,
-          externalThreadId: `item:${itemId}`,
+          externalThreadId: `rev:${itemId}`,
           subject: title || itemId,
           text: formatReview(rev),
           receivedAt: rev.date_created ?? now,

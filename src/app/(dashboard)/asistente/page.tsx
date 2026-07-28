@@ -44,7 +44,6 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   mercadolibre: 'Mercado Libre',
   tiktok_comment: 'assistant.channelTiktokComments',
   voice: 'Voz',
-  ml_review: 'Opiniones ML',
 };
 
 export default function AiAgentsPage() {

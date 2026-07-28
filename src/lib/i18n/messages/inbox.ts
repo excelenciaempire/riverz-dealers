@@ -421,6 +421,13 @@ export const inbox = {
   // Mercado Libre — pregunta (pública) vs mensaje (post-venta)
   mlQuestion: { es: "Pregunta", en: "Question" },
   mlMessage: { es: "Mensaje", en: "Message" },
+  mlReview: { es: "Opinión", en: "Review" },
+  mlReviewPublic: { es: "Opinión de producto", en: "Product review" },
+  mlFilterReviews: { es: "Opiniones", en: "Reviews" },
+  mlReviewNoReply: {
+    es: "Mercado Libre no permite responder opiniones",
+    en: "Mercado Libre does not allow replying to reviews",
+  },
   mlQuestionPublic: { es: "Pregunta pública", en: "Public question" },
   mlMessagePostSale: { es: "Mensaje post-venta", en: "Post-sale message" },
   mlFilterAll: { es: "Todas", en: "All" },

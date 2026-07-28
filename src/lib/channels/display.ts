@@ -80,15 +80,6 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     accent: "#25F4EE",
     replyOnly: true,
   },
-  ml_review: {
-    channel: "ml_review",
-    label: "Opiniones ML",
-    shortLabel: "ML·",
-    badge: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
-    accent: "#FFE600",
-    // Mercado Libre no expone forma de contestar una opinión.
-    replyOnly: true,
-  },
   voice: {
     channel: "voice",
     label: "Voz",
@@ -158,9 +149,16 @@ export function mediaPreviewToken(mime?: string | null): string {
   return "[Documento]";
 }
 
-/** MercadoLibre sub-kind: a pre-sale QUESTION (public, shown on the listing)
- *  vs a post-sale MESSAGE (private, tied to an order pack). */
-export type MlThreadKind = "question" | "message";
+/**
+ * Las tres cosas que pasan en Mercado Libre, y que el comercio ve en un mismo
+ * lugar:
+ *
+ *   question — pregunta previa a la venta. PÚBLICA, en la publicación.
+ *   message  — mensaje post-venta. Privado, atado a un pedido.
+ *   review   — opinión de quien compró. Pública, anónima y SIN respuesta
+ *              posible: Mercado Libre no expone endpoint para contestarla.
+ */
+export type MlThreadKind = "question" | "message" | "review";
 
 /**
  * Derive the ML sub-kind from a conversation's thread_external_id. ML encodes
@@ -176,6 +174,7 @@ export function mlThreadKind(
   if (channel !== "mercadolibre" || !threadExternalId) return null;
   if (threadExternalId.startsWith("q:")) return "question";
   if (threadExternalId.startsWith("pack:")) return "message";
+  if (threadExternalId.startsWith("rev:")) return "review";
   return null;
 }
 
@@ -231,7 +230,6 @@ export function localizeContentToken(
 export function channelLabel(channel: Channel, t: TFn): string {
   if (channel === "fb_comment") return t("common.channelFbComments");
   if (channel === "ig_comment") return t("common.channelIgComments");
-  if (channel === "ml_review") return t("common.channelMlReviews");
   return CHANNEL_DISPLAY[channel].label;
 }
 

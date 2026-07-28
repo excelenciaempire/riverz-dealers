@@ -1,22 +1,39 @@
 "use client";
 
 import type { Channel } from "@/types";
-import { Globe } from "lucide-react";
-import { mlThreadKind } from "@/lib/channels/display";
+import { Globe, Star } from "lucide-react";
+import { mlThreadKind, type MlThreadKind } from "@/lib/channels/display";
 import { useT } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 
 /**
- * Marks a MercadoLibre conversation as a pre-sale QUESTION or a post-sale
- * MESSAGE. The real signal is public vs private: a question is visible to
- * anyone browsing the listing and the answer is published there (hence the
- * globe), while a message is a private post-sale chat tied to an order.
+ * Qué es este hilo de Mercado Libre. Las tres cosas llegan al mismo sitio y se
+ * parecen lo bastante como para confundirse, pero piden cosas distintas:
  *
- * Renders nothing for non-ML conversations. `variant="header"` uses the
- * fuller "Pregunta pública" / "Mensaje post-venta" label inside the open
- * thread — where the reply happens and the public/private stake matters
- * most; the list row uses the compact label.
+ *   Pregunta — pre-venta y PÚBLICA en la publicación. Lo que se conteste queda
+ *              a la vista de cualquiera que mire el producto (de ahí el globo),
+ *              y Mercado Libre penaliza la demora.
+ *   Mensaje  — post-venta, privado y atado a un pedido.
+ *   Opinión  — ya compró y ya opinó. NO se puede contestar: Mercado Libre no
+ *              expone endpoint para hacerlo. Se lee.
+ *
+ * No renderiza nada fuera de Mercado Libre. `variant="header"` usa la etiqueta
+ * larga dentro del hilo abierto —donde se responde y el matiz público/privado
+ * pesa más—; la fila de la lista usa la corta.
  */
+
+const LABELS: Record<MlThreadKind, { row: string; header: string }> = {
+  question: { row: "inbox.mlQuestion", header: "inbox.mlQuestionPublic" },
+  message: { row: "inbox.mlMessage", header: "inbox.mlMessagePostSale" },
+  review: { row: "inbox.mlReview", header: "inbox.mlReviewPublic" },
+};
+
+const TONES: Record<MlThreadKind, string> = {
+  question: "bg-sky-400/10 text-sky-300 ring-1 ring-sky-400/30",
+  message: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
+  review: "bg-violet-400/10 text-violet-300 ring-1 ring-violet-400/30",
+};
+
 export function MlKindBadge({
   channel,
   threadExternalId,
@@ -31,28 +48,20 @@ export function MlKindBadge({
   const t = useT();
   const kind = mlThreadKind(channel, threadExternalId);
   if (!kind) return null;
-  const isQuestion = kind === "question";
-  const label = t(
-    variant === "header"
-      ? isQuestion
-        ? "inbox.mlQuestionPublic"
-        : "inbox.mlMessagePostSale"
-      : isQuestion
-        ? "inbox.mlQuestion"
-        : "inbox.mlMessage",
-  );
+
+  const label = t(LABELS[kind][variant === "header" ? "header" : "row"]);
+
   return (
     <span
       title={label}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-        isQuestion
-          ? "bg-sky-400/10 text-sky-300 ring-1 ring-sky-400/30"
-          : "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
+        TONES[kind],
         className,
       )}
     >
-      {isQuestion && <Globe className="h-2.5 w-2.5" />}
+      {kind === "question" && <Globe className="h-2.5 w-2.5" />}
+      {kind === "review" && <Star className="h-2.5 w-2.5" />}
       {label}
     </span>
   );

@@ -15,13 +15,7 @@ export const MESSAGE_CHANNELS: Channel[] = [
   "outlook",
   "mercadolibre",
 ];
-export const COMMENT_CHANNELS: Channel[] = [
-  "fb_comment",
-  "ig_comment",
-  // Una opinión de producto es un comentario público sobre lo que vendes:
-  // mismo lugar que los de Facebook e Instagram, no la pestaña de Mensajes.
-  "ml_review",
-];
+export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment"];
 
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
   if (tab === "comments") return COMMENT_CHANNELS.includes(channel);

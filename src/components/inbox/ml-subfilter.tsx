@@ -8,9 +8,10 @@ export type MlKindFilter = "all" | MlThreadKind;
 
 /**
  * Secondary filter shown only when the MercadoLibre channel chip is active.
- * ML conversations split into two very different jobs — pre-sale questions
- * (public, on the listing) and post-sale messages (private, per order) — so
- * this lets the seller focus on one without leaving the unified inbox.
+ * En Mercado Libre pasan tres cosas distintas en el mismo sitio: preguntas
+ * pre-venta (públicas, en la publicación), mensajes post-venta (privados, por
+ * pedido) y opiniones de quien ya compró (públicas y sin respuesta posible).
+ * Esto deja mirar una sola sin salir de la bandeja unificada.
  * Counts are the number of ML conversations of each kind currently loaded.
  */
 export function MlSubFilter({
@@ -20,14 +21,14 @@ export function MlSubFilter({
 }: {
   value: MlKindFilter;
   onChange: (v: MlKindFilter) => void;
-  counts: { question: number; message: number };
+  counts: { question: number; message: number; review: number };
 }) {
   const t = useT();
   const items: { key: MlKindFilter; label: string; count: number }[] = [
     {
       key: "all",
       label: t("inbox.mlFilterAll"),
-      count: counts.question + counts.message,
+      count: counts.question + counts.message + counts.review,
     },
     {
       key: "question",
@@ -38,6 +39,11 @@ export function MlSubFilter({
       key: "message",
       label: t("inbox.mlFilterMessages"),
       count: counts.message,
+    },
+    {
+      key: "review",
+      label: t("inbox.mlFilterReviews"),
+      count: counts.review,
     },
   ];
   return (

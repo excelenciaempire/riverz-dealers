@@ -11,8 +11,7 @@ export type Channel =
   | 'ig_comment'
   | 'mercadolibre'
   | 'tiktok_comment'
-  | 'voice'
-  | 'ml_review';
+  | 'voice';
 
 export const CHANNELS: Channel[] = [
   'whatsapp',
@@ -25,7 +24,6 @@ export const CHANNELS: Channel[] = [
   'mercadolibre',
   'tiktok_comment',
   'voice',
-  'ml_review',
 ];
 
 // ============================================================
