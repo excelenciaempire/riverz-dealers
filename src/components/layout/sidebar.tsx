@@ -12,7 +12,7 @@ import { useT } from "@/hooks/use-locale";
 import { useSetupStatus } from "@/hooks/use-setup-status";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
-import { canUsePath } from "@/lib/admin/feature-flags";
+import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import {
   Home,
@@ -152,16 +152,21 @@ export function Sidebar({
   // navigation. Not a security boundary — data is RLS-scoped to membership.
   const allowedSections =
     membership?.role === "admin" ? null : (membership?.allowed_sections ?? null);
-  // Feature flags: esconde funcionalidades apagadas plataforma-wide (ej. Flujos),
-  // salvo para platform admins que siempre las ven.
-  const { flags, isPlatformAdmin } = useFeatureFlags();
+  // Feature flags: una funcionalidad apagada plataforma-wide (ej. Flujos) se
+  // esconde del menú para TODOS —incluidos los platform admins— para que la app
+  // se vea limpia. El admin igual puede ENTRAR por URL (lo permiten el
+  // SectionGuard y el gate en servidor), solo que no aparece en el menú.
+  const { flags } = useFeatureFlags();
+  const navFeatureEnabled = (href: string) => {
+    const feat = featureForPath(href);
+    return !feat || isFeatureEnabled(flags, feat);
+  };
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
-          canAccessSection(allowedSections, item.href) &&
-          canUsePath(item.href, flags, isPlatformAdmin),
+          canAccessSection(allowedSections, item.href) && navFeatureEnabled(item.href),
       ),
     }))
     .filter((group) => group.items.length > 0);

@@ -4,6 +4,8 @@ import Link from "@/components/i18n/locale-link";
 import { Sparkles, Waypoints, ArrowRight } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
+import { useFeatureFlags } from '@/hooks/use-feature-flags';
+import { isFeatureEnabled } from '@/lib/admin/feature-flags';
 
 /**
  * Side-by-side picker shown at the top of /ai and /flows so the user
@@ -13,6 +15,10 @@ import { cn } from '@/lib/utils';
  */
 export function SupportModeSwitcher({ current }: { current: 'ai' | 'flows' }) {
   const t = useT();
+  const { flags } = useFeatureFlags();
+  // Si Flujos está apagado (feature flag), el chooser deja de tener sentido
+  // (queda un solo modo) → se oculta entero, incl. la tarjeta del Asistente.
+  if (!isFeatureEnabled(flags, 'flows')) return null;
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <ModeCard
