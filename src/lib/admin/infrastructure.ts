@@ -106,7 +106,9 @@ async function fish(): Promise<ServiceHealth> {
       status: credit <= 0 ? 'empty' : credit < 5 ? 'low' : 'ok',
       balance: credit,
       unit: 'USD',
-      detail: 'TTS S2.1',
+      // Sin saldo Fish NO queda muerto: s2.1-pro-free sigue sintetizando (sin
+      // garantías de latencia). Los modelos pagos sí devuelven 402.
+      detail: credit <= 0 ? 'TTS S2.1 · sólo el modelo free' : 'TTS S2.1',
     };
   } catch {
     return { ...base, detail: 'no responde' };
