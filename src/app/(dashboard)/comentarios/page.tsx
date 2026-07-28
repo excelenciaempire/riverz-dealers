@@ -1,10 +1,8 @@
 'use client';
 
 import {
-  AgentSettingsMenu,
   CommentsSection,
   ConnectionPill,
-  PausedBanner,
   useIgConnected,
   useProactiveSettings,
 } from '@/components/instagram/sections';
@@ -23,8 +21,11 @@ import { useWorkspace } from '@/hooks/use-workspace';
  * Cubre Instagram y Facebook: las reglas de comentario→DM ya funcionan en los
  * dos, así que el nombre no lleva apellido de canal.
  *
- * Mismo encabezado que Ventas por Instagram —título, aviso solo si falta la
- * conexión, límites en el menú— porque son dos caras del mismo agente.
+ * Aquí NO viven el tope diario ni el freno de emergencia, aunque los dos
+ * afecten a lo que sale de esta pantalla. Son controles de reputación de la
+ * cuenta —su propio texto habla de "DMs proactivos"— y se configuran en
+ * Prospección IA. Lo que un comercio usa para callar los comentarios es el
+ * interruptor que tiene delante: "Responder con IA".
  */
 export default function ComentariosPage() {
   const t = useT();
@@ -41,13 +42,8 @@ export default function ComentariosPage() {
             {t('igAgent.commentsSubtitle')}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {connected === false && <ConnectionPill connected={false} />}
-          <AgentSettingsMenu settings={settings} showOutreach={false} />
-        </div>
+        {connected === false && <ConnectionPill connected={false} />}
       </header>
-
-      <PausedBanner settings={settings} />
 
       <CommentsSection settings={settings} workspaceId={workspace?.id} />
     </div>

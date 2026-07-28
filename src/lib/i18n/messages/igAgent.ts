@@ -151,8 +151,6 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
-  limitsMenu: { es: "Límites", en: "Limits" },
-
   // Estadísticas propias de Comentarios (nunca mezcladas con campañas)
   statCommentAiReplies: { es: "Respondidos por IA", en: "Answered by AI" },
   statCommentRuleDms: { es: "DMs de reglas", en: "Rule DMs" },

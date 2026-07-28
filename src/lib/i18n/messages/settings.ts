@@ -823,14 +823,7 @@ export const settings = {
     es: "Tus palabras exactas. Una regla manda sobre la IA.",
     en: "Your exact words. A rule wins over the AI.",
   },
-  c2dmEmpty: {
-    es: "Sin reglas: la IA responde todo.",
-    en: "No rules: the AI answers everything.",
-  },
-  c2dmEmptyAiOff: {
-    es: "Sin reglas y con la IA apagada, nadie responde los comentarios.",
-    en: "With no rules and the AI off, nobody answers comments.",
-  },
+  c2dmEmpty: { es: "Sin reglas.", en: "No rules." },
   c2dmActionReplyAndDm: { es: "responde y manda DM", en: "public reply + DM" },
   c2dmActionDmOnly: { es: "manda DM", en: "DM only" },
   c2dmOnePostOnly: { es: "un solo post", en: "one post only" },

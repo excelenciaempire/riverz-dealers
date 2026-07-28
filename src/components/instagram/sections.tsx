@@ -255,20 +255,9 @@ export function ConnectionPill({ connected }: { connected?: boolean }) {
  * freno de emergencia— en un solo menú del encabezado. Antes ocupaban dos
  * tarjetas del ancho de la página para tres interruptores que se tocan una vez.
  */
-export function AgentSettingsMenu({
-  settings,
-  showOutreach = true,
-}: {
-  settings: ProactiveSettings;
-  /** En Comentarios el menú es solo los límites: salir a buscar no se decide
-   *  desde aquí, y ofrecerlo en las dos páginas era prometer que la misma
-   *  palanca hace dos cosas distintas. */
-  showOutreach?: boolean;
-}) {
+export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
-  const label = showOutreach
-    ? t('igAgent.settingsMenu')
-    : t('igAgent.limitsMenu');
+  const label = t('igAgent.settingsMenu');
   return (
     <Popover>
       <PopoverTrigger
@@ -292,25 +281,23 @@ export function AgentSettingsMenu({
             settings.loaded ? '' : 'pointer-events-none opacity-50',
           )}
         >
-          {showOutreach && (
-            <label className="flex items-start gap-3 p-3">
-              <Switch
-                checked={settings.outreach}
-                onCheckedChange={(v) => {
-                  settings.setOutreach(v);
-                  settings.save({ outreach_enabled: v });
-                }}
-              />
-              <span>
-                <span className="block text-[13px] font-medium text-foreground">
-                  {t('igAgent.outreachEnabled')}
-                </span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                  {t('igAgent.outreachEnabledHint')}
-                </span>
+          <label className="flex items-start gap-3 p-3">
+            <Switch
+              checked={settings.outreach}
+              onCheckedChange={(v) => {
+                settings.setOutreach(v);
+                settings.save({ outreach_enabled: v });
+              }}
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-foreground">
+                {t('igAgent.outreachEnabled')}
               </span>
-            </label>
-          )}
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                {t('igAgent.outreachEnabledHint')}
+              </span>
+            </span>
+          </label>
 
           <label
             className="flex items-center justify-between gap-3 p-3"
@@ -1513,7 +1500,10 @@ function CommentStatsStrip({ stats }: { stats: CommentStats | null }) {
 
   return (
     <div>
-      <StatGrid className="grid-cols-2 shadow-sm sm:grid-cols-4">
+      {/* Sin "ingresos atribuidos": una venta que empieza en un comentario se
+          cierra en la conversación, y adjudicársela a esta pantalla era
+          apuntarse trabajo del agente. El dinero se mide donde se cierra. */}
+      <StatGrid className="grid-cols-3 shadow-sm">
         <StatCell
           label={t('igAgent.statCommentAiReplies')}
           value={fmt.number(stats.ai_replies)}
@@ -1525,11 +1515,6 @@ function CommentStatsStrip({ stats }: { stats: CommentStats | null }) {
         <StatCell
           label={t('igAgent.statCommentPublicReplies')}
           value={fmt.number(stats.public_replies)}
-        />
-        <StatCell
-          label={t('igAgent.statRevenue')}
-          value={fmt.currency(stats.revenue, stats.currency)}
-          accent
         />
       </StatGrid>
       <p className="mt-2 text-[11px] text-muted-foreground">
@@ -1682,7 +1667,7 @@ export function CommentsSection({
         <CommentAutoReply settings={settings} />
         <CommentReplyOptions settings={settings} />
       </div>
-      <CommentToDmPanel aiOn={settings.autoReply} />
+      <CommentToDmPanel />
     </div>
   );
 }

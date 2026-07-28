@@ -71,7 +71,7 @@ interface RuleRow {
   dm_sent_count: number;
 }
 
-export function CommentToDmPanel({ aiOn = true }: { aiOn?: boolean }) {
+export function CommentToDmPanel() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const { workspace } = useWorkspace();
@@ -166,16 +166,8 @@ export function CommentToDmPanel({ aiOn = true }: { aiOn?: boolean }) {
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
       ) : rules.length === 0 ? (
-        // Sin reglas la página tiene que decir quién atiende, y eso depende de
-        // si la IA está encendida: dar por hecho que sí era el único texto de
-        // toda la pantalla que podía estar mintiendo.
-        <p
-          className={cn(
-            "py-10 text-center text-[13px]",
-            aiOn ? "text-muted-foreground" : "text-destructive",
-          )}
-        >
-          {aiOn ? t("settings.c2dmEmpty") : t("settings.c2dmEmptyAiOff")}
+        <p className="py-10 text-center text-[13px] text-muted-foreground">
+          {t("settings.c2dmEmpty")}
         </p>
       ) : (
         <ul className="divide-y divide-border">
