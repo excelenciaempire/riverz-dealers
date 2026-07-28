@@ -6,7 +6,11 @@ import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
+import {
+  findChannelConflict,
+  findSuperConflict,
+  channelLabels,
+} from '@/lib/ai/channel-conflict';
 import type { AiAgent, AiScope } from '@/lib/ai/types';
 
 async function requireMember(agentId: string, userId: string) {
@@ -90,6 +94,7 @@ export async function PATCH(
     'followup_max_count',
     'proactive_send_mode',
     'puede_crear_pedidos',
+    'is_super',
     'provider',
     'model',
     'scope',
@@ -164,6 +169,21 @@ export async function PATCH(
           { status: 409 },
         );
       }
+    }
+  }
+
+  // Super Agente: solo uno por workspace. Solo se comprueba si el body lo está
+  // ENCENDIENDO — apagarlo o no tocarlo nunca puede chocar.
+  if ('is_super' in update && update.is_super) {
+    const other = await findSuperConflict(admin, {
+      workspaceId: target.workspace_id,
+      agentId: id,
+    });
+    if (other) {
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.superConflict', { agent: other }) },
+        { status: 409 },
+      );
     }
   }
 

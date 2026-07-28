@@ -6,7 +6,11 @@ import { serverError } from '@/lib/api/errors';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
+import {
+  findChannelConflict,
+  findSuperConflict,
+  channelLabels,
+} from '@/lib/ai/channel-conflict';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -138,6 +142,21 @@ export async function POST(request: Request) {
     }
   }
 
+  // Super Agente: solo uno por workspace. Quién escribe la primera respuesta a
+  // un comentario no puede depender de un desempate invisible.
+  if (body.is_super) {
+    const other = await findSuperConflict(admin, {
+      workspaceId: body.workspace_id,
+      agentId: null,
+    });
+    if (other) {
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.superConflict', { agent: other }) },
+        { status: 409 },
+      );
+    }
+  }
+
   const payload: Record<string, unknown> = {
     workspace_id: body.workspace_id,
     name: body.name.trim(),
@@ -165,6 +184,7 @@ export async function POST(request: Request) {
     followup_max_count: body.followup_max_count ?? 1,
     proactive_send_mode: body.proactive_send_mode ?? 'auto',
     puede_crear_pedidos: body.puede_crear_pedidos ?? false,
+    is_super: body.is_super ?? false,
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-haiku-4-5-20251001',
     scope: body.scope ?? 'workspace',

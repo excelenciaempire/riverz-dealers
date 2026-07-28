@@ -6,6 +6,7 @@ import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { coercePlan, type InstagramPlan } from './types';
 import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
 import { craftPersonalizedDM } from './personalize-dm';
+import { composeSuperAgentReply } from '@/lib/ai/super-agent';
 import { scoreLeads, type LeadScore } from './lead-scoring';
 import { resolveIgAgent, igAgentCanAutoReply } from './agent-link';
 import { claimCommentPrivateReply } from './private-reply-lock';
@@ -668,27 +669,54 @@ async function autonomousCommentReply(
     leadScore: score,
   });
 
-  const text = await craftPersonalizedDM({
-    apiKey,
-    base: orderStatus
-      ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
-      : 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
-    brand,
-    links,
-    customer: [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
-    thread: thread?.brief ?? null,
-    product: product?.brief ?? null,
-    goal: null,
-    offer: null,
-    products: links.products.map((p) => p.title),
-    name: opts.contact.name,
-    engagement,
-    personaHint: profile?.persona_hint ?? null,
-    openerHint: profile?.opener_hint ?? null,
-    followsBusiness: profile?.follows_business ?? null,
-    isVerified: profile?.is_verified ?? null,
-    segment,
-  });
+  // SUPER AGENTE (migración 131). Encendido, el primer mensaje lo escribe el
+  // MISMO agente completo que atiende los DMs, con sus herramientas: puede
+  // consultar el pedido, cotizar con el catálogo real, armar un checkout.
+  // Apagado, no se ejecuta nada de esto.
+  //
+  // Va aquí, DESPUÉS de todas las guardas —limitador de ráfaga, spam/intención,
+  // igAgentCanAutoReply, proactiveGate, candado por comentario, anti-bucle de
+  // 3— y solo COMPONE: el envío de abajo no cambia.
+  let text: string | null = null;
+  if (agent.is_super && agent.id) {
+    text = await composeSuperAgentReply(db, {
+      workspaceId: opts.workspaceId,
+      agentId: agent.id,
+      commentContactId: opts.contact.id,
+      commentText: engagement,
+      extraBrief:
+        [customer?.brief, orderStatus, thread?.brief, product?.brief]
+          .filter(Boolean)
+          .join('\n\n') || null,
+    }).catch(() => null);
+  }
+
+  // Respaldo: sin Super Agente, o si falló por lo que sea (sin clave, sin
+  // saldo, texto vacío), contesta el redactor de siempre. Un comentario no se
+  // queda sin respuesta por culpa de esto.
+  if (!text?.trim()) {
+    text = await craftPersonalizedDM({
+      apiKey,
+      base: orderStatus
+        ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
+        : 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
+      brand,
+      links,
+      customer: [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
+      thread: thread?.brief ?? null,
+      product: product?.brief ?? null,
+      goal: null,
+      offer: null,
+      products: links.products.map((p) => p.title),
+      name: opts.contact.name,
+      engagement,
+      personaHint: profile?.persona_hint ?? null,
+      openerHint: profile?.opener_hint ?? null,
+      followsBusiness: profile?.follows_business ?? null,
+      isVerified: profile?.is_verified ?? null,
+      segment,
+    });
+  }
   if (!text.trim()) return;
 
   try {

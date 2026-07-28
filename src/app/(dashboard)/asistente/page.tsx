@@ -236,6 +236,13 @@ function AgentCard({
                     .join(' · ')}
           </p>
         </div>
+        {/* Solo uno del workspace puede ser el Super Agente, y desde fuera no
+            hay forma de saber cuál sin abrir cada uno. */}
+        {agent.is_super && (
+          <span className="inline-flex shrink-0 items-center rounded-full border border-accent-ink/40 bg-accent/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-ink">
+            {t('assistant.superAgentBadge')}
+          </span>
+        )}
         <span
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',

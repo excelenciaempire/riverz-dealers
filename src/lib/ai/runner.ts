@@ -613,7 +613,7 @@ async function pickAgent(
  * `confidence`. Post-migration 057: shopify_products vive por
  * workspace_id directamente — sin detour por workspaces.owner_id.
  */
-async function detectInboundProduct(
+export async function detectInboundProduct(
   db: SupabaseClient,
   workspaceId: string | null,
   messageText: string,
@@ -710,7 +710,7 @@ function containsEscalationKeyword(agent: AiAgent, text: string): boolean {
   return hasEscalationKeyword(agent.escalate_keywords, text);
 }
 
-interface ContextMessage {
+export interface ContextMessage {
   role: 'user' | 'assistant';
   content: string;
   /** Message-id de la fila en `messages` — necesario para cachear la
@@ -753,7 +753,7 @@ export interface LoadedContext {
  *     un hint para que el modelo trate el turno como una nueva consulta
  *     (sin asumir que sigue lo de la última vez).
  */
-async function loadContext(
+export async function loadContext(
   db: SupabaseClient,
   conversation: Conversation,
   limit: number,
@@ -1792,7 +1792,7 @@ function safeDecrypt(value: string): string | null {
 
 /** Devuelve las 3 notas más recientes del equipo sobre este contact,
  *  como strings. Falla en silencio — la falta de notas no es un error. */
-async function loadRecentContactNotes(
+export async function loadRecentContactNotes(
   db: SupabaseClient,
   contactId: string,
 ): Promise<string[]> {

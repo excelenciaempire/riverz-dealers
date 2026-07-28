@@ -104,3 +104,31 @@ export async function findChannelConflict(
   }
   return null;
 }
+
+/**
+ * SUPER AGENTE — solo uno por workspace.
+ *
+ * Si dos agentes se declararan "super", quién escribe la primera respuesta a
+ * un comentario dependería del desempate de `resolveIgAgent`, o sea del azar
+ * desde el punto de vista del comercio. Se valida aquí, en la aplicación, con
+ * el mismo criterio que el conflicto de canales: un 23505 crudo de la base no
+ * es un mensaje de error que alguien pueda entender.
+ *
+ * Devuelve el nombre del agente que ya lo tiene, o null si no hay conflicto.
+ */
+export async function findSuperConflict(
+  admin: SupabaseClient,
+  args: { workspaceId: string; agentId: string | null },
+): Promise<string | null> {
+  let query = admin
+    .from('ai_agents')
+    .select('id, name')
+    .eq('workspace_id', args.workspaceId)
+    .eq('is_super', true)
+    .is('deleted_at', null)
+    .limit(1);
+  if (args.agentId) query = query.neq('id', args.agentId);
+  const { data } = await query;
+  const other = (data ?? [])[0] as { name: string | null } | undefined;
+  return other ? (other.name ?? 'Asistente') : null;
+}

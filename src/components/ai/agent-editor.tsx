@@ -326,6 +326,10 @@ export function AgentEditor({
   const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
     agent?.puede_crear_pedidos ?? false,
   );
+  // SUPER AGENTE (migración 131). Encendido, este agente escribe también el
+  // PRIMER mensaje de una respuesta a un comentario, con sus herramientas, en
+  // vez del redactor que no puede consultar ni crear nada. Uno por workspace.
+  const [isSuper, setIsSuper] = useState<boolean>(agent?.is_super ?? false);
   // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
   // cargando. El cierre solo se puede activar con Shopify conectado; si no,
   // mostramos un botón "Vincular" que abre un popup sin salir del editor.
@@ -688,6 +692,7 @@ export function AgentEditor({
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
+      is_super: isSuper,
       // Voice AI (migration 113 + 115)
       voice_enabled: voice.voice_enabled,
       voice_ai_decides: voice.voice_ai_decides,
@@ -1355,6 +1360,24 @@ export function AgentEditor({
 
             {tab === 'advanced' && (
               <>
+                {/* Super Agente — va primero porque manda sobre todo lo demás:
+                    encendido, este agente contesta también el primer mensaje
+                    de un comentario, que hasta ahora escribía un redactor sin
+                    herramientas. */}
+                <SectionCard
+                  title={t('assistant.superAgentTitle')}
+                  hint={t('assistant.superAgentHint')}
+                  right={
+                    <Switch checked={isSuper} onCheckedChange={setIsSuper} />
+                  }
+                >
+                  {isSuper && (
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      {t('assistant.superAgentOn')}
+                    </p>
+                  )}
+                </SectionCard>
+
                 <SectionCard
                   title={t('assistant.responseBehaviorTitle')}
                   hint={t('assistant.responseBehaviorHint')}

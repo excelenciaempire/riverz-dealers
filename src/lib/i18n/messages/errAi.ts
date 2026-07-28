@@ -168,4 +168,8 @@ export const errAi = {
     es: "Elige al menos un canal.",
     en: "Choose at least one channel.",
   },
+  superConflict: {
+    es: 'El asistente "{agent}" ya es el Super Agente. Solo puede haber uno: desactívalo ahí primero.',
+    en: 'The assistant "{agent}" is already the Super Agent. There can only be one: turn it off there first.',
+  },
 } satisfies Namespace;
