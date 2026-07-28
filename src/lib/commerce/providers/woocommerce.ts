@@ -52,6 +52,89 @@ export function normalizeWooSiteUrl(input: string): string | null {
   return s
 }
 
+// ── Comprobación previa del sitio ────────────────────────────────────
+
+export type WooProbe =
+  | { ok: true }
+  /** No contesta, o no es un sitio servible. */
+  | { ok: false; reason: 'unreachable' }
+  /** Contesta, pero no hay WordPress detrás. */
+  | { ok: false; reason: 'not_wordpress' }
+  /** Hay WordPress, pero WooCommerce no está activo. */
+  | { ok: false; reason: 'no_woocommerce' }
+  /** Hay WordPress con enlaces permanentes en "Simple": las rutas mueren. */
+  | { ok: false; reason: 'plain_permalinks' }
+
+/**
+ * Verifica que la dirección sea de verdad una tienda WooCommerce ANTES de
+ * mandar al comercio a aprobar el acceso.
+ *
+ * Sin esto, cualquier error termina igual: el navegador aterriza en un
+ * "404 Not Found" pelado en el sitio del comercio, sin una pista de qué
+ * salió mal. Pasó con un dominio que no tenía WordPress: la persona hizo
+ * todo bien y vio una página en blanco.
+ *
+ * `/wc-auth/` y `/wp-json/` las sirve el sistema de rutas de WordPress,
+ * así que con enlaces permanentes en "Simple" ambas dan 404 aunque todo
+ * esté instalado. Ese caso se distingue por `?rest_route=/`, que funciona
+ * sin rutas amigables, y tiene arreglo de un clic del lado del comercio.
+ */
+export async function probeWooStore(siteUrl: string): Promise<WooProbe> {
+  const get = async (url: string): Promise<{ status: number; body: string }> => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+        redirect: 'follow',
+      })
+      // Nos alcanza con la cabecera del cuerpo: la raíz del REST puede
+      // pesar cientos de kilobytes en sitios con muchos plugins.
+      const body = (await res.text()).slice(0, 20000)
+      return { status: res.status, body }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const namespacesOf = (body: string): string[] | null => {
+    try {
+      const json = JSON.parse(body) as { namespaces?: unknown }
+      return Array.isArray(json.namespaces) ? (json.namespaces as string[]) : null
+    } catch {
+      return null
+    }
+  }
+
+  let root: { status: number; body: string }
+  try {
+    root = await get(`https://${siteUrl}/wp-json/`)
+  } catch {
+    return { ok: false, reason: 'unreachable' }
+  }
+
+  const ns = root.status === 200 ? namespacesOf(root.body) : null
+  if (ns) {
+    return ns.some((n) => n.startsWith('wc/'))
+      ? { ok: true }
+      : { ok: false, reason: 'no_woocommerce' }
+  }
+
+  // Sin rutas amigables `/wp-json/` no existe, pero la API sigue viva por
+  // query string. Si responde, hay WordPress y el problema es de enlaces
+  // permanentes; si no, no hay WordPress.
+  try {
+    const alt = await get(`https://${siteUrl}/?rest_route=/`)
+    const altNs = alt.status === 200 ? namespacesOf(alt.body) : null
+    if (altNs) return { ok: false, reason: 'plain_permalinks' }
+  } catch {
+    /* da igual: abajo se resuelve como sitio sin WordPress */
+  }
+
+  return { ok: false, reason: 'not_wordpress' }
+}
+
 // ── Flujo /wc-auth ───────────────────────────────────────────────────
 
 /**

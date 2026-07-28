@@ -31,4 +31,16 @@ export const errStores = {
     es: "No pudimos conectar con tu tienda. Verifica la dirección y que la API REST esté habilitada.",
     en: "We couldn't reach your store. Check the address and that the REST API is enabled.",
   },
+  wooNotWordpress: {
+    es: "Esa dirección no tiene WordPress. Escribe la dirección de la tienda, no la de tu web principal.",
+    en: "That address isn't running WordPress. Enter your store's address, not your main website.",
+  },
+  wooNoWoocommerce: {
+    es: "El sitio tiene WordPress pero WooCommerce no está activo. Actívalo y vuelve a intentar.",
+    en: "The site runs WordPress but WooCommerce isn't active. Activate it and try again.",
+  },
+  wooPlainPermalinks: {
+    es: "En tu WordPress, entra a Ajustes → Enlaces permanentes y elige cualquier opción que no sea «Simple». Después vuelve a intentar.",
+    en: "In your WordPress, go to Settings → Permalinks and pick any option other than “Plain”. Then try again.",
+  },
 } satisfies Namespace;

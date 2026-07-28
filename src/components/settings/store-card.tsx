@@ -8,10 +8,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
-import {
-  WooCommerceDialog,
-  type WooDialogPhase,
-} from '@/components/settings/woocommerce-dialog';
+import { WooCommerceDialog } from '@/components/settings/woocommerce-dialog';
 
 type StorePlatform = 'tiendanube' | 'woocommerce';
 
@@ -83,7 +80,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
   const [site, setSite] = useState('');
   const [key, setKey] = useState('');
   const [secret, setSecret] = useState('');
-  const [dialog, setDialog] = useState<WooDialogPhase | null>(null);
+  const [showPlugin, setShowPlugin] = useState(false);
   /**
    * Chrome ignora `autocomplete="off"` y ofrece el correo de la sesión
    * sobre el campo de la dirección. Peor todavía: lo PINTA sin escribirlo
@@ -123,7 +120,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       // de carritos. Es el único momento en que el comercio tiene el
       // contexto para entender para qué sirve, así que se le ofrece acá y
       // no escondido en un rincón de la tarjeta.
-      if (platform === 'woocommerce') setDialog('after');
+      if (platform === 'woocommerce') setShowPlugin(true);
     } else if (result === 'error') {
       toast.error(t(meta.errorKey, { reason: params.get('reason') ?? 'error' }));
     }
@@ -132,15 +129,6 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
 
   function handleTiendanubeConnect() {
     window.location.href = '/api/tiendanube/oauth/start';
-  }
-
-  /** Valida la dirección y abre la guía; la salida ocurre al continuar. */
-  function handleWooStart() {
-    if (!site.trim()) {
-      toast.error(t('errStores.invalidSiteUrl'));
-      return;
-    }
-    setDialog('before');
   }
 
   async function handleWooConnect() {
@@ -206,7 +194,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       setSecret('');
       // Mismo cierre que el camino automático: la conexión no termina el
       // trabajo hasta que el plugin de carritos está puesto.
-      setDialog('after');
+      setShowPlugin(true);
     } catch {
       toast.error(t(meta.errorKey, { reason: 'keys' }));
     } finally {
@@ -410,12 +398,12 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleWooStart()
+                  if (e.key === 'Enter') void handleWooConnect()
                 }}
                 className="bg-background text-sm"
               />
               <button
-                onClick={handleWooStart}
+                onClick={handleWooConnect}
                 disabled={busy}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
@@ -439,10 +427,8 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
 
       {platform === 'woocommerce' && (
         <WooCommerceDialog
-          phase={dialog}
-          onClose={() => setDialog(null)}
-          onContinue={handleWooConnect}
-          busy={busy}
+          open={showPlugin}
+          onClose={() => setShowPlugin(false)}
         />
       )}
     </li>

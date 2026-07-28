@@ -6,6 +6,7 @@ import { encodeState } from '@/lib/channels/oauth'
 import {
   buildWooAuthorizeUrl,
   normalizeWooSiteUrl,
+  probeWooStore,
 } from '@/lib/commerce/providers/woocommerce'
 import { completeWooConnection } from '@/lib/commerce/setup'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
@@ -64,6 +65,24 @@ export async function POST(req: Request) {
   if (!siteUrl) {
     return NextResponse.json(
       { error: translate(locale, 'errStores.invalidSiteUrl') },
+      { status: 400 },
+    )
+  }
+
+  // Antes de tocar nada, comprobar que la dirección sea de verdad una
+  // tienda WooCommerce. Sin esto, cualquier error termina con el comercio
+  // mirando un "404 Not Found" pelado en su propio sitio, sin una pista
+  // de qué salió mal.
+  const probe = await probeWooStore(siteUrl)
+  if (!probe.ok) {
+    const message: Record<typeof probe.reason, string> = {
+      unreachable: 'errStores.wooUnreachable',
+      not_wordpress: 'errStores.wooNotWordpress',
+      no_woocommerce: 'errStores.wooNoWoocommerce',
+      plain_permalinks: 'errStores.wooPlainPermalinks',
+    }
+    return NextResponse.json(
+      { error: translate(locale, message[probe.reason]), reason: probe.reason },
       { status: 400 },
     )
   }

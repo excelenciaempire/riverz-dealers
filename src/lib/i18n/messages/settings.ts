@@ -273,31 +273,7 @@ export const settings = {
     es: "Completa la dirección, la clave y el secreto.",
     en: "Fill in the address, key and secret.",
   },
-  // Guía de conexión de WooCommerce
-  wooDialogBeforeTitle: {
-    es: "Conectar tu tienda",
-    en: "Connect your store",
-  },
-  wooDialogBeforeIntro: {
-    es: "Te llevamos a tu WordPress para que autorices el acceso.",
-    en: "We'll take you to your WordPress so you can authorize access.",
-  },
-  wooDialogStep1: {
-    es: "Inicia sesión en tu tienda si te lo pide.",
-    en: "Sign in to your store if prompted.",
-  },
-  wooDialogStep2: {
-    es: 'Aprueba el acceso de Riverz con el botón "Approve".',
-    en: 'Approve Riverz access with the "Approve" button.',
-  },
-  wooDialogStep3: {
-    es: "Vuelves aquí y la tienda queda conectada.",
-    en: "You come back here and the store is connected.",
-  },
-  wooDialogContinue: {
-    es: "Ir a mi tienda",
-    en: "Go to my store",
-  },
+  // Qué hacer después de conectar WooCommerce
   wooDialogAfterTitle: {
     es: "Tienda conectada",
     en: "Store connected",
