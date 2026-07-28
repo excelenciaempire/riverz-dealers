@@ -29,7 +29,7 @@ import {
   DEFAULT_RECORDING_DISCLOSURE,
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
-import { effectiveBaseUrl } from './providers';
+import { effectiveBaseUrl, resolveTtsVoiceId } from './providers';
 import { countryOfPhone, normalizeForDialing } from '@/lib/whatsapp/phone-utils';
 
 /** A model layer's runtime coordinates for the worker. */
@@ -359,7 +359,13 @@ export async function buildVoiceContext(
     mode: model.mode,
     voice: {
       provider: model.tts_provider,
-      voice_id: agent.voice_id || model.tts_default_voice_id,
+      // La voz del agente manda, salvo que no tenga el formato del proveedor
+      // activo (un id de ElevenLabs en Fish deja la llamada muda) → default.
+      voice_id: resolveTtsVoiceId(
+        model.tts_provider,
+        agent.voice_id,
+        model.tts_default_voice_id,
+      ),
       model: model.tts_model,
       // OpenAI/VoxCPM enrutan por base_url; deepgram/cartesia/elevenlabs/gemini
       // no tienen baseUrl en el catálogo → null → plugin nativo del worker.

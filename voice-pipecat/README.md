@@ -47,6 +47,7 @@ TELNYX_PHONE_NUMBER     DID por defecto (fallback del caller ID)
 DEEPGRAM_API_KEY        (sólo modo pipeline)
 ANTHROPIC_API_KEY       (sólo modo pipeline)
 ELEVENLABS_API_KEY      (sólo modo pipeline)
+FISH_API_KEY            (sólo modo pipeline, si el TTS es Fish Audio)
 ```
 
 El **motor** (full-duplex vs pipeline) lo decide el campo `mode` del contexto

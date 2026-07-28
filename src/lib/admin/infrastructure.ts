@@ -90,6 +90,29 @@ async function deepgram(): Promise<ServiceHealth> {
   }
 }
 
+async function fish(): Promise<ServiceHealth> {
+  const base: ServiceHealth = { id: 'fish', name: 'Fish Audio', category: 'voice', status: 'error' };
+  const key = process.env.FISH_API_KEY;
+  if (!key) return { ...base, status: 'not_connected' };
+  try {
+    const r = await tfetch('https://api.fish.audio/wallet/self/api-credit', {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    const j = await r.json();
+    // `credit` viene como string en la API de Fish.
+    const credit = Number(j?.credit ?? 0);
+    return {
+      ...base,
+      status: credit <= 0 ? 'empty' : credit < 5 ? 'low' : 'ok',
+      balance: credit,
+      unit: 'USD',
+      detail: 'TTS S2.1',
+    };
+  } catch {
+    return { ...base, detail: 'no responde' };
+  }
+}
+
 async function elevenlabs(): Promise<ServiceHealth> {
   const base: ServiceHealth = { id: 'elevenlabs', name: 'ElevenLabs', category: 'voice', status: 'error' };
   const key = process.env.ELEVENLABS_API_KEY;
@@ -234,6 +257,7 @@ export async function getInfrastructureStatus(): Promise<{
     // Voz / telefonía (con saldo)
     telnyx(),
     deepgram(),
+    fish(),
     elevenlabs(),
     // Infra
     render(),

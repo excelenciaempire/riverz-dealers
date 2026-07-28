@@ -25,6 +25,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
 
@@ -454,8 +455,8 @@ def _make_llm(cfg: dict):
 
 
 def _make_tts(cfg: dict):
-    """TTS por provider: elevenlabs (default) · cartesia · google. Un `base_url`
-    fuerza el plugin OpenAI-compatible (VoxCPM en Modal, etc.)."""
+    """TTS por provider: elevenlabs (default) · fish · cartesia · google. Un
+    `base_url` fuerza el plugin OpenAI-compatible (VoxCPM en Modal, etc.)."""
     base_url = cfg.get("base_url")
     if base_url:
         # response_format="wav": el emitter de LiveKit decodifica según el
@@ -475,6 +476,18 @@ def _make_tts(cfg: dict):
             # Deepgram Aura-2 (voz "Celeste" español colombiano). Baja latencia y
             # usa la DEEPGRAM_API_KEY del entorno (ya presente en el worker).
             return deepgram.TTS(model=cfg.get("model") or "aura-2-celeste-es")
+        if provider in ("fish", "fishaudio", "fish_audio"):
+            from livekit.plugins import fishaudio
+
+            # `voice_id` == `reference_id` de Fish. El contexto ya lo filtra por
+            # formato; si no vino, el plugin usa su voz por defecto (no muda).
+            f_kw: dict = {"model": cfg.get("model") or "s2.1-pro"}
+            if cfg.get("voice_id"):
+                f_kw["voice_id"] = cfg["voice_id"]
+            key = cfg.get("api_key") or os.getenv("FISH_API_KEY") or os.getenv("FISH_AUDIO_API_KEY")
+            if key:
+                f_kw["api_key"] = key
+            return fishaudio.TTS(**f_kw)
         if provider == "cartesia":
             from livekit.plugins import cartesia
 
@@ -499,11 +512,20 @@ def _make_tts(cfg: dict):
         logger.warning("TTS provider '%s' no disponible; uso ElevenLabs", provider, exc_info=True)
     # ElevenLabs (default). Pasa la key EXPLÍCITA: el fallback por env del plugin
     # (ELEVEN_API_KEY) resultó poco fiable en el worker; así siempre la recibe.
-    return elevenlabs.TTS(
-        voice_id=cfg.get("voice_id"),
-        model=cfg.get("model", "eleven_flash_v2_5"),
-        api_key=cfg.get("api_key") or os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"),
-    )
+    # Acá se cae también cuando OTRO proveedor falló al construirse, así que el
+    # `model` del cfg puede ser de ese otro (s2.1-pro, sonic-2, aura-2-…): sólo
+    # reenviamos el nombre si es de ElevenLabs, o el fallback también queda mudo.
+    el_model = cfg.get("model") or ""
+    el_kw: dict = {
+        "model": el_model if el_model.startswith("eleven_") else "eleven_flash_v2_5",
+        "api_key": cfg.get("api_key") or os.getenv("ELEVEN_API_KEY") or os.getenv("ELEVENLABS_API_KEY"),
+    }
+    # Mismo criterio con la voz: un reference_id de Fish (32 hex) no existe en
+    # ElevenLabs. Sin voz válida omitimos el kwarg → el plugin usa la suya.
+    el_voice = cfg.get("voice_id") or ""
+    if el_voice and not re.fullmatch(r"[0-9a-fA-F]{32}", el_voice):
+        el_kw["voice_id"] = el_voice
+    return elevenlabs.TTS(**el_kw)
 
 
 # Voces válidas de Gemini Live (native audio). El pipeline usa el voice_id de

@@ -134,6 +134,10 @@ services:
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
+      # Fish Audio (S2.1) — TTS alternative, selectable in /admin/voz. Shared
+      # with the worker; also used by the in-app voice preview.
+      - key: FISH_API_KEY
+        sync: false
       # Shared secret for the worker → web internal endpoints
       # (Authorization: Bearer). Set the SAME value on the voice-worker.
       - key: VOICE_WORKER_SECRET
@@ -176,6 +180,8 @@ services:
       - key: DEEPGRAM_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: FISH_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false

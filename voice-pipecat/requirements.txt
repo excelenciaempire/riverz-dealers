@@ -9,7 +9,7 @@
 # Si algún extra no existe en tu versión de pipecat, el build de pip falla → quitar
 # ese extra (la fábrica del worker cae al default igual). Sin Google/OpenAI estaba
 # antes; ahora se incluyen a pedido (openai, google).
-pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,cartesia,silero,openai,google,aws,groq,rime,playht]>=0.0.100
+pipecat-ai[telnyx,deepgram,anthropic,elevenlabs,fish,cartesia,silero,openai,google,aws,groq,rime,playht]>=0.0.100
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0

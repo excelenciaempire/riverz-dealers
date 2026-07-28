@@ -206,6 +206,19 @@ export const TTS_PROVIDERS: ProviderOption[] = [
     recommended: true,
   },
   {
+    id: 'fish',
+    label: 'Fish Audio',
+    models: [
+      { id: 's2.1-pro', label: 'S2.1 Pro (recomendado)' },
+      { id: 's2.1-pro-free', label: 'S2.1 Pro Free ($0, sin garantías)' },
+      { id: 's2-pro', label: 'S2 Pro' },
+      { id: 's1', label: 'S1' },
+    ],
+    voiceHint: 'reference_id de Fish Audio (32 hex, ej. 933563129e564b19a115bedd57b7406a)',
+    note: '83 idiomas, ~100ms al primer audio y clonación de voz. S2.1 Pro Free sirve para probar sin costo.',
+    recommended: true,
+  },
+  {
     id: 'elevenlabs',
     label: 'ElevenLabs',
     models: [
@@ -354,6 +367,35 @@ export function providerOption(
  * el camino OpenAI-compatible del worker sin tener que tipear la URL. Anthropic
  * es nativo (sin baseUrl en el catálogo) → devuelve null y usa su plugin propio.
  */
+/**
+ * ¿Este `voice_id` pertenece al proveedor de TTS activo? Cada proveedor tiene su
+ * propio formato: Fish usa un `reference_id` de 32 hex, ElevenLabs un id de 20
+ * caracteres, Deepgram/Gemini nombres de voz. Pasarle a uno el id de otro no
+ * falla "suave": el proveedor rechaza la petición y la llamada queda MUDA.
+ * Sólo validamos los formatos que sabemos reconocer; el resto pasa tal cual.
+ */
+const VOICE_ID_SHAPE: Record<string, RegExp> = {
+  fish: /^[0-9a-f]{32}$/i,
+};
+
+/**
+ * Voz efectiva para una llamada: la del agente si es válida para el proveedor,
+ * si no la default de la plataforma, si no nada (el proveedor usa la suya). Así
+ * cambiar el TTS global no deja mudos a los agentes que ya eligieron una voz.
+ */
+export function resolveTtsVoiceId(
+  providerId: string | null | undefined,
+  agentVoiceId: string | null | undefined,
+  defaultVoiceId: string | null | undefined,
+): string | null {
+  const shape = VOICE_ID_SHAPE[(providerId || '').toLowerCase()];
+  const candidates = [agentVoiceId, defaultVoiceId]
+    .map((v) => v?.trim())
+    .filter((v): v is string => !!v);
+  const valid = shape ? candidates.filter((v) => shape.test(v)) : candidates;
+  return valid[0] ?? null;
+}
+
 export function effectiveBaseUrl(
   layer: keyof typeof LAYER_PROVIDERS,
   providerId: string | null | undefined,

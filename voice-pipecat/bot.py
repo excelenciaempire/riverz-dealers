@@ -685,6 +685,17 @@ def _build_tts(cfg: dict):  # noqa: ANN201
         return CartesiaTTSService(
             api_key=key or _env("CARTESIA_API_KEY"), voice_id=voice, model=model or "sonic-2"
         )
+    if p in ("fish", "fishaudio", "fish_audio"):
+        from pipecat.services.fish.tts import FishAudioTTSService
+        # reference_id == el voice_id de Fish; sin él usa la voz por defecto.
+        # reference_id/model_id están deprecados a favor de `settings=` desde
+        # 0.0.105, pero el pin de este worker es >=0.0.100 → los kwargs viejos
+        # son los únicos que funcionan en todo el rango (se van en 2.0.0).
+        return FishAudioTTSService(
+            api_key=key or _env("FISH_API_KEY", "FISH_AUDIO_API_KEY"),
+            reference_id=voice or None,
+            model_id=model or "s2.1-pro",
+        )
     if p == "rime":
         from pipecat.services.rime.tts import RimeTTSService
         return RimeTTSService(
