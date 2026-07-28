@@ -513,56 +513,18 @@ services:
   # purpose: Render bills a monthly minimum PER cron job, and each run costs
   # ~48s of billed time (mostly container spin-up), so frequency is not free.
   # Uses AUTOMATION_CRON_SECRET.
-  # Pedidos, envíos, reclamos y catálogo de Mercado Libre. El webhook
-  # (orders_v2 / shipments / claims) cubre lo urgente en tiempo real; esto es
-  # la red que recoge lo que el webhook pierda, y la única vía del catálogo.
-  # Usa AUTOMATION_CRON_SECRET.
+  # TODO Mercado Libre en un solo trabajo: preguntas en cada corrida; pedidos,
+  # envios y reclamos ~15 min; catalogo y opiniones ~60 min (estrangulado por
+  # dentro con cron_runs). UNO y no cuatro porque Render factura un minimo
+  # mensual POR cron. Usa AUTOMATION_CRON_SECRET.
   - type: cron
-    name: cron-mercadolibre-orders
+    name: cron-mercadolibre
     runtime: node
-    plan: free
-    region: frankfurt
+    plan: starter
+    region: virginia
     branch: main
     buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/mercadolibre-orders
-    schedule: "*/15 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Opiniones de producto de Mercado Libre. NO hay webhook: la aplicación está
-  # suscrita a los 30 temas que ML ofrece y ninguno cubre las opiniones, así que
-  # este sondeo es su ÚNICA vía de entrada. Barato en régimen normal: una
-  # petición de conteo por publicación, y sólo pagina cuando el contador sube.
-  # Usa AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-ml-reviews
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/ml-reviews
-    schedule: "*/30 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Preguntas y mensajes post-venta de Mercado Libre. El endpoint existía desde
-  # la migración 097 pero NUNCA estuvo declarado acá, así que en Render no lo
-  # disparaba nadie: las preguntas sólo entraban si el webhook las traía.
-  - type: cron
-    name: cron-mercadolibre-poll
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/mercadolibre-poll
+    startCommand: node scripts/cron-ping.mjs api/cron/mercadolibre
     schedule: "*/5 * * * *"
     envVars:
       - key: BASE_URL

@@ -63,9 +63,8 @@ export const CRON_SCHEDULES: CronSpec[] = [
   // corridas cada 24 h, o sea que algo externo al blueprint lo dispara cada
   // minuto. Por eso la pantalla cruza el catálogo con `cron_runs` en vez de
   // dar por muerto todo lo que falte acá.
-  { name: 'mercadolibre-poll', path: 'api/cron/mercadolibre-poll', schedule: '*/5 * * * *', what: 'Sondea preguntas y mensajes de Mercado Libre' },
-  { name: 'ml-reviews', path: 'api/cron/ml-reviews', schedule: '*/30 * * * *', what: 'Trae las opiniones nuevas de las publicaciones de Mercado Libre' },
-  { name: 'mercadolibre-orders', path: 'api/cron/mercadolibre-orders', schedule: '*/15 * * * *', what: 'Espeja pedidos, envíos, reclamos y catálogo de Mercado Libre' },
+  { name: 'mercadolibre-poll', path: 'api/cron/mercadolibre-poll', schedule: null, what: 'Preguntas de Mercado Libre (absorbido por el cron mercadolibre)' },
+  { name: 'mercadolibre', path: 'api/cron/mercadolibre', schedule: '*/5 * * * *', what: 'Todo Mercado Libre: preguntas siempre; pedidos/envios/reclamos ~15 min; catalogo y opiniones ~60 min' },
   { name: 'automations', path: 'api/automations/cron', schedule: null, what: 'Drena pasos de espera de automatizaciones' },
   { name: 'flows-cron', path: 'api/flows/cron', schedule: null, what: 'Barre flujos vencidos por tiempo' },
   { name: 'flows-retries', path: 'api/flows/retries/cron', schedule: null, what: 'Reintenta ejecuciones de flujo fallidas' },
