@@ -178,7 +178,7 @@ export function ChannelsPanel() {
     // `webhook_secret` columns must never reach the browser; migration 078
     // also REVOKEs them at the column level so a crafted member query can't
     // read the ciphertext either.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("channel_connections")
       .select(
         "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at, messaging_limit_tier, quality_rating, health_can_send, health_review_status, health_blockers, health_checked_at",
@@ -189,8 +189,17 @@ export function ChannelsPanel() {
       // reconecta, y el router de webhooks ya las ignora).
       .neq("status", "disconnected")
       .order("created_at", { ascending: false });
+    // Un error acá no puede pasar en silencio: la tarjeta quedaría igual que
+    // "sin conectar" y el comercio pensaría que perdió sus canales. Pasó de
+    // verdad — la 078 revoca el SELECT de tabla y otorga por columna, así que
+    // una columna nueva sin grant (42501) vacía TODA la consulta.
+    if (error) {
+      console.error("channel_connections select failed", error);
+      toast.error(t("settings.connectionsLoadError"));
+      return;
+    }
     setConnections((data ?? []) as ChannelConnection[]);
-  }, [workspace]);
+  }, [workspace, t]);
 
   useEffect(() => {
     void fetchConnections();
