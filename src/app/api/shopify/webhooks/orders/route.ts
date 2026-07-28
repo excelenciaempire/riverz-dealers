@@ -377,6 +377,12 @@ async function reconcileRiverzOrder(
   if (financial) update.financial_status = financial
   if (fulfillment) update.fulfillment_status = fulfillment
   if (order.order_status_url) update.order_status_url = order.order_status_url
+  // Token del checkout que cerró este pedido (migración 128). Es la clave de
+  // `shopify_checkouts`, así que deja el pedido y su carrito unívocamente
+  // emparejados para la atribución. Los pedidos que crea la IA vía Admin API
+  // no nacen de un checkout y quedan sin token, que es lo correcto.
+  const checkoutToken = String(order.checkout_token ?? order.cart_token ?? '').trim()
+  if (checkoutToken) update.checkout_token = checkoutToken
   if (order.total_price != null) {
     const t =
       typeof order.total_price === 'number'

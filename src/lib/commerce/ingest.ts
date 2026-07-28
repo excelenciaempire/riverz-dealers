@@ -323,6 +323,10 @@ async function reconcileOrder(
   }
   if (Number.isFinite(total)) update.total_price = total
   if (order.orderStatusUrl) update.order_status_url = order.orderStatusUrl
+  // Vínculo exacto con el carrito que cerró (migración 128): es la clave de
+  // `shopify_checkouts`, y sin él la atribución no puede distinguir la misma
+  // compra vista por los dos caminos de dos compras distintas del cliente.
+  if (order.checkoutToken) update.checkout_token = order.checkoutToken
 
   await admin
     .from('orders')

@@ -23,6 +23,46 @@ function phoneKey(phone: string | null | undefined): string {
   return digits.length >= 8 ? digits.slice(-8) : digits;
 }
 
+interface OrderRow {
+  contact_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  total_price: number | string | null;
+  status: string | null;
+  created_at: string;
+  checkout_token: string | null;
+}
+
+/**
+ * Pedidos del workspace en la ventana. `checkout_token` llega con la migración
+ * 128; hasta que se aplique, PostgREST rechaza el select entero por columna
+ * desconocida, así que se reintenta sin ella. Sin token no se colapsa nada:
+ * cada compra cuenta por separado, que es el lado seguro del error.
+ */
+async function selectOrders(
+  db: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  sinceIso: string,
+): Promise<OrderRow[]> {
+  const base = 'contact_id, customer_name, customer_phone, total_price, status, created_at';
+  const run = (columns: string) =>
+    db
+      .from('orders')
+      .select(columns)
+      .eq('workspace_id', workspaceId)
+      .gte('created_at', sinceIso)
+      .limit(5000);
+
+  const withToken = await run(`${base}, checkout_token`);
+  if (!withToken.error) return (withToken.data ?? []) as unknown as OrderRow[];
+
+  const legacy = await run(base);
+  return ((legacy.data ?? []) as unknown as Array<Omit<OrderRow, 'checkout_token'>>).map((o) => ({
+    ...o,
+    checkout_token: null,
+  }));
+}
+
 /**
  * ¿Esta plantilla es la que manda la recuperación de carrito de Shopify?
  * Es la condición para poder atribuir compras: sin el disparador
@@ -219,31 +259,35 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           if (prev === undefined || at < prev) sentAtByPhone.set(key, at);
         }
 
-        // Una compra atribuida, venga del checkout o del pedido.
-        type Purchase = { key: string; name: string; amount: number; at: string };
+        // Una compra atribuida, venga del checkout o del pedido. `token` es el
+        // checkout que la originó: es lo que permite reconocer la misma compra
+        // vista por los dos caminos sin confundirla con una segunda compra.
+        type Purchase = { token: string; name: string; amount: number; at: string };
         const purchases: Purchase[] = [];
 
         // 1) Volvió al checkout y lo completó (el camino normal del carrito).
         const { data: checkoutRows } = await db
           .from('shopify_checkouts')
-          .select('customer_name, customer_email, customer_phone, completed_at, total_price')
+          .select(
+            'checkout_id, customer_name, customer_email, customer_phone, completed_at, total_price',
+          )
           .eq('workspace_id', tpl.workspace_id)
           .not('completed_at', 'is', null)
           .gte('completed_at', sinceIso)
           .limit(10000);
         for (const c of (checkoutRows ?? []) as Array<{
+          checkout_id: string | null;
           customer_name: string | null;
           customer_email: string | null;
           customer_phone: string | null;
           completed_at: string;
           total_price: number | string | null;
         }>) {
-          const key = phoneKey(c.customer_phone);
-          const sentAt = sentAtByPhone.get(key);
+          const sentAt = sentAtByPhone.get(phoneKey(c.customer_phone));
           if (sentAt === undefined) continue;
           if (new Date(c.completed_at).getTime() < sentAt) continue;
           purchases.push({
-            key: key || (c.customer_email ?? '').trim().toLowerCase(),
+            token: (c.checkout_id ?? '').trim(),
             name:
               (c.customer_name ?? '').trim() ||
               (c.customer_email ?? '').trim() ||
@@ -253,33 +297,20 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           });
         }
 
-        // 2) Cerró la compra por la conversación, sin volver al checkout: el
-        // pedido nace del asistente y no completa ningún carrito, así que la
-        // única huella está en `orders` (espejo de pedidos originados aquí).
-        const { data: orderRows } = await db
-          .from('orders')
-          .select('contact_id, customer_name, customer_phone, total_price, status, created_at')
-          .eq('workspace_id', tpl.workspace_id)
-          .gte('created_at', sinceIso)
-          .limit(5000);
-        for (const o of (orderRows ?? []) as Array<{
-          contact_id: string | null;
-          customer_name: string | null;
-          customer_phone: string | null;
-          total_price: number | string | null;
-          status: string | null;
-          created_at: string;
-        }>) {
+        // 2) Cerró la compra por la conversación: el pedido lo crea el
+        // asistente vía Admin API, no completa ningún carrito, y su única
+        // huella está en `orders` (espejo de pedidos originados aquí).
+        const orderPurchases = await selectOrders(db, tpl.workspace_id, sinceIso);
+        for (const o of orderPurchases) {
           // Un pedido cancelado, devuelto o fallido no es una recuperación.
           if (['cancelled', 'refunded', 'failed'].includes(String(o.status ?? ''))) continue;
-          const key = phoneKey(o.customer_phone);
           const sentAt =
             (o.contact_id ? firstSendByContact.get(o.contact_id) : undefined) ??
-            sentAtByPhone.get(key);
+            sentAtByPhone.get(phoneKey(o.customer_phone));
           if (sentAt === undefined) continue;
           if (new Date(o.created_at).getTime() < sentAt) continue;
           purchases.push({
-            key: key || o.contact_id || '',
+            token: (o.checkout_token ?? '').trim(),
             name:
               (o.customer_name ?? '').trim() ||
               (o.contact_id ? nameByContact.get(o.contact_id) ?? '' : '') ||
@@ -290,26 +321,20 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
         }
 
         // Si el cliente compra dos veces son DOS recuperaciones. Lo único que
-        // se colapsa es la misma compra vista por los dos caminos: el pedido
-        // que cierra el asistente genera su propio checkout, así que llega
-        // duplicado. Misma persona + mismo importe + dentro de 24h = una sola
-        // compra; se conserva la más temprana, la que siguió al mensaje.
-        const SAME_PURCHASE_MS = 24 * 60 * 60 * 1000;
+        // se colapsa es la misma compra leída por los dos caminos, y eso se
+        // reconoce por el token del checkout que la originó (migración 128):
+        // mismo token = misma compra. Sin token no hay nada que colapsar —
+        // un pedido sin checkout no tiene contraparte posible.
+        const seenTokens = new Set<string>();
         const recoveredRows: Purchase[] = [];
         for (const p of purchases.sort(
           (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
         )) {
-          // Sin clave (checkout sin teléfono ni email) no hay forma de saber si
-          // son la misma persona: se cuentan por separado antes que fundir dos
-          // compras ajenas que coincidan en importe.
-          const dup = recoveredRows.find(
-            (q) =>
-              p.key !== '' &&
-              q.key === p.key &&
-              Math.round(q.amount * 100) === Math.round(p.amount * 100) &&
-              Math.abs(new Date(q.at).getTime() - new Date(p.at).getTime()) < SAME_PURCHASE_MS,
-          );
-          if (!dup) recoveredRows.push(p);
+          if (p.token) {
+            if (seenTokens.has(p.token)) continue;
+            seenTokens.add(p.token);
+          }
+          recoveredRows.push(p);
         }
 
         const revenue = recoveredRows.reduce((s, p) => s + p.amount, 0);
