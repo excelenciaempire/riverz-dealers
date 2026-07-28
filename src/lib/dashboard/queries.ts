@@ -10,6 +10,7 @@ import type {
   ConversationsSeriesPoint,
   MetricsBundle,
   ResponseTimeBucket,
+  ResponseTimeReport,
   ResponseTimeSummary,
 } from './types'
 import type { TFn } from '@/lib/i18n/translate'
@@ -210,7 +211,7 @@ export async function loadResponseTime(
   tz: string,
   range: DateRange,
   prev: DateRange,
-): Promise<ResponseTimeSummary> {
+): Promise<ResponseTimeReport> {
   // Fetch the union of the current + previous windows in one shot, then
   // classify each "first inbound → first subsequent outbound" pair into the
   // period its customer message falls in. Day-of-week buckets reflect the
@@ -238,17 +239,24 @@ export async function loadResponseTime(
   // Pair each unreplied customer message with the next outbound from the
   // agent/bot. A customer message counts once (avoids inflating averages if
   // the customer double-messages while we take time to reply).
+  //
+  // `isFirst` marca el primer intercambio de cada conversación. Con eso, la
+  // misma pasada alimenta las dos lecturas: cuánto tardamos en aparecer
+  // (`first`) y a qué ritmo sostenemos la conversación (`all`).
   interface Sample {
     customerAt: Date
     responseAt: Date
+    isFirst: boolean
   }
   const samples: Sample[] = []
   let currentConv = ''
   let pendingCustomer: Date | null = null
+  let repliedInConv = false
   for (const row of rows) {
     if (row.conversation_id !== currentConv) {
       currentConv = row.conversation_id
       pendingCustomer = null
+      repliedInConv = false
     }
     const ts = new Date(row.created_at)
     if (row.sender_type === 'customer') {
@@ -256,19 +264,47 @@ export async function loadResponseTime(
     } else if (pendingCustomer && row.content_type !== 'template') {
       // Una plantilla/broadcast NO es una respuesta a la pregunta del cliente
       // (es un envío masivo de marketing al mismo hilo): no debe contar como
-      // "primera respuesta" ni fabricar un tiempo de respuesta.
-      samples.push({ customerAt: pendingCustomer, responseAt: ts })
+      // respuesta ni fabricar un tiempo.
+      samples.push({
+        customerAt: pendingCustomer,
+        responseAt: ts,
+        isFirst: !repliedInConv,
+      })
+      repliedInConv = true
       pendingCustomer = null
     }
   }
-
-  const inRange = (d: Date, r: DateRange) => d >= r.start && d < r.end
 
   // Buckets que siguen el RANGO elegido (hora para Hoy/Ayer, día para 7d/30d/
   // custom) — mismos que la gráfica de conversaciones, para que el chart sea
   // preciso con las fechas seleccionadas y no un Lun–Dom fijo.
   const gran = bucketGranularity(range)
   const keys = rangeBucketKeys(tz, range, gran)
+
+  const summarize = (list: Sample[]): ResponseTimeSummary =>
+    summarizeSamples(list, keys, tz, gran, range, prev)
+
+  return {
+    first: summarize(samples.filter((s) => s.isFirst)),
+    all: summarize(samples),
+  }
+}
+
+/**
+ * Agrupa las muestras en los buckets del rango y saca los promedios del
+ * período actual y del anterior. Se extrajo para que las dos lecturas
+ * (primera respuesta / todas) se calculen exactamente igual y no puedan
+ * divergir con el tiempo.
+ */
+function summarizeSamples(
+  samples: { customerAt: Date; responseAt: Date }[],
+  keys: string[],
+  tz: string,
+  gran: Parameters<typeof bucketKeyOf>[2],
+  range: DateRange,
+  prev: DateRange,
+): ResponseTimeSummary {
+  const inRange = (d: Date, r: DateRange) => d >= r.start && d < r.end
   const byKey = new Map<string, number[]>()
   for (const k of keys) byKey.set(k, [])
   const curMins: number[] = []
@@ -286,7 +322,8 @@ export async function loadResponseTime(
     }
   }
 
-  const avg = (arr: number[]) => (arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length)
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? null : arr.reduce((a, b) => a + b, 0) / arr.length
 
   const buckets: ResponseTimeBucket[] = keys.map((key) => {
     const list = byKey.get(key) ?? []

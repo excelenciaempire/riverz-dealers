@@ -1,14 +1,20 @@
 "use client"
 
+import { useState } from 'react'
 import { Clock } from 'lucide-react'
-import type { ResponseTimeSummary } from '@/lib/dashboard/types'
+import type {
+  ResponseTimeMode,
+  ResponseTimeReport,
+  ResponseTimeSummary,
+} from '@/lib/dashboard/types'
 import { useT } from '@/hooks/use-locale'
 import type { TFn } from '@/lib/i18n/translate'
+import { cn } from '@/lib/utils'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 
 interface ResponseTimeChartProps {
-  data: ResponseTimeSummary | null
+  data: ResponseTimeReport | null
   loading: boolean
   /** Minutes. Horizontal dashed line rendered at this height. */
   thresholdMinutes?: number
@@ -24,34 +30,53 @@ export function ResponseTimeChart({
   thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
   const t = useT()
-  const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
+  // Las dos lecturas vienen calculadas de la misma consulta, así que
+  // alternar es instantáneo y no dispara nada.
+  const [mode, setMode] = useState<ResponseTimeMode>('first')
+  const summary: ResponseTimeSummary | null = data ? data[mode] : null
+  const hasData = summary?.buckets.some((b) => b.avgMinutes != null) ?? false
 
   return (
     <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            {t('dashboard.avgFirstResponseTime')}
+            {mode === 'first'
+              ? t('dashboard.avgFirstResponseTime')
+              : t('dashboard.avgAllResponseTime')}
           </h2>
-        </div>
-        {data && (data.thisPeriodAvg != null || data.prevPeriodAvg != null) && (
-          <div className="text-right text-xs">
-            <div className="text-muted-foreground">
-              {t('dashboard.average')}:{' '}
-              <span className="font-medium text-foreground tabular-nums">
-                {fmt(data.thisPeriodAvg)}
-              </span>
-            </div>
-            <div className="text-muted-foreground">
-              {t('dashboard.previousPeriod')}:{' '}
-              <span className="tabular-nums">{fmt(data.prevPeriodAvg)}</span>
-            </div>
+          <div className="mt-2 inline-flex rounded-lg border border-border p-0.5">
+            <ModeButton
+              active={mode === 'first'}
+              onClick={() => setMode('first')}
+              label={t('dashboard.responseModeFirst')}
+            />
+            <ModeButton
+              active={mode === 'all'}
+              onClick={() => setMode('all')}
+              label={t('dashboard.responseModeAll')}
+            />
           </div>
-        )}
+        </div>
+        {summary &&
+          (summary.thisPeriodAvg != null || summary.prevPeriodAvg != null) && (
+            <div className="text-right text-xs">
+              <div className="text-muted-foreground">
+                {t('dashboard.average')}:{' '}
+                <span className="font-medium text-foreground tabular-nums">
+                  {fmt(summary.thisPeriodAvg)}
+                </span>
+              </div>
+              <div className="text-muted-foreground">
+                {t('dashboard.previousPeriod')}:{' '}
+                <span className="tabular-nums">{fmt(summary.prevPeriodAvg)}</span>
+              </div>
+            </div>
+          )}
       </header>
 
       <div className="p-5">
-        {loading || !data ? (
+        {loading || !summary ? (
           <Skeleton className="h-[220px] w-full" />
         ) : !hasData ? (
           <EmptyState
@@ -59,10 +84,36 @@ export function ResponseTimeChart({
             title={t('dashboard.noResponsesRecorded')}
           />
         ) : (
-          <Bars data={data} thresholdMinutes={thresholdMinutes} t={t} />
+          <Bars data={summary} thresholdMinutes={thresholdMinutes} t={t} />
         )}
       </div>
     </section>
+  )
+}
+
+function ModeButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
+        active
+          ? 'bg-accent text-foreground'
+          : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {label}
+    </button>
   )
 }
 

@@ -52,10 +52,29 @@ export interface ResponseTimeBucket {
 
 export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
-  /** Average first-response (minutes) over the selected range. */
+  /** Average response time (minutes) over the selected range. */
   thisPeriodAvg: number | null
   /** Average over the previous equal-length period, for comparison. */
   prevPeriodAvg: number | null
+}
+
+/** Cuál de las dos lecturas del tiempo de respuesta se está mirando. */
+export type ResponseTimeMode = 'first' | 'all'
+
+/**
+ * Las dos lecturas se calculan de una sola pasada sobre los mismos
+ * mensajes, para que alternar entre ellas sea instantáneo en vez de
+ * disparar otra consulta.
+ *
+ * Miden cosas distintas y las dos importan:
+ *  - `first`: cuánto tarda el primer contacto humano/bot. Es la métrica de
+ *    "no dejamos a nadie esperando".
+ *  - `all`: el ritmo sostenido de toda la conversación. Una primera
+ *    respuesta veloz seguida de silencio se ve bien en `first` y mal acá.
+ */
+export interface ResponseTimeReport {
+  first: ResponseTimeSummary
+  all: ResponseTimeSummary
 }
 
 export type ActivityKind =

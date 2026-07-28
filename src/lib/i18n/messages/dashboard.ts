@@ -49,6 +49,12 @@ export const dashboard = {
     es: "Tiempo medio de primera respuesta",
     en: "Average first response time",
   },
+  avgAllResponseTime: {
+    es: "Tiempo medio de respuesta",
+    en: "Average response time",
+  },
+  responseModeFirst: { es: "Primera", en: "First" },
+  responseModeAll: { es: "Todas", en: "All" },
   average: { es: "Promedio", en: "Average" },
   previousPeriod: { es: "Período anterior", en: "Previous period" },
   noResponsesRecorded: { es: "Sin respuestas registradas", en: "No responses recorded" },

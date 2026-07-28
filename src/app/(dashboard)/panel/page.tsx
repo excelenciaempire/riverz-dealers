@@ -36,7 +36,7 @@ import type {
   ActivityItem,
   ConversationsSeriesPoint,
   MetricsBundle,
-  ResponseTimeSummary,
+  ResponseTimeReport,
 } from '@/lib/dashboard/types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(true)
-  const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
+  const [responseTime, setResponseTime] = useState<ResponseTimeReport | null>(null)
   const [responseTimeLoading, setResponseTimeLoading] = useState(true)
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
