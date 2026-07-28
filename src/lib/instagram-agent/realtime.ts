@@ -18,6 +18,7 @@ import {
   logProactiveSend,
   autoReplyCommentsEnabled,
   featureEnabled,
+  loadCommentSettings,
 } from './controls';
 import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
@@ -604,8 +605,14 @@ async function autonomousCommentReply(
     engagement,
   );
 
-  // ¿Intención de compra? Solo contestamos a quien pregunta de verdad; el
-  // "😍" y el spam no reciben DM (y el spam se oculta, como siempre).
+  // A quién contesta, y cuánto insiste en un hilo: lo decide el comercio en
+  // Comentarios (migración 132). Los defaults son la conducta de siempre.
+  const commentCfg = await loadCommentSettings(db, opts.workspaceId);
+
+  // ¿Intención de compra? Con 'intent' (por defecto) solo contestamos a quien
+  // pregunta de verdad: el "😍" no recibe DM. Con 'all' contestamos a todo el
+  // que escriba algo — el spam se sigue filtrando y ocultando en los dos casos,
+  // porque contestarle a un bot no es una decisión de negocio.
   let score: LeadScore = 'medium';
   try {
     const [s] = await scoreLeads(apiKey, [engagement]);
@@ -616,10 +623,14 @@ async function autonomousCommentReply(
       return;
     }
     // El desinterés solo descarta cuando NO hay una duda de post-venta detrás.
-    if (s.score === 'low' && !orderStatus) return;
+    if (commentCfg.audience === 'intent' && s.score === 'low' && !orderStatus) {
+      return;
+    }
     score = s.score;
   } catch {
-    if (!orderStatus) return; // sin clasificar, no arriesgamos un DM no pedido
+    // Sin clasificar no arriesgamos un DM no pedido… salvo que el comercio haya
+    // pedido explícitamente contestar a todos.
+    if (!orderStatus && commentCfg.audience === 'intent') return;
   }
 
   // Superficie 'comment': si el comercio creó un agente para comentarios, es
@@ -659,8 +670,14 @@ async function autonomousCommentReply(
 
   // Freno anti-bucle: en un mismo hilo no insistimos más de tres veces. Si da
   // para más, ya no es un comentario — es una conversación, y sigue en la
-  // bandeja con el Asistente o una persona.
-  if ((thread?.ourReplies ?? 0) >= 3) return;
+  // bandeja con el Asistente o una persona. El tope lo elige el comercio; 0 =
+  // sin tope.
+  if (
+    commentCfg.maxThreadReplies > 0 &&
+    (thread?.ourReplies ?? 0) >= commentCfg.maxThreadReplies
+  ) {
+    return;
+  }
 
   const segment = resolveIgSegment({
     followsBusiness: profile?.follows_business,

@@ -186,6 +186,23 @@ export const igAgent = {
     es: "El asistente no cubre los comentarios. Añádelos a su alcance.",
     en: "The assistant doesn't cover comments. Add them to its reach.",
   },
+
+  // A quién contesta y cuánto insiste (migración 132)
+  audienceLabel: { es: "A quién le contesta", en: "Who it replies to" },
+  audienceIntent: {
+    es: "Solo a quien quiere comprar",
+    en: "Only people who want to buy",
+  },
+  audienceAll: { es: "A todo el que pregunte", en: "Anyone who asks" },
+  audienceSpamNote: {
+    es: "El spam se filtra y se oculta en los dos casos.",
+    en: "Spam is filtered and hidden either way.",
+  },
+  threadCapLabel: { es: "Respuestas por hilo", en: "Replies per thread" },
+  threadCapHint: {
+    es: "Después deja la conversación a una persona. 0 = sin tope.",
+    en: "After that it hands the conversation to a person. 0 = no cap.",
+  },
   autoReplyCommentsHint: {
     es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
     en: "Only people showing buying intent. Casual comments and spam get nothing.",

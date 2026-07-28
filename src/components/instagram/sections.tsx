@@ -1324,21 +1324,31 @@ export function AttributedOrders({ overview }: { overview: IgOverview }) {
  * Ajustes proactivos: una sola carga, una sola escritura. Los consume el menú
  * del encabezado en Ventas por Instagram y la tarjeta de Límites en Comentarios.
  */
+export type CommentAudience = 'intent' | 'all';
+
 export interface ProactiveSettings {
   loaded: boolean;
   paused: boolean;
   autoReply: boolean;
   outreach: boolean;
   cap: number;
+  /** A quién contesta la IA en comentarios (migración 132). */
+  audience: CommentAudience;
+  /** Cuántas veces insiste en un mismo hilo. 0 = sin tope. */
+  maxThreadReplies: number;
   setPaused: (v: boolean) => void;
   setAutoReply: (v: boolean) => void;
   setOutreach: (v: boolean) => void;
   setCap: (v: number) => void;
+  setAudience: (v: CommentAudience) => void;
+  setMaxThreadReplies: (v: number) => void;
   save: (next: {
     paused?: boolean;
     daily_cap?: number;
     auto_reply_comments?: boolean;
     outreach_enabled?: boolean;
+    comment_audience?: CommentAudience;
+    comment_max_thread_replies?: number;
   }) => void;
 }
 
@@ -1348,6 +1358,8 @@ export function useProactiveSettings(): ProactiveSettings {
   const [autoReply, setAutoReply] = useState(true);
   const [outreach, setOutreach] = useState(true);
   const [cap, setCap] = useState(500);
+  const [audience, setAudience] = useState<CommentAudience>('intent');
+  const [maxThreadReplies, setMaxThreadReplies] = useState(3);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -1360,6 +1372,12 @@ export function useProactiveSettings(): ProactiveSettings {
           setAutoReply(j.auto_reply_comments !== false);
           setOutreach(j.outreach_enabled !== false);
           setCap(Number(j.daily_cap) || 500);
+          setAudience(j.comment_audience === 'all' ? 'all' : 'intent');
+          setMaxThreadReplies(
+            typeof j.comment_max_thread_replies === 'number'
+              ? j.comment_max_thread_replies
+              : 3,
+          );
           setLoaded(true);
         }
       })
@@ -1375,6 +1393,8 @@ export function useProactiveSettings(): ProactiveSettings {
       daily_cap?: number;
       auto_reply_comments?: boolean;
       outreach_enabled?: boolean;
+      comment_audience?: CommentAudience;
+      comment_max_thread_replies?: number;
     }) => {
       void fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
@@ -1391,10 +1411,14 @@ export function useProactiveSettings(): ProactiveSettings {
     autoReply,
     outreach,
     cap,
+    audience,
+    maxThreadReplies,
     setPaused,
     setAutoReply,
     setOutreach,
     setCap,
+    setAudience,
+    setMaxThreadReplies,
     save,
   };
 }
@@ -1541,6 +1565,72 @@ function CommentStatsStrip({ stats }: { stats: CommentStats | null }) {
  * son los mismos de Ventas por Instagram, se tocan una vez y ocupaban una
  * tarjeta del ancho de la página.
  */
+/**
+ * Las dos decisiones que antes estaban clavadas en el código: a quién contesta
+ * la IA y cuánto insiste. Solo se ven con la IA encendida — configurar el
+ * comportamiento de algo apagado es ruido.
+ */
+function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
+  const t = useT();
+  if (!settings.autoReply) return null;
+  return (
+    <div className="mt-5 space-y-4 border-l-2 border-border pl-4">
+      <div>
+        <p className="text-[13px] font-medium text-foreground">
+          {t('igAgent.audienceLabel')}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(['intent', 'all'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => {
+                settings.setAudience(v);
+                settings.save({ comment_audience: v });
+              }}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-[13px] transition-colors',
+                settings.audience === v
+                  ? 'border-accent-ink/40 bg-accent/60 font-medium text-accent-ink'
+                  : 'border-border text-muted-foreground hover:bg-accent/30',
+              )}
+            >
+              {t(v === 'intent' ? 'igAgent.audienceIntent' : 'igAgent.audienceAll')}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+          {t('igAgent.audienceSpamNote')}
+        </p>
+      </div>
+
+      <label className="flex items-center justify-between gap-4">
+        <span>
+          <span className="block text-[13px] font-medium text-foreground">
+            {t('igAgent.threadCapLabel')}
+          </span>
+          <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+            {t('igAgent.threadCapHint')}
+          </span>
+        </span>
+        <input
+          type="number"
+          min={0}
+          max={10}
+          value={settings.maxThreadReplies}
+          onChange={(e) => settings.setMaxThreadReplies(Number(e.target.value))}
+          onBlur={() =>
+            settings.save({
+              comment_max_thread_replies: settings.maxThreadReplies,
+            })
+          }
+          className="w-16 shrink-0 rounded-md border border-border bg-background px-2 py-1 text-right text-[13px] tabular-nums text-foreground"
+        />
+      </label>
+    </div>
+  );
+}
+
 export function CommentsSection({
   settings,
   workspaceId,
@@ -1554,10 +1644,13 @@ export function CommentsSection({
   return (
     <div className="space-y-10">
       <CommentStatsStrip stats={stats} />
-      <CommentAutoReply
-        settings={settings}
-        replyStatus={stats?.reply_status}
-      />
+      <div>
+        <CommentAutoReply
+          settings={settings}
+          replyStatus={stats?.reply_status}
+        />
+        <CommentReplyOptions settings={settings} />
+      </div>
       <CommentToDmPanel aiOn={settings.autoReply} />
     </div>
   );

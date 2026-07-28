@@ -50,6 +50,44 @@ export async function featureEnabled(
   return (data as Record<string, boolean> | null)?.[column] !== false;
 }
 
+/**
+ * Cómo quiere el comercio que la IA conteste los comentarios (migración 132).
+ *
+ *   audience 'intent' — solo a quien muestra intención de compra (por defecto,
+ *                       la conducta de siempre).
+ *   audience 'all'    — a todo el que pregunte. El spam se filtra igual.
+ *   maxThreadReplies  — cuántas veces puede contestar en el MISMO hilo antes de
+ *                       callarse y dejarlo para una persona. 0 = sin tope.
+ *
+ * Sin fila de ajustes, los defaults reproducen el comportamiento anterior.
+ */
+export interface CommentReplySettings {
+  audience: 'intent' | 'all';
+  maxThreadReplies: number;
+}
+
+export async function loadCommentSettings(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<CommentReplySettings> {
+  const { data } = await db
+    .from('ig_proactive_settings')
+    .select('comment_audience, comment_max_thread_replies')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  const s = data as {
+    comment_audience?: string | null;
+    comment_max_thread_replies?: number | null;
+  } | null;
+  return {
+    audience: s?.comment_audience === 'all' ? 'all' : 'intent',
+    maxThreadReplies:
+      typeof s?.comment_max_thread_replies === 'number'
+        ? Math.max(0, s.comment_max_thread_replies)
+        : 3,
+  };
+}
+
 /** ¿Está encendido el piso autónomo (responder comentarios sin campaña)? */
 export async function autoReplyCommentsEnabled(
   db: SupabaseClient,

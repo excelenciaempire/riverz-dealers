@@ -35,7 +35,9 @@ export async function GET() {
   const { data } = workspaceId
     ? await supabase
         .from('ig_proactive_settings')
-        .select('paused, daily_cap, auto_reply_comments, outreach_enabled')
+        .select(
+          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies',
+        )
         .eq('workspace_id', workspaceId)
         .maybeSingle()
     : { data: null };
@@ -44,6 +46,8 @@ export async function GET() {
     daily_cap?: number;
     auto_reply_comments?: boolean;
     outreach_enabled?: boolean;
+    comment_audience?: string;
+    comment_max_thread_replies?: number;
   } | null;
   return NextResponse.json({
     paused: s?.paused ?? false,
@@ -51,6 +55,12 @@ export async function GET() {
     // Sin fila de ajustes, ambas funcionalidades están encendidas (default BD).
     auto_reply_comments: s?.auto_reply_comments !== false,
     outreach_enabled: s?.outreach_enabled !== false,
+    // Migración 132 — defaults = la conducta de siempre.
+    comment_audience: s?.comment_audience === 'all' ? 'all' : 'intent',
+    comment_max_thread_replies:
+      typeof s?.comment_max_thread_replies === 'number'
+        ? s.comment_max_thread_replies
+        : 3,
   });
 }
 
@@ -83,9 +93,22 @@ export async function POST(request: Request) {
     typeof body.paused === 'boolean' ||
     body.daily_cap != null ||
     typeof body.auto_reply_comments === 'boolean' ||
-    typeof body.outreach_enabled === 'boolean'
+    typeof body.outreach_enabled === 'boolean' ||
+    body.comment_audience != null ||
+    body.comment_max_thread_replies != null
   ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
+    // A quién contesta la IA en comentarios y cuánto insiste (migración 132).
+    // Valor desconocido ⇒ se ignora, no se guarda basura que rompa el CHECK.
+    if (body.comment_audience === 'intent' || body.comment_audience === 'all') {
+      patch.comment_audience = body.comment_audience;
+    }
+    if (body.comment_max_thread_replies != null) {
+      patch.comment_max_thread_replies = Math.max(
+        0,
+        Math.min(10, Math.round(Number(body.comment_max_thread_replies)) || 0),
+      );
+    }
     if (typeof body.paused === 'boolean') patch.paused = body.paused;
     if (typeof body.auto_reply_comments === 'boolean') {
       patch.auto_reply_comments = body.auto_reply_comments;
