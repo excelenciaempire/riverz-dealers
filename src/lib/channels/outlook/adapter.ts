@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
+import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
@@ -17,6 +18,8 @@ import {
   fetchOutlookAttachments,
   getFreshAccessToken,
 } from "./watch";
+
+const log = getLogger("channels.outlook");
 
 /**
  * Outlook / Hotmail via Microsoft Graph (OAuth 2.0, scope Mail.Send +
@@ -126,7 +129,23 @@ export const outlookAdapter: ChannelAdapter = {
       // the clientState we set at subscription time. Fail CLOSED: skip
       // unless OUTLOOK_PUSH_CLIENT_STATE is set AND the notification's
       // clientState matches it.
+      //
+      // Este descarte se loguea SIEMPRE. Antes era un `continue` mudo, y ese
+      // silencio costó caro: una suscripción creada con un clientState viejo
+      // (el renovador solo extiende la fecha, nunca reescribe el secreto ni la
+      // URL) sigue viéndose perfectamente sana en Graph mientras cada aviso
+      // que llega se tira aquí. El correo pasaba a entrar solo por el sondeo y
+      // no quedaba un solo rastro de por qué.
       if (!expectedState || n.clientState !== expectedState) {
+        log.warn("outlook notification dropped — clientState mismatch", {
+          connectionId: connection.id,
+          subscriptionId: n.subscriptionId,
+          hasExpectedState: !!expectedState,
+          notificationHasState: !!n.clientState,
+          // Nunca el secreto: solo lo justo para distinguir "no coincide" de
+          // "no vino" al leer los registros.
+          suppliedLength: n.clientState?.length ?? 0,
+        });
         continue;
       }
       const graphId = extractMessageId(n.resource ?? "") || n.resourceData?.id;

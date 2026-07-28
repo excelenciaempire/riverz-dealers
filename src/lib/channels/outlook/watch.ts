@@ -16,6 +16,7 @@
  *     creation time, so no separate URL env is needed.
  */
 
+import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
@@ -50,6 +51,41 @@ export async function startOutlookWatch(
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const existingId = cfg.subscription_id ? String(cfg.subscription_id) : "";
 
+  // Huella de CON QUÉ se creó la suscripción (URL de aviso + secreto). Graph
+  // no devuelve el clientState al consultarla, así que sin esto no hay forma
+  // de saber si la que está viva sigue coincidiendo con la configuración
+  // actual.
+  //
+  // Importa porque el camino de renovación de abajo hace PATCH solo de
+  // `expirationDateTime`: ni la URL ni el secreto se reescriben nunca. Si el
+  // dominio cambia o se rota OUTLOOK_PUSH_CLIENT_STATE, la suscripción sigue
+  // reportándose sana e indefinidamente renovada mientras Graph avisa a la
+  // dirección vieja —o con el secreto viejo, y entonces el adaptador tira cada
+  // aviso al comparar. El correo pasa a entrar solo por el sondeo y el retraso
+  // parece inexplicable. Fue exactamente lo que pasó aquí.
+  //
+  // Sin huella guardada (toda suscripción anterior a este cambio) también se
+  // recrea: es la única manera de garantizar que la viva es la correcta, y
+  // ocurre una sola vez por buzón.
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(`${notificationUrl}\n${clientState}`)
+    .digest("hex")
+    .slice(0, 16);
+  const storedFingerprint = cfg.subscription_fingerprint
+    ? String(cfg.subscription_fingerprint)
+    : "";
+  const drifted = existingId && storedFingerprint !== fingerprint;
+
+  if (drifted) {
+    // Borrar antes de crear: Graph limita las suscripciones por buzón y una
+    // huérfana apuntando a la dirección vieja seguiría recibiendo avisos.
+    await fetch(`${GRAPH_API}/subscriptions/${existingId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).catch(() => {});
+  }
+
   // Graph max for /messages is 3 days from now (4230 minutes), but
   // subscriptions also can't extend beyond 3 days from creation. We
   // request 2d 22h to leave headroom for clock drift and renew jitter.
@@ -58,7 +94,7 @@ export async function startOutlookWatch(
   ).toISOString();
 
   let res: Response;
-  if (existingId) {
+  if (existingId && !drifted) {
     res = await fetch(`${GRAPH_API}/subscriptions/${existingId}`, {
       method: "PATCH",
       headers: {
@@ -89,6 +125,7 @@ export async function startOutlookWatch(
         ...cfg,
         subscription_id: j.id,
         subscription_expiration: j.expirationDateTime,
+        subscription_fingerprint: fingerprint,
       },
     })
     .eq("id", connection.id);
