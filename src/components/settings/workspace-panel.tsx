@@ -25,6 +25,8 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
 import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
 import { GATEABLE_SECTIONS } from "@/lib/rbac/sections";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
 import {
   Dialog,
   DialogContent,
@@ -50,11 +52,24 @@ export function WorkspacePanel() {
   const [inviting, setInviting] = useState(false);
   // El rol y el acceso se eligen en el diálogo que abre el botón Invitar.
   const [inviteOpen, setInviteOpen] = useState(false);
-  // RBAC: pre-assigned menu access for the invite (null = full access).
-  const [inviteAllowed, setInviteAllowed] = useState<string[] | null>(null);
+  // RBAC: acceso al menú que lleva la invitación (null = acceso total).
+  // Arranca en [] y no en null a propósito: el diálogo abre con la lista de
+  // secciones a la vista y nada marcado, así que invitar exige decidir a qué
+  // entra la persona. Con "Acceso completo" por defecto, dar acceso a todo era
+  // lo que pasaba por no tocar nada.
+  const [inviteAllowed, setInviteAllowed] = useState<string[] | null>([]);
   // Per-member access editor (which member's access is open + its draft).
   const [accessEdit, setAccessEdit] = useState<{ id: string; value: string[] | null } | null>(null);
   const [savingAccess, setSavingAccess] = useState(false);
+  // Igual que el de miembros, pero para una invitación que todavía no se
+  // aceptó: quien invitó puede corregir rol y secciones sin revocar y volver a
+  // mandar el correo.
+  const [inviteEdit, setInviteEdit] = useState<{
+    id: string;
+    role: "admin" | "agent";
+    value: string[] | null;
+  } | null>(null);
+  const [savingInvite, setSavingInvite] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
@@ -172,7 +187,7 @@ export function WorkspacePanel() {
     toast.success(t("settings.inviteSent", { email: inviteEmail }));
     setInviteEmail("");
     setInviteRole("agent");
-    setInviteAllowed(null);
+    setInviteAllowed([]);
     setInviteOpen(false);
     await fetchMembersAndInvites();
   }, [workspace, inviteEmail, inviteRole, inviteAllowed, fetchMembersAndInvites, fetchWithCsrf, t]);
@@ -221,6 +236,28 @@ export function WorkspacePanel() {
     },
     [fetchMembersAndInvites],
   );
+
+  const handleSaveInviteAccess = useCallback(async () => {
+    if (!inviteEdit) return;
+    setSavingInvite(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("workspace_invites")
+      .update({
+        role: inviteEdit.role,
+        // Un admin no se restringe por secciones: su rol ya implica todo.
+        allowed_sections: inviteEdit.role === "agent" ? inviteEdit.value : null,
+      })
+      .eq("id", inviteEdit.id);
+    setSavingInvite(false);
+    if (error) {
+      toast.error(t("settings.genericError"));
+      return;
+    }
+    toast.success(t("settings.accessUpdated"));
+    setInviteEdit(null);
+    await fetchMembersAndInvites();
+  }, [inviteEdit, fetchMembersAndInvites, t]);
 
   const handleRevokeInvite = useCallback(
     async (id: string) => {
@@ -485,25 +522,96 @@ export function WorkspacePanel() {
           </div>
           <ul className="divide-y divide-border">
             {invites.map((inv) => (
-              <li key={inv.id} className="flex items-center gap-3 px-5 py-3">
-                <Mail className="size-4 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-foreground">{inv.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("settings.inviteRoleExpires", {
-                      role: inv.role === "admin" ? t("settings.roleAdmin") : t("settings.roleAgent"),
-                      date: fmt.date(inv.expires_at),
-                    })}
-                  </p>
+              <li key={inv.id} className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <Mail className="size-4 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-foreground">{inv.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.inviteRoleExpires", {
+                        role:
+                          inv.role === "admin"
+                            ? t("settings.roleAdmin")
+                            : t("settings.roleAgent"),
+                        date: fmt.date(inv.expires_at),
+                      })}
+                    </p>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() =>
+                        setInviteEdit(
+                          inviteEdit?.id === inv.id
+                            ? null
+                            : {
+                                id: inv.id,
+                                role: inv.role === "admin" ? "admin" : "agent",
+                                value: inv.allowed_sections ?? null,
+                              },
+                        )
+                      }
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      aria-label={t("settings.menuAccess")}
+                      title={t("settings.menuAccess")}
+                    >
+                      <SlidersHorizontal className="size-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRevokeInvite(inv.id)}
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+                      aria-label={t("settings.revokeInvite")}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
-                {isAdmin && (
-                  <button
-                    onClick={() => handleRevokeInvite(inv.id)}
-                    className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
-                    aria-label={t("settings.revokeInvite")}
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+
+                {isAdmin && inviteEdit?.id === inv.id && (
+                  <div className="mt-3 space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        {t("settings.roleLabel")}
+                      </Label>
+                      <select
+                        value={inviteEdit.role}
+                        onChange={(e) =>
+                          setInviteEdit({
+                            ...inviteEdit,
+                            role: e.target.value as "admin" | "agent",
+                          })
+                        }
+                        className="flex h-9 w-full rounded-md border border-border bg-muted px-3 text-sm text-foreground"
+                      >
+                        <option value="agent">{t("settings.roleAgent")}</option>
+                        <option value="admin">{t("settings.roleAdmin")}</option>
+                      </select>
+                    </div>
+                    {inviteEdit.role === "agent" && (
+                      <SectionAccessEditor
+                        value={inviteEdit.value}
+                        onChange={(v) => setInviteEdit({ ...inviteEdit, value: v })}
+                      />
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setInviteEdit(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveInviteAccess}
+                        disabled={savingInvite}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        {savingInvite ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          t("common.save")
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </li>
             ))}
@@ -558,8 +666,22 @@ function SectionAccessEditor({
   onChange: (v: string[] | null) => void;
 }) {
   const t = useT();
+  const { flags } = useFeatureFlags();
   const full = value == null;
   const selected = new Set(value ?? []);
+
+  // Una funcionalidad apagada desde el panel de plataforma no se ofrece acá:
+  // dar acceso a una sección que nadie puede abrir solo confunde. Se filtra
+  // para todos, también para el equipo Riverz — el bypass de platform admin
+  // sirve para probar la app, no para repartir permisos que no aplican.
+  //
+  // Ojo: se filtra lo que se MUESTRA, no lo guardado. Si un miembro ya tenía
+  // "/menus" concedido y Flujos se apaga, la clave sobrevive en su fila y el
+  // permiso vuelve intacto el día que se reactive.
+  const sections = GATEABLE_SECTIONS.filter((s) => {
+    const feature = featureForPath(s.key);
+    return !feature || isFeatureEnabled(flags, feature);
+  });
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -581,7 +703,7 @@ function SectionAccessEditor({
             {t("settings.menuAccessHint")}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
-            {GATEABLE_SECTIONS.map((s) => (
+            {sections.map((s) => (
               <label
                 key={s.key}
                 className="flex cursor-pointer items-center gap-1.5 text-xs text-foreground"
