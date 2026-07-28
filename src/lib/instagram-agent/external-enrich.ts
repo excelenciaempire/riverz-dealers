@@ -80,11 +80,29 @@ function clean(out: string): string | null {
   return !t || t.toLowerCase() === 'null' ? null : t.slice(0, 200);
 }
 
-/** Run the third-party scraper for one public username. Null on any failure. */
+/**
+ * Run the third-party scraper for one public username.
+ *
+ * Distingue DOS fracasos que antes se confundían, y la diferencia importa
+ * porque marcar el intento quema 60 días de TTL para esa persona:
+ *
+ *   'empty' — el scraper respondió bien y ese perfil no existe. Es una
+ *             respuesta: se marca y no se reintenta en dos meses.
+ *   'error' — el token no vale, no hay crédito, o se cayó la red. No sabemos
+ *             nada de la persona; marcar sería mentir. No se toca la fila, así
+ *             que el siguiente intento la vuelve a coger.
+ *
+ * Con un token inválido, la versión anterior recorría la base entera marcando
+ * a todo el mundo como "ya investigado" sin haber investigado a nadie.
+ */
+type ScrapeOutcome =
+  | { ok: true; profile: ApifyProfile }
+  | { ok: false; kind: 'empty' | 'error' };
+
 async function scrapeProfile(
   username: string,
   token: string,
-): Promise<ApifyProfile | null> {
+): Promise<ScrapeOutcome> {
   try {
     const res = await fetch(
       `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
@@ -95,11 +113,19 @@ async function scrapeProfile(
         signal: AbortSignal.timeout(90_000),
       },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(
+        `[ig-external-enrich] Apify respondió ${res.status} — no se marca el intento`,
+      );
+      return { ok: false, kind: 'error' };
+    }
     const items = (await res.json()) as ApifyProfile[];
-    return Array.isArray(items) && items.length ? items[0] : null;
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, kind: 'empty' };
+    }
+    return { ok: true, profile: items[0] };
   } catch {
-    return null;
+    return { ok: false, kind: 'error' };
   }
 }
 
@@ -230,11 +256,16 @@ export async function enrichExternalProfile(
       process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null,
     );
     if (!token) return 'skipped';
-    const p = await scrapeProfile(uname, token);
-    if (!p) {
-      await mark(db, opts.contactId, { external_hint: null, is_public: null });
+    const scraped = await scrapeProfile(uname, token);
+    if (!scraped.ok) {
+      // Solo un "no existe" cuenta como investigado. Un fallo de transporte se
+      // deja sin marcar para que el siguiente pase lo reintente.
+      if (scraped.kind === 'empty') {
+        await mark(db, opts.contactId, { external_hint: null, is_public: null });
+      }
       return 'failed';
     }
+    const p = scraped.profile;
     if (isPrivate(p)) {
       await mark(db, opts.contactId, { external_hint: null, is_public: false });
       return 'private';
