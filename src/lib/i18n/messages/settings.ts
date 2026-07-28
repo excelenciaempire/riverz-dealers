@@ -752,4 +752,31 @@ export const settings = {
   c2dmDmSentCount: { es: "{count} DM enviados", en: "{count} DMs sent" },
   c2dmCreated: { es: "Regla creada", en: "Rule created" },
   c2dmUpdated: { es: "Regla actualizada", en: "Rule updated" },
+
+  // ── Reglas: lista + editor rediseñados ──
+  c2dmRulesTitle: { es: "Reglas", en: "Rules" },
+  c2dmRulesHint: {
+    es: "Tus palabras exactas. Una regla manda sobre la IA.",
+    en: "Your exact words. A rule wins over the AI.",
+  },
+  c2dmEmpty: {
+    es: "Sin reglas: la IA responde todo.",
+    en: "No rules: the AI answers everything.",
+  },
+  c2dmActionReplyAndDm: { es: "responde y manda DM", en: "public reply + DM" },
+  c2dmActionDmOnly: { es: "manda DM", en: "DM only" },
+  c2dmOnePostOnly: { es: "un solo post", en: "one post only" },
+  c2dmPostLabel: { es: "Post", en: "Post" },
+  c2dmPostPlaceholder: { es: "Todos los posts", en: "All posts" },
+  c2dmSectionWhen: { es: "Cuándo", en: "When" },
+  c2dmSectionWhat: { es: "Qué mandas", en: "What you send" },
+  c2dmPublicRepliesLabel: { es: "Respuestas públicas", en: "Public replies" },
+  c2dmPublicRepliesHint: {
+    es: "Una por línea. Rotamos al azar.",
+    en: "One per line. We rotate at random.",
+  },
+  c2dmRuleOptions: { es: "Opciones de la regla", en: "Rule options" },
+  c2dmPreview: { es: "Así se ve", en: "How it looks" },
+  c2dmPreviewPublic: { es: "En el comentario", en: "On the comment" },
+  c2dmPreviewDm: { es: "En el DM", en: "In the DM" },
 } satisfies Namespace;

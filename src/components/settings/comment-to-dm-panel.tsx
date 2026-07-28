@@ -2,11 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Pencil, X, MessageSquareReply } from "lucide-react";
+import { Loader2, Plus, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -18,13 +29,26 @@ import { Switch } from "@/components/ui/switch";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useT } from "@/hooks/use-locale";
+import { cn } from "@/lib/utils";
 
 /**
- * Comentario → DM (auto-DM on IG/FB comments) — ManyChat's signature growth
- * tool. Each rule watches a comment surface (and optionally one post), matches
- * keywords (or any comment), posts a public reply, and DMs the commenter.
- * CRUD against /api/comment-to-dm; the send engine is server-side
- * (src/lib/comment-to-dm/engine.ts).
+ * Comentario → DM: la regla que el comercio escribe a mano. Vive en la página
+ * Comentarios, debajo del interruptor de la IA, porque son las dos únicas cosas
+ * que pueden atender un comentario y la regla manda sobre la IA.
+ *
+ * La lista es una lista —filas separadas por una línea, no tarjetas— y cada
+ * fila se lee como una frase: dónde, con qué palabras, qué hace. Un solo sitio
+ * donde tocar para editar; el resto (activar, eliminar) al margen.
+ *
+ * El editor pide lo que hace falta y nada más. La coincidencia exacta, el
+ * distinguir mayúsculas y la prioridad se guardan pero no se preguntan: son
+ * decisiones que nadie que vende toma, y ocupaban un tercio del formulario.
+ * A cambio, la vista previa muestra el mensaje tal cual va a salir —incluido el
+ * enlace, que el DM manda como texto (`composeDm`)—, así que no hay que
+ * explicarlo con un hint.
+ *
+ * CRUD contra /api/comment-to-dm; el motor de envío es
+ * src/lib/comment-to-dm/engine.ts.
  */
 
 type CommentChannel = "ig_comment" | "fb_comment";
@@ -53,6 +77,7 @@ export function CommentToDmPanel() {
   const { workspace } = useWorkspace();
   const [rules, setRules] = useState<RuleRow[] | null>(null);
   const [editing, setEditing] = useState<RuleRow | "new" | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -103,13 +128,13 @@ export function CommentToDmPanel() {
       toast.error(t("settings.workspaceUnavailable"));
       return;
     }
-    if (!confirm(t("settings.deleteRuleConfirm"))) return;
     setDeletingId(id);
     const res = await fetchWithCsrf(
       `/api/comment-to-dm?id=${id}&workspace_id=${workspace.id}`,
       { method: "DELETE" },
     );
     setDeletingId(null);
+    setConfirmingId(null);
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       toast.error(json.error ?? t("settings.couldNotDelete"));
@@ -119,61 +144,51 @@ export function CommentToDmPanel() {
     toast.success(t("settings.ruleDeleted"));
   }
 
-  if (rules === null) {
-    return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Subsección: vive dentro de "Automatización" del hub de Instagram, así
-          que su encabezado no debe competir con el de la sección. */}
-      <div className="flex items-end justify-between gap-4">
+    <section className="space-y-1">
+      <div className="app-section-head">
         <div>
-          <h3 className="text-sm font-medium text-foreground">
-            {t("settings.c2dmTitle")}
-          </h3>
-          <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
-            {t("settings.c2dmDescription")}
+          <h2 className="text-[15px] font-medium text-foreground">
+            {t("settings.c2dmRulesTitle")}
+          </h2>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {t("settings.c2dmRulesHint")}
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setEditing("new")}
-        >
+        <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
           <Plus className="size-4" />
           {t("settings.c2dmNew")}
         </Button>
       </div>
 
-      {rules.length === 0 ? (
-        // El botón de "Nueva regla" ya está arriba: repetirlo aquí era ofrecer
-        // dos caminos para lo mismo.
-        <p className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-card/40 px-4 py-3 text-xs text-muted-foreground">
-          <MessageSquareReply className="size-4 shrink-0 text-accent-ink" />
-          {t("settings.c2dmNoneYet")}
+      {rules === null ? (
+        <div className="flex justify-center py-10">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : rules.length === 0 ? (
+        <p className="py-10 text-center text-[13px] text-muted-foreground">
+          {t("settings.c2dmEmpty")}
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border">
           {rules.map((rule) => (
-            <RuleRowCard
+            <RuleLine
               key={rule.id}
               rule={rule}
+              confirming={confirmingId === rule.id}
+              deleting={deletingId === rule.id}
               onEdit={() => setEditing(rule)}
               onToggle={(v) => toggleActive(rule, v)}
+              onAskDelete={() => setConfirmingId(rule.id)}
+              onCancelDelete={() => setConfirmingId(null)}
               onDelete={() => handleDelete(rule.id)}
-              deleting={deletingId === rule.id}
             />
           ))}
         </ul>
       )}
 
       {editing && (
-        <RuleEditorModal
+        <RuleEditor
           rule={editing === "new" ? null : editing}
           workspaceId={workspace?.id ?? null}
           onClose={() => setEditing(null)}
@@ -183,79 +198,117 @@ export function CommentToDmPanel() {
           }}
         />
       )}
-    </div>
+    </section>
   );
 }
 
-function RuleRowCard({
+/** Una fila = una frase. Dónde · con qué palabras · qué hace. */
+function RuleLine({
   rule,
+  confirming,
+  deleting,
   onEdit,
   onToggle,
+  onAskDelete,
+  onCancelDelete,
   onDelete,
-  deleting,
 }: {
   rule: RuleRow;
+  confirming: boolean;
+  deleting: boolean;
   onEdit: () => void;
   onToggle: (next: boolean) => void;
+  onAskDelete: () => void;
+  onCancelDelete: () => void;
   onDelete: () => void;
-  deleting: boolean;
 }) {
   const t = useT();
-  const channelText =
-    rule.channel === "ig_comment"
-      ? t("settings.c2dmIgComment")
-      : t("settings.c2dmFbComment");
-  const keywordText =
+  const summary = [
+    rule.channel === "ig_comment" ? "Instagram" : "Facebook",
     rule.keywords.length > 0
-      ? rule.keywords.join(", ")
-      : t("settings.c2dmKeywordsAny");
+      ? rule.keywords.map((k) => `«${k}»`).join(", ")
+      : t("settings.c2dmKeywordsAny"),
+    rule.public_reply_enabled
+      ? t("settings.c2dmActionReplyAndDm")
+      : t("settings.c2dmActionDmOnly"),
+    ...(rule.post_id ? [t("settings.c2dmOnePostOnly")] : []),
+  ].join(" · ");
+
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
-        <MessageSquareReply className="size-4" />
-      </div>
-      <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-semibold text-foreground">
+    <li className="flex items-center gap-4 py-3.5">
+      <button
+        type="button"
+        onClick={onEdit}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              "truncate text-sm font-medium",
+              rule.is_active ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
             {rule.name}
-          </p>
-          <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {channelText}
           </span>
           {rule.dm_sent_count > 0 && (
-            <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
               {t("settings.c2dmDmSentCount", { count: rule.dm_sent_count })}
             </span>
           )}
-        </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {keywordText}
-        </p>
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          {summary}
+        </span>
       </button>
-      <Switch
-        checked={rule.is_active}
-        onCheckedChange={(v) => onToggle(!!v)}
-        aria-label={rule.is_active ? t("settings.pauseRule") : t("settings.activateRule")}
-      />
-      <button
-        onClick={onEdit}
-        title={t("settings.edit")}
-        className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-      >
-        <Pencil className="size-4" />
-      </button>
-      <button
-        onClick={onDelete}
-        disabled={deleting}
-        title={t("settings.deleteAction")}
-        className="rounded p-1.5 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
-      >
-        {deleting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Trash2 className="size-4" />
-        )}
-      </button>
+
+      {confirming ? (
+        <span className="flex shrink-0 items-center gap-3 text-xs">
+          <button
+            type="button"
+            onClick={onCancelDelete}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {t("settings.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="flex items-center gap-1.5 font-medium text-destructive disabled:opacity-50"
+          >
+            {deleting && <Loader2 className="size-3 animate-spin" />}
+            {t("settings.deleteAction")}
+          </button>
+        </span>
+      ) : (
+        <>
+          <Switch
+            checked={rule.is_active}
+            onCheckedChange={(v) => onToggle(!!v)}
+            aria-label={
+              rule.is_active
+                ? t("settings.pauseRule")
+                : t("settings.activateRule")
+            }
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={t("settings.c2dmRuleOptions")}
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <MoreHorizontal className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-border bg-card">
+              <DropdownMenuItem onClick={onEdit}>
+                {t("settings.edit")}
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={onAskDelete}>
+                {t("settings.deleteAction")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
     </li>
   );
 }
@@ -265,18 +318,14 @@ interface RuleDraft {
   channel: CommentChannel;
   post_id: string;
   keywords: string;
-  match_type: "contains" | "exact";
-  case_sensitive: boolean;
   public_reply_enabled: boolean;
   public_reply_templates: string;
   dm_message: string;
   dm_button_label: string;
   dm_button_url: string;
-  is_active: boolean;
-  priority: number;
 }
 
-function RuleEditorModal({
+function RuleEditor({
   rule,
   workspaceId,
   onClose,
@@ -296,29 +345,20 @@ function RuleEditorModal({
     }),
     [t],
   );
-  const matchLabels = useMemo<Record<string, string>>(
-    () => ({
-      contains: t("settings.c2dmMatchContains"),
-      exact: t("settings.c2dmMatchExact"),
-    }),
-    [t],
-  );
   const [draft, setDraft] = useState<RuleDraft>(() => ({
     name: rule?.name ?? "",
     channel: rule?.channel ?? "ig_comment",
     post_id: rule?.post_id ?? "",
     keywords: (rule?.keywords ?? []).join(", "),
-    match_type: rule?.match_type ?? "contains",
-    case_sensitive: rule?.case_sensitive ?? false,
     public_reply_enabled: rule?.public_reply_enabled ?? true,
     public_reply_templates: (rule?.public_reply_templates ?? []).join("\n"),
     dm_message: rule?.dm_message ?? "",
     dm_button_label: rule?.dm_button_label ?? "",
     dm_button_url: rule?.dm_button_url ?? "",
-    is_active: rule?.is_active ?? true,
-    priority: rule?.priority ?? 100,
   }));
   const [saving, setSaving] = useState(false);
+  const set = <K extends keyof RuleDraft>(k: K, v: RuleDraft[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }));
 
   async function submit() {
     if (!draft.name.trim()) {
@@ -347,8 +387,10 @@ function RuleEditorModal({
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
-        match_type: draft.match_type,
-        case_sensitive: draft.case_sensitive,
+        // No se preguntan: se preservan al editar y son el default al crear.
+        match_type: rule?.match_type ?? "contains",
+        case_sensitive: rule?.case_sensitive ?? false,
+        priority: rule?.priority ?? 100,
         public_reply_enabled: draft.public_reply_enabled,
         public_reply_templates: draft.public_reply_templates
           .split("\n")
@@ -357,8 +399,9 @@ function RuleEditorModal({
         dm_message: draft.dm_message.trim(),
         dm_button_label: draft.dm_button_label.trim() || null,
         dm_button_url: draft.dm_button_url.trim() || null,
-        is_active: draft.is_active,
-        priority: draft.priority,
+        // Una regla nueva nace encendida; apagarla es cosa del interruptor de
+        // la lista, que es donde se ve el estado.
+        is_active: rule?.is_active ?? true,
       }),
     });
     setSaving(false);
@@ -372,56 +415,34 @@ function RuleEditorModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-sm font-semibold text-foreground">
-            {rule ? t("settings.editRule") : t("settings.c2dmNew")}
-          </h3>
-          <button
-            onClick={onClose}
-            className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("settings.close")}
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="gap-0 p-0 sm:max-w-2xl">
+        <DialogTitle className="border-b border-border px-5 py-4">
+          {rule ? t("settings.editRule") : t("settings.c2dmNew")}
+        </DialogTitle>
 
-        <div className="mt-4 space-y-3">
-          <div>
-            <Label htmlFor="c2dm-name" className="text-xs text-foreground">
-              {t("settings.ruleNameLabel")}
-            </Label>
-            <Input
-              id="c2dm-name"
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              placeholder={t("settings.ruleNamePlaceholder")}
-              className="mt-1"
-            />
-          </div>
+        <div className="grid gap-6 p-5 sm:grid-cols-[minmax(0,1fr)_15rem]">
+          <div className="space-y-5">
+            <Field label={t("settings.ruleNameLabel")}>
+              <Input
+                value={draft.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder={t("settings.ruleNamePlaceholder")}
+                autoFocus
+              />
+            </Field>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.c2dmChannelLabel")}
-              </Label>
+            <div className="space-y-3">
+              <p className="app-eyebrow">{t("settings.c2dmSectionWhen")}</p>
+
               <Select
                 value={draft.channel}
                 onValueChange={(v) => {
                   if (typeof v !== "string") return;
-                  setDraft((d) => ({ ...d, channel: v as CommentChannel }));
+                  set("channel", v as CommentChannel);
                 }}
               >
-                <SelectTrigger className="mt-1 w-full">
+                <SelectTrigger className="w-full">
                   <SelectValue labels={channelLabels} />
                 </SelectTrigger>
                 <SelectContent>
@@ -433,204 +454,170 @@ function RuleEditorModal({
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.c2dmMatchTypeLabel")}
-              </Label>
-              <Select
-                value={draft.match_type}
-                onValueChange={(v) => {
-                  if (typeof v !== "string") return;
-                  setDraft((d) => ({
-                    ...d,
-                    match_type: v as "contains" | "exact",
-                  }));
-                }}
+
+              <Field
+                label={t("settings.c2dmKeywordsLabel")}
+                hint={t("settings.c2dmKeywordsHint")}
               >
-                <SelectTrigger className="mt-1 w-full">
-                  <SelectValue labels={matchLabels} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="contains">
-                    {t("settings.c2dmMatchContains")}
-                  </SelectItem>
-                  <SelectItem value="exact">
-                    {t("settings.c2dmMatchExact")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                <Input
+                  value={draft.keywords}
+                  onChange={(e) => set("keywords", e.target.value)}
+                  placeholder={t("settings.c2dmKeywordsPlaceholder")}
+                />
+              </Field>
+
+              <Field label={t("settings.c2dmPostLabel")}>
+                <Input
+                  value={draft.post_id}
+                  onChange={(e) => set("post_id", e.target.value)}
+                  placeholder={t("settings.c2dmPostPlaceholder")}
+                  className="font-mono text-xs"
+                />
+              </Field>
+            </div>
+
+            <div className="space-y-3">
+              <p className="app-eyebrow">{t("settings.c2dmSectionWhat")}</p>
+
+              <Field label={t("settings.c2dmDmMessageLabel")}>
+                <Textarea
+                  value={draft.dm_message}
+                  onChange={(e) => set("dm_message", e.target.value)}
+                  placeholder={t("settings.c2dmDmMessagePlaceholder")}
+                  rows={3}
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label={t("settings.c2dmButtonLabelLabel")}>
+                  <Input
+                    value={draft.dm_button_label}
+                    onChange={(e) => set("dm_button_label", e.target.value)}
+                  />
+                </Field>
+                <Field label={t("settings.c2dmButtonUrlLabel")}>
+                  <Input
+                    value={draft.dm_button_url}
+                    onChange={(e) => set("dm_button_url", e.target.value)}
+                    placeholder="https://"
+                    className="font-mono text-xs"
+                  />
+                </Field>
+              </div>
+
+              <label className="flex items-center justify-between gap-3 pt-1">
+                <span className="text-[13px] text-foreground">
+                  {t("settings.c2dmPublicReplyEnabled")}
+                </span>
+                <Switch
+                  checked={draft.public_reply_enabled}
+                  onCheckedChange={(v) => set("public_reply_enabled", !!v)}
+                />
+              </label>
+
+              {draft.public_reply_enabled && (
+                <Field
+                  label={t("settings.c2dmPublicRepliesLabel")}
+                  hint={t("settings.c2dmPublicRepliesHint")}
+                >
+                  <Textarea
+                    value={draft.public_reply_templates}
+                    onChange={(e) =>
+                      set("public_reply_templates", e.target.value)
+                    }
+                    rows={2}
+                  />
+                </Field>
+              )}
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs text-foreground">
-              {t("settings.c2dmKeywordsLabel")}
-            </Label>
-            <Input
-              value={draft.keywords}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, keywords: e.target.value }))
-              }
-              placeholder={t("settings.c2dmKeywordsPlaceholder")}
-              className="mt-1"
-            />
-            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              {t("settings.c2dmKeywordsHint")}
-            </p>
-          </div>
-
-          <div>
-            <Label className="text-xs text-foreground">
-              {t("settings.c2dmPostIdLabel")}
-            </Label>
-            <Input
-              value={draft.post_id}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, post_id: e.target.value }))
-              }
-              className="mt-1 font-mono text-xs"
-            />
-            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-              {t("settings.c2dmPostIdHint")}
-            </p>
-          </div>
-
-          <div>
-            <Label className="text-xs text-foreground">
-              {t("settings.c2dmDmMessageLabel")}
-            </Label>
-            <Textarea
-              value={draft.dm_message}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, dm_message: e.target.value }))
-              }
-              placeholder={t("settings.c2dmDmMessagePlaceholder")}
-              rows={3}
-              className="mt-1"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.c2dmButtonLabelLabel")}
-              </Label>
-              <Input
-                value={draft.dm_button_label}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, dm_button_label: e.target.value }))
-                }
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.c2dmButtonUrlLabel")}
-              </Label>
-              <Input
-                value={draft.dm_button_url}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, dm_button_url: e.target.value }))
-                }
-                placeholder="https://"
-                className="mt-1 font-mono text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-            <span className="text-xs text-foreground">
-              {t("settings.c2dmPublicReplyEnabled")}
-            </span>
-            <Switch
-              checked={draft.public_reply_enabled}
-              onCheckedChange={(v) =>
-                setDraft((d) => ({ ...d, public_reply_enabled: !!v }))
-              }
-            />
-          </div>
-          {draft.public_reply_enabled && (
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.c2dmPublicReplyTemplatesLabel")}
-              </Label>
-              <Textarea
-                value={draft.public_reply_templates}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    public_reply_templates: e.target.value,
-                  }))
-                }
-                rows={2}
-                className="mt-1"
-              />
-              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {t("settings.c2dmPublicReplyHint")}
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs text-foreground">
-                {t("settings.rulePriorityLabel")}
-              </Label>
-              <Input
-                type="number"
-                value={draft.priority}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    priority: Number(e.target.value) || 0,
-                  }))
-                }
-                className="mt-1"
-              />
-            </div>
-            <div className="flex items-end justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-              <span className="text-xs text-foreground">
-                {t("settings.c2dmActiveLabel")}
-              </span>
-              <Switch
-                checked={draft.is_active}
-                onCheckedChange={(v) =>
-                  setDraft((d) => ({ ...d, is_active: !!v }))
-                }
-              />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={draft.case_sensitive}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, case_sensitive: e.target.checked }))
-              }
-            />
-            {t("settings.c2dmCaseSensitive")}
-          </label>
+          <RulePreview draft={draft} />
         </div>
 
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
-          >
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             {t("settings.cancel")}
-          </button>
-          <button
-            onClick={submit}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {saving && <Loader2 className="size-3 animate-spin" />}
+          </Button>
+          <Button size="sm" onClick={submit} disabled={saving}>
+            {saving && <Loader2 className="size-3.5 animate-spin" />}
             {t("settings.save")}
-          </button>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="mt-1.5">{children}</div>
+      {hint && (
+        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * El mensaje tal cual sale. El enlace se pinta como lo compone el motor
+ * (`composeDm`): texto plano al final, porque la respuesta privada de Meta no
+ * admite botones.
+ */
+function RulePreview({ draft }: { draft: RuleDraft }) {
+  const t = useT();
+  const publicText = draft.public_reply_templates
+    .split("\n")
+    .map((s) => s.trim())
+    .find(Boolean);
+  const url = draft.dm_button_url.trim();
+  const label = draft.dm_button_label.trim();
+
+  return (
+    <aside className="h-fit rounded-xl border border-border bg-muted/30 p-3.5 sm:sticky sm:top-0">
+      <p className="app-eyebrow">{t("settings.c2dmPreview")}</p>
+
+      <div className="mt-3 space-y-3">
+        {draft.public_reply_enabled && (
+          <div>
+            <p className="text-[10px] text-muted-foreground">
+              {t("settings.c2dmPreviewPublic")}
+            </p>
+            <p className="mt-1 rounded-lg rounded-tl-sm border border-border bg-card px-3 py-2 text-xs break-words text-foreground">
+              {publicText || <span className="text-muted-foreground">—</span>}
+            </p>
+          </div>
+        )}
+
+        <div>
+          <p className="text-[10px] text-muted-foreground">
+            {t("settings.c2dmPreviewDm")}
+          </p>
+          <div className="mt-1 rounded-lg rounded-tl-sm bg-accent/60 px-3 py-2 text-xs whitespace-pre-wrap text-foreground">
+            {draft.dm_message.trim() || (
+              <span className="text-muted-foreground">—</span>
+            )}
+            {url && (
+              <span className="mt-2 block break-all text-accent-ink">
+                👉 {label ? `${label}: ` : ""}
+                {url}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

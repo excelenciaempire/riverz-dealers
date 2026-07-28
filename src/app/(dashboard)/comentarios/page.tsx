@@ -1,10 +1,10 @@
 'use client';
 
-import { MessageSquareReply } from 'lucide-react';
 import {
+  AgentSettingsMenu,
   CommentsSection,
   ConnectionPill,
-  ProactiveLimits,
+  PausedBanner,
   useIgConnected,
   useProactiveSettings,
 } from '@/components/instagram/sections';
@@ -21,6 +21,9 @@ import { useT } from '@/hooks/use-locale';
  *
  * Cubre Instagram y Facebook: las reglas de comentario→DM ya funcionan en los
  * dos, así que el nombre no lleva apellido de canal.
+ *
+ * Mismo encabezado que Ventas por Instagram —título, aviso solo si falta la
+ * conexión, límites en el menú— porque son dos caras del mismo agente.
  */
 export default function ComentariosPage() {
   const t = useT();
@@ -28,21 +31,23 @@ export default function ComentariosPage() {
   const connected = useIgConnected();
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-accent/60 text-accent-ink shadow-sm">
-            <MessageSquareReply className="h-5 w-5" />
-          </span>
+    <div className="mx-auto max-w-3xl space-y-8">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
           <h1 className="app-page-title">{t('nav.comments')}</h1>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            {t('igAgent.commentsSubtitle')}
+          </p>
         </div>
-        <ConnectionPill connected={connected} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {connected === false && <ConnectionPill connected={false} />}
+          <AgentSettingsMenu settings={settings} showOutreach={false} />
+        </div>
       </header>
 
+      <PausedBanner settings={settings} />
 
       <CommentsSection settings={settings} />
-
-      <ProactiveLimits settings={settings} />
     </div>
   );
 }

@@ -42,9 +42,10 @@ interface OrderRow {
 async function selectOrders(
   db: ReturnType<typeof supabaseAdmin>,
   workspaceId: string,
-  sinceIso: string,
+  sinceIso: string
 ): Promise<OrderRow[]> {
-  const base = 'contact_id, customer_name, customer_phone, total_price, status, created_at';
+  const base =
+    'contact_id, customer_name, customer_phone, total_price, status, created_at';
   const run = (columns: string) =>
     db
       .from('orders')
@@ -57,7 +58,9 @@ async function selectOrders(
   if (!withToken.error) return (withToken.data ?? []) as unknown as OrderRow[];
 
   const legacy = await run(base);
-  return ((legacy.data ?? []) as unknown as Array<Omit<OrderRow, 'checkout_token'>>).map((o) => ({
+  return (
+    (legacy.data ?? []) as unknown as Array<Omit<OrderRow, 'checkout_token'>>
+  ).map((o) => ({
     ...o,
     checkout_token: null,
   }));
@@ -73,7 +76,7 @@ async function selectOrders(
 async function usedByAbandonedCartAutomation(
   db: ReturnType<typeof supabaseAdmin>,
   workspaceId: string,
-  templateName: string,
+  templateName: string
 ): Promise<boolean> {
   const { data: autos } = await db
     .from('automations')
@@ -89,26 +92,35 @@ async function usedByAbandonedCartAutomation(
     .in('automation_id', ids)
     .eq('step_type', 'send_template');
   return (steps ?? []).some(
-    (s) => (s as { step_config?: { template_name?: string } }).step_config?.template_name === templateName,
+    (s) =>
+      (s as { step_config?: { template_name?: string } }).step_config
+        ?.template_name === templateName
   );
 }
 
-export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   const { id } = await context.params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   try {
     const db = supabaseAdmin();
     const { data: tplRow } = await db
       .from('message_templates')
-      .select('id, workspace_id, name, meta_template_id, waba_id, buttons, category')
+      .select(
+        'id, workspace_id, name, meta_template_id, waba_id, buttons, category'
+      )
       .eq('id', id)
       .maybeSingle();
-    if (!tplRow) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    if (!tplRow)
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const tpl = tplRow as {
       workspace_id: string;
       name: string;
@@ -125,7 +137,8 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       .eq('workspace_id', tpl.workspace_id)
       .eq('user_id', user.id)
       .maybeSingle();
-    if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (!member)
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     const hasButtons =
       Array.isArray(tpl.buttons) && (tpl.buttons as unknown[]).length > 0;
@@ -173,7 +186,8 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
               read += Number(dp.read ?? 0);
               const clks = dp.clicked;
               if (Array.isArray(clks)) {
-                for (const c of clks as Array<{ count?: number }>) clicked += Number(c.count ?? 0);
+                for (const c of clks as Array<{ count?: number }>)
+                  clicked += Number(c.count ?? 0);
               } else {
                 clicked += Number(clks ?? 0);
               }
@@ -200,14 +214,21 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       buyers: Array<{ name: string; amount: number; at: string | null }>;
     } | null = null;
 
-    const isCartRecoveryTemplate = await usedByAbandonedCartAutomation(
+    // Configurada hoy como la plantilla de recuperación. Alcanza para mostrar
+    // el bloque aunque todavía no haya enviado nada (dice "aún nada", que es
+    // información), pero NO alcanza como única condición: al cambiar la
+    // plantilla de la automatización, la que hizo todo el trabajo dejaría de
+    // mostrar sus recuperaciones y la nueva mostraría un cero.
+    const isConfiguredForCart = await usedByAbandonedCartAutomation(
       db,
       tpl.workspace_id,
-      tpl.name,
+      tpl.name
     );
 
-    if (isCartRecoveryTemplate) {
-      const sinceIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    {
+      const sinceIso = new Date(
+        Date.now() - 30 * 24 * 60 * 60 * 1000
+      ).toISOString();
 
       // Envíos REALES de esta plantilla (no de otra plantilla de carrito del
       // mismo workspace), con el contacto que los recibió.
@@ -227,7 +248,9 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
       // contact_id → primer envío de esta plantilla.
       const firstSendByContact = new Map<string, number>();
       for (const s of sends) {
-        const conv = Array.isArray(s.conversations) ? s.conversations[0] : s.conversations;
+        const conv = Array.isArray(s.conversations)
+          ? s.conversations[0]
+          : s.conversations;
         const cid = conv?.contact_id;
         if (!cid) continue;
         const at = new Date(s.created_at).getTime();
@@ -235,7 +258,13 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
         if (prev === undefined || at < prev) firstSendByContact.set(cid, at);
       }
 
-      if (firstSendByContact.size > 0) {
+      if (firstSendByContact.size === 0) {
+        // Sin envíos no hay nada que atribuir. El bloque en cero sólo tiene
+        // sentido si la plantilla está enganchada esperando su primer disparo.
+        cart = isConfiguredForCart
+          ? { recovered: 0, revenue: 0, buyers: [] }
+          : null;
+      } else {
         // El checkout guarda teléfono, no contact_id: se emparejan por los
         // últimos 8 dígitos (mismo criterio que el resto del CRM, porque los
         // prefijos móviles varían entre Shopify y WhatsApp).
@@ -259,93 +288,136 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           if (prev === undefined || at < prev) sentAtByPhone.set(key, at);
         }
 
-        // Una compra atribuida, venga del checkout o del pedido. `token` es el
-        // checkout que la originó: es lo que permite reconocer la misma compra
-        // vista por los dos caminos sin confundirla con una segunda compra.
-        type Purchase = { token: string; name: string; amount: number; at: string };
-        const purchases: Purchase[] = [];
-
-        // 1) Volvió al checkout y lo completó (el camino normal del carrito).
+        // Carritos del workspace en la ventana: los que dispararon una
+        // recuperación (para saber si esta plantilla ES la del carrito) y los
+        // que terminaron comprados (para atribuir).
         const { data: checkoutRows } = await db
           .from('shopify_checkouts')
           .select(
-            'checkout_id, customer_name, customer_email, customer_phone, completed_at, total_price',
+            'checkout_id, customer_name, customer_email, customer_phone, completed_at, recovery_dispatched_at, total_price'
           )
           .eq('workspace_id', tpl.workspace_id)
-          .not('completed_at', 'is', null)
-          .gte('completed_at', sinceIso)
+          .or(
+            `completed_at.gte.${sinceIso},recovery_dispatched_at.gte.${sinceIso}`
+          )
           .limit(10000);
-        for (const c of (checkoutRows ?? []) as Array<{
+        const checkouts = (checkoutRows ?? []) as Array<{
           checkout_id: string | null;
           customer_name: string | null;
           customer_email: string | null;
           customer_phone: string | null;
-          completed_at: string;
+          completed_at: string | null;
+          recovery_dispatched_at: string | null;
           total_price: number | string | null;
-        }>) {
+        }>;
+
+        // ¿Esta plantilla es de verdad la que sale a recuperar carritos? La
+        // prueba está en los hechos, no en la configuración de hoy: el envío
+        // ocurre en el mismo instante en que el cron despacha la recuperación
+        // de ese cliente. Sin esto, cambiar la plantilla de la automatización
+        // borra el historial de la anterior.
+        const DISPATCH_WINDOW_MS = 15 * 60 * 1000;
+        const hasCartRecoveryHistory = checkouts.some((c) => {
+          if (!c.recovery_dispatched_at) return false;
           const sentAt = sentAtByPhone.get(phoneKey(c.customer_phone));
-          if (sentAt === undefined) continue;
-          if (new Date(c.completed_at).getTime() < sentAt) continue;
-          purchases.push({
-            token: (c.checkout_id ?? '').trim(),
-            name:
-              (c.customer_name ?? '').trim() ||
-              (c.customer_email ?? '').trim() ||
-              (c.customer_phone ?? '').trim(),
-            amount: Number(c.total_price) || 0,
-            at: c.completed_at,
-          });
-        }
+          if (sentAt === undefined) return false;
+          return (
+            Math.abs(new Date(c.recovery_dispatched_at).getTime() - sentAt) <
+            DISPATCH_WINDOW_MS
+          );
+        });
 
-        // 2) Cerró la compra por la conversación: el pedido lo crea el
-        // asistente vía Admin API, no completa ningún carrito, y su única
-        // huella está en `orders` (espejo de pedidos originados aquí).
-        const orderPurchases = await selectOrders(db, tpl.workspace_id, sinceIso);
-        for (const o of orderPurchases) {
-          // Un pedido cancelado, devuelto o fallido no es una recuperación.
-          if (['cancelled', 'refunded', 'failed'].includes(String(o.status ?? ''))) continue;
-          const sentAt =
-            (o.contact_id ? firstSendByContact.get(o.contact_id) : undefined) ??
-            sentAtByPhone.get(phoneKey(o.customer_phone));
-          if (sentAt === undefined) continue;
-          if (new Date(o.created_at).getTime() < sentAt) continue;
-          purchases.push({
-            token: (o.checkout_token ?? '').trim(),
-            name:
-              (o.customer_name ?? '').trim() ||
-              (o.contact_id ? nameByContact.get(o.contact_id) ?? '' : '') ||
-              (o.customer_phone ?? '').trim(),
-            amount: Number(o.total_price) || 0,
-            at: o.created_at,
-          });
-        }
+        if (!isConfiguredForCart && !hasCartRecoveryHistory) {
+          // Plantilla ajena al carrito: no hay recorrido observable, no hay
+          // nada que atribuir.
+          cart = null;
+        } else {
+          // Una compra atribuida, venga del checkout o del pedido. `token` es el
+          // checkout que la originó: es lo que permite reconocer la misma compra
+          // vista por los dos caminos sin confundirla con una segunda compra.
+          type Purchase = {
+            token: string;
+            name: string;
+            amount: number;
+            at: string;
+          };
+          const purchases: Purchase[] = [];
 
-        // Si el cliente compra dos veces son DOS recuperaciones. Lo único que
-        // se colapsa es la misma compra leída por los dos caminos, y eso se
-        // reconoce por el token del checkout que la originó (migración 128):
-        // mismo token = misma compra. Sin token no hay nada que colapsar —
-        // un pedido sin checkout no tiene contraparte posible.
-        const seenTokens = new Set<string>();
-        const recoveredRows: Purchase[] = [];
-        for (const p of purchases.sort(
-          (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-        )) {
-          if (p.token) {
-            if (seenTokens.has(p.token)) continue;
-            seenTokens.add(p.token);
+          // 1) Volvió al checkout y lo completó (el camino normal del carrito).
+          for (const c of checkouts) {
+            if (!c.completed_at) continue;
+            const sentAt = sentAtByPhone.get(phoneKey(c.customer_phone));
+            if (sentAt === undefined) continue;
+            if (new Date(c.completed_at).getTime() < sentAt) continue;
+            purchases.push({
+              token: (c.checkout_id ?? '').trim(),
+              name:
+                (c.customer_name ?? '').trim() ||
+                (c.customer_email ?? '').trim() ||
+                (c.customer_phone ?? '').trim(),
+              amount: Number(c.total_price) || 0,
+              at: c.completed_at,
+            });
           }
-          recoveredRows.push(p);
-        }
 
-        const revenue = recoveredRows.reduce((s, p) => s + p.amount, 0);
-        const buyers = recoveredRows
-          .slice()
-          .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-          .slice(0, 20)
-          .map((p) => ({ name: p.name, amount: p.amount, at: p.at }));
-        cart = { recovered: recoveredRows.length, revenue, buyers };
-      } else {
-        cart = { recovered: 0, revenue: 0, buyers: [] };
+          // 2) Cerró la compra por la conversación: el pedido lo crea el
+          // asistente vía Admin API, no completa ningún carrito, y su única
+          // huella está en `orders` (espejo de pedidos originados aquí).
+          const orderPurchases = await selectOrders(
+            db,
+            tpl.workspace_id,
+            sinceIso
+          );
+          for (const o of orderPurchases) {
+            // Un pedido cancelado, devuelto o fallido no es una recuperación.
+            if (
+              ['cancelled', 'refunded', 'failed'].includes(
+                String(o.status ?? '')
+              )
+            )
+              continue;
+            const sentAt =
+              (o.contact_id
+                ? firstSendByContact.get(o.contact_id)
+                : undefined) ?? sentAtByPhone.get(phoneKey(o.customer_phone));
+            if (sentAt === undefined) continue;
+            if (new Date(o.created_at).getTime() < sentAt) continue;
+            purchases.push({
+              token: (o.checkout_token ?? '').trim(),
+              name:
+                (o.customer_name ?? '').trim() ||
+                (o.contact_id ? (nameByContact.get(o.contact_id) ?? '') : '') ||
+                (o.customer_phone ?? '').trim(),
+              amount: Number(o.total_price) || 0,
+              at: o.created_at,
+            });
+          }
+
+          // Si el cliente compra dos veces son DOS recuperaciones. Lo único que
+          // se colapsa es la misma compra leída por los dos caminos, y eso se
+          // reconoce por el token del checkout que la originó (migración 128):
+          // mismo token = misma compra. Sin token no hay nada que colapsar —
+          // un pedido sin checkout no tiene contraparte posible.
+          const seenTokens = new Set<string>();
+          const recoveredRows: Purchase[] = [];
+          for (const p of purchases.sort(
+            (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+          )) {
+            if (p.token) {
+              if (seenTokens.has(p.token)) continue;
+              seenTokens.add(p.token);
+            }
+            recoveredRows.push(p);
+          }
+
+          const revenue = recoveredRows.reduce((s, p) => s + p.amount, 0);
+          const buyers = recoveredRows
+            .slice()
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+            .slice(0, 20)
+            .map((p) => ({ name: p.name, amount: p.amount, at: p.at }));
+          cart = { recovered: recoveredRows.length, revenue, buyers };
+        }
       }
     }
 

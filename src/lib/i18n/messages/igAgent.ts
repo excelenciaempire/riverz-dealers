@@ -151,9 +151,16 @@ export const igAgent = {
     en: "Max proactive DMs per day (protects your sending reputation).",
   },
 
+  limitsMenu: { es: "Límites", en: "Limits" },
+
+  // Página Comentarios
+  commentsSubtitle: {
+    es: "Qué pasa cuando alguien comenta en tus posts.",
+    en: "What happens when someone comments on your posts.",
+  },
   autoReplyComments: {
-    es: "Contestar siempre a quien pregunta",
-    en: "Always answer people who ask",
+    es: "Responder con IA",
+    en: "Reply with AI",
   },
   autoReplyCommentsHint: {
     es: "Solo a quien muestra intención de compra. El comentario casual y el spam no reciben nada.",
