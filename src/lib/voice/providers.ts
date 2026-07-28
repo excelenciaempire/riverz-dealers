@@ -25,6 +25,27 @@ export interface ProviderOption {
   /** Nota corta para el admin (ej. idioma, latencia). */
   note?: string;
   /**
+   * El modelo lo dicta el endpoint, no este catálogo (custom /
+   * OpenAI-compatible) → nunca lo corrijas automáticamente.
+   */
+  freeModel?: boolean;
+  /**
+   * Cómo nombra este proveedor a sus voces. Cambiar de proveedor sin cambiar la
+   * voz es LA forma de dejar una llamada muda: cada uno rechaza el id del otro.
+   * `voiceIds` = lista cerrada · `voiceShape` = formato · ninguno = libre.
+   */
+  voiceIds?: string[];
+  voiceShape?: RegExp;
+  /** Voz a la que caer cuando la configurada no es de este proveedor. */
+  defaultVoice?: string;
+  /** El modelo YA es la voz (Deepgram Aura) → el campo de voz no aplica. */
+  voiceInModel?: boolean;
+  /**
+   * Env vars del worker donde vive la key de este proveedor. Si están, el admin
+   * no necesita cargar la key en la DB; si no, hay que pedirla.
+   */
+  envKeys?: string[];
+  /**
    * Endpoint OpenAI-compatible por defecto (punto A: modelos abiertos servidos
    * por terceros, pago-por-uso, $0 ocioso). El worker lo usa si no hay base_url
    * explícito. Solo aplica a proveedores tipo OpenAI-compatible.
@@ -33,6 +54,22 @@ export interface ProviderOption {
   /** Marca la opción recomendada para ecommerce (barata + buena). */
   recommended?: boolean;
 }
+
+/**
+ * Voces de Google (Gemini TTS y Gemini Live). Lista cerrada: Gemini rechaza
+ * cualquier otro nombre, así que un voice_id de ElevenLabs/Fish acá deja la
+ * llamada muda. Debe seguir a `_GEMINI_VOICES` del worker.
+ */
+export const GEMINI_VOICES = [
+  'Puck',
+  'Charon',
+  'Kore',
+  'Fenrir',
+  'Aoede',
+  'Leda',
+  'Orus',
+  'Zephyr',
+];
 
 /** Voz → texto. */
 export const STT_PROVIDERS: ProviderOption[] = [
@@ -44,6 +81,7 @@ export const STT_PROVIDERS: ProviderOption[] = [
       { id: 'nova-2', label: 'Nova-2' },
     ],
     note: 'Rápido, multi-idioma. Recomendado.',
+    envKeys: ['DEEPGRAM_API_KEY'],
   },
   {
     id: 'openai',
@@ -54,6 +92,7 @@ export const STT_PROVIDERS: ProviderOption[] = [
       { id: 'whisper-1', label: 'Whisper' },
     ],
     baseUrl: 'https://api.openai.com/v1',
+    envKeys: ['OPENAI_API_KEY'],
   },
   {
     id: 'groq',
@@ -64,12 +103,14 @@ export const STT_PROVIDERS: ProviderOption[] = [
     ],
     baseUrl: 'https://api.groq.com/openai/v1',
     note: 'Whisper muy rápido y barato.',
+    envKeys: ['GROQ_API_KEY'],
   },
   {
     id: 'openai_compatible',
     label: 'OpenAI-compatible (custom)',
     models: [{ id: 'whisper-1', label: 'Escribir modelo…' }],
     note: 'Cualquier endpoint STT OpenAI-compatible (base_url + key). Ej. Whisper self-host.',
+    freeModel: true,
   },
 ];
 
@@ -85,6 +126,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
     ],
     // Endpoint OpenAI-compatible de Google → el worker lo trata igual que Groq.
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    envKeys: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
     note: 'Inteligente + barato + baja latencia + buen tool-calling. Ideal.',
     recommended: true,
   },
@@ -97,6 +139,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
     ],
     baseUrl: 'https://api.groq.com/openai/v1',
+    envKeys: ['GROQ_API_KEY'],
     note: 'La menor latencia (500+ tok/s). Tier gratis ~12k tok/min (justo para demos); Dev Tier para producción.',
     recommended: true,
   },
@@ -109,6 +152,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'gemma-4-31b', label: 'Gemma 4 31B' },
     ],
     baseUrl: 'https://api.cerebras.ai/v1',
+    envKeys: ['CEREBRAS_API_KEY'],
     note: 'La inferencia más rápida del mercado (~2-3x Groq). Requiere saldo/billing.',
   },
   {
@@ -119,6 +163,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
       { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (rápido)' },
     ],
+    envKeys: ['ANTHROPIC_API_KEY'],
     note: 'Mejor razonamiento de ventas y español. Nativo (no usa base_url).',
   },
   {
@@ -130,6 +175,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'gpt-4.1', label: 'GPT-4.1' },
     ],
     baseUrl: 'https://api.openai.com/v1',
+    envKeys: ['OPENAI_API_KEY'],
   },
   // ── Punto A: modelos ABIERTOS servidos por terceros, pago-por-uso, $0 ocioso.
   // Todos hablan API OpenAI-compatible → el worker usa OpenAILLMService + baseUrl.
@@ -142,6 +188,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
     ],
     baseUrl: 'https://api.deepinfra.com/v1/openai',
+    envKeys: ['DEEPINFRA_API_KEY'],
     note: 'Qwen/Llama/DeepSeek pago-por-uso, muy barato, $0 ocioso.',
   },
   {
@@ -152,6 +199,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Turbo' },
     ],
     baseUrl: 'https://api.together.xyz/v1',
+    envKeys: ['TOGETHER_API_KEY'],
     note: 'Modelos abiertos pago-por-uso.',
   },
   {
@@ -162,6 +210,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'accounts/fireworks/models/llama-v3p3-70b-instruct', label: 'Llama 3.3 70B' },
     ],
     baseUrl: 'https://api.fireworks.ai/inference/v1',
+    envKeys: ['FIREWORKS_API_KEY'],
     note: 'Modelos abiertos pago-por-uso, baja latencia.',
   },
   {
@@ -171,6 +220,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
       { id: 'deepseek-chat', label: 'DeepSeek V3 (chat)' },
     ],
     baseUrl: 'https://api.deepseek.com',
+    envKeys: ['DEEPSEEK_API_KEY'],
     note: 'Muy barato y competente.',
   },
   {
@@ -178,6 +228,7 @@ export const LLM_PROVIDERS: ProviderOption[] = [
     label: 'OpenAI-compatible (custom)',
     models: [{ id: '', label: 'Escribir modelo…' }],
     note: 'Cualquier endpoint OpenAI-compatible (base_url + key). Ej. Qwen self-host en vLLM.',
+    freeModel: true,
   },
 ];
 
@@ -191,6 +242,8 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'sonic', label: 'Sonic' },
     ],
     voiceHint: 'voice_id de Cartesia (UUID)',
+    voiceShape: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    envKeys: ['CARTESIA_API_KEY'],
     note: 'La más rápida (~40-90ms), muy natural. ~$0.03/min. Recomendada.',
     recommended: true,
   },
@@ -201,7 +254,9 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'aura-2-celeste-es', label: 'Aura-2 Celeste (español)' },
       { id: 'aura-2-thalia-en', label: 'Aura-2 Thalia (inglés)' },
     ],
-    voiceHint: 'modelo de voz Aura (ej. aura-2-celeste-es)',
+    voiceHint: 'la voz va en el modelo (ej. aura-2-celeste-es)',
+    voiceInModel: true,
+    envKeys: ['DEEPGRAM_API_KEY'],
     note: 'La más barata buena (~$0.015-0.02/min). Mismo proveedor que el STT.',
     recommended: true,
   },
@@ -215,6 +270,8 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 's1', label: 'S1' },
     ],
     voiceHint: 'reference_id de Fish Audio (32 hex, ej. 933563129e564b19a115bedd57b7406a)',
+    voiceShape: /^[0-9a-f]{32}$/i,
+    envKeys: ['FISH_API_KEY', 'FISH_AUDIO_API_KEY'],
     note: '83 idiomas, ~100ms al primer audio y clonación de voz. S2.1 Pro Free sirve para probar sin costo.',
     recommended: true,
   },
@@ -228,6 +285,9 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'eleven_v3', label: 'v3' },
     ],
     voiceHint: 'voice_id de ElevenLabs (ej. XrExE9yKIg1WjnnlVkGX)',
+    voiceShape: /^[A-Za-z0-9]{20}$/,
+    defaultVoice: 'XrExE9yKIg1WjnnlVkGX',
+    envKeys: ['ELEVENLABS_API_KEY', 'ELEVEN_API_KEY'],
     note: 'Máxima calidad, 32 idiomas, pero la más cara (~$0.10/min). Tier premium.',
   },
   {
@@ -239,19 +299,26 @@ export const TTS_PROVIDERS: ProviderOption[] = [
       { id: 'tts-1', label: 'tts-1 (barato)' },
     ],
     voiceHint: 'voz OpenAI (alloy, nova, shimmer…)',
+    voiceIds: ['alloy','ash','ballad','coral','echo','fable','nova','onyx','sage','shimmer','verse'],
+    defaultVoice: 'nova',
     baseUrl: 'https://api.openai.com/v1',
+    envKeys: ['OPENAI_API_KEY'],
   },
   {
     id: 'gemini',
     label: 'Google (Gemini TTS)',
     models: [{ id: 'gemini-2.5-flash-preview-tts', label: 'Gemini 2.5 Flash TTS' }],
     voiceHint: 'voz Gemini (ej. Kore, Puck)',
+    voiceIds: GEMINI_VOICES,
+    defaultVoice: 'Aoede',
+    envKeys: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   },
   {
     id: 'openai_compatible',
     label: 'OpenAI-compatible (custom)',
     models: [{ id: 'tts-1', label: 'Escribir modelo…' }],
     voiceHint: 'voz del endpoint',
+    freeModel: true,
     note: 'Cualquier TTS OpenAI-compatible (base_url + key). Ej. VoxCPM self-host.',
   },
 ];
@@ -306,6 +373,9 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
       { id: 'gemini-2.5-flash-preview-native-audio-dialog', label: 'Gemini 2.5 Flash (audio nativo)' },
     ],
     voiceHint: 'voz Gemini (Puck, Charon, Kore…)',
+    voiceIds: GEMINI_VOICES,
+    defaultVoice: 'Aoede',
+    envKeys: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
     note: 'S2S hosteado, multi-idioma (habla español). Barato + rápido. Recomendado.',
     recommended: true,
   },
@@ -317,6 +387,9 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
       { id: 'gpt-4o-realtime-preview', label: 'gpt-4o-realtime-preview' },
     ],
     voiceHint: 'voz (alloy, marin, cedar…)',
+    voiceIds: ['alloy','ash','ballad','cedar','coral','echo','marin','sage','shimmer','verse'],
+    defaultVoice: 'marin',
+    envKeys: ['OPENAI_API_KEY'],
     note: 'S2S hosteado, cualquier idioma. El más humano. Más caro.',
   },
   {
@@ -327,6 +400,7 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
       { id: 'qwen2.5-omni', label: 'Qwen2.5-Omni' },
     ],
     voiceHint: 'voz del endpoint',
+    freeModel: true,
     note: 'S2S multilingüe self-host (RunPod/Modal). Server listo (runpod/qwen-omni); adapter LiveKit en progreso → por ahora cae al pipeline. $0 por minuto de API a escala.',
   },
   {
@@ -334,6 +408,7 @@ export const REALTIME_PROVIDERS: ProviderOption[] = [
     label: 'PersonaPlex (self-host)',
     models: [{ id: 'personaplex-7b', label: 'PersonaPlex 7B' }],
     voiceHint: 'voz PP (NATF2, NATM1…)',
+    defaultVoice: 'NATF2',
     note: 'Full-duplex self-host (Modal/RunPod). Solo inglés, experimental. Sin tools.',
   },
 ];
@@ -367,35 +442,6 @@ export function providerOption(
  * el camino OpenAI-compatible del worker sin tener que tipear la URL. Anthropic
  * es nativo (sin baseUrl en el catálogo) → devuelve null y usa su plugin propio.
  */
-/**
- * ¿Este `voice_id` pertenece al proveedor de TTS activo? Cada proveedor tiene su
- * propio formato: Fish usa un `reference_id` de 32 hex, ElevenLabs un id de 20
- * caracteres, Deepgram/Gemini nombres de voz. Pasarle a uno el id de otro no
- * falla "suave": el proveedor rechaza la petición y la llamada queda MUDA.
- * Sólo validamos los formatos que sabemos reconocer; el resto pasa tal cual.
- */
-const VOICE_ID_SHAPE: Record<string, RegExp> = {
-  fish: /^[0-9a-f]{32}$/i,
-};
-
-/**
- * Voz efectiva para una llamada: la del agente si es válida para el proveedor,
- * si no la default de la plataforma, si no nada (el proveedor usa la suya). Así
- * cambiar el TTS global no deja mudos a los agentes que ya eligieron una voz.
- */
-export function resolveTtsVoiceId(
-  providerId: string | null | undefined,
-  agentVoiceId: string | null | undefined,
-  defaultVoiceId: string | null | undefined,
-): string | null {
-  const shape = VOICE_ID_SHAPE[(providerId || '').toLowerCase()];
-  const candidates = [agentVoiceId, defaultVoiceId]
-    .map((v) => v?.trim())
-    .filter((v): v is string => !!v);
-  const valid = shape ? candidates.filter((v) => shape.test(v)) : candidates;
-  return valid[0] ?? null;
-}
-
 export function effectiveBaseUrl(
   layer: keyof typeof LAYER_PROVIDERS,
   providerId: string | null | undefined,

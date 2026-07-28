@@ -11,6 +11,13 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import {
+  LAYER_FIELDS,
+  normalizeStack,
+  staleFieldsOnProviderChange,
+  type CompatChange,
+  type VoiceLayer,
+} from './compat';
 
 export type VoiceMode = 'pipeline' | 'realtime';
 
@@ -191,6 +198,11 @@ export async function getVoiceModelResolved(db: SupabaseClient): Promise<VoiceMo
  * Build the DB update for the admin PUT. Accepts the admin view plus optional
  * plaintext keys (`stt_api_key`, etc.); encrypts any provided key and leaves
  * the stored one untouched when the field is absent (empty string clears it).
+ *
+ * Cuando una capa CAMBIA de proveedor (y se pasa `current`), lo que quedaba del
+ * anterior se limpia: su endpoint y su api key no sirven para el nuevo y, si se
+ * quedan puestos, la llamada se cae con un 401 o va al endpoint equivocado. El
+ * resultado se normaliza (modelo/voz coherentes) antes de guardar.
  */
 export function buildModelUpdate(
   body: Partial<VoiceModelConfig> & {
@@ -199,7 +211,8 @@ export function buildModelUpdate(
     tts_api_key?: string;
     realtime_api_key?: string;
   },
-): Record<string, unknown> {
+  current?: VoiceModelConfig,
+): { update: Record<string, unknown>; changes: CompatChange[] } {
   const update: Record<string, unknown> = {};
   const plain: (keyof VoiceModelConfig)[] = [
     'mode',
@@ -233,5 +246,39 @@ export function buildModelUpdate(
       update[col] = v.trim() ? encrypt(v.trim()) : null;
     }
   }
-  return update;
+
+  const changes: CompatChange[] = [];
+  if (current) {
+    // 1) Barrer lo que quedó del proveedor anterior en las capas que cambiaron.
+    for (const layer of Object.keys(LAYER_FIELDS) as VoiceLayer[]) {
+      const f = LAYER_FIELDS[layer];
+      const next = body[f.provider] as string | null | undefined;
+      if (next === undefined) continue;
+      const stale = staleFieldsOnProviderChange(
+        layer,
+        current[f.provider] as string | null,
+        next,
+        {
+          baseUrl: f.baseUrl in body,
+          apiKey: typeof (body as Record<string, unknown>)[`${layer}_api_key`] === 'string',
+        },
+      );
+      for (const col of stale.columns) update[col] = null;
+      changes.push(...stale.changes);
+    }
+    // 2) Normalizar el resultado (lo que se guarda, no lo que llegó): modelo y
+    //    voz tienen que ser del proveedor que queda activo.
+    const merged = { ...current, ...(update as Partial<VoiceModelConfig>) };
+    const norm = normalizeStack(merged);
+    for (const layer of Object.keys(LAYER_FIELDS) as VoiceLayer[]) {
+      const f = LAYER_FIELDS[layer];
+      for (const field of [f.model, f.baseUrl, f.voice]) {
+        if (!field) continue;
+        if (norm.config[field] !== merged[field]) update[field] = norm.config[field];
+      }
+    }
+    changes.push(...norm.changes);
+  }
+
+  return { update, changes };
 }

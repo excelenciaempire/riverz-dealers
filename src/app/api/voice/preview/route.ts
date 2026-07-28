@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { getVoiceModelResolved } from '@/lib/voice/model-config';
-import { resolveTtsVoiceId } from '@/lib/voice/providers';
+import { normalizeStack, resolveVoiceId } from '@/lib/voice/compat';
 
 /**
  * POST /api/voice/preview  { voice_id, text?, language? }
@@ -83,7 +83,8 @@ export async function POST(request: Request) {
   const text = (body?.text?.trim() || SAMPLE[lang]).slice(0, 300);
 
   // La config del stack de voz es de plataforma (RLS: sólo service role).
-  const model = await getVoiceModelResolved(supabaseAdmin()).catch(() => null);
+  const raw = await getVoiceModelResolved(supabaseAdmin()).catch(() => null);
+  const model = raw ? normalizeStack(raw).config : null;
   const provider = (model?.tts_provider ?? '').toLowerCase();
 
   try {
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
         model: model?.tts_model || 's2.1-pro',
         // Misma regla que en las llamadas: una voz de otro proveedor no sirve
         // acá → cae a la default de la plataforma, o a la de Fish.
-        voiceId: resolveTtsVoiceId('fish', voiceId, model?.tts_default_voice_id),
+        voiceId: resolveVoiceId('tts', 'fish', voiceId, model?.tts_default_voice_id),
         text,
       });
     } else {

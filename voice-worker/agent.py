@@ -40,6 +40,9 @@ from livekit.agents import (
     cli,
     metrics,
 )
+from livekit.agents import llm as agents_llm
+from livekit.agents import stt as agents_stt
+from livekit.agents import tts as agents_tts
 from livekit.plugins import anthropic, deepgram, elevenlabs, openai, silero
 
 # NOTE: MultilingualModel sigue en este path en 1.6.x. El plugin muestra un aviso
@@ -528,6 +531,65 @@ def _make_tts(cfg: dict):
     return elevenlabs.TTS(**el_kw)
 
 
+# --- Red de seguridad en runtime ----------------------------------------------
+# Elegir mal un modelo en /admin/voz no debería costar una llamada. El backend ya
+# deja el stack coherente ANTES de que llegue acá (src/lib/voice/compat.ts), pero
+# eso no cubre lo que pasa EN VIVO: sin saldo, un 500 del proveedor, una key
+# vencida. Para eso cada capa va envuelta en el FallbackAdapter de LiveKit, con
+# un respaldo que siempre tiene key en el worker: si la primaria falla a mitad de
+# llamada, se cambia sola y sigue hablando en vez de quedarse muda.
+#
+# Respaldos: Deepgram (STT) · Anthropic (LLM) · ElevenLabs (TTS). Se omite el
+# respaldo si su key no está, o si YA es el proveedor primario (no tendría a
+# dónde caer). VOICE_DISABLE_FALLBACK=1 lo apaga entero.
+_BACKUP_ENV = {
+    "stt": ("DEEPGRAM_API_KEY",),
+    "llm": ("ANTHROPIC_API_KEY",),
+    "tts": ("ELEVENLABS_API_KEY", "ELEVEN_API_KEY"),
+}
+
+
+def _backup_for(layer: str):
+    if layer == "stt":
+        return deepgram.STT(model="nova-3", language="multi")
+    if layer == "llm":
+        return anthropic.LLM(model="claude-haiku-4-5", caching="ephemeral")
+    return elevenlabs.TTS(
+        model="eleven_flash_v2_5",
+        api_key=os.getenv("ELEVENLABS_API_KEY") or os.getenv("ELEVEN_API_KEY"),
+    )
+
+
+# Qué proveedor primario hace redundante al respaldo de cada capa.
+_BACKUP_PROVIDER = {"stt": "deepgram", "llm": "anthropic", "tts": "elevenlabs"}
+
+
+def _with_backup(layer: str, primary, context: dict):
+    """Envuelve la capa en su FallbackAdapter. Fail-soft: cualquier problema
+    armando el respaldo devuelve la primaria sola (peor es no tener nada)."""
+    if os.getenv("VOICE_DISABLE_FALLBACK") == "1":
+        return primary
+    cfg = context.get("voice" if layer == "tts" else layer) or {}
+    # Con base_url la capa apunta a un endpoint propio (Modal); el proveedor
+    # declarado no dice nada del servicio real, pero el respaldo igual sirve.
+    if (cfg.get("provider") or "").lower() == _BACKUP_PROVIDER[layer] and not cfg.get("base_url"):
+        return primary
+    if not any(os.getenv(v) for v in _BACKUP_ENV[layer]):
+        logger.info("capa %s sin respaldo: falta %s", layer, "/".join(_BACKUP_ENV[layer]))
+        return primary
+    try:
+        backup = _backup_for(layer)
+        adapter = {
+            "stt": agents_stt.FallbackAdapter,
+            "llm": agents_llm.FallbackAdapter,
+            "tts": agents_tts.FallbackAdapter,
+        }[layer]
+        return adapter([primary, backup])
+    except Exception:
+        logger.warning("no se pudo armar el respaldo de %s", layer, exc_info=True)
+        return primary
+
+
 # Voces válidas de Gemini Live (native audio). El pipeline usa el voice_id de
 # ElevenLabs/Deepgram, que Gemini NO entiende → si la voz configurada no es una
 # de estas, caemos a una multilingüe natural. Override por env VOICE_GEMINI_VOICE.
@@ -646,9 +708,9 @@ def _build_session(context: dict, vad) -> AgentSession:
     #    "ajá"/ruido no lo interrumpe) → se siente humano sin falsos cortes.
     #  - min_endpointing_delay bajo: responde apenas detecta que terminaste.
     kwargs: dict = dict(
-        stt=_make_stt(context.get("stt") or {}),
-        llm=_make_llm(context.get("llm") or {}),
-        tts=_make_tts(context.get("voice") or {}),
+        stt=_with_backup("stt", _make_stt(context.get("stt") or {}), context),
+        llm=_with_backup("llm", _make_llm(context.get("llm") or {}), context),
+        tts=_with_backup("tts", _make_tts(context.get("voice") or {}), context),
         turn_detection=MultilingualModel(),
         vad=vad,
     )

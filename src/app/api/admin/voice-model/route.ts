@@ -42,12 +42,15 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'invalid_mode' }, { status: 400 });
   }
 
-  const update = buildModelUpdate(body);
+  const admin = supabaseAdmin();
+  // El estado ACTUAL es lo que permite detectar un cambio de proveedor y barrer
+  // el endpoint/key del anterior antes de que rompan la próxima llamada.
+  const current = await getVoiceModelConfig(admin);
+  const { update, changes } = buildModelUpdate(body, current);
   update.updated_at = new Date().toISOString();
   update.updated_by = gate.actor.userId;
 
   try {
-    const admin = supabaseAdmin();
     // `upsert` y no `update`: la tabla es de una sola fila sembrada por la
     // migración 114. Si esa fila faltara, un `update` no afecta nada y devuelve
     // éxito — la UI mostraría "Guardado" sin haber guardado. Además ahora se
@@ -61,9 +64,11 @@ export async function PUT(request: Request) {
     await recordAdminAction(gate.actor, request, {
       action: 'update.voice_model',
       targetType: 'voice_model',
-      meta: { mode: body.mode ?? null },
+      meta: { mode: body.mode ?? null, auto_fixed: changes.length || null },
     });
-    return NextResponse.json({ ok: true, config });
+    // `changes` = lo que se ajustó solo para que el stack quede coherente. La UI
+    // lo muestra: un cambio silencioso en la config de voz es peor que ninguno.
+    return NextResponse.json({ ok: true, config, changes });
   } catch (err) {
     return serverError(err, 'save voice model config failed');
   }

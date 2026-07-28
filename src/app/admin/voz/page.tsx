@@ -6,7 +6,7 @@ import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
+import { useLocale } from '@/hooks/use-locale';
 import type { VoiceModelConfig } from '@/lib/voice/model-config';
 import {
   LAYER_PROVIDERS,
@@ -14,6 +14,7 @@ import {
   providerOption,
   type ProviderOption,
 } from '@/lib/voice/providers';
+import { describeChange, isValidVoice, type CompatChange } from '@/lib/voice/compat';
 
 /**
  * Platform-admin only: the GLOBAL voice model stack, modular by layer
@@ -21,9 +22,11 @@ import {
  * provider + model dropdown; merchants never see this.
  */
 export default function AdminVoiceModelPage() {
-  const t = useT();
+  const { t, locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const [config, setConfig] = useState<VoiceModelConfig | null>(null);
+  // Lo que el servidor ajustó solo para que el stack quede coherente.
+  const [autoFixed, setAutoFixed] = useState<CompatChange[]>([]);
   const [keys, setKeys] = useState<{
     stt_api_key: string;
     llm_api_key: string;
@@ -57,6 +60,25 @@ export default function AdminVoiceModelPage() {
     setConfig((c) => (c ? { ...c, ...patch } : c));
   }
 
+  /**
+   * Cambiar de proveedor arrastra todo lo suyo: modelo, endpoint, key y voz.
+   * Dejar puesto lo del anterior es lo que deja la llamada muda o con 401, así
+   * que se limpia acá igual que en el servidor (que es el que manda).
+   */
+  function changeProvider(layer: 'stt' | 'llm' | 'tts' | 'realtime', p: string, m: string) {
+    const patch: Record<string, unknown> = {
+      [`${layer}_provider`]: layer === 'realtime' ? p || null : p,
+      [`${layer}_model`]: layer === 'realtime' ? m || null : m,
+      [`${layer}_base_url`]: null,
+    };
+    if (layer === 'tts' || layer === 'realtime') {
+      patch.tts_default_voice_id = providerOption(layer, p)?.defaultVoice ?? null;
+    }
+    set(patch as Partial<VoiceModelConfig>);
+    setKeys((k) => ({ ...k, [`${layer}_api_key`]: '' }));
+    setAutoFixed([]);
+  }
+
   async function save() {
     if (!config) return;
     setSaving(true);
@@ -76,6 +98,7 @@ export default function AdminVoiceModelPage() {
       }
       setConfig(json.config as VoiceModelConfig);
       setKeys({ stt_api_key: '', llm_api_key: '', tts_api_key: '', realtime_api_key: '' });
+      setAutoFixed((json.changes ?? []) as CompatChange[]);
       toast.success(t('voice.adminSaved'));
     } finally {
       setSaving(false);
@@ -116,6 +139,18 @@ export default function AdminVoiceModelPage() {
           : `pipeline · STT ${config.stt_provider}/${config.stt_model} · LLM ${config.llm_provider}/${config.llm_model} · TTS ${config.tts_provider}/${config.tts_model}`}
       </div>
 
+      {/* Qué se ajustó solo en el último guardado (cambio de proveedor). */}
+      {autoFixed.length > 0 && (
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-3 text-xs">
+          <p className="font-medium text-foreground">{t('voice.adminAutoFixed')}</p>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            {autoFixed.map((c, i) => (
+              <li key={`${c.layer}-${c.field}-${i}`}>{describeChange(c, locale)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Mode */}
       <section className="rounded-xl border border-border bg-card p-4">
         <p className="mb-2 text-sm font-medium text-foreground">{t('voice.adminMode')}</p>
@@ -150,7 +185,7 @@ export default function AdminVoiceModelPage() {
             layer="stt"
             provider={config.stt_provider}
             model={config.stt_model}
-            onProvider={(p, m) => set({ stt_provider: p, stt_model: m })}
+            onProvider={(p, m) => changeProvider('stt', p, m)}
             onModel={(m) => set({ stt_model: m })}
             providerLabel={t('voice.adminProvider')}
             modelLabel={t('voice.adminModel')}
@@ -173,7 +208,7 @@ export default function AdminVoiceModelPage() {
             layer="llm"
             provider={config.llm_provider}
             model={config.llm_model}
-            onProvider={(p, m) => set({ llm_provider: p, llm_model: m })}
+            onProvider={(p, m) => changeProvider('llm', p, m)}
             onModel={(m) => set({ llm_model: m })}
             providerLabel={t('voice.adminProvider')}
             modelLabel={t('voice.adminModel')}
@@ -193,18 +228,18 @@ export default function AdminVoiceModelPage() {
             layer="tts"
             provider={config.tts_provider}
             model={config.tts_model}
-            onProvider={(p, m) => set({ tts_provider: p, tts_model: m })}
+            onProvider={(p, m) => changeProvider('tts', p, m)}
             onModel={(m) => set({ tts_model: m })}
             providerLabel={t('voice.adminProvider')}
             modelLabel={t('voice.adminModel')}
           >
-            <Row label={t('voice.adminDefaultVoice')}>
-              <Input
-                placeholder={providerOption('tts', config.tts_provider)?.voiceHint ?? ''}
-                value={config.tts_default_voice_id ?? ''}
-                onChange={(e) => set({ tts_default_voice_id: e.target.value || null })}
-              />
-            </Row>
+            <VoiceField
+              t={t}
+              layer="tts"
+              provider={config.tts_provider}
+              value={config.tts_default_voice_id}
+              onChange={(v) => set({ tts_default_voice_id: v })}
+            />
             <EndpointKey
               t={t}
               baseUrl={config.tts_base_url}
@@ -221,18 +256,18 @@ export default function AdminVoiceModelPage() {
           layer="realtime"
           provider={config.realtime_provider ?? ''}
           model={config.realtime_model ?? ''}
-          onProvider={(p, m) => set({ realtime_provider: p || null, realtime_model: m || null })}
+          onProvider={(p, m) => changeProvider('realtime', p, m)}
           onModel={(m) => set({ realtime_model: m || null })}
           providerLabel={t('voice.adminProvider')}
           modelLabel={t('voice.adminModel')}
         >
-          <Row label={t('voice.adminDefaultVoice')}>
-            <Input
-              placeholder={providerOption('realtime', config.realtime_provider)?.voiceHint ?? ''}
-              value={config.tts_default_voice_id ?? ''}
-              onChange={(e) => set({ tts_default_voice_id: e.target.value || null })}
-            />
-          </Row>
+          <VoiceField
+            t={t}
+            layer="realtime"
+            provider={config.realtime_provider}
+            value={config.tts_default_voice_id}
+            onChange={(v) => set({ tts_default_voice_id: v })}
+          />
           <EndpointKey
             t={t}
             baseUrl={config.realtime_base_url}
@@ -340,6 +375,57 @@ function LayerSection({
         {children}
       </div>
     </section>
+  );
+}
+
+/**
+ * Voz por defecto de la plataforma. Cada proveedor nombra sus voces distinto,
+ * así que el campo se adapta: desaparece cuando la voz va en el modelo
+ * (Deepgram Aura) y avisa en el momento si el valor no es de este proveedor,
+ * en vez de dejar que se descubra con una llamada muda.
+ */
+function VoiceField({
+  t,
+  layer,
+  provider,
+  value,
+  onChange,
+}: {
+  t: (k: string) => string;
+  layer: 'tts' | 'realtime';
+  provider: string | null;
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const opt = providerOption(layer, provider);
+  if (opt?.voiceInModel) {
+    return (
+      <p className="text-xs text-muted-foreground sm:pl-[160px]">
+        {t('voice.adminVoiceInModel')}
+      </p>
+    );
+  }
+  const invalid = !!value && !isValidVoice(opt, value);
+  return (
+    <>
+      <Row label={t('voice.adminDefaultVoice')}>
+        <Input
+          placeholder={opt?.voiceHint ?? ''}
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value || null)}
+        />
+      </Row>
+      {invalid && (
+        <p className="text-xs text-destructive sm:pl-[160px]">
+          {t('voice.adminVoiceInvalid')}
+        </p>
+      )}
+      {opt?.voiceIds && (
+        <p className="text-xs text-muted-foreground sm:pl-[160px]">
+          {opt.voiceIds.join(' · ')}
+        </p>
+      )}
+    </>
   );
 }
 

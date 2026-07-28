@@ -29,7 +29,8 @@ import {
   DEFAULT_RECORDING_DISCLOSURE,
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
-import { effectiveBaseUrl, resolveTtsVoiceId } from './providers';
+import { effectiveBaseUrl } from './providers';
+import { normalizeStack, resolveVoiceId } from './compat';
 import { countryOfPhone, normalizeForDialing } from '@/lib/whatsapp/phone-utils';
 
 /** A model layer's runtime coordinates for the worker. */
@@ -335,7 +336,16 @@ export async function buildVoiceContext(
 
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
   // platform-wide; the LLM model still honors a per-agent override when set.
-  const model = await getVoiceModelResolved(db);
+  // `normalizeStack` es la red de seguridad de lectura: si la fila quedó torcida
+  // (modelo/voz/endpoint de un proveedor anterior), el worker igual recibe algo
+  // coherente en vez de una llamada muda.
+  const { config: model, changes } = normalizeStack(await getVoiceModelResolved(db));
+  if (changes.length) {
+    console.warn(
+      '[voice/context] stack corregido al vuelo',
+      changes.map((c) => `${c.layer}.${c.field}: ${c.from} → ${c.to}`),
+    );
+  }
 
   // Recording disclosure is prepended to the greeting when recording is on, so
   // the customer is informed the moment the call connects (compliance).
@@ -359,13 +369,23 @@ export async function buildVoiceContext(
     mode: model.mode,
     voice: {
       provider: model.tts_provider,
-      // La voz del agente manda, salvo que no tenga el formato del proveedor
-      // activo (un id de ElevenLabs en Fish deja la llamada muda) → default.
-      voice_id: resolveTtsVoiceId(
-        model.tts_provider,
-        agent.voice_id,
-        model.tts_default_voice_id,
-      ),
+      // La voz del agente manda, salvo que no sea del proveedor activo (un id
+      // de ElevenLabs en Fish deja la llamada muda) → default de la plataforma
+      // → default del catálogo. En realtime la voz la nombra el motor S2S.
+      voice_id:
+        model.mode === 'realtime'
+          ? resolveVoiceId(
+              'realtime',
+              model.realtime_provider,
+              agent.voice_id,
+              model.tts_default_voice_id,
+            )
+          : resolveVoiceId(
+              'tts',
+              model.tts_provider,
+              agent.voice_id,
+              model.tts_default_voice_id,
+            ),
       model: model.tts_model,
       // OpenAI/VoxCPM enrutan por base_url; deepgram/cartesia/elevenlabs/gemini
       // no tienen baseUrl en el catálogo → null → plugin nativo del worker.

@@ -273,6 +273,18 @@ export const voice = {
   },
   adminSave: { es: "Guardar", en: "Save" },
   adminSaved: { es: "Modelo actualizado", en: "Model updated" },
+  adminAutoFixed: {
+    es: "Ajustado para el proveedor nuevo",
+    en: "Adjusted for the new provider",
+  },
+  adminVoiceInModel: {
+    es: "Este proveedor elige la voz en el modelo.",
+    en: "This provider picks the voice in the model.",
+  },
+  adminVoiceInvalid: {
+    es: "Esta voz no es de este proveedor: al guardar se usará la suya.",
+    en: "This voice isn't from this provider: saving will use its own.",
+  },
 
   // ── COD mode (integrations · voice card) ──
   codMode: { es: "Modo confirmación COD", en: "COD confirmation mode" },
