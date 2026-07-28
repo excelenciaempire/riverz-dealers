@@ -38,9 +38,11 @@ const API_VERSION = process.env.TIENDANUBE_API_VERSION || '2025-03'
  * formato "App (contacto)". No es opcional ni un nice-to-have.
  */
 function userAgent(): string {
+  // Debe coincidir con el correo de contacto registrado en el portal de
+  // socios: es el dato que Tiendanube espera ver identificando a la app.
   return (
     process.env.TIENDANUBE_USER_AGENT ||
-    'Riverz (soporte@riverz.co)'
+    'Riverz (riverzoficial@gmail.com)'
   )
 }
 
