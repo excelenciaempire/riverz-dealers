@@ -289,18 +289,28 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
           });
         }
 
-        // Un mismo cliente puede aparecer por los dos caminos (el pedido del
-        // asistente termina generando su checkout). Se cuenta una vez, con la
-        // compra más temprana — la que de verdad siguió al mensaje.
-        const byCustomer = new Map<string, Purchase>();
-        for (const p of purchases) {
-          const k = p.key || `${p.name}|${p.at}`;
-          const prev = byCustomer.get(k);
-          if (!prev || new Date(p.at).getTime() < new Date(prev.at).getTime()) {
-            byCustomer.set(k, p);
-          }
+        // Si el cliente compra dos veces son DOS recuperaciones. Lo único que
+        // se colapsa es la misma compra vista por los dos caminos: el pedido
+        // que cierra el asistente genera su propio checkout, así que llega
+        // duplicado. Misma persona + mismo importe + dentro de 24h = una sola
+        // compra; se conserva la más temprana, la que siguió al mensaje.
+        const SAME_PURCHASE_MS = 24 * 60 * 60 * 1000;
+        const recoveredRows: Purchase[] = [];
+        for (const p of purchases.sort(
+          (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+        )) {
+          // Sin clave (checkout sin teléfono ni email) no hay forma de saber si
+          // son la misma persona: se cuentan por separado antes que fundir dos
+          // compras ajenas que coincidan en importe.
+          const dup = recoveredRows.find(
+            (q) =>
+              p.key !== '' &&
+              q.key === p.key &&
+              Math.round(q.amount * 100) === Math.round(p.amount * 100) &&
+              Math.abs(new Date(q.at).getTime() - new Date(p.at).getTime()) < SAME_PURCHASE_MS,
+          );
+          if (!dup) recoveredRows.push(p);
         }
-        const recoveredRows = [...byCustomer.values()];
 
         const revenue = recoveredRows.reduce((s, p) => s + p.amount, 0);
         const buyers = recoveredRows
