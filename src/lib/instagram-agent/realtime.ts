@@ -621,10 +621,12 @@ async function autonomousCommentReply(
     if (!orderStatus) return; // sin clasificar, no arriesgamos un DM no pedido
   }
 
-  const agent = await resolveIgAgent(db, opts.workspaceId, null);
+  // Superficie 'comment': si el comercio creó un agente para comentarios, es
+  // ÉL quien contesta. Si no, el de Instagram, como hasta ahora.
+  const agent = await resolveIgAgent(db, opts.workspaceId, null, 'comment');
   // Mismo contrato que la respuesta reactiva: pausado, fuera de alcance,
   // fuera de horario o pidiendo un humano ⇒ no contestamos solos.
-  if (!igAgentCanAutoReply(agent, engagement)) return;
+  if (!igAgentCanAutoReply(agent, engagement, 'comment')) return;
 
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;
