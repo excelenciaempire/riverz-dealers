@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Loader2,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ interface ProductRow {
   currency: string | null;
   image_url: string | null;
   url: string | null;
+  shop_domain: string | null;
   is_bundle: boolean;
   bundle_app: string | null;
   scrape_status: 'idle' | 'queued' | 'scraping' | 'done' | 'failed';
@@ -68,6 +70,10 @@ export default function ProductosPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+
+  // Eliminar producto — confirmación antes de borrarlo del sistema.
+  const [pendingDelete, setPendingDelete] = useState<ProductRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function fetchProducts() {
     setLoading(true);
@@ -154,6 +160,29 @@ export default function ProductosPage() {
     }
   }
 
+  async function handleDelete() {
+    const target = pendingDelete;
+    if (!target) return;
+    setDeleting(true);
+    try {
+      const res = await fetchWithCsrf(`/api/products/${target.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error ?? t('products.deleteError'));
+        return;
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== target.id));
+      setPendingDelete(null);
+      toast.success(t('products.deleted'));
+    } catch {
+      toast.error(t('products.deleteError'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header — solo el título + sincronizar (sutil) */}
@@ -212,6 +241,49 @@ export default function ProductosPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Confirmación de borrado */}
+      <Dialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !deleting && !o && setPendingDelete(null)}
+      >
+        <DialogContent className="bg-card text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('products.deleteTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 text-sm text-muted-foreground">
+            <p>{t('products.deleteBody', { name: pendingDelete?.title ?? '' })}</p>
+            {(pendingDelete?.assigned_agent_count ?? 0) > 0 && (
+              <p>
+                {t('products.deleteAgentsWarning', {
+                  n: pendingDelete?.assigned_agent_count ?? 0,
+                })}
+              </p>
+            )}
+            {pendingDelete?.shop_domain && pendingDelete.shop_domain !== 'manual' && (
+              <p>{t('products.deleteSyncedWarning')}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              disabled={deleting}
+              className="border-border"
+            >
+              {t('products.cancel')}
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 text-white hover:bg-red-600/90"
+            >
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {t('products.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Banner cuando Shopify quedó desconectado pero hay productos viejos. */}
       {shopifyConnected === false && products.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-500/5 px-3.5 py-2.5">
@@ -242,7 +314,12 @@ export default function ProductosPage() {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} fallbackCurrency={workspaceCurrency} />
+            <ProductCard
+              key={p.id}
+              product={p}
+              fallbackCurrency={workspaceCurrency}
+              onDelete={() => setPendingDelete(p)}
+            />
           ))}
           {/* Tile "Nuevo producto" — al estilo de la referencia */}
           <button
@@ -267,9 +344,11 @@ export default function ProductosPage() {
 function ProductCard({
   product,
   fallbackCurrency,
+  onDelete,
 }: {
   product: ProductRow;
   fallbackCurrency: string | null;
+  onDelete: () => void;
 }) {
   const t = useT();
   const completeness = productCompleteness(product);
@@ -304,6 +383,18 @@ function ProductCard({
             {formatBundleApp(product.bundle_app)}
           </span>
         )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute right-2 top-2 rounded-full border border-border bg-card/95 p-1.5 text-muted-foreground opacity-0 backdrop-blur transition hover:text-red-500 focus-visible:opacity-100 group-hover:opacity-100"
+          aria-label={t('products.delete')}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="min-w-0 flex-1">

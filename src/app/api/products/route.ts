@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       currency,
       image_url,
       url,
+      shop_domain,
       is_bundle,
       bundle_app,
       scrape_status,

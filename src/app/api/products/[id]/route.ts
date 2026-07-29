@@ -264,3 +264,102 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, product: updated });
 }
+
+/** Ruta dentro del bucket `product-media` de una URL pública de Supabase
+ *  Storage, o null si la URL es externa (Shopify, ML, un CDN…). */
+function mediaPath(url: unknown): string | null {
+  if (typeof url !== 'string') return null;
+  const marker = '/storage/v1/object/public/product-media/';
+  const at = url.indexOf(marker);
+  if (at === -1) return null;
+  const path = decodeURIComponent(url.slice(at + marker.length).split('?')[0]);
+  return path || null;
+}
+
+/** Todas las imágenes de un row (galería + miniatura). */
+function rowImages(row: { images?: unknown; image_url?: unknown }): string[] {
+  const gallery = Array.isArray(row.images) ? row.images : [];
+  return [...gallery, row.image_url].filter(
+    (u): u is string => typeof u === 'string' && !!u,
+  );
+}
+
+/**
+ * DELETE /api/products/[id]
+ * Borra el producto y todo lo que cuelga de él:
+ *   - las asignaciones a asistentes (ai_agent_products, ON DELETE CASCADE)
+ *   - su investigación / FAQs / contexto de venta (columnas del mismo row)
+ *   - las imágenes que el merchant subió a Storage y que ningún otro
+ *     producto del workspace esté usando
+ * Es irreversible. Para un producto sincronizado, la siguiente
+ * sincronización lo vuelve a traer si sigue en la tienda.
+ */
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const { id } = await context.params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // RLS (mig 057) ya gatea por miembro del workspace: si el producto no es
+  // del workspace del usuario, no lo lee y no lo borra.
+  const { data: product, error: readErr } = await supabase
+    .from('shopify_products')
+    .select('id, workspace_id, title, images, image_url')
+    .eq(isUuid(id) ? 'id' : 'handle', id)
+    .maybeSingle();
+  if (readErr) {
+    return serverError(readErr);
+  }
+  if (!product) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  // 1. Imágenes propias en Storage. Antes de borrarlas, descartamos las que
+  //    otro producto del workspace siga referenciando (una galería puede
+  //    reusar una URL si el merchant copió y pegó).
+  const ownPaths = [...new Set(rowImages(product).map(mediaPath).filter(Boolean))] as string[];
+  if (ownPaths.length > 0) {
+    const admin = supabaseAdmin();
+    const { data: others } = await admin
+      .from('shopify_products')
+      .select('images, image_url')
+      .eq('workspace_id', product.workspace_id)
+      .neq('id', product.id);
+    const stillUsed = new Set(
+      ((others ?? []) as Array<{ images?: unknown; image_url?: unknown }>)
+        .flatMap(rowImages)
+        .map(mediaPath)
+        .filter(Boolean) as string[],
+    );
+    const removable = ownPaths.filter((p) => !stillUsed.has(p));
+    if (removable.length > 0) {
+      const { error: storageErr } = await admin.storage
+        .from('product-media')
+        .remove(removable);
+      // Fail-open: un archivo huérfano no debe impedir borrar el producto.
+      if (storageErr) {
+        console.error('[products] no se pudieron borrar las imágenes:', storageErr);
+      }
+    }
+  }
+
+  // 2. El row. ai_agent_products cae por ON DELETE CASCADE (mig 025).
+  const { error } = await supabase
+    .from('shopify_products')
+    .delete()
+    .eq('id', product.id);
+  if (error) {
+    return serverError(error);
+  }
+
+  return NextResponse.json({ ok: true, deleted_images: ownPaths.length });
+}

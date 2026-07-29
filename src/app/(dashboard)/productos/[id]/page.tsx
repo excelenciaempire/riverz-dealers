@@ -16,10 +16,18 @@ import {
   Wand2,
   Globe,
   ImagePlus,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -123,6 +131,10 @@ export default function ProductDetailPage() {
   const [scraping, setScraping] = useState(false);
   const [researching, setResearching] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  /** Cuántos asistentes tienen este producto asignado — lo avisamos antes de borrar. */
+  const [assignedAgents, setAssignedAgents] = useState(0);
 
   // --- Core (siempre visible) ---
   const [title, setTitle] = useState('');
@@ -152,6 +164,7 @@ export default function ProductDetailPage() {
       const prodJson = await prodRes.json();
       const pr = prodJson.product as Product;
       setProduct(pr);
+      setAssignedAgents(Array.isArray(prodJson.agents) ? prodJson.agents.length : 0);
 
       setTitle(pr.title ?? '');
       setImages(
@@ -356,6 +369,25 @@ export default function ProductDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!product) return;
+    setDeleting(true);
+    try {
+      const res = await fetchWithCsrf(`/api/products/${product.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? t('products.deleteError'));
+      }
+      toast.success(t('products.deleted'));
+      router.push('/productos');
+    } catch {
+      toast.error(t('products.deleteError'));
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -377,7 +409,7 @@ export default function ProductDetailPage() {
   const isShopify = product.shop_domain && product.shop_domain !== 'manual';
 
   return (
-    <div className="mx-auto max-w-3xl pb-24">
+    <div className="mx-auto max-w-3xl">
       {/* Slim header */}
       <div className="mb-6 flex items-center gap-3">
         <Button
@@ -817,35 +849,79 @@ export default function ProductDetailPage() {
         </Collapsible>
       </div>
 
-      {/* Sticky save bar */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
-          <span className="truncate text-xs text-muted-foreground">
+      {/* Barra de acciones — sticky dentro de la columna para que quede
+          alineada con el formulario (antes era fixed a la ventana y se
+          descolgaba del contenido). */}
+      <div className="sticky bottom-0 z-20 mt-8 border-t border-border bg-background/85 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="flex items-center gap-2">
+          <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
             {isShopify ? t('products.syncedFromShopify') : t('products.manualProduct')}
             {' · '}
             {product.title}
           </span>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleResearch}
-              disabled={researching || saving}
-              className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
-            >
-              {researching ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-              {t('products.generateResearch')}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="h-9 bg-foreground text-background hover:bg-foreground/90"
-            >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              {t('products.saveChanges')}
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            onClick={() => setDeleteOpen(true)}
+            disabled={saving || researching || deleting}
+            className="h-9 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+            aria-label={t('products.delete')}
+          >
+            <Trash2 className="size-4" />
+            <span className="hidden sm:inline">{t('products.delete')}</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleResearch}
+            disabled={researching || saving}
+            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
+          >
+            {researching ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+            {t('products.generateResearch')}
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="h-9 bg-foreground text-background hover:bg-foreground/90"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            {t('products.saveChanges')}
+          </Button>
         </div>
       </div>
+
+      {/* Confirmación de borrado */}
+      <Dialog open={deleteOpen} onOpenChange={(o) => !deleting && setDeleteOpen(o)}>
+        <DialogContent className="bg-card text-foreground sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('products.deleteTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 text-sm text-muted-foreground">
+            <p>{t('products.deleteBody', { name: product.title })}</p>
+            {assignedAgents > 0 && (
+              <p>{t('products.deleteAgentsWarning', { n: assignedAgents })}</p>
+            )}
+            {isShopify && <p>{t('products.deleteSyncedWarning')}</p>}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className="border-border"
+            >
+              {t('products.cancel')}
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 text-white hover:bg-red-600/90"
+            >
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {t('products.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

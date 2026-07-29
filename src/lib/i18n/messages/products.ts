@@ -193,6 +193,27 @@ export const products = {
   generateResearch: { es: "Generar investigación", en: "Generate research" },
   saveChanges: { es: "Guardar cambios", en: "Save changes" },
 
+  // --- Eliminar producto ---
+  delete: { es: "Eliminar", en: "Delete" },
+  deleteTitle: { es: "Eliminar producto", en: "Delete product" },
+  deleteBody: {
+    es: "Se borra «{name}» y toda su información: investigación, FAQs, precios e imágenes. No se puede deshacer.",
+    en: "This deletes “{name}” and all its information: research, FAQs, prices and images. It can't be undone.",
+  },
+  deleteAgentsWarning: {
+    es: "Se quitará de {n} asistente(s).",
+    en: "It will be removed from {n} assistant(s).",
+  },
+  deleteSyncedWarning: {
+    es: "Al sincronizar el catálogo volverá si sigue en la tienda.",
+    en: "Syncing the catalog will bring it back if it's still in the store.",
+  },
+  deleted: { es: "Producto eliminado", en: "Product deleted" },
+  deleteError: {
+    es: "No se pudo eliminar el producto.",
+    en: "Couldn't delete the product.",
+  },
+
   // --- /pedidos (orders) ---
   ordersTitle: { es: "Pedidos", en: "Orders" },
   ordersSubtitle: {
