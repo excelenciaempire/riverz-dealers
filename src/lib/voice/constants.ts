@@ -69,6 +69,35 @@ export const DEFAULT_GREETINGS: { es: string; en: string } = {
   en: "Hi{{contact_name}}, I'm calling on behalf of the store. Do you have a minute?",
 };
 
+/**
+ * Saludo por defecto para Argentina. El saludo es lo PRIMERO que se escucha, y
+ * un "¿tienes un minuto?" delata al toque que del otro lado no hay un argentino.
+ * Sólo se usa si el comercio no escribió el suyo.
+ */
+export const DEFAULT_GREETING_AR =
+  'Hola{{contact_name}}, te llamo de parte de la tienda. ¿Tenés un minuto?';
+
+/**
+ * Instrucciones de habla rioplatense para el agente (se suman al system prompt
+ * en llamadas a Argentina). Es la mitad léxica del acento: el voseo y las
+ * muletillas van en las PALABRAS que elige el modelo.
+ *
+ * La otra mitad —la fonética, `calle` → `cashe`— NO se pide acá a propósito: se
+ * aplica en el worker justo antes del TTS (`voice-worker/rioplatense.py`), para
+ * que la transcripción que ve el comercio quede en español legible.
+ */
+export const RIOPLATENSE_SPEECH = [
+  '## Hablás como argentino',
+  'La persona del otro lado es de Argentina. Hablá en castellano rioplatense, como alguien de Buenos Aires:',
+  '- Voseo siempre: "vos", "tenés", "querés", "podés", "fijate", "decime", "mirá", "dale". Nunca "tú", "tienes", "quieres", "puedes".',
+  '- Muletillas naturales de allá: "dale", "mirá", "che" (con moderación), "listo", "bárbaro", "un toque".',
+  '- Vocabulario de allá: "plata" (no "dinero"), "celular", "heladera", "remera", "quilombo" sólo si el tono lo permite.',
+  '- Nada de acentos de otros lados: ni "ahorita", ni "vale", ni "ustedes" para tratar a una sola persona.',
+  // Regla heredada del skill veo3-script-director: estos símbolos rompen la
+  // síntesis de voz (se leen raro o cortan la frase).
+  '- No uses guiones largos ni puntos suspensivos: rompen la síntesis de voz. Usá comas y puntos.',
+].join('\n');
+
 /** Spoken recording disclosure, prepended to the greeting when recording is on. */
 export const DEFAULT_RECORDING_DISCLOSURE: { es: string; en: string } = {
   es: 'Te comento que esta llamada puede ser grabada por calidad.',

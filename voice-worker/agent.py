@@ -50,6 +50,7 @@ from livekit.plugins import anthropic, deepgram, elevenlabs, openai, silero
 # https://docs.livekit.io/agents/build/turns/turn-detector/
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
+from rioplatense import sheismo_stream
 from riverz_api import RiverzAPI
 from tools import CallState, build_tools, hangup as _hangup
 
@@ -546,6 +547,29 @@ def _make_tts(cfg: dict):
     return elevenlabs.TTS(**el_kw)
 
 
+class RiverzAgent(Agent):
+    """Agent con acento configurable.
+
+    Cuando el backend marca `speech_style: "rioplatense"` (llamadas a números
+    argentinos), el texto se reescribe fonéticamente JUSTO antes de sintetizar:
+    `calle` → `cashe`, `yo` → `sho`. El TTS lee letras, así que ésa es la única
+    palanca real para marcar el acento.
+
+    Va acá y no en el prompt del LLM a propósito: la transcripción de la bandeja
+    y el resumen de la llamada siguen en español normal. El comercio lee
+    "Ya salió tu pedido", no "Sha salió tu pedido".
+    """
+
+    def __init__(self, *args, speech_style: str | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._speech_style = speech_style
+
+    def tts_node(self, text, model_settings):  # noqa: ANN001
+        if self._speech_style == "rioplatense":
+            text = sheismo_stream(text)
+        return Agent.default.tts_node(self, text, model_settings)
+
+
 # --- Red de seguridad en runtime ----------------------------------------------
 # Elegir mal un modelo en /admin/voz no debería costar una llamada. El backend ya
 # deja el stack coherente ANTES de que llegue acá (src/lib/voice/compat.ts), pero
@@ -931,7 +955,8 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()
     _wire_events(session, call_state, usage_collector)
-    agent = Agent(
+    agent = RiverzAgent(
+        speech_style=context.get("speech_style"),
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
             call_state=call_state,
@@ -1041,7 +1066,8 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()
     _wire_events(session, call_state, usage_collector)
-    agent = Agent(
+    agent = RiverzAgent(
+        speech_style=context.get("speech_style"),
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
             call_state=call_state,

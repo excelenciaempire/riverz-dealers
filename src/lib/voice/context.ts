@@ -24,9 +24,11 @@ import {
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import {
+  DEFAULT_GREETING_AR,
   DEFAULT_GREETINGS,
   DEFAULT_OBJECTIVES,
   DEFAULT_RECORDING_DISCLOSURE,
+  RIOPLATENSE_SPEECH,
 } from './constants';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
@@ -64,6 +66,11 @@ export interface VoiceContextPayload {
   stt: LayerCfg & { language: string };
   /** Present when mode='realtime' (full-duplex engine, e.g. PersonaPlex). */
   realtime: LayerCfg | null;
+  /**
+   * Estilo de habla del agente. 'rioplatense' hace que el worker reescriba el
+   * texto fonéticamente antes del TTS (calle -> cashe) para marcar el acento.
+   */
+  speech_style: 'rioplatense' | null;
   /** Whether to record the call (compliance disclosure is in the greeting). */
   recording: { enabled: boolean };
   /** Warm/cold transfer target for the transfer_to_human tool. */
@@ -113,10 +120,16 @@ function resolveObjective(agent: AiAgent, call: VoiceCall): string {
 }
 
 /** Interpolate {{contact_name}} in the greeting; falls back to a default. */
-function resolveGreeting(agent: AiAgent, contact: Contact, call: VoiceCall): string {
-  const raw =
-    (agent.voice_greeting && agent.voice_greeting.trim()) ||
-    DEFAULT_GREETINGS[langOf(agent, call)];
+function resolveGreeting(
+  agent: AiAgent,
+  contact: Contact,
+  call: VoiceCall,
+  isArgentina = false,
+): string {
+  const lang = langOf(agent, call);
+  const fallback =
+    isArgentina && lang === 'es' ? DEFAULT_GREETING_AR : DEFAULT_GREETINGS[lang];
+  const raw = (agent.voice_greeting && agent.voice_greeting.trim()) || fallback;
   const first = (contact.name ?? '').trim().split(/\s+/)[0] ?? '';
   // "{{contact_name}}" is meant to sit after "Hola"/"Hi" — inject a leading
   // space + name when known, or collapse to nothing so it reads naturally.
@@ -299,7 +312,31 @@ export async function buildVoiceContext(
     ? `\n\n${lang0 === 'en' ? '## Call instructions' : '## Instrucciones de la llamada'}\n${voiceSystem}`
     : '';
 
-  const voiceBlock = buildVoiceInstructions(agent, call, objective) + upsellBlock + voiceSystemBlock;
+  // El sistema decide el formato marcable ANTES de llamar: normaliza el teléfono
+  // a E.164 por país (incl. el 9 de móvil AR) en vez de marcar lo que venga
+  // guardado. El país sólo hace falta cuando el número está en formato local:
+  // primero la dirección de Shopify, y si no hay, el país del propio número de
+  // WhatsApp del comercio (sus clientes suelen ser del mismo país). Fail-soft:
+  // si no se puede resolver, marca lo guardado.
+  const dialCountry =
+    (shopifySnapshot as { default_address?: { country_code?: string | null } } | null)
+      ?.default_address?.country_code ??
+    (await workspaceDialCountry(db, call.workspace_id));
+  const dialPhone = normalizeForDialing(call.phone, dialCountry) || call.phone;
+
+  // ¿Del otro lado hay un argentino? Se decide por el país del NÚMERO ya
+  // normalizado (sirve igual para salientes y entrantes), no por el del
+  // comercio: una tienda colombiana que le vende a Buenos Aires también habla
+  // rioplatense en esa llamada. Sólo aplica en español.
+  const isArgentina = lang0 === 'es' && countryOfPhone(dialPhone) === 'AR';
+
+  const rioplatenseBlock = isArgentina ? `\n\n${RIOPLATENSE_SPEECH}` : '';
+
+  const voiceBlock =
+    buildVoiceInstructions(agent, call, objective) +
+    upsellBlock +
+    rioplatenseBlock +
+    voiceSystemBlock;
 
   // El system prompt se re-envía en CADA turno, así que su tamaño multiplica el
   // costo y los tokens-por-minuto (los tiers gratis, ej. Groq, cortan en ~12k
@@ -324,18 +361,6 @@ export async function buildVoiceContext(
       ]
     : [];
 
-  // El sistema decide el formato marcable ANTES de llamar: normaliza el teléfono
-  // a E.164 por país (incl. el 9 de móvil AR) en vez de marcar lo que venga
-  // guardado. El país sólo hace falta cuando el número está en formato local:
-  // primero la dirección de Shopify, y si no hay, el país del propio número de
-  // WhatsApp del comercio (sus clientes suelen ser del mismo país). Fail-soft:
-  // si no se puede resolver, marca lo guardado.
-  const dialCountry =
-    (shopifySnapshot as { default_address?: { country_code?: string | null } } | null)
-      ?.default_address?.country_code ??
-    (await workspaceDialCountry(db, call.workspace_id));
-  const dialPhone = normalizeForDialing(call.phone, dialCountry) || call.phone;
-
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
   // platform-wide; the LLM model still honors a per-agent override when set.
   // `normalizeStack` es la red de seguridad de lectura: si la fila quedó torcida
@@ -355,7 +380,7 @@ export async function buildVoiceContext(
   // (estados de consentimiento de ambas partes en EE.UU., RGPD en la UE), y esa
   // decisión es del comercio, que es quien conoce a quién llama.
   const lang = langOf(agent, call);
-  let greeting = resolveGreeting(agent, contact, call);
+  let greeting = resolveGreeting(agent, contact, call, isArgentina);
   if (opts.recordingEnabled && opts.recordingDisclosure) {
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }
@@ -429,6 +454,7 @@ export async function buildVoiceContext(
             api_key: model.realtime_api_key,
           }
         : null,
+    speech_style: isArgentina ? 'rioplatense' : null,
     recording: { enabled: Boolean(opts.recordingEnabled) },
     transfer: { number: opts.transferNumber ?? null },
     max_call_seconds: agent.voice_max_call_seconds || 300,
