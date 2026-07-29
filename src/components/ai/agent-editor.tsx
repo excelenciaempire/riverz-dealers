@@ -1347,6 +1347,7 @@ export function AgentEditor({
                   onChange={setVoice}
                   language={language}
                   workspaceId={workspaceId}
+                  agentId={agent?.id ?? null}
                 />
               </SectionCard>
             )}
@@ -1781,11 +1782,39 @@ interface ProductDetail {
  * Se mantiene breve a propósito: el runner ya inyecta el producto completo
  * en cada conversación, esto es solo para que el merchant lo vea pre-armado.
  */
+/**
+ * Un ítem de la investigación del producto, como texto.
+ *
+ * La investigación NO siempre devuelve strings: las objeciones vienen como
+ * `{objection, rebuttal}` y otras listas traen `{title, detail}`. Un `String(x)`
+ * sobre eso escribe "[object Object]" — y ese texto termina DENTRO de la persona
+ * del agente, o sea dentro del prompt. Pasó de verdad: el asesor de Serum Pilar
+ * quedó con "Maneja con tacto estas objeciones comunes: [object Object];
+ * [object Object]" y se quedó sin ninguna objeción que manejar.
+ */
+function researchText(x: unknown): string {
+  if (typeof x === 'string') return x.trim();
+  if (x && typeof x === 'object') {
+    const o = x as Record<string, unknown>;
+    // Se arma "objeción → respuesta" cuando vienen las dos mitades.
+    const pick = (...keys: string[]) =>
+      keys.map((k) => o[k]).find((v) => typeof v === 'string' && v.trim()) as
+        | string
+        | undefined;
+    const head = pick('objection', 'objeción', 'title', 'titulo', 'name', 'text', 'texto');
+    const tail = pick('rebuttal', 'response', 'respuesta', 'answer', 'detail', 'detalle');
+    if (head && tail) return `${head.trim()} → ${tail.trim()}`;
+    if (head) return head.trim();
+    if (tail) return tail.trim();
+    const any = Object.values(o).find((v) => typeof v === 'string' && v.trim());
+    return typeof any === 'string' ? any.trim() : '';
+  }
+  return x == null ? '' : String(x).trim();
+}
+
 function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
   const arr = (v: unknown): string[] =>
-    Array.isArray(v)
-      ? v.map((x) => String(x).trim()).filter(Boolean)
-      : [];
+    Array.isArray(v) ? v.map(researchText).filter(Boolean) : [];
   const sr =
     p.structured_research && typeof p.structured_research === 'object'
       ? (p.structured_research as Record<string, unknown>)
@@ -1816,7 +1845,7 @@ function buildBusinessInfoFromProduct(p: ProductDetail, t: TFn): string {
  */
 function buildPersonaFromProduct(p: ProductDetail, locale: string): string {
   const arr = (v: unknown): string[] =>
-    Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+    Array.isArray(v) ? v.map(researchText).filter(Boolean) : [];
   const sr =
     p.structured_research && typeof p.structured_research === 'object'
       ? (p.structured_research as Record<string, unknown>)

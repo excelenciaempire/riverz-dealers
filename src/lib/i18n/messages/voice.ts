@@ -156,6 +156,18 @@ export const voice = {
   inboundFirstSpeaker: { es: "Quién habla primero (entrantes)", en: "Who speaks first (inbound)" },
   speakerAgent: { es: "El agente saluda", en: "Agent greets" },
   speakerCustomer: { es: "Espera al cliente", en: "Wait for the customer" },
+  testCall: { es: "Probar llamada", en: "Test call" },
+  testCallHint: {
+    es: "Te llamamos ahora con este agente para escucharlo.",
+    en: "We call you now with this agent so you can hear it.",
+  },
+  testCallPlaceholder: { es: "+54 9 11 1234 5678", en: "+1 555 123 4567" },
+  testCallSending: { es: "Llamando…", en: "Calling…" },
+  testCallQueued: { es: "Llamando ahora", en: "Calling now" },
+  testCallSaveFirst: {
+    es: "Guardá el agente antes de probar la llamada.",
+    en: "Save the agent before testing the call.",
+  },
   recordingEnabled: { es: "Grabar llamadas", en: "Record calls" },
   recordingDisclosure: { es: "Avisar que se graba", en: "Announce recording" },
   recordingDisclosureHint: {

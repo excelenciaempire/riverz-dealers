@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Play, Square, Sparkles, Loader2 } from 'lucide-react';
+import { Play, Square, Sparkles, Loader2, PhoneCall } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,15 +81,20 @@ export function VoiceSettings({
   onChange,
   language,
   workspaceId,
+  agentId,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
   language: string;
   workspaceId?: string;
+  /** null en un agente que todavía no se guardó: sin id no se puede llamar. */
+  agentId?: string | null;
 }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [previewing, setPreviewing] = useState<string | null>(null);
+  const [testPhone, setTestPhone] = useState('');
+  const [calling, setCalling] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
@@ -167,6 +172,33 @@ export function VoiceSettings({
     }
   }
 
+  async function testCall() {
+    if (!workspaceId || !agentId || !testPhone.trim()) return;
+    setCalling(true);
+    try {
+      const res = await fetchWithCsrf('/api/voice/test-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          agent_id: agentId,
+          phone: testPhone.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        // El motivo viene del mismo control que frena las llamadas reales
+        // (kill switch, sin número, opt-out): mostrarlo tal cual es más útil
+        // que un "error" genérico.
+        toast.error(json.error ?? t('voice.callFailed'));
+        return;
+      }
+      toast.success(t('voice.testCallQueued'));
+    } finally {
+      setCalling(false);
+    }
+  }
+
   function setObjective(
     type: VoiceCallType,
     patch: { enabled?: boolean; objective?: string; extra_instructions?: string },
@@ -234,6 +266,40 @@ export function VoiceSettings({
                     <>
                       <Sparkles className="mr-1 h-3.5 w-3.5" />
                       {t('voice.setupApply')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Probar la llamada de verdad, sin salir del editor. */}
+          {workspaceId && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-sm font-medium text-foreground">{t('voice.testCall')}</p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {agentId ? t('voice.testCallHint') : t('voice.testCallSaveFirst')}
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  className="bg-background text-foreground"
+                  placeholder={t('voice.testCallPlaceholder')}
+                  value={testPhone}
+                  disabled={!agentId}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  onClick={testCall}
+                  disabled={!agentId || calling || !testPhone.trim()}
+                >
+                  {calling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <PhoneCall className="mr-1 h-3.5 w-3.5" />
+                      {t('voice.testCall')}
                     </>
                   )}
                 </Button>
