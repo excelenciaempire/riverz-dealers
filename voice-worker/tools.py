@@ -190,6 +190,21 @@ def build_tools(
 
     # --- Tools de control (siempre presentes) ---
 
+    if "send_whatsapp" in enabled:
+        @function_tool(
+            name="send_whatsapp",
+            description=(
+                "Envía un mensaje de WhatsApp al cliente MIENTRAS hablás con él. "
+                "Úsalo para mandarle el link de pago, un dato o lo que te pida: "
+                "por teléfono no se pueden dictar direcciones web. "
+                "Después de llamarla, decile en voz alta que se lo acabás de enviar."
+            ),
+        )
+        async def send_whatsapp(ctx: RunContext, text: str) -> str:
+            return await _forward(api, call_state, "send_whatsapp", {"text": text})
+
+        tools.append(send_whatsapp)
+
     @function_tool(
         name="report_outcome",
         description=(

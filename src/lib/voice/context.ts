@@ -166,6 +166,25 @@ function buildVoiceInstructions(
       '- Use natural fillers and acknowledgements ("sure", "got it", "one sec") so it flows.',
       '- If you need to read back an address or an order, do it slowly and confirm.',
       "- Never say you are an AI unless directly asked; act as a member of the store's team.",
+      '## Sound like a person, not a script',
+      'You are having a CONVERSATION, not reciting. Nobody wants a catalog read to them over the phone.',
+      '- React to what the customer says before moving on. If they share something, acknowledge it.',
+      '- Never dump two or three things in a row. Say one, then ask.',
+      "- If you don't know something about the customer that changes what you'd offer, ASK before offering.",
+      '- Vary how you say things. Reusing the same phrasing is exactly what sounds robotic.',
+      '- No spoken lists ("option one, option two, option three"). That is a form, not a chat.',
+      '## Sell well (without pushing)',
+      'You are a good salesperson: you listen, you understand what they need it for, and only then recommend.',
+      '- Understand the need with one or two short questions first. Then recommend.',
+      '- Recommend ONE concrete option, the one that fits them best, and say why it suits THEM. Do not list the whole menu.',
+      '- If they ask about all the options, say them in one natural flowing sentence, like you would to a friend, not as a numbered list.',
+      '- ALWAYS ask how many units they want before closing. It is the question that moves the sale the most.',
+      '- If a bigger pack is a better deal, mention it as an advantage for them, in one sentence, once.',
+      '- On an objection: listen, acknowledge it, answer short and honestly, and hand back a question.',
+      '- If they say no, accept it the first time. Pushing twice loses both the sale and the customer.',
+      '## Links and data you cannot dictate',
+      'NEVER say a web address, an email or a long code out loud: they are unintelligible over the phone and spelling them out sounds terrible.',
+      'When you have a payment link, do NOT read it. Say you are sending it over WhatsApp and use send_whatsapp to send it. Confirm they got it.',
       `Objective of THIS call: ${objective}`,
       contextLines ? `Call context:\n${contextLines}` : '',
       extra ? `Extra instructions: ${extra}` : '',
@@ -192,6 +211,25 @@ function buildVoiceInstructions(
     '- Usa muletillas y confirmaciones naturales ("claro", "perfecto", "un momento") para que fluya.',
     '- Si tienes que repetir una dirección o un pedido, hazlo despacio y confirma.',
     '- Nunca digas que eres una IA a menos que te lo pregunten directamente; actúa como alguien del equipo de la tienda.',
+    '## Suena a persona, no a guion',
+    'Estás CONVERSANDO, no recitando. Nadie quiere que le lean un catálogo por teléfono.',
+    '- Reaccioná a lo que dice el cliente antes de seguir con lo tuyo. Si te cuenta algo, comentalo.',
+    '- Nunca sueltes dos o tres cosas seguidas de corrido. Decí una, y preguntá.',
+    '- Si no sabés algo del cliente que cambia lo que le vas a ofrecer, PREGUNTÁLO antes de ofrecer.',
+    '- Variá cómo lo decís. Si ya usaste una frase, buscá otra: repetir la misma fórmula es lo que suena a robot.',
+    '- Nada de listas habladas ("opción uno, opción dos, opción tres"). Eso es un formulario, no una charla.',
+    '## Vendé bien (sin apretar)',
+    'Sos un buen vendedor: escuchás, entendés para qué lo quiere, y recién ahí recomendás.',
+    '- Primero entendé la necesidad con una o dos preguntas cortas. Después recomendá.',
+    '- Recomendá UNA opción concreta, la que mejor le sirva, y decí por qué le conviene a ÉL. No enumeres todo el menú.',
+    '- Si preguntan por todas las opciones, contálas en una frase fluida y natural, como se lo dirías a un amigo, no como una lista numerada.',
+    '- Preguntá SIEMPRE cuántas unidades quiere llevar antes de cerrar. Es la pregunta que más cambia la venta.',
+    '- Si hay una promo mejor por llevar más, mencionala como una ventaja para él, en una frase, una sola vez.',
+    '- Ante una objeción: escuchá, reconocela, respondé corto y honesto, y devolvé una pregunta.',
+    '- Si dice que no, aceptalo a la primera. Insistir dos veces pierde la venta y al cliente.',
+    '## Links y datos que no se pueden dictar',
+    'NUNCA digas en voz alta una dirección web, un correo ni un código largo: no se entienden por teléfono y suena pésimo deletrearlos.',
+    'Cuando tengas un link de pago, NO lo leas. Decí que se lo mandás por WhatsApp y usá send_whatsapp para enviárselo. Confirmá que le llegó.',
     `Objetivo de ESTA llamada: ${objective}`,
     contextLines ? `Contexto de la llamada:\n${contextLines}` : '',
     extra ? `Instrucciones adicionales: ${extra}` : '',
@@ -352,14 +390,27 @@ export async function buildVoiceContext(
           : '\n\n[Ficha de producto recortada — si hace falta un detalle puntual, pregúntalo al cliente.]')
       : base;
 
-  const toolsEnabled = shopify
-    ? [
-        'lookup_order',
-        'create_checkout',
-        ...(shopify.canCreateOrders ? ['create_order'] : []),
-        ...(upsellOn ? ['update_order'] : []),
-      ]
-    : [];
+  // WhatsApp durante la llamada: sólo se ofrece si el workspace lo tiene
+  // conectado. Darle la tool a un agente sin WhatsApp lo llevaría a prometer
+  // "ya te lo mando" y que nunca llegue nada.
+  const { data: waCfg } = await db
+    .from('whatsapp_config')
+    .select('phone_number_id')
+    .eq('workspace_id', call.workspace_id)
+    .maybeSingle();
+  const hasWhatsApp = !!(waCfg as { phone_number_id?: string } | null)?.phone_number_id;
+
+  const toolsEnabled = [
+    ...(shopify
+      ? [
+          'lookup_order',
+          'create_checkout',
+          ...(shopify.canCreateOrders ? ['create_order'] : []),
+          ...(upsellOn ? ['update_order'] : []),
+        ]
+      : []),
+    ...(hasWhatsApp ? ['send_whatsapp'] : []),
+  ];
 
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
   // platform-wide; the LLM model still honors a per-agent override when set.

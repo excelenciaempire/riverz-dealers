@@ -7,6 +7,7 @@ import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import { resolveShopifyContext } from '@/lib/ai/runner';
 import { runTool } from '@/lib/ai/tools';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
 
 /**
  * POST /api/internal/voice/tool
@@ -63,6 +64,18 @@ export async function POST(request: Request) {
       call.context && typeof call.context.order_id !== 'undefined'
         ? String(call.context.order_id)
         : null;
+
+    // WhatsApp durante la llamada: el agente no puede dictar un link por
+    // teléfono, así que se lo manda al mismo número al que está llamando. No
+    // pasa por `runTool` porque no es una tool de Shopify.
+    if (body.tool === 'send_whatsapp') {
+      const text = (body.input as { text?: string } | null)?.text?.trim();
+      if (!text) {
+        return NextResponse.json({ ok: false, error: 'text_required' });
+      }
+      const sent = await sendWhatsAppDuringCall(db, call, contact, text);
+      return NextResponse.json(sent);
+    }
 
     const shopify = await resolveShopifyContext(db, call.workspace_id, contact, null);
     if (shopify) {

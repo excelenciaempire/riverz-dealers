@@ -51,6 +51,7 @@ from livekit.plugins import anthropic, deepgram, elevenlabs, openai, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from rioplatense import sheismo_stream
+from speakable import speakable_stream
 from riverz_api import RiverzAPI
 from tools import CallState, build_tools, hangup as _hangup
 
@@ -560,11 +561,16 @@ class RiverzAgent(Agent):
     "Ya salió tu pedido", no "Sha salió tu pedido".
     """
 
-    def __init__(self, *args, speech_style: str | None = None, **kwargs):
+    def __init__(self, *args, speech_style: str | None = None, lang: str = "es", **kwargs):
         super().__init__(*args, **kwargs)
         self._speech_style = speech_style
+        self._lang = lang
 
     def tts_node(self, text, model_settings):  # noqa: ANN001
+        # Orden: primero se saca lo que no se puede decir (links, viñetas,
+        # emojis) y recién después se aplica el acento. Al revés, el ʃeísmo
+        # entraría dentro de una URL y ya no se reconocería como tal.
+        text = speakable_stream(text, self._lang)
         if self._speech_style == "rioplatense":
             text = sheismo_stream(text)
         return Agent.default.tts_node(self, text, model_settings)
@@ -957,6 +963,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
     _wire_events(session, call_state, usage_collector)
     agent = RiverzAgent(
         speech_style=context.get("speech_style"),
+        lang=context.get("language") or "es",
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
             call_state=call_state,
@@ -1068,6 +1075,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     _wire_events(session, call_state, usage_collector)
     agent = RiverzAgent(
         speech_style=context.get("speech_style"),
+        lang=context.get("language") or "es",
         instructions=context.get("system_prompt", ""),
         tools=build_tools(
             call_state=call_state,
