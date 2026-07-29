@@ -264,15 +264,18 @@ export const TTS_PROVIDERS: ProviderOption[] = [
     id: 'fish',
     label: 'Fish Audio',
     models: [
-      { id: 's2.1-pro', label: 'S2.1 Pro (recomendado)' },
-      { id: 's2.1-pro-free', label: 'S2.1 Pro Free ($0, sin garantías)' },
+      { id: 's2.1-pro', label: 'S2.1 Pro (con SLA)' },
+      { id: 's2.1-pro-free', label: 'S2.1 Pro Free ($0 hasta 2026-08-31)' },
       { id: 's2-pro', label: 'S2 Pro' },
       { id: 's1', label: 'S1' },
     ],
     voiceHint: 'reference_id de Fish Audio (32 hex, ej. 933563129e564b19a115bedd57b7406a)',
     voiceShape: /^[0-9a-f]{32}$/i,
     envKeys: ['FISH_API_KEY', 'FISH_AUDIO_API_KEY'],
-    note: '83 idiomas, ~100ms al primer audio y clonación de voz. S2.1 Pro Free sirve para probar sin costo.',
+    // El modelo Free es el MISMO S2.1 Pro: medido, la latencia no se distingue.
+    // Lo que no trae es contrato — y Fish puede usar las peticiones para
+    // entrenar, así que por ahí viaja lo que el agente le lee al cliente.
+    note: '83 idiomas y clonación de voz. El modelo Free es idéntico pero sin SLA, sin DPA y Fish puede usar las peticiones para mejorar su modelo; la promo vence el 31-08-2026.',
     recommended: true,
   },
   {
