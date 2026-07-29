@@ -265,10 +265,19 @@ async def _summarize(context: dict, transcript: list[dict]) -> str | None:
         try:
             from openai import AsyncOpenAI
             client = AsyncOpenAI(base_url=base_url, api_key=key)
-            resp = await client.chat.completions.create(
-                model=model, max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            # gpt-oss razona antes de responder y el razonamiento SALE del mismo
+            # presupuesto: medido, 131 de 177 tokens se iban en pensar y el
+            # resumen llegaba cortado a media frase ("El asistente de voz").
+            # Mismo tratamiento que en `_make_llm`, y margen de tokens de sobra.
+            kw: dict = {"model": model, "max_tokens": 400,
+                        "messages": [{"role": "user", "content": prompt}]}
+            if "gpt-oss" in model.lower():
+                kw["reasoning_effort"] = "low"
+            try:
+                resp = await client.chat.completions.create(**kw)
+            except TypeError:
+                kw.pop("reasoning_effort", None)
+                resp = await client.chat.completions.create(**kw)
             return (resp.choices[0].message.content or "").strip() or None
         except Exception:
             logger.warning("resumen (openai-compat) falló", exc_info=True)

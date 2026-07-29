@@ -206,6 +206,8 @@ export async function buildVoiceContext(
     trunkId: string | null;
     callerNumber: string | null;
     recordingEnabled?: boolean;
+    /** Decir en voz alta que la llamada puede ser grabada (default: no). */
+    recordingDisclosure?: boolean;
     transferNumber?: string | null;
     /** ¿El agente habla primero? (resuelto por dirección en el route). */
     agentGreetsFirst?: boolean;
@@ -347,11 +349,14 @@ export async function buildVoiceContext(
     );
   }
 
-  // Recording disclosure is prepended to the greeting when recording is on, so
-  // the customer is informed the moment the call connects (compliance).
+  // El aviso de grabación se antepone al saludo SÓLO si el comercio lo pide
+  // (Ajustes → Voz). Va aparte de `recordingEnabled` porque son dos decisiones
+  // distintas: grabar y avisar. Grabar sin avisar es ilegal en varios sitios
+  // (estados de consentimiento de ambas partes en EE.UU., RGPD en la UE), y esa
+  // decisión es del comercio, que es quien conoce a quién llama.
   const lang = langOf(agent, call);
   let greeting = resolveGreeting(agent, contact, call);
-  if (opts.recordingEnabled) {
+  if (opts.recordingEnabled && opts.recordingDisclosure) {
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }
 

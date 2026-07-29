@@ -79,6 +79,7 @@ export async function GET(request: Request) {
         config?: {
           phone_number?: string;
           recording_enabled?: boolean;
+          recording_disclosure?: boolean;
           transfer_number?: string;
           greeting_delay_seconds?: number;
           silence_timeout_seconds?: number;
@@ -104,6 +105,8 @@ export async function GET(request: Request) {
       // (ej. workspaces sin fila de conexión de voz). Se apaga sólo si el comercio
       // pone recording_enabled=false explícito.
       recordingEnabled: cfg.recording_enabled !== false,
+      // El aviso hablado es opt-in: por defecto el agente NO lo dice.
+      recordingDisclosure: cfg.recording_disclosure === true,
       transferNumber: cfg.transfer_number ?? null,
       agentGreetsFirst: firstSpeaker === 'agent',
       greetingDelaySeconds: Number(cfg.greeting_delay_seconds) || 0,

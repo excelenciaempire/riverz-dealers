@@ -32,6 +32,8 @@ export function VoiceCard() {
     // Grabación: el backend graba por defecto (solo se apaga con false explícito),
     // así que el toggle arranca en ON para reflejar la realidad.
     recording_enabled: true,
+    // El aviso hablado es opt-in: por defecto el agente NO dice que se graba.
+    recording_disclosure: false,
     transfer_number: '',
     greeting_delay_seconds: 0,
     silence_timeout_seconds: 8,
@@ -62,6 +64,7 @@ export function VoiceCard() {
           kill_switch: !!json.config.kill_switch,
           // Refleja el default-on del backend: ON salvo que esté explícito en false.
           recording_enabled: json.config.recording_enabled !== false,
+          recording_disclosure: json.config.recording_disclosure === true,
           transfer_number: json.config.transfer_number ?? '',
           cod_mode: !!json.config.cod_mode,
           order_writeback: json.config.order_writeback ?? { enabled: false },
@@ -207,6 +210,20 @@ export function VoiceCard() {
               onChange={(c) => setCfg({ ...cfg, cod_mode: c })}
             />
           </div>
+
+          {/* El aviso hablado sólo tiene sentido si se está grabando. */}
+          {cfg.recording_enabled && (
+            <div>
+              <Toggle
+                label={t('voice.recordingDisclosure')}
+                checked={!!cfg.recording_disclosure}
+                onChange={(c) => setCfg({ ...cfg, recording_disclosure: c })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('voice.recordingDisclosureHint')}
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Field label={t('voice.greetingDelay')}>

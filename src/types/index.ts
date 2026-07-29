@@ -926,8 +926,15 @@ export interface VoiceConnectionConfig {
   monthly_minutes_limit?: number | null;
   /** Emergency stop: when true, no calls are dispatched. */
   kill_switch?: boolean;
-  /** Record calls (adds a spoken disclosure to the greeting). */
+  /** Record calls. */
   recording_enabled?: boolean;
+  /**
+   * Avisar EN VOZ ALTA que la llamada puede ser grabada (se antepone al saludo).
+   * Apagado por defecto. Ojo: varias jurisdicciones exigen el aviso para poder
+   * grabar (en EE.UU., los estados de consentimiento de ambas partes —
+   * California, Florida, Pensilvania…—; también el RGPD en la UE).
+   */
+  recording_disclosure?: boolean;
   /** E.164 number the agent can warm/cold-transfer a call to (human handoff). */
   transfer_number?: string;
   /** Segundos de espera antes de que el agente hable (0–10; sin apuro para el cliente). */

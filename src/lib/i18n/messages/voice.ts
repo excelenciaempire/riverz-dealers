@@ -157,6 +157,11 @@ export const voice = {
   speakerAgent: { es: "El agente saluda", en: "Agent greets" },
   speakerCustomer: { es: "Espera al cliente", en: "Wait for the customer" },
   recordingEnabled: { es: "Grabar llamadas", en: "Record calls" },
+  recordingDisclosure: { es: "Avisar que se graba", en: "Announce recording" },
+  recordingDisclosureHint: {
+    es: "El agente lo dice al saludar. Obligatorio para grabar en varios lugares (California, Florida, la UE…).",
+    en: "The agent says it in the greeting. Required to record in several places (California, Florida, the EU…).",
+  },
   recordingHint: {
     es: "Agrega un aviso hablado de grabación al saludo, por cumplimiento.",
     en: "Adds a spoken recording disclosure to the greeting, for compliance.",

@@ -85,6 +85,7 @@ export async function PUT(request: Request) {
         : null,
     kill_switch: Boolean(body.config?.kill_switch),
     recording_enabled: Boolean(body.config?.recording_enabled),
+    recording_disclosure: Boolean(body.config?.recording_disclosure),
     transfer_number: body.config?.transfer_number?.trim() || undefined,
     // Saludo: espera antes de hablar (sin apuro) + quién habla primero por dirección.
     greeting_delay_seconds:
