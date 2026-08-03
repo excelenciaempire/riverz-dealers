@@ -23,6 +23,12 @@ export async function register() {
       log.warn(`${msg} (permitido fuera de producción)`)
     }
 
+    // Reloj de los trabajos periódicos. Vive dentro del servicio web porque
+    // los Render Cron Jobs cuestan un mínimo de 1 USD/mes cada uno y no tienen
+    // plan gratuito; ver src/lib/cron/schedule.ts.
+    const { startScheduler } = await import('@/lib/cron/scheduler')
+    startScheduler()
+
     if (dsn) {
       // Carga @sentry/node y ejecuta Sentry.init (ver sentry.server.config.ts).
       // El import es dinámico para no cargar el paquete sin SENTRY_DSN.

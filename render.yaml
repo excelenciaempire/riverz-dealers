@@ -5,7 +5,7 @@
 
 services:
   - type: web
-    name: unified-inbox
+    name: riverz-crm
     runtime: node
     plan: free
     region: frankfurt
@@ -159,6 +159,10 @@ services:
 # STT→LLM→TTS pipeline, and reports transcripts/outcomes back to the web
 # service. No public ingress needed.
 # ============================================================
+  # SUSPENDIDO desde 2026-08-03: los background workers no tienen plan free en
+  # Render (mínimo 7 USD/mes, y estaba en standard a 25). Reactivarlo cuando
+  # las llamadas de voz vuelvan a estar en uso — la config y las env vars
+  # quedan intactas, sólo hay que quitarle la suspensión.
   - type: worker
     name: voice-worker
     runtime: docker
@@ -205,442 +209,35 @@ services:
         sync: false
 
 # ============================================================
-# Cron jobs — Render Cron Services declared in the blueprint so the
-# inventory is enforceable in-repo (instead of living only in the
-# Render dashboard). Each cron pings the web service via
-# scripts/cron-ping.mjs with the right shared secret.
+# Un solo cron job, a propósito.
 #
-# All crons share `BASE_URL` pointing at the web service. Each sets
-# `CRON_SECRET` from the appropriate env var (most use
-# AUTOMATION_CRON_SECRET; broadcasts uses BROADCAST_CRON_SECRET).
+# Render cobra un MÍNIMO de 1 USD/mes por cada cron job y no tiene plan
+# gratuito para ese tipo de servicio: los 24 trabajos que había antes costaban
+# ~24 USD/mes de puro mínimo, sin contar el tiempo de ejecución. Ahora los
+# dispara el propio servicio web desde src/lib/cron/scheduler.ts, y el
+# inventario con sus horarios vive en src/lib/cron/schedule.ts.
+#
+# Este cron existe sólo para que la instancia free no se duerma: Render la
+# apaga tras 15 minutos sin tráfico entrante, y una instancia dormida no puede
+# despertarse sola ni correr su propio reloj. Cada 10 minutos entra por debajo
+# de esa ventana. Es también el que revive el reloj si el proceso reinició.
+#
+# No subir la frecuencia: casi todo el tiempo facturado de un cron es el
+# arranque del contenedor (~48 s medidos), así que */10 cae dentro del mínimo
+# de 1 USD y */1 se iría a ~5 USD/mes sin ganar nada.
 # ============================================================
   - type: cron
-    name: cron-shopify-cart-recovery
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/shopify-cart-recovery
-    schedule: "0 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Descubre carritos abandonados de Tiendanube (no hay webhook para eso) y
-  # los deja en shopify_checkouts. Corre 15 minutos antes que la
-  # recuperación para que cada carrito nuevo llegue con la tabla al día.
-  - type: cron
-    name: cron-tiendanube-checkouts
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/tiendanube-checkouts
-    schedule: "15 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-shopify-feedback
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/shopify-feedback
-    schedule: "30 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-reengagement
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/reengagement
-    schedule: "0 14 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Follow-ups inteligentes: si el cliente no responde, el asistente le
-  # escribe un seguimiento contextual. El propio endpoint respeta el delay
-  # por-agente; correr cada 30 min da buena latencia sin spamear.
-  - type: cron
-    name: cron-ai-followups
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/ai-followups
-    schedule: "*/30 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Refresca el token largo (~60d) de Facebook Login antes de que muera, así
-  # las conexiones FB/IG/Messenger no se caen solas. Diario (ventana de ~5d).
-  - type: cron
-    name: cron-meta-token-refresh
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/meta-token-refresh
-    schedule: "0 6 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Purga real de PII de workspaces eliminados (N días tras soft-delete).
-  - type: cron
-    name: cron-pii-purge
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/pii-purge
-    schedule: "0 3 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-flows-resume
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/flows-resume
-    schedule: "* * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-gmail-poll
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/gmail-poll
-    schedule: "*/5 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Agente de Instagram — envía DMs en cola, detecta respuestas/captura leads
-  # y atribuye conversiones de Shopify para las campañas activas.
-  - type: cron
-    name: cron-instagram-agent
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/instagram-agent
-    schedule: "*/2 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Enriquecimiento externo de perfiles de Instagram (Apify): analiza el perfil
-  # PÚBLICO (bio + posts + fotos) para personalizar los DMs. Aislado de las
-  # credenciales de Meta; solo cuentas públicas; respeta opt-out. Ritmo lento
-  # (scraping rate-limited); no-op si falta APIFY_TOKEN.
-  - type: cron
-    name: cron-instagram-external-enrich
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/instagram-external-enrich
-    schedule: "*/10 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-gmail-watch
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/gmail-watch
-    # Every 12h (idempotent + cheap). NOT "0 0 */5 * *" — day-of-month stepping
-    # resets at month boundaries, so a single missed run could let the Gmail
-    # watch lapse past its 7-day expiry and silently stop push delivery.
-    schedule: "0 */12 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-outlook-poll
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/outlook-poll
-    schedule: "*/2 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-outlook-watch
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/outlook-watch
-    schedule: "0 */12 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-meta-contact-names
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/meta-contact-names
-    schedule: "0 */6 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-meta-dm-backfill
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/meta-dm-backfill
-    schedule: "0 5 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Re-applies + verifies Meta webhook field subscriptions so the inbox
-  # never silently stops receiving DMs/comments (Meta unsubscribes a page
-  # after sustained webhook errors and never re-subscribes on its own).
-  - type: cron
-    name: cron-meta-webhook-subscriptions
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/meta-webhook-subscriptions
-    schedule: "0 */6 * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Keeps every contact's record complete and classified: pulls address /
-  # orders / spend from Shopify and derives the category tags from it. Batches
-  # of 45, never-synced first (so a brand-new contact is complete within one
-  # run), then oldest — nothing stays frozen. Uses AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-contacts-sync
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/contacts-sync
-    schedule: "*/10 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Two-way comment sync (pull side): reflects native FB/IG deletes/hides back
-  # into the inbox — Instagram emits NO lifecycle webhook, so this is its only
-  # sync path. It also re-pulls the replies the merchant wrote from the IG/FB
-  # app, but only as a SAFETY NET: measured in prod 2026-07-27, those arrive by
-  # webhook in ~1s. The endpoint runs the cheap pull on every invocation and
-  # throttles the expensive reconcile to ~10 min via `cron_runs`, so the
-  # schedule can be tightened without multiplying the Graph load. One cron on
-  # purpose: Render bills a monthly minimum PER cron job, and each run costs
-  # ~48s of billed time (mostly container spin-up), so frequency is not free.
-  # Uses AUTOMATION_CRON_SECRET.
-  # TODO Mercado Libre en un solo trabajo: preguntas en cada corrida; pedidos,
-  # envios y reclamos ~15 min; catalogo y opiniones ~60 min (estrangulado por
-  # dentro con cron_runs). UNO y no cuatro porque Render factura un minimo
-  # mensual POR cron. Usa AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-mercadolibre
+    name: cron-heartbeat
     runtime: node
     plan: starter
-    region: virginia
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/mercadolibre
-    schedule: "*/5 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-comment-sync
-    runtime: node
-    plan: free
     region: frankfurt
     branch: main
     buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/comment-sync
+    startCommand: node scripts/cron-ping.mjs api/cron/tick
     schedule: "*/10 * * * *"
     envVars:
       - key: BASE_URL
         sync: false
+      # Debe coincidir con AUTOMATION_CRON_SECRET del servicio web.
       - key: CRON_SECRET
         sync: false
-
-  # TikTok comments have NO webhook (Accounts API isn't configured), so this
-  # poll is the SOLE inbound path AND the sole 24h-token refresh. Without it,
-  # TikTok comments never reach the inbox even after the app is approved.
-  # Uses AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-tiktok-comments
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/tiktok-comments
-    schedule: "*/10 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  - type: cron
-    name: cron-broadcasts
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/broadcasts/cron
-    schedule: "* * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Voice AI queue: dispatches due queued calls (respecting calling window +
-  # limits) and sweeps stuck calls. Every minute. Uses AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-voice-calls
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/voice-calls
-    schedule: "* * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Voice AI campaigns: advances running bulk call campaigns by one batch each
-  # (respects calling window / limits / opt-out via enqueueCall). Every minute.
-  - type: cron
-    name: cron-voice-campaign-run
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/voice-campaign-run
-    schedule: "* * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-  # Watchdog de entrega: marca los mensajes que Meta dejó en 'sent' para
-  # siempre (nunca mandó 'delivered' ni 'failed') como "sin confirmar", para
-  # que la bandeja no mienta que llegaron. Usa AUTOMATION_CRON_SECRET.
-  - type: cron
-    name: cron-delivery-watchdog
-    runtime: node
-    plan: free
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/delivery-watchdog
-    schedule: "*/30 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      - key: CRON_SECRET
-        sync: false
-
-# Note: if the team prefers the dashboard for cron config, the legacy
-# documentation is preserved here for reference:
-#   - Cart recovery: schedule "0 * * * *"
-#   - Feedback:      schedule "30 * * * *"
-#   - Re-engagement: schedule "0 14 * * *"
