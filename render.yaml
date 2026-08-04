@@ -4,10 +4,16 @@
 # tokens OAuth) se configuran como secret en el dashboard o vía API.
 
 services:
+  # plan starter y NO free a propósito: el free se apaga tras 15 min sin
+  # tráfico entrante, y una instancia dormida no corre el reloj de los trabajos
+  # periódicos ni contesta un webhook sin ~50 s de arranque en frío. Con la
+  # bandeja en tiempo real eso no es aceptable. Además, mientras esto sea free
+  # hay que pagar un cron externo sólo para mantenerlo despierto: los 7 USD del
+  # starter se ahorran ese cron y traen 5× CPU.
   - type: web
     name: riverz-crm
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     branch: main
     autoDeploy: true
@@ -159,14 +165,14 @@ services:
 # STT→LLM→TTS pipeline, and reports transcripts/outcomes back to the web
 # service. No public ingress needed.
 # ============================================================
-  # SUSPENDIDO desde 2026-08-03: los background workers no tienen plan free en
-  # Render (mínimo 7 USD/mes, y estaba en standard a 25). Reactivarlo cuando
-  # las llamadas de voz vuelvan a estar en uso — la config y las env vars
-  # quedan intactas, sólo hay que quitarle la suspensión.
+  # plan standard obligatorio, no es holgura: en starter (512 MB) Render lo mata
+  # con oomKilled a los ~45 s, apenas LiveKit arranca el proceso de inferencia
+  # que carga onnxruntime y el detector multilingüe de turnos. La escalera de
+  # instancias no tiene nada entre 512 MB y 2 GB, así que standard es el piso.
   - type: worker
     name: voice-worker
     runtime: docker
-    plan: starter
+    plan: standard
     region: frankfurt
     branch: main
     autoDeploy: true
@@ -209,35 +215,22 @@ services:
         sync: false
 
 # ============================================================
-# Un solo cron job, a propósito.
+# Sin cron jobs, a propósito.
 #
-# Render cobra un MÍNIMO de 1 USD/mes por cada cron job y no tiene plan
-# gratuito para ese tipo de servicio: los 24 trabajos que había antes costaban
-# ~24 USD/mes de puro mínimo, sin contar el tiempo de ejecución. Ahora los
-# dispara el propio servicio web desde src/lib/cron/scheduler.ts, y el
-# inventario con sus horarios vive en src/lib/cron/schedule.ts.
+# Los trabajos periódicos corren dentro del servicio web: el inventario y sus
+# horarios están en src/lib/cron/schedule.ts y el reloj en
+# src/lib/cron/scheduler.ts. Render cobra un MÍNIMO de 1 USD/mes por cada cron
+# job y no tiene plan gratuito para ese tipo de servicio, así que los 24 crons
+# que había antes costaban ~24 USD/mes antes de ejecutar nada.
 #
-# Este cron existe sólo para que la instancia free no se duerma: Render la
-# apaga tras 15 minutos sin tráfico entrante, y una instancia dormida no puede
-# despertarse sola ni correr su propio reloj. Cada 10 minutos entra por debajo
-# de esa ventana. Es también el que revive el reloj si el proceso reinició.
+# Durante un tiempo quedó UN cron (`cron-heartbeat`) golpeando /api/cron/tick
+# cada 10 min, pero existía sólo para que la instancia free no se durmiera. Con
+# el web en starter no se duerme, así que se borró: el reloj vive y late solo
+# mientras el proceso está arriba.
 #
-# No subir la frecuencia: casi todo el tiempo facturado de un cron es el
-# arranque del contenedor (~48 s medidos), así que */10 cae dentro del mínimo
-# de 1 USD y */1 se iría a ~5 USD/mes sin ganar nada.
+# Si algún día el web vuelve a free, hay que volver a crear ese cron o los
+# trabajos dejan de correr en cuanto la instancia se apague.
+#
+# /api/cron/tick sigue existiendo como diagnóstico: devuelve si el reloj está
+# vivo, cuántos trabajos hay y cuáles están corriendo en este momento.
 # ============================================================
-  - type: cron
-    name: cron-heartbeat
-    runtime: node
-    plan: starter
-    region: frankfurt
-    branch: main
-    buildCommand: npm install
-    startCommand: node scripts/cron-ping.mjs api/cron/tick
-    schedule: "*/10 * * * *"
-    envVars:
-      - key: BASE_URL
-        sync: false
-      # Debe coincidir con AUTOMATION_CRON_SECRET del servicio web.
-      - key: CRON_SECRET
-        sync: false

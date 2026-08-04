@@ -4,10 +4,13 @@
  * Antes cada entrada de esta lista era un Render Cron Job. Render cobra un
  * mínimo de 1 USD/mes POR cron job y no tiene plan gratuito para ese tipo de
  * servicio, así que 25 trabajos costaban ~25 USD/mes de puro mínimo. Ahora los
- * dispara el propio servicio web desde `scheduler.ts`, y un único cron externo
- * golpea `/api/cron/tick` cada 10 minutos para que la instancia free no se
- * duerma (Render la apaga tras 15 minutos sin tráfico entrante, y una
- * instancia dormida no puede despertarse sola).
+ * dispara el propio servicio web desde `scheduler.ts`, sin ningún servicio
+ * externo: el web corre en un plan pago, que no se apaga por inactividad, así
+ * que el reloj vive mientras el proceso esté arriba.
+ *
+ * Nada de esto sobrevive en el plan free: ahí Render apaga la instancia tras
+ * 15 minutos sin tráfico entrante y hace falta un cron externo golpeando
+ * `/api/cron/tick` para mantenerla despierta.
  *
  * Los horarios son los mismos que tenían los cron jobs y se evalúan en UTC,
  * igual que Render.
