@@ -20,7 +20,17 @@ export type ScheduledJob = {
   path: string;
   /** Expresión cron de 5 campos (min hora día-mes mes día-semana), en UTC. */
   schedule: string;
+  /**
+   * Corte de la llamada, sólo para los trabajos que tardan más que el default.
+   * Que expire no frena el handler del otro lado: sólo suelta el guard de
+   * "todavía corriendo", así que quedarse corto reabre la puerta a apilar
+   * corridas.
+   */
+  timeoutMs?: number;
 };
+
+/** Suficiente para el más lento de los normales (contacts-sync, ~30 s). */
+export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
   // --- cada minuto ---
@@ -50,7 +60,6 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
 
   // --- horas ---
   { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "0 * * * *" },
-  { name: "meta-dm-backfill", path: "/api/cron/meta-dm-backfill", schedule: "0 * * * *" },
   { name: "tiendanube-checkouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *" },
   { name: "shopify-feedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
   { name: "meta-contact-names", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *" },
@@ -63,6 +72,17 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "outlook-watch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
 
   // --- diarios ---
+  // Diario y no horario: medido en prod 2026-08-04, cada corrida tarda ~22 min
+  // y mueve la mayor parte del ancho de banda del servicio. Con schedule
+  // horario se apilaba encima de sí mismo (48 corridas = 17,6 h de trabajo en
+  // una ventana de 17,7 h). Es un backfill de respaldo — los DMs nuevos entran
+  // por webhook, esto sólo recupera lo que Meta no entregó.
+  {
+    name: "meta-dm-backfill",
+    path: "/api/cron/meta-dm-backfill",
+    schedule: "0 5 * * *",
+    timeoutMs: 1_800_000,
+  },
   { name: "pii-purge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
   { name: "meta-token-refresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *" },
   { name: "reengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },

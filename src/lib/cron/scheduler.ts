@@ -1,6 +1,6 @@
 import { getLogger } from "@/lib/log/logger";
 
-import { dueJobs, SCHEDULED_JOBS } from "./schedule";
+import { DEFAULT_TIMEOUT_MS, dueJobs, SCHEDULED_JOBS } from "./schedule";
 
 const log = getLogger("scheduler");
 
@@ -13,29 +13,59 @@ const log = getLogger("scheduler");
  * queden registrados en `cron_runs` exactamente igual que cuando los llamaba
  * un cron de Render.
  *
- * Un solo proceso: el servicio corre con una instancia, así que no hay dos
- * relojes compitiendo. Si algún día se escala horizontalmente, esto necesita
- * un lock en la base antes de disparar.
+ * El estado vive en `globalThis` y NO en variables de módulo. Medido en prod
+ * 2026-08-04: `instrumentation.ts` y el route handler de `/api/cron/tick`
+ * cargan copias distintas del módulo, cada una con su propio `let started`,
+ * así que el guard no se veía entre ellas y quedaban varios relojes latiendo a
+ * la vez — los trabajos de cada minuto se dispararon 2,7 veces por minuto
+ * durante 17 h. Una sola instancia del servicio no garantiza un solo módulo.
+ *
+ * Si algún día se escala horizontalmente, esto necesita además un lock en la
+ * base: `globalThis` es por proceso, no por servicio.
  */
 
-let started = false;
-let timer: ReturnType<typeof setTimeout> | null = null;
-let lastTickAt: Date | null = null;
+type SchedulerState = {
+  timer: ReturnType<typeof setTimeout> | null;
+  lastTickAt: Date | null;
+  /** Trabajos con una corrida todavía en vuelo; no se relanzan encima. */
+  inFlight: Set<string>;
+};
+
+const STATE_KEY = "__riverzScheduler";
+
+function state(): SchedulerState {
+  const g = globalThis as typeof globalThis & { [STATE_KEY]?: SchedulerState };
+  if (!g[STATE_KEY]) {
+    g[STATE_KEY] = { timer: null, lastTickAt: null, inFlight: new Set() };
+  }
+  return g[STATE_KEY];
+}
 
 function baseUrl(): string {
   const port = process.env.PORT ?? "3000";
   return `http://127.0.0.1:${port}`;
 }
 
-async function runJob(name: string, path: string, secret: string): Promise<void> {
+async function runJob(
+  name: string,
+  path: string,
+  secret: string,
+  timeoutMs: number,
+): Promise<void> {
+  const s = state();
+  // Un trabajo que todavía corre no se vuelve a lanzar: meta-dm-backfill tarda
+  // ~22 min y con schedule horario se apilaba encima de sí mismo.
+  if (s.inFlight.has(name)) {
+    log.warn("job skipped (still running)", { job: name });
+    return;
+  }
+  s.inFlight.add(name);
   const startedAt = Date.now();
   try {
     const res = await fetch(baseUrl() + path, {
       method: "GET",
       headers: { "x-cron-secret": secret },
-      // Los trabajos largos (contacts-sync ronda los 85 s) no deben cortarse
-      // a mitad: sin timeout explícito manda el del runtime.
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const ms = Date.now() - startedAt;
     // 207 es 2xx pero los polls de correo lo usan para "falló una casilla".
@@ -50,24 +80,28 @@ async function runJob(name: string, path: string, secret: string): Promise<void>
       ms: Date.now() - startedAt,
       error: err instanceof Error ? err.message : String(err),
     });
+  } finally {
+    s.inFlight.delete(name);
   }
 }
 
 function tick(secret: string): void {
   const now = new Date();
-  lastTickAt = now;
+  state().lastTickAt = now;
   const jobs = dueJobs(now);
   if (jobs.length === 0) return;
   // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
   // Cada uno registra su propio resultado.
-  for (const job of jobs) void runJob(job.name, job.path, secret);
+  for (const job of jobs) {
+    void runJob(job.name, job.path, secret, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  }
 }
 
 /** Programa el próximo tick justo en el segundo 0 del minuto siguiente. */
 function scheduleNextTick(secret: string): void {
   const now = Date.now();
   const delay = 60_000 - (now % 60_000);
-  timer = setTimeout(() => {
+  const t = setTimeout(() => {
     scheduleNextTick(secret);
     try {
       tick(secret);
@@ -76,17 +110,21 @@ function scheduleNextTick(secret: string): void {
     }
   }, delay);
   // No mantener vivo el proceso sólo por este timer.
-  timer.unref?.();
+  t.unref?.();
+  state().timer = t;
 }
 
 /**
- * Arranca el reloj. Idempotente: llamarlo dos veces no duplica los disparos.
+ * Arranca el reloj. Idempotente **entre copias del módulo**: el guard mira
+ * `globalThis`, no una variable de módulo, porque instrumentation y los route
+ * handlers no comparten registro de módulos.
  *
  * No arranca sin `AUTOMATION_CRON_SECRET` (los endpoints responderían 401 en
  * cada corrida) ni durante `next build`.
  */
 export function startScheduler(): void {
-  if (started) return;
+  const s = state();
+  if (s.timer) return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
   if (process.env.SCHEDULER_DISABLED === "true") {
     log.info("scheduler disabled by env");
@@ -99,7 +137,6 @@ export function startScheduler(): void {
     return;
   }
 
-  started = true;
   scheduleNextTick(secret);
   log.info("scheduler started", { jobs: SCHEDULED_JOBS.length });
 }
@@ -109,10 +146,13 @@ export function schedulerStatus(): {
   started: boolean;
   jobs: number;
   lastTickAt: string | null;
+  running: string[];
 } {
+  const s = state();
   return {
-    started,
+    started: s.timer !== null,
     jobs: SCHEDULED_JOBS.length,
-    lastTickAt: lastTickAt ? lastTickAt.toISOString() : null,
+    lastTickAt: s.lastTickAt ? s.lastTickAt.toISOString() : null,
+    running: [...s.inFlight].sort(),
   };
 }

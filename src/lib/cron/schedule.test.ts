@@ -100,6 +100,21 @@ describe("SCHEDULED_JOBS", () => {
     }
   });
 
+  it("los trabajos caros no corren seguido", () => {
+    // meta-dm-backfill tarda ~22 min por corrida (medido en prod 2026-08-04).
+    // Con schedule horario se apilaba encima de sí mismo y se comía el ancho
+    // de banda del servicio; tiene que quedar en una sola corrida diaria.
+    const backfill = SCHEDULED_JOBS.find((j) => j.name === "meta-dm-backfill");
+    expect(backfill).toBeDefined();
+    const veces = Array.from({ length: 24 }, (_, h) =>
+      Array.from({ length: 60 }, (_, m) => isDue(backfill!.schedule, utc(2026, 8, 3, h, m))),
+    )
+      .flat()
+      .filter(Boolean).length;
+    expect(veces).toBe(1);
+    expect(backfill!.timeoutMs).toBeGreaterThan(22 * 60 * 1000);
+  });
+
   it("las rutas cuelgan de /api", () => {
     for (const job of SCHEDULED_JOBS) {
       expect(job.path.startsWith("/api/"), `${job.name}: ${job.path}`).toBe(true);
