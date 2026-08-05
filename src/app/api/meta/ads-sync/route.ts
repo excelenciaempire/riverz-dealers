@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { assertCronAuth } from "@/lib/auth/cron";
+import { assertCronAuthAny } from "@/lib/auth/cron";
 import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
+import { withCronRun } from "@/lib/cron/heartbeat";
 import type { ChannelConnection } from "@/types";
 
 /**
@@ -12,14 +13,14 @@ import type { ChannelConnection } from "@/types";
  * connection and refreshes the post_id → ad_id mapping so the inbox
  * can correctly flag which incoming comments came from ads.
  *
- * Auth: header `x-cron-secret` matching ADS_SYNC_SECRET (env), vía el
- * helper central timing-safe assertCronAuth — igual que el resto de los
- * crons. (Antes usaba `?secret=` en la query, que quedaba en logs y se
- * comparaba sin constant-time.)
+ * Auth: header `x-cron-secret`. Acepta ADS_SYNC_SECRET (el que manda el
+ * workflow de GitHub) o AUTOMATION_CRON_SECRET (el que manda el reloj interno);
+ * los dos son secretos del mismo dueño, así que aceptar cualquiera no debilita
+ * nada y evita el 401 mudo que dejaría el trabajo sin correr para siempre.
  */
-export async function GET(req: Request): Promise<Response> {
+async function handler(req: Request): Promise<Response> {
   try {
-    assertCronAuth(req, "ADS_SYNC_SECRET");
+    assertCronAuthAny(req, ["ADS_SYNC_SECRET", "AUTOMATION_CRON_SECRET"]);
   } catch (r) {
     return r as Response;
   }
@@ -59,3 +60,7 @@ export async function GET(req: Request): Promise<Response> {
     results,
   });
 }
+
+/** Registra la corrida en `cron_runs` como el resto de los trabajos: hasta
+ *  ahora este no dejaba rastro y su silencio era indistinguible de no correr. */
+export const GET = withCronRun("ads-sync", handler);

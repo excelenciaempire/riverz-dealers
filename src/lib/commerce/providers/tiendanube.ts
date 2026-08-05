@@ -223,16 +223,8 @@ export class TiendanubeClient {
    * de recuperación).
    */
   async registerWebhooks(callbackBaseUrl: string): Promise<void> {
-    const url = `${callbackBaseUrl}/api/tiendanube/webhooks`
-    const events = [
-      'order/created',
-      'order/paid',
-      'order/fulfilled',
-      'order/cancelled',
-      'order/updated',
-      'app/uninstalled',
-    ]
-    for (const event of events) {
+    const url = `${callbackBaseUrl}${TIENDANUBE_WEBHOOK_PATH}`
+    for (const event of TIENDANUBE_WEBHOOK_EVENTS) {
       try {
         await this.request('/webhooks', { method: 'POST', body: { event, url } })
       } catch (err) {
@@ -240,7 +232,86 @@ export class TiendanubeClient {
       }
     }
   }
+
+  /**
+   * Deja la tienda con los webhooks apuntando al dominio actual.
+   *
+   * `registerWebhooks` sólo da de alta: si el servicio cambia de dominio, los
+   * viejos siguen registrados y Tiendanube entrega cada pedido a un servidor
+   * muerto sin que falle nada de este lado. Acá se dan de baja los que apuntan
+   * a otro origen —sólo los de NUESTRA ruta— y se re-registra lo que falte.
+   */
+  async reconcileWebhooks(callbackBaseUrl: string): Promise<{
+    deleted: number
+    created: number
+    kept: number
+  }> {
+    const base = callbackBaseUrl.replace(/\/+$/, '')
+    const wanted = `${base}${TIENDANUBE_WEBHOOK_PATH}`
+    let live: Array<{ id?: number; event?: string; url?: string }> = []
+    try {
+      live = await this.get<Array<{ id?: number; event?: string; url?: string }>>('/webhooks')
+    } catch (err) {
+      console.error('[tiendanube] no se pudieron listar los webhooks:', err)
+      return { deleted: 0, created: 0, kept: 0 }
+    }
+
+    let deleted = 0
+    let kept = 0
+    const present = new Set<string>()
+    for (const w of Array.isArray(live) ? live : []) {
+      if (!w.url || !w.event) continue
+      let path: string
+      try {
+        path = new URL(w.url).pathname
+      } catch {
+        continue
+      }
+      if (path !== TIENDANUBE_WEBHOOK_PATH) continue
+      if (w.url === wanted) {
+        present.add(w.event)
+        kept++
+        continue
+      }
+      if (w.id == null) continue
+      try {
+        await this.request(`/webhooks/${w.id}`, { method: 'DELETE' })
+        deleted++
+      } catch (err) {
+        console.error(`[tiendanube] baja de webhook ${w.event} falló:`, err)
+      }
+    }
+
+    let created = 0
+    for (const event of TIENDANUBE_WEBHOOK_EVENTS) {
+      if (present.has(event)) continue
+      try {
+        await this.request('/webhooks', {
+          method: 'POST',
+          body: { event, url: wanted },
+        })
+        created++
+      } catch (err) {
+        console.error(`[tiendanube] realta de webhook ${event} falló:`, err)
+      }
+    }
+    return { deleted, created, kept }
+  }
 }
+
+/** Ruta receptora. Una sola para todos los eventos. */
+export const TIENDANUBE_WEBHOOK_PATH = '/api/tiendanube/webhooks'
+
+/** No incluye carritos: la plataforma no emite ese evento (ver el cron de
+ *  recuperación). */
+export const TIENDANUBE_WEBHOOK_EVENTS = [
+  'order/created',
+  'order/paid',
+  'order/fulfilled',
+  'order/cancelled',
+  'order/updated',
+  'app/uninstalled',
+] as const
 
 // ── Formas crudas ────────────────────────────────────────────────────
 

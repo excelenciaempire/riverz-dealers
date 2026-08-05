@@ -57,6 +57,25 @@ export function nextPageInfo(link: string | null): string | null {
   return null
 }
 
+/** Los webhooks que la tienda tiene que tener registrados hacia Riverz.
+ *  Exportado porque además de registrarlos al conectar hay que RECONCILIARLOS:
+ *  la dirección queda congelada en Shopify y, si el dominio del servicio cambia,
+ *  la tienda sigue entregando pedidos y carritos a un servidor muerto. */
+export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{ topic: string; path: string }> = [
+  { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
+  { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
+  { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
+  { topic: 'orders/updated', path: '/api/shopify/webhooks/orders' },
+  { topic: 'customers/update', path: '/api/shopify/webhooks/customers' },
+  { topic: 'app/uninstalled', path: '/api/shopify/webhooks/app-uninstalled' },
+]
+
+export interface ShopifyWebhook {
+  id: number
+  topic: string
+  address: string
+}
+
 export class ShopifyAdminClient {
   constructor(
     private readonly shop: string,
@@ -149,14 +168,7 @@ export class ShopifyAdminClient {
    * the "just fulfilled" transition.
    */
   async registerWebhooks(callbackBaseUrl: string): Promise<void> {
-    const topics: { topic: string; path: string }[] = [
-      { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
-      { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
-      { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
-      { topic: 'orders/updated', path: '/api/shopify/webhooks/orders' },
-      { topic: 'customers/update', path: '/api/shopify/webhooks/customers' },
-      { topic: 'app/uninstalled', path: '/api/shopify/webhooks/app-uninstalled' },
-    ]
+    const topics = SHOPIFY_WEBHOOK_TOPICS
     for (const { topic, path } of topics) {
       try {
         await this.rest('/webhooks.json', {
@@ -175,5 +187,76 @@ export class ShopifyAdminClient {
         console.error(`[shopify] register webhook ${topic} failed:`, err)
       }
     }
+  }
+
+  /** Los webhooks que la tienda tiene registrados hoy (de cualquier app). */
+  async listWebhooks(): Promise<ShopifyWebhook[]> {
+    const data = await this.rest<{ webhooks?: ShopifyWebhook[] }>(
+      '/webhooks.json?limit=250',
+    )
+    return data.webhooks ?? []
+  }
+
+  async deleteWebhook(id: number): Promise<void> {
+    await this.rest(`/webhooks/${id}.json`, { method: 'DELETE' })
+  }
+
+  /**
+   * Deja la tienda con EXACTAMENTE los webhooks de `SHOPIFY_WEBHOOK_TOPICS`
+   * apuntando al dominio actual.
+   *
+   * `registerWebhooks` sólo agrega, y Shopify deduplica por (topic, address):
+   * al cambiar de dominio quedan los nuevos conviviendo con los viejos, que
+   * entregan a un servidor muerto para siempre. Acá se borran los que apuntan a
+   * otro origen —sólo los de NUESTRAS rutas, para no tocar los webhooks de otra
+   * aplicación instalada en la misma tienda— y se registra lo que falte.
+   */
+  async reconcileWebhooks(callbackBaseUrl: string): Promise<{
+    deleted: number
+    created: number
+    kept: number
+  }> {
+    const ours = new Set(SHOPIFY_WEBHOOK_TOPICS.map((t) => t.path))
+    const live = await this.listWebhooks()
+    const base = callbackBaseUrl.replace(/\/+$/, '')
+
+    let deleted = 0
+    let kept = 0
+    const present = new Set<string>()
+    for (const w of live) {
+      let path: string
+      try {
+        path = new URL(w.address).pathname
+      } catch {
+        continue
+      }
+      if (!ours.has(path)) continue // de otra app: no es nuestro para tocarlo
+      if (w.address.startsWith(`${base}/`)) {
+        present.add(`${w.topic}\n${path}`)
+        kept++
+        continue
+      }
+      try {
+        await this.deleteWebhook(w.id)
+        deleted++
+      } catch (err) {
+        console.error(`[shopify] delete stale webhook ${w.topic} failed:`, err)
+      }
+    }
+
+    let created = 0
+    for (const { topic, path } of SHOPIFY_WEBHOOK_TOPICS) {
+      if (present.has(`${topic}\n${path}`)) continue
+      try {
+        await this.rest('/webhooks.json', {
+          method: 'POST',
+          body: { webhook: { topic, address: `${base}${path}`, format: 'json' } },
+        })
+        created++
+      } catch (err) {
+        console.error(`[shopify] re-register webhook ${topic} failed:`, err)
+      }
+    }
+    return { deleted, created, kept }
   }
 }

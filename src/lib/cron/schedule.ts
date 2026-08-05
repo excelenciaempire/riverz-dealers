@@ -60,6 +60,11 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "flows-sweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
   { name: "ai-followups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
   { name: "delivery-watchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
+  // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
+  // un secret: al mudar de dominio quedó apuntando al host viejo y el mapa
+  // post_id → ad_id se congeló, así que los comentarios sobre anuncios dejaron
+  // de marcarse como tales. Acá dentro la URL no puede desviarse.
+  { name: "ads-sync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *" },
 
   // --- horas ---
   { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "0 * * * *" },
@@ -70,6 +75,13 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: "meta-webhook-subscriptions",
     path: "/api/cron/meta-webhook-subscriptions",
     schedule: "0 */6 * * *",
+  },
+  // El mismo desvío de dominio, del lado de las tiendas: Shopify, Tiendanube y
+  // WooCommerce guardan la URL al conectar y no la revisan nunca más.
+  {
+    name: "commerce-webhooks",
+    path: "/api/cron/commerce-webhooks",
+    schedule: "30 */6 * * *",
   },
   { name: "gmail-watch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
   { name: "outlook-watch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },

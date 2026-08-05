@@ -90,6 +90,13 @@ export interface InboundEvent {
    * trigger the AI agent / automations — we're importing old chats, not
    * receiving something to answer. */
   historical?: boolean;
+  /** Rescate: el mensaje es real y el comercio TIENE que verlo (suma no leído,
+   *  a diferencia de `historical`), pero ya pasó su momento y nadie debe
+   *  contestarlo solo. Lo usa el pull de comentarios para lo que el webhook
+   *  perdió hace horas o días: publicar una respuesta en diferido —o peor, un
+   *  DM— sobre algo que el comercio ya atendió a mano queda como un bot
+   *  hablando fuera de tiempo. Guardar sí, responder no. */
+  suppressAutoReply?: boolean;
   /** When false, only ingest into a conversation that ALREADY exists (and
    *  is live); never create one. Used by the Meta DM backfill, whose job is
    *  filling outbound gaps in existing threads — a piece of old history must

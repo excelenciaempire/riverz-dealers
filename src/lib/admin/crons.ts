@@ -42,6 +42,7 @@ export const CRON_SCHEDULES: CronSpec[] = [
   { name: 'tiktok-comments', path: 'api/cron/tiktok-comments', schedule: '*/10 * * * *', what: 'Única vía de entrada de comentarios de TikTok' },
   { name: 'ai-followups', path: 'api/cron/ai-followups', schedule: '*/30 * * * *', what: 'Seguimientos de la IA cuando el cliente calla' },
   { name: 'delivery-watchdog', path: 'api/cron/delivery-watchdog', schedule: '*/30 * * * *', what: 'Marca envíos sin confirmar' },
+  { name: 'ads-sync', path: 'api/meta/ads-sync', schedule: '*/30 * * * *', what: 'Marca qué comentarios vienen de un anuncio' },
 
   // ── horas ──
   { name: 'shopify-cart-recovery', path: 'api/cron/shopify-cart-recovery', schedule: '0 * * * *', what: 'Recupera carritos abandonados' },
@@ -49,6 +50,7 @@ export const CRON_SCHEDULES: CronSpec[] = [
   { name: 'shopify-feedback', path: 'api/cron/shopify-feedback', schedule: '30 * * * *', what: 'Pide opinión tras la entrega' },
   { name: 'meta-contact-names', path: 'api/cron/meta-contact-names', schedule: '0 */6 * * *', what: 'Completa nombres de contactos de Meta' },
   { name: 'meta-webhook-subscriptions', path: 'api/cron/meta-webhook-subscriptions', schedule: '0 */6 * * *', what: 'Reaplica suscripciones de webhooks de Meta' },
+  { name: 'commerce-webhooks', path: 'api/cron/commerce-webhooks', schedule: '30 */6 * * *', what: 'Repunta los webhooks de las tiendas al dominio actual' },
   { name: 'gmail-watch', path: 'api/cron/gmail-watch', schedule: '0 */12 * * *', what: 'Renueva la suscripción push de Gmail' },
   { name: 'outlook-watch', path: 'api/cron/outlook-watch', schedule: '0 */12 * * *', what: 'Renueva la suscripción push de Outlook' },
 

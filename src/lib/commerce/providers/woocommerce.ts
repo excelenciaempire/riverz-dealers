@@ -394,15 +394,16 @@ export class WooCommerceClient {
    * WooCommerce NO deduplica por (topic, delivery_url): reconectar
    * crearía webhooks repetidos y cada pedido llegaría N veces. Por eso
    * primero listamos y borramos los nuestros anteriores.
+   *
+   * "Los nuestros" se reconoce por la RUTA, no por la URL entera: si el
+   * servicio cambió de dominio, los del dominio viejo también son nuestros y
+   * hay que darlos de baja. Comparando la URL completa quedaban vivos,
+   * entregando cada pedido a un servidor muerto para siempre. Por eso volver a
+   * llamar a esta función es además la forma de reconciliar la tienda.
    */
   async registerWebhooks(callbackBaseUrl: string, secret: string): Promise<void> {
-    const deliveryUrl = `${callbackBaseUrl}/api/woocommerce/webhooks`
-    const topics = [
-      'order.created',
-      'order.updated',
-      'customer.created',
-      'customer.updated',
-    ]
+    const deliveryUrl = `${callbackBaseUrl}${WOOCOMMERCE_WEBHOOK_PATH}`
+    const topics = WOOCOMMERCE_WEBHOOK_TOPICS
 
     try {
       const existing = await this.paginate<{ id?: number; delivery_url?: string }>(
@@ -410,12 +411,18 @@ export class WooCommerceClient {
         { perPage: 100, maxPages: 3 },
       )
       for (const w of existing) {
-        if (w.delivery_url === deliveryUrl && w.id) {
-          await this.request(`/webhooks/${w.id}`, {
-            method: 'DELETE',
-            query: { force: 'true' },
-          }).catch(() => {})
+        if (!w.id || !w.delivery_url) continue
+        let path: string
+        try {
+          path = new URL(w.delivery_url).pathname
+        } catch {
+          continue
         }
+        if (path !== WOOCOMMERCE_WEBHOOK_PATH) continue
+        await this.request(`/webhooks/${w.id}`, {
+          method: 'DELETE',
+          query: { force: 'true' },
+        }).catch(() => {})
       }
     } catch (err) {
       // Si no podemos listar seguimos igual: peor es no registrar nada.
@@ -440,6 +447,16 @@ export class WooCommerceClient {
     }
   }
 }
+
+/** Ruta receptora, una para todos los temas. */
+export const WOOCOMMERCE_WEBHOOK_PATH = '/api/woocommerce/webhooks'
+
+export const WOOCOMMERCE_WEBHOOK_TOPICS = [
+  'order.created',
+  'order.updated',
+  'customer.created',
+  'customer.updated',
+] as const
 
 // ── Formas crudas ────────────────────────────────────────────────────
 

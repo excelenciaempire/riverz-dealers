@@ -351,10 +351,21 @@ export async function ingestInboundEvent(
   // atiende: primero las reglas que configuró el comercio, después el agente.
   // Antes eran dos caminos disparados en paralelo y quién atendía a la persona
   // lo decidía el azar de cuál terminara primero.
+  //
+  // Un comentario RESCATADO no pasa por el portero. El pull recoge lo que el
+  // webhook perdió, y cuando la pérdida duró días —la suscripción de Meta quedó
+  // apuntando a un dominio muerto— responder en diferido es peor que no
+  // responder: el comercio ya contestó a mano y el cliente recibe un bot
+  // hablando de algo de la semana pasada. Sigue entrando a la bandeja y
+  // sumando no leído (`suppressAutoReply`, no `historical`), así que se ve y se
+  // puede contestar a mano. `historical` corta por la misma razón, un grado más
+  // fuerte: eso ni siquiera se cuenta como pendiente.
   if (
     event.comment &&
     message &&
     !event.outbound &&
+    !event.historical &&
+    !event.suppressAutoReply &&
     (channel === "ig_comment" || channel === "fb_comment")
   ) {
     void routeComment(db, {
@@ -454,6 +465,7 @@ export async function ingestInboundEvent(
   if (
     !event.outbound &&
     !event.historical &&
+    !event.suppressAutoReply &&
     !igEmptyDm &&
     channel !== "fb_comment" &&
     channel !== "ig_comment"

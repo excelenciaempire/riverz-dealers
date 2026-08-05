@@ -37,6 +37,18 @@ const WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_POSTS_PER_RUN = 40;
 /** Comentarios por publicación que pedimos a Graph. */
 const COMMENTS_PER_POST = 50;
+/**
+ * A partir de acá un comentario rescatado entra como HISTORIA: se guarda y se ve
+ * en la bandeja, pero no despierta al agente ni a las reglas.
+ *
+ * El pull corre cada pocos minutos, así que lo que el webhook acaba de perder
+ * cae holgadamente por debajo y se atiende en vivo. Lo que aparece más tarde
+ * viene de una caída larga —la suscripción de Meta apuntando a un dominio muerto
+ * dejó seis días de comentarios afuera— y contestarlo en diferido es peor que no
+ * contestarlo: el comercio ya respondió a mano y el cliente recibe una respuesta
+ * a algo que preguntó la semana pasada. Pasó de verdad el 2026-08-05.
+ */
+const LIVE_WINDOW_MS = 60 * 60_000;
 
 interface IgAuthor {
   id?: string;
@@ -133,15 +145,24 @@ export async function pullCommentsForConnection(
       const parentId = comment.id;
       if (!parentId) continue;
       // El comentario de nivel superior: si es de un cliente y no está, entra.
+      // Ya contestado por el comercio ⇒ historia, aunque sea reciente: nadie
+      // tiene que responder dos veces lo mismo.
+      const answered = (comment.replies?.data ?? []).some((r) =>
+        isSelf(r, selfIds, selfUsername),
+      );
       if (!isSelf(comment, selfIds, selfUsername)) {
-        if (await ingestCustomerComment(db, connection, comment, postId, null)) {
+        if (
+          await ingestCustomerComment(db, connection, comment, postId, null, answered)
+        ) {
           ingestedInbound++;
         }
       }
       for (const reply of comment.replies?.data ?? []) {
         if (!reply.id) continue;
         if (!isSelf(reply, selfIds, selfUsername)) {
-          if (await ingestCustomerComment(db, connection, reply, postId, parentId)) {
+          if (
+            await ingestCustomerComment(db, connection, reply, postId, parentId, false)
+          ) {
             ingestedInbound++;
           }
           continue;
@@ -225,6 +246,10 @@ function isSelf(c: IgReply, selfIds: Set<string>, selfUsername: string): boolean
  * Un comentario de cliente que el webhook no trajo. Se arma igual que en el
  * adapter para que el corte de duplicados por id externo funcione idéntico.
  * Devuelve true sólo si la fila entró (no estaba antes).
+ *
+ * `alreadyAnswered` viene de las respuestas que el propio pull ya leyó: junto
+ * con la antigüedad decide si esto todavía es algo a lo que contestar o si es
+ * historia que sólo hay que dejar visible.
  */
 async function ingestCustomerComment(
   db: SupabaseClient,
@@ -232,6 +257,7 @@ async function ingestCustomerComment(
   comment: IgReply,
   postId: string,
   parentCommentId: string | null,
+  alreadyAnswered: boolean,
 ): Promise<boolean> {
   const commentId = comment.id;
   // Sin id de autor no hay a quién atribuirlo: crear un contacto fantasma sería
@@ -239,6 +265,11 @@ async function ingestCustomerComment(
   const authorId = comment.from?.id;
   if (!commentId || !authorId) return false;
   const username = (comment.from?.username ?? comment.username)?.trim();
+  const receivedAt = parseIgTimestamp(comment.timestamp);
+  // Un timestamp ilegible cae del lado seguro (NaN hace fallar el `<`): mejor
+  // no contestar de más que contestar tarde.
+  const age = Date.now() - Date.parse(receivedAt);
+  const suppressAutoReply = alreadyAnswered || !(age < LIVE_WINDOW_MS);
   const written = await ingestInboundEvent(db, {
     channel: "ig_comment",
     connection,
@@ -252,7 +283,8 @@ async function ingestCustomerComment(
       postId,
       parentCommentId: parentCommentId ?? undefined,
     },
-    receivedAt: parseIgTimestamp(comment.timestamp),
+    receivedAt,
+    suppressAutoReply,
   });
   return Boolean(written);
 }

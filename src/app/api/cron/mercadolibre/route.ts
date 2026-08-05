@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { pollAllMercadoLibreConnections } from "@/lib/channels/mercadolibre/poll";
+import { pollAllMercadoLibreMessages } from "@/lib/channels/mercadolibre/messages-poll";
 import { syncAllMercadoLibreOrders } from "@/lib/channels/mercadolibre/orders";
 import { syncAllMercadoLibreCatalogs } from "@/lib/channels/mercadolibre/catalog";
 import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews";
@@ -20,6 +21,11 @@ import { withCronRun, pingCron } from "@/lib/cron/heartbeat";
  *
  *   preguntas  — SIEMPRE. Una pregunta sin contestar cuesta una venta en
  *                minutos, y Mercado Libre penaliza la demora.
+ *   mensajes   — SIEMPRE, por lo mismo. Y porque la notificación de Mercado
+ *                Libre no es de fiar: `notifications_callback_url` es un solo
+ *                campo por aplicación, se configura a mano y si apunta a otro
+ *                lado no llega nada sin que nada falle. Medido el 2026-08-05:
+ *                cero mensajes post-venta habían entrado por notificación.
  *   pedidos    — cada ~15 min. Ya está vendido: sólo cambia de estado, y el
  *                webhook (orders_v2 / shipments / claims) adelanta lo urgente.
  *   catálogo   — cada ~60 min. Precio y stock no cambian por minuto.
@@ -48,6 +54,12 @@ async function cronHandler(request: Request) {
 
   // ── Lo urgente, siempre ──
   out.questions = await pollAllMercadoLibreConnections().catch((err) => ({
+    error: err instanceof Error ? err.message : String(err),
+  }));
+  // Los mensajes post-venta también van en cada corrida: un comprador que
+  // pregunta por su envío espera respuesta hoy, no en quince minutos. Cuesta
+  // una llamada por los no leídos más una por los pedidos de la semana.
+  out.messages = await pollAllMercadoLibreMessages().catch((err) => ({
     error: err instanceof Error ? err.message : String(err),
   }));
 

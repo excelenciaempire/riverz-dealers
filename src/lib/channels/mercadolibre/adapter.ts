@@ -310,56 +310,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       // pack conversation and emit buyer-sent messages only.
       const packId = extractPackId(n.resource);
       if (!packId) return [];
-      const r = await fetch(`${ML}/messages/packs/${packId}/sellers/${sellerId}?mark_as_read=false`, {
-        headers: auth,
-      });
-      if (!r.ok) return [];
-      const conv = (await r.json()) as MlPack;
-      const events: InboundEvent[] = [];
-      const nickCache = new Map<string, string | undefined>();
-      for (const m of conv.messages ?? []) {
-        const fromId = String(m.from?.user_id ?? "");
-        const toId = String(m.to?.user_id ?? "");
-        if (!m.id || !fromId) continue;
-        // El "cliente" del hilo es SIEMPRE el comprador. Si el mensaje lo mandó
-        // el vendedor (desde Riverz o desde la app de Mercado Libre), el
-        // comprador es el destinatario y ese mensaje es SALIENTE. Antes se
-        // descartaba todo lo del vendedor, así que sus respuestas escritas
-        // desde la app de ML quedaban invisibles en Riverz.
-        const isSeller = fromId === sellerId;
-        const buyerId = isSeller ? toId : fromId;
-        if (!buyerId || buyerId === sellerId) continue;
-        if (!nickCache.has(buyerId)) {
-          nickCache.set(buyerId, await resolveMlNickname(buyerId, auth));
-        }
-        // Fotos / archivos adjuntos: se bajan con el token del vendedor y se
-        // re-hospedan en Storage. Sin esto, un mensaje que era sólo una foto
-        // (un comprobante, una foto del producto) entraba como burbuja vacía.
-        const mlAttachments = await ingestMlAttachments({
-          attachments: m.message_attachments,
-          token,
-          siteId: String(cfg.site_id ?? ""),
-          workspaceId: connection.workspace_id,
-          externalContactId: buyerId,
-          externalMessageId: m.id,
-        });
-        events.push({
-          channel: "mercadolibre",
-          connection,
-          externalContactId: buyerId,
-          contactName: nickCache.get(buyerId),
-          externalMessageId: m.id,
-          externalThreadId: `pack:${packId}`,
-          text: m.text?.trim() || (mlAttachments.length ? "" : "[unsupported]"),
-          attachments: mlAttachments.length ? mlAttachments : undefined,
-          receivedAt: m.message_date?.created ?? new Date().toISOString(),
-          // Mensajes del vendedor = salientes (sender_type=agent). Lo enviado
-          // desde Riverz se deduplica por m.id (el mismo id que devolvió el POST).
-          outbound: isSeller,
-          raw: m,
-        });
-      }
-      return events;
+      return buildPackEvents({ connection, packId, sellerId, token });
     }
 
     // ── Pedidos, envíos y reclamos ──
@@ -393,6 +344,80 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     return [];
   },
 };
+
+/**
+ * Los mensajes post-venta de UN pack, como eventos de bandeja.
+ *
+ * Vive fuera de `parseWebhook` porque tiene DOS entradas: la notificación de
+ * Mercado Libre y el sondeo (`messages-poll.ts`). La notificación depende de
+ * `notifications_callback_url`, que es un solo campo por aplicación y se
+ * configura a mano — si apunta a otro lado, los mensajes no llegan y nada avisa.
+ * El sondeo no depende de nadie. Que los dos armen el evento con este mismo
+ * código es lo que hace que convivan sin duplicar ni divergir; el corte por
+ * `externalMessageId` en `ingestInboundEvent` hace el resto.
+ */
+export async function buildPackEvents(args: {
+  connection: ChannelConnection;
+  packId: string;
+  sellerId: string;
+  token: string;
+}): Promise<InboundEvent[]> {
+  const { connection, packId, sellerId, token } = args;
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  const auth = { authorization: `Bearer ${token}` };
+
+  const r = await fetch(
+    `${ML}/messages/packs/${packId}/sellers/${sellerId}?mark_as_read=false`,
+    { headers: auth },
+  );
+  if (!r.ok) return [];
+  const conv = (await r.json()) as MlPack;
+  const events: InboundEvent[] = [];
+  const nickCache = new Map<string, string | undefined>();
+  for (const m of conv.messages ?? []) {
+    const fromId = String(m.from?.user_id ?? "");
+    const toId = String(m.to?.user_id ?? "");
+    if (!m.id || !fromId) continue;
+    // El "cliente" del hilo es SIEMPRE el comprador. Si el mensaje lo mandó
+    // el vendedor (desde Riverz o desde la app de Mercado Libre), el
+    // comprador es el destinatario y ese mensaje es SALIENTE. Antes se
+    // descartaba todo lo del vendedor, así que sus respuestas escritas
+    // desde la app de ML quedaban invisibles en Riverz.
+    const isSeller = fromId === sellerId;
+    const buyerId = isSeller ? toId : fromId;
+    if (!buyerId || buyerId === sellerId) continue;
+    if (!nickCache.has(buyerId)) {
+      nickCache.set(buyerId, await resolveMlNickname(buyerId, auth));
+    }
+    // Fotos / archivos adjuntos: se bajan con el token del vendedor y se
+    // re-hospedan en Storage. Sin esto, un mensaje que era sólo una foto
+    // (un comprobante, una foto del producto) entraba como burbuja vacía.
+    const mlAttachments = await ingestMlAttachments({
+      attachments: m.message_attachments,
+      token,
+      siteId: String(cfg.site_id ?? ""),
+      workspaceId: connection.workspace_id,
+      externalContactId: buyerId,
+      externalMessageId: m.id,
+    });
+    events.push({
+      channel: "mercadolibre",
+      connection,
+      externalContactId: buyerId,
+      contactName: nickCache.get(buyerId),
+      externalMessageId: m.id,
+      externalThreadId: `pack:${packId}`,
+      text: m.text?.trim() || (mlAttachments.length ? "" : "[unsupported]"),
+      attachments: mlAttachments.length ? mlAttachments : undefined,
+      receivedAt: m.message_date?.created ?? new Date().toISOString(),
+      // Mensajes del vendedor = salientes (sender_type=agent). Lo enviado
+      // desde Riverz se deduplica por m.id (el mismo id que devolvió el POST).
+      outbound: isSeller,
+      raw: m,
+    });
+  }
+  return events;
+}
 
 // ── Token refresh (rotating refresh_token — must persist the new one) ──
 //

@@ -8,6 +8,7 @@
 import crypto from "crypto";
 import type { Channel } from "@/types";
 import { getLogger } from "@/lib/log/logger";
+import { pointsToUs, publicBaseUrl, rebaseUrl } from "@/lib/base-url";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const log = getLogger("channels.meta-graph");
@@ -632,10 +633,10 @@ export interface AppSubscriptionGap {
   expectedCallbackUrl: string;
 }
 
-/** Origen público de esta instancia — a dónde Meta debería entregar. */
-export function appWebhookBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://riverz.co").replace(/\/+$/, "");
-}
+/** Origen público de esta instancia — a dónde Meta debería entregar.
+ *  Reexportado desde `lib/base-url` porque el mismo desvío afecta a Shopify,
+ *  Tiendanube y WooCommerce, y la respuesta tiene que ser una sola. */
+export const appWebhookBaseUrl = publicBaseUrl;
 
 /**
  * Diff the live app-level subscriptions against what we require. Returns the
@@ -666,7 +667,7 @@ export function appSubscriptionGaps(
       continue;
     }
     const missing = expected.filter((f) => !sub.fields.includes(f));
-    const wrongCallback = Boolean(sub.callbackUrl) && !sameOrigin(sub.callbackUrl, base);
+    const wrongCallback = Boolean(sub.callbackUrl) && !pointsToUs(sub.callbackUrl, base);
     if (missing.length > 0 || !sub.active || wrongCallback) {
       gaps.push({
         object,
@@ -683,22 +684,6 @@ export function appSubscriptionGaps(
   return gaps;
 }
 
-function sameOrigin(url: string, base: string): boolean {
-  try {
-    return new URL(url).origin === new URL(base).origin;
-  } catch {
-    return false;
-  }
-}
-
-function rebaseUrl(url: string, base: string): string {
-  try {
-    const u = new URL(url);
-    return `${new URL(base).origin}${u.pathname}${u.search}`;
-  } catch {
-    return url;
-  }
-}
 
 /** The full set of page-level webhook fields to subscribe when connecting
  *  any channel in the page's family (FB page vs IG). Exported so the
