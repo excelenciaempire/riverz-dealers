@@ -313,7 +313,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       // pack conversation and emit buyer-sent messages only.
       const packId = extractPackId(n.resource);
       if (!packId) return [];
-      return buildPackEvents({ connection, packId, sellerId, token });
+      return (await buildPackEvents({ connection, packId, sellerId, token })).events;
     }
 
     // ── Pedidos, envíos y reclamos ──
@@ -358,13 +358,16 @@ export const mercadoLibreAdapter: ChannelAdapter = {
  * El sondeo no depende de nadie. Que los dos armen el evento con este mismo
  * código es lo que hace que convivan sin duplicar ni divergir; el corte por
  * `externalMessageId` en `ingestInboundEvent` hace el resto.
+ *
+ * Devuelve además el estado del hilo: el sondeo lo usa para dejar de releer los
+ * que Mercado Libre declara cerrados (ver `PackRead.quiet`).
  */
 export async function buildPackEvents(args: {
   connection: ChannelConnection;
   packId: string;
   sellerId: string;
   token: string;
-}): Promise<InboundEvent[]> {
+}): Promise<PackRead> {
   const { connection, packId, sellerId, token } = args;
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const auth = { authorization: `Bearer ${token}` };
@@ -385,9 +388,15 @@ export async function buildPackEvents(args: {
       status: r.status,
       body: (await r.text().catch(() => "")).slice(0, 200),
     });
-    return [];
+    return { events: [], quiet: false };
   }
   const conv = (await r.json()) as MlPack;
+  // Mercado Libre cierra la mensajería de la mayoría de las ventas: mide el
+  // 2026-08-05, 21 de 24 hilos vuelven `blocked` y vacíos, y van a seguir así
+  // salvo que el comprador escriba primero. Releerlos cada corrida era casi
+  // todo el costo del sondeo.
+  const quiet =
+    (conv.messages?.length ?? 0) === 0 && conv.conversation_status?.status === "blocked";
   const events: InboundEvent[] = [];
   const nickCache = new Map<string, string | undefined>();
   for (const m of conv.messages ?? []) {
@@ -432,7 +441,15 @@ export async function buildPackEvents(args: {
       raw: m,
     });
   }
-  return events;
+  return { events, quiet };
+}
+
+/** Lo que una lectura de hilo deja: los eventos y si vale la pena volver. */
+export interface PackRead {
+  events: InboundEvent[];
+  /** Vacío y cerrado por Mercado Libre: releerlo pronto es gastar la cuota de
+   *  la aplicación —compartida entre todos los comercios— para nada. */
+  quiet: boolean;
 }
 
 // ── Token refresh (rotating refresh_token — must persist the new one) ──
@@ -651,4 +668,6 @@ interface MlPack {
       size?: number;
     }>;
   }>;
+  /** `blocked` cuando Mercado Libre no permite conversación en esa venta. */
+  conversation_status?: { status?: string; substatus?: string | null };
 }
