@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appsecretProof,
+  appSubscriptionGaps,
   withAppsecretProof,
   withAppsecretProofBody,
 } from "./meta-graph";
@@ -99,5 +100,64 @@ describe("withAppsecretProofBody", () => {
     delete process.env.META_APP_SECRET;
     const input = { message: "hi", access_token: TOKEN };
     expect(withAppsecretProofBody(input, TOKEN)).toBe(input);
+  });
+});
+
+// Mudar el servicio de hosting deja la suscripción app-level intacta y activa
+// apuntando al dominio viejo: Meta entrega a un host muerto y la bandeja deja
+// de recibir sin un solo error. Pasó el 2026-07-29 con los comentarios de IG.
+describe("appSubscriptionGaps", () => {
+  const original = process.env.NEXT_PUBLIC_SITE_URL;
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://riverz.co";
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = original;
+  });
+
+  const healthy = () => ({
+    instagram: {
+      active: true,
+      fields: ["comments", "messages"],
+      callbackUrl: "https://riverz.co/api/channels/instagram/webhook",
+    },
+    page: {
+      active: true,
+      fields: ["feed", "messages"],
+      callbackUrl: "https://riverz.co/api/channels/fb_comment/webhook",
+    },
+    whatsapp_business_account: {
+      active: true,
+      fields: ["messages", "smb_message_echoes"],
+      callbackUrl: "https://riverz.co/api/channels/whatsapp/webhook",
+    },
+  });
+
+  it("no reporta huecos cuando todo apunta al dominio actual", () => {
+    expect(appSubscriptionGaps(healthy())).toEqual([]);
+  });
+
+  it("detecta el callback apuntando a otro host y propone el mismo path", () => {
+    const subs = healthy();
+    subs.instagram.callbackUrl =
+      "https://unified-inbox-7yp9.onrender.com/api/channels/instagram/webhook";
+    const gaps = appSubscriptionGaps(subs);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].object).toBe("instagram");
+    expect(gaps[0].wrongCallback).toBe(true);
+    expect(gaps[0].missing).toEqual([]);
+    expect(gaps[0].expectedCallbackUrl).toBe(
+      "https://riverz.co/api/channels/instagram/webhook",
+    );
+  });
+
+  it("sigue reportando campos faltantes", () => {
+    const subs = healthy();
+    subs.instagram.fields = ["messages"];
+    const gaps = appSubscriptionGaps(subs);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].missing).toEqual(["comments"]);
+    expect(gaps[0].wrongCallback).toBe(false);
   });
 });

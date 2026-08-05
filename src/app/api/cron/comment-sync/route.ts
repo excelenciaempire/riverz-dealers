@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
-import { pullSelfRepliesAll } from "@/lib/channels/comment-pull";
+import { pullCommentsAll } from "@/lib/channels/comment-pull";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
 
@@ -10,11 +10,12 @@ import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
  *
  * Two-way comment sync (pull side), con DOS ritmos en un solo cron:
  *
- *   - Cada corrida — respuestas que el comercio escribió desde la app de
- *     Instagram / Facebook. Es sólo una RED DE SEGURIDAD: medido en producción
- *     el 2026-07-27, esas respuestas llegan por webhook en ~1 segundo. Esto
- *     recoge lo que el webhook pierda (una entrega sin reintento, una caída,
- *     la conexión en error). Cuesta ~1 llamada a Graph por publicación.
+ *   - Cada corrida — comentarios de clientes y respuestas que el comercio
+ *     escribió desde la app de Instagram / Facebook. Es sólo una RED DE
+ *     SEGURIDAD: medido en producción el 2026-07-27, un comentario llega por
+ *     webhook en ~1 segundo. Esto recoge lo que el webhook pierda (una entrega
+ *     sin reintento, una caída, la suscripción de Meta apuntando a un dominio
+ *     que ya no existe). Cuesta ~1 llamada a Graph por publicación.
  *   - Cada ~10 min — reconciliación de borrados / ocultos (hasta 300 sondeos a
  *     Graph por cuenta). Instagram no emite webhook de borrado/ocultado, así
  *     que acá el pull no es respaldo: es el único camino.
@@ -45,16 +46,16 @@ async function cronHandler(request: Request) {
     const db = supabaseAdmin();
 
     // Lo barato y urgente, siempre.
-    const selfReplies = await pullSelfRepliesAll(db).catch((err) => {
-      console.error("[comment-sync] pull de respuestas propias falló:", err);
-      return { connections: 0, ingested: 0, seen: 0, detail: [] };
+    const pulled = await pullCommentsAll(db).catch((err) => {
+      console.error("[comment-sync] pull de comentarios falló:", err);
+      return { connections: 0, ingestedInbound: 0, ingested: 0, seen: 0, detail: [] };
     });
 
     // Lo caro, sólo cuando toca.
     const due = await reconcileIsDue(db);
     if (!due) {
       return NextResponse.json(
-        { ok: true, reconciled: false, selfReplies },
+        { ok: true, reconciled: false, pulled },
         { status: 200 },
       );
     }
@@ -63,7 +64,7 @@ async function cronHandler(request: Request) {
     await pingCron(RECONCILE_JOB);
     const result = await reconcileAllCommentConnections(db);
     return NextResponse.json(
-      { ...result, reconciled: true, selfReplies },
+      { ...result, reconciled: true, pulled },
       { status: 200 },
     );
   } catch (err) {

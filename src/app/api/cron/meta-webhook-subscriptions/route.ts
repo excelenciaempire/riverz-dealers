@@ -9,6 +9,8 @@ import {
   pageFieldsForChannel,
   getAppWebhookSubscriptions,
   appSubscriptionGaps,
+  appWebhookBaseUrl,
+  setAppWebhookSubscription,
   subscribeWabaToWebhooks,
   isWabaSubscribed,
 } from "@/lib/channels/meta-graph";
@@ -196,13 +198,50 @@ async function cronHandler(request: Request) {
   // verify. If that toggle breaks, EVERY merchant silently stops receiving IG
   // comments — so we read the app subscriptions directly and flag any gap.
   const appSubs = await getAppWebhookSubscriptions();
-  const appGaps = appSubs ? appSubscriptionGaps(appSubs) : [];
+  let appGaps = appSubs ? appSubscriptionGaps(appSubs) : [];
   if (appSubs === null) {
     log.warn("could not read app-level webhook subscriptions (no creds or transient)");
   } else if (appGaps.length > 0) {
     log.warn("app-level webhook subscription GAPS — some channels stop receiving for ALL merchants", {
       gaps: appGaps,
+      expectedBase: appWebhookBaseUrl(),
     });
+  }
+
+  // AUTO-REPARACIÓN del callback_url. Cuando el servicio cambia de dominio, la
+  // suscripción sigue "activa" apuntando al host viejo: Meta entrega a un
+  // servidor muerto y la bandeja deja de recibir sin un solo error. Reescribir
+  // la suscripción es el mismo POST idempotente del portal, así que lo hacemos
+  // acá en vez de esperar a que alguien lo note. Los otros huecos (campo
+  // faltante, objeto inactivo) NO se auto-reparan: se configuran en el
+  // dashboard y adivinarlos sería pisar una decisión del panel.
+  const callbackFixes: Array<{ object: string; from: string; to: string; ok: boolean }> = [];
+  for (const gap of appGaps) {
+    if (!gap.wrongCallback || !appSubs) continue;
+    const sub = appSubs[gap.object];
+    const ok = await setAppWebhookSubscription(
+      gap.object,
+      sub.fields,
+      gap.expectedCallbackUrl,
+    );
+    callbackFixes.push({
+      object: gap.object,
+      from: gap.callbackUrl,
+      to: gap.expectedCallbackUrl,
+      ok,
+    });
+    log[ok ? "warn" : "error"](
+      ok
+        ? "app-level callback_url repuntado al dominio actual"
+        : "no se pudo repuntar el callback_url app-level",
+      { object: gap.object, from: gap.callbackUrl, to: gap.expectedCallbackUrl },
+    );
+  }
+  // Releer para no reportar un hueco que acabamos de cerrar (y para que el 207
+  // refleje lo que quedó, no lo que había).
+  if (callbackFixes.some((f) => f.ok)) {
+    const reread = await getAppWebhookSubscriptions();
+    if (reread) appGaps = appSubscriptionGaps(reread);
   }
 
   // Flip the Render cron red (207) ONLY on a CONFIRMED gap, so a transient
@@ -221,6 +260,7 @@ async function cronHandler(request: Request) {
       waResults,
       appSubscriptions: appSubs,
       appGaps,
+      callbackFixes,
     },
     { status: anyMissing || anyAppGap ? 207 : 200 },
   );

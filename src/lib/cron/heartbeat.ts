@@ -79,11 +79,20 @@ export function withCronRun(
     }
     // 401/403 = alguien golpeó la URL sin el secreto; no es una corrida.
     if (response.status !== 401 && response.status !== 403) {
+      // 207 es el "fallo parcial" que usan todos los crons de la casa. Cuenta
+      // como error: `response.ok` lo daba por bueno y el panel mostraba verde
+      // mientras el trabajo avisaba de un hueco en cada corrida — así pasaron
+      // seis días sin que nadie viera que Meta entregaba a un host muerto.
+      const failed = !response.ok || response.status === 207;
       await record(
         name,
         startedAt,
-        response.ok ? "ok" : "error",
-        response.ok ? null : `HTTP ${response.status}`,
+        failed ? "error" : "ok",
+        failed
+          ? response.status === 207
+            ? "HTTP 207 (fallo parcial)"
+            : `HTTP ${response.status}`
+          : null,
       );
     }
     return response;

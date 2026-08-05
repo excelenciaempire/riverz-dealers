@@ -489,7 +489,7 @@ const IG_USER_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
  */
 export async function getAppWebhookSubscriptions(): Promise<Record<
   string,
-  { active: boolean; fields: string[] }
+  AppSubscription
 > | null> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
@@ -503,10 +503,11 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
       data?: Array<{
         object?: string;
         active?: boolean;
+        callback_url?: string;
         fields?: Array<{ name?: string } | string>;
       }>;
     };
-    const out: Record<string, { active: boolean; fields: string[] }> = {};
+    const out: Record<string, AppSubscription> = {};
     for (const o of j.data ?? []) {
       if (!o.object) continue;
       const fields: string[] = [];
@@ -516,11 +517,46 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
           fields.push(f.name);
         }
       }
-      out[o.object] = { active: Boolean(o.active), fields };
+      out[o.object] = {
+        active: Boolean(o.active),
+        fields,
+        callbackUrl: String(o.callback_url ?? ""),
+      };
     }
     return out;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Reescribe la suscripción app-level de un objeto (mismo POST idempotente que
+ * usa el portal de Meta). Se usa para repuntar el `callback_url` cuando el
+ * dominio del servicio cambió: hasta que no se reescribe, Meta sigue entregando
+ * a un host muerto y la bandeja se queda muda sin un solo error.
+ */
+export async function setAppWebhookSubscription(
+  object: string,
+  fields: string[],
+  callbackUrl: string,
+): Promise<boolean> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+  if (!appId || !appSecret || !verifyToken || fields.length === 0) return false;
+  try {
+    const body = new URLSearchParams({
+      object,
+      callback_url: callbackUrl,
+      fields: fields.join(","),
+      verify_token: verifyToken,
+      include_values: "true",
+      access_token: `${appId}|${appSecret}`,
+    });
+    const r = await fetch(`${GRAPH}/${appId}/subscriptions`, { method: "POST", body });
+    return r.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -576,24 +612,92 @@ export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
   whatsapp_business_account: ["messages", "smb_message_echoes"],
 };
 
-/** Diff the live app-level subscriptions against what we require. Returns the
- *  per-object gaps (missing fields / inactive object); empty array = healthy. */
+/** Una suscripción app-level tal como la devuelve Graph. */
+export interface AppSubscription {
+  active: boolean;
+  fields: string[];
+  /** A dónde entrega Meta. Si su host dejó de ser el nuestro, no llega nada. */
+  callbackUrl: string;
+}
+
+/** Hueco detectado en una suscripción app-level. */
+export interface AppSubscriptionGap {
+  object: string;
+  missing: string[];
+  inactive: boolean;
+  /** El callback apunta a otro host (típico tras mudar el servicio de hosting). */
+  wrongCallback: boolean;
+  /** URL viva en Meta y la que debería estar — para el log y la reparación. */
+  callbackUrl: string;
+  expectedCallbackUrl: string;
+}
+
+/** Origen público de esta instancia — a dónde Meta debería entregar. */
+export function appWebhookBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://riverz.co").replace(/\/+$/, "");
+}
+
+/**
+ * Diff the live app-level subscriptions against what we require. Returns the
+ * per-object gaps (missing fields / inactive object / callback apuntando a otro
+ * host); empty array = healthy.
+ *
+ * El chequeo de `callback_url` existe porque mudar el servicio de hosting deja
+ * la suscripción intacta y "activa" apuntando al dominio viejo: Meta entrega a
+ * un host muerto, no hay error en ningún lado y la bandeja simplemente deja de
+ * recibir. Pasó el 2026-07-29 con los comentarios de Instagram.
+ */
 export function appSubscriptionGaps(
-  subs: Record<string, { active: boolean; fields: string[] }>,
-): Array<{ object: string; missing: string[]; inactive: boolean }> {
-  const gaps: Array<{ object: string; missing: string[]; inactive: boolean }> = [];
+  subs: Record<string, AppSubscription>,
+): AppSubscriptionGap[] {
+  const base = appWebhookBaseUrl();
+  const gaps: AppSubscriptionGap[] = [];
   for (const [object, expected] of Object.entries(APP_WEBHOOK_EXPECTATIONS)) {
     const sub = subs[object];
     if (!sub) {
-      gaps.push({ object, missing: expected, inactive: true });
+      gaps.push({
+        object,
+        missing: expected,
+        inactive: true,
+        wrongCallback: false,
+        callbackUrl: "",
+        expectedCallbackUrl: "",
+      });
       continue;
     }
     const missing = expected.filter((f) => !sub.fields.includes(f));
-    if (missing.length > 0 || !sub.active) {
-      gaps.push({ object, missing, inactive: !sub.active });
+    const wrongCallback = Boolean(sub.callbackUrl) && !sameOrigin(sub.callbackUrl, base);
+    if (missing.length > 0 || !sub.active || wrongCallback) {
+      gaps.push({
+        object,
+        missing,
+        inactive: !sub.active,
+        wrongCallback,
+        callbackUrl: sub.callbackUrl,
+        // Sólo cambia el origen: la ruta la eligió quien registró el webhook y
+        // no es nuestra para reescribirla.
+        expectedCallbackUrl: wrongCallback ? rebaseUrl(sub.callbackUrl, base) : sub.callbackUrl,
+      });
     }
   }
   return gaps;
+}
+
+function sameOrigin(url: string, base: string): boolean {
+  try {
+    return new URL(url).origin === new URL(base).origin;
+  } catch {
+    return false;
+  }
+}
+
+function rebaseUrl(url: string, base: string): string {
+  try {
+    const u = new URL(url);
+    return `${new URL(base).origin}${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
 }
 
 /** The full set of page-level webhook fields to subscribe when connecting
