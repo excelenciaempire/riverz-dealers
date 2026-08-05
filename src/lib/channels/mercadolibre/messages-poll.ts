@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
+import type { InboundEvent } from "../types";
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { buildPackEvents, getFreshMLToken } from "./adapter";
@@ -10,6 +11,15 @@ const log = getLogger("channels.mercadolibre.messages-poll");
 
 /** Ventana de pedidos cuyos hilos vale la pena revisar. */
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * A partir de acá un mensaje rescatado entra como pendiente pero NO despierta al
+ * agente. El sondeo corre cada 5 minutos, así que lo que acaba de llegar cae
+ * holgadamente por debajo; lo que aparece más tarde es historia que no se había
+ * podido leer, y contestarla en diferido es peor que no contestarla. Estos
+ * hilos son reclamos de envío de hace días: una respuesta automática ahí llega
+ * como un bot hablando del pasado.
+ */
+const LIVE_WINDOW_MS = 60 * 60_000;
 /** Tope de hilos por corrida. Con más pedidos, la corrida siguiente sigue. */
 const MAX_PACKS_PER_RUN = 30;
 /** Pedidos que se piden a Mercado Libre para sacar los ids de hilo. */
@@ -97,12 +107,38 @@ async function pollOneSeller(
       sellerId,
       token,
     });
-    for (const event of events) {
+    for (const event of markRescued(events)) {
       const written = await ingestInboundEvent(db, event);
       if (written) ingested++;
     }
   }
   return { packs: packIds.size, ingested };
+}
+
+/**
+ * Marca qué mensajes del hilo son "rescate": entran a la bandeja y cuentan como
+ * pendientes, pero no despiertan al agente.
+ *
+ * Un hilo trae su historia entera, no sólo lo nuevo. Sin esto, la primera
+ * corrida sobre un vendedor que nunca se había podido leer dispararía respuestas
+ * automáticas sobre conversaciones de semanas atrás — y encima ya contestadas
+ * por el vendedor desde la app de Mercado Libre.
+ *
+ * Dos criterios, los mismos que en comentarios: la antigüedad, y si el vendedor
+ * ya respondió después.
+ */
+function markRescued(events: InboundEvent[]): InboundEvent[] {
+  const lastSellerAt = events
+    .filter((e) => e.outbound)
+    .reduce((max, e) => Math.max(max, Date.parse(e.receivedAt) || 0), 0);
+  return events.map((e) => {
+    if (e.outbound) return e;
+    const at = Date.parse(e.receivedAt) || 0;
+    // El `!( … )` deja del lado seguro una fecha ilegible: mejor no contestar de
+    // más que contestar tarde.
+    const stale = !(Date.now() - at < LIVE_WINDOW_MS);
+    return stale || at <= lastSellerAt ? { ...e, suppressAutoReply: true } : e;
+  });
 }
 
 /** Hilos con mensajes sin leer. Una llamada, y es lo que llega primero. */

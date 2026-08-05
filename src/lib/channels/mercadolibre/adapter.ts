@@ -119,7 +119,10 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       let externalId = posted.id;
       try {
         const packRes = await fetch(
-          `${ML}/messages/packs/${packId}/sellers/${sellerId}?mark_as_read=false`,
+          // Sin `tag=post_sale` esto es un 404 y el catch de abajo lo tapa: se
+          // caía siempre al id del POST, que es justo el que NO coincide con el
+          // del webhook. Es decir, la protección contra duplicados nunca actuó.
+          `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`,
           { headers: { authorization: `Bearer ${token}` } },
         );
         if (packRes.ok) {
@@ -366,11 +369,24 @@ export async function buildPackEvents(args: {
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const auth = { authorization: `Bearer ${token}` };
 
+  // `tag=post_sale` NO es opcional: sin él Mercado Libre responde 404, y el
+  // `if (!r.ok) return []` de antes lo tragaba entero. Resultado medido el
+  // 2026-08-05: en toda la historia de la base no había un solo mensaje
+  // post-venta ingerido, ni por webhook ni por ningún lado, y no había forma de
+  // distinguirlo de "este vendedor no recibe mensajes". El envío sí lo mandaba
+  // (`sendText`), así que se podía contestar un hilo que nunca se veía entrar.
   const r = await fetch(
-    `${ML}/messages/packs/${packId}/sellers/${sellerId}?mark_as_read=false`,
+    `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`,
     { headers: auth },
   );
-  if (!r.ok) return [];
+  if (!r.ok) {
+    log.warn("no se pudo leer el hilo post-venta de Mercado Libre", {
+      packId,
+      status: r.status,
+      body: (await r.text().catch(() => "")).slice(0, 200),
+    });
+    return [];
+  }
   const conv = (await r.json()) as MlPack;
   const events: InboundEvent[] = [];
   const nickCache = new Map<string, string | undefined>();
