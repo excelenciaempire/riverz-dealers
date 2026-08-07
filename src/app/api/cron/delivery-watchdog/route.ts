@@ -20,6 +20,9 @@ import { withCronRun } from "@/lib/cron/heartbeat";
  *
  * Idempotente: el índice parcial idx_messages_stuck_sent (migración 111) hace
  * que una fila ya marcada no vuelva a entrar al barrido.
+ *
+ * Es de WhatsApp y SOLO de WhatsApp: es el único canal que promete un acuse de
+ * entrega. Ver el filtro por canal más abajo.
  */
 
 // Horas en 'sent' sin confirmar tras las cuales lo consideramos no confirmado.
@@ -42,12 +45,19 @@ async function cronHandler(request: Request) {
   const cutoff = new Date(now - STUCK_HOURS * 3_600_000).toISOString()
   const floor = new Date(now - MAX_AGE_DAYS * 86_400_000).toISOString()
 
-  // Solo salientes (bot/agente) que Meta aceptó (tienen message_id) y siguen en
-  // 'sent' sin confirmar. Comentarios/email tienen otra semántica de entrega;
-  // acá solo nos interesa el saliente que Meta debería confirmar.
+  // Solo salientes (bot/agente) de WHATSAPP que Meta aceptó (tienen message_id)
+  // y siguen en 'sent' sin confirmar.
+  //
+  // El filtro por canal no es un detalle: la advertencia dice literalmente que
+  // WhatsApp no confirmó la entrega, y sin él se marcaba cualquier saliente que
+  // llevara 24 h en 'sent'. Mercado Libre, Instagram y el correo NO mandan
+  // acuse de entrega —su saliente se queda en 'sent' para siempre por diseño—,
+  // así que TODAS sus respuestas terminaban con un triángulo ámbar avisando de
+  // un problema de WhatsApp en conversaciones donde WhatsApp no participa.
   const { data, error } = await admin
     .from('messages')
     .update({ delivery_unconfirmed_at: new Date().toISOString() })
+    .eq('channel', 'whatsapp')
     .eq('status', 'sent')
     .is('delivery_unconfirmed_at', null)
     .in('sender_type', ['agent', 'bot'])

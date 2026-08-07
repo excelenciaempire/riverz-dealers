@@ -63,7 +63,12 @@ interface MessageBubbleProps {
 function deliveryReasonText(
   message: Pick<
     Message,
-    "status" | "error_reason" | "error_code" | "held_for_quality" | "delivery_unconfirmed_at"
+    | "status"
+    | "error_reason"
+    | "error_code"
+    | "held_for_quality"
+    | "delivery_unconfirmed_at"
+    | "channel"
   >,
   t: (key: string, params?: Record<string, string | number>) => string,
 ): string | null {
@@ -75,10 +80,25 @@ function deliveryReasonText(
     return t("deliveryErrors.noReason");
   }
   if (!confirmed && message.held_for_quality) return t("deliveryErrors.held");
-  if (message.status === "sent" && message.delivery_unconfirmed_at) {
-    return t("deliveryErrors.unconfirmed");
-  }
+  if (unconfirmedWhatsApp(message)) return t("deliveryErrors.unconfirmed");
   return null;
+}
+
+/**
+ * "Enviado, pero WhatsApp no confirmó la entrega" sólo tiene sentido en
+ * WhatsApp. El resto de los canales no manda acuse: su saliente se queda en
+ * 'sent' por diseño, y mostrar ahí una alerta de WhatsApp llenaba de triángulos
+ * ámbar hilos de Mercado Libre, Instagram y correo donde no pasaba nada. El
+ * cron ya no los marca; esto además tapa las filas que quedaron marcadas antes.
+ */
+function unconfirmedWhatsApp(
+  message: Pick<Message, "status" | "delivery_unconfirmed_at" | "channel">,
+): boolean {
+  return (
+    message.channel === "whatsapp" &&
+    message.status === "sent" &&
+    Boolean(message.delivery_unconfirmed_at)
+  );
 }
 
 function StatusIcon({ message }: { message: Message }) {
@@ -95,7 +115,7 @@ function StatusIcon({ message }: { message: Message }) {
     );
   }
   // Enviado pero sin confirmar (watchdog): triángulo ámbar de alerta suave.
-  if (message.status === "sent" && message.delivery_unconfirmed_at) {
+  if (unconfirmedWhatsApp(message)) {
     return (
       <span title={reason ?? undefined} className="inline-flex">
         <AlertTriangle className="h-3 w-3 text-amber-500" />
