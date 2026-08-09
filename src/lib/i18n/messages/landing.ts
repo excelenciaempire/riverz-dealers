@@ -101,12 +101,6 @@ export const landing = {
     en: "It confirms every order, sends the tracking number, and answers questions instantly. Your customers always know where their order stands, any time of day.",
   },
 
-  // Banda de confianza: la objeción número uno es que le baneen la cuenta.
-  trustBand: {
-    es: "Conectado por las APIs oficiales de Meta, con permisos aprobados. Sin WhatsApp Web ni números clonados.",
-    en: "Connected through Meta's official APIs, with approved permissions. No WhatsApp Web, no cloned numbers.",
-  },
-
   // En vivo / móvil — mirar al agente trabajar y entrar cuando quieras.
   secLiveTitle: { es: "Míralo trabajar,", en: "Watch it work," },
   secLiveTitleMuted: { es: "desde tu teléfono.", en: "from your phone." },

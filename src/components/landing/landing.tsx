@@ -364,13 +364,6 @@ export function Landing() {
               </span>
             ))}
           </StripRow>
-
-          {/* La duda que frena a todo comerciante antes de conectar nada: si
-              esto le tumba la cuenta. Se responde acá, junto a los logos. */}
-          <p className="flex items-center justify-center gap-2 border-t border-border/40 pt-5 text-center text-[13px] text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0 text-accent-ink" />
-            {t("landing.trustBand")}
-          </p>
         </div>
       </section>
 
@@ -480,17 +473,31 @@ function FeatureSection({
   // it play from the start the moment it appears, never mid-loop or finished.
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [playKey, setPlayKey] = useState(0);
+  // El remontaje es lo único que podría vaciar el hueco por un fotograma y
+  // correr la página bajo el dedo. Antes de remontar clavamos el alto medido
+  // en el contenedor, así el espacio queda reservado pase lo que pase.
+  const [minH, setMinH] = useState<number>();
   useEffect(() => {
     const el = previewRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) setPlayKey((k) => k + 1);
+        if (entry.isIntersecting) {
+          setMinH(el.offsetHeight || undefined);
+          setPlayKey((k) => k + 1);
+        }
       },
       { threshold: 0.3, rootMargin: "0px 0px -12% 0px" },
     );
     io.observe(el);
-    return () => io.disconnect();
+    // Al cambiar de ancho el alto natural cambia: soltamos el alto clavado
+    // para no dejar un hueco de sobra hasta la próxima vez que entre en vista.
+    const onResize = () => setMinH(undefined);
+    window.addEventListener("resize", onResize);
+    return () => {
+      io.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
   return (
@@ -504,7 +511,11 @@ function FeatureSection({
             </h2>
             <p className={`mt-5 max-w-[420px] ${BODY}`}>{t(s.body)}</p>
           </div>
-          <div ref={previewRef} className={flip ? "md:order-1" : undefined}>
+          <div
+            ref={previewRef}
+            className={flip ? "md:order-1" : undefined}
+            style={minH ? { minHeight: minH } : undefined}
+          >
             <s.Preview key={playKey} />
           </div>
         </div>
