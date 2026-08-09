@@ -153,12 +153,15 @@ export interface PullResult {
   reason: PullReason;
 }
 
-/** Trae al inbox los comentarios que falten en UNA conexión de Instagram. */
+/** Trae al inbox los comentarios que falten en UNA conexión. */
 export async function pullCommentsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
 ): Promise<PullResult> {
+  const channel = connection.channel as CommentChannel;
+  const isComment = channel === "ig_comment" || channel === "fb_comment";
   const empty = (reason: PullReason): PullResult => ({
+    channel: isComment ? channel : null,
     ingestedInbound: 0,
     ingested: 0,
     posts: 0,
@@ -167,12 +170,16 @@ export async function pullCommentsForConnection(
     yaEstaba: 0,
     reason,
   });
-  if (connection.channel !== "ig_comment") return empty("sin_config");
+  if (!isComment) return empty("sin_config");
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const igUserId = String(cfg.ig_user_id ?? "");
+  const pageId = String(cfg.page_id ?? "");
+  // Instagram cuelga los comentarios de la cuenta profesional; Facebook, de la
+  // página.
+  const target = channel === "ig_comment" ? igUserId : pageId;
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const enc = String(secrets.access_token ?? "");
-  if (!igUserId || !enc) return empty("sin_config");
+  if (!target || !enc) return empty("sin_config");
   let token: string;
   try {
     token = decrypt(enc);
@@ -180,16 +187,19 @@ export async function pullCommentsForConnection(
     return empty("sin_config");
   }
 
-  // Nuestro @usuario: junto con los ids de la cuenta es lo que distingue lo que
-  // escribimos nosotros de lo que escribió el cliente. Si Graph ni siquiera nos
-  // deja leerlo, no hay forma de decidir nada — mejor no tocar nada.
-  const selfUsername = await fetchSelfUsername(igUserId, token);
-  if (!selfUsername) return empty("graph_denegado");
-  const selfIds = new Set(
-    [igUserId, String(cfg.page_id ?? "")].filter(Boolean),
-  );
+  // Qué cuenta somos NOSOTROS. Por id siempre. En Instagram, además, por
+  // @usuario: Graph no siempre devuelve `from` en los comentarios, y sin ese
+  // dato no se puede distinguir lo nuestro de lo del cliente. Leerlo sirve
+  // encima de sonda de permisos — si ni eso deja, mejor no tocar nada.
+  const selfIds = new Set([igUserId, pageId].filter(Boolean));
+  let selfUsername = "";
+  if (channel === "ig_comment") {
+    const u = await fetchSelfUsername(target, token);
+    if (!u) return empty("graph_denegado");
+    selfUsername = u;
+  }
 
-  const postIds = await postsToScan(db, connection, igUserId, token);
+  const postIds = await postsToScan(db, connection, channel, target, token);
   if (postIds.length === 0) return empty("sin_publicaciones");
 
   let ingestedInbound = 0;
@@ -198,28 +208,43 @@ export async function pullCommentsForConnection(
   let sinHilo = 0;
   let yaEstaba = 0;
   for (const postId of postIds) {
-    const comments = await fetchCommentsWithReplies(postId, token);
+    const comments = await fetchCommentsWithReplies(channel, postId, token);
     for (const comment of comments) {
       const parentId = comment.id;
       if (!parentId) continue;
+      const replies = repliesOf(comment);
       // El comentario de nivel superior: si es de un cliente y no está, entra.
       // Ya contestado por el comercio ⇒ historia, aunque sea reciente: nadie
       // tiene que responder dos veces lo mismo.
-      const answered = (comment.replies?.data ?? []).some((r) =>
-        isSelf(r, selfIds, selfUsername),
-      );
+      const answered = replies.some((r) => isSelf(r, selfIds, selfUsername));
       if (!isSelf(comment, selfIds, selfUsername)) {
         if (
-          await ingestCustomerComment(db, connection, comment, postId, null, answered)
+          await ingestCustomerComment(
+            db,
+            connection,
+            channel,
+            comment,
+            postId,
+            null,
+            answered,
+          )
         ) {
           ingestedInbound++;
         }
       }
-      for (const reply of comment.replies?.data ?? []) {
+      for (const reply of replies) {
         if (!reply.id) continue;
         if (!isSelf(reply, selfIds, selfUsername)) {
           if (
-            await ingestCustomerComment(db, connection, reply, postId, parentId, false)
+            await ingestCustomerComment(
+              db,
+              connection,
+              channel,
+              reply,
+              postId,
+              parentId,
+              false,
+            )
           ) {
             ingestedInbound++;
           }
@@ -227,13 +252,13 @@ export async function pullCommentsForConnection(
         }
         seen++;
         const event = await buildSelfCommentEvent(db, {
-          channel: "ig_comment",
+          channel,
           connection,
           commentId: reply.id,
           parentCommentId: parentId,
           postId,
-          text: reply.text ?? "",
-          receivedAt: parseIgTimestamp(reply.timestamp),
+          text: textOf(reply),
+          receivedAt: parseMetaTimestamp(timeOf(reply)),
         });
         if (!event) {
           sinHilo++;
@@ -249,6 +274,7 @@ export async function pullCommentsForConnection(
     }
   }
   return {
+    channel,
     ingestedInbound,
     ingested,
     posts: postIds.length,
@@ -259,7 +285,7 @@ export async function pullCommentsForConnection(
   };
 }
 
-/** Corre el pull en todas las conexiones de comentarios de Instagram. */
+/** Corre el pull en todas las conexiones de comentarios, de los dos canales. */
 export async function pullCommentsAll(db: SupabaseClient): Promise<{
   connections: number;
   ingestedInbound: number;
@@ -270,7 +296,7 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
   const { data: conns } = await db
     .from("channel_connections")
     .select("*")
-    .eq("channel", "ig_comment")
+    .in("channel", ["ig_comment", "fb_comment"])
     .in("status", ["connected", "error", "expired"]);
   const list = (conns ?? []) as ChannelConnection[];
 
@@ -293,11 +319,11 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
 }
 
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no
- *  lo devuelve, el @usuario. */
-function isSelf(c: IgReply, selfIds: Set<string>, selfUsername: string): boolean {
+ *  lo devuelve, el @usuario de Instagram. */
+function isSelf(c: RawComment, selfIds: Set<string>, selfUsername: string): boolean {
   const fromId = c.from?.id;
   if (fromId) return selfIds.has(String(fromId));
-  return (c.username ?? c.from?.username) === selfUsername;
+  return Boolean(selfUsername) && (c.username ?? c.from?.username) === selfUsername;
 }
 
 /**
@@ -312,7 +338,8 @@ function isSelf(c: IgReply, selfIds: Set<string>, selfUsername: string): boolean
 async function ingestCustomerComment(
   db: SupabaseClient,
   connection: ChannelConnection,
-  comment: IgReply,
+  channel: CommentChannel,
+  comment: RawComment,
   postId: string,
   parentCommentId: string | null,
   alreadyAnswered: boolean,
@@ -322,21 +349,18 @@ async function ingestCustomerComment(
   // peor que dejarlo fuera (el hilo no podría responderse ni fusionarse).
   const authorId = comment.from?.id;
   if (!commentId || !authorId) return false;
-  const username = (comment.from?.username ?? comment.username)?.trim();
-  const receivedAt = parseIgTimestamp(comment.timestamp);
+  const receivedAt = parseMetaTimestamp(timeOf(comment));
   // Un timestamp ilegible cae del lado seguro (NaN hace fallar el `<`): mejor
   // no contestar de más que contestar tarde.
   const age = Date.now() - Date.parse(receivedAt);
   const suppressAutoReply = alreadyAnswered || !(age < LIVE_WINDOW_MS);
   const written = await ingestInboundEvent(db, {
-    channel: "ig_comment",
+    channel,
     connection,
     externalContactId: String(authorId),
-    // "@usuario" — mismo formato que el webhook y el cron de nombres, para que
-    // la misma persona se lea igual haya comentado o mandado un DM.
-    contactName: username ? `@${username}` : undefined,
+    contactName: contactNameOf(channel, comment),
     externalMessageId: commentId,
-    text: comment.text ?? "",
+    text: textOf(comment),
     comment: {
       postId,
       parentCommentId: parentCommentId ?? undefined,
@@ -349,18 +373,21 @@ async function ingestCustomerComment(
 
 /**
  * Publicaciones a revisar: las recientes de la cuenta según Graph, más aquellas
- * donde ya hay comentarios guardados. La primera mitad cubre el post nuevo que
- * nunca tuvo comentarios en Riverz (invisible para la segunda); la segunda, el
- * post viejo que Graph ya no lista entre los recientes pero sigue recibiendo.
+ * donde ya hay comentarios guardados. La primera mitad cubre la publicación
+ * nueva que nunca tuvo comentarios en Riverz; la segunda —y es la que más pesa
+ * en una cuenta que anuncia— cubre las creatividades de anuncios, que Graph no
+ * lista por ninguna arista y sólo conocemos porque alguna vez llegó un
+ * comentario suyo.
  */
 async function postsToScan(
   db: SupabaseClient,
   connection: ChannelConnection,
-  igUserId: string,
+  channel: CommentChannel,
+  target: string,
   token: string,
 ): Promise<string[]> {
-  const ids = new Set<string>(await recentMediaIds(igUserId, token));
-  for (const id of await postIdsWithSavedComments(db, connection)) {
+  const ids = new Set<string>(await recentPostIds(channel, target, token));
+  for (const id of await postIdsWithSavedComments(db, connection, channel)) {
     if (ids.size >= MAX_POSTS_PER_RUN) break;
     ids.add(id);
   }
@@ -368,23 +395,26 @@ async function postsToScan(
 }
 
 /** Publicaciones recientes de la cuenta, dentro de la ventana. */
-async function recentMediaIds(igUserId: string, token: string): Promise<string[]> {
+async function recentPostIds(
+  channel: CommentChannel,
+  target: string,
+  token: string,
+): Promise<string[]> {
+  const { edge, timeField } = DIALECT[channel];
   const since = Date.now() - WINDOW_MS;
   const url = withAppsecretProof(
-    `${GRAPH}/${igUserId}/media?fields=id,timestamp&limit=${MAX_POSTS_PER_RUN}` +
+    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${MAX_POSTS_PER_RUN}` +
       `&access_token=${encodeURIComponent(token)}`,
     token,
   );
   try {
     const res = await fetch(url);
     if (!res.ok) return [];
-    const json = (await res.json()) as {
-      data?: Array<{ id?: string; timestamp?: string }>;
-    };
+    const json = (await res.json()) as { data?: RawComment[] };
     return (json.data ?? [])
       .filter((m) => {
         if (!m.id) return false;
-        const ms = Date.parse(parseIgTimestamp(m.timestamp));
+        const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
         return !Number.isFinite(ms) || ms >= since;
       })
       .map((m) => String(m.id));
@@ -397,12 +427,13 @@ async function recentMediaIds(igUserId: string, token: string): Promise<string[]
 async function postIdsWithSavedComments(
   db: SupabaseClient,
   connection: ChannelConnection,
+  channel: CommentChannel,
 ): Promise<string[]> {
   const sinceIso = new Date(Date.now() - WINDOW_MS).toISOString();
   const { data: msgs } = await db
     .from("messages")
     .select("id, conversations!inner(connection_id)")
-    .eq("channel", "ig_comment")
+    .eq("channel", channel)
     .eq("conversations.connection_id", connection.id)
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
@@ -437,27 +468,28 @@ async function fetchSelfUsername(igUserId: string, token: string): Promise<strin
   }
 }
 
-async function fetchCommentsWithReplies(postId: string, token: string): Promise<IgComment[]> {
-  const fields =
-    "id,text,timestamp,username,from{id,username}," +
-    "replies{id,text,timestamp,username,from{id,username}}";
+async function fetchCommentsWithReplies(
+  channel: CommentChannel,
+  postId: string,
+  token: string,
+): Promise<RawComment[]> {
   const url = withAppsecretProof(
-    `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(fields)}&limit=${COMMENTS_PER_POST}` +
-      `&access_token=${encodeURIComponent(token)}`,
+    `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(DIALECT[channel].commentFields)}` +
+      `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
     token,
   );
   try {
     const res = await fetch(url);
     if (!res.ok) return [];
-    const json = (await res.json()) as { data?: IgComment[] };
+    const json = (await res.json()) as { data?: RawComment[] };
     return json.data ?? [];
   } catch {
     return [];
   }
 }
 
-/** Instagram devuelve "2026-07-27T12:00:00+0000" (sin dos puntos en el huso). */
-function parseIgTimestamp(raw: string | undefined): string {
+/** Meta devuelve "2026-07-27T12:00:00+0000" (sin dos puntos en el huso). */
+function parseMetaTimestamp(raw: string | undefined): string {
   if (!raw) return new Date().toISOString();
   const ms = Date.parse(raw.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
   return Number.isFinite(ms) ? new Date(ms).toISOString() : new Date().toISOString();

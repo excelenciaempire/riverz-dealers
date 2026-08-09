@@ -55,12 +55,21 @@ function mockGraph(comments: unknown[]) {
   return vi.fn(async (url: string) => {
     const json = url.includes("/comments")
       ? { data: comments }
-      : url.includes("/media")
-        ? { data: [{ id: POST, timestamp: iso(0) }] }
+      : url.includes("/media") || url.includes("/posts")
+        ? { data: [{ id: POST, timestamp: iso(0), created_time: iso(0) }] }
         : { username: "pilaroficial_arg" };
     return { ok: true, json: async () => json } as unknown as Response;
   });
 }
+
+const PAGE = "662811686925997";
+const fbConnection = {
+  id: "conn-fb",
+  workspace_id: "ws-1",
+  channel: "fb_comment",
+  config: { page_id: PAGE },
+  secrets: { access_token: "token" },
+} as unknown as ChannelConnection;
 
 describe("pullCommentsForConnection", () => {
   beforeEach(() => {
@@ -131,6 +140,59 @@ describe("pullCommentsForConnection", () => {
     );
     await pullCommentsForConnection(fakeDb(), connection);
     const customer = ingested.find((e) => e.externalMessageId === "c-2");
+    expect(customer?.suppressAutoReply).toBe(true);
+  });
+
+  // Facebook habla otro dialecto de Graph: `message` en vez de `text`,
+  // `created_time` en vez de `timestamp`, `comments` en vez de `replies` y el
+  // nombre real en vez del @usuario. Hasta el 2026-08-08 no tenía rescate: si
+  // Meta perdía una entrega, ese comentario no volvía nunca.
+  it("rescata un comentario de Facebook con su dialecto", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockGraph([
+        {
+          id: "fb-1",
+          message: "Perdon pero a mi no me hizo nada",
+          created_time: iso(5 * 60_000),
+          from: { id: "cliente-fb", name: "Claudia Vikario" },
+        },
+      ]),
+    );
+    const r = await pullCommentsForConnection(fakeDb(), fbConnection);
+    expect(r.channel).toBe("fb_comment");
+    expect(r.ingestedInbound).toBe(1);
+    expect(ingested[0].channel).toBe("fb_comment");
+    expect(ingested[0].text).toBe("Perdon pero a mi no me hizo nada");
+    // Facebook da el nombre real: no se le pone arroba como al @usuario de IG.
+    expect(ingested[0].contactName).toBe("Claudia Vikario");
+    expect(ingested[0].suppressAutoReply).toBe(false);
+  });
+
+  it("en Facebook, un comentario ya contestado por la pagina no se contesta solo", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockGraph([
+        {
+          id: "fb-2",
+          message: "Cuanto sale?",
+          created_time: iso(5 * 60_000),
+          from: { id: "cliente-fb2", name: "Otra Persona" },
+          comments: {
+            data: [
+              {
+                id: "fb-r1",
+                message: "Te escribimos al privado",
+                created_time: iso(60_000),
+                from: { id: PAGE, name: "Pilar Skin" },
+              },
+            ],
+          },
+        },
+      ]),
+    );
+    await pullCommentsForConnection(fakeDb(), fbConnection);
+    const customer = ingested.find((e) => e.externalMessageId === "fb-2");
     expect(customer?.suppressAutoReply).toBe(true);
   });
 

@@ -11,11 +11,12 @@ import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
  * Two-way comment sync (pull side), con DOS ritmos en un solo cron:
  *
  *   - Cada corrida — comentarios de clientes y respuestas que el comercio
- *     escribió desde la app de Instagram / Facebook. Es sólo una RED DE
- *     SEGURIDAD: medido en producción el 2026-07-27, un comentario llega por
- *     webhook en ~1 segundo. Esto recoge lo que el webhook pierda (una entrega
- *     sin reintento, una caída, la suscripción de Meta apuntando a un dominio
- *     que ya no existe). Cuesta ~1 llamada a Graph por publicación.
+ *     escribió desde la app de Instagram / Facebook, en los DOS canales. Es
+ *     sólo una RED DE SEGURIDAD: medido en producción el 2026-07-27, un
+ *     comentario llega por webhook en ~1 segundo. Esto recoge lo que el webhook
+ *     pierda (una entrega sin reintento, una caída, la suscripción de Meta
+ *     apuntando a un dominio que ya no existe). Cuesta ~1 llamada a Graph por
+ *     publicación.
  *   - Cada ~10 min — reconciliación de borrados / ocultos (hasta 300 sondeos a
  *     Graph por cuenta). Instagram no emite webhook de borrado/ocultado, así
  *     que acá el pull no es respaldo: es el único camino.
