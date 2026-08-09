@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -57,6 +57,25 @@ import type { Channel } from "@/types";
  * looping animation where the AI attends a customer and closes a sale — the
  * same component scales cleanly from phone to desktop. No real customer data.
  */
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dos redacciones, una sola página
+// ─────────────────────────────────────────────────────────────────────────
+// Todo el copy vive en el catálogo `landing`; `landingV2` tiene las mismas
+// claves con otras palabras. En vez de duplicar 1.700 líneas de componentes
+// para probar una redacción distinta, el catálogo se elige por contexto y
+// cada `t("landing.x")` se reescribe al vuelo. Sin prop drilling: las vistas
+// previas están anidadas varios niveles.
+const CopyContext = createContext<"landing" | "landingV2">("landing");
+
+/** Igual que `useT()`, pero resuelve "landing.*" contra el catálogo activo. */
+function useCopy() {
+  const t = useT();
+  const ns = useContext(CopyContext);
+  if (ns === "landing") return t;
+  return (key: string, vars?: Record<string, string | number>) =>
+    t(key.startsWith("landing.") ? `landingV2.${key.slice(8)}` : key, vars);
+}
 
 // Shared editorial type scale (matches riverzai.com).
 const DISPLAY =
@@ -285,8 +304,17 @@ const SECTIONS: {
   },
 ];
 
-export function Landing() {
-  const { t, locale } = useLocale();
+export function Landing({ copy = "landing" }: { copy?: "landing" | "landingV2" }) {
+  return (
+    <CopyContext.Provider value={copy}>
+      <LandingBody />
+    </CopyContext.Provider>
+  );
+}
+
+function LandingBody() {
+  const t = useCopy();
+  const { locale } = useLocale();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
@@ -467,7 +495,7 @@ function FeatureSection({
   s: (typeof SECTIONS)[number];
   flip: boolean;
 }) {
-  const t = useT();
+  const t = useCopy();
   // Replay the preview's animation each time it scrolls into view (on every
   // device) by remounting it via a changing key — so the visitor always sees
   // it play from the start the moment it appears, never mid-loop or finished.
@@ -604,7 +632,7 @@ function LandingLocaleToggle() {
 // vice-versa. Mirrors the sidebar control: Sun when dark (→ go light), Moon
 // when light (→ go dark).
 function LandingThemeToggle() {
-  const t = useT();
+  const t = useCopy();
   const { theme, setTheme } = useTheme();
   return (
     <button
@@ -628,7 +656,7 @@ function LandingThemeToggle() {
 // Pre-launch waitlist signup. Posts to /api/waitlist, which stores the lead
 // and emails the owner. Works on light (hero) and dark (CTA) backgrounds.
 function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
-  const t = useT();
+  const t = useCopy();
   const dark = tone === "dark";
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -831,7 +859,7 @@ function delayFor(step: Step): number {
 }
 
 function HeroInbox() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   // One state object so switching channels resets the step count atomically
   // (no synchronous setN in the effect, no stale-slice flash).
@@ -951,7 +979,7 @@ function HeroInbox() {
 }
 
 function Bubble({ step }: { step: Step }) {
-  const t = useT();
+  const t = useCopy();
   if (step.kind === "typing") {
     return (
       <div className="flex max-w-[80%] items-center gap-1 self-end rounded-2xl rounded-tr-sm bg-primary px-3.5 py-3 duration-300 animate-in fade-in slide-in-from-bottom-2">
@@ -991,7 +1019,7 @@ function SaleCard({
   order: string;
   channel: Ch;
 }) {
-  const t = useT();
+  const t = useCopy();
   const ml = channel === "mercadolibre";
   return (
     <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
@@ -1020,7 +1048,7 @@ function SaleCard({
 // ─────────────────────────────────────────────────────────────────────────
 
 function InboxPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
   const paused = useRef(false);
@@ -1089,7 +1117,7 @@ const AGENT_SOURCES: { icon: typeof Inbox; label: string; y: number }[] = [
 ];
 
 function AgentPanel() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
   useEffect(() => {
@@ -1184,7 +1212,7 @@ function AgentPanel() {
 const CART_ICONS: (typeof Inbox)[] = [ShoppingCart, Sparkles, Check];
 
 function CartRecoveryPanel() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   // phases: 0 abandoned · 1 agent reaches out · 2 recovered · 3 hold → loop.
   const [phase, setPhase] = useState(0);
@@ -1286,7 +1314,7 @@ const COMMENTS: { user: string; text: string }[] = [
 ];
 
 function CommentsPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
   useEffect(() => {
@@ -1363,7 +1391,7 @@ const SUPPORT_EVENTS: { icon: typeof Inbox; title: string; meta: string }[] = [
 ];
 
 function SupportPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(1);
   useEffect(() => {
@@ -1431,7 +1459,7 @@ const CALL_LINES: { who: "agent" | "customer"; text: string }[] = [
 ];
 
 function CallPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   // 0 marcando · 1..3 líneas de la transcripción · 4 resultado
   const [step, setStep] = useState(0);
@@ -1528,7 +1556,7 @@ function CallPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function LivePreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   // 0 llega el mensaje · 1 el agente escribe · 2 responde
   const [step, setStep] = useState(0);
@@ -1597,7 +1625,7 @@ const CONTACT_ROWS: { name: string; tag: string; spent: string }[] = [
 ];
 
 function ContactsPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(reduced ? CONTACT_ROWS.length : 0);
   useEffect(() => {
@@ -1686,7 +1714,7 @@ function SetupToggle({ on }: { on: boolean }) {
 }
 
 function SetupPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0); // 0..3 (3 = all done) → loop
   useEffect(() => {
@@ -1782,7 +1810,7 @@ const FLOW: { icon: typeof Inbox; sub: string }[] = [
 ];
 
 function FlowPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0);
   useEffect(() => {
@@ -1836,7 +1864,7 @@ function FlowPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function CampaignPreview() {
-  const t = useT();
+  const t = useCopy();
   const reduced = useReducedMotion();
   // FeatureSection remounts this preview when it enters view, so a single
   // start-on-mount is enough — the counters replay every time it appears.
@@ -1906,7 +1934,7 @@ function CampaignPreview() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function ProductPreview() {
-  const t = useT();
+  const t = useCopy();
   return (
     <PreviewFrame>
       <div className="flex flex-col gap-4 p-5">
@@ -1959,7 +1987,7 @@ function ProductPreview() {
 const BARS = [38, 52, 44, 70, 60, 84, 96];
 
 function MetricsPreview() {
-  const t = useT();
+  const t = useCopy();
   // setTimeout (not a one-shot rAF, which can be dropped off-screen) so the
   // counters reliably start. FeatureSection remounts the preview on view, so
   // they replay from zero every time the section appears.
