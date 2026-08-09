@@ -37,14 +37,16 @@ export const metadata: Metadata = {
     template: "%s · riverz",
   },
   description:
-    "riverz es el agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y mide cada venta, 24/7.",
+    "riverz despliega agentes de IA que atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. WhatsApp, Instagram, Messenger y correo, 24/7.",
   applicationName: "riverz",
   authors: [{ name: "riverz", url: "https://riverz.co" }],
   creator: "riverz",
   publisher: "riverz",
   category: "business",
   keywords: [
-    "agente de IA para ventas",
+    "agentes de IA para ventas",
+    "agente de IA autónomo",
+    "IA agéntica para ecommerce",
     "CRM con IA",
     "CRM para WhatsApp",
     "CRM para Instagram",
@@ -76,17 +78,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "riverz",
-    title: "riverz — CRM con IA para WhatsApp e Instagram",
+    title: "riverz — Agentes de IA que venden por WhatsApp e Instagram",
     description:
-      "El agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. 24/7.",
+      "Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7.",
     url: "/",
     locale: "es_ES",
   },
   twitter: {
     card: "summary_large_image",
-    title: "riverz — CRM con IA para WhatsApp e Instagram",
+    title: "riverz — Agentes de IA que venden por WhatsApp e Instagram",
     description:
-      "El agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram. 24/7.",
+      "Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7.",
   },
   alternates: {
     canonical: "/",

@@ -8,10 +8,11 @@ import { ImageResponse } from "next/og";
 // Editorial dark theme (charcoal #0a0a0a + lime #f7ff9e) matching the brand's
 // dark mode and the favicon. Type is intentionally light-weight (Geist 400,
 // the next/og default font) — the "expensive", restrained feel of the Riverz
-// design system. Headline mirrors the landing hero ("Convierte cada chat en
-// una venta.") so the share preview and the page tell the same story.
+// design system. Headline leads with the agentic promise — el agente no
+// responde, ejecuta — y el subtítulo lo prueba con lo que hace solo.
 
-export const alt = "riverz — Agente de IA que vende por WhatsApp e Instagram";
+export const alt =
+  "riverz — Agentes de IA que cierran la venta por WhatsApp e Instagram";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -61,9 +62,9 @@ export function renderShareCard(): ImageResponse {
         {/* Headline + subline */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.03 }}>
-            <span style={{ fontSize: 86, letterSpacing: -2.5 }}>Convierte cada chat</span>
+            <span style={{ fontSize: 86, letterSpacing: -2.5 }}>Agentes de IA que</span>
             <div style={{ display: "flex", fontSize: 86, letterSpacing: -2.5 }}>
-              <span style={{ marginRight: 22 }}>en una</span>
+              <span style={{ marginRight: 22 }}>cierran la</span>
               <span style={{ color: "#f7ff9e" }}>venta.</span>
             </div>
           </div>
@@ -76,8 +77,8 @@ export function renderShareCard(): ImageResponse {
               maxWidth: 880,
             }}
           >
-            El agente de IA que atiende, recomienda y cierra ventas por WhatsApp e
-            Instagram. Recupera carritos y vende 24/7.
+            Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean
+            el pedido en tu tienda. Sin que tengas que responder.
           </span>
         </div>
 
