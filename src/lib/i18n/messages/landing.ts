@@ -25,11 +25,13 @@ export const landing = {
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
-  heroTitleLead: { es: "Contesta tus chats", en: "It answers your chats" },
-  heroTitleMuted: { es: "y cierra tus ventas.", en: "and closes your sales." },
+  // El hero promete el conjunto —un agente que hace todo—; el desglose
+  // función por función viene después, sección por sección.
+  heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
+  heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
   heroSubtitle: {
-    es: "Riverz reúne WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas en una sola bandeja, y un agente de IA responde, recomienda y crea el pedido en tu tienda.",
-    en: "Riverz brings WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls into one inbox, and an AI agent replies, recommends, and creates the order in your store.",
+    es: "Atienden, recomiendan, recuperan carritos, confirman pedidos y dejan la venta creada en tu tienda. Servicio al cliente 24/7 en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas.",
+    en: "They engage, recommend, recover carts, confirm orders, and leave the sale created in your store. 24/7 customer service on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
