@@ -6,7 +6,7 @@ import { buildSelfCommentEvent } from "./comment-echo";
 import { ingestInboundEvent } from "./inbox-writer";
 
 /**
- * Comentarios de Instagram — lado pull (RED DE SEGURIDAD del webhook).
+ * Comentarios de Instagram y Facebook — lado pull (RED DE SEGURIDAD del webhook).
  *
  * El camino normal es el webhook y es rápido: medido en producción el
  * 2026-07-27, un comentario aparece en la bandeja ~1 segundo después. Este
@@ -15,16 +15,22 @@ import { ingestInboundEvent } from "./inbox-writer";
  *
  * Cubre las DOS direcciones:
  *   - Comentarios de clientes (entrantes).
- *   - Respuestas que el comercio escribió desde la app de Instagram.
+ *   - Respuestas que el comercio escribió desde la app de Instagram o Facebook.
  *
- * Antes sólo traía las respuestas propias, y esa asimetría costó caro: entre el
- * 2026-07-29 y el 2026-08-04 la suscripción de Meta quedó apuntando al dominio
- * viejo tras mudar el hosting, y como nada más releía los comentarios de
- * clientes, seis días de preguntas no existieron para la bandeja.
+ * Antes sólo traía las respuestas propias, y sólo de Instagram. Las dos
+ * asimetrías costaron caro: entre el 2026-07-29 y el 2026-08-04 la suscripción
+ * de Meta quedó apuntando al dominio viejo tras mudar el hosting, y como nada
+ * releía los comentarios de clientes, seis días de preguntas no existieron para
+ * la bandeja. Facebook además no tenía respaldo de ningún tipo.
  *
- * Qué publicaciones mira: las recientes de la cuenta (Graph) unidas a aquellas
- * donde ya hay comentarios guardados. Lo primero cubre un post nuevo que nunca
- * tuvo comentarios en Riverz; lo segundo, un post viejo que sigue recibiendo.
+ * QUÉ PUBLICACIONES MIRA — y por qué no alcanza con las orgánicas. Medido el
+ * 2026-08-07 sobre una cuenta que anuncia: 7 de 8 publicaciones de Instagram con
+ * comentarios recientes NO aparecen en `/media`, y la de Facebook no aparece en
+ * `/posts`, `/feed`, `/published_posts` ni `/ads_posts`. Son creatividades de
+ * anuncios y Graph no las lista por ninguna arista: la única forma de conocerlas
+ * es que alguna vez hayan producido un comentario que sí entró. Por eso se unen
+ * las publicaciones recientes de la cuenta con las que ya tienen comentarios
+ * guardados — y en una cuenta que anuncia, la segunda mitad es la que pesa.
  *
  * Todo lo que trae pasa por `ingestInboundEvent`, que corta duplicados por id
  * externo: repetir una corrida no duplica nada.
@@ -50,21 +56,72 @@ const COMMENTS_PER_POST = 50;
  */
 const LIVE_WINDOW_MS = 60 * 60_000;
 
-interface IgAuthor {
-  id?: string;
-  username?: string;
-}
+type CommentChannel = "ig_comment" | "fb_comment";
 
-interface IgReply {
+/** Un comentario tal como lo devuelve Graph, en cualquiera de los dos dialectos. */
+interface RawComment {
   id?: string;
+  /** Instagram. */
   text?: string;
-  username?: string;
   timestamp?: string;
-  from?: IgAuthor;
+  username?: string;
+  /** Facebook. */
+  message?: string;
+  created_time?: string;
+  from?: { id?: string; username?: string; name?: string };
+  /** Las respuestas anidadas: Instagram las llama `replies`, Facebook `comments`. */
+  replies?: { data?: RawComment[] };
+  comments?: { data?: RawComment[] };
 }
 
-interface IgComment extends IgReply {
-  replies?: { data?: IgReply[] };
+/**
+ * Lo único que cambia entre Instagram y Facebook: cómo se llama cada cosa en
+ * Graph. Aislarlo acá evita duplicar el módulo entero por un puñado de nombres.
+ */
+const DIALECT: Record<
+  CommentChannel,
+  { edge: string; timeField: string; commentFields: string }
+> = {
+  ig_comment: {
+    edge: "media",
+    timeField: "timestamp",
+    commentFields:
+      "id,text,timestamp,username,from{id,username}," +
+      "replies{id,text,timestamp,username,from{id,username}}",
+  },
+  fb_comment: {
+    edge: "posts",
+    timeField: "created_time",
+    commentFields:
+      "id,message,created_time,from{id,name}," +
+      "comments{id,message,created_time,from{id,name}}",
+  },
+};
+
+/** El texto del comentario, se llame `text` (Instagram) o `message` (Facebook). */
+function textOf(c: RawComment): string {
+  return c.text ?? c.message ?? "";
+}
+
+/** Cuándo se escribió: `timestamp` en Instagram, `created_time` en Facebook. */
+function timeOf(c: RawComment): string | undefined {
+  return c.timestamp ?? c.created_time;
+}
+
+/** Las respuestas anidadas: `replies` en Instagram, `comments` en Facebook. */
+function repliesOf(c: RawComment): RawComment[] {
+  return c.replies?.data ?? c.comments?.data ?? [];
+}
+
+/**
+ * Cómo se muestra quien comentó. Instagram no expone el nombre real, sólo el
+ * @usuario — y se guarda con arroba para que la misma persona se lea igual haya
+ * comentado o mandado un DM. Facebook sí da el nombre.
+ */
+function contactNameOf(channel: CommentChannel, c: RawComment): string | undefined {
+  if (channel === "fb_comment") return c.from?.name?.trim() || undefined;
+  const username = (c.from?.username ?? c.username)?.trim();
+  return username ? `@${username}` : undefined;
 }
 
 /**
@@ -80,6 +137,7 @@ export type PullReason =
   | "sin_publicaciones";
 
 export interface PullResult {
+  channel: CommentChannel | null;
   /** Comentarios de clientes que faltaban y entraron en esta corrida. */
   ingestedInbound: number;
   /** Respuestas propias que faltaban y entraron en esta corrida. */

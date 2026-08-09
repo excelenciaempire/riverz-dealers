@@ -481,6 +481,17 @@ export const landing = {
     en: "Agent revenue · 7 days",
   },
 
+  // ── Cierre de confianza (antes del CTA) ──
+  finalTrustTitle: {
+    es: "Todo por los canales oficiales.",
+    en: "Everything through official channels.",
+  },
+  finalTrustTitleMuted: { es: "Sin baneos.", en: "No bans." },
+  finalTrustBody: {
+    es: "Cada mensaje sale por las APIs oficiales de Meta, con los permisos aprobados. Nada de WhatsApp Web ni números clonados: tu cuenta no se bloquea.",
+    en: "Every message goes out through Meta's official APIs, with approved permissions. No WhatsApp Web, no cloned numbers: your account doesn't get blocked.",
+  },
+
   // ── CTA ──
   ctaBadge: { es: "Pre-lanzamiento", en: "Pre-launch" },
   ctaTitle: {

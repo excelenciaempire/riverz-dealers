@@ -381,6 +381,22 @@ export function Landing() {
         ))}
       </div>
 
+      {/* Cierre de confianza: lo último que se lee antes de dejar el correo.
+          La objeción del baneo se responde dos veces a propósito —arriba junto
+          a los logos y acá, ya convencido— porque es la que frena la decisión. */}
+      <section className="border-t border-border/50">
+        <div className="mx-auto max-w-2xl px-5 py-[clamp(56px,6vw,96px)] text-center">
+          <span className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-accent-ink">
+            <ShieldCheck className="size-5" />
+          </span>
+          <h2 className={`mt-6 text-balance ${H2}`}>
+            {t("landing.finalTrustTitle")}{" "}
+            <span className="text-muted-foreground">{t("landing.finalTrustTitleMuted")}</span>
+          </h2>
+          <p className={`mx-auto mt-5 max-w-[52ch] ${BODY}`}>{t("landing.finalTrustBody")}</p>
+        </div>
+      </section>
+
       {/* CTA — the dedicated waitlist screen the hero + nav buttons jump to */}
       <section id="lista" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24">
         {/* Intentionally always-dark editorial band. In dark mode the page bg
