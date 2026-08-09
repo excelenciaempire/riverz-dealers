@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     template: "%s · riverz",
   },
   description:
-    "riverz despliega agentes de IA que atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. WhatsApp, Instagram, Messenger y correo, 24/7.",
+    "riverz despliega agentes de IA que atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido en tu tienda, 24/7.",
   applicationName: "riverz",
   authors: [{ name: "riverz", url: "https://riverz.co" }],
   creator: "riverz",
@@ -50,6 +50,10 @@ export const metadata: Metadata = {
     "CRM con IA",
     "CRM para WhatsApp",
     "CRM para Instagram",
+    "agente para Mercado Libre",
+    "responder preguntas de Mercado Libre",
+    "bandeja multicanal",
+    "agente de voz para llamadas",
     "chatbot de ventas WhatsApp",
     "automatización de WhatsApp",
     "recuperación de carritos",
@@ -78,17 +82,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "riverz",
-    title: "riverz — Agentes de IA que venden por WhatsApp e Instagram",
+    title: "riverz — Agentes de IA que venden en todos tus canales",
     description:
-      "Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7.",
+      "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
     url: "/",
     locale: "es_ES",
   },
   twitter: {
     card: "summary_large_image",
-    title: "riverz — Agentes de IA que venden por WhatsApp e Instagram",
+    title: "riverz — Agentes de IA que venden en todos tus canales",
     description:
-      "Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7.",
+      "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
   },
   alternates: {
     canonical: "/",

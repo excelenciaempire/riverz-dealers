@@ -9,16 +9,16 @@ export const landing = {
     en: "riverz",
   },
   metaDescription: {
-    es: "Agentes de IA que atienden, deciden y ejecutan en WhatsApp e Instagram: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7, sin que tengas que responder.",
-    en: "AI agents that engage, decide, and act on WhatsApp and Instagram: they recommend, recover carts, and create the order in your store. 24/7, without you replying.",
+    es: "Agentes de IA que atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7, sin que tengas que responder.",
+    en: "AI agents that engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order in your store. 24/7, without you replying.",
   },
   ogTitle: {
     es: "Agentes de IA que cierran la venta · riverz",
     en: "AI agents that close the sale · riverz",
   },
   ogDescription: {
-    es: "Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean el pedido en tu tienda. Sin que tengas que responder.",
-    en: "They engage, decide, and act: recommend, recover carts, and create the order in your store. Without you replying.",
+    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
+    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order.",
   },
 
   // ── Header / nav ──

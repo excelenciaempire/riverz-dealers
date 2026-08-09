@@ -12,7 +12,7 @@ import { ImageResponse } from "next/og";
 // responde, ejecuta — y el subtítulo lo prueba con lo que hace solo.
 
 export const alt =
-  "riverz — Agentes de IA que cierran la venta por WhatsApp e Instagram";
+  "riverz — Agentes de IA que cierran la venta en todos tus canales";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -90,8 +90,10 @@ export function renderShareCard(): ImageResponse {
             justifyContent: "space-between",
           }}
         >
-          <span style={{ fontSize: 24, color: "rgba(250,250,247,0.5)" }}>
-            WhatsApp · Instagram · Messenger · Correo
+          {/* Seis canales en una línea: 22px deja margen frente al dominio
+              de la derecha en los 1032px útiles de la tarjeta. */}
+          <span style={{ fontSize: 22, color: "rgba(250,250,247,0.5)" }}>
+            WhatsApp · Instagram · Messenger · Mercado Libre · Correo · Llamadas
           </span>
           <span style={{ fontSize: 26, color: "#f7ff9e" }}>riverz.co</span>
         </div>
