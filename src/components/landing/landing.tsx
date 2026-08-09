@@ -27,6 +27,9 @@ import {
   Heart,
   CornerDownRight,
   Headset,
+  PhoneCall,
+  Users,
+  Filter,
   Sun,
   Moon,
 } from "lucide-react";
@@ -81,6 +84,9 @@ const INTEGRATIONS: { src: string; label: string }[] = [
   { src: "/channels/woocommerce.svg", label: "WooCommerce" },
   { src: "/channels/tiendanube.svg", label: "Tiendanube" },
   { src: "/channels/meta.svg", label: "Meta" },
+  // Isotipo oficial de Dropi (dropi.co). PNG con transparencia: no publican
+  // el mark en SVG suelto, solo el lockup horizontal con la palabra.
+  { src: "/channels/dropi.png", label: "Dropi" },
 ];
 
 // Unified inbox preview rows — the four channels plus a public comment that
@@ -195,6 +201,15 @@ const SECTIONS: {
     Preview: SupportPreview,
   },
   {
+    n: "04b",
+    eyebrow: "Llamadas",
+    icon: PhoneCall,
+    title: "landing.secVoiceTitle",
+    titleMuted: "landing.secVoiceTitleMuted",
+    body: "landing.secVoiceBody",
+    Preview: CallPreview,
+  },
+  {
     n: "05",
     eyebrow: "Comentarios",
     icon: MessageSquare,
@@ -220,6 +235,15 @@ const SECTIONS: {
     titleMuted: "landing.sec07TitleMuted",
     body: "landing.sec07Body",
     Preview: InboxPreview,
+  },
+  {
+    n: "07b",
+    eyebrow: "Contactos",
+    icon: Users,
+    title: "landing.secContactsTitle",
+    titleMuted: "landing.secContactsTitleMuted",
+    body: "landing.secContactsBody",
+    Preview: ContactsPreview,
   },
   {
     n: "08",
@@ -315,6 +339,11 @@ export function Landing() {
                 <ChannelLogo channel={c.id} size={22} /> {t(c.label)}
               </span>
             ))}
+            {/* Las llamadas no tienen bandeja propia ni marca: van con el
+                icono del teléfono, como en el menú de la app. */}
+            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <PhoneCall className="size-[22px]" /> {t("landing.channelCalls")}
+            </span>
           </StripRow>
           <StripRow label={t("landing.stripIntegrations")}>
             {INTEGRATIONS.map((i) => (
@@ -323,11 +352,6 @@ export function Landing() {
                 {i.label}
               </span>
             ))}
-            {/* Dropi no publica un logotipo reutilizable: va con el icono de
-                despacho que ya usa su tarjeta en Ajustes. */}
-            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <Truck className="size-[22px]" /> Dropi
-            </span>
           </StripRow>
         </div>
       </section>
@@ -1344,6 +1368,190 @@ function SupportPreview() {
               </div>
             );
           })}
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 04b · Llamadas — el agente marca, habla y cierra con un resultado. La
+// transcripción entra línea por línea, como se ve en /voz.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CALL_LINES: { who: "agent" | "customer"; text: string }[] = [
+  { who: "agent", text: "landing.callLine1" },
+  { who: "agent", text: "landing.callLine2" },
+  { who: "customer", text: "landing.callLine3" },
+];
+
+function CallPreview() {
+  const t = useT();
+  const reduced = useReducedMotion();
+  // 0 marcando · 1..3 líneas de la transcripción · 4 resultado
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (reduced) {
+      const raf = requestAnimationFrame(() => setStep(4));
+      return () => cancelAnimationFrame(raf);
+    }
+    const id = setInterval(() => setStep((s) => (s >= 4 ? 0 : s + 1)), 1300);
+    return () => clearInterval(id);
+  }, [reduced]);
+
+  const live = step >= 1;
+  const done = step >= 4;
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
+            <PhoneCall className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Laura M.</div>
+            <div className="text-[11px] text-muted-foreground">{t("landing.callOutbound")}</div>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-medium text-accent-ink">
+            <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+            {live ? t("landing.callLive") : t("landing.callDialing")}
+          </span>
+        </div>
+
+        {/* Waveform: se aquieta cuando la llamada termina. */}
+        <div className="flex h-8 items-center justify-center gap-1">
+          {Array.from({ length: 28 }).map((_, i) => (
+            <span
+              key={i}
+              className={`w-1 rounded-full transition-all duration-500 ${
+                live && !done ? "animate-pulse bg-primary" : "bg-muted-foreground/25"
+              }`}
+              style={{
+                height: live && !done ? `${8 + ((i * 7) % 20)}px` : "5px",
+                animationDelay: `${(i % 6) * 90}ms`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Cada línea conserva su lugar desde el principio: la tarjeta no
+            cambia de alto mientras la página se desplaza. */}
+        <div className="flex flex-col gap-2">
+          {CALL_LINES.map((l, i) => {
+            const visible = reduced || step > i;
+            return (
+              <div
+                key={l.text}
+                className={`rounded-xl border px-3 py-2 transition-all duration-300 ${
+                  l.who === "agent"
+                    ? "border-primary/35 bg-primary/5"
+                    : "border-border bg-background/60"
+                } ${visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
+              >
+                <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/70">
+                  {t(l.who === "agent" ? "landing.callAgent" : "landing.callCustomer")}
+                </div>
+                <div className="text-sm">{t(l.text)}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-500 ${
+            done ? "border-primary/45 bg-primary/10 opacity-100" : "border-dashed border-border opacity-40"
+          }`}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-4" />
+          </span>
+          <span className="text-sm font-semibold">{t("landing.callOutcome")}</span>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            {t("landing.callTranscript")}
+          </span>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 07b · Contactos — la ficha se llena sola y el filtro se guarda como
+// segmento para lanzarle una campaña.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CONTACT_ROWS: { name: string; tag: string; spent: string }[] = [
+  { name: "Laura M.", tag: "landing.contactsTagBuyer", spent: "$239.000" },
+  { name: "Andrés Q.", tag: "landing.contactsTagRepeat", spent: "$512.000" },
+  { name: "Sofía R.", tag: "landing.contactsTagCart", spent: "$0" },
+];
+
+function ContactsPreview() {
+  const t = useT();
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(reduced ? CONTACT_ROWS.length : 0);
+  useEffect(() => {
+    if (reduced) {
+      const raf = requestAnimationFrame(() => setShown(CONTACT_ROWS.length));
+      return () => cancelAnimationFrame(raf);
+    }
+    const id = setInterval(
+      () => setShown((s) => (s >= CONTACT_ROWS.length ? 0 : s + 1)),
+      900,
+    );
+    return () => clearInterval(id);
+  }, [reduced]);
+
+  const matches = useCountUp(1284, true, 1200);
+
+  return (
+    <PreviewFrame>
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary/15 text-accent-ink">
+            <Filter className="size-4" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">{t("landing.contactsSegment")}</div>
+            <div className="text-[11px] text-accent-ink">
+              {t("landing.contactsMatches", {
+                n: Math.round(matches).toLocaleString("es-CO"),
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {CONTACT_ROWS.map((c, i) => {
+            const visible = reduced || i < shown;
+            return (
+              <div
+                key={c.name}
+                className={`flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3 transition-all duration-300 ${
+                  visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+                }`}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold">
+                  {c.name.slice(0, 1)}
+                </span>
+                <div className="min-w-0 leading-tight">
+                  <div className="truncate text-sm font-medium">{c.name}</div>
+                  <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-accent-ink">
+                    {t(c.tag)}
+                  </span>
+                </div>
+                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                  {t("landing.contactsSpent")} {c.spent}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-primary/45 bg-primary/10 px-3 py-2.5">
+          <span className="text-sm font-medium">{t("landing.contactsSaveSegment")}</span>
+          <ArrowRight className="size-4 text-accent-ink" />
         </div>
       </div>
     </PreviewFrame>

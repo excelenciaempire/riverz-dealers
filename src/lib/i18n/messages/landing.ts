@@ -28,8 +28,8 @@ export const landing = {
   heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
   heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
   heroSubtitle: {
-    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre y correo. Recomiendan, recuperan carritos y crean el pedido en tu tienda.",
-    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, and email. They recommend, recover carts, and create the order in your store.",
+    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas. Recomiendan, recuperan carritos y crean el pedido en tu tienda.",
+    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls. They recommend, recover carts, and create the order in your store.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
@@ -38,6 +38,7 @@ export const landing = {
 
   // ── Channels / integrations strip ──
   channelEmail: { es: "Correo", en: "Email" },
+  channelCalls: { es: "Llamadas", en: "Calls" },
   stripChannels: { es: "Canales", en: "Channels" },
   stripIntegrations: { es: "Integraciones", en: "Integrations" },
 
@@ -98,6 +99,25 @@ export const landing = {
   sec04Body: {
     es: "Confirma cada pedido, envía el número de guía y resuelve dudas al instante. Tus clientes siempre saben en qué va su compra, a cualquier hora.",
     en: "It confirms every order, sends the tracking number, and answers questions instantly. Your customers always know where their order stands, any time of day.",
+  },
+
+  // Voz — sección propia: el agente también habla por teléfono.
+  secVoiceTitle: { es: "Y cuando hace falta,", en: "And when it matters," },
+  secVoiceTitleMuted: {
+    es: "levanta el teléfono.",
+    en: "it picks up the phone.",
+  },
+  secVoiceBody: {
+    es: "Llama para confirmar pedidos contraentrega, recuperar carritos y hacer seguimiento, y también atiende las llamadas que entran. Cada llamada queda transcrita y con su resultado.",
+    en: "It calls to confirm cash-on-delivery orders, recover carts, and follow up, and it answers incoming calls too. Every call is transcribed and closed with an outcome.",
+  },
+
+  // Contactos y segmentos — la base de clientes que se ordena sola.
+  secContactsTitle: { es: "Tu base de clientes,", en: "Your customer base," },
+  secContactsTitleMuted: { es: "ordenada sola.", en: "sorted by itself." },
+  secContactsBody: {
+    es: "Cada conversación y cada pedido enriquecen la ficha: qué compró, cuánto gastó, dónde vive. Guarda un filtro como segmento y lánzale una campaña.",
+    en: "Every conversation and every order enriches the contact: what they bought, how much they spent, where they live. Save a filter as a segment and launch a campaign to it.",
   },
 
   sec05Title: { es: "También responde", en: "It also replies to" },
@@ -395,6 +415,33 @@ export const landing = {
     en: "created by AI.",
   },
   productOrderLead: { es: "Pedido", en: "Order" },
+
+  // ── Call preview ──
+  callOutbound: { es: "Llamada saliente", en: "Outgoing call" },
+  callDialing: { es: "Marcando…", en: "Dialing…" },
+  callLive: { es: "En curso", en: "In progress" },
+  callAgent: { es: "Agente", en: "Agent" },
+  callCustomer: { es: "Cliente", en: "Customer" },
+  callLine1: {
+    es: "Hola Laura, te llamo por tu pedido de los Tenis Aura.",
+    en: "Hi Laura, I'm calling about your Aura Sneakers order.",
+  },
+  callLine2: {
+    es: "¿Confirmas la entrega mañana en la mañana?",
+    en: "Can you confirm delivery tomorrow morning?",
+  },
+  callLine3: { es: "Sí, ahí estaré.", en: "Yes, I'll be there." },
+  callOutcome: { es: "Pedido confirmado", en: "Order confirmed" },
+  callTranscript: { es: "Transcripción guardada", en: "Transcript saved" },
+
+  // ── Contacts / segments preview ──
+  contactsSegment: { es: "Compraron y no volvieron", en: "Bought once, never returned" },
+  contactsMatches: { es: "{n} contactos", en: "{n} contacts" },
+  contactsTagBuyer: { es: "Comprador", en: "Buyer" },
+  contactsTagRepeat: { es: "Recurrente", en: "Repeat" },
+  contactsTagCart: { es: "Carrito abandonado", en: "Abandoned cart" },
+  contactsSpent: { es: "gastó", en: "spent" },
+  contactsSaveSegment: { es: "Guardar como segmento", en: "Save as segment" },
 
   // ── Metrics preview ──
   metricsPerDollar: { es: "por cada $1 invertido", en: "per $1 invested" },
