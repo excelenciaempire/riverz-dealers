@@ -829,7 +829,9 @@ function HeroInbox() {
     <PreviewFrame>
       {/* clickable channel tabs — switch inbox with a click */}
       <div
-        className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2.5"
+        // Con cinco canales las pestañas ya no entran en una línea: envuelven
+        // en vez de recortarse, que dejaba "Mercado Lib…" cortado en el borde.
+        className="flex flex-wrap gap-1 border-b border-border px-3 py-2.5"
         onMouseEnter={() => (pausedRef.current = true)}
         onMouseLeave={() => (pausedRef.current = false)}
       >
