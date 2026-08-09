@@ -25,11 +25,13 @@ export const landing = {
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
-  heroTitleLead: { es: "Ya pagaste por ese cliente", en: "You already paid for that customer" },
-  heroTitleMuted: { es: "y sigue esperando.", en: "and they're still waiting." },
+  // Titular corto a propósito: en la columna del hero entran ~15 caracteres
+  // por línea, así que cada palabra de más es una línea de más.
+  heroTitleLead: { es: "Ese chat ya lo pagaste.", en: "That chat already cost you." },
+  heroTitleMuted: { es: "Y nadie lo contestó.", en: "And nobody answered." },
   heroSubtitle: {
-    es: "No pierdes ventas por el algoritmo. Las pierdes en los chats que nadie contestó. Riverz contesta en 4 segundos, recomienda, cobra y crea el pedido en tu tienda. Solo.",
-    en: "You're not losing sales to the algorithm. You're losing them in the chats nobody answered. Riverz replies in 4 seconds, recommends, charges, and creates the order in your store. On its own.",
+    es: "No pierdes ventas por el algoritmo: las pierdes en los chats que se enfrían. Riverz contesta en 4 segundos, recomienda, cobra y crea el pedido en tu tienda. Solo.",
+    en: "You're not losing sales to the algorithm: you're losing them in the chats that go cold. Riverz replies in 4 seconds, recommends, charges, and creates the order in your store. On its own.",
   },
   heroCta: {
     es: "Quiero uno para mi tienda",
