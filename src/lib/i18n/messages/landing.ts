@@ -25,19 +25,21 @@ export const landing = {
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
-  heroTitleLead: { es: "Convierte cada chat", en: "Turn every chat" },
-  heroTitleMuted: { es: "en una venta.", en: "into a sale." },
+  heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
+  heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
   heroSubtitle: {
-    es: "Un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y te muestra cuánto vendes, las 24 horas.",
-    en: "An AI agent that engages, recommends, and closes sales on WhatsApp and Instagram. Recover carts, win customers back, and see exactly how much you sell, around the clock.",
+    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre y correo. Recomiendan, recuperan carritos y crean el pedido en tu tienda.",
+    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, and email. They recommend, recover carts, and create the order in your store.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
     en: "Join the waitlist",
   },
 
-  // ── Channels strip ──
+  // ── Channels / integrations strip ──
   channelEmail: { es: "Correo", en: "Email" },
+  stripChannels: { es: "Canales", en: "Channels" },
+  stripIntegrations: { es: "Integraciones", en: "Integrations" },
 
   // ── Waitlist form ──
   waitlistDone: {
@@ -118,18 +120,18 @@ export const landing = {
   sec07Title: { es: "Y todo, en una", en: "And it all lives in" },
   sec07TitleMuted: { es: "sola bandeja.", en: "a single inbox." },
   sec07Body: {
-    es: "WhatsApp, Instagram, Messenger y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
-    en: "WhatsApp, Instagram, Messenger, and email on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
+    es: "WhatsApp, Instagram, Messenger, Mercado Libre y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
+    en: "WhatsApp, Instagram, Messenger, Mercado Libre, and email on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
   },
 
-  sec08Title: { es: "Conecta Shopify", en: "Connect Shopify" },
+  sec08Title: { es: "Conecta tu tienda", en: "Connect your store" },
   sec08TitleMuted: {
     es: "y vende con datos reales.",
     en: "and sell with live data.",
   },
   sec08Body: {
-    es: "Inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
-    en: "Inventory, prices, and orders in sync. The agent recommends, builds the order, and charges with up-to-date information.",
+    es: "Shopify, WooCommerce, Tiendanube o Mercado Libre: inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
+    en: "Shopify, WooCommerce, Tiendanube, or Mercado Libre: inventory, prices, and orders in sync. The agent recommends, builds the order, and charges with up-to-date information.",
   },
 
   sec09Title: { es: "Listo en minutos,", en: "Ready in minutes," },
@@ -235,8 +237,29 @@ export const landing = {
     en: "Done, here's your secure checkout 👇",
   },
 
+  // Hero conversation 5 (Mercado Libre · CAROL2345) — en ML la compra se
+  // termina dentro de la publicación, así que el agente no manda link de pago.
+  hero5Them1: {
+    es: "¿El Parlante Onda llega mañana?",
+    en: "Will the Onda Speaker arrive tomorrow?",
+  },
+  hero5You1: {
+    es: "¡Hola! Sí, con envío full llega mañana 🚚",
+    en: "Hi! Yes, with full shipping it arrives tomorrow 🚚",
+  },
+  hero5You2: {
+    es: "Quedan 4 unidades y hoy está con descuento.",
+    en: "4 units left and it's discounted today.",
+  },
+  hero5Them2: { es: "Genial, lo compro", en: "Great, I'll buy it" },
+  hero5You3: {
+    es: "Listo, ya puedes finalizar la compra 👇",
+    en: "Done, you can complete the purchase 👇",
+  },
+
   // Hero product names
   prodSneakers: { es: "Tenis Aura", en: "Aura Sneakers" },
+  prodSpeaker: { es: "Parlante Onda", en: "Onda Speaker" },
   prodPerfume: { es: "Perfume Solé", en: "Solé Perfume" },
   prodBackpack: { es: "Mochila Drift", en: "Drift Backpack" },
   prodWatch: { es: "Reloj Nórdico", en: "Nordic Watch" },
@@ -265,6 +288,11 @@ export const landing = {
     es: "Va en camino, llega mañana ✉️",
     en: "On its way, arriving tomorrow ✉️",
   },
+  inboxMlThem: {
+    es: "¿Cuánto demora el envío?",
+    en: "How long does shipping take?",
+  },
+  inboxMlYou: { es: "Llega en 24 h con full 🚚", en: "Arrives in 24h with full 🚚" },
   inboxCommentLabel: { es: "Comentarios", en: "Comments" },
   inboxCommentName: {
     es: "Comentario · Instagram",

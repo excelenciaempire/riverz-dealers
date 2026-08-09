@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getT } from "@/lib/i18n/server";
+import { getT, getLocale } from "@/lib/i18n/server";
 import { Landing } from "@/components/landing/landing";
 
 // Per-request: logged-in users go straight to the app; logged-out visitors
@@ -30,7 +30,9 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       siteName: "riverz",
       url: "/",
-      locale: "es_ES",
+      // La página se renderiza en el idioma del visitante: anunciar siempre
+      // es_ES hacía que un share en inglés se declarara en español.
+      locale: (await getLocale()) === "en" ? "en_US" : "es_ES",
       title: ogTitle,
       description: ogDescription,
     },
@@ -46,46 +48,41 @@ export async function generateMetadata(): Promise<Metadata> {
 // search. Emitted as a non-executable application/ld+json data block; it
 // carries the per-request CSP nonce so it passes the strict script-src policy
 // minted in src/proxy.ts. Identifiers are shared (@id) so Organization,
-// WebSite and SoftwareApplication link into one graph.
-const STRUCTURED_DATA = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": "https://riverz.co/#organization",
-      name: "riverz",
-      url: "https://riverz.co",
-      logo: "https://riverz.co/apple-icon",
-      email: "info@riverzai.com",
-      description:
-        "Agente de IA que atiende, recomienda y cierra ventas por WhatsApp e Instagram.",
-    },
-    {
-      "@type": "WebSite",
-      "@id": "https://riverz.co/#website",
-      url: "https://riverz.co",
-      name: "riverz",
-      inLanguage: "es",
-      publisher: { "@id": "https://riverz.co/#organization" },
-    },
-    {
-      "@type": "SoftwareApplication",
-      name: "riverz",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
-      url: "https://riverz.co",
-      description:
-        "CRM con un agente de IA que atiende, recomienda y cierra ventas en WhatsApp e Instagram. Recupera carritos, hace volver a tus clientes y mide cada venta, 24/7.",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-        description: "Empezar gratis",
+// WebSite and SoftwareApplication link into one graph. El texto sigue el
+// idioma servido para que el snippet no contradiga a la página.
+function structuredData(locale: string, description: string) {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://riverz.co/#organization",
+        name: "riverz",
+        url: "https://riverz.co",
+        logo: "https://riverz.co/apple-icon",
+        email: "info@riverzai.com",
+        description,
       },
-      publisher: { "@id": "https://riverz.co/#organization" },
-    },
-  ],
-};
+      {
+        "@type": "WebSite",
+        "@id": "https://riverz.co/#website",
+        url: "https://riverz.co",
+        name: "riverz",
+        inLanguage: locale,
+        publisher: { "@id": "https://riverz.co/#organization" },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: "riverz",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        url: "https://riverz.co",
+        description,
+        publisher: { "@id": "https://riverz.co/#organization" },
+      },
+    ],
+  };
+}
 
 export default async function RootPage() {
   const supabase = await createClient();
@@ -95,13 +92,15 @@ export default async function RootPage() {
   if (user) redirect("/panel");
 
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const t = await getT();
+  const data = structuredData(await getLocale(), t("landing.metaDescription"));
 
   return (
     <>
       <script
         type="application/ld+json"
         nonce={nonce}
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
       />
       <Landing />
     </>

@@ -62,7 +62,7 @@ const BODY =
   "text-[clamp(15px,1.3vw,17px)] leading-[1.55] tracking-[-0.005em] text-muted-foreground";
 const SECTION = "py-[clamp(64px,8vw,128px)]";
 
-type Ch = "whatsapp" | "instagram" | "messenger" | "gmail";
+type Ch = "whatsapp" | "instagram" | "messenger" | "gmail" | "mercadolibre";
 
 // `label` for branded channels is the brand name (rendered as-is); the email
 // channel uses an i18n key resolved with t() at the render site.
@@ -71,6 +71,16 @@ const CHANNELS: { id: Ch; label: string }[] = [
   { id: "instagram", label: "Instagram" },
   { id: "messenger", label: "Messenger" },
   { id: "gmail", label: "landing.channelEmail" },
+  { id: "mercadolibre", label: "Mercado Libre" },
+];
+
+// Tienda / logística que el agente lee y escribe. Van en su propia fila del
+// strip: no son bandejas, son la fuente de stock, precios y despacho.
+const INTEGRATIONS: { src: string; label: string }[] = [
+  { src: "/channels/shopify.svg", label: "Shopify" },
+  { src: "/channels/woocommerce.svg", label: "WooCommerce" },
+  { src: "/channels/tiendanube.svg", label: "Tiendanube" },
+  { src: "/channels/meta.svg", label: "Meta" },
 ];
 
 // Unified inbox preview rows — the four channels plus a public comment that
@@ -90,6 +100,7 @@ const INBOX: {
   { id: "instagram", label: "Instagram", name: "andres.q", them: "landing.inboxIgThem", you: "landing.inboxIgYou", note: "landing.inboxNoteReplied" },
   { id: "messenger", label: "Messenger", name: "Sofía R.", them: "landing.inboxMsgThem", you: "landing.inboxMsgYou", note: "landing.inboxNoteReplied" },
   { id: "gmail", label: "landing.channelEmail", name: "landing.inboxMailName", them: "landing.inboxMailThem", you: "landing.inboxMailYou", note: "landing.inboxNoteReplied" },
+  { id: "mercadolibre", label: "Mercado Libre", name: "CAROL2345", them: "landing.inboxMlThem", you: "landing.inboxMlYou", note: "landing.inboxNoteReplied" },
   { id: "ig_comment", label: "landing.inboxCommentLabel", name: "landing.inboxCommentName", them: "landing.inboxCommentThem", you: "landing.inboxCommentYou", note: "landing.inboxNoteComment" },
 ];
 
@@ -293,25 +304,36 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Channels */}
+      {/* Canales (bandejas donde atiende) e integraciones (de dónde saca el
+          stock y a dónde manda el pedido), separadas para que se lea de un
+          vistazo qué es cada cosa. */}
       <section className="border-y border-border/50 bg-muted/20">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-5 py-7">
-          {CHANNELS.map((c) => (
-            <span key={c.id} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <ChannelLogo channel={c.id} size={22} /> {t(c.label)}
+        <div className="mx-auto max-w-6xl space-y-5 px-5 py-8">
+          <StripRow label={t("landing.stripChannels")}>
+            {CHANNELS.map((c) => (
+              <span key={c.id} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <ChannelLogo channel={c.id} size={22} /> {t(c.label)}
+              </span>
+            ))}
+          </StripRow>
+          <StripRow label={t("landing.stripIntegrations")}>
+            {INTEGRATIONS.map((i) => (
+              <span key={i.label} className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Image src={i.src} alt={i.label} width={22} height={22} className="inline-block" />{" "}
+                {i.label}
+              </span>
+            ))}
+            {/* Dropi no publica un logotipo reutilizable: va con el icono de
+                despacho que ya usa su tarjeta en Ajustes. */}
+            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Truck className="size-[22px]" /> Dropi
             </span>
-          ))}
-          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <MetaLogo size={22} /> Meta
-          </span>
-          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <ShopifyLogo size={22} /> Shopify
-          </span>
+          </StripRow>
         </div>
       </section>
 
       {/* Feature sections — one per former card, alternating */}
-      <div id="funciones" className="divide-y divide-border/40">
+      <div id="funciones" className="scroll-mt-16 divide-y divide-border/40">
         {SECTIONS.map((s, i) => (
           <FeatureSection key={s.n} s={s} flip={i % 2 === 1} />
         ))}
@@ -459,16 +481,23 @@ function PreviewFrame({
   );
 }
 
+// Una fila del strip: la etiqueta ancla a la izquierda en desktop y se centra
+// con los logos en móvil, para que nunca queden dos bloques desalineados.
+function StripRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-x-8 gap-y-3 sm:flex-row sm:justify-center">
+      <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground/60">
+        {label}
+      </span>
+      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">{children}</div>
+    </div>
+  );
+}
+
 // Brand marks (assets shared with the app's settings screens).
 function ShopifyLogo({ size = 13 }: { size?: number }) {
   return (
     <Image src="/channels/shopify.svg" alt="Shopify" width={size} height={size} className="inline-block" />
-  );
-}
-
-function MetaLogo({ size = 13 }: { size?: number }) {
-  return (
-    <Image src="/channels/meta.svg" alt="Meta" width={size} height={size} className="inline-block" />
   );
 }
 
@@ -701,6 +730,22 @@ const HERO_CONVOS: HeroConvo[] = [
       { kind: "sale" },
     ],
   },
+  {
+    channel: "mercadolibre",
+    name: "CAROL2345",
+    product: { emoji: "🔊", name: "landing.prodSpeaker", price: "$149.000" },
+    order: "#1046",
+    steps: [
+      { kind: "them", text: "landing.hero5Them1" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero5You1" },
+      { kind: "you", text: "landing.hero5You2" },
+      { kind: "them", text: "landing.hero5Them2" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero5You3" },
+      { kind: "sale" },
+    ],
+  },
 ];
 
 function delayFor(step: Step): number {
@@ -824,7 +869,7 @@ function HeroInbox() {
       >
         {steps.map((s, i) =>
           s.kind === "sale" ? (
-            <SaleCard key={i} product={convo.product} order={convo.order} />
+            <SaleCard key={i} product={convo.product} order={convo.order} channel={convo.channel} />
           ) : (
             <Bubble key={i} step={s} />
           ),
@@ -863,10 +908,20 @@ function Bubble({ step }: { step: Step }) {
   );
 }
 
-// Confirmed-sale card (closes every hero conversation). Carries the Shopify
-// brand mark so the source of truth for the order is unmistakable.
-function SaleCard({ product, order }: { product: Product; order: string }) {
+// Confirmed-sale card (closes every hero conversation). Lleva la marca de
+// dónde queda el pedido: en Mercado Libre la compra se cierra dentro de la
+// publicación, en el resto de canales aterriza en la tienda.
+function SaleCard({
+  product,
+  order,
+  channel,
+}: {
+  product: Product;
+  order: string;
+  channel: Ch;
+}) {
   const t = useT();
+  const ml = channel === "mercadolibre";
   return (
     <div className="self-stretch rounded-2xl border border-primary/45 bg-primary/10 p-3.5 duration-500 animate-in fade-in zoom-in-95">
       <div className="flex items-center gap-2">
@@ -881,7 +936,8 @@ function SaleCard({ product, order }: { product: Product; order: string }) {
           {product.emoji} {t(product.name)} · {t("landing.saleUnit")}
         </span>
         <span className="inline-flex items-center gap-1">
-          <ShopifyLogo size={15} /> {t("landing.saleOrder", { order })}
+          {ml ? <ChannelLogo channel="mercadolibre" size={15} /> : <ShopifyLogo size={15} />}{" "}
+          {t("landing.saleOrder", { order })}
         </span>
       </div>
     </div>
