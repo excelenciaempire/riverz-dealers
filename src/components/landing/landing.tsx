@@ -314,7 +314,7 @@ export function Landing() {
         <div className="relative mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             <div>
-              <h1 className={`max-w-[15ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
+              <h1 className={`max-w-[19ch] animate-in fade-in slide-in-from-bottom-3 text-balance duration-700 ${DISPLAY}`}>
                 {t("landing.heroTitleLead")}{" "}
                 <span className="text-muted-foreground">{t("landing.heroTitleMuted")}</span>
               </h1>

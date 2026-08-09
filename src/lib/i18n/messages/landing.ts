@@ -25,15 +25,15 @@ export const landing = {
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
-  heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
-  heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
+  heroTitleLead: { es: "Ya pagaste por ese cliente", en: "You already paid for that customer" },
+  heroTitleMuted: { es: "y sigue esperando.", en: "and they're still waiting." },
   heroSubtitle: {
-    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas. Recomiendan, recuperan carritos y crean el pedido en tu tienda.",
-    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls. They recommend, recover carts, and create the order in your store.",
+    es: "No pierdes ventas por el algoritmo. Las pierdes en los chats que nadie contestó. Riverz contesta en 4 segundos, recomienda, cobra y crea el pedido en tu tienda. Solo.",
+    en: "You're not losing sales to the algorithm. You're losing them in the chats nobody answered. Riverz replies in 4 seconds, recommends, charges, and creates the order in your store. On its own.",
   },
   heroCta: {
-    es: "Unirse a la lista de espera",
-    en: "Join the waitlist",
+    es: "Quiero uno para mi tienda",
+    en: "I want one for my store",
   },
 
   // ── Channels / integrations strip ──
@@ -61,56 +61,56 @@ export const landing = {
 
   // ── Feature sections (titles + body copy; `eyebrow`/`n`/`icon` in the
   //    SECTIONS data are not rendered, so they have no keys) ──
-  sec01Title: { es: "Un vendedor con IA", en: "An AI salesperson" },
+  sec01Title: { es: "No es un bot con respuestas", en: "Not a bot with canned" },
   sec01TitleMuted: {
-    es: "que conoce tus productos.",
-    en: "that knows your products.",
+    es: "guardadas.",
+    en: "answers.",
   },
   sec01Body: {
-    es: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, suma lo que combina para subir el ticket y cierra la compra como tu mejor vendedor, también mientras duermes.",
-    en: "It knows your catalog, prices, and shipping inside out. It recommends, adds what pairs well to raise the ticket, and closes the sale like your best rep, even while you sleep.",
+    es: "Se sabe tu catálogo, tus precios y tus envíos de memoria. Recomienda, suma lo que combina para subir el ticket y cierra la compra decidiendo con lo que hay en tu tienda hoy, no con un guion escrito el mes pasado.",
+    en: "It knows your catalog, prices, and shipping by heart. It recommends, adds what pairs well to raise the ticket, and closes the sale deciding on what's in your store today, not on a script written last month.",
   },
 
-  sec02Title: { es: "Recupera cada", en: "Recover every" },
+  sec02Title: { es: "El carrito que dejaste ir", en: "The cart you let go" },
   sec02TitleMuted: {
-    es: "carrito abandonado.",
-    en: "abandoned cart.",
+    es: "ya lo pagaste.",
+    en: "was already paid for.",
   },
   sec02Body: {
-    es: "Cuando alguien deja la compra a medias, el agente le escribe solo, resuelve la duda y recupera la venta antes de que se enfríe.",
-    en: "When someone leaves a purchase half-finished, the agent reaches out on its own, clears up the question, and recovers the sale before it goes cold.",
+    es: "Ese cliente te costó plata en pauta y se fue a mitad de la compra. El agente le escribe solo, resuelve la duda que lo frenó y lo trae de vuelta antes de que se enfríe.",
+    en: "That customer cost you ad money and walked out mid-purchase. The agent reaches out on its own, clears up what stopped them, and brings them back before it goes cold.",
   },
 
   sec03Title: {
-    es: "Recompras automáticas,",
-    en: "Automatic repeat sales,",
+    es: "Tus clientes de hace un mes",
+    en: "Last month's customers",
   },
   sec03TitleMuted: {
-    es: "sin que muevas un dedo.",
-    en: "without lifting a finger.",
+    es: "no vuelven solos.",
+    en: "don't come back on their own.",
   },
   sec03Body: {
-    es: "Seguimiento post-venta y recordatorios de recompra para tus clientes dormidos. Configuras las recompras una sola vez y el agente las envía cuando es más probable que vuelvan a comprar.",
-    en: "Post-sale follow-ups and repeat-purchase reminders for dormant customers. Set it up once and the agent reaches out exactly when they're most likely to buy again.",
+    es: "El agente sí se acuerda. Escribe justo cuando es más probable que vuelvan a comprar, con la oferta que le corresponde a cada uno. Lo dejas listo una vez y no lo tocas más.",
+    en: "The agent remembers. It reaches out exactly when they're most likely to buy again, with the offer that fits each one. Set it once and never touch it again.",
   },
 
-  sec04Title: { es: "Atiende y avisa,", en: "Always answering," },
-  sec04TitleMuted: { es: "las 24 horas.", en: "around the clock." },
+  sec04Title: { es: "Nadie pregunta “¿ya llegó?”", en: "Nobody asks “where is it?”" },
+  sec04TitleMuted: { es: "dos veces.", en: "twice." },
   sec04Body: {
-    es: "Confirma cada pedido, envía el número de guía y resuelve dudas al instante. Tus clientes siempre saben en qué va su compra, a cualquier hora.",
-    en: "It confirms every order, sends the tracking number, and answers questions instantly. Your customers always know where their order stands, any time of day.",
+    es: "Confirma cada pedido, manda el número de guía y responde al instante. También a las tres de la mañana, que es cuando tu competencia no contesta.",
+    en: "It confirms every order, sends the tracking number, and answers instantly. At three in the morning too — which is when your competitor doesn't answer.",
   },
 
   // En vivo / móvil — mirar al agente trabajar y entrar cuando quieras.
   secLiveTitle: { es: "Míralo trabajar,", en: "Watch it work," },
   secLiveTitleMuted: { es: "desde tu teléfono.", en: "from your phone." },
   secLiveBody: {
-    es: "Ves en vivo lo que le responde a cada cliente y, si quieres, entras en la conversación con un toque. Desde el computador o el celular.",
-    en: "You see in real time what it replies to every customer and, if you want, you step into the conversation with one tap. From your desktop or your phone.",
+    es: "Ves en vivo lo que le responde a cada cliente y entras en la conversación con un toque cuando quieras. Delegas la atención, no el control.",
+    en: "You see in real time what it replies to every customer and step into the conversation with one tap whenever you want. You delegate the work, not the control.",
   },
 
   // Voz — sección propia: el agente también habla por teléfono.
-  secVoiceTitle: { es: "Y cuando hace falta,", en: "And when it matters," },
+  secVoiceTitle: { es: "Y cuando el chat no alcanza,", en: "And when chat isn't enough," },
   secVoiceTitleMuted: {
     es: "levanta el teléfono.",
     en: "it picks up the phone.",
@@ -128,55 +128,55 @@ export const landing = {
     en: "Every conversation and every order enriches the contact: what they bought, how much they spent, where they live. Save a filter as a segment and launch a campaign to it.",
   },
 
-  sec05Title: { es: "También responde", en: "It also replies to" },
-  sec05TitleMuted: { es: "los comentarios.", en: "your comments." },
+  sec05Title: { es: "Cada comentario en tu anuncio", en: "Every comment on your ad" },
+  sec05TitleMuted: { es: "es un cliente sin atender.", en: "is a customer left waiting." },
   sec05Body: {
-    es: "Responde al instante cada comentario en tus publicaciones y anuncios de Instagram y Facebook, y se lleva la conversación al DM para cerrar la venta.",
-    en: "It instantly replies to every comment on your Instagram and Facebook posts and ads, then moves the conversation to DMs to close the sale.",
+    es: "Pagaste por ese anuncio y la gente pregunta el precio ahí mismo, en público. El agente responde al instante en Instagram y Facebook, y se lleva la conversación al DM para cerrar.",
+    en: "You paid for that ad and people ask the price right there, in public. The agent replies instantly on Instagram and Facebook, then moves the conversation to DMs to close.",
   },
 
-  sec06Title: { es: "Campañas masivas en", en: "Bulk campaigns on" },
+  sec06Title: { es: "Manda una promoción", en: "Send a promo" },
   sec06TitleMuted: {
-    es: "WhatsApp e Instagram.",
-    en: "WhatsApp and Instagram.",
+    es: "y mira quién compró.",
+    en: "and watch who bought.",
   },
   sec06Body: {
-    es: "Lanza una promoción a miles de contactos por WhatsApp e Instagram y mira en vivo quién la recibió, quién la leyó, quién te respondió y quién te compró.",
-    en: "Launch a promo to thousands of contacts on WhatsApp and Instagram and watch in real time who received it, read it, replied, and bought.",
+    es: "A miles de contactos por WhatsApp e Instagram, en un clic. En vivo ves quién la recibió, quién la leyó, quién respondió y quién pagó. Y a los que respondieron los atiende el agente.",
+    en: "To thousands of contacts on WhatsApp and Instagram, in one click. You watch live who received it, read it, replied, and paid. And whoever replies gets handled by the agent.",
   },
 
-  sec07Title: { es: "Y todo, en una", en: "And it all lives in" },
-  sec07TitleMuted: { es: "sola bandeja.", en: "a single inbox." },
+  sec07Title: { es: "Seis canales,", en: "Six channels," },
+  sec07TitleMuted: { es: "una sola pantalla.", en: "one single screen." },
   sec07Body: {
-    es: "WhatsApp, Instagram, Messenger, Mercado Libre y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
-    en: "WhatsApp, Instagram, Messenger, Mercado Libre, and email on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
+    es: "WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas. Tu equipo y el agente trabajan sobre la misma conversación y a nadie se le queda un cliente en visto.",
+    en: "WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls. Your team and the agent work on the same conversation, and nobody leaves a customer on read.",
   },
 
-  sec08Title: { es: "Conecta tu tienda", en: "Connect your store" },
+  sec08Title: { es: "Precios y stock de hoy,", en: "Today's prices and stock," },
   sec08TitleMuted: {
-    es: "y vende con datos reales.",
-    en: "and sell with live data.",
+    es: "no los del mes pasado.",
+    en: "not last month's.",
   },
   sec08Body: {
-    es: "Shopify, WooCommerce, Tiendanube o Mercado Libre: inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
-    en: "Shopify, WooCommerce, Tiendanube, or Mercado Libre: inventory, prices, and orders in sync. The agent recommends, builds the order, and charges with up-to-date information.",
+    es: "Shopify, WooCommerce, Tiendanube o Mercado Libre sincronizados. El agente recomienda, arma el pedido y cobra con lo que hay ahora, así nunca vende algo que ya se acabó.",
+    en: "Shopify, WooCommerce, Tiendanube, or Mercado Libre in sync. The agent recommends, builds the order, and charges with what's in stock right now, so it never sells what ran out.",
   },
 
-  sec09Title: { es: "Listo en minutos,", en: "Ready in minutes," },
+  sec09Title: { es: "Tú no configuras nada.", en: "You configure nothing." },
   sec09TitleMuted: {
-    es: "con unos cuantos clics.",
-    en: "with just a few clicks.",
+    es: "Llega vendiendo.",
+    en: "It arrives selling.",
   },
   sec09Body: {
-    es: "Conectas tus canales y tu tienda, activas el agente y ya está vendiendo. Sin código y sin los dolores de cabeza de otras plataformas.",
-    en: "Connect your channels and your store, turn on the agent, and it's already selling. No code and none of the headaches of other platforms.",
+    es: "Conectas tu tienda y tus canales. Riverz investiga tu marca, entrena al agente con tu catálogo y te lo muestra antes de encenderlo. Sin código y sin cambiar cómo trabajas.",
+    en: "You connect your store and your channels. Riverz researches your brand, trains the agent on your catalog, and shows it to you before you turn it on. No code, no changing how you work.",
   },
 
-  sec10Title: { es: "Un ROAS claro,", en: "A clear ROAS," },
-  sec10TitleMuted: { es: "no corazonadas.", en: "not gut feelings." },
+  sec10Title: { es: "Sabes cuánto vendió,", en: "You know what it sold," },
+  sec10TitleMuted: { es: "no cuánto respondió.", en: "not how much it replied." },
   sec10Body: {
-    es: "Cada venta queda atribuida al agente, así sabes cuánto te devuelve cada peso que inviertes. Y como contesta en segundos y atiende muchos chats a la vez, te rinde más que cualquier humano.",
-    en: "Every sale is attributed to the agent, so you know the return on every dollar you invest. And since it replies in seconds and handles many chats at once, it does more than any human could.",
+    es: "Cada venta queda atribuida al agente, en pesos. Ahí ves lo que devuelve cada peso de pauta que ya estabas gastando, y cuánto de eso se te escapaba en chats sin contestar.",
+    en: "Every sale is attributed to the agent, in money. That's where you see the return on the ad spend you were already making — and how much of it was leaking out through unanswered chats.",
   },
 
   // ── Hero inbox preview ──
@@ -489,12 +489,12 @@ export const landing = {
   // ── CTA ──
   ctaBadge: { es: "Pre-lanzamiento", en: "Pre-launch" },
   ctaTitle: {
-    es: "Sé de los primeros en vender con IA.",
-    en: "Be among the first to sell with AI.",
+    es: "El chat que no contestaste hoy ya compró en otro lado.",
+    en: "The chat you didn't answer today already bought somewhere else.",
   },
   ctaSubtitle: {
-    es: "Estamos abriendo cupos poco a poco. Déjanos tu correo y te avisamos apenas puedas entrar.",
-    en: "We're opening spots gradually. Leave your email and we'll let you know the moment you can join.",
+    es: "Abrimos cupos de a poco y montamos el agente marca por marca. Déjanos tu correo y te escribimos cuando toque tu turno.",
+    en: "We're opening spots a few at a time and setting up each brand's agent by hand. Leave your email and we'll write when your turn comes.",
   },
   ctaNoCommitment: { es: "Sin compromiso", en: "No commitment" },
   ctaNoSpam: { es: "Sin spam", en: "No spam" },
