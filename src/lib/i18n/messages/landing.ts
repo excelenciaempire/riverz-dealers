@@ -30,8 +30,8 @@ export const landing = {
   heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
   heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
   heroSubtitle: {
-    es: "Atienden, recomiendan, recuperan carritos, confirman pedidos y dejan la venta creada en tu tienda. Servicio al cliente 24/7 en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas.",
-    en: "They engage, recommend, recover carts, confirm orders, and leave the sale created in your store. 24/7 customer service on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls.",
+    es: "Atienden, recomiendan y venden. Recuperan carritos, confirman pedidos y dejan la orden creada en tu tienda. Servicio al cliente 24/7 en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas.",
+    en: "They engage, recommend, and sell. They recover carts, confirm orders, and leave the order created in your store. 24/7 customer service on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
