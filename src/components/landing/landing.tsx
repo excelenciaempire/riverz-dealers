@@ -315,6 +315,9 @@ export function Landing({ copy = "landing" }: { copy?: "landing" | "landingV2" }
 function LandingBody() {
   const t = useCopy();
   const { locale } = useLocale();
+  // La garantía es una promesa comercial que solo sostiene la redacción v2;
+  // la portada actual no la ofrece, así que el bloque no existe allí.
+  const hasGuarantee = useContext(CopyContext) === "landingV2";
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/75 backdrop-blur">
@@ -417,6 +420,23 @@ function LandingBody() {
           <p className={`mx-auto mt-5 max-w-[52ch] ${BODY}`}>{t("landing.finalTrustBody")}</p>
         </div>
       </section>
+
+      {/* Garantía — lo último que se lee antes de dejar el correo, porque es
+          lo que convierte "suena bien" en "no tengo nada que perder". */}
+      {hasGuarantee && (
+        <section className="border-t border-border/50 bg-muted/20">
+          <div className="mx-auto max-w-2xl px-5 py-[clamp(56px,6vw,96px)] text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/45 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-accent-ink">
+              <ShieldCheck className="size-3.5" /> {t("landing.guaranteeBadge")}
+            </span>
+            <h2 className={`mt-6 text-balance ${H2}`}>
+              {t("landing.guaranteeTitle")}{" "}
+              <span className="text-muted-foreground">{t("landing.guaranteeTitleMuted")}</span>
+            </h2>
+            <p className={`mx-auto mt-5 max-w-[52ch] ${BODY}`}>{t("landing.guaranteeBody")}</p>
+          </div>
+        </section>
+      )}
 
       {/* CTA — the dedicated waitlist screen the hero + nav buttons jump to */}
       <section id="lista" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24">

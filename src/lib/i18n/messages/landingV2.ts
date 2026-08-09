@@ -488,6 +488,24 @@ export const landingV2 = {
     en: "Agent revenue · 7 days",
   },
 
+  // ── Pilar E · Garantía (última pieza antes del formulario) ──
+  // "Si no cierra ni una venta" era un piso que nunca se cruza: no le quita
+  // riesgo a nadie. La condición real es que se pague solo, y se puede
+  // auditar sin discutir porque la atribución ya está en el panel.
+  guaranteeBadge: { es: "Garantía", en: "Guarantee" },
+  guaranteeTitle: {
+    es: "Se paga solo en 30 días",
+    en: "It pays for itself in 30 days",
+  },
+  guaranteeTitleMuted: {
+    es: "o te devolvemos el dinero.",
+    en: "or you get your money back.",
+  },
+  guaranteeBody: {
+    es: "Contamos solo las ventas que cerró el agente, con nombre y fecha, en tu propio panel. Si al día 30 no suman más de lo que pagaste, te devolvemos todo. Sin pedirte explicaciones.",
+    en: "We count only the sales the agent closed, with name and date, in your own dashboard. If by day 30 they don't add up to more than you paid, we refund everything. No questions asked.",
+  },
+
   // ── Cierre de confianza (antes del CTA) ──
   // Pilar D. Sin testimonios todavía, la única prueba real es de quién viene
   // el visto bueno: Meta auditó Riverz permiso por permiso. Eso es autoridad
