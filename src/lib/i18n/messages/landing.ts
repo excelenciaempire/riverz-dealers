@@ -25,11 +25,11 @@ export const landing = {
   navWaitlist: { es: "Lista de espera", en: "Join waitlist" },
 
   // ── Hero ──
-  heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
-  heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
+  heroTitleLead: { es: "Contesta tus chats", en: "It answers your chats" },
+  heroTitleMuted: { es: "y cierra tus ventas.", en: "and closes your sales." },
   heroSubtitle: {
-    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas. Recomiendan, recuperan carritos y crean el pedido en tu tienda.",
-    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls. They recommend, recover carts, and create the order in your store.",
+    es: "Riverz reúne WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas en una sola bandeja, y un agente de IA responde, recomienda y crea el pedido en tu tienda.",
+    en: "Riverz brings WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls into one inbox, and an AI agent replies, recommends, and creates the order in your store.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
@@ -61,122 +61,122 @@ export const landing = {
 
   // ── Feature sections (titles + body copy; `eyebrow`/`n`/`icon` in the
   //    SECTIONS data are not rendered, so they have no keys) ──
-  sec01Title: { es: "Un vendedor con IA", en: "An AI salesperson" },
+  sec01Title: { es: "Responde preguntas sobre", en: "It answers questions about" },
   sec01TitleMuted: {
-    es: "que conoce tus productos.",
-    en: "that knows your products.",
+    es: "productos, precios y envíos.",
+    en: "products, prices, and shipping.",
   },
   sec01Body: {
-    es: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, suma lo que combina para subir el ticket y cierra la compra como tu mejor vendedor, también mientras duermes.",
-    en: "It knows your catalog, prices, and shipping inside out. It recommends, adds what pairs well to raise the ticket, and closes the sale like your best rep, even while you sleep.",
+    es: "El agente lee tu catálogo y contesta con el stock y los precios que tienes hoy. Recomienda productos, sugiere lo que combina y cierra la compra.",
+    en: "The agent reads your catalog and answers with the stock and prices you have today. It recommends products, suggests what pairs well, and closes the sale.",
   },
 
-  sec02Title: { es: "Recupera cada", en: "Recover every" },
+  sec02Title: { es: "Le escribe al que dejó", en: "It messages whoever left" },
   sec02TitleMuted: {
-    es: "carrito abandonado.",
-    en: "abandoned cart.",
+    es: "el carrito a medias.",
+    en: "a cart behind.",
   },
   sec02Body: {
-    es: "Cuando alguien deja la compra a medias, el agente le escribe solo, resuelve la duda y recupera la venta antes de que se enfríe.",
-    en: "When someone leaves a purchase half-finished, the agent reaches out on its own, clears up the question, and recovers the sale before it goes cold.",
+    es: "Detecta el carrito abandonado, manda un mensaje con el producto y el link de pago, y responde las dudas que aparezcan hasta cerrar la venta.",
+    en: "It detects the abandoned cart, sends a message with the product and the payment link, and answers whatever questions come up until the sale closes.",
   },
 
   sec03Title: {
-    es: "Recompras automáticas,",
-    en: "Automatic repeat sales,",
+    es: "Vuelve a escribirle",
+    en: "It follows up with",
   },
   sec03TitleMuted: {
-    es: "sin que muevas un dedo.",
-    en: "without lifting a finger.",
+    es: "a quien ya te compró.",
+    en: "anyone who already bought.",
   },
   sec03Body: {
-    es: "Seguimiento post-venta y recordatorios de recompra para tus clientes dormidos. Configuras las recompras una sola vez y el agente las envía cuando es más probable que vuelvan a comprar.",
-    en: "Post-sale follow-ups and repeat-purchase reminders for dormant customers. Set it up once and the agent reaches out exactly when they're most likely to buy again.",
+    es: "Programas la recompra según los días desde el último pedido y el agente la envía sola, con la oferta que corresponde a cada cliente.",
+    en: "You set the repeat-purchase timing based on days since the last order, and the agent sends it on its own, with the offer that fits each customer.",
   },
 
-  sec04Title: { es: "Atiende y avisa,", en: "Always answering," },
-  sec04TitleMuted: { es: "las 24 horas.", en: "around the clock." },
+  sec04Title: { es: "Confirma pedidos y manda", en: "It confirms orders and sends" },
+  sec04TitleMuted: { es: "el número de guía.", en: "the tracking number." },
   sec04Body: {
-    es: "Confirma cada pedido, envía el número de guía y resuelve dudas al instante. Tus clientes siempre saben en qué va su compra, a cualquier hora.",
-    en: "It confirms every order, sends the tracking number, and answers questions instantly. Your customers always know where their order stands, any time of day.",
+    es: "Avisa cuando el pedido sale, envía el seguimiento y responde “¿cuándo llega?” con el estado real del envío, a cualquier hora.",
+    en: "It notifies when the order ships, sends the tracking, and answers “when does it arrive?” with the real shipping status, at any hour.",
   },
 
   // En vivo / móvil — mirar al agente trabajar y entrar cuando quieras.
-  secLiveTitle: { es: "Míralo trabajar,", en: "Watch it work," },
-  secLiveTitleMuted: { es: "desde tu teléfono.", en: "from your phone." },
+  secLiveTitle: { es: "Muestra cada respuesta", en: "It shows every reply" },
+  secLiveTitleMuted: { es: "en tiempo real.", en: "in real time." },
   secLiveBody: {
-    es: "Ves en vivo lo que le responde a cada cliente y, si quieres, entras en la conversación con un toque. Desde el computador o el celular.",
-    en: "You see in real time what it replies to every customer and, if you want, you step into the conversation with one tap. From your desktop or your phone.",
+    es: "Ves la conversación mientras ocurre, desde el computador o el celular, y tomas el control con un toque cuando quieras responder tú.",
+    en: "You watch the conversation as it happens, from your desktop or your phone, and take over with one tap whenever you want to reply yourself.",
   },
 
   // Voz — sección propia: el agente también habla por teléfono.
-  secVoiceTitle: { es: "Y cuando hace falta,", en: "And when it matters," },
+  secVoiceTitle: { es: "Llama por teléfono", en: "It calls on the phone" },
   secVoiceTitleMuted: {
-    es: "levanta el teléfono.",
-    en: "it picks up the phone.",
+    es: "y habla con el cliente.",
+    en: "and talks to the customer.",
   },
   secVoiceBody: {
-    es: "Conversa con voz natural: llama para confirmar pedidos contraentrega, recuperar carritos y hacer seguimiento, y también atiende las llamadas que entran. Cada llamada queda transcrita y con su resultado.",
-    en: "It speaks with a natural voice: it calls to confirm cash-on-delivery orders, recover carts, and follow up, and it answers incoming calls too. Every call is transcribed and closed with an outcome.",
+    es: "Marca para confirmar pedidos contraentrega, recuperar carritos y hacer seguimiento, y contesta las llamadas que entran. Cada llamada queda transcrita y con su resultado.",
+    en: "It dials to confirm cash-on-delivery orders, recover carts, and follow up, and it answers incoming calls. Every call is transcribed and closed with an outcome.",
   },
 
   // Contactos y segmentos — la base de clientes que se ordena sola.
-  secContactsTitle: { es: "Tu base de clientes,", en: "Your customer base," },
-  secContactsTitleMuted: { es: "ordenada sola.", en: "sorted by itself." },
+  secContactsTitle: { es: "Guarda qué compró cada cliente,", en: "It records what each customer bought," },
+  secContactsTitleMuted: { es: "cuánto gastó y dónde vive.", en: "how much they spent, and where they live." },
   secContactsBody: {
-    es: "Cada conversación y cada pedido enriquecen la ficha: qué compró, cuánto gastó, dónde vive. Guarda un filtro como segmento y lánzale una campaña.",
-    en: "Every conversation and every order enriches the contact: what they bought, how much they spent, where they live. Save a filter as a segment and launch a campaign to it.",
+    es: "La ficha se completa sola con cada conversación y cada pedido. Filtras por gasto, pedidos, ciudad o etiqueta, y guardas el filtro como segmento.",
+    en: "The contact fills itself in with every conversation and every order. You filter by spend, orders, city, or tag, and save the filter as a segment.",
   },
 
-  sec05Title: { es: "También responde", en: "It also replies to" },
-  sec05TitleMuted: { es: "los comentarios.", en: "your comments." },
+  sec05Title: { es: "Responde los comentarios", en: "It replies to comments" },
+  sec05TitleMuted: { es: "de Instagram y Facebook.", en: "on Instagram and Facebook." },
   sec05Body: {
-    es: "Responde al instante cada comentario en tus publicaciones y anuncios de Instagram y Facebook, y se lleva la conversación al DM para cerrar la venta.",
-    en: "It instantly replies to every comment on your Instagram and Facebook posts and ads, then moves the conversation to DMs to close the sale.",
+    es: "Contesta cada comentario en publicaciones y anuncios, y le manda un mensaje privado a quien preguntó para seguir la venta por DM.",
+    en: "It answers every comment on posts and ads, and sends a private message to whoever asked so the sale continues in DMs.",
   },
 
-  sec06Title: { es: "Campañas masivas en", en: "Bulk campaigns on" },
+  sec06Title: { es: "Envía campañas masivas", en: "It sends bulk campaigns" },
   sec06TitleMuted: {
-    es: "WhatsApp e Instagram.",
-    en: "WhatsApp and Instagram.",
+    es: "por WhatsApp e Instagram.",
+    en: "on WhatsApp and Instagram.",
   },
   sec06Body: {
-    es: "Lanza una promoción a miles de contactos por WhatsApp e Instagram y mira en vivo quién la recibió, quién la leyó, quién te respondió y quién te compró.",
-    en: "Launch a promo to thousands of contacts on WhatsApp and Instagram and watch in real time who received it, read it, replied, and bought.",
+    es: "Eliges un segmento, escribes el mensaje y sale a miles de contactos. Ves entregados, leídos, respuestas y ventas en vivo, y el agente atiende a quien conteste.",
+    en: "You pick a segment, write the message, and it goes out to thousands of contacts. You see delivered, read, replies, and sales live, and the agent handles anyone who answers.",
   },
 
-  sec07Title: { es: "Y todo, en una", en: "And it all lives in" },
-  sec07TitleMuted: { es: "sola bandeja.", en: "a single inbox." },
+  sec07Title: { es: "Reúne seis canales", en: "It brings six channels" },
+  sec07TitleMuted: { es: "en una sola bandeja.", en: "into one inbox." },
   sec07Body: {
-    es: "WhatsApp, Instagram, Messenger, Mercado Libre y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
-    en: "WhatsApp, Instagram, Messenger, Mercado Libre, and email on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
+    es: "WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas en la misma pantalla, con el historial completo de cada cliente. Tu equipo y el agente trabajan sobre la misma conversación.",
+    en: "WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls on the same screen, with each customer's full history. Your team and the agent work on the same conversation.",
   },
 
-  sec08Title: { es: "Conecta tu tienda", en: "Connect your store" },
+  sec08Title: { es: "Sincroniza tu tienda:", en: "It syncs your store:" },
   sec08TitleMuted: {
-    es: "y vende con datos reales.",
-    en: "and sell with live data.",
+    es: "stock, precios y pedidos.",
+    en: "stock, prices, and orders.",
   },
   sec08Body: {
-    es: "Shopify, WooCommerce, Tiendanube o Mercado Libre: inventario, precios y pedidos sincronizados. El agente recomienda, arma el pedido y cobra con información al día.",
-    en: "Shopify, WooCommerce, Tiendanube, or Mercado Libre: inventory, prices, and orders in sync. The agent recommends, builds the order, and charges with up-to-date information.",
+    es: "Se conecta con Shopify, WooCommerce, Tiendanube y Mercado Libre. El agente vende con el inventario al día y deja el pedido creado en tu tienda.",
+    en: "It connects to Shopify, WooCommerce, Tiendanube, and Mercado Libre. The agent sells with up-to-date inventory and leaves the order created in your store.",
   },
 
-  sec09Title: { es: "Listo en minutos,", en: "Ready in minutes," },
+  sec09Title: { es: "Se configura solo", en: "It sets itself up" },
   sec09TitleMuted: {
-    es: "con unos cuantos clics.",
-    en: "with just a few clicks.",
+    es: "con tu catálogo.",
+    en: "from your catalog.",
   },
   sec09Body: {
-    es: "Conectas tus canales y tu tienda, activas el agente y ya está vendiendo. Sin código y sin los dolores de cabeza de otras plataformas.",
-    en: "Connect your channels and your store, turn on the agent, and it's already selling. No code and none of the headaches of other platforms.",
+    es: "Conectas la tienda y los canales, Riverz investiga tu marca y entrena al agente con tus productos. Lo revisas y lo enciendes. Sin código.",
+    en: "You connect your store and channels, Riverz researches your brand and trains the agent on your products. You review it and switch it on. No code.",
   },
 
-  sec10Title: { es: "Un ROAS claro,", en: "A clear ROAS," },
-  sec10TitleMuted: { es: "no corazonadas.", en: "not gut feelings." },
+  sec10Title: { es: "Muestra cuánto vendió", en: "It shows how much" },
+  sec10TitleMuted: { es: "el agente, en pesos.", en: "the agent sold, in money." },
   sec10Body: {
-    es: "Cada venta queda atribuida al agente, así sabes cuánto te devuelve cada peso que inviertes. Y como contesta en segundos y atiende muchos chats a la vez, te rinde más que cualquier humano.",
-    en: "Every sale is attributed to the agent, so you know the return on every dollar you invest. And since it replies in seconds and handles many chats at once, it does more than any human could.",
+    es: "Cada venta queda atribuida: ingresos, carritos recuperados y tiempo de respuesta, por día y por canal.",
+    en: "Every sale is attributed: revenue, recovered carts, and response time, by day and by channel.",
   },
 
   // ── Hero inbox preview ──
