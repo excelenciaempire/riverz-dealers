@@ -39,8 +39,8 @@ export const landingV2 = {
   heroTitleLead: { es: "Ese chat ya lo pagaste.", en: "That chat already cost you." },
   heroTitleMuted: { es: "Y nadie lo contestó.", en: "And nobody answered." },
   heroSubtitle: {
-    es: "No pierdes ventas por el algoritmo: las pierdes en los chats que se enfrían. Riverz contesta en 4 segundos, recomienda, cobra y crea el pedido en tu tienda. Solo.",
-    en: "You're not losing sales to the algorithm: you're losing them in the chats that go cold. Riverz replies in 4 seconds, recommends, charges, and creates the order in your store. On its own.",
+    es: "No es el algoritmo: es el chat que se enfría. Riverz contesta cada uno en menos de 5 segundos, a cualquier hora, recomienda, cobra y crea el pedido en tu tienda. Sin que tengas que entrar.",
+    en: "It's not the algorithm: it's the chat going cold. Riverz answers every one in under 5 seconds, at any hour, recommends, charges, and creates the order in your store. Without you stepping in.",
   },
   heroCta: {
     es: "Quiero uno para mi tienda",
@@ -105,8 +105,10 @@ export const landingV2 = {
     en: "The agent remembers. It reaches out exactly when they're most likely to buy again, with the offer that fits each one. Set it once and never touch it again.",
   },
 
-  sec04Title: { es: "Nadie pregunta “¿ya llegó?”", en: "Nobody asks “where is it?”" },
-  sec04TitleMuted: { es: "dos veces.", en: "twice." },
+  // Pilar B: el resultado prometido va con número y como titular, no
+  // escondido en una frase.
+  sec04Title: { es: "Menos de 5 segundos.", en: "Under 5 seconds." },
+  sec04TitleMuted: { es: "Siempre. Aunque sean las 3 a.m.", en: "Always. Even at 3 a.m." },
   sec04Body: {
     es: "Confirma cada pedido, manda el número de guía y responde al instante. También a las tres de la mañana, que es cuando tu competencia no contesta.",
     en: "It confirms every order, sends the tracking number, and answers instantly. At three in the morning too — which is when your competitor doesn't answer.",
@@ -487,14 +489,17 @@ export const landingV2 = {
   },
 
   // ── Cierre de confianza (antes del CTA) ──
+  // Pilar D. Sin testimonios todavía, la única prueba real es de quién viene
+  // el visto bueno: Meta auditó Riverz permiso por permiso. Eso es autoridad
+  // prestada de verdad, no una cifra inventada.
   finalTrustTitle: {
-    es: "Todo por los canales oficiales.",
-    en: "Everything through official channels.",
+    es: "Meta nos auditó",
+    en: "Meta audited us",
   },
-  finalTrustTitleMuted: { es: "Sin baneos.", en: "No bans." },
+  finalTrustTitleMuted: { es: "y aprobó todo. Sin baneos.", en: "and approved everything. No bans." },
   finalTrustBody: {
-    es: "Cada mensaje sale por las APIs oficiales de Meta, con los permisos aprobados. Nada de WhatsApp Web ni números clonados: tu cuenta no se bloquea.",
-    en: "Every message goes out through Meta's official APIs, with approved permissions. No WhatsApp Web, no cloned numbers: your account doesn't get blocked.",
+    es: "Cada permiso pasó por revisión de Meta, uno por uno, y cada mensaje sale por sus APIs oficiales. Nada de WhatsApp Web ni números clonados: tu cuenta no se bloquea.",
+    en: "Every permission went through Meta's review, one by one, and every message goes out through their official APIs. No WhatsApp Web, no cloned numbers: your account doesn't get blocked.",
   },
 
   // ── CTA ──
