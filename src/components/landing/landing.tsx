@@ -1435,19 +1435,20 @@ function CallPreview() {
           ))}
         </div>
 
-        {/* Cada línea conserva su lugar desde el principio: la tarjeta no
-            cambia de alto mientras la página se desplaza. */}
+        {/* La transcripción entera está siempre en pantalla —atenuada— y se
+            enciende a medida que se dice: así la tarjeta no cambia de alto ni
+            deja un hueco vacío mientras marca. */}
         <div className="flex flex-col gap-2">
           {CALL_LINES.map((l, i) => {
-            const visible = reduced || step > i;
+            const said = reduced || step > i;
             return (
               <div
                 key={l.text}
-                className={`rounded-xl border px-3 py-2 transition-all duration-300 ${
+                className={`rounded-xl border px-3 py-2 transition-all duration-500 ${
                   l.who === "agent"
                     ? "border-primary/35 bg-primary/5"
                     : "border-border bg-background/60"
-                } ${visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
+                } ${said ? "opacity-100" : "opacity-30"}`}
               >
                 <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/70">
                   {t(l.who === "agent" ? "landing.callAgent" : "landing.callCustomer")}
@@ -1524,12 +1525,14 @@ function ContactsPreview() {
 
         <div className="flex flex-col gap-2">
           {CONTACT_ROWS.map((c, i) => {
-            const visible = reduced || i < shown;
+            const matched = reduced || i < shown;
             return (
               <div
                 key={c.name}
-                className={`flex items-center gap-3 rounded-xl border border-border bg-background/60 p-3 transition-all duration-300 ${
-                  visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+                className={`flex items-center gap-3 rounded-xl border bg-background/60 p-3 transition-all duration-500 ${
+                  matched
+                    ? "border-primary/35 opacity-100"
+                    : "border-border opacity-30"
                 }`}
               >
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold">
