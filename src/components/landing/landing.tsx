@@ -30,6 +30,8 @@ import {
   PhoneCall,
   Users,
   Filter,
+  ShieldCheck,
+  Smartphone,
   Sun,
   Moon,
 } from "lucide-react";
@@ -237,6 +239,15 @@ const SECTIONS: {
     Preview: InboxPreview,
   },
   {
+    n: "07a",
+    eyebrow: "En vivo",
+    icon: Smartphone,
+    title: "landing.secLiveTitle",
+    titleMuted: "landing.secLiveTitleMuted",
+    body: "landing.secLiveBody",
+    Preview: LivePreview,
+  },
+  {
     n: "07b",
     eyebrow: "Contactos",
     icon: Users,
@@ -353,6 +364,13 @@ export function Landing() {
               </span>
             ))}
           </StripRow>
+
+          {/* La duda que frena a todo comerciante antes de conectar nada: si
+              esto le tumba la cuenta. Se responde acá, junto a los logos. */}
+          <p className="flex items-center justify-center gap-2 border-t border-border/40 pt-5 text-center text-[13px] text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0 text-accent-ink" />
+            {t("landing.trustBand")}
+          </p>
         </div>
       </section>
 
@@ -1471,6 +1489,69 @@ function CallPreview() {
           <span className="ml-auto text-[11px] text-muted-foreground">
             {t("landing.callTranscript")}
           </span>
+        </div>
+      </div>
+    </PreviewFrame>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 07a · En vivo — la misma conversación vista desde el teléfono mientras
+// ocurre, con la puerta abierta para que el humano entre.
+// ─────────────────────────────────────────────────────────────────────────
+
+function LivePreview() {
+  const t = useT();
+  const reduced = useReducedMotion();
+  // 0 llega el mensaje · 1 el agente escribe · 2 responde
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (reduced) {
+      const raf = requestAnimationFrame(() => setStep(2));
+      return () => cancelAnimationFrame(raf);
+    }
+    const id = setInterval(() => setStep((s) => (s >= 2 ? 0 : s + 1)), 1600);
+    return () => clearInterval(id);
+  }, [reduced]);
+
+  return (
+    <PreviewFrame className="max-w-[300px] md:max-w-[320px] lg:max-w-[340px]">
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-center gap-2.5">
+          <ChannelLogo channel="whatsapp" size={20} />
+          <div className="leading-tight">
+            <div className="text-sm font-medium">Laura M.</div>
+            <div className="inline-flex items-center gap-1.5 text-[11px] text-accent-ink">
+              <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+              {t("landing.liveNow")}
+            </div>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Smartphone className="size-3.5" /> {t("landing.liveFromPhone")}
+          </span>
+        </div>
+
+        <div className="flex min-h-[168px] flex-col justify-end gap-2">
+          <div className="max-w-[85%] self-start rounded-2xl rounded-tl-sm bg-muted px-3 py-2 text-sm">
+            {t("landing.liveThem")}
+          </div>
+          {step === 1 && (
+            <div className="self-end text-[11px] text-muted-foreground duration-300 animate-in fade-in">
+              {t("landing.liveTyping")}
+            </div>
+          )}
+          <div
+            className={`max-w-[85%] self-end rounded-2xl rounded-tr-sm bg-primary px-3 py-2 text-sm text-primary-foreground transition-all duration-500 ${
+              step >= 2 ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {t("landing.liveYou")}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-full border border-border px-3.5 py-2">
+          <span className="text-[13px] text-muted-foreground">{t("landing.liveTakeOver")}</span>
+          <CornerDownRight className="size-4 text-accent-ink" />
         </div>
       </div>
     </PreviewFrame>

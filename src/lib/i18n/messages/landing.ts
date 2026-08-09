@@ -67,8 +67,8 @@ export const landing = {
     en: "that knows your products.",
   },
   sec01Body: {
-    es: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, responde dudas y cierra la compra como tu mejor vendedor, también mientras duermes.",
-    en: "It knows your catalog, prices, and shipping inside out. It recommends, answers questions, and closes the sale like your best rep, even while you sleep.",
+    es: "Conoce tu catálogo, tus precios y tus envíos al derecho y al revés. Recomienda, suma lo que combina para subir el ticket y cierra la compra como tu mejor vendedor, también mientras duermes.",
+    en: "It knows your catalog, prices, and shipping inside out. It recommends, adds what pairs well to raise the ticket, and closes the sale like your best rep, even while you sleep.",
   },
 
   sec02Title: { es: "Recupera cada", en: "Recover every" },
@@ -101,6 +101,20 @@ export const landing = {
     en: "It confirms every order, sends the tracking number, and answers questions instantly. Your customers always know where their order stands, any time of day.",
   },
 
+  // Banda de confianza: la objeción número uno es que le baneen la cuenta.
+  trustBand: {
+    es: "Conectado por las APIs oficiales de Meta, con permisos aprobados. Sin WhatsApp Web ni números clonados.",
+    en: "Connected through Meta's official APIs, with approved permissions. No WhatsApp Web, no cloned numbers.",
+  },
+
+  // En vivo / móvil — mirar al agente trabajar y entrar cuando quieras.
+  secLiveTitle: { es: "Míralo trabajar,", en: "Watch it work," },
+  secLiveTitleMuted: { es: "desde tu teléfono.", en: "from your phone." },
+  secLiveBody: {
+    es: "Ves en vivo lo que le responde a cada cliente y, si quieres, entras en la conversación con un toque. Desde el computador o el celular.",
+    en: "You see in real time what it replies to every customer and, if you want, you step into the conversation with one tap. From your desktop or your phone.",
+  },
+
   // Voz — sección propia: el agente también habla por teléfono.
   secVoiceTitle: { es: "Y cuando hace falta,", en: "And when it matters," },
   secVoiceTitleMuted: {
@@ -108,8 +122,8 @@ export const landing = {
     en: "it picks up the phone.",
   },
   secVoiceBody: {
-    es: "Llama para confirmar pedidos contraentrega, recuperar carritos y hacer seguimiento, y también atiende las llamadas que entran. Cada llamada queda transcrita y con su resultado.",
-    en: "It calls to confirm cash-on-delivery orders, recover carts, and follow up, and it answers incoming calls too. Every call is transcribed and closed with an outcome.",
+    es: "Conversa con voz natural: llama para confirmar pedidos contraentrega, recuperar carritos y hacer seguimiento, y también atiende las llamadas que entran. Cada llamada queda transcrita y con su resultado.",
+    en: "It speaks with a natural voice: it calls to confirm cash-on-delivery orders, recover carts, and follow up, and it answers incoming calls too. Every call is transcribed and closed with an outcome.",
   },
 
   // Contactos y segmentos — la base de clientes que se ordena sola.
@@ -415,6 +429,20 @@ export const landing = {
     en: "created by AI.",
   },
   productOrderLead: { es: "Pedido", en: "Order" },
+
+  // ── Live / mobile preview ──
+  liveNow: { es: "En vivo", en: "Live" },
+  liveFromPhone: { es: "Desde tu teléfono", en: "From your phone" },
+  liveThem: {
+    es: "¿Me lo pueden enviar hoy?",
+    en: "Can you ship it today?",
+  },
+  liveYou: {
+    es: "Sí, si confirmas antes de las 4 pm 🚚",
+    en: "Yes, if you confirm before 4 pm 🚚",
+  },
+  liveTyping: { es: "El agente está respondiendo…", en: "The agent is replying…" },
+  liveTakeOver: { es: "Tomar el control", en: "Take over" },
 
   // ── Call preview ──
   callOutbound: { es: "Llamada saliente", en: "Outgoing call" },
