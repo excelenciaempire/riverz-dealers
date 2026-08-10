@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { signupsOpen } from "@/lib/auth/signups";
 
 const BASE_URL = "https://riverz.co";
 
@@ -20,12 +21,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.7,
     },
-    {
-      url: `${BASE_URL}/registro`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
+    // /registro only while sign-ups are open — no point sending crawlers
+    // to a page the proxy redirects to the landing.
+    ...(signupsOpen()
+      ? [
+          {
+            url: `${BASE_URL}/registro`,
+            lastModified,
+            changeFrequency: "monthly" as const,
+            priority: 0.7,
+          },
+        ]
+      : []),
     {
       url: `${BASE_URL}/terminos`,
       lastModified,

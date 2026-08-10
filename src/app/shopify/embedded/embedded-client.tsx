@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
+import { signupsOpen } from '@/lib/auth/signups';
 
 declare global {
   interface Window {
@@ -117,7 +118,11 @@ export function EmbeddedClient() {
             <a
               href={
                 status.state === 'pending'
-                  ? `/registro?shopify=pending&shop=${encodeURIComponent(status.shop)}`
+                  ? // Pre-launch: /registro is closed; sign in and the
+                    // dashboard claims the parked install.
+                    signupsOpen()
+                    ? `/registro?shopify=pending&shop=${encodeURIComponent(status.shop)}`
+                    : `/ingresar?shopify=pending&shop=${encodeURIComponent(status.shop)}`
                   : `/api/shopify/oauth/start?shop=${encodeURIComponent(status.shop)}`
               }
               target="_blank"

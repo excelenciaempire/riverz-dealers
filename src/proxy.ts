@@ -4,6 +4,7 @@ import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/lib/i18n/config'
 import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
+import { signupsOpen } from '@/lib/auth/signups'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -176,6 +177,14 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = localizePath(path, locale)
     return applyCsp(NextResponse.redirect(url), csp)
+  }
+
+  // Pre-launch: the sign-up page is unreachable. canonicalPath covers both
+  // /registro and its English alias /signup. Anonymous visitors land on the
+  // landing (which offers the waitlist); signed-in users fall through to the
+  // /panel redirect below.
+  if (!user && !signupsOpen() && canonicalPath === '/registro') {
+    return redirectTo('/')
   }
 
   // Auth pages - redirect to dashboard if already logged in. /nueva-clave

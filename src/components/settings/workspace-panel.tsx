@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types";
+import { signupsOpen } from "@/lib/auth/signups";
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -444,8 +445,9 @@ export function WorkspacePanel() {
           })}
         </ul>
 
-        {/* Invite form */}
-        {isAdmin && (
+        {/* Invite form. Hidden during pre-launch: /api/workspace/invite
+            creates an auth user, so it 403s while sign-ups are closed. */}
+        {isAdmin && signupsOpen() && (
           <div className="border-t border-border px-5 py-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <UserPlus className="size-4 text-accent-ink" />

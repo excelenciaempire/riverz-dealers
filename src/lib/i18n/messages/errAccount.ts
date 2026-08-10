@@ -23,6 +23,14 @@ export const errAccount = {
     es: "Si el correo es válido, recibirás un mensaje.",
     en: "If the email is valid, you'll receive a message.",
   },
+  signupsClosed: {
+    es: "El registro está cerrado por ahora. Apúntate a la lista de espera en riverz.co.",
+    en: "Sign-ups are closed for now. Join the waitlist at riverz.co.",
+  },
+  invitesClosed: {
+    es: "Las invitaciones están desactivadas durante el prelanzamiento.",
+    en: "Invitations are disabled during pre-launch.",
+  },
 
   // Accept invite
   notSignedIn: {

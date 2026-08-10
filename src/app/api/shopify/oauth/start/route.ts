@@ -12,6 +12,7 @@ import { hasPendingInstall } from '@/lib/shopify/pending-install'
 import { getLocale } from '@/lib/i18n/server'
 import { localizePath } from '@/lib/i18n/routes'
 import { translate } from '@/lib/i18n/translate'
+import { signupsOpen } from '@/lib/auth/signups'
 
 /**
  * Post-install bootstrap entrypoint. Shopify custom-app distribution
@@ -74,7 +75,12 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(localizePath('/ingresar', locale), base))
     }
     if (await hasPendingInstall(admin, shop)) {
-      const claimUrl = new URL(localizePath('/registro', locale), base)
+      // Pre-launch: /registro is closed — the merchant signs in and the
+      // dashboard auto-claims the parked install.
+      const claimUrl = new URL(
+        localizePath(signupsOpen() ? '/registro' : '/ingresar', locale),
+        base,
+      )
       claimUrl.searchParams.set('shopify', 'pending')
       claimUrl.searchParams.set('shop', shop)
       return NextResponse.redirect(claimUrl)

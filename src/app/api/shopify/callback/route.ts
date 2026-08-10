@@ -15,6 +15,7 @@ import {
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getLocale } from '@/lib/i18n/server'
 import { localizePath } from '@/lib/i18n/routes'
+import { signupsOpen } from '@/lib/auth/signups'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.callback')
@@ -237,8 +238,13 @@ export async function GET(request: Request) {
       })
       log.info('install_parked_pending_claim', { shop })
 
+      // Pre-launch: /registro is closed, so send the merchant to sign in
+      // instead. The parked install still waits 24h for the claim.
       const locale = await getLocale()
-      const url = new URL(localizePath('/registro', locale), callbackBase)
+      const url = new URL(
+        localizePath(signupsOpen() ? '/registro' : '/ingresar', locale),
+        callbackBase,
+      )
       url.searchParams.set('shopify', 'pending')
       url.searchParams.set('shop', shop)
       const res = NextResponse.redirect(url)

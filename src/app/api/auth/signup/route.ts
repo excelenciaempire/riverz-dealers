@@ -11,6 +11,7 @@ import { safeRedirectTo } from "@/lib/auth/redirect";
 import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
+import { signupsOpen } from "@/lib/auth/signups";
 
 /**
  * POST /api/auth/signup
@@ -29,6 +30,16 @@ import { translate } from "@/lib/i18n/translate";
 
 export async function POST(req: Request) {
   const locale = await getLocale();
+
+  // Pre-launch: no new accounts. Hard 403 before any Supabase call — this
+  // is the only server path that reaches auth.signUp. See lib/auth/signups.
+  if (!signupsOpen()) {
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.signupsClosed") },
+      { status: 403 },
+    );
+  }
+
   const genericOk = {
     ok: true,
     message: translate(locale, "errAccount.signupGenericOk"),

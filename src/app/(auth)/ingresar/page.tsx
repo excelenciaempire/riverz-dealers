@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
+import { signupsOpen } from "@/lib/auth/signups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,15 +113,18 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.noAccount")}{" "}
-            <Link
-              href="/registro"
-              className="text-accent-ink hover:text-accent-ink/80"
-            >
-              {t("auth.createAccount")}
-            </Link>
-          </p>
+          {/* Pre-launch: sign-ups are closed, so no "create account" link. */}
+          {signupsOpen() && (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              {t("auth.noAccount")}{" "}
+              <Link
+                href="/registro"
+                className="text-accent-ink hover:text-accent-ink/80"
+              >
+                {t("auth.createAccount")}
+              </Link>
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

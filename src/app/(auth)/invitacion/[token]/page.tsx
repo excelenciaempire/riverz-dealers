@@ -6,6 +6,7 @@ import Link from "@/components/i18n/locale-link";
 import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { LEGAL_VERSION } from "@/lib/legal/version";
+import { signupsOpen } from "@/lib/auth/signups";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -59,9 +60,13 @@ export default function AcceptInvitePage({ params }: PageProps) {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        // Not signed in: push them to registro with the invited email
-        // prefilled. After signup + email verification the auth
-        // callback brings them back here to accept.
+        // Not signed in. Normally we push them to registro with the invited
+        // email prefilled; during pre-launch that page is closed, so they go
+        // to sign in with whatever account they already have.
+        if (!signupsOpen()) {
+          router.replace("/ingresar");
+          return;
+        }
         const params = new URLSearchParams({
           invite: token,
           email: invite.email ?? "",
