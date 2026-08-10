@@ -1,0 +1,18 @@
+# Ping riverz.co every ~10 minutes so Render's free-plan spin-down never
+# shows reviewers (TikTok/Meta/Shopify) a dead site. The TikTok developer
+# profile was REJECTED on 2026-07 because the reviewer hit the site while
+# the service was asleep ("website under construction/maintenance").
+# Cheap insurance until the web service moves to a paid plan.
+name: keepalive
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping riverz.co
+        run: |
+          curl -sS -o /dev/null -w "home %{http_code} in %{time_total}s\n" --max-time 60 https://riverz.co/
+          curl -sS -o /dev/null -w "privacy %{http_code} in %{time_total}s\n" --max-time 60 https://riverz.co/privacy
