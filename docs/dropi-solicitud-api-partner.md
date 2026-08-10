@@ -9,9 +9,11 @@
 
 Estimado equipo de Dropi:
 
-Soy Juan Diego Ríos, fundador de **Riverz** (riverz.co). Riverz es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región: unifica WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas telefónicas en un solo lugar, y sobre esa base opera un agente de IA que atiende consultas, hace seguimiento, confirma pedidos por chat o por teléfono y los crea directamente en la tienda. Hoy ya integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
+Soy Juan Diego Ríos, fundador de **Riverz** (riverz.co).
 
-Queremos sumar Dropi como integración nativa antes de nuestro lanzamiento. El flujo que buscamos: al confirmarse el pedido —en el chat o en la llamada— Riverz lo carga en Dropi; cuando Dropi genera la guía, Riverz notifica automáticamente al cliente por WhatsApp con su número de guía y su enlace de rastreo, y lo mantiene informado en cada cambio de estado hasta la entrega. Toda esa capa de mensajería y automatización ya está construida de nuestro lado.
+Riverz parte de una premisa distinta a la de las herramientas de chat: en contra entrega el problema no es responder rápido, es que el pedido termine entregado. Por eso nuestro agente de inteligencia artificial no solo escribe: también **llama por teléfono**. Marca al cliente, confirma el pedido en una conversación real y lo deja creado en la tienda. Ese mismo agente atiende WhatsApp, Instagram, Messenger, Mercado Libre y correo desde un solo lugar, y trabaja sobre Shopify, WooCommerce, Tiendanube y Mercado Libre.
+
+Queremos sumar Dropi como integración nativa antes de nuestro lanzamiento, con el ciclo completo: pedido confirmado en la llamada o el chat, cargado en Dropi; al generarse la guía, el cliente recibe automáticamente su número y su enlace de rastreo por WhatsApp; y de ahí en adelante, seguimiento en cada cambio de estado —incluidas las novedades— para que menos pedidos terminen en devolución. La capa de conversación y automatización ya está construida de nuestro lado; nos falta el lado de Dropi.
 
 Antes de plantear un alcance concreto, nos interesa conocer lo que ofrece Dropi:
 
@@ -34,7 +36,7 @@ juandiegoriosmesa@gmail.com · riverz.co
 - La API de integraciones se autentica con el header **`dropi-integration-key`**; el token se genera desde la sección **Integraciones** del panel del comercio y se asocia a la plataforma que consume.
 - Hay ambientes separados de **pruebas** y **producción**, con URLs base distintas.
 - Servicios conocidos: autenticación/login, creación de órdenes y **consulta de guías**, con estados tipo `GUIA_GENERADA`.
-- Precedentes ya listados en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. Es el mismo casillero que ocuparía Riverz.
+- Precedentes ya listados en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. **Todos son herramientas de chat o de bots.** De ahí el posicionamiento del correo: Riverz no compite por responder más rápido, sino por efectividad de entrega —llamada telefónica con IA para confirmar el pedido y seguimiento de la guía hasta la entrega—, que es la métrica que le importa a Dropi.
 - Países con operación: Colombia, México, Ecuador, Panamá, Paraguay, Chile, Perú.
 - Contacto: comercial@dropi.co · (+57) 321 8379821 · dropi.co/contactanos
 
