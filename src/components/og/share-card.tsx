@@ -12,7 +12,7 @@ import { ImageResponse } from "next/og";
 // responde, ejecuta — y el subtítulo lo prueba con lo que hace solo.
 
 export const alt =
-  "riverz — Agentes de IA que cierran la venta en todos tus canales";
+  "riverz — Agentes de IA que venden y atienden 24/7 en todos tus canales";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -62,11 +62,11 @@ export function renderShareCard(): ImageResponse {
         {/* Headline + subline */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.03 }}>
-            <span style={{ fontSize: 86, letterSpacing: -2.5 }}>Agentes de IA que</span>
-            <div style={{ display: "flex", fontSize: 86, letterSpacing: -2.5 }}>
-              <span style={{ marginRight: 22 }}>cierran la</span>
-              <span style={{ color: "#f7ff9e" }}>venta.</span>
-            </div>
+            {/* Tres líneas: a 86px la frase entera no entra en dos sin rozar
+                el borde de los 1032px útiles. */}
+            <span style={{ fontSize: 78, letterSpacing: -2.2 }}>Agentes de IA que</span>
+            <span style={{ fontSize: 78, letterSpacing: -2.2 }}>venden y atienden</span>
+            <span style={{ fontSize: 78, letterSpacing: -2.2, color: "#f7ff9e" }}>24/7.</span>
           </div>
           <span
             style={{
@@ -77,8 +77,8 @@ export function renderShareCard(): ImageResponse {
               maxWidth: 880,
             }}
           >
-            Atienden, deciden y ejecutan: recomiendan, recuperan carritos y crean
-            el pedido en tu tienda. Sin que tengas que responder.
+            Recomiendan, cierran la venta y dejan la orden creada en tu tienda.
+            Recuperan carritos, confirman pedidos y mandan la guía.
           </span>
         </div>
 

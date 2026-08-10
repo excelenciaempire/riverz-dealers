@@ -13,8 +13,8 @@ export const landing = {
     en: "AI agents that engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order in your store. 24/7, without you replying.",
   },
   ogTitle: {
-    es: "Agentes de IA que cierran la venta · riverz",
-    en: "AI agents that close the sale · riverz",
+    es: "Agentes de IA que venden y atienden 24/7 · riverz",
+    en: "AI agents that sell and support 24/7 · riverz",
   },
   ogDescription: {
     es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
@@ -28,10 +28,10 @@ export const landing = {
   // El hero promete el conjunto —un agente que hace todo—; el desglose
   // función por función viene después, sección por sección.
   heroTitleLead: { es: "Agentes de IA que", en: "AI agents that" },
-  heroTitleMuted: { es: "cierran la venta.", en: "close the sale." },
+  heroTitleMuted: { es: "venden y atienden 24/7.", en: "sell and support 24/7." },
   heroSubtitle: {
-    es: "Atienden, recomiendan y venden. Recuperan carritos, confirman pedidos y dejan la orden creada en tu tienda. Servicio al cliente 24/7 en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas.",
-    en: "They engage, recommend, and sell. They recover carts, confirm orders, and leave the order created in your store. 24/7 customer service on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls.",
+    es: "Recomiendan, cierran la venta y dejan la orden creada en tu tienda. Recuperan carritos, confirman pedidos y mandan la guía. Todo en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas.",
+    en: "They recommend, close the sale, and leave the order created in your store. They recover carts, confirm orders, and send the tracking. All on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls.",
   },
   heroCta: {
     es: "Unirse a la lista de espera",
