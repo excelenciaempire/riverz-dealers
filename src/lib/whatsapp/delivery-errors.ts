@@ -48,6 +48,8 @@ const CODES: Record<number, CodeMeta> = {
   131042: { key: 'code131042' }, // error de método de pago / línea de crédito
   141006: { key: 'code131042' }, // pago (aparece en health_status) → misma explicación
   131045: { key: 'code131045' }, // error de registro del número
+  131052: { key: 'code131052' }, // Meta no pudo descargar el archivo de la URL
+  131053: { key: 'code131053' }, // formato/tamaño no soportado (WebP, HEIC, >5 MB)
   130403: { key: 'code130403' }, // el negocio bloqueó a este usuario
   131000: { key: 'code131000' }, // error desconocido de Meta
   131016: { key: 'code131016' }, // servicio de WhatsApp temporalmente no disponible

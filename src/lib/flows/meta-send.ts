@@ -317,6 +317,7 @@ import {
   sendDocumentMessage,
   sendInteractiveCtaUrl,
 } from '@/lib/whatsapp/meta-api'
+import { ensureSendableImageUrl } from '@/lib/whatsapp/image-compat'
 
 type MediaKind = 'image' | 'video' | 'document'
 
@@ -369,12 +370,17 @@ async function engineSendMediaInner(
         ? sendVideoMessage
         : sendDocumentMessage
 
+  // WhatsApp solo entrega imágenes JPEG/PNG (131053 si no). Las URLs de un
+  // flujo suelen venir de Shopify o de un CDN que sirve WebP: se transcodifica
+  // antes de enviar. Para video/documento la URL va tal cual.
+  const sendUrl = kind === 'image' ? await ensureSendableImageUrl(args.url) : args.url
+
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendFn({
       phoneNumberId: config.phone_number_id,
       accessToken,
       to: phone,
-      url: args.url,
+      url: sendUrl,
       caption: args.caption,
       filename: kind === 'document' ? args.filename : undefined,
     })

@@ -63,6 +63,14 @@ export const deliveryErrors = {
     es: "Falta completar la información de pago o fiscal de tu cuenta de WhatsApp. Complétala en WhatsApp Manager para poder enviar.",
     en: "Your WhatsApp account's payment or tax information is incomplete. Complete it in WhatsApp Manager to send.",
   },
+  code131052: {
+    es: "WhatsApp no pudo descargar el archivo adjunto. Vuelve a adjuntarlo e inténtalo de nuevo.",
+    en: "WhatsApp couldn't download the attached file. Attach it again and retry.",
+  },
+  code131053: {
+    es: "WhatsApp no acepta ese formato de archivo. Usa JPG o PNG (máximo 5 MB).",
+    en: "WhatsApp doesn't accept that file format. Use JPG or PNG (5 MB max).",
+  },
   code131045: {
     es: "El número no está registrado correctamente para enviar.",
     en: "The number isn't correctly registered to send.",

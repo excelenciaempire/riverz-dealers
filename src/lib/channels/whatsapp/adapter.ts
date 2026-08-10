@@ -24,6 +24,7 @@ import {
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
+import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
 import {
   handleTemplateStatusUpdate,
   handleTemplateQualityUpdate,
@@ -236,7 +237,14 @@ export const whatsappAdapter: ChannelAdapter = {
       let result: { messageId: string };
       switch (input.mediaType) {
         case "image":
-          result = await sendImageMessage({ ...common, caption: input.caption });
+          // Red de seguridad para URLs que no pasaron por el composer (imagen
+          // de producto, nodo de flujo, CDN de Shopify): WhatsApp rechaza todo
+          // lo que no sea JPEG/PNG con el código 131053.
+          result = await sendImageMessage({
+            ...common,
+            url: await ensureSendableImageUrl(input.mediaUrl),
+            caption: input.caption,
+          });
           break;
         case "video":
           result = await sendVideoMessage({ ...common, caption: input.caption });

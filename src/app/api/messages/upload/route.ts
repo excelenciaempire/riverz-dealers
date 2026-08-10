@@ -6,6 +6,7 @@ import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { ingestRawMedia, MAX_ATTACHMENT_BYTES } from "@/lib/channels/media-ingest";
+import { toSendableImage, toJpegFileName } from "@/lib/whatsapp/image-compat";
 import type { Conversation } from "@/types";
 
 /**
@@ -82,9 +83,15 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const fileName = "name" in file ? String((file as File).name || "") : "";
-  const mime = file.type || "application/octet-stream";
+  const raw = Buffer.from(await file.arrayBuffer());
+  let fileName = "name" in file ? String((file as File).name || "") : "";
+  // WhatsApp solo entrega JPEG/PNG: un WebP/HEIC llega a Meta pero falla en la
+  // entrega con 131053. Se convierte acá, así lo que se guarda, lo que se ve en
+  // el hilo y lo que recibe el cliente son el mismo archivo.
+  const safe = await toSendableImage(raw, file.type || "application/octet-stream");
+  const buffer = safe.buffer;
+  const mime = safe.mime;
+  if (safe.converted) fileName = toJpegFileName(fileName) ?? fileName;
   const ingested = await ingestRawMedia({
     buffer,
     mime,
