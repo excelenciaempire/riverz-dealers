@@ -62,11 +62,13 @@ export function renderShareCard(): ImageResponse {
         {/* Headline + subline */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.03 }}>
-            {/* Tres líneas: a 86px la frase entera no entra en dos sin rozar
-                el borde de los 1032px útiles. */}
+            {/* Dos líneas: la tarjeta mide 630px y una tercera línea de
+                titular empuja el subtítulo contra el pie. */}
             <span style={{ fontSize: 78, letterSpacing: -2.2 }}>Agentes de IA que</span>
-            <span style={{ fontSize: 78, letterSpacing: -2.2 }}>venden y atienden</span>
-            <span style={{ fontSize: 78, letterSpacing: -2.2, color: "#f7ff9e" }}>24/7.</span>
+            <div style={{ display: "flex", fontSize: 78, letterSpacing: -2.2 }}>
+              <span style={{ marginRight: 20 }}>venden y atienden</span>
+              <span style={{ color: "#f7ff9e" }}>24/7.</span>
+            </div>
           </div>
           <span
             style={{
@@ -78,7 +80,7 @@ export function renderShareCard(): ImageResponse {
             }}
           >
             Recomiendan, cierran la venta y dejan la orden creada en tu tienda.
-            Recuperan carritos, confirman pedidos y mandan la guía.
+            Recuperan carritos y confirman pedidos.
           </span>
         </div>
 
