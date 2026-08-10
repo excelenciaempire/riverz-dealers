@@ -1,59 +1,63 @@
-# Solicitud de acceso a la API de Dropi (integración Riverz)
+# Correo a Dropi — consulta de integración
 
-**Enviar a:** comercial@dropi.co (con copia a soporte vía https://dropi.co/contactanos/)
-**Alternativa:** WhatsApp comercial (+57) 321 8379821 para pedir el contacto del equipo técnico/integraciones.
+**Enviar a:** comercial@dropi.co (o el formulario de https://dropi.co/contactanos/)
+**Alternativa:** WhatsApp comercial (+57) 321 8379821, pidiendo el contacto del equipo de integraciones.
 
-**Contexto investigado (para sostener la conversación técnica):**
-
-- Dropi expone una API de Integraciones que se autentica con el header `dropi-integration-key`; el token se genera desde la sección **Integraciones** del panel del comercio y se asocia a la plataforma que consume.
-- Hay ambiente de **pruebas** y de **producción** con URLs base distintas.
-- Los servicios documentados incluyen autenticación/login, creación de órdenes y **consulta de guías**, con estados tipo `GUIA_GENERADA`.
-- Ya existen integraciones de chat/automatización listadas en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. Es el mismo casillero que ocuparía Riverz.
-- Países con operación: Colombia, México, Ecuador, Panamá, Paraguay, Chile, Perú.
+**Asunto:** Riverz — consulta sobre integración con Dropi
 
 ---
 
-## Asunto
-
-Solicitud de acceso a la API de Integraciones — Riverz (CRM con IA para ecommerce COD)
-
-## Cuerpo
-
 Hola, equipo de Dropi:
 
-Soy Juan Diego Ríos, fundador de **Riverz** (riverz.co), una plataforma de ventas y atención con IA que centraliza WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas en un solo lugar. Buena parte de nuestros comercios opera contra entrega en Colombia y el resto de la región, y hoy ya usan Dropi para su logística.
+Soy Juan Diego Ríos, de **Riverz** (riverz.co). Construimos una plataforma que atiende y vende por WhatsApp, Instagram y llamadas con inteligencia artificial, pensada para tiendas que venden contra entrega en Colombia y la región.
 
-Escribo para solicitar **acceso a la API de Integraciones de Dropi** y, si existe, el alta como integración oficial dentro de su directorio.
+Estamos por lanzar y queremos que Dropi sea una de nuestras integraciones desde el primer día. La idea es simple: cuando el pedido se confirma en el chat o en la llamada, Riverz lo carga en Dropi; y cuando Dropi genera la guía, Riverz le escribe solo al cliente por WhatsApp con su número de guía y su enlace de rastreo. Después seguimos avisándole en cada cambio hasta la entrega.
 
-**Qué queremos resolver.** Hoy el comercio confirma el pedido en Riverz, lo carga en Dropi y después vuelve manualmente a copiar el número de guía para enviárselo al cliente. Con acceso a la API, ese ciclo queda automático:
+Antes de proponer nada más concreto, preferimos preguntarles a ustedes:
 
-1. Al confirmarse un pedido (chat o llamada), Riverz lo crea en Dropi.
-2. Cuando Dropi genera la guía, Riverz envía automáticamente al cliente su número de guía, transportadora y enlace de rastreo por WhatsApp.
-3. Ante cada cambio de estado o novedad (dirección incompleta, cliente no contesta, reprogramación), el agente de IA contacta al cliente, resuelve y devuelve la información al pedido.
+- ¿Qué se puede conectar hoy con Dropi y dónde está la documentación?
+- ¿Cómo se solicita el acceso y qué piden de nuestro lado?
+- ¿Hay un ambiente de pruebas para empezar a desarrollar?
 
-Esto reduce devoluciones y llamadas de soporte, y hace que más pedidos lleguen a entrega efectiva — que es exactamente lo que le conviene a los dos lados.
+Si les resulta más fácil, con gusto tomamos una llamada corta con quien lleve las integraciones.
 
-**Accesos que necesitamos:**
+Gracias,
 
-1. **Credenciales y modelo de conexión.** Llave de integración (`dropi-integration-key`) para ambiente de pruebas y producción, y el mecanismo previsto para que **cada comercio conecte su propia cuenta de Dropi** desde Riverz (somos multi-cuenta: un token por comercio, no uno global).
-2. **Pedidos.** Crear y actualizar órdenes, y consultar su estado.
-3. **Guías.** Número de guía, transportadora, enlace de rastreo, historial de estados y el **catálogo completo de estados** con su significado.
-4. **Webhooks.** Notificación de cambios de estado (guía generada, en ruta, entregado, novedad, devolución), con URL configurable por comercio. Si aún no existen, podemos consultar por sondeo, pero preferimos webhooks para no golpear su API.
-5. **Novedades, devoluciones y recaudo.** Motivo de la novedad, acciones posibles y valor recaudado del pedido contra entrega.
-6. **Maestros.** Catálogo y stock de proveedores, y listado de ciudades/departamentos para normalizar direcciones antes de generar la guía.
-
-**Preguntas operativas:**
-
-- ¿Cuál es la documentación vigente y las URLs base de pruebas y producción?
-- ¿Qué límites de consumo (rate limits) aplican y qué SLA maneja el ambiente de pruebas?
-- ¿El acceso aplica a las operaciones de Colombia, México, Ecuador, Panamá, Paraguay, Chile y Perú, o se solicita por país?
-- ¿Existe un programa de partners o requisitos para aparecer en dropi.co/integraciones?
-- ¿Qué requieren de nuestro lado en materia legal (tratamiento de datos personales / Habeas Data, acuerdo de confidencialidad, contrato de integración)? Podemos firmar lo que haga falta.
-
-Quedo atento a una llamada de 20 minutos con su equipo técnico para alinear el alcance y empezar en el ambiente de pruebas. Tenemos el desarrollo listo para conectar apenas nos habiliten las credenciales.
-
-Gracias por el tiempo.
-
-Juan Diego Ríos
-Fundador — Riverz
+Juan Diego Ríos — Riverz
 juandiegoriosmesa@gmail.com · riverz.co
+
+---
+
+## Contexto investigado (no va en el correo)
+
+- La API de integraciones se autentica con el header **`dropi-integration-key`**; el token se genera desde la sección **Integraciones** del panel del comercio y se asocia a la plataforma que consume.
+- Hay ambientes separados de **pruebas** y **producción**, con URLs base distintas.
+- Servicios conocidos: autenticación/login, creación de órdenes y **consulta de guías**, con estados tipo `GUIA_GENERADA`.
+- Precedentes ya listados en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. Es el mismo casillero que ocuparía Riverz.
+- Países con operación: Colombia, México, Ecuador, Panamá, Paraguay, Chile, Perú.
+- Contacto: comercial@dropi.co · (+57) 321 8379821 · dropi.co/contactanos
+
+## Estado real de Riverz (para cuando respondan)
+
+**Ya construido y funcionando** — toda la última milla de avisar al cliente:
+
+- Plantillas de WhatsApp fuera de la ventana de 24 h — `src/lib/whatsapp/meta-api.ts:217`.
+- Botón dinámico de rastreo por cliente (`ButtonUrlVariable` incluye `'tracking'`) — `src/lib/whatsapp/dynamic-links.ts:16`.
+- Motor de automatizaciones con disparadores de despachado y entregado — `src/lib/automations/engine.ts:63`.
+- Receta lista `enviar-tracking` con el copy del número de guía — `src/lib/automations/templates.ts:149`.
+- Variables `tracking_number` / `tracking_company` / `tracking_url` en plantillas, condiciones y flujos — `src/lib/automations/data-points.ts:300`.
+- Columnas donde vive la guía: `orders.tracking_number/tracking_company/tracking_url/shipping_status` — `supabase/migrations/137_mercadolibre_orders.sql:30`.
+- La IA responde "¿dónde está mi pedido?" con guía y enlace — `lookup_order` en `src/lib/ai/tools.ts:139`.
+- Creación real de pedidos por IA (contra entrega) — `src/lib/shopify/create-order.ts:115`.
+- Llamada de voz COD → resultado → write-back al pedido — `src/lib/voice/result.ts:290` → `src/lib/voice/cod.ts:22`.
+- CRUD de credenciales Dropi cifradas con RLS — `src/app/api/integrations/dropi/route.ts` + `supabase/migrations/116_voice_cod_and_campaigns.sql:44`.
+
+**A medias o roto** (arreglar cuando llegue la documentación real):
+
+- `pushOrderToDropi` (`src/lib/integrations/dropi.ts:71`) usa `Authorization: Bearer` y `POST /orders`, ambos adivinados. Lo investigado apunta a `dropi-integration-key` y a un endpoint tipo `saveOrder`.
+- `DropiCard` (`src/components/settings/dropi-card.tsx`) no está importada en ninguna página: hoy ningún comercio puede conectar Dropi, y el push siempre sale por `return false`.
+- `src/lib/voice/cod.ts:62` manda `items` como texto, no como líneas del pedido.
+- El push no verifica `cod_mode`, no guarda el resultado ni el id del pedido en Dropi, y no reintenta.
+- El logo de Dropi ya está en la landing (`src/components/landing/landing.tsx:108`) sin la funcionalidad detrás.
+
+**Falta por completo:** lectura de guías desde Dropi, webhook o cron de estados, novedades, devoluciones, recaudo contra entrega, y transportadoras colombianas en `src/lib/shopify/carrier-tracking.ts` (hoy solo Andreani, Correo Argentino y OCA).
