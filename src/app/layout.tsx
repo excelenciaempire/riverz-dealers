@@ -107,11 +107,6 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  // El depurador de Meta lo reclama como propiedad requerida: sin él, las
-  // estadísticas de los links compartidos no se atribuyen a la app.
-  other: {
-    "fb:app_id": "1021515967221344",
-  },
 };
 
 export const viewport: Viewport = {
@@ -182,6 +177,9 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* A mano y no por `metadata.other`, que lo emite como `name="fb:app_id"`:
+            Open Graph solo lee `property`, así que Meta lo descartaba. */}
+        <meta property="fb:app_id" content="1021515967221344" />
         <Script
           id="theme-boot"
           strategy="beforeInteractive"
