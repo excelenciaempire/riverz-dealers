@@ -3,27 +3,28 @@
 **Enviar a:** comercial@dropi.co (o el formulario de https://dropi.co/contactanos/)
 **Alternativa:** WhatsApp comercial (+57) 321 8379821, pidiendo el contacto del equipo de integraciones.
 
-**Asunto:** Riverz — consulta sobre integración con Dropi
+**Asunto:** Riverz — integración con Dropi
 
 ---
 
-Hola, equipo de Dropi:
+Estimado equipo de Dropi:
 
-Soy Juan Diego Ríos, de **Riverz** (riverz.co). Construimos una plataforma que atiende y vende por WhatsApp, Instagram y llamadas con inteligencia artificial, pensada para tiendas que venden contra entrega en Colombia y la región.
+Soy Juan Diego Ríos, fundador de **Riverz** (riverz.co). Riverz es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región: unifica WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas telefónicas en un solo lugar, y sobre esa base opera un agente de IA que atiende consultas, hace seguimiento, confirma pedidos por chat o por teléfono y los crea directamente en la tienda. Hoy ya integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
 
-Estamos por lanzar y queremos que Dropi sea una de nuestras integraciones desde el primer día. La idea es simple: cuando el pedido se confirma en el chat o en la llamada, Riverz lo carga en Dropi; y cuando Dropi genera la guía, Riverz le escribe solo al cliente por WhatsApp con su número de guía y su enlace de rastreo. Después seguimos avisándole en cada cambio hasta la entrega.
+Queremos sumar Dropi como integración nativa antes de nuestro lanzamiento. El flujo que buscamos: al confirmarse el pedido —en el chat o en la llamada— Riverz lo carga en Dropi; cuando Dropi genera la guía, Riverz notifica automáticamente al cliente por WhatsApp con su número de guía y su enlace de rastreo, y lo mantiene informado en cada cambio de estado hasta la entrega. Toda esa capa de mensajería y automatización ya está construida de nuestro lado.
 
-Antes de proponer nada más concreto, preferimos preguntarles a ustedes:
+Antes de plantear un alcance concreto, nos interesa conocer lo que ofrece Dropi:
 
-- ¿Qué se puede conectar hoy con Dropi y dónde está la documentación?
-- ¿Cómo se solicita el acceso y qué piden de nuestro lado?
-- ¿Hay un ambiente de pruebas para empezar a desarrollar?
+- ¿Qué servicios se pueden conectar y dónde está la documentación técnica?
+- ¿Cuál es el proceso para solicitar acceso y qué requisitos piden de nuestro lado?
+- ¿Disponen de un ambiente de pruebas para desarrollar la integración?
 
-Si les resulta más fácil, con gusto tomamos una llamada corta con quien lleve las integraciones.
+Quedamos a disposición para una llamada con el equipo de integraciones cuando les resulte conveniente.
 
-Gracias,
+Un saludo,
 
-Juan Diego Ríos — Riverz
+Juan Diego Ríos
+Fundador — Riverz
 juandiegoriosmesa@gmail.com · riverz.co
 
 ---
