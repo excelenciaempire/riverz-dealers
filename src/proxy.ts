@@ -180,11 +180,16 @@ export async function proxy(request: NextRequest) {
   }
 
   // Pre-launch: the sign-up page is unreachable. canonicalPath covers both
-  // /registro and its English alias /signup. Anonymous visitors land on the
-  // landing (which offers the waitlist); signed-in users fall through to the
-  // /panel redirect below.
+  // /registro and its English alias /signup. Anonymous visitors land ON the
+  // waitlist form (#lista) rather than the top of the landing, so someone who
+  // came to open an account still gets captured; signed-in users fall through
+  // to the /panel redirect below.
   if (!user && !signupsOpen() && canonicalPath === '/registro') {
-    return redirectTo('/')
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.search = ''
+    url.hash = 'lista'
+    return applyCsp(NextResponse.redirect(url), csp)
   }
 
   // Auth pages - redirect to dashboard if already logged in. /nueva-clave
