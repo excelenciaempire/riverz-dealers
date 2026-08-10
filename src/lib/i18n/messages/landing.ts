@@ -17,8 +17,8 @@ export const landing = {
     en: "AI agents that sell and support 24/7 · riverz",
   },
   ogDescription: {
-    es: "Atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido.",
-    en: "They engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order.",
+    es: "Recomiendan, cierran la venta y dejan la orden creada en tu tienda. Recuperan carritos y confirman pedidos, en todos tus canales.",
+    en: "They recommend, close the sale, and leave the order created in your store. They recover carts and confirm orders, across every channel.",
   },
 
   // ── Header / nav ──

@@ -3,7 +3,13 @@ import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getT, getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
 import { Landing } from "@/components/landing/landing";
+
+// Idioma de la vista previa al compartir. Va atado al de la tarjeta
+// (src/components/og/share-card.tsx), que se renderiza en español: si se
+// traduce esa imagen, este valor deja de tener sentido fijo.
+const SHARE_LOCALE = "es" as const;
 
 // Per-request: logged-in users go straight to the app; logged-out visitors
 // (and Meta's reviewer) see the public marketing landing.
@@ -15,8 +21,14 @@ export const dynamic = "force-dynamic";
 // makes cookies()/getT safe here).
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
-  const ogTitle = t("landing.ogTitle");
-  const ogDescription = t("landing.ogDescription");
+  // El título y la descripción de la pestaña siguen al visitante…
+  // …pero la vista previa al compartir NO. El rastreador de Meta entra sin
+  // cookie y desde IP de Estados Unidos, así que la detección de idioma le
+  // servía inglés mientras la tarjeta (opengraph-image) está fija en español:
+  // el link salía con imagen en español y titular en inglés. La previa se fija
+  // al idioma de la tarjeta y deja de contradecirse.
+  const ogTitle = translate(SHARE_LOCALE, "landing.ogTitle");
+  const ogDescription = translate(SHARE_LOCALE, "landing.ogDescription");
   return {
     title: {
       absolute: t("landing.metaTitle"),
@@ -24,15 +36,11 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t("landing.metaDescription"),
     robots: { index: true, follow: true },
     alternates: { canonical: "/" },
-    // The share preview uses the brand hook (matches the landing hero); the
-    // image comes from the site-wide opengraph-image.tsx / twitter-image.tsx.
     openGraph: {
       type: "website",
       siteName: "riverz",
       url: "/",
-      // La página se renderiza en el idioma del visitante: anunciar siempre
-      // es_ES hacía que un share en inglés se declarara en español.
-      locale: (await getLocale()) === "en" ? "en_US" : "es_ES",
+      locale: "es_ES",
       title: ogTitle,
       description: ogDescription,
     },

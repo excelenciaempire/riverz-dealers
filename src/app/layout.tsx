@@ -107,6 +107,11 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  // El depurador de Meta lo reclama como propiedad requerida: sin él, las
+  // estadísticas de los links compartidos no se atribuyen a la app.
+  other: {
+    "fb:app_id": "1021515967221344",
+  },
 };
 
 export const viewport: Viewport = {
