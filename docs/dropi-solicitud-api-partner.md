@@ -1,27 +1,74 @@
-# Correo a Dropi — consulta de integración
+# Dropi — solicitud de acceso a la API
 
-**Enviar a:** comercial@dropi.co (o el formulario de https://dropi.co/contactanos/)
-**Alternativa:** WhatsApp comercial (+57) 321 8379821, pidiendo el contacto del equipo de integraciones.
+## Estado
 
-**Asunto:** Riverz — integración con Dropi
+1. **Primer correo enviado** a comercial@dropi.co (consulta general).
+2. **Respondió Jhon**, de Servicio al Cliente. Lo que confirmó:
+   - Vía API se puede **sincronizar catálogo/productos, crear órdenes y consultar estado de pedidos/guías**.
+   - La documentación técnica **no es pública**: se pide al equipo de integraciones.
+   - Las solicitudes se gestionan **solo por correo**, a **marcos.amado@dropi.co**, e incluyen: motivo, **lista exacta de endpoints requeridos** e **ID de la cuenta de Dropi**.
+   - Sandbox, credenciales de desarrollo y rate limits los evalúa el área técnica de Marcos Amado tras recibir el correo.
+   - El enlace que compartieron (linktr.ee/Dropi_Colombia) es de **Dropi Academy** — cursos y registro, sin documentación de API.
+3. **Pendiente:** enviar el correo de abajo. Falta un solo dato: el **ID de cuenta de Dropi**. Si aún no hay cuenta, se crea en app.dropi.co/auth/register y el ID sale del perfil de la cuenta.
 
 ---
 
-Estimado equipo de Dropi:
+## Correo a enviar
 
-Soy Juan Diego Ríos, fundador de **Riverz** (riverz.co).
+**Para:** marcos.amado@dropi.co
+**Asunto:** Solicitud de acceso a la API — Riverz (creación de órdenes y rastreo de guías)
 
-Riverz parte de una premisa distinta a la de las herramientas de chat: en contra entrega el problema no es responder rápido, es que el pedido termine entregado. Por eso nuestro agente de inteligencia artificial no solo escribe: también **llama por teléfono**. Marca al cliente, confirma el pedido en una conversación real y lo deja creado en la tienda. Ese mismo agente atiende WhatsApp, Instagram, Messenger, Mercado Libre y correo desde un solo lugar, y trabaja sobre Shopify, WooCommerce, Tiendanube y Mercado Libre.
+---
 
-Queremos sumar Dropi como integración nativa antes de nuestro lanzamiento, con el ciclo completo: pedido confirmado en la llamada o el chat, cargado en Dropi; al generarse la guía, el cliente recibe automáticamente su número y su enlace de rastreo por WhatsApp; y de ahí en adelante, seguimiento en cada cambio de estado —incluidas las novedades— para que menos pedidos terminen en devolución. La capa de conversación y automatización ya está construida de nuestro lado; nos falta el lado de Dropi.
+Estimado Marcos:
 
-Antes de plantear un alcance concreto, nos interesa conocer lo que ofrece Dropi:
+Jhon, del equipo de Servicio al Cliente, nos indicó escribirte directamente para tramitar el acceso a la API de Dropi. A continuación va la información que nos solicitaron.
 
-- ¿Qué servicios se pueden conectar y dónde está la documentación técnica?
-- ¿Cuál es el proceso para solicitar acceso y qué requisitos piden de nuestro lado?
-- ¿Disponen de un ambiente de pruebas para desarrollar la integración?
+**Motivo de la solicitud**
 
-Quedamos a disposición para una llamada con el equipo de integraciones cuando les resulte conveniente.
+Riverz (riverz.co) es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región. Unifica WhatsApp, Instagram, Messenger, Mercado Libre y correo en un solo lugar, y su agente de IA además **llama por teléfono**: marca al cliente, confirma el pedido contra entrega en una conversación real y lo deja creado en la tienda. Hoy integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
+
+Queremos integrar Dropi para cerrar el ciclo completo del dropshipper:
+
+1. El pedido se confirma por chat o por llamada y Riverz lo carga automáticamente en Dropi.
+2. Al generarse la guía, Riverz notifica al cliente por WhatsApp con su número de guía y su enlace de rastreo.
+3. En cada cambio de estado —y especialmente ante una novedad— Riverz contacta al cliente, resuelve y reporta, para que menos pedidos terminen en devolución.
+
+Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajaríamos con una llave de integración por comercio, no con una credencial única.
+
+**Endpoints requeridos**
+
+Prioridad 1 — lo mínimo para operar:
+
+- Autenticación y generación del token de consumo (y confirmación de si el header es `dropi-integration-key`).
+- Crear orden: productos, cantidades, datos del cliente, dirección de entrega y valor a recaudar.
+- Consultar una orden por identificador y su estado actual.
+- Consultar la guía de una orden: número de guía, transportadora y enlace de rastreo.
+- Estados de la guía: estado actual, historial de movimientos y catálogo de estados posibles con su significado.
+- Notificación de cambios de estado: webhook configurable por comercio si existe; si no, un endpoint de consulta incremental (órdenes con cambios desde una fecha) para no consultar pedido por pedido.
+
+Prioridad 2 — para completar la operación:
+
+- Novedades: listado por orden con su motivo, y endpoint para registrar la solución (actualizar dirección, reprogramar entrega, autorizar segundo intento).
+- Devoluciones: estado y motivo.
+- Recaudo contra entrega: valor recaudado por pedido.
+- Catálogo y stock de proveedores: listado de productos con precio, existencias y variantes, y detalle por producto.
+- Maestros: departamentos y ciudades válidos, transportadoras disponibles y, de existir, costo de flete estimado por destino. Los usamos para normalizar la dirección antes de generar la guía.
+- Anular o actualizar una orden ya creada.
+
+**ID de la cuenta de Dropi**
+
+[COMPLETAR ANTES DE ENVIAR]
+
+**Consultas técnicas**
+
+- URLs base de los ambientes de pruebas y producción.
+- Credenciales de sandbox para desarrollar.
+- Límites de consumo (rate limits).
+- Si el acceso cubre solo Colombia o también México, Ecuador, Panamá, Paraguay, Chile y Perú.
+- Requisitos de su lado en tratamiento de datos personales o acuerdos de confidencialidad; podemos firmar lo que corresponda.
+
+Podemos comenzar únicamente con los endpoints de prioridad 1 y ampliar más adelante. Quedamos atentos y a disposición para una llamada técnica cuando les resulte conveniente.
 
 Un saludo,
 
@@ -33,14 +80,14 @@ juandiegoriosmesa@gmail.com · riverz.co
 
 ## Contexto investigado (no va en el correo)
 
-- La API de integraciones se autentica con el header **`dropi-integration-key`**; el token se genera desde la sección **Integraciones** del panel del comercio y se asocia a la plataforma que consume.
+- La API de integraciones se autentica con el header **`dropi-integration-key`**; el token se genera desde la sección **Integraciones** del panel del comercio.
 - Hay ambientes separados de **pruebas** y **producción**, con URLs base distintas.
-- Servicios conocidos: autenticación/login, creación de órdenes y **consulta de guías**, con estados tipo `GUIA_GENERADA`.
-- Precedentes ya listados en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. **Todos son herramientas de chat o de bots.** De ahí el posicionamiento del correo: Riverz no compite por responder más rápido, sino por efectividad de entrega —llamada telefónica con IA para confirmar el pedido y seguimiento de la guía hasta la entrega—, que es la métrica que le importa a Dropi.
+- Servicios conocidos: autenticación/login, creación de órdenes y consulta de guías, con estados tipo `GUIA_GENERADA`.
+- Integraciones ya listadas en dropi.co/integraciones: ChatCenter, Chatea Pro, IaChat, Fluxi, Lucidbot (Dropi V2), Mastertools. **Todas son herramientas de chat o de bots.** De ahí el posicionamiento: Riverz no compite por responder más rápido, sino por efectividad de entrega —llamada telefónica con IA para confirmar el pedido y seguimiento de la guía hasta la entrega—, que es la métrica que le importa a Dropi.
 - Países con operación: Colombia, México, Ecuador, Panamá, Paraguay, Chile, Perú.
-- Contacto: comercial@dropi.co · (+57) 321 8379821 · dropi.co/contactanos
+- Contactos: marcos.amado@dropi.co (integraciones/API) · comercial@dropi.co · (+57) 321 8379821.
 
-## Estado real de Riverz (para cuando respondan)
+## Estado real de Riverz (para cuando den acceso)
 
 **Ya construido y funcionando** — toda la última milla de avisar al cliente:
 
@@ -57,7 +104,7 @@ juandiegoriosmesa@gmail.com · riverz.co
 
 **A medias o roto** (arreglar cuando llegue la documentación real):
 
-- `pushOrderToDropi` (`src/lib/integrations/dropi.ts:71`) usa `Authorization: Bearer` y `POST /orders`, ambos adivinados. Lo investigado apunta a `dropi-integration-key` y a un endpoint tipo `saveOrder`.
+- `pushOrderToDropi` (`src/lib/integrations/dropi.ts:71`) usa `Authorization: Bearer` y `POST /orders`, ambos adivinados.
 - `DropiCard` (`src/components/settings/dropi-card.tsx`) no está importada en ninguna página: hoy ningún comercio puede conectar Dropi, y el push siempre sale por `return false`.
 - `src/lib/voice/cod.ts:62` manda `items` como texto, no como líneas del pedido.
 - El push no verifica `cod_mode`, no guarda el resultado ni el id del pedido en Dropi, y no reintenta.
