@@ -92,6 +92,75 @@ async function skip(
     .eq('id', id)
 }
 
+/**
+ * De las automatizaciones activas, cuáles pueden REALMENTE enviar hoy.
+ *
+ * Tener la automatización armada no alcanza: Meta tarda entre uno y dos días
+ * en aprobar una plantilla nueva, y mientras está en revisión cada envío
+ * rebota. Sin este chequeo, el cron gastaría los 3 reintentos de cada fila
+ * durante la espera y ese lote quedaría muerto justo antes de que la
+ * plantilla se habilite — el peor momento posible.
+ *
+ * Un paso que no manda plantilla (mensaje suelto, etiqueta, asignar) no
+ * depende de Meta, así que ese workspace se considera listo igual.
+ */
+async function resolveSendableWorkspaces(
+  admin: ReturnType<typeof supabaseAdmin>,
+  autos: { id: string; workspace_id: string }[],
+): Promise<string[]> {
+  if (autos.length === 0) return []
+
+  const { data: steps } = await admin
+    .from('automation_steps')
+    .select('automation_id, step_type, step_config')
+    .in('automation_id', autos.map((a) => a.id))
+    .eq('step_type', 'send_template')
+
+  const needed = new Map<string, Set<string>>() // automation_id -> template names
+  for (const s of (steps ?? []) as {
+    automation_id: string
+    step_config: { template_name?: string } | null
+  }[]) {
+    const name = s.step_config?.template_name
+    if (!name) continue
+    const set = needed.get(s.automation_id) ?? new Set<string>()
+    set.add(name)
+    needed.set(s.automation_id, set)
+  }
+
+  const allNames = [...new Set([...needed.values()].flatMap((s) => [...s]))]
+  const approved = new Set<string>()
+  if (allNames.length) {
+    const { data: tpls } = await admin
+      .from('message_templates')
+      .select('name, workspace_id, status')
+      .in('workspace_id', [...new Set(autos.map((a) => a.workspace_id))])
+      .in('name', allNames)
+    for (const t of (tpls ?? []) as {
+      name: string
+      workspace_id: string
+      status: string | null
+    }[]) {
+      if ((t.status ?? '').toUpperCase() === 'APPROVED') {
+        approved.add(`${t.workspace_id}::${t.name}`)
+      }
+    }
+  }
+
+  const out: string[] = []
+  for (const a of autos) {
+    const names = needed.get(a.id)
+    // Sin paso de plantilla no hay nada que esperar de Meta.
+    if (!names || names.size === 0) {
+      out.push(a.workspace_id)
+      continue
+    }
+    const allApproved = [...names].every((n) => approved.has(`${a.workspace_id}::${n}`))
+    if (allApproved) out.push(a.workspace_id)
+  }
+  return out
+}
+
 async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const now = Date.now()
   const graceCutoff = new Date(now - GRACE_HOURS * 3_600_000).toISOString()
@@ -126,17 +195,20 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const workspaces = [...new Set(due.map((r) => r.workspace_id))]
   const { data: autos } = await admin
     .from('automations')
-    .select('workspace_id')
+    .select('id, workspace_id')
     .in('workspace_id', workspaces)
     .eq('trigger_type', 'payment_rejected')
     .eq('is_active', true)
     .is('deleted_at', null)
   const ready = new Set(
-    ((autos ?? []) as { workspace_id: string }[]).map((a) => a.workspace_id),
+    await resolveSendableWorkspaces(
+      admin,
+      (autos ?? []) as { id: string; workspace_id: string }[],
+    ),
   )
   const actionable = due.filter((r) => ready.has(r.workspace_id))
   if (actionable.length === 0) {
-    return { processed: 0, dispatched: 0, skipped: 0, waiting_for_automation: due.length }
+    return { processed: 0, dispatched: 0, skipped: 0, waiting_to_send: due.length }
   }
 
   let processed = 0
