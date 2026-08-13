@@ -106,6 +106,20 @@ export async function GET(request: Request) {
     untilIso = new Date().toISOString();
   }
 
+  // Ventana de last-touch: cuántas horas antes del pedido cuenta un envío
+  // como el que lo causó. 24h es el default histórico y sirve para una
+  // campaña o un carrito abandonado, donde la compra cae el mismo día.
+  // Una recuperación de pago rechazado no: la persona tiene que hablar con
+  // el banco o esperar a que le entre plata, y vuelve a los dos o tres
+  // días. Con 24h fijas esas ventas quedaban sin atribuir. Es un parámetro
+  // y no un cambio de default para no inflar de golpe los números
+  // históricos de campañas y flujos.
+  const attrHours = Math.max(
+    1,
+    Math.min(720, Number(url.searchParams.get('attr_hours') ?? '24')),
+  );
+  const lookbackMs = attrHours * 3_600_000;
+
   const admin = supabaseAdmin();
 
   // Resolver el workspace del caller EXACTAMENTE como lo resuelve el resto de
@@ -217,7 +231,7 @@ export async function GET(request: Request) {
     if (!cId) continue;
 
     const orderTime = new Date(order.created_at).getTime();
-    const lookback = new Date(orderTime - 86_400_000).toISOString();
+    const lookback = new Date(orderTime - lookbackMs).toISOString();
     const total = Number(order.total_price ?? '0');
     const currency = order.currency || 'USD';
 

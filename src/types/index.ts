@@ -581,6 +581,11 @@ export type AutomationTriggerType =
   // /api/cron/reengagement.
   | 'post_delivery_feedback'
   | 'customer_inactive'
+  // Pago rechazado en Mercado Pago. Un rechazo NO crea pedido en Shopify,
+  // así que no lo ve ningún webhook de comercio: lo empuja la hoja de
+  // contabilidad a /api/integrations/mercadopago/rejected y lo dispara el
+  // cron `mercadopago-recovery` (nunca un webhook en vivo).
+  | 'payment_rejected'
   // Fires after a Voice AI call finishes (any terminal status). The
   // trigger_event carries call.outcome/status/duration/summary so a
   // follow-up automation can branch (e.g. no_answer → WhatsApp).

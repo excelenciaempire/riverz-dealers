@@ -47,6 +47,7 @@ export const CRON_SCHEDULES: CronSpec[] = [
   // ── horas ──
   { name: 'shopify-cart-recovery', path: 'api/cron/shopify-cart-recovery', schedule: '0 * * * *', what: 'Recupera carritos abandonados' },
   { name: 'tiendanube-checkouts', path: 'api/cron/tiendanube-checkouts', schedule: '15 * * * *', what: 'Descubre carritos abandonados de Tiendanube' },
+  { name: 'mercadopago-recovery', path: 'api/cron/mercadopago-recovery', schedule: '45 * * * *', what: 'Recupera pagos rechazados de Mercado Pago' },
   { name: 'shopify-feedback', path: 'api/cron/shopify-feedback', schedule: '30 * * * *', what: 'Pide opinión tras la entrega' },
   { name: 'meta-contact-names', path: 'api/cron/meta-contact-names', schedule: '0 */6 * * *', what: 'Completa nombres de contactos de Meta' },
   { name: 'meta-webhook-subscriptions', path: 'api/cron/meta-webhook-subscriptions', schedule: '0 */6 * * *', what: 'Reaplica suscripciones de webhooks de Meta' },

@@ -166,6 +166,10 @@ export const automations = {
     es: "Carrito abandonado (Shopify)",
     en: "Abandoned checkout (Shopify)",
   },
+  triggerPaymentRejected: {
+    es: "Pago rechazado (Mercado Pago)",
+    en: "Payment declined (Mercado Pago)",
+  },
   triggerVoiceCallCompleted: {
     es: "Llamada finalizada (Voz IA)",
     en: "Call finished (Voice AI)",
@@ -217,6 +221,9 @@ export const automations = {
   dpTrackingUrl: { es: "Link de seguimiento", en: "Tracking link" },
   dpTrackingCompany: { es: "Transportista", en: "Carrier" },
   dpCheckoutUrl: { es: "Link del carrito", en: "Cart link" },
+  dpPaymentReason: { es: "Motivo del rechazo", en: "Decline reason" },
+  dpPaymentAttempts: { es: "Intentos de pago", en: "Payment attempts" },
+  dpInstallments: { es: "Cuotas", en: "Installments" },
   dpContactName: { es: "Su nombre", en: "Their name" },
   dpContactEmail: { es: "Su correo", en: "Their email" },
   dpContactCompany: { es: "Su empresa", en: "Their company" },

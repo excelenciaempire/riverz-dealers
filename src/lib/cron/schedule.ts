@@ -69,6 +69,10 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // --- horas ---
   { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "0 * * * *" },
   { name: "tiendanube-checkouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *" },
+  // A los :45 para no pisarse con la recuperación de carritos (:00): la
+  // misma persona puede estar en las dos colas y así el antispam por
+  // teléfono de cada una ve lo que hizo la otra.
+  { name: "mercadopago-recovery", path: "/api/cron/mercadopago-recovery", schedule: "45 * * * *" },
   { name: "shopify-feedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
   { name: "meta-contact-names", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *" },
   {

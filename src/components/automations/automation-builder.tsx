@@ -356,6 +356,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
   { value: "shopify_order_cancelled", label: "automations.triggerShopifyOrderCancelled" },
   { value: "shopify_order_refunded", label: "automations.triggerShopifyOrderRefunded" },
   { value: "shopify_abandoned_checkout", label: "automations.triggerShopifyAbandonedCheckout" },
+  { value: "payment_rejected", label: "automations.triggerPaymentRejected" },
   { value: "voice_call_completed", label: "automations.triggerVoiceCallCompleted" },
 ]
 
