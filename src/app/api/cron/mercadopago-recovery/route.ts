@@ -114,6 +114,31 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const due = (data ?? []) as PendingRow[]
   if (due.length === 0) return { processed: 0, dispatched: 0, skipped: 0 }
 
+  // Si el workspace todavía NO tiene una automatización activa con este
+  // disparador, no se toca ninguna fila.
+  //
+  // Sin esta guarda, la ingesta puede arrancar días antes de que el
+  // comerciante termine de aprobar la plantilla y armar la automatización.
+  // Cada corrida quemaría un intento de los 5 que tiene cada fila, así que
+  // en cinco horas toda la gente ingresada quedaría marcada `not_sent` para
+  // siempre — y el día que la automatización existiera, no le escribiría a
+  // nadie de ese lote. Mejor esperar sin gastar intentos.
+  const workspaces = [...new Set(due.map((r) => r.workspace_id))]
+  const { data: autos } = await admin
+    .from('automations')
+    .select('workspace_id')
+    .in('workspace_id', workspaces)
+    .eq('trigger_type', 'payment_rejected')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  const ready = new Set(
+    ((autos ?? []) as { workspace_id: string }[]).map((a) => a.workspace_id),
+  )
+  const actionable = due.filter((r) => ready.has(r.workspace_id))
+  if (actionable.length === 0) {
+    return { processed: 0, dispatched: 0, skipped: 0, waiting_for_automation: due.length }
+  }
+
   let processed = 0
   let dispatched = 0
   let skipped = 0
@@ -122,7 +147,7 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   // intentos que la hoja no unió). Misma barrera que el cron de carritos.
   const seenPhones = new Set<string>()
 
-  for (const r of due) {
+  for (const r of actionable) {
     processed++
 
     // Reclamamos ANTES de cualquier trabajo: si el proceso muere en el
