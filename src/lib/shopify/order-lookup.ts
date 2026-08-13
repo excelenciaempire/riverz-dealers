@@ -45,6 +45,12 @@ interface ShopifyOrder {
   currency: string
   line_items: ShopifyLineItem[]
   fulfillments?: ShopifyFulfillment[]
+  // Sólo para el control de pertenencia (ver `belongsToCustomer`). Nunca
+  // salen en `OrderSummary`, así que el modelo no los ve.
+  email?: string | null
+  phone?: string | null
+  customer?: { email?: string | null; phone?: string | null } | null
+  shipping_address?: { phone?: string | null } | null
 }
 
 interface ShopifyCustomer {
@@ -74,6 +80,56 @@ const ORDER_FIELDS =
   'id,name,created_at,financial_status,fulfillment_status,total_price,currency,line_items,fulfillments'
 
 /**
+ * Los campos de arriba MÁS los identificadores del comprador. Se piden sólo
+ * en la búsqueda por número de pedido, donde hay que comprobar que el pedido
+ * sea de quien está escribiendo; nunca se devuelven al modelo.
+ */
+const ORDER_FIELDS_WITH_OWNER = `${ORDER_FIELDS},email,phone,customer,shipping_address`
+
+/** Últimos 8 dígitos: sortea prefijos de país y formatos locales. */
+function phoneKey(value: string | null | undefined): string | null {
+  const digits = (value ?? '').replace(/\D/g, '')
+  return digits.length >= 8 ? digits.slice(-8) : null
+}
+
+/**
+ * ¿El pedido es de quien está hablando con el agente?
+ *
+ * La búsqueda por número (`name=1042`) no filtra por cliente: sin esta
+ * comprobación, cualquiera que le escriba al bot podía pedir "el pedido
+ * #1042" y recibir el total, los productos y el número de seguimiento de otra
+ * compradora de la misma tienda. Comparamos correo (exacto, case-insensitive)
+ * y teléfono (últimos 8 dígitos) contra los del contacto.
+ *
+ * Sin teléfono ni correo del contacto no hay nada que comparar: se rechaza.
+ */
+function belongsToCustomer(
+  order: ShopifyOrder,
+  customerPhone: string | undefined,
+  customerEmail: string | undefined,
+): boolean {
+  const email = customerEmail?.trim().toLowerCase()
+  if (email) {
+    const orderEmails = [order.email, order.customer?.email]
+      .map((e) => e?.trim().toLowerCase())
+      .filter(Boolean)
+    if (orderEmails.includes(email)) return true
+  }
+  const phone = phoneKey(customerPhone)
+  if (phone) {
+    const orderPhones = [
+      order.phone,
+      order.customer?.phone,
+      order.shipping_address?.phone,
+    ]
+      .map(phoneKey)
+      .filter(Boolean)
+    if (orderPhones.includes(phone)) return true
+  }
+  return false
+}
+
+/**
  * Punto de entrada del tool. Toda la lógica vive acá para que el
  * agentic loop sólo tenga que importar una cosa.
  */
@@ -97,11 +153,15 @@ export async function lookupCustomerOrders(opts: {
       const raw = opts.orderNumber.trim().replace(/^#/, '')
       const url = `${base}/orders.json?status=any&limit=5&name=${encodeURIComponent(
         raw,
-      )}&fields=${encodeURIComponent(ORDER_FIELDS)}`
+      )}&fields=${encodeURIComponent(ORDER_FIELDS_WITH_OWNER)}`
       const res = await fetch(url, { headers })
       if (res.ok) {
         const data = (await res.json()) as { orders?: ShopifyOrder[] }
-        const orders = (data.orders ?? []).map(toSummary)
+        // Se devuelven SÓLO los pedidos del propio cliente: el número de
+        // pedido es un identificador adivinable y no prueba nada.
+        const orders = (data.orders ?? [])
+          .filter((o) => belongsToCustomer(o, opts.customerPhone, opts.customerEmail))
+          .map(toSummary)
         if (orders.length > 0) {
           return { found: true, orders }
         }

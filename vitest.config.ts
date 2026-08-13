@@ -1,8 +1,20 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
+    // `server-only` es un paquete-marcador: su entrada por defecto lanza
+    // "cannot be imported from a Client Component". Next lo resuelve con la
+    // condición `react-server`; en vitest no existe, así que apuntamos al
+    // módulo vacío que el propio paquete trae para ese caso. Ruta absoluta
+    // porque su campo `exports` no publica el subpath.
+    alias: {
+      "server-only": path.resolve(
+        process.cwd(),
+        "node_modules/server-only/empty.js",
+      ),
+    },
   },
   test: {
     environment: "node",

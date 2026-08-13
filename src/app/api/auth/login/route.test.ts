@@ -13,6 +13,13 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
+// La ruta resuelve el idioma del mensaje con `cookies()`, que fuera de un
+// request de Next lanza. Sin cookie de idioma la app cae al español, que es
+// justo lo que afirman las aserciones de abajo.
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+}));
+
 import { POST } from "./route";
 import { __resetRateLimitForTests } from "@/lib/rate-limit";
 
