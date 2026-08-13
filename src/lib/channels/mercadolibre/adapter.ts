@@ -629,7 +629,7 @@ async function ingestMlAttachments(args: {
       });
       if (!ingested) continue;
       out.push({
-        url: ingested.publicUrl,
+        url: ingested.url,
         mime_type: ingested.mediaMime,
         size: ingested.mediaSize,
         name: a.original_filename || id,

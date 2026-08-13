@@ -1,7 +1,6 @@
 /**
  * Media ingest — descarga el adjunto del canal y lo guarda en Supabase
- * Storage para que el resto del sistema lo trate como una URL pública
- * estable.
+ * Storage para que el resto del sistema lo trate como una URL estable.
  *
  * Por qué pasar por Storage:
  *   * Las URLs CDN de Meta para WhatsApp expiran a los pocos minutos y
@@ -10,7 +9,10 @@
  *   * El historial conversacional necesita poder mostrar el adjunto
  *     muchos días después.
  *
- * Bucket: "message-media", público, scoped por workspace_id/conversation_id.
+ * Bucket: "message-media", PRIVADO desde la migración 141, con las rutas
+ * separadas por workspace_id/conversation_id. Lo que se guarda en la base es
+ * `/api/media/<ruta>`; ver `media-url.ts` para el porqué y para las dos formas
+ * de resolverla (bandeja con sesión, envío con firma).
  *
  * Es best-effort: si la descarga falla, devuelve null y el caller deja
  * el adjunto como texto plano "[Imagen]" como antes. Nunca tira excepción
@@ -21,6 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "./encryption";
 import { getMediaUrl, downloadMedia } from "@/lib/whatsapp/meta-api";
 import { supabaseAdmin } from "./admin-client";
+import { appMediaUrl, resolveMediaFetchUrl } from "./media-url";
 
 /** Tope de bytes por adjunto. El contenido lo controla el remitente del
  *  mensaje/email, así que sin un límite un archivo gigante bufferea RAM
@@ -82,11 +85,15 @@ async function fetchCapped(
  * enviarlo por un canal que no acepta una URL y quiere el archivo: Gmail y
  * Outlook lo mandan dentro del MIME, Mercado Libre lo sube antes por su
  * endpoint. Mismo tope y timeout que la ingesta. null si no se pudo bajar.
+ *
+ * La URL que llega es la de la app (`/api/media/…`), que exige cookie de
+ * sesión y además es relativa: sin firmar antes, este fetch del servidor no
+ * llega a ninguna parte.
  */
 export async function fetchAttachmentBytes(
   url: string,
 ): Promise<{ buffer: Buffer; mime: string } | null> {
-  return fetchCapped(url);
+  return fetchCapped(await resolveMediaFetchUrl(url));
 }
 
 /** Nombre con el que viaja el archivo cuando el composer no mandó uno: el
@@ -225,8 +232,12 @@ export function resolveMime(
 }
 
 export interface IngestedMedia {
-  /** URL pública en Supabase Storage. */
-  publicUrl: string;
+  /**
+   * URL estable que se guarda en `messages.media_url`. Apunta a
+   * `/api/media/<ruta>`, no a Storage: el bucket es privado y esa ruta es la
+   * que comprueba la sesión antes de firmar.
+   */
+  url: string;
   /** Categoría normalizada para `messages.media_type`. */
   mediaType: MediaCategory;
   /** Content-Type real del archivo. */
@@ -280,10 +291,10 @@ export async function ingestWhatsappMedia(opts: {
       opts.mediaId,
       ext,
     );
-    const publicUrl = await uploadToStorage(path, buffer, mime);
-    if (!publicUrl) return null;
+    const storedUrl = await uploadToStorage(path, buffer, mime);
+    if (!storedUrl) return null;
     return {
-      publicUrl,
+      url: storedUrl,
       mediaType: category,
       mediaMime: mime,
       mediaSize: buffer.length,
@@ -327,10 +338,10 @@ export async function ingestMetaAttachment(opts: {
       id,
       ext,
     );
-    const publicUrl = await uploadToStorage(path, buffer, mime);
-    if (!publicUrl) return null;
+    const storedUrl = await uploadToStorage(path, buffer, mime);
+    if (!storedUrl) return null;
     return {
-      publicUrl,
+      url: storedUrl,
       mediaType: category,
       mediaMime: mime,
       mediaSize: buffer.length,
@@ -415,10 +426,10 @@ export async function ingestRawMedia(opts: {
       opts.id,
       ext,
     );
-    const publicUrl = await uploadToStorage(path, opts.buffer, mime);
-    if (!publicUrl) return null;
+    const storedUrl = await uploadToStorage(path, opts.buffer, mime);
+    if (!storedUrl) return null;
     return {
-      publicUrl,
+      url: storedUrl,
       mediaType: category,
       mediaMime: mime,
       mediaSize: opts.buffer.length,
@@ -430,6 +441,11 @@ export async function ingestRawMedia(opts: {
   }
 }
 
+/**
+ * Sube el archivo y devuelve la URL que se guarda en la base: la de la app,
+ * no la de Storage. El bucket es privado, así que una URL directa no serviría
+ * a nadie sin firma — y una firma guardada caducaría dentro del mensaje.
+ */
 async function uploadToStorage(
   path: string,
   buffer: Buffer,
@@ -447,8 +463,7 @@ async function uploadToStorage(
     console.warn("[media-ingest] upload failed:", error.message);
     return null;
   }
-  const { data } = db.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  return appMediaUrl(path);
 }
 
 function buildStoragePath(

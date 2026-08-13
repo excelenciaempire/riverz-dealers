@@ -16,6 +16,7 @@ import {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt } from "../encryption";
 import { ingestWhatsappMedia, type MediaCategory } from "../media-ingest";
+import { resolveMediaFetchUrl } from "../media-url";
 import {
   handleMetaGraphError,
   parseMetaErrorBody,
@@ -226,11 +227,13 @@ export const whatsappAdapter: ChannelAdapter = {
     const to = input.contact.phone || input.contact.external_id;
     if (!to) throw new Error("[whatsapp] contact missing phone/wa_id");
 
+    // WhatsApp no recibe el archivo: recibe un enlace y lo descarga él. Los
+    // adjuntos propios viven en un bucket privado, así que van firmados.
     const common = {
       phoneNumberId,
       accessToken,
       to,
-      url: input.mediaUrl,
+      url: await resolveMediaFetchUrl(input.mediaUrl),
       contextMessageId: input.replyToExternalId,
     };
     try {
@@ -1013,7 +1016,7 @@ async function ingestInboundMedia(args: {
   if (!ingested) return [];
 
   const attachment: MessageAttachment = {
-    url: ingested.publicUrl,
+    url: ingested.url,
     mime_type: ingested.mediaMime,
     name: fileName,
     size: ingested.mediaSize,

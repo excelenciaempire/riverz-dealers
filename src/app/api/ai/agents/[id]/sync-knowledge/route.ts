@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { serverError } from '@/lib/api/errors';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { getLocale } from '@/lib/i18n/server';
@@ -117,6 +118,9 @@ export async function POST(
       { error: translate(locale, 'errAi.notFound') },
       { status: 404 },
     );
+
+  const overBudget = await aiBudgetGuard(target.workspace_id, 'heavy');
+  if (overBudget) return overBudget;
 
   const body = (await request.json().catch(() => null)) as { url?: string } | null;
   const rawUrl = body?.url?.trim();

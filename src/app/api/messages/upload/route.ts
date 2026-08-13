@@ -108,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   return NextResponse.json({
-    url: ingested.publicUrl,
+    url: ingested.url,
     mime: ingested.mediaMime,
     mediaType: ingested.mediaType,
     name: fileName || undefined,

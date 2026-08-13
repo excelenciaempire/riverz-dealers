@@ -10,6 +10,7 @@ import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes } from "../media-ingest";
+import { timingSafeStringEqual } from "../verify-webhook";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { htmlToText } from "../html-to-text";
@@ -136,7 +137,10 @@ export const outlookAdapter: ChannelAdapter = {
       // URL) sigue viéndose perfectamente sana en Graph mientras cada aviso
       // que llega se tira aquí. El correo pasaba a entrar solo por el sondeo y
       // no quedaba un solo rastro de por qué.
-      if (!expectedState || n.clientState !== expectedState) {
+      // Comparación en tiempo constante, como el resto de los secretos del
+      // sistema: `!==` sale en el primer byte distinto y el tiempo de
+      // respuesta deja adivinar el valor carácter a carácter.
+      if (!expectedState || !timingSafeStringEqual(n.clientState ?? "", expectedState)) {
         log.warn("outlook notification dropped — clientState mismatch", {
           connectionId: connection.id,
           subscriptionId: n.subscriptionId,

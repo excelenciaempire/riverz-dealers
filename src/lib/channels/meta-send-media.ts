@@ -6,6 +6,7 @@ import { describeMetaSendError, parseMetaError } from "./meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
 import { withAppsecretProofBody } from "./meta-graph";
 import { supabaseAdmin } from "./admin-client";
+import { resolveMediaFetchUrl } from "./media-url";
 import { translate } from "@/lib/i18n/translate";
 
 /**
@@ -16,8 +17,9 @@ import { translate } from "@/lib/i18n/translate";
  * permite. Se comparte acá porque el cuerpo del request es idéntico en los dos
  * canales salvo el id del emisor.
  *
- * Meta descarga el archivo desde la URL, así que tiene que ser pública — lo es:
- * el adjunto ya vive en Supabase Storage antes de llegar acá.
+ * Meta descarga el archivo desde la URL, o sea que tiene que funcionar sin
+ * nuestras cookies. El adjunto vive en un bucket privado, así que se firma
+ * justo antes de armar el cuerpo del request.
  */
 export async function sendMetaMedia(
   channel: Extract<Channel, "instagram" | "messenger">,
@@ -61,8 +63,13 @@ export async function sendMetaMedia(
         ),
       ),
     });
+  // Meta descarga el adjunto desde el enlace, sin nuestras cookies: un adjunto
+  // propio (bucket privado) tiene que ir firmado o la descarga da 400.
   const attachment = {
-    attachment: { type, payload: { url: input.mediaUrl, is_reusable: false } },
+    attachment: {
+      type,
+      payload: { url: await resolveMediaFetchUrl(input.mediaUrl), is_reusable: false },
+    },
   };
   const send = (useHumanAgentTag: boolean): Promise<Response> =>
     post(attachment, useHumanAgentTag);

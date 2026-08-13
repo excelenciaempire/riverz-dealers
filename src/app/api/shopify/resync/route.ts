@@ -19,10 +19,12 @@ import type { Locale } from '@/lib/i18n/config'
  *   reset=true deletes the store's shopify_products first (fresh re-sync).
  */
 export async function POST(request: Request) {
-  const url = new URL(request.url)
   const expected = process.env.AUTOMATION_CRON_SECRET
-  const supplied =
-    request.headers.get('x-cron-secret') ?? url.searchParams.get('secret') ?? ''
+  // Sólo por header. El `?secret=` que se aceptaba antes quedaba escrito en
+  // los logs de acceso de Render, en el historial del navegador y en el
+  // Referer de cualquier recurso externo — y estas dos rutas borran y
+  // reescriben el catálogo entero de una tienda.
+  const supplied = request.headers.get('x-cron-secret') ?? ''
   if (!expected) return NextResponse.json({ error: 'not configured' }, { status: 503 })
   if (!safeSecretEqual(supplied, expected)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })

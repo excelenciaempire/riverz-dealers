@@ -1,6 +1,12 @@
 import { createHash } from "crypto";
 import sharp from "sharp";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import {
+  OUTBOUND_SIGNED_TTL_SECONDS,
+  resolveMediaFetchUrl,
+  signMediaPath,
+  storagePathFromUrl,
+} from "@/lib/channels/media-url";
 
 /**
  * Compatibilidad de imágenes salientes con WhatsApp Cloud API.
@@ -119,23 +125,32 @@ export function toJpegFileName(name: string | undefined): string | undefined {
 
 /**
  * Red de seguridad en el envío: si la URL apunta a un formato que WhatsApp no
- * acepta, la descarga, la convierte a JPEG, la sube a Storage y devuelve la
- * nueva URL pública. Si ya es JPEG/PNG (o falla cualquier paso) devuelve la URL
- * original sin tocar nada.
+ * acepta, la descarga, la convierte a JPEG, la sube a Storage y devuelve una
+ * URL firmada que Meta puede descargar. Si ya es JPEG/PNG (o falla cualquier
+ * paso) devuelve una URL descargable de la original.
  *
- * El objeto convertido se cachea por hash de la URL, así una misma imagen de
- * producto se transcodifica una sola vez.
+ * Devuelve SIEMPRE algo que un tercero pueda bajar sin cookies: es lo que se
+ * le entrega a Meta, que descarga el archivo por su cuenta. Un adjunto propio
+ * entra como `/api/media/…`, que sin firmar no le sirve a nadie de fuera.
+ *
+ * El objeto convertido se cachea por hash de la ruta original, así una misma
+ * imagen de producto se transcodifica una sola vez. El hash NO se calcula
+ * sobre la URL firmada: la firma cambia en cada envío y el caché nunca
+ * acertaría.
  */
 export async function ensureSendableImageUrl(url: string): Promise<string> {
+  const fetchable = await resolveMediaFetchUrl(url);
   try {
-    const res = await fetch(url);
-    if (!res.ok) return url;
+    const res = await fetch(fetchable);
+    if (!res.ok) return fetchable;
     const declared = res.headers.get("content-type");
     const buffer = Buffer.from(await res.arrayBuffer());
     const safe = await toSendableImage(buffer, declared);
-    if (!safe.converted) return url;
+    if (!safe.converted) return fetchable;
 
-    const key = createHash("sha1").update(url).digest("hex");
+    const key = createHash("sha1")
+      .update(storagePathFromUrl(url) ?? url)
+      .digest("hex");
     const path = `transcoded/${key}.jpg`;
     const db = supabaseAdmin();
     const { error } = await db.storage.from(BUCKET).upload(path, safe.buffer, {
@@ -145,12 +160,12 @@ export async function ensureSendableImageUrl(url: string): Promise<string> {
     });
     if (error) {
       console.warn("[image-compat] transcode upload failed:", error.message);
-      return url;
+      return fetchable;
     }
-    const { data } = db.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl || url;
+    const signed = await signMediaPath(path, OUTBOUND_SIGNED_TTL_SECONDS);
+    return signed ?? fetchable;
   } catch (err) {
     console.warn("[image-compat] transcode skipped:", err);
-    return url;
+    return fetchable;
   }
 }

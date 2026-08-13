@@ -99,7 +99,7 @@ async function persistAvatarToStorage(
       id: contactId,
       hintedKind: 'image',
     });
-    return ingested?.publicUrl ?? null;
+    return ingested?.url ?? null;
   } catch {
     return null;
   }

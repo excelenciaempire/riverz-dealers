@@ -99,24 +99,36 @@ export async function verifyChannelWebhook(
   if (channel === "outlook") {
     // Microsoft Graph notifications don't sign the body — they prove
     // authenticity by echoing a `clientState` value we set at subscription
-    // time. The adapter performs the per-notification check against
-    // OUTLOOK_PUSH_CLIENT_STATE; route-level all we can do is allow the
-    // call through so the validationToken handshake (handled in the route
-    // before this function runs) and the body parse can both happen.
+    // time. That check is per-notification (a single delivery batches several
+    // subscriptions), so it lives in the adapter and fails CLOSED there:
+    // no OUTLOOK_PUSH_CLIENT_STATE or no match → the notification is dropped.
+    // Route-level all we can do is let the call through so the
+    // validationToken handshake (handled in the route before this function
+    // runs) and the body parse can both happen.
     return { ok: true };
   }
 
   if (channel === "mercadolibre") {
-    // ML notifications aren't signed. If a shared secret is configured, enforce
-    // it as a ?secret= query on the callback URL; otherwise accept — the adapter
-    // re-fetches the resource with the seller token (the real authenticity gate)
-    // and routing already requires a known seller user_id.
+    // ML no firma sus notificaciones: no ofrece HMAC. Lo único que se puede
+    // exigir es un secreto compartido en el propio callback
+    // (`…/webhook?secret=…`), y eso hay que darlo de alta A MANO en el panel
+    // de desarrollador de ML — por eso no se puede volver obligatorio desde
+    // el código sin dejar el canal mudo.
+    //
+    // Configurado: se exige y punto. Sin configurar: se acepta, pero se
+    // avisa, porque el hueco existe aunque sea acotado — el adaptador vuelve
+    // a pedir el recurso con el token del vendedor (esa es la verificación
+    // real de autenticidad) y el enrutado ya exige un user_id de vendedor
+    // conocido, así que a lo sumo se provoca trabajo de más, nunca contenido
+    // falso en la bandeja.
     const expected = process.env.MERCADOLIBRE_WEBHOOK_SECRET;
-    if (expected) {
-      const supplied = new URL(request.url).searchParams.get("secret") ?? "";
-      if (!timingSafeStringEqual(supplied, expected)) {
-        return { ok: false, reason: "mercadolibre secret mismatch" };
-      }
+    if (!expected) {
+      warnOnceUnsignedMercadoLibre();
+      return { ok: true };
+    }
+    const supplied = new URL(request.url).searchParams.get("secret") ?? "";
+    if (!timingSafeStringEqual(supplied, expected)) {
+      return { ok: false, reason: "mercadolibre secret mismatch" };
     }
     return { ok: true };
   }
@@ -146,11 +158,26 @@ function metaRejectionLabel(reason: MetaSignatureRejection): string {
 }
 
 /**
+ * Un aviso por proceso, no uno por notificación: si lo repitiéramos en cada
+ * entrega el log se volvería ruido y nadie lo leería.
+ */
+let warnedUnsignedMercadoLibre = false;
+function warnOnceUnsignedMercadoLibre(): void {
+  if (warnedUnsignedMercadoLibre) return;
+  warnedUnsignedMercadoLibre = true;
+  console.warn(
+    "[channels] MERCADOLIBRE_WEBHOOK_SECRET sin configurar: las notificaciones de " +
+      "Mercado Libre se aceptan sin comprobar. Para cerrarlo hay que ponerlo en el " +
+      "entorno Y añadir ?secret=… a la URL de callback en el panel de ML.",
+  );
+}
+
+/**
  * Length-padded SHA-256 compare. We hash both sides so the buffers
  * timingSafeEqual sees are always 32 bytes — neither the secret nor its
  * length can be inferred from response time.
  */
-function timingSafeStringEqual(a: string, b: string): boolean {
+export function timingSafeStringEqual(a: string, b: string): boolean {
   const ha = createHash("sha256").update(a, "utf8").digest();
   const hb = createHash("sha256").update(b, "utf8").digest();
   if (ha.length !== hb.length) return false;

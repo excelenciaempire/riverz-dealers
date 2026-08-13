@@ -318,6 +318,7 @@ import {
   sendInteractiveCtaUrl,
 } from '@/lib/whatsapp/meta-api'
 import { ensureSendableImageUrl } from '@/lib/whatsapp/image-compat'
+import { resolveMediaFetchUrl } from '@/lib/channels/media-url'
 
 type MediaKind = 'image' | 'video' | 'document'
 
@@ -372,8 +373,13 @@ async function engineSendMediaInner(
 
   // WhatsApp solo entrega imágenes JPEG/PNG (131053 si no). Las URLs de un
   // flujo suelen venir de Shopify o de un CDN que sirve WebP: se transcodifica
-  // antes de enviar. Para video/documento la URL va tal cual.
-  const sendUrl = kind === 'image' ? await ensureSendableImageUrl(args.url) : args.url
+  // antes de enviar. Video y documento no se transcodifican, pero igual pasan
+  // por la resolución: si el archivo es nuestro está en un bucket privado y
+  // Meta necesita una firma para descargarlo.
+  const sendUrl =
+    kind === 'image'
+      ? await ensureSendableImageUrl(args.url)
+      : await resolveMediaFetchUrl(args.url)
 
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendFn({

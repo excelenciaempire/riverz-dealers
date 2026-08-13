@@ -293,7 +293,7 @@ export async function fetchOutlookAttachments(
       });
       if (!ingested) continue;
       out.push({
-        url: ingested.publicUrl,
+        url: ingested.url,
         mime_type: ingested.mediaMime,
         name: a.name,
         size: ingested.mediaSize,

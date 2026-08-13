@@ -4,6 +4,7 @@ import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { serverError } from '@/lib/api/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -100,6 +101,9 @@ export async function POST(
       { error: translate(locale, 'errAi.forbidden') },
       { status: 403 },
     );
+
+  const overBudget = await aiBudgetGuard((agent as AiAgent).workspace_id);
+  if (overBudget) return overBudget;
 
   const a = agent as AiAgent;
   try {

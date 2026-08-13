@@ -371,7 +371,7 @@ export async function fetchGmailAttachments(
       });
       if (!ingested) continue;
       out.push({
-        url: ingested.publicUrl,
+        url: ingested.url,
         mime_type: ingested.mediaMime,
         name: ref.filename,
         size: ingested.mediaSize,

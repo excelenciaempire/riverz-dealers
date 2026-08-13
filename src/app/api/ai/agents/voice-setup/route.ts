@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { serverError } from '@/lib/api/errors';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { DEFAULT_OBJECTIVES } from '@/lib/voice/constants';
@@ -41,6 +42,9 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle();
   if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+  const overBudget = await aiBudgetGuard(body.workspace_id);
+  if (overBudget) return overBudget;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'ai_not_configured' }, { status: 503 });

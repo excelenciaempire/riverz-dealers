@@ -45,6 +45,7 @@ import {
   summarizeConversationIfNeeded,
   summarizeContactIfNeeded,
 } from './summarize';
+import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -977,9 +978,10 @@ export interface ProductRow {
  *   * Cliente + video          → TextBlockParam descriptivo (Claude no
  *                                ingiere video todavía).
  *
- * URLs públicas: el adapter de cada canal subió el archivo a Supabase
- * Storage (bucket `message-media`, público) antes de llegar acá, así
- * que Claude las puede bajar él solo vía `source.type='url'`.
+ * El adapter de cada canal subió el archivo a Supabase Storage (bucket
+ * `message-media`, privado) antes de llegar acá. Anthropic descarga el
+ * adjunto por su cuenta con `source.type='url'`, o sea sin nuestras cookies:
+ * la URL se firma justo antes de armar el bloque, nunca se guarda firmada.
  */
 /** Anthropic's document block rejects PDFs larger than ~32 MB (cap is
  *  per-document on the API). We sniff Content-Length up front so we can
@@ -1008,6 +1010,9 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
   if (!media) {
     return { role: 'user', content: msg.content || 'Hola.' };
   }
+  // Firma de un solo uso para que Anthropic pueda descargar el adjunto. Vive
+  // lo que dure esta llamada; no se guarda ni se le muestra al cliente.
+  const mediaUrl = await resolveMediaFetchUrl(media.url);
   const text = msg.content || '';
   const mime = media.mediaMime ?? '';
   const isPdf = mime.toLowerCase() === 'application/pdf';
@@ -1018,7 +1023,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
     case 'sticker': {
       blocks.push({
         type: 'image',
-        source: { type: 'url', url: media.url },
+        source: { type: 'url', url: mediaUrl },
       });
       blocks.push({
         type: 'text',
@@ -1032,7 +1037,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
         // bigger than Anthropic's 32 MB ceiling we'd get a 400 that the
         // outer runner converts to status=failed, and the customer
         // would see *nothing*. Fail-soft to a text block instead.
-        const size = await probePdfSize(media.url);
+        const size = await probePdfSize(mediaUrl);
         if (size !== null && size > PDF_MAX_BYTES) {
           const mb = Math.round(size / (1024 * 1024));
           blocks.push({
@@ -1044,7 +1049,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
         } else {
           blocks.push({
             type: 'document',
-            source: { type: 'url', url: media.url },
+            source: { type: 'url', url: mediaUrl },
           });
           blocks.push({
             type: 'text',
@@ -1052,14 +1057,15 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
           });
         }
       } else {
-        // Word/Excel/etc — Claude no los acepta directos. Le decimos
-        // que llegó un archivo y le pasamos la URL por si la quiere
-        // mencionar.
+        // Word/Excel/etc — Claude no los acepta directos. Se le avisa que
+        // llegó un archivo y de qué tipo. Sin la URL: viene firmada, y el
+        // modelo repite en su respuesta lo que ve en el contexto — sería
+        // filtrarle al cliente una credencial de descarga.
         blocks.push({
           type: 'text',
           text:
             (text ? text + '\n\n' : '') +
-            `[el cliente envió un archivo (${mime || 'tipo desconocido'}): ${media.url}]`,
+            `[el cliente envió un archivo (${mime || 'tipo desconocido'}) que no puedo abrir]`,
         });
       }
       break;
@@ -1174,7 +1180,9 @@ async function generateReply(
       if (msg.media.mediaType !== 'voice' && msg.media.mediaType !== 'audio')
         return;
       if (msg.media.transcription) return;
-      const result = await transcribeAudio(msg.media.url);
+      const result = await transcribeAudio(
+        await resolveMediaFetchUrl(msg.media.url),
+      );
       if (!result) return;
       msg.media.transcription = result.text;
       if (msg.messageId) {

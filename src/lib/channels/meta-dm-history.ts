@@ -180,7 +180,7 @@ async function mapGraphMessage(
     });
     if (ingested) {
       media.push({
-        url: ingested.publicUrl,
+        url: ingested.url,
         mime_type: ingested.mediaMime,
         size: ingested.mediaSize,
         name: name || undefined,
