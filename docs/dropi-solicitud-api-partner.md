@@ -16,67 +16,68 @@
 ## Correo a enviar
 
 **Para:** marcos.amado@dropi.co
-**Asunto:** Solicitud de acceso a la API — Riverz (creación de órdenes y rastreo de guías)
+**Asunto:** Solicitud de acceso a la API de Dropi para Riverz
 
 ---
 
 Estimado Marcos:
 
-Jhon, del equipo de Servicio al Cliente, nos indicó escribirte directamente para tramitar el acceso a la API de Dropi. A continuación va la información que nos solicitaron.
+Jhon, del equipo de Servicio al Cliente, nos indicó escribirte directamente para tramitar el acceso a la API de Dropi. Abajo va la información que nos solicitaron.
 
-**Motivo de la solicitud**
+Motivo de la solicitud
 
-Riverz (riverz.co) es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región. Unifica WhatsApp, Instagram, Messenger, Mercado Libre y correo en un solo lugar, responde también los comentarios en redes sociales, y su agente además **llama por teléfono**: marca al cliente, confirma el pedido contra entrega en una conversación real y lo deja creado en la tienda. Hoy integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
+Riverz (riverz.co) es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región. Unifica WhatsApp, Instagram, Messenger, Mercado Libre y correo en un solo lugar, responde también los comentarios en redes sociales, y su agente llama por teléfono: marca al cliente, confirma el pedido contra entrega en una conversación real y lo deja creado en la tienda. Hoy integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
 
-**El objetivo del proyecto es que toda la operación se maneje de forma agéntica**: que Riverz se haga cargo de la parte logística y de servicio al cliente de punta a punta —vender y resolver dudas en cualquier canal, responder comentarios, confirmar el pedido, cargarlo, seguir la guía, avisar al cliente en cada estado, resolver las novedades y gestionar la devolución— sin que el comercio tenga que estar encima de cada pedido. La integración con Dropi es la pieza logística de ese circuito.
+El objetivo del proyecto es que toda la operación se maneje de forma agéntica. Queremos que Riverz se haga cargo de la parte logística y del servicio al cliente completo: vender y resolver dudas en cualquier canal, responder comentarios, confirmar el pedido, cargarlo, seguir la guía, avisar al cliente en cada estado, resolver las novedades y gestionar la devolución, sin que el comercio tenga que estar encima de cada pedido. La integración con Dropi es la pieza logística de ese circuito.
 
-El ciclo concreto que queremos cerrar:
+El ciclo que queremos cerrar es este:
 
 1. El pedido se confirma por chat o por llamada y Riverz lo carga automáticamente en Dropi.
 2. Al generarse la guía, Riverz notifica al cliente por WhatsApp con su número de guía y su enlace de rastreo.
-3. En cada cambio de estado —y especialmente ante una novedad— Riverz contacta al cliente, resuelve y reporta la solución, para que menos pedidos terminen en devolución.
+3. En cada cambio de estado, y sobre todo ante una novedad, Riverz contacta al cliente, resuelve y reporta la solución, para que menos pedidos terminen en devolución.
 
-Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajaríamos con una llave de integración por comercio, no con una credencial única.
+Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajaríamos con una llave de integración por comercio y no con una credencial única.
 
-**Endpoints requeridos**
+Endpoints requeridos
 
-Prioridad 1 — lo mínimo para operar:
+Prioridad 1, lo mínimo para operar:
 
-- Autenticación y generación del token de consumo.
-- Catálogo de productos del proveedor: identificadores, precio, existencias y variantes. Lo necesitamos por dos motivos: para referenciar los productos correctos al crear la orden, y para que el agente no ofrezca ni venda algo sin existencias.
-- Crear orden: productos, cantidades, datos del cliente, dirección de entrega y valor a recaudar.
-- Consultar una orden por identificador y su estado actual.
-- Consultar la guía de una orden: número de guía, transportadora y enlace de rastreo.
-- Estados de la guía: estado actual, historial de movimientos y catálogo de estados posibles con su significado.
-- Notificación de cambios de estado: webhook configurable por comercio si existe; si no, un endpoint de consulta incremental (órdenes con cambios desde una fecha) para no consultar pedido por pedido.
+1. Autenticación y generación del token de consumo.
+2. Catálogo de productos del proveedor, con identificadores, precio, existencias y variantes. Lo necesitamos para referenciar los productos correctos al crear la orden y para que el agente no ofrezca ni venda algo sin existencias.
+3. Crear orden con productos, cantidades, datos del cliente, dirección de entrega y valor a recaudar.
+4. Consultar una orden por identificador y su estado actual.
+5. Consultar la guía de una orden: número de guía, transportadora y enlace de rastreo.
+6. Estados de la guía: estado actual, historial de movimientos y catálogo de estados posibles con su significado.
+7. Notificación de cambios de estado. Si existe un webhook configurable por comercio, lo preferimos. Si no, un endpoint de consulta incremental que devuelva las órdenes con cambios desde una fecha, para no consultar pedido por pedido.
 
-Prioridad 2 — para completar la operación:
+Prioridad 2, para completar la operación:
 
-- Novedades: listado por orden con su motivo, y endpoint para registrar la solución (actualizar dirección, reprogramar entrega, autorizar segundo intento).
-- Devoluciones: estado y motivo.
-- Recaudo contra entrega: valor recaudado por pedido.
-- Maestros: departamentos y ciudades válidos, transportadoras disponibles y, de existir, costo de flete estimado por destino. Los usamos para normalizar la dirección antes de generar la guía.
-- Anular o actualizar una orden ya creada.
+1. Novedades: listado por orden con su motivo, y endpoint para registrar la solución, como actualizar la dirección, reprogramar la entrega o autorizar un segundo intento.
+2. Devoluciones: estado y motivo.
+3. Recaudo contra entrega: valor recaudado por pedido.
+4. Maestros: departamentos y ciudades válidos, transportadoras disponibles y, si existe, costo de flete estimado por destino. Los usamos para normalizar la dirección antes de generar la guía.
+5. Anular o actualizar una orden ya creada.
 
-**ID de la cuenta de Dropi**
+ID de la cuenta de Dropi
 
 [COMPLETAR ANTES DE ENVIAR]
 
-**Consultas técnicas**
+Consultas técnicas
 
-- URLs base de los ambientes de pruebas y producción.
-- Credenciales de sandbox para desarrollar.
-- Límites de consumo (rate limits).
-- Si el acceso cubre solo Colombia o también México, Ecuador, Panamá, Paraguay, Chile y Perú.
-- Requisitos de su lado en tratamiento de datos personales o acuerdos de confidencialidad; podemos firmar lo que corresponda.
+1. URLs base de los ambientes de pruebas y producción.
+2. Credenciales de sandbox para desarrollar.
+3. Límites de consumo.
+4. Si el acceso cubre solo Colombia o también México, Ecuador, Panamá, Paraguay, Chile y Perú.
+5. Requisitos de su lado en tratamiento de datos personales o acuerdos de confidencialidad. Podemos firmar lo que corresponda.
 
-Podemos comenzar únicamente con los endpoints de prioridad 1 y ampliar más adelante. Quedamos atentos y a disposición para una llamada técnica cuando les resulte conveniente.
+Podemos comenzar solo con los endpoints de prioridad 1 y ampliar más adelante. Quedamos atentos y a disposición para una llamada técnica cuando les resulte conveniente.
 
 Un saludo,
 
 Juan Diego Ríos
-Fundador — Riverz
-juandiegoriosmesa@gmail.com · riverz.co
+Fundador, Riverz
+juandiegoriosmesa@gmail.com
+riverz.co
 
 ---
 
