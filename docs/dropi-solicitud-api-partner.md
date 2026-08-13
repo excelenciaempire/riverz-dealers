@@ -40,7 +40,7 @@ Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajar�
 
 Prioridad 1 — lo mínimo para operar:
 
-- Autenticación y generación del token de consumo (y confirmación de si el header es `dropi-integration-key`).
+- Autenticación y generación del token de consumo.
 - Crear orden: productos, cantidades, datos del cliente, dirección de entrega y valor a recaudar.
 - Consultar una orden por identificador y su estado actual.
 - Consultar la guía de una orden: número de guía, transportadora y enlace de rastreo.
