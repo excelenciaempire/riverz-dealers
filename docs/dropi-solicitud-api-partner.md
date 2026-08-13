@@ -26,13 +26,15 @@ Jhon, del equipo de Servicio al Cliente, nos indicó escribirte directamente par
 
 **Motivo de la solicitud**
 
-Riverz (riverz.co) es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región. Unifica WhatsApp, Instagram, Messenger, Mercado Libre y correo en un solo lugar, y su agente de IA además **llama por teléfono**: marca al cliente, confirma el pedido contra entrega en una conversación real y lo deja creado en la tienda. Hoy integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
+Riverz (riverz.co) es una plataforma de ventas y atención al cliente con inteligencia artificial para comercios de la región. Unifica WhatsApp, Instagram, Messenger, Mercado Libre y correo en un solo lugar, responde también los comentarios en redes sociales, y su agente además **llama por teléfono**: marca al cliente, confirma el pedido contra entrega en una conversación real y lo deja creado en la tienda. Hoy integramos Shopify, WooCommerce, Tiendanube y Mercado Libre.
 
-Queremos integrar Dropi para cerrar el ciclo completo del dropshipper:
+**El objetivo del proyecto es que toda la operación se maneje de forma agéntica**: que Riverz se haga cargo de la parte logística y de servicio al cliente de punta a punta —vender y resolver dudas en cualquier canal, responder comentarios, confirmar el pedido, cargarlo, seguir la guía, avisar al cliente en cada estado, resolver las novedades y gestionar la devolución— sin que el comercio tenga que estar encima de cada pedido. La integración con Dropi es la pieza logística de ese circuito.
+
+El ciclo concreto que queremos cerrar:
 
 1. El pedido se confirma por chat o por llamada y Riverz lo carga automáticamente en Dropi.
 2. Al generarse la guía, Riverz notifica al cliente por WhatsApp con su número de guía y su enlace de rastreo.
-3. En cada cambio de estado —y especialmente ante una novedad— Riverz contacta al cliente, resuelve y reporta, para que menos pedidos terminen en devolución.
+3. En cada cambio de estado —y especialmente ante una novedad— Riverz contacta al cliente, resuelve y reporta la solución, para que menos pedidos terminen en devolución.
 
 Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajaríamos con una llave de integración por comercio, no con una credencial única.
 
@@ -41,6 +43,7 @@ Cada comercio conecta su propia cuenta de Dropi desde Riverz, así que trabajar�
 Prioridad 1 — lo mínimo para operar:
 
 - Autenticación y generación del token de consumo.
+- Catálogo de productos del proveedor: identificadores, precio, existencias y variantes. Lo necesitamos por dos motivos: para referenciar los productos correctos al crear la orden, y para que el agente no ofrezca ni venda algo sin existencias.
 - Crear orden: productos, cantidades, datos del cliente, dirección de entrega y valor a recaudar.
 - Consultar una orden por identificador y su estado actual.
 - Consultar la guía de una orden: número de guía, transportadora y enlace de rastreo.
@@ -52,7 +55,6 @@ Prioridad 2 — para completar la operación:
 - Novedades: listado por orden con su motivo, y endpoint para registrar la solución (actualizar dirección, reprogramar entrega, autorizar segundo intento).
 - Devoluciones: estado y motivo.
 - Recaudo contra entrega: valor recaudado por pedido.
-- Catálogo y stock de proveedores: listado de productos con precio, existencias y variantes, y detalle por producto.
 - Maestros: departamentos y ciudades válidos, transportadoras disponibles y, de existir, costo de flete estimado por destino. Los usamos para normalizar la dirección antes de generar la guía.
 - Anular o actualizar una orden ya creada.
 
