@@ -333,6 +333,10 @@ const ADDABLE_STEPS: BuilderStepType[] = [
 // merchant who needs logic inside a case uses a standalone "Condición" instead.
 const LEAF_STEPS: BuilderStepType[] = [
   "send_template",
+  // La llamada es una acción más, sin ramas: no había motivo para que el menú
+  // de un camino ofreciera menos que el del lienzo. Lo único que no se puede
+  // meter acá es otra Condición.
+  "voice_call",
   "assign_conversation",
   "wait",
   "close_conversation",
