@@ -6,6 +6,7 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
 import { verifyToken } from '@/lib/mercadopago/client';
 import { webhookUrl } from '@/lib/mercadopago/webhook-url';
+import { oauthConfigured } from '@/lib/mercadopago/oauth';
 import { publicBaseUrl } from '@/lib/base-url';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
@@ -59,10 +60,12 @@ export async function GET() {
     last_sync_at: string | null;
   } | null;
 
-  // La URL de aviso se devuelve sólo cuando ya está conectado: antes de eso
-  // no hay nada que avisar y pegarla en Mercado Pago no haría nada.
+  // Con OAuth la URL de avisos vive en la aplicación y no la pega nadie, así
+  // que sólo se devuelve para las conexiones hechas con token pegado — que
+  // son las únicas que la necesitan.
+  const oauth = oauthConfigured();
   let notifyUrl: string | null = null;
-  if (row?.is_active) {
+  if (row?.is_active && !oauth) {
     const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
     if (workspaceId) {
       notifyUrl = webhookUrl(workspaceId, publicBaseUrl());
@@ -74,6 +77,7 @@ export async function GET() {
     updated_at: row?.updated_at ?? null,
     last_sync_at: row?.last_sync_at ?? null,
     notify_url: notifyUrl,
+    oauth,
   });
 }
 

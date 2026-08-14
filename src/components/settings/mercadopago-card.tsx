@@ -26,6 +26,7 @@ export function MercadoPagoCard() {
   const t = useT();
   const [connected, setConnected] = useState(false);
   const [notifyUrl, setNotifyUrl] = useState<string | null>(null);
+  const [oauth, setOauth] = useState(false);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +38,7 @@ export function MercadoPagoCard() {
       if (res.ok) {
         setConnected(!!json.connected);
         setNotifyUrl(json.notify_url ?? null);
+        setOauth(!!json.oauth);
       }
     } catch {
       /* no-op */
@@ -167,7 +169,20 @@ export function MercadoPagoCard() {
         </ul>
       ) : null}
 
-      {!loading && !connected && (
+      {/* Con la aplicación configurada, conectar es un clic: el comerciante
+          autoriza en Mercado Pago y vuelve conectado. Sin ella, queda el
+          camino de pegar el token, que sirve igual. */}
+      {!loading && !connected && oauth && (
+        <a
+          href="/api/mercadopago/oauth/start"
+          className="mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Image src="/channels/mercadopago.svg" alt="" width={16} height={16} />
+          {t('common.connect')}
+        </a>
+      )}
+
+      {!loading && !connected && !oauth && (
         <div className="mt-auto space-y-2">
           <input
             type="password"

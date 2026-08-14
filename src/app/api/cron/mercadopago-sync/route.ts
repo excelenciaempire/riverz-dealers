@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { assertCronAuth } from '@/lib/auth/cron'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { freshAccessToken } from '@/lib/mercadopago/oauth'
 import { countryOfPhone } from '@/lib/whatsapp/phone-utils'
 import { syncWorkspaceRejectedPayments } from '@/lib/mercadopago/sync'
 import { withCronRun } from '@/lib/cron/heartbeat'
@@ -37,14 +37,14 @@ async function cronHandler(request: Request) {
 
   const { data, error } = await admin
     .from('workspace_integrations')
-    .select('workspace_id, api_key_encrypted')
+    .select('workspace_id')
     .eq('provider', 'mercadopago')
     .eq('is_active', true)
     .order('last_sync_at', { ascending: true, nullsFirst: true })
     .limit(MAX_WORKSPACES)
 
   if (error) return serverError(error)
-  const rows = (data ?? []) as { workspace_id: string; api_key_encrypted: string }[]
+  const rows = (data ?? []) as { workspace_id: string }[]
   if (rows.length === 0) return NextResponse.json({ workspaces: 0 })
 
   // El país se deduce del número de WhatsApp del propio comercio: sin él,
@@ -70,13 +70,14 @@ async function cronHandler(request: Request) {
   const totals = { rejected: 0, people: 0, paid: 0, inserted: 0 }
 
   for (const row of rows) {
-    let token: string
-    try {
-      token = decrypt(row.api_key_encrypted)
-    } catch (err) {
-      // La clave de cifrado rotó o el valor se corrompió: desactivamos para
-      // no reintentar cada media hora contra algo que no se puede leer.
-      log.captureException(err, { workspaceId: row.workspace_id })
+    // Renueva el token si está por vencer. Mercado Pago da 180 días y sólo
+    // el flujo de autorización devuelve refresh: sin esto, una cuenta
+    // conectada hace medio año deja de sincronizar sin ningún aviso.
+    const token = await freshAccessToken(admin, row.workspace_id)
+    if (!token) {
+      // No se puede leer el secreto (rotó la clave de cifrado, o el valor se
+      // corrompió). Se desactiva para no reintentar cada media hora contra
+      // algo que no tiene arreglo automático.
       await admin
         .from('workspace_integrations')
         .update({ is_active: false })
