@@ -68,15 +68,19 @@ export async function sendWhatsAppDuringCall(
       await db
         .from('messages')
         .insert({
+          // Columnas REALES de `messages` (001 + 143). Antes se escribían
+          // nombres que no existen (workspace_id, direction, content,
+          // whatsapp_message_id, metadata): el insert fallaba entero y el
+          // WhatsApp que el agente mandó por teléfono no aparecía en ningún
+          // lado, aunque el cliente sí lo recibía.
           conversation_id: call.conversation_id,
-          workspace_id: call.workspace_id,
-          contact_id: contact.id,
-          direction: 'outbound',
           channel: 'whatsapp',
-          content: text,
+          sender_type: 'bot',
+          content_type: 'text',
+          content_text: text,
+          message_id: res.messageId,
           status: 'sent',
-          whatsapp_message_id: res.messageId,
-          metadata: { source: 'voice_call', call_id: call.id },
+          origin: 'voice_agent',
         })
         .then(
           () => undefined,

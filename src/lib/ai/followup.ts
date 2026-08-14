@@ -155,6 +155,8 @@ export async function runFollowUp(
         content_text: text,
         message_id: sendResult.externalMessageId,
         status: sendResult.status ?? 'sent',
+        origin: 'ai_followup',
+        origin_name: agent.name ?? null,
       });
       await db
         .from('conversations')
@@ -252,6 +254,8 @@ export async function runFollowUp(
       content_text: finalText,
       message_id: sendResult.externalMessageId,
       status: sendResult.status ?? 'sent',
+      origin: 'ai_followup',
+      origin_name: agent.name ?? null,
     });
     await db
       .from('conversations')

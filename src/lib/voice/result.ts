@@ -154,6 +154,9 @@ async function materializeTranscript(
       message_id: `voice:${call.id}:${i}`,
       status: 'delivered',
       created_at: t.ts || endedAt,
+      // Solo los turnos del agente llevan origen: lo que dijo el cliente no lo
+      // envió ninguna funcionalidad (migración 143).
+      origin: t.role === 'customer' ? null : 'voice_agent',
     }));
     const { error: msgErr } = await db.from('messages').insert(rows);
     if (msgErr && (msgErr as { code?: string }).code !== '23505') {

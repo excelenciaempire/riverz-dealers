@@ -417,6 +417,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         conversationId,
         contactId: args.contactId,
         text,
+        automationName: args.automation.name,
       })
       return `sent via Meta (${whatsapp_message_id})`
     }
@@ -522,6 +523,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         params,
         buttonUrlParam,
         buttonUrlIndex,
+        automationName: args.automation.name,
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }

@@ -554,6 +554,9 @@ async function sendAiOrderConfirmation(
     content_text: text,
     message_id: sendResult.externalMessageId,
     status: sendResult.status ?? 'sent',
+    // Lo dispara el pedido de Shopify, no una persona ni el asistente
+    // conversando: la bandeja lo dice tal cual (migración 143).
+    origin: 'order_update',
   })
   const convUpdate: Record<string, unknown> = {
     last_message_text: text.slice(0, 200),

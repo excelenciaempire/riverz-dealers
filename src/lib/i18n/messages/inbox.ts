@@ -310,6 +310,21 @@ export const inbox = {
   automation: { es: "Automatización", en: "Automation" },
   agent: { es: "Agente", en: "Agent" },
 
+  // Etiqueta de ORIGEN sobre la burbuja: qué funcionalidad envió el mensaje
+  // (migración 143). Sin esto un mensaje que el comercio no escribió no tenía
+  // explicación ni forma de saber qué apagar.
+  originAiAgent: { es: "Asistente IA", en: "AI assistant" },
+  originAiFollowup: { es: "Seguimiento IA", en: "AI follow-up" },
+  originCommentAi: { es: "Comentarios IA", en: "AI comments" },
+  originCommentRule: { es: "Regla de comentarios", en: "Comment rule" },
+  originIgOutreach: { es: "Prospección IA", en: "AI outreach" },
+  originAutomation: { es: "Automatización", en: "Automation" },
+  originFlow: { es: "Flujo", en: "Flow" },
+  originBroadcast: { es: "Campaña", en: "Campaign" },
+  originVoiceAgent: { es: "Agente de voz", en: "Voice agent" },
+  originOrderUpdate: { es: "Aviso de pedido", en: "Order update" },
+  originAutomated: { es: "Envío automático", en: "Automated send" },
+
   // Message thread — header, status, assignment
   status: { es: "Estado", en: "Status" },
   statusOpen: { es: "Abierta", en: "Open" },

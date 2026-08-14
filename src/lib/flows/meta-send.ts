@@ -29,7 +29,13 @@ import { supabaseAdmin } from './admin-client'
 // keeps the foundation PR self-contained and unit-testable.
 // ------------------------------------------------------------
 
-interface SendTextEngineArgs {
+/** Nombre del flujo que manda: se sella en la fila para que la bandeja diga
+ *  QUÉ flujo escribió (migración 143). */
+interface FlowOriginArgs {
+  flowName?: string | null
+}
+
+interface SendTextEngineArgs extends FlowOriginArgs {
   userId: string
   conversationId: string
   contactId: string
@@ -118,6 +124,8 @@ export async function engineSendText(
     content_text: args.text,
     message_id: waMessageId,
     status: 'sent',
+    origin: 'flow',
+    origin_name: args.flowName ?? null,
   })
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
@@ -135,7 +143,7 @@ export async function engineSendText(
   return { whatsapp_message_id: waMessageId }
 }
 
-interface SendInteractiveButtonsEngineArgs {
+interface SendInteractiveButtonsEngineArgs extends FlowOriginArgs {
   userId: string
   conversationId: string
   contactId: string
@@ -145,7 +153,7 @@ interface SendInteractiveButtonsEngineArgs {
   footerText?: string
 }
 
-interface SendInteractiveListEngineArgs {
+interface SendInteractiveListEngineArgs extends FlowOriginArgs {
   userId: string
   conversationId: string
   contactId: string
@@ -290,6 +298,8 @@ async function sendInteractiveViaMeta(
     content_text: input.bodyText,
     message_id: waMessageId,
     status: 'sent',
+    origin: 'flow',
+    origin_name: input.flowName ?? null,
   })
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
@@ -322,7 +332,7 @@ import { resolveMediaFetchUrl } from '@/lib/channels/media-url'
 
 type MediaKind = 'image' | 'video' | 'document'
 
-interface SendMediaEngineArgs {
+interface SendMediaEngineArgs extends FlowOriginArgs {
   userId: string
   conversationId: string
   contactId: string
@@ -424,6 +434,8 @@ async function engineSendMediaInner(
     media_url: args.url,
     message_id: waMessageId,
     status: 'sent',
+    origin: 'flow',
+    origin_name: args.flowName ?? null,
   })
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
@@ -451,7 +463,7 @@ export function engineSendDocument(args: SendMediaEngineArgs) {
   return engineSendMediaInner(args, 'document')
 }
 
-interface SendCtaUrlEngineArgs {
+interface SendCtaUrlEngineArgs extends FlowOriginArgs {
   userId: string
   conversationId: string
   contactId: string
@@ -530,6 +542,8 @@ export async function engineSendCtaUrl(
     content_text: args.bodyText,
     message_id: waMessageId,
     status: 'sent',
+    origin: 'flow',
+    origin_name: args.flowName ?? null,
   })
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)

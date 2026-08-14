@@ -364,6 +364,7 @@ async function sendOneBroadcast(
                 ? renderTemplateBody(templateBody, params)
                 : templateName,
               whatsappMessageId: sentId,
+              broadcastName: (broadcast.name as string | null) ?? null,
             })
           } catch (convErr) {
             console.error('[broadcast-cron] conversation failed:', convErr)

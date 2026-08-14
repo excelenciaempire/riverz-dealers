@@ -369,6 +369,13 @@ export interface Message {
    *  Persisted (migration 095) so the state survives reloads and syncs across
    *  panes; written by /api/messages/moderate. */
   is_hidden?: boolean;
+  /** Funcionalidad que envió el mensaje (migración 143): 'ai_agent',
+   *  'automation', 'flow', 'broadcast', 'comment_ai'… null = lo escribió una
+   *  persona. Ver src/lib/inbox/message-origin.ts. */
+  origin?: string | null;
+  /** Nombre de la pieza concreta que lo envió (la automatización, el flujo, la
+   *  campaña, el agente), fotografiado al momento del envío. Migración 143. */
+  origin_name?: string | null;
 }
 
 /** Un botón resuelto de un mensaje saliente (plantilla/interactivo) tal como

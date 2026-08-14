@@ -31,14 +31,20 @@ import { supabaseAdmin } from './admin-client'
 // El render vive en `lib/whatsapp/template-render` (puro, sin server-only)
 // para que también lo use el envío en vivo desde el navegador.
 
-interface SendTextArgs {
+/** Nombre de la automatización que dispara el envío: se sella en la fila para
+ *  que la bandeja diga QUÉ automatización escribió (migración 143). */
+interface OriginArgs {
+  automationName?: string | null
+}
+
+interface SendTextArgs extends OriginArgs {
   workspaceId: string
   conversationId: string
   contactId: string
   text: string
 }
 
-interface SendTemplateArgs {
+interface SendTemplateArgs extends OriginArgs {
   workspaceId: string
   conversationId: string
   contactId: string
@@ -119,6 +125,8 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         template_name: input.templateName,
         status: 'failed',
         error_code: US_MARKETING_BLOCKED_CODE,
+        origin: 'automation',
+        origin_name: input.automationName ?? null,
       })
       // No es un fallo de sistema: no se envió nada a Meta. Devolvemos sin id.
       return { whatsapp_message_id: '' }
@@ -276,6 +284,10 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       buttons,
       message_id: waMessageId,
       status: 'sent',
+      // Qué automatización lo mandó (migración 143). El nombre queda como foto:
+      // si después la renombran, el historial sigue diciendo la verdad.
+      origin: 'automation',
+      origin_name: input.automationName ?? null,
       // Retención por PACING (plantilla nueva / sin calidad GREEN): Meta acepta
       // pero no dispara 'sent' hasta liberar. La bandeja lo muestra como "en
       // revisión de calidad" en vez de un 'sent' mudo.

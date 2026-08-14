@@ -466,6 +466,8 @@ export async function maybeInstantOutreach(
       connection,
       text,
       commentContactId: opts.commentId ? opts.contact.id : null,
+      origin: 'ig_outreach',
+      originName: campaign.plan.campaign_name ?? null,
     });
     await logProactiveSend(db, {
       workspaceId: opts.workspaceId,
@@ -794,12 +796,17 @@ async function autonomousCommentReply(
       connection,
       text,
       commentContactId: opts.commentId ? opts.contact.id : null,
+      // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
+      // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
+      origin: 'comment_ai',
+      originName: null,
     });
 
     // Respuesta pública en el propio comentario, si el comercio la pidió.
     // Va DESPUÉS del DM y en su propio try: es lo que puede fallar por
     // permisos de Meta, y un fallo aquí no debe tumbar un DM ya enviado.
     if (commentCfg.publicReply) {
+      const publicText = publicReplyFrom(text);
       try {
         await getAdapter(commentChannel).sendText({
           channel: commentChannel,
@@ -809,7 +816,7 @@ async function autonomousCommentReply(
             thread_external_id: opts.commentId,
           } as unknown as Conversation,
           contact: { id: opts.contact.id } as unknown as Contact,
-          text: publicReplyFrom(text),
+          text: publicText,
           replyToExternalId: opts.commentId,
         } satisfies OutboundText);
         // Se registra aparte del DM: son dos acciones distintas y la pantalla
@@ -819,6 +826,10 @@ async function autonomousCommentReply(
           workspaceId: opts.workspaceId,
           contactId: opts.contact.id,
           kind: 'comment_public',
+          // Con el texto: la respuesta pública entra a la bandeja por el eco de
+          // Meta (no la escribimos nosotros), y este libro es lo único que
+          // permite reconocerla como automática al ingresarla.
+          text: publicText,
         });
       } catch (pubErr) {
         console.error(
@@ -1114,6 +1125,8 @@ export async function maybeRunCloser(
     externalId: opts.contact.external_id,
     connection: opts.connection,
     text: reply,
+    origin: 'ig_outreach',
+    originName: plan.campaign_name ?? null,
   });
   await logProactiveSend(db, {
     workspaceId: opts.workspaceId,

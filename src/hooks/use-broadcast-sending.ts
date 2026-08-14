@@ -604,6 +604,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                         )
                       : payload.template.name,
                     whatsappMessageId: result.whatsapp_message_id ?? null,
+                    broadcastName: payload.name ?? null,
                   });
                 } catch (convErr) {
                   console.error('[broadcast] conversation create failed:', convErr);

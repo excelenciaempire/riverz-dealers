@@ -292,6 +292,10 @@ export async function runAiAgent(
           content_text: text,
           message_id: sendResult.externalMessageId,
           status: sendResult.status ?? 'sent',
+          // La cortesía la manda el asistente igual: para el cliente y para la
+          // bandeja es el mismo remitente, aunque el modelo no haya contestado.
+          origin: 'ai_agent',
+          origin_name: agent.name ?? null,
         });
         await db
           .from('conversations')
@@ -428,6 +432,9 @@ export async function runAiAgent(
           content_text: chunk,
           message_id: sendResult.externalMessageId,
           status: sendResult.status ?? 'sent',
+          // Quién habló, para que la bandeja lo diga sin adivinar (migración 143).
+          origin: 'ai_agent',
+          origin_name: agent.name ?? null,
         })
         .select()
         .single();

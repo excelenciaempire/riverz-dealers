@@ -53,12 +53,24 @@ import { MessageComposer } from "./message-composer";
 import { VoiceCallCard } from "./voice-call-view";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
+import { originLabelKey } from "@/lib/inbox/message-origin";
 import { toast } from "sonner";
 
 interface ReplyDraft {
   id: string;
   authorLabel: string;
   preview: string;
+}
+
+/**
+ * Etiqueta de la funcionalidad que envió el mensaje (migración 143):
+ * "Automatización · Carrito abandonado", "Comentarios IA", "Flujo"…
+ * `null` cuando lo escribió una persona, para que su burbuja no lleve nada.
+ */
+function originLabel(m: Message, t: TFn): string | null {
+  if (!m.origin) return null;
+  const label = t(originLabelKey(m.origin));
+  return m.origin_name ? `${label} · ${m.origin_name}` : label;
 }
 
 function renderTemplateBody(body: string, params: string[]): string {
@@ -917,9 +929,13 @@ export function MessageThread({
   const authorLabelFor = useCallback(
     (m: Message): string => {
       if (m.sender_type === "customer") return contactDisplayName;
+      // Lo que el mensaje DICE de sí mismo manda sobre cualquier deducción
+      // (migración 143): el asistente, un seguimiento, una automatización, un
+      // flujo, una campaña, Comentarios o el agente de voz se nombran solos.
+      const stamped = originLabel(m, t);
+      if (stamped) return stamped;
       if (m.sender_type === "bot") {
-        // Un envío de plantilla del bot es una automatización (o campaña), no
-        // el asistente IA conversando — lo etiquetamos como "Automatización".
+        // Sin sello (mensajes anteriores a la migración): la vieja deducción.
         return m.content_type === "template"
           ? t("inbox.automation")
           : t("inbox.aiAssistant");
@@ -1546,11 +1562,12 @@ export function MessageThread({
                         }
                       : null;
                     const msgReactions = reactionsByMessageId.get(msg.id);
-                    // Name heading for the bubble: shown only for the
-                    // bot and for teammates' messages — your own messages
-                    // don't need a "Tú" label cluttering every bubble.
+                    // Name heading for the bubble: shown for todo lo automático
+                    // —con el nombre de la funcionalidad que lo mandó— y para
+                    // los mensajes de compañeros. Los propios no llevan "Tú".
                     const senderName =
-                      msg.sender_type === "bot"
+                      originLabel(msg, t) ??
+                      (msg.sender_type === "bot"
                         ? msg.content_type === "template"
                           ? t("inbox.automation")
                           : t("inbox.aiAssistant")
@@ -1558,7 +1575,7 @@ export function MessageThread({
                             msg.sender_id &&
                             msg.sender_id !== user?.id
                           ? (nameByUserId.get(msg.sender_id) ?? t("inbox.agent"))
-                          : undefined;
+                          : undefined);
                     // Toggle is computed at the call site — `msgReactions`
                     // and `user?.id` are already in scope, no extra hook.
                     const handlePillToggle = (emoji: string) => {

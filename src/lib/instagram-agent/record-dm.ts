@@ -52,6 +52,14 @@ export async function recordProactiveDm(
      * en la pestaña Comentarios.
      */
     commentContactId?: string | null;
+    /**
+     * Qué funcionalidad lo mandó (migración 143). Se sella en la fila para que
+     * la bandeja lo diga: Comentarios, Prospección, una regla… Además sobrevive
+     * al eco de Meta, que se reconcilia contra esta misma fila en vez de
+     * insertar otra.
+     */
+    origin?: string | null;
+    originName?: string | null;
   },
 ): Promise<void> {
   try {
@@ -124,6 +132,8 @@ export async function recordProactiveDm(
         content_type: 'text',
         content_text: input.text,
         status: 'sent',
+        origin: input.origin ?? null,
+        origin_name: input.originName ?? null,
       });
       await db
         .from('conversations')
@@ -148,6 +158,8 @@ export async function recordProactiveDm(
         text: input.text,
         preview,
         now,
+        origin: input.origin ?? null,
+        originName: input.originName ?? null,
       });
     }
   } catch (err) {
@@ -170,6 +182,8 @@ async function mirrorReplyToCommentThread(
     text: string;
     preview: string;
     now: string;
+    origin?: string | null;
+    originName?: string | null;
   },
 ): Promise<void> {
   const { data: conv } = await db
@@ -203,6 +217,8 @@ async function mirrorReplyToCommentThread(
     content_type: 'text',
     content_text: args.text,
     status: 'sent',
+    origin: args.origin ?? null,
+    origin_name: args.originName ?? null,
   });
   await db
     .from('conversations')

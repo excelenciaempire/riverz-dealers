@@ -22,6 +22,8 @@ export async function recordBroadcastConversation(
     templateName: string;
     bodyPreview: string;
     whatsappMessageId: string | null;
+    /** Nombre de la campaña, para que la bandeja diga CUÁL fue (migración 143). */
+    broadcastName?: string | null;
   },
 ): Promise<void> {
   const {
@@ -83,6 +85,8 @@ export async function recordBroadcastConversation(
     message_id: whatsappMessageId,
     status: whatsappMessageId ? 'sent' : 'failed',
     created_at: now,
+    origin: 'broadcast',
+    origin_name: args.broadcastName ?? null,
   });
 
   // Bump conversation summary. last_sender_type 'agent' keeps it out of the

@@ -347,6 +347,8 @@ export async function sendCampaignBatch(
         externalId: p.contact.external_id,
         connection: connByContact.get(p.contact.id) ?? connection,
         text: p.text,
+        origin: 'ig_outreach',
+        originName: campaign.plan?.campaign_name ?? null,
       });
       await logProactiveSend(db, {
         workspaceId: campaign.workspace_id,

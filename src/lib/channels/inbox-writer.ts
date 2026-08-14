@@ -27,6 +27,46 @@ import {
   markOptedIn,
 } from "@/lib/whatsapp/opt-out";
 import { getAdapter } from "./registry";
+import { originFromProactiveKind } from "@/lib/inbox/message-origin";
+
+/**
+ * ¿Este saliente que llega de la plataforma lo mandó una funcionalidad nuestra?
+ *
+ * El DM de una regla de comentarios y la respuesta pública de Comentarios se
+ * envían por el adapter y aparecen en la bandeja recién cuando Meta manda el
+ * eco: para entonces son indistinguibles de algo que escribió una persona desde
+ * la app. `ig_proactive_log` guarda el texto de cada envío proactivo, así que un
+ * match por (workspace, texto, últimos minutos) los reconoce.
+ *
+ * Best-effort: si no hay match, el mensaje queda sin origen —que es exactamente
+ * lo que corresponde para un mensaje escrito a mano.
+ */
+const PROACTIVE_CHANNELS = new Set<Channel>([
+  "instagram",
+  "messenger",
+  "ig_comment",
+  "fb_comment",
+]);
+
+async function originFromRecentProactiveLog(
+  db: SupabaseClient,
+  args: { workspaceId: string; text: string; at: string },
+): Promise<string | null> {
+  const text = (args.text ?? "").trim();
+  if (!text) return null;
+  const since = new Date(Date.parse(args.at) - 15 * 60_000).toISOString();
+  const { data } = await db
+    .from("ig_proactive_log")
+    .select("kind")
+    .eq("workspace_id", args.workspaceId)
+    .eq("text", text.slice(0, 1000))
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const kind = (data as { kind?: string } | null)?.kind;
+  return kind ? originFromProactiveKind(kind) : null;
+}
 
 /**
  * Persist an inbound channel event into the unified inbox: upsert the
@@ -266,6 +306,21 @@ export async function ingestInboundEvent(
     // Null en la inmensa mayoría: es un mensaje normal.
     engagement_kind: event.engagementKind ?? null,
   };
+  // ¿Es el eco de un envío AUTOMÁTICO nuestro? Hay dos caminos que no escriben
+  // la fila ellos mismos —el DM de una regla de comentarios y la respuesta
+  // pública en el propio comentario— y llegan a la bandeja por el eco de Meta,
+  // ya sin rastro de quién los originó. `ig_proactive_log` es ese rastro
+  // (migración 143).
+  // Solo en los canales donde hay envíos proactivos (Meta): en correo o Mercado
+  // Libre esta consulta nunca acertaría y el poll trae salientes de a montones.
+  if (event.outbound && PROACTIVE_CHANNELS.has(channel)) {
+    const attributed = await originFromRecentProactiveLog(db, {
+      workspaceId,
+      text: event.text,
+      at: event.receivedAt,
+    });
+    if (attributed) insertPayload.origin = attributed;
+  }
   const { data: message, error } = await db
     .from("messages")
     .insert(insertPayload)
