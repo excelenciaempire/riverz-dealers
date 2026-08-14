@@ -21,7 +21,7 @@ export type ConditionSource =
   | { kind: 'tag' } // subject 'tag_presence'
   | { kind: 'segment' } // subject 'in_segment'
   | { kind: 'message' } // subject 'message_content'
-  | { kind: 'purchased_since' } // subject 'purchased_since' (se resuelve en vivo)
+  | { kind: 'purchased' } // subject 'purchased' (se resuelve en vivo, con ventana)
 
 export interface DataPoint {
   /** Stable id used in the picker + to rebuild a condition. */
@@ -352,15 +352,15 @@ export const DATA_POINTS: DataPoint[] = [
   },
   {
     // La única que se resuelve en vivo al evaluarse, no con lo que había al
-    // disparar. Puesta después de una espera, es la que distingue "se le
-    // rechazó el pago" de "no compró".
-    id: 'purchased_since',
-    labelKey: 'automations.dpPurchasedSince',
+    // disparar. Sirve en cualquier flujo que espere algo del cliente antes
+    // de insistir: pago rechazado, carrito, encuesta, recompra.
+    id: 'purchased',
+    labelKey: 'automations.dpPurchased',
     group: 'order',
     valueKind: 'bool',
-    triggers: ['payment_rejected'],
+    triggers: 'all',
     usableInConditions: true,
-    condition: { kind: 'purchased_since' },
+    condition: { kind: 'purchased' },
   },
   {
     id: 'payment_attempts',

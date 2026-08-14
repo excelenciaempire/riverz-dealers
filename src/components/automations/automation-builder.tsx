@@ -458,7 +458,7 @@ function dataPointIdFromCfg(
     if (subject === 'tag_presence') return c.kind === 'tag'
     if (subject === 'in_segment') return c.kind === 'segment'
     if (subject === 'message_content') return c.kind === 'message'
-    if (subject === 'purchased_since') return c.kind === 'purchased_since'
+    if (subject === 'purchased') return c.kind === 'purchased'
     return false
   })?.id
 }
@@ -472,10 +472,9 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
     return { subject: 'contact_field', operand: c.column, op: defaultOpFor(dp), value: '', value2: undefined }
   if (c.kind === 'tag') return { subject: 'tag_presence', operand: '', op: undefined, value: '', value2: undefined }
   if (c.kind === 'segment') return { subject: 'in_segment', operand: '', op: undefined, value: '', value2: undefined }
-  // Sin operando: la respuesta se resuelve en vivo. `value` es solo el lado
-  // que se quiere: 'false' = la rama Si es "no compro", que es la que envia.
-  if (c.kind === 'purchased_since')
-    return { subject: 'purchased_since', operand: '', op: undefined, value: 'false', value2: undefined }
+  // `operand` es la ventana y `value` el lado que se quiere.
+  if (c.kind === 'purchased')
+    return { subject: 'purchased', operand: '24h', op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -579,23 +578,70 @@ function ConditionFields({
         </FieldBlock>
       )}
 
-      {dp && dp.condition.kind === "purchased_since" && (
-        <FieldBlock label={t("automations.condValueLabel")}>
-          <select
-            value={String(cfg.value ?? "false")}
-            onChange={(e) => set({ value: e.target.value })}
-            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
-          >
-            <option value="false">{t("automations.purchasedSinceNo")}</option>
-            <option value="true">{t("automations.purchasedSinceYes")}</option>
-          </select>
-        </FieldBlock>
+      {dp && dp.condition.kind === "purchased" && (
+        <PurchasedFields cfg={cfg} set={set} />
       )}
 
       {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
         <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} products={products} />
       )}
     </>
+  )
+}
+
+/**
+ * Controles de la condición "Compró": ventana y lado.
+ *
+ * La ventana se guarda como "3h" / "7d" — la misma gramática corta que usa
+ * el resto de los pasos que miran hacia atrás, así que un flujo se lee igual
+ * sin importar quién lo armó.
+ */
+function PurchasedFields({
+  cfg,
+  set,
+}: {
+  cfg: Record<string, unknown>
+  set: (patch: Record<string, unknown>) => void
+}) {
+  const t = useT()
+  const m = /^(\d+)([mhd])$/.exec(String(cfg.operand ?? "24h")) ?? ["", "24", "h"]
+  const amount = Number(m[1]) > 0 ? Number(m[1]) : 24
+  const unit = m[2] === "m" || m[2] === "d" ? m[2] : "h"
+  const setWindow = (a: number, u: string) => set({ operand: `${Math.max(1, a)}${u}` })
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <FieldBlock label={t("automations.condWindowLabel")}>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setWindow(Number(e.target.value), unit)}
+            className="w-20 bg-muted text-foreground"
+          />
+          <select
+            value={unit}
+            onChange={(e) => setWindow(amount, e.target.value)}
+            className="flex-1 rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
+          >
+            <option value="m">{t("automations.unitMinutes")}</option>
+            <option value="h">{t("automations.unitHours")}</option>
+            <option value="d">{t("automations.unitDays")}</option>
+          </select>
+        </div>
+      </FieldBlock>
+      <FieldBlock label={t("automations.condValueLabel")}>
+        <select
+          value={String(cfg.value ?? "false")}
+          onChange={(e) => set({ value: e.target.value })}
+          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
+        >
+          <option value="false">{t("automations.purchasedNo")}</option>
+          <option value="true">{t("automations.purchasedYes")}</option>
+        </select>
+      </FieldBlock>
+    </div>
   )
 }
 
@@ -1523,9 +1569,6 @@ function PaymentRejectedConfig({
           className="bg-muted text-foreground"
         />
       </div>
-      <p className="text-[11px] text-muted-foreground sm:col-span-2">
-        {t("automations.mpHoursAfterHint")}
-      </p>
     </div>
   )
 }

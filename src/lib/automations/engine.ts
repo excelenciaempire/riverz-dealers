@@ -883,6 +883,21 @@ function matchesValue(actual: unknown, cfg: ConditionStepConfig): boolean {
   }
 }
 
+/**
+ * Ventana de una condición temporal: "3h", "7d", "45m". Por defecto 24h.
+ *
+ * Es la misma gramática corta en todos los pasos que miran hacia atrás, así
+ * que un flujo se lee igual sin importar quién lo armó.
+ */
+function windowMs(operand: string | undefined): number {
+  const m = /^\s*(\d+)\s*([mhd])\s*$/i.exec(operand ?? '')
+  if (!m) return 24 * 3_600_000
+  const n = Number(m[1])
+  const unit = m[2].toLowerCase()
+  const factor = unit === 'm' ? 60_000 : unit === 'h' ? 3_600_000 : 86_400_000
+  return Math.min(Math.max(n, 1) * factor, 90 * 86_400_000)
+}
+
 async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): Promise<boolean> {
   const db = supabaseAdmin()
   switch (cfg.subject) {
@@ -921,16 +936,14 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         cfg,
       )
     }
-    case 'purchased_since': {
-      // Verdadero si la persona compró DESPUÉS del momento que dejó el
-      // disparador. Se consulta en vivo, no del contexto: la gracia del
-      // paso está en que corre después de la espera, cuando la respuesta
-      // ya puede haber cambiado.
+    case 'purchased': {
+      // Verdadero si la persona compró dentro de la ventana pedida. Se
+      // consulta en vivo contra los pedidos de la tienda, no contra el
+      // contexto capturado al disparar: puesto después de una espera,
+      // responde "y mientras tanto, ¿compró?", que es el único momento en
+      // que la pregunta significa algo.
       if (!args.contactId) return false
-      const since =
-        (args.context.vars as Record<string, unknown> | undefined)?.rejected_at ??
-        (args.context.vars as Record<string, unknown> | undefined)?.triggered_at
-      if (!since) return false
+      const since = new Date(Date.now() - windowMs(cfg.operand)).toISOString()
       const { data: c } = await db
         .from('contacts')
         .select('email, phone')

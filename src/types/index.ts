@@ -697,10 +697,9 @@ export type ConditionSubject =
   | 'in_segment'
   | 'context_var'
   // Se evalua EN VIVO contra los pedidos de la tienda, no contra el contexto
-  // capturado al disparar. Es lo que permite que un paso de condicion
-  // despues de una espera pregunte "y mientras tanto, compro?" — que es el
-  // unico momento en que esa pregunta significa algo.
-  | 'purchased_since';
+  // capturado al disparar. `operand` es la ventana ("3h", "7d"): sirve en
+  // cualquier automatizacion, no solo despues de un pago rechazado.
+  | 'purchased';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;
