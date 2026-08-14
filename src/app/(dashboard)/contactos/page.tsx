@@ -205,25 +205,14 @@ export default function ContactsPage() {
    * saltaba los desplegables y llegaba a seleccionar contactos que la lista no
    * mostraba.
    *
-   * Devuelve `null` cuando el filtro ya no puede coincidir con nadie (etiqueta
-   * sin contactos, búsqueda que se queda vacía al sanearla). La consulta viaja
-   * envuelta en un objeto porque el builder de Supabase es "thenable": si la
-   * devolviéramos suelta, el `await` la ejecutaría en vez de dejarnos seguir
-   * encadenando `.range()` / `.limit()`.
+   * Devuelve `null` cuando el filtro ya no puede coincidir con nadie (búsqueda
+   * que se queda vacía al sanearla). La consulta viaja envuelta en un objeto
+   * porque el builder de Supabase es "thenable": si la devolviéramos suelta, el
+   * `await` la ejecutaría en vez de dejarnos seguir encadenando `.range()`.
    */
   const applyFilters = useCallback(
-    async (query: FilterableQuery): Promise<{ query: FilterableQuery } | null> => {
+    (query: FilterableQuery): { query: FilterableQuery } | null => {
       if (!workspaceId) return null;
-
-      let taggedIds: string[] | null = null;
-      if (selectedTagIds.length > 0) {
-        const { data: links } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', selectedTagIds);
-        taggedIds = [...new Set((links ?? []).map((l) => l.contact_id))];
-        if (taggedIds.length === 0) return null;
-      }
 
       // Saneamos el término del usuario antes de interpolarlo en el filtro `.or()`:
       // (1) quitamos los caracteres de la gramática PostgREST `.or()` que NO son
@@ -235,7 +224,15 @@ export default function ContactsPage() {
       const cleaned = rawSearch ? rawSearch.replace(/[,()\\:*]/g, ' ').trim() : '';
       if (rawSearch && !cleaned) return null;
 
-      if (taggedIds) query = query.in('id', taggedIds);
+      // Etiquetas: el filtro viaja al servidor sobre el join (`contact_tags!inner`
+      // en el select, ver `tagJoin`) en vez de traerse la lista de ids y
+      // reenviarla en un `.in()`. Ese camino traía como mucho 1.000 vínculos
+      // —la etiqueta "comprador" tiene 1.555—, así que la lista escondía en
+      // silencio a todos los demás. El join además cuenta bien: un contacto con
+      // dos de las etiquetas marcadas sigue apareciendo una sola vez.
+      if (selectedTagIds.length > 0) {
+        query = query.in('contact_tags.tag_id', selectedTagIds);
+      }
 
       // Filtro por fecha de alta: atajo (7/30/90 días) o rango del calendario.
       const bounds = dateChipBounds(datePreset, dateCustom, tz);
@@ -258,7 +255,18 @@ export default function ContactsPage() {
 
       return { query };
     },
-    [supabase, workspaceId, selectedTagIds, search, datePreset, dateCustom, tz, shopifyFilter, channelFilter],
+    [workspaceId, selectedTagIds, search, datePreset, dateCustom, tz, shopifyFilter, channelFilter],
+  );
+
+  /**
+   * Columnas a pedir. Con filtro por etiqueta se suma el join `contact_tags!inner`,
+   * que es sobre lo que `applyFilters` aplica el filtro; sin filtro no se pide,
+   * para no traer datos que nadie mira.
+   */
+  const tagJoin = useCallback(
+    (cols: string) =>
+      selectedTagIds.length > 0 ? `${cols}, contact_tags!inner(tag_id)` : cols,
+    [selectedTagIds],
   );
 
   const fetchContacts = useCallback(async () => {
@@ -273,10 +281,10 @@ export default function ContactsPage() {
 
     const base = supabase
       .from('contacts')
-      .select('*', { count: 'exact' })
+      .select(tagJoin('*'), { count: 'exact' })
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
-    const filtered = await applyFilters(base as unknown as FilterableQuery);
+    const filtered = applyFilters(base as unknown as FilterableQuery);
     if (!filtered) {
       setContacts([]);
       setTotalCount(0);
@@ -302,18 +310,26 @@ export default function ContactsPage() {
 
     const rows = data as unknown as Contact[];
 
-    // Fetch tags for these contacts
+    // Etiquetas de los contactos de esta página. Se pagina porque cada contacto
+    // tiene varias y 100 contactos pueden pasar de las 1.000 filas que PostgREST
+    // devuelve por respuesta — si no, a las últimas filas de la página les
+    // faltarían etiquetas sin aviso.
     const contactIds = rows.map((c) => c.id);
-    const { data: contactTags } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_id')
-      .in('contact_id', contactIds);
-
     const tagsByContact: Record<string, string[]> = {};
-    contactTags?.forEach((ct) => {
-      if (!tagsByContact[ct.contact_id]) tagsByContact[ct.contact_id] = [];
-      tagsByContact[ct.contact_id].push(ct.tag_id);
-    });
+    for (let offset = 0; ; offset += 1000) {
+      const { data: contactTags } = await supabase
+        .from('contact_tags')
+        .select('contact_id, tag_id')
+        .in('contact_id', contactIds)
+        .order('contact_id', { ascending: true })
+        .order('tag_id', { ascending: true })
+        .range(offset, offset + 999);
+      const links = (contactTags ?? []) as Array<{ contact_id: string; tag_id: string }>;
+      links.forEach((ct) => {
+        (tagsByContact[ct.contact_id] ??= []).push(ct.tag_id);
+      });
+      if (links.length < 1000) break;
+    }
 
     const enriched: ContactWithTags[] = rows.map((c) => ({
       ...c,
@@ -324,7 +340,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, pageSize, tagsMap, applyFilters, workspaceId, t]);
+  }, [supabase, page, pageSize, tagsMap, applyFilters, tagJoin, workspaceId, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -451,13 +467,13 @@ export default function ContactsPage() {
     for (let offset = 0; ; offset += PAGE) {
       const base = supabase
         .from('contacts')
-        .select('id')
+        .select(tagJoin('id'))
         .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
       // El cast evita que TS recorra el tipo del `select('id')` columna por
       // columna al compararlo con FilterableQuery (instanciación infinita).
-      const filtered = await applyFilters(base as unknown as FilterableQuery);
+      const filtered = applyFilters(base as unknown as FilterableQuery);
       if (!filtered) break;
       const { data, error } = await (filtered.query as unknown as typeof base).range(
         offset,
@@ -467,7 +483,7 @@ export default function ContactsPage() {
         toast.error(t('contacts.loadContactsError'));
         break;
       }
-      const rows = (data ?? []) as Array<{ id: string }>;
+      const rows = (data ?? []) as unknown as Array<{ id: string }>;
       ids.push(...rows.map((r) => r.id));
       if (rows.length < PAGE) break;
     }

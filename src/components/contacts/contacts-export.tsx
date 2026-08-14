@@ -83,16 +83,29 @@ export async function tagNamesByContact(
   tagsById: Record<string, Tag>,
 ): Promise<Record<string, string[]>> {
   const out: Record<string, string[]> = {};
+  const PAGE = 1000;
   for (let i = 0; i < ids.length; i += 300) {
-    const { data } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_id')
-      .in('contact_id', ids.slice(i, i + 300));
-    (data ?? []).forEach((ct: { contact_id: string; tag_id: string }) => {
-      const name = tagsById[ct.tag_id]?.name;
-      if (!name) return;
-      (out[ct.contact_id] ??= []).push(name);
-    });
+    const chunk = ids.slice(i, i + 300);
+    // Y dentro de cada lote se pagina: un contacto tiene varias etiquetas, así
+    // que 300 contactos pasan de las 1.000 filas que PostgREST devuelve como
+    // máximo por respuesta — sin esto el CSV salía con etiquetas de menos. El
+    // orden explícito evita que las páginas se solapen.
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await supabase
+        .from('contact_tags')
+        .select('contact_id, tag_id')
+        .in('contact_id', chunk)
+        .order('contact_id', { ascending: true })
+        .order('tag_id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      const rows = (data ?? []) as Array<{ contact_id: string; tag_id: string }>;
+      rows.forEach((ct) => {
+        const name = tagsById[ct.tag_id]?.name;
+        if (!name) return;
+        (out[ct.contact_id] ??= []).push(name);
+      });
+      if (rows.length < PAGE) break;
+    }
   }
   return out;
 }

@@ -256,6 +256,7 @@ export default function BroadcastsPage() {
               <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell">
                 {t('broadcasts.colDate')}
               </TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -322,6 +323,36 @@ export default function BroadcastsPage() {
                         day: '2-digit',
                         month: 'short',
                       })}
+                    </TableCell>
+                    {/* La fila entera ya abre la campaña, pero eso no se ve:
+                        el botón lo dice, y deja lugar para eliminar sin que
+                        el clic caiga en "abrir". */}
+                    <TableCell
+                      className="whitespace-nowrap text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/campanas/${toShortId(broadcast.id)}`)
+                          }
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          <span className="hidden sm:inline">
+                            {t('broadcasts.viewStats')}
+                          </span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('broadcasts.delete')}
+                          onClick={() => setPendingDelete(broadcast)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

@@ -221,6 +221,12 @@ export default function BroadcastDetailPage() {
         if (bcError) throw bcError;
         setBroadcast(bc);
 
+        // De acá en adelante SIEMPRE el uuid real. La URL puede traer el id
+        // corto de 8 caracteres, y `broadcast_recipients.broadcast_id` es un
+        // uuid: mandarle el corto reventaba la consulta y la pantalla decía
+        // "No se cargó la campaña", tuviera destinatarios o no.
+        const realId = (bc as { id: string }).id;
+
         // Page through ALL recipients. A single Supabase select caps at 1000
         // rows, which silently truncated the table, the hourly chart AND the
         // CSV export for any campaign > 1000 — so the stats didn't reflect the
@@ -234,7 +240,7 @@ export default function BroadcastDetailPage() {
           const { data: recs, error: recsError } = await supabase
             .from('broadcast_recipients')
             .select('*, contact:contacts(*)')
-            .eq('broadcast_id', broadcastId)
+            .eq('broadcast_id', realId)
             .order('created_at', { ascending: false })
             .range(from, from + PAGE - 1);
           if (recsError) throw recsError;
@@ -330,7 +336,7 @@ export default function BroadcastDetailPage() {
     const { error: delErr } = await supabase
       .from('broadcasts')
       .delete()
-      .eq('id', broadcastId);
+      .eq('id', broadcast?.id ?? broadcastId);
     setDeleting(false);
     if (delErr) {
       toast.error(t('broadcasts.deleteError', { error: delErr.message }));
