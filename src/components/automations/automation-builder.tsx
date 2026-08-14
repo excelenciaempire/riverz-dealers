@@ -1377,9 +1377,70 @@ function TriggerCard({
                 className="bg-muted text-foreground"
               />
             )}
+            {type === "payment_rejected" && (
+              <PaymentRejectedConfig config={config} onChange={onConfigChange} />
+            )}
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Espera y antigüedad de la recuperación de pagos rechazados.
+ *
+ * La espera es lo que convierte "se le rechazó el pago" en "no compró": al
+ * cumplirse, el sistema comprueba si la persona terminó comprando y sólo
+ * escribe si no lo hizo. Por eso el texto habla de eso y no de un retardo.
+ */
+function PaymentRejectedConfig({
+  config,
+  onChange,
+}: {
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+}) {
+  const t = useT()
+  const num = (v: unknown, fallback: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : fallback
+  }
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          {t("automations.mpHoursAfterLabel")}
+        </label>
+        <Input
+          type="number"
+          min={1}
+          max={168}
+          value={num(config.hours_after, 3)}
+          onChange={(e) =>
+            onChange({ ...config, hours_after: num(e.target.value, 3) })
+          }
+          className="bg-muted text-foreground"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          {t("automations.mpMaxAgeLabel")}
+        </label>
+        <Input
+          type="number"
+          min={1}
+          max={90}
+          value={num(config.max_age_days, 14)}
+          onChange={(e) =>
+            onChange({ ...config, max_age_days: num(e.target.value, 14) })
+          }
+          className="bg-muted text-foreground"
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground sm:col-span-2">
+        {t("automations.mpHoursAfterHint")}
+      </p>
     </div>
   )
 }

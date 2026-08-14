@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeForDialing, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { samePerson } from './client'
 
 /**
  * Pagos rechazados de Mercado Pago → recuperación por WhatsApp.
@@ -241,17 +242,24 @@ export async function ingestRejectedPayments(
 
   // Una sola lectura para saber cuáles ya existen y cuáles ya se enviaron.
   const keys = rows.map((r) => r.external_key)
-  const existing = new Map<string, { contacted_at: string | null }>()
+  const existing = new Map<string, { contacted_at: string | null; skip_reason: string | null }>()
   // Trozos de 200 para no pasarnos del largo de URL de PostgREST con listas
   // largas: la hoja acumula meses de rechazos y `in()` va en la query string.
   for (let i = 0; i < keys.length; i += 200) {
     const { data } = await admin
       .from('mp_rejected_payments')
-      .select('external_key, contacted_at')
+      .select('external_key, contacted_at, skip_reason')
       .eq('workspace_id', workspaceId)
       .in('external_key', keys.slice(i, i + 200))
-    for (const row of (data ?? []) as { external_key: string; contacted_at: string | null }[]) {
-      existing.set(row.external_key, { contacted_at: row.contacted_at })
+    for (const row of (data ?? []) as {
+      external_key: string
+      contacted_at: string | null
+      skip_reason: string | null
+    }[]) {
+      existing.set(row.external_key, {
+        contacted_at: row.contacted_at,
+        skip_reason: row.skip_reason,
+      })
     }
   }
 
@@ -284,10 +292,18 @@ export async function ingestRejectedPayments(
       patch.email = r.email
       patch.phone = r.phone
       patch.recovery_url = r.recovery_url
-      // El cruce de contacto de la hoja mejora con el tiempo (aparece el
-      // carrito abandonado que le faltaba). Si la fila estaba marcada
-      // "sin teléfono" y ahora sí lo tiene, vuelve a la cola.
-      if (r.phone) patch.skip_reason = null
+      // El cruce de contacto mejora con el tiempo (aparece el carrito
+      // abandonado que le faltaba). Si la fila estaba marcada "sin
+      // teléfono" y ahora sí lo tiene, vuelve a la cola.
+      //
+      // Sólo se limpia desde `no_phone`. Los demás motivos son decisiones
+      // tomadas —riesgo de fraude, demasiado vieja, o `backlog`, que es el
+      // historial anterior a encender la automatización— y conseguir un
+      // teléfono no las revierte. Sin esta condición, la próxima corrida
+      // resucitaría a toda la gente que se decidió no contactar.
+      if (r.phone && (prev.skip_reason === null || prev.skip_reason === 'no_phone')) {
+        patch.skip_reason = null
+      }
     }
     await admin
       .from('mp_rejected_payments')
@@ -309,7 +325,139 @@ export async function ingestRejectedPayments(
     if (error) throw new Error(`ingest mp_rejected_payments: ${error.message}`)
   }
 
+  // Segunda pasada: buscarle el teléfono a quien entró sin él. Va acá y no
+  // en el cron de envío para que la hoja y el panel muestren el número
+  // apenas se consigue, aunque a esa persona todavía no le toque mensaje.
+  try {
+    await enrichMissingPhones(admin, workspaceId, defaultCountry)
+  } catch {
+    // Es una mejora, no un requisito: si falla, las filas quedan sin
+    // teléfono y la ingesta igual se da por buena.
+  }
+
   return result
+}
+
+/**
+ * Segunda pasada para conseguir el teléfono de quien llegó sin él.
+ *
+ * Mercado Pago enmascara el pagador en los rechazos, así que muchas filas
+ * entran sin número y ésas son plata que no se puede recuperar: sin
+ * WhatsApp no hay mensaje. Acá se busca a la persona en los datos que el
+ * propio Riverz ya tiene, en orden de qué tan confiable es la señal:
+ *
+ *   1. Correo exacto contra los contactos. Es identidad, no parecido.
+ *   2. Correo exacto contra los carritos abandonados de la tienda.
+ *   3. Monto + nombre contra los carritos: el rechazo y el carrito son el
+ *      mismo intento de compra visto desde los dos lados.
+ *   4. Nombre contra los contactos, y SÓLO si hay un único candidato.
+ *
+ * El paso 4 es el más flojo a propósito: con dos candidatos se descarta en
+ * vez de elegir. Un empate mal resuelto no ensucia una fila, le manda un
+ * WhatsApp sobre un pago rechazado a alguien que nunca intentó comprar.
+ */
+export async function enrichMissingPhones(
+  admin: SupabaseClient,
+  workspaceId: string,
+  defaultCountry: string,
+): Promise<{ resolved: number; stillMissing: number }> {
+  const { data: pending } = await admin
+    .from('mp_rejected_payments')
+    .select('id, external_key, payer_name, email, amount')
+    .eq('workspace_id', workspaceId)
+    .is('phone', null)
+    .is('contacted_at', null)
+    .limit(500)
+
+  const rows = (pending ?? []) as {
+    id: string
+    external_key: string
+    payer_name: string | null
+    email: string | null
+    amount: number | null
+  }[]
+  if (rows.length === 0) return { resolved: 0, stillMissing: 0 }
+
+  const { data: contactRows } = await admin
+    .from('contacts')
+    .select('name, email, phone')
+    .eq('workspace_id', workspaceId)
+    .not('phone', 'is', null)
+    .limit(5000)
+  const contacts = (contactRows ?? []) as {
+    name: string | null
+    email: string | null
+    phone: string | null
+  }[]
+
+  const { data: checkoutRows } = await admin
+    .from('shopify_checkouts')
+    .select('customer_email, customer_phone, customer_name, total_price')
+    .eq('workspace_id', workspaceId)
+    .not('customer_phone', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(3000)
+  const checkouts = (checkoutRows ?? []) as {
+    customer_email: string | null
+    customer_phone: string | null
+    customer_name: string | null
+    total_price: number | null
+  }[]
+
+  const contactByEmail = new Map<string, string>()
+  for (const c of contacts) {
+    if (c.email && c.phone) contactByEmail.set(c.email.toLowerCase(), c.phone)
+  }
+  const checkoutByEmail = new Map<string, string>()
+  const checkoutByAmount = new Map<number, typeof checkouts>()
+  for (const c of checkouts) {
+    if (c.customer_email && c.customer_phone) {
+      checkoutByEmail.set(c.customer_email.toLowerCase(), c.customer_phone)
+    }
+    const amt = Math.round(Number(c.total_price ?? 0))
+    const list = checkoutByAmount.get(amt) ?? []
+    list.push(c)
+    checkoutByAmount.set(amt, list)
+  }
+
+  let resolved = 0
+  for (const r of rows) {
+    const email = r.email?.toLowerCase() ?? null
+    let raw: string | null = null
+
+    if (email) raw = contactByEmail.get(email) ?? checkoutByEmail.get(email) ?? null
+
+    if (!raw && r.amount !== null) {
+      const candidates = (checkoutByAmount.get(Math.round(Number(r.amount))) ?? []).filter(
+        (c) => samePerson(c.customer_name, r.payer_name),
+      )
+      if (candidates.length === 1) raw = candidates[0].customer_phone
+    }
+
+    if (!raw && r.payer_name) {
+      const hits = contacts.filter((c) => samePerson(c.name, r.payer_name))
+      const phones = new Set(hits.map((h) => h.phone).filter(Boolean) as string[])
+      if (phones.size === 1) raw = [...phones][0]
+    }
+
+    if (!raw) continue
+    const e164 = normalizeForDialing(raw, defaultCountry).replace(/^\+/, '')
+    if (!isValidE164(e164)) continue
+
+    // El filtro va en el WHERE y no en el SET: sólo se reabre lo que estaba
+    // frenado por falta de número. Un `risk` o un `backlog` son decisiones
+    // tomadas, no datos faltantes, y encontrarle el teléfono no las
+    // revierte — esas filas ni se tocan.
+    const { data: touched } = await admin
+      .from('mp_rejected_payments')
+      .update({ phone: e164, skip_reason: null, updated_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .or('skip_reason.is.null,skip_reason.eq.no_phone')
+      .select('id')
+    if (touched && touched.length > 0) resolved++
+  }
+
+  return { resolved, stillMissing: rows.length - resolved }
 }
 
 /** Estado que la hoja de contabilidad pinta en sus columnas nuevas. */

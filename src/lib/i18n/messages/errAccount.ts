@@ -131,5 +131,9 @@ export const errAccount = {
     es: "API key inválida",
     en: "Invalid API key",
   },
+  mpTokenInvalid: {
+    es: "Mercado Pago rechazó ese token. Usa el Access Token de producción (empieza con APP_USR-).",
+    en: "Mercado Pago rejected that token. Use the production Access Token (it starts with APP_USR-).",
+  },
   // Note: waitlist's "Correo inválido" reuses `emailInvalid` above.
 } satisfies Namespace;

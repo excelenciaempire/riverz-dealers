@@ -8,6 +8,7 @@ import type { Locale } from '@/lib/i18n/config'
 
 export type TemplateSlug =
   | 'carrito-abandonado'
+  | 'pago-rechazado'
   | 'nuevo-pedido'
   | 'enviar-tracking'
   | 'post-survey'
@@ -28,6 +29,7 @@ export type TemplateCategory =
  */
 export type TemplateIconName =
   | 'shopping-cart'
+  | 'credit-card'
   | 'package-check'
   | 'truck'
   | 'star'
@@ -113,6 +115,40 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
         // nueva o elige una existente al usar la plantilla (validate exige un tag
         // real antes de activar).
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+      },
+    ],
+  },
+
+  'pago-rechazado': {
+    slug: 'pago-rechazado',
+    name: 'Pago rechazado',
+    description:
+      'Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.',
+    category: 'shopify',
+    icon: 'credit-card',
+    tags: ['Mercado Pago', 'Recovery'],
+    trigger_type: 'payment_rejected',
+    // `hours_after` es la espera y el filtro a la vez: al cumplirse, el cron
+    // recién ahí comprueba si la persona compró. Quien pagó en el segundo
+    // intento queda fuera solo, sin que el comerciante configure nada.
+    trigger_config: { hours_after: 3, max_age_days: 14 },
+    suggested_template_body:
+      'Hola {{customer_name}}, no pudimos procesar el pago de tu pedido por {{total_price}}. Responde este mensaje y te ayudamos a completar la compra.',
+    steps: [
+      {
+        // Sin paso `wait`: la espera ya la aplica el cron con `hours_after`,
+        // y sumar una acá la duplicaría igual que en carrito abandonado.
+        //
+        // Va plantilla y no mensaje suelto porque el envío cae siempre
+        // fuera de la ventana de 24h de Meta. Categoría Utility: el aviso
+        // es transaccional (hay un pago que no prosperó), y las Marketing
+        // de este tipo se entregan mucho peor.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+      },
+      {
         step_type: 'add_tag',
         step_config: { tag_id: '' },
       },
@@ -274,6 +310,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
  */
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'carrito-abandonado',
+  'pago-rechazado',
   'nuevo-pedido',
   'enviar-tracking',
   'post-survey',

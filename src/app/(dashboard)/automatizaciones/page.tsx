@@ -17,6 +17,7 @@ import {
   PackageCheck,
   Repeat2,
   ShoppingCart,
+  CreditCard,
   Sparkles,
   Star,
   Truck,
@@ -62,6 +63,7 @@ import { useT } from "@/hooks/use-locale"
 // react means this map lives in the page that renders the gallery.
 const ICON_BY_NAME: Record<TemplateIconName, typeof Zap> = {
   "shopping-cart": ShoppingCart,
+  "credit-card": CreditCard,
   "package-check": PackageCheck,
   truck: Truck,
   star: Star,

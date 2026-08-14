@@ -83,6 +83,24 @@ export const settings = {
     en: "Couldn't load your connections",
   },
   klaviyoDisconnected: { es: "Klaviyo desconectado", en: "Klaviyo disconnected" },
+
+  // Mercado Pago card
+  mpDescription: {
+    es: "Trae los pagos rechazados para escribirle por WhatsApp a quien no llegó a comprar.",
+    en: "Pulls declined payments so you can WhatsApp the people who didn't get to buy.",
+  },
+  mpInvalidToken: {
+    es: "Pega tu Access Token de producción de Mercado Pago.",
+    en: "Paste your Mercado Pago production Access Token.",
+  },
+  mpConnectError: {
+    es: "No se pudo conectar Mercado Pago",
+    en: "Couldn't connect Mercado Pago",
+  },
+  mpConnected: { es: "Mercado Pago conectado", en: "Mercado Pago connected" },
+  mpDisconnected: { es: "Mercado Pago desconectado", en: "Mercado Pago disconnected" },
+  mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
+  recoverSales: { es: "Recupera ventas", en: "Recover sales" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
     en: "Replace API key…",

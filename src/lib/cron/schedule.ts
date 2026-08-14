@@ -59,6 +59,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   { name: "flows-sweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
   { name: "ai-followups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
+  // Trae los rechazos de cada cuenta con Mercado Pago conectado. Sólo
+  // ingesta: el envío lo decide mercadopago-recovery, a los :45.
+  { name: "mercadopago-sync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *" },
   { name: "delivery-watchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
   // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
   // un secret: al mudar de dominio quedó apuntando al host viejo y el mapa

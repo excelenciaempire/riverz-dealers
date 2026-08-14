@@ -40,19 +40,43 @@ const log = getLogger('cron.mercadopago-recovery')
  */
 
 /**
- * Espera antes de escribir. Un rechazo se reintenta solo muy seguido (la
- * hoja muestra hasta 11 intentos de la misma persona): escribir al toque
- * interrumpe a alguien que está en pleno checkout.
+ * Espera antes de escribir, por defecto. Un rechazo se reintenta solo muy
+ * seguido (se ven hasta 11 intentos de la misma persona): escribir al toque
+ * interrumpe a alguien que está en pleno checkout. Pasadas las horas, quien
+ * no completó la compra es un cliente perdido de verdad.
+ *
+ * Se puede cambiar por automatización en `trigger_config.hours_after`.
  */
-const GRACE_HOURS = 3
+const DEFAULT_GRACE_HOURS = 3
 
 /**
- * Antigüedad máxima. La hoja acumula MESES de rechazos, así que sin este
- * tope la primera corrida le escribiría a cientos de personas por un pago
- * que falló en marzo. Solo se contacta lo reciente; lo viejo queda en la
- * tabla como historial con `skip_reason='too_old'`.
+ * Antigüedad máxima por defecto. Sin este tope, encender la automatización
+ * con meses de historial cargado le escribiría a cientos de personas por un
+ * pago que falló en marzo. Configurable en `trigger_config.max_age_days`.
  */
-const MAX_AGE_DAYS = 14
+const DEFAULT_MAX_AGE_DAYS = 14
+
+/** Techo duro de la espera configurable: una semana. */
+const MAX_GRACE_HOURS = 168
+
+interface TriggerSettings {
+  graceHours: number
+  maxAgeDays: number
+}
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(Math.max(Math.trunc(n), min), max)
+}
+
+/** Lee la espera y la antigüedad que configuró el comerciante. */
+function settingsOf(config: Record<string, unknown> | null | undefined): TriggerSettings {
+  return {
+    graceHours: clampInt(config?.hours_after, DEFAULT_GRACE_HOURS, 1, MAX_GRACE_HOURS),
+    maxAgeDays: clampInt(config?.max_age_days, DEFAULT_MAX_AGE_DAYS, 1, 90),
+  }
+}
 
 /** No volver a escribirle a la misma persona antes de esto. */
 const RECONTACT_DAYS = 30
@@ -161,10 +185,65 @@ async function resolveSendableWorkspaces(
   return out
 }
 
+type ShopifyOrders = Awaited<ReturnType<typeof fetchRecentOrders>> | null
+type OrdersCache = Map<string, ShopifyOrders>
+
+/**
+ * ¿La persona terminó comprando después del rechazo?
+ *
+ * Un rechazo no genera pedido, así que cualquier pedido posterior de esa
+ * misma persona es la compra que sí prosperó. Se empareja por correo (la
+ * señal fuerte: sale del mismo checkout) y por los últimos 8 dígitos del
+ * teléfono, que cubre al que volvió a comprar como invitado.
+ *
+ * Ante un fallo de Shopify devuelve `false` — es decir, sigue adelante y
+ * manda. El error opuesto (frenar todos los envíos porque la tienda no
+ * contesta) rompería la automatización entera por una caída ajena.
+ */
+async function boughtSinceRejection(
+  admin: ReturnType<typeof supabaseAdmin>,
+  row: { workspace_id: string; email: string | null; phone: string; rejected_at: string },
+  cache: OrdersCache,
+): Promise<boolean> {
+  if (!cache.has(row.workspace_id)) {
+    let orders: ShopifyOrders = null
+    try {
+      const conn = await getActiveShopifyConnection(admin, row.workspace_id)
+      if (conn) {
+        // 90 días cubre de sobra cualquier `max_age_days` configurable.
+        const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+        orders = await fetchRecentOrders(conn, since)
+      }
+    } catch (err) {
+      log.captureException(err, { workspaceId: row.workspace_id })
+      orders = null
+    }
+    cache.set(row.workspace_id, orders)
+  }
+
+  const orders = cache.get(row.workspace_id)
+  if (!orders || orders.length === 0) return false
+
+  const email = row.email?.toLowerCase() ?? null
+  const last8 = normPhone(row.phone)?.slice(-8) ?? null
+
+  return orders.some((o) => {
+    if (o.created_at <= row.rejected_at) return false
+    if (email && (o.email ?? '').toLowerCase() === email) return true
+    if (last8) {
+      const op = normPhone(o.phone)
+      if (op && op.endsWith(last8)) return true
+    }
+    return false
+  })
+}
+
 async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const now = Date.now()
-  const graceCutoff = new Date(now - GRACE_HOURS * 3_600_000).toISOString()
-  const ageFloor = new Date(now - MAX_AGE_DAYS * 86_400_000).toISOString()
+  // La espera real es por automatización, así que acá sólo se descarta lo
+  // recién nacido (una hora, el mínimo configurable). El corte fino de cada
+  // workspace se aplica fila por fila, más abajo.
+  const minCutoff = new Date(now - 3_600_000).toISOString()
 
   const { data, error } = await admin
     .from('mp_rejected_payments')
@@ -174,8 +253,11 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
     .is('dispatched_at', null)
     .is('contacted_at', null)
     .is('skip_reason', null)
+    // Quien completó la compra por su cuenta no recibe nada. Es la regla
+    // central: el mensaje es para el que se quedó sin comprar.
+    .is('paid_at', null)
     .not('phone', 'is', null)
-    .lt('rejected_at', graceCutoff)
+    .lt('rejected_at', minCutoff)
     .order('rejected_at', { ascending: false })
     .limit(BATCH)
 
@@ -195,18 +277,34 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const workspaces = [...new Set(due.map((r) => r.workspace_id))]
   const { data: autos } = await admin
     .from('automations')
-    .select('id, workspace_id')
+    .select('id, workspace_id, trigger_config')
     .in('workspace_id', workspaces)
     .eq('trigger_type', 'payment_rejected')
     .eq('is_active', true)
     .is('deleted_at', null)
-  const ready = new Set(
-    await resolveSendableWorkspaces(
-      admin,
-      (autos ?? []) as { id: string; workspace_id: string }[],
-    ),
-  )
-  const actionable = due.filter((r) => ready.has(r.workspace_id))
+  const automations = (autos ?? []) as {
+    id: string
+    workspace_id: string
+    trigger_config: Record<string, unknown> | null
+  }[]
+  const ready = new Set(await resolveSendableWorkspaces(admin, automations))
+
+  // La espera y la antigüedad las decide el comerciante en la automatización.
+  const settingsByWorkspace = new Map<string, TriggerSettings>()
+  for (const a of automations) {
+    if (!settingsByWorkspace.has(a.workspace_id)) {
+      settingsByWorkspace.set(a.workspace_id, settingsOf(a.trigger_config))
+    }
+  }
+
+  const actionable = due.filter((r) => {
+    if (!ready.has(r.workspace_id)) return false
+    const s = settingsByWorkspace.get(r.workspace_id)
+    if (!s) return false
+    // Todavía no cumplió la espera: se deja para una corrida futura SIN
+    // reclamarla, porque no es un descarte sino un "todavía no".
+    return r.rejected_at < new Date(now - s.graceHours * 3_600_000).toISOString()
+  })
   if (actionable.length === 0) {
     return { processed: 0, dispatched: 0, skipped: 0, waiting_to_send: due.length }
   }
@@ -218,6 +316,11 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   // Una sola persona por corrida aunque tenga varias filas (dos grupos de
   // intentos que la hoja no unió). Misma barrera que el cron de carritos.
   const seenPhones = new Set<string>()
+
+  // Pedidos de Shopify por workspace, traídos una sola vez por corrida.
+  // Sin esta caché, comprobar "¿ya compró?" haría una llamada a Shopify por
+  // cada fila.
+  const ordersCache: OrdersCache = new Map()
 
   for (const r of actionable) {
     processed++
@@ -233,8 +336,27 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
       .maybeSingle()
     if (!claim) continue
 
+    const settings = settingsByWorkspace.get(r.workspace_id) ?? {
+      graceHours: DEFAULT_GRACE_HOURS,
+      maxAgeDays: DEFAULT_MAX_AGE_DAYS,
+    }
+    const ageFloor = new Date(now - settings.maxAgeDays * 86_400_000).toISOString()
     if (r.rejected_at < ageFloor) {
       await skip(admin, r.id, 'too_old')
+      skipped++
+      continue
+    }
+
+    // ¿Terminó comprando? El pago rechazado no crea pedido, así que un
+    // pedido posterior de esa misma persona significa que volvió y pagó
+    // —con otra tarjeta, en otro intento— y ya no hay nada que recuperar.
+    // Escribirle igual sería decirle "no pudimos procesar tu pago" a
+    // alguien que tiene el pedido confirmado.
+    if (await boughtSinceRejection(admin, r, ordersCache)) {
+      await admin
+        .from('mp_rejected_payments')
+        .update({ paid_at: new Date().toISOString(), skip_reason: 'already_paid' })
+        .eq('id', r.id)
       skipped++
       continue
     }

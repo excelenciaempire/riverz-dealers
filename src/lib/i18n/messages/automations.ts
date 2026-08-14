@@ -48,6 +48,11 @@ export const automations = {
     es: "Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.",
     en: "Recover sales: when a customer abandons their cart, we send them the link to pick it back up 2 hours later.",
   },
+  "tpl_pago-rechazado_name": { es: "Pago rechazado", en: "Declined payment" },
+  "tpl_pago-rechazado_desc": {
+    es: "Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.",
+    en: "The customer's payment was declined and 3 hours later they still haven't completed the purchase. We reach out to pick it back up.",
+  },
   "tpl_nuevo-pedido_name": { es: "Nuevo pedido", en: "New order" },
   "tpl_nuevo-pedido_desc": {
     es: "Confirmamos al cliente apenas hace un pedido en Shopify. Le mandamos un resumen con el número de orden, el total y un agradecimiento.",
@@ -221,6 +226,12 @@ export const automations = {
   dpTrackingUrl: { es: "Link de seguimiento", en: "Tracking link" },
   dpTrackingCompany: { es: "Transportista", en: "Carrier" },
   dpCheckoutUrl: { es: "Link del carrito", en: "Cart link" },
+  mpHoursAfterLabel: { es: "Escribir después de (horas)", en: "Write after (hours)" },
+  mpMaxAgeLabel: { es: "Ignorar rechazos de más de (días)", en: "Ignore declines older than (days)" },
+  mpHoursAfterHint: {
+    es: "Al cumplirse ese tiempo revisamos si la persona compró. Solo le escribimos si no lo hizo.",
+    en: "Once that time is up we check whether they purchased. We only write if they didn't.",
+  },
   dpPaymentReason: { es: "Motivo del rechazo", en: "Decline reason" },
   dpPaymentAttempts: { es: "Intentos de pago", en: "Payment attempts" },
   dpInstallments: { es: "Cuotas", en: "Installments" },
