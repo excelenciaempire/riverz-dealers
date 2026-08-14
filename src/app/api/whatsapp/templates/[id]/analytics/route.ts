@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { idColumn } from '@/lib/short-id';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -117,7 +118,10 @@ export async function GET(
       .select(
         'id, workspace_id, name, meta_template_id, waba_id, buttons, category'
       )
-      .eq('id', id)
+      // La UI navega con el id corto de 8 caracteres; `id` es un uuid, así
+      // que mandarlo crudo devolvía 404 (o reventaba la consulta). Misma
+      // resolución que usan las pantallas.
+      .eq(idColumn(id), id)
       .maybeSingle();
     if (!tplRow)
       return NextResponse.json({ error: 'not_found' }, { status: 404 });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import { toast } from 'sonner';
-import { Loader2, Plus, RefreshCw, Trash2, Search } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Trash2, BarChart3, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { toShortId } from '@/lib/short-id';
@@ -336,9 +336,23 @@ export default function TemplatesPage() {
                         {fmt.date(template.created_at, { day: '2-digit', month: 'short' })}
                       </TableCell>
                       <TableCell
-                        className="w-10 text-right"
+                        className="whitespace-nowrap text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/plantillas/${toShortId(template.id)}`)
+                          }
+                          className="text-muted-foreground"
+                        >
+                          <BarChart3 className="size-3.5" />
+                          <span className="hidden sm:inline">
+                            {t('templates.viewStats')}
+                          </span>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -348,6 +362,7 @@ export default function TemplatesPage() {
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

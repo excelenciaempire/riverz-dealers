@@ -2,6 +2,7 @@ import type { Namespace } from "./types";
 
 /** WhatsApp templates: list, detail, and the builder form. */
 export const templates = {
+  viewStats: { es: "Ver estadísticas", en: "View stats" },
   // ── Categories ──
   categoryMarketing: { es: "Marketing", en: "Marketing" },
   categoryUtility: { es: "Utilidad", en: "Utility" },
