@@ -1971,11 +1971,11 @@ function BranchFan({
 }) {
   const wrap = useRef<HTMLDivElement | null>(null)
   const [spine, setSpine] = useState<{ top: number; height: number } | null>(null)
-  // Alto de fila común: un camino con una condición anidada adentro mide
-  // mucho más que uno con un botón, y con filas de distinto alto los centros
-  // quedan a distancias distintas — dos caminos se ven pegados y otros dos
-  // separados, aunque el hueco declarado sea el mismo.
-  const [rowHeight, setRowHeight] = useState<number | null>(null)
+  // No se igualan los altos de fila. Se probó, y en el carril corto —el que
+  // sólo tiene el botón de añadir— dejaba un hueco vacío del tamaño del
+  // carril más alto. La separación pareja se consigue con el hueco entre
+  // filas, que es el mismo para todos los caminos de todas las condiciones;
+  // cada fila mide lo que mide su contenido.
   // Cuánto hay que subir el abanico para que su centro caiga en el centro de
   // la tarjeta que lo abre. Sin esto, centrar la fila movía la tarjeta hacia
   // abajo y la sacaba de la línea del tronco.
@@ -1990,9 +1990,6 @@ function BranchFan({
         setSpine(null)
         return
       }
-      const tallest = Math.max(...rows.map((r) => r.scrollHeight))
-      setRowHeight(tallest)
-
       const base = el.getBoundingClientRect().top
       const centers = rows.map((r) => {
         const b = r.getBoundingClientRect()
@@ -2013,14 +2010,14 @@ function BranchFan({
   return (
     <div
       ref={wrap}
-      className="relative flex flex-col gap-8 pl-10"
+      className="relative flex flex-col gap-5 pl-8"
       style={{ marginTop: offset }}
     >
       {/* Espina: une el primer ramal con el último. */}
       {spine && lanes.length > 1 && (
         <span
           aria-hidden
-          className="absolute left-5 w-px bg-border"
+          className="absolute left-4 w-px bg-border"
           style={{ top: spine.top, height: spine.height }}
         />
       )}
@@ -2029,10 +2026,9 @@ function BranchFan({
           key={lane.key}
           data-lane-row
           className="relative flex items-center"
-          style={rowHeight ? { minHeight: rowHeight } : undefined}
         >
           {/* Ramal horizontal hasta el carril. */}
-          <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
+          <span aria-hidden className="absolute left-[-1rem] w-4 border-t border-border" />
           {/* La etiqueta se ancla al CONTENIDO, no a la fila.
               Anclada a la fila quedaba arriba de todo, y como las filas
               comparten el alto de la más alta, en un camino corto la etiqueta
