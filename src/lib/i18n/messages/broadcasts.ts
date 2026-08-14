@@ -5,6 +5,12 @@ export const broadcasts = {
   // ── Shared actions ──
   back: { es: "Atrás", en: "Back" },
   next: { es: "Siguiente", en: "Next" },
+  viewStats: { es: "Ver estadísticas", en: "View stats" },
+  deleteTitle: { es: "¿Eliminar {name}?", en: "Delete {name}?" },
+  deleteDescription: {
+    es: "Se eliminará también el detalle de envío de cada destinatario.",
+    en: "The per-recipient delivery detail will be deleted too.",
+  },
   cancel: { es: "Cancelar", en: "Cancel" },
   delete: { es: "Eliminar", en: "Delete" },
   deleting: { es: "Eliminando…", en: "Deleting…" },

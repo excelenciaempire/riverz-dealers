@@ -15,7 +15,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Loader2, Search, Send } from 'lucide-react';
+import { Plus, Loader2, Search, Send, BarChart3, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { useT } from '@/hooks/use-locale';
@@ -75,6 +84,30 @@ export default function BroadcastsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  const [pendingDelete, setPendingDelete] = useState<Broadcast | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    const supabase = createClient();
+    const { error: delErr } = await supabase
+      .from('broadcasts')
+      .delete()
+      .eq('id', pendingDelete.id);
+    setDeleting(false);
+    if (delErr) {
+      toast.error(t('broadcasts.deleteError', { error: delErr.message }));
+      return;
+    }
+    // Se saca de la lista en el acto en vez de recargar: la campaña ya no
+    // existe y esperar un viaje al servidor para verla desaparecer se siente
+    // como que el clic no hizo nada.
+    setBroadcasts((prev) => (prev ?? []).filter((b) => b.id !== pendingDelete.id));
+    setPendingDelete(null);
+    toast.success(t('broadcasts.deleteSuccess'));
   }
 
   useEffect(() => {
@@ -362,6 +395,26 @@ export default function BroadcastsPage() {
         </Table>
       </div>
       )}
+
+      <Dialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t('broadcasts.deleteTitle', { name: pendingDelete?.name ?? '' })}
+            </DialogTitle>
+            <DialogDescription>{t('broadcasts.deleteDescription')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              {t('broadcasts.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t('broadcasts.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
