@@ -101,7 +101,7 @@ COMMENT ON COLUMN mp_rejected_payments.external_key IS
   'Id de pago MP más viejo del grupo de intentos de la persona. Estable ante reintentos nuevos, por eso se usa como clave de upsert.';
 
 COMMENT ON COLUMN mp_rejected_payments.skip_reason IS
-  'Por qué no se le escribió: no_phone | too_old | risk | recent_contact | opted_out | no_contact | not_sent. NULL = no se saltó. not_sent = el motor no llegó a enviar (sin automatización activa, segmento que no matcheó, o el guard de IA reciente).';
+  'Por qué no se le escribió: no_phone | too_old | risk | recent_contact | cart_recovery_sent | already_paid | backlog | opted_out | no_contact | not_sent. NULL = no se saltó. not_sent = el motor no llegó a enviar (sin automatización activa, segmento que no matcheó, o el guard de IA reciente). cart_recovery_sent = ya recibió el mensaje de carrito abandonado, no se duplica.';
 
 COMMENT ON COLUMN mp_rejected_payments.reason_bucket IS
   'retry (datos mal cargados) | funds (sin fondos) | bank (autorización del banco) | risk (fraude, NO se contacta) | other.';

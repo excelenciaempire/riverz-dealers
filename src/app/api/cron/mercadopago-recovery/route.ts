@@ -395,6 +395,25 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
       continue
     }
 
+    // Red de seguridad del otro lado del cruce con carritos abandonados.
+    // El cron de carritos ya se hace a un lado cuando ve un rechazo, pero
+    // corre a las 2h y éste a las 3h: si el rechazo se ingirió DESPUÉS de
+    // que el carrito salió, aquella barrera no lo pudo ver. Acá se corta el
+    // segundo mensaje mirando lo que efectivamente se envió.
+    const { data: cartSent } = await admin
+      .from('shopify_checkouts')
+      .select('id')
+      .eq('workspace_id', r.workspace_id)
+      .like('customer_phone', `%${last8}`)
+      .gte('recovery_dispatched_at', new Date(now - 24 * 3_600_000).toISOString())
+      .limit(1)
+      .maybeSingle()
+    if (cartSent) {
+      await skip(admin, r.id, 'cart_recovery_sent')
+      skipped++
+      continue
+    }
+
     try {
       const contactId = await upsertWhatsappContact(admin, {
         workspaceId: r.workspace_id,

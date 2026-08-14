@@ -114,6 +114,36 @@ async function cronHandler(request: Request) {
     // Same person, multiple open checkout tokens → send once. The row is
     // already claimed above, so skipping here just means "no second message".
     const phoneKey = (r.customer_phone || '').replace(/\D/g, '')
+
+    // A quien se le rechazó el PAGO no le mandamos además "dejaste tu
+    // carrito". Es la misma persona y el mismo intento de compra visto
+    // desde dos lados: un rechazo de tarjeta deja el checkout abierto, así
+    // que sin esta barrera recibiría dos mensajes con una hora de
+    // diferencia (este cron a las 2h, el de pagos a las 3h).
+    //
+    // Gana el de pago rechazado, por dos razones: dice lo que realmente
+    // pasó en vez de un "dejaste algo a medias" genérico, y va como
+    // plantilla Utility, que Meta entrega — las Marketing de recuperación
+    // las viene reteniendo.
+    if (phoneKey) {
+      const last8 = phoneKey.slice(-8)
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: rejected } = await admin
+        .from('mp_rejected_payments')
+        .select('id')
+        .eq('workspace_id', r.workspace_id)
+        .like('phone', `%${last8}`)
+        .gte('rejected_at', dayAgo)
+        .is('skip_reason', null)
+        .is('paid_at', null)
+        .limit(1)
+        .maybeSingle()
+      if (rejected) {
+        processed++
+        continue
+      }
+    }
+
     if (phoneKey) {
       if (dispatchedPhones.has(phoneKey)) {
         processed++
