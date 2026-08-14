@@ -2775,6 +2775,17 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   const label = t(dp.labelKey)
   const kind = dp.condition.kind
   if (kind === "tag" || kind === "segment") return label
+  if (kind === "purchased") {
+    // "Compró · No · en las últimas 3 horas". El renderer de booleanos
+    // genérico decía "No, es su primera compra", que acá no viene al caso:
+    // la pregunta no es si alguna vez compró, sino si compró en la ventana.
+    const side = cfg.value === "true" ? t("automations.purchasedYes") : t("automations.purchasedNo")
+    const m = /^([0-9]+)([mhd])$/.exec(String(operand ?? "24h"))
+    const n = m ? m[1] : "24"
+    const u = m ? m[2] : "h"
+    const unitKey = u === "m" ? "automations.unitMinutes" : u === "d" ? "automations.unitDays" : "automations.unitHours"
+    return `${side} · ${t("automations.condWindowLabel").toLowerCase()} ${n} ${t(unitKey).toLowerCase()}`
+  }
   if (kind === "message") return `${label}: "${(cfg.value as string) ?? ""}"`
   const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? "eq"))?.key
   const opLabel = opKey ? t(opKey) : ""
