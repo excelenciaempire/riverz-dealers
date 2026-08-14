@@ -613,16 +613,21 @@ function PurchasedFields({
 
   return (
     <div className="space-y-2">
-      <FieldBlock label={t("automations.condWindowLabel")}>
+      <FieldBlock label={t("automations.condWhenLabel")}>
         <div className="flex gap-2">
-          <Input
-            type="number"
-            min={1}
-            value={amount}
-            disabled={ever || since === "since_trigger"}
-            onChange={(e) => setWindow(Number(e.target.value), unit)}
-            className="w-20 bg-muted text-foreground disabled:opacity-40"
-          />
+          {/* El número sólo aparece con una duración. Con "desde que empezó"
+              o "alguna vez" no hay nada que contar, y dejarlo en pantalla
+              —aunque estuviera deshabilitado— se leía "en las últimas 24
+              desde que empezó". */}
+          {unit !== "since_trigger" && unit !== "ever" && (
+            <Input
+              type="number"
+              min={1}
+              value={amount}
+              onChange={(e) => setWindow(Number(e.target.value), unit)}
+              className="w-20 bg-muted text-foreground"
+            />
+          )}
           <select
             value={unit}
             onChange={(e) =>
@@ -633,9 +638,9 @@ function PurchasedFields({
             className="flex-1 rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
           >
             <option value="since_trigger">{t("automations.windowSinceTrigger")}</option>
-            <option value="m">{t("automations.unitMinutes")}</option>
-            <option value="h">{t("automations.unitHours")}</option>
-            <option value="d">{t("automations.unitDays")}</option>
+            <option value="m">{t("automations.windowLastMinutes")}</option>
+            <option value="h">{t("automations.windowLastHours")}</option>
+            <option value="d">{t("automations.windowLastDays")}</option>
             <option value="ever">{t("automations.windowEver")}</option>
           </select>
         </div>
@@ -1863,7 +1868,7 @@ function StepRenderer({
         // Condition: card on the left, its two branch lanes fanning out to
         // the right so each path keeps flowing in the chain's direction
         // instead of dropping into stacked vertical columns.
-        <div className="z-10 flex items-start gap-2">
+        <div className="z-10 flex items-center gap-2">
           {cardEl}
           <ConditionBranches step={step} parentPath={path} {...props} />
         </div>
@@ -1871,7 +1876,7 @@ function StepRenderer({
         // Switch: card on the left, one lane per case + an "en otro caso"
         // lane fanning out to the right (same visual grammar as a condition,
         // just N lanes instead of two).
-        <div className="z-10 flex items-start gap-2">
+        <div className="z-10 flex items-center gap-2">
           {cardEl}
           <SwitchBranches
             step={step}
@@ -1993,20 +1998,22 @@ function BranchFan({
         />
       )}
       {lanes.map((lane) => (
-        <div key={lane.key} data-lane-row className="relative flex items-center">
+        <div key={lane.key} data-lane-row className="relative flex items-center gap-2">
           {/* Ramal horizontal hasta el carril. */}
           <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
-          <div className="flex flex-col gap-1.5">
-            <span
-              className={cn(
-                "w-fit rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
-                lane.color,
-              )}
-            >
-              {lane.label}
-            </span>
-            {lane.content}
-          </div>
+          {/* Ancho fijo: con la etiqueta encima, la tarjeta bajaba y ningún
+              camino quedaba a la altura del tronco; con ancho variable, cada
+              camino arrancaba en una x distinta. */}
+          <span
+            className={cn(
+              "w-24 shrink-0 truncate rounded-full border px-2 py-0.5 text-center text-[11px] font-semibold uppercase",
+              lane.color,
+            )}
+            title={lane.label}
+          >
+            {lane.label}
+          </span>
+          {lane.content}
         </div>
       ))}
     </div>

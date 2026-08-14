@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
+import { handlePaymentNotification, isPaymentTopic } from "@/lib/mercadopago/notify";
 import type { Channel, ChannelConnection } from "@/types";
 
 const log = getLogger("channels.webhook");
@@ -135,6 +136,26 @@ export async function POST(
       } catch {
         log.warn("invalid JSON body after signature verify", { channel });
         return NextResponse.json({ status: "ignored" }, { status: 200 });
+      }
+    }
+
+    // Los pagos de Mercado Pago entran por acá.
+    //
+    // Una aplicación de Mercado Libre tiene UNA sola URL de notificaciones
+    // para todos sus temas, así que el aviso de `payment` aterriza en el
+    // mismo endpoint que las preguntas y los mensajes. Apuntar los pagos a
+    // otra URL significaría mover también los de Mercado Libre y romper ese
+    // canal: se bifurca por tema y listo. Para sumar la recuperación de
+    // pagos alcanza con tildar `payment` en la consola — no hay que
+    // reemplazar ninguna URL.
+    if (channel === "mercadolibre") {
+      const note = payload as { topic?: string; type?: string; user_id?: unknown } | null;
+      if (isPaymentTopic(note?.topic ?? note?.type)) {
+        const sellerId = String(note?.user_id ?? "").trim();
+        void handlePaymentNotification(supabaseAdmin(), sellerId).catch((err) =>
+          log.captureException(err, { channel, sellerId }),
+        );
+        return NextResponse.json({ status: "ok" });
       }
     }
 

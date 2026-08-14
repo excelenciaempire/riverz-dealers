@@ -45,8 +45,8 @@ export const automations = {
   // copy stay in the catalog (customer-facing copy the merchant edits).
   "tpl_carrito-abandonado_name": { es: "Carrito abandonado", en: "Abandoned cart" },
   "tpl_carrito-abandonado_desc": {
-    es: "A los 15 minutos de abandonar el carrito, si no compró y nadie más le escribió, le mandamos el link para retomarlo.",
-    en: "15 minutes after the cart is abandoned, if they haven't purchased and nobody else messaged them, we send the link to pick it back up.",
+    es: "A los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo.",
+    en: "15 minutes after the cart is abandoned, if they still haven't purchased, we send the link to pick it back up.",
   },
   "tpl_pago-rechazado_name": { es: "Pago rechazado", en: "Declined payment" },
   "tpl_pago-rechazado_desc": {
@@ -241,6 +241,10 @@ export const automations = {
   dpMessaged: { es: "Ya le escribimos", en: "Already messaged" },
   messagedNo: { es: "No le escribimos", en: "Not messaged" },
   messagedYes: { es: "Ya le escribimos", en: "Already messaged" },
+  condWhenLabel: { es: "Cuándo", en: "When" },
+  windowLastMinutes: { es: "en los últimos minutos", en: "in the last minutes" },
+  windowLastHours: { es: "en las últimas horas", en: "in the last hours" },
+  windowLastDays: { es: "en los últimos días", en: "in the last days" },
   condWindowLabel: { es: "En las últimas", en: "In the last" },
   dpPurchased: { es: "Compró", en: "Purchased" },
   dpPaymentReason: { es: "Motivo del rechazo", en: "Decline reason" },

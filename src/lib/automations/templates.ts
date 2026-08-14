@@ -97,7 +97,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
     description:
-      'Recupera ventas: a los 15 minutos de abandonar el carrito, si no compró y nadie más le escribió, le mandamos el link para retomarlo.',
+      'Recupera ventas: a los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo.',
     category: 'shopify',
     icon: 'shopping-cart',
     tags: ['Shopify', 'Espera 15 min'],
@@ -118,23 +118,20 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
-        // 3. ¿Ya le escribimos? Un rechazo de tarjeta deja el checkout
-        //    abierto, así que la misma persona cae en las dos colas. El de
-        //    pago rechazado sale a los 10 minutos y éste a los 15: sin esta
-        //    pregunta recibiría dos mensajes con cinco minutos de
-        //    diferencia. Gana el de pago porque dice lo que pasó de verdad.
-        step_type: 'condition',
-        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
-        branch: 'yes',
-        parent_index: 1,
-      },
-      {
-        // 4. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
-        //    envío cae fuera de la ventana de 24 h de Meta.
+        // 3. Recién ahí, el mensaje.
+        //
+        //    NO hay una segunda condición de "¿ya le escribimos?": esa
+        //    barrera vive en el motor y corre siempre, se arme el flujo como
+        //    se arme (lib/outreach/cooldown.ts). Ponerla también acá era
+        //    pedirle al comerciante que mantenga una regla que el sistema ya
+        //    garantiza — y dos condiciones seguidas para una sola decisión.
+        //
+        //    Va plantilla y no texto libre porque el envío cae fuera de la
+        //    ventana de 24 h de Meta.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
         branch: 'yes',
-        parent_index: 2,
+        parent_index: 1,
       },
       {
         // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
@@ -143,7 +140,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'add_tag',
         step_config: { tag_id: '' },
         branch: 'yes',
-        parent_index: 2,
+        parent_index: 1,
       },
     ],
   },
