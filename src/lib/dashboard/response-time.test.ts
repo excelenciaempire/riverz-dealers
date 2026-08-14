@@ -14,6 +14,7 @@ interface Row {
   sender_type: string
   created_at: string
   content_type: string | null
+  origin: string | null
 }
 
 /**
@@ -69,8 +70,9 @@ function msg(
   sender_type: string,
   created_at: string,
   content_type: string | null = 'text',
+  origin: string | null = null,
 ): Row {
-  return { conversation_id, sender_type, created_at, content_type }
+  return { conversation_id, sender_type, created_at, content_type, origin }
 }
 
 describe('loadResponseTime', () => {
@@ -199,6 +201,52 @@ describe('loadResponseTime', () => {
 
     expect(report.first.thisPeriodAvg).toBe(15)
     expect(report.first.prevPeriodAvg).toBe(60)
+  })
+
+  it('una conversación que cierra con el cliente y no necesita respuesta no cuenta', async () => {
+    // "Gracias" al final de un hilo ya atendido: no hay nada que responder,
+    // así que no hay muestra. No arrastra el promedio ni queda esperando.
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-10T10:00:00Z'),
+      msg('c1', 'agent', '2026-03-10T10:10:00Z'),
+      msg('c1', 'customer', '2026-03-10T10:12:00Z'), // "gracias"
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows), 'UTC', RANGE, PREV)
+
+    expect(report.first.thisPeriodAvg).toBe(10)
+    expect(report.all.thisPeriodAvg).toBe(10)
+  })
+
+  it('un mensaje nuestro semanas después no "responde" ese cierre', async () => {
+    // El hilo terminó con el cliente el día 9. Semanas después le
+    // escribimos: es un contacto nuevo, no una respuesta de 24 h.
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-09T09:00:00Z'),
+      msg('c1', 'agent', '2026-03-09T09:05:00Z'),
+      msg('c1', 'customer', '2026-03-09T09:06:00Z'), // "gracias"
+      msg('c1', 'agent', '2026-03-10T20:00:00Z'), // seguimiento nuestro
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows), 'UTC', RANGE, PREV)
+
+    // Solo la respuesta real del día 9, que cae en el período anterior.
+    expect(report.first.prevPeriodAvg).toBe(5)
+    expect(report.first.thisPeriodAvg).toBeNull()
+    expect(report.all.thisPeriodAvg).toBeNull()
+  })
+
+  it('un seguimiento automático no cuenta como respuesta aunque llegue rápido', async () => {
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-10T10:00:00Z'),
+      msg('c1', 'bot', '2026-03-10T10:05:00Z', 'text', 'ai_followup'),
+      msg('c1', 'agent', '2026-03-10T10:30:00Z'),
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows), 'UTC', RANGE, PREV)
+
+    expect(report.first.thisPeriodAvg).toBe(30)
+    expect(report.all.thisPeriodAvg).toBe(30)
   })
 
   it('sin respuestas devuelve nulo en vez de cero', async () => {

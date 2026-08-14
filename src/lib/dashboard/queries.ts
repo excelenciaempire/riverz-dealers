@@ -213,6 +213,15 @@ export async function loadConversationsSeries(
  */
 const SESSION_GAP_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Salidas que Riverz manda POR SU CUENTA, no porque el cliente haya
+ * preguntado algo: el seguimiento a un cliente que se quedó callado, una
+ * campaña, un DM de captación, un aviso de pedido. Si contaran como
+ * respuesta, un "gracias" que no necesitaba contestación quedaría
+ * "respondido" días después y fabricaría una espera enorme.
+ */
+const PROACTIVE_ORIGINS = new Set(['ai_followup', 'broadcast', 'ig_outreach', 'order_update'])
+
 export async function loadResponseTime(
   db: DB,
   tz: string,
@@ -233,10 +242,11 @@ export async function loadResponseTime(
       sender_type: string
       created_at: string
       content_type: string | null
+      origin: string | null
     }>((from, to) =>
       db
         .from('messages')
-        .select('conversation_id, sender_type, created_at, content_type')
+        .select('conversation_id, sender_type, created_at, content_type, origin')
         .gte('created_at', fetchStart)
         .lt('created_at', fetchEnd)
         .order('conversation_id', { ascending: true })
@@ -299,10 +309,26 @@ export async function loadResponseTime(
         pendingCustomer = ts
       }
       lastCustomer = ts
-    } else if (pendingCustomer && row.content_type !== 'template') {
+    } else if (pendingCustomer) {
       // Una plantilla/broadcast NO es una respuesta a la pregunta del cliente
       // (es un envío masivo de marketing al mismo hilo): no debe contar como
-      // respuesta ni fabricar un tiempo.
+      // respuesta ni fabricar un tiempo. Lo mismo con lo que sale por
+      // iniciativa nuestra (seguimientos, avisos de pedido, captación).
+      const proactive =
+        row.content_type === 'template' || PROACTIVE_ORIGINS.has(row.origin ?? '')
+      if (proactive) continue
+      // Fuera de la ventana de atención nada de lo que mandamos contesta al
+      // mensaje viejo: es un contacto nuevo. Es el caso de la conversación
+      // que terminó con un "gracias" del cliente —atendida, sin nada que
+      // responder— y que semanas después recibe un mensaje nuestro. Contarlo
+      // convertía ese cierre en una espera de semanas. En WhatsApp, además,
+      // pasadas las 24 h ya no se puede contestar sin plantilla, así que un
+      // saliente tardío no es una respuesta ni siquiera técnicamente.
+      if (ts.getTime() - pendingCustomer.getTime() > SESSION_GAP_MS) {
+        pendingCustomer = null
+        lastCustomer = null
+        continue
+      }
       samples.push({
         customerAt: pendingCustomer,
         responseAt: ts,
