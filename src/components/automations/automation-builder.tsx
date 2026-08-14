@@ -469,9 +469,9 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
   if (c.kind === 'segment') return { subject: 'in_segment', operand: '', op: undefined, value: '', value2: undefined }
   // `operand` es la ventana y `value` el lado que se quiere.
   if (c.kind === 'purchased')
-    return { subject: 'purchased', operand: '24h', op: undefined, value: 'false', value2: undefined }
+    return { subject: 'purchased', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
   if (c.kind === 'messaged')
-    return { subject: 'messaged', operand: '24h', op: undefined, value: 'false', value2: undefined }
+    return { subject: 'messaged', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -603,10 +603,12 @@ function PurchasedFields({
   kind: "purchased" | "messaged"
 }) {
   const t = useT()
-  const ever = String(cfg.operand ?? "") === "ever"
+  const since = String(cfg.operand ?? "since_trigger")
+  const ever = since === "ever"
   const m = /^(\d+)([mhd])$/.exec(String(cfg.operand ?? "24h")) ?? ["", "24", "h"]
   const amount = Number(m[1]) > 0 ? Number(m[1]) : 24
-  const unit = ever ? "ever" : m[2] === "m" || m[2] === "d" ? m[2] : "h"
+  const unit =
+    since === "since_trigger" ? "since_trigger" : ever ? "ever" : m[2] === "m" || m[2] === "d" ? m[2] : "h"
   const setWindow = (a: number, u: string) => set({ operand: `${Math.max(1, a)}${u}` })
 
   return (
@@ -617,19 +619,20 @@ function PurchasedFields({
             type="number"
             min={1}
             value={amount}
-            disabled={ever}
+            disabled={ever || since === "since_trigger"}
             onChange={(e) => setWindow(Number(e.target.value), unit)}
             className="w-20 bg-muted text-foreground disabled:opacity-40"
           />
           <select
             value={unit}
             onChange={(e) =>
-              e.target.value === "ever"
-                ? set({ operand: "ever" })
+              e.target.value === "ever" || e.target.value === "since_trigger"
+                ? set({ operand: e.target.value })
                 : setWindow(amount, e.target.value)
             }
             className="flex-1 rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
           >
+            <option value="since_trigger">{t("automations.windowSinceTrigger")}</option>
             <option value="m">{t("automations.unitMinutes")}</option>
             <option value="h">{t("automations.unitHours")}</option>
             <option value="d">{t("automations.unitDays")}</option>
@@ -2877,7 +2880,9 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
     const yes = kind === "messaged" ? "automations.messagedYes" : "automations.purchasedYes"
     const no = kind === "messaged" ? "automations.messagedNo" : "automations.purchasedNo"
     const side = cfg.value === "true" ? t(yes) : t(no)
-    if (String(operand ?? "") === "ever") return `${side} · ${t("automations.windowEver")}`
+    const w = String(operand ?? "since_trigger")
+    if (w === "since_trigger") return `${side} · ${t("automations.windowSinceTrigger")}`
+    if (w === "ever") return `${side} · ${t("automations.windowEver")}`
     const m = /^([0-9]+)([mhd])$/.exec(String(operand ?? "24h"))
     const n = m ? m[1] : "24"
     const u = m ? m[2] : "h"

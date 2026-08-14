@@ -115,7 +115,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         // 2. ¿Compró en el medio? Quien volvió y pagó no recibe nada.
         step_type: 'condition',
-        step_config: { subject: 'purchased', operand: '15m', value: 'false' },
+        step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
         // 3. ¿Ya le escribimos? Un rechazo de tarjeta deja el checkout
@@ -179,7 +179,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    único momento en que la respuesta significa algo: quien pagó en
         //    el segundo intento sale del flujo por acá.
         step_type: 'condition',
-        step_config: { subject: 'purchased', operand: '10m', value: 'false' },
+        step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
         // 3. Rama Sí (= no compró): recién ahí se le escribe.

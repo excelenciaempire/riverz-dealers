@@ -885,6 +885,38 @@ function matchesValue(actual: unknown, cfg: ConditionStepConfig): boolean {
 }
 
 /**
+ * Desde cuándo mira una condición temporal.
+ *
+ * `since_trigger` es el default y el que tiene sentido casi siempre: mide
+ * desde que ESTE flujo arrancó. Puesto después de una espera, contesta "y
+ * mientras esperábamos, ¿pasó algo?" sin que nadie tenga que repetir la
+ * duración de la espera — que es la forma de que las dos se desincronicen en
+ * silencio el día que alguien cambia una y olvida la otra.
+ *
+ * Una duración explícita ("3h", "7d") sigue disponible para cuando la
+ * pregunta no es sobre la espera sino sobre un periodo propio.
+ */
+async function windowStart(
+  db: ReturnType<typeof supabaseAdmin>,
+  operand: string | undefined,
+  logId: string | null,
+): Promise<string> {
+  if (!operand || operand === 'since_trigger') {
+    if (!logId) return new Date(Date.now() - 24 * 3_600_000).toISOString()
+    const { data } = await db
+      .from('automation_logs')
+      .select('created_at')
+      .eq('id', logId)
+      .maybeSingle()
+    const started = (data as { created_at?: string } | null)?.created_at
+    if (started) return started
+    // Sin log no hay desde cuándo: se cae al día, que es el default viejo.
+    return new Date(Date.now() - 24 * 3_600_000).toISOString()
+  }
+  return new Date(Date.now() - windowMs(operand)).toISOString()
+}
+
+/**
  * Ventana de una condición temporal: "3h", "7d", "45m". Por defecto 24h.
  *
  * Es la misma gramática corta en todos los pasos que miran hacia atrás, así
@@ -960,7 +992,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         return ever === ((cfg.value ?? 'true').toLowerCase() !== 'false')
       }
 
-      const since = new Date(Date.now() - windowMs(cfg.operand)).toISOString()
+      const since = await windowStart(db, cfg.operand, args.logId)
       const { data: c } = await db
         .from('contacts')
         .select('email, phone')
@@ -983,10 +1015,14 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       // la barrera compartida antes de cualquier envío, pero acá vive como
       // paso del flujo: se ve en el lienzo y cada quien elige su ventana.
       if (!args.contactId) return false
+      const from = await windowStart(db, cfg.operand, args.logId)
       const hit = await recentlyContacted(db, {
         workspaceId: args.automation.workspace_id,
         contactId: args.contactId,
-        withinHours: windowMs(cfg.operand) / 3_600_000,
+        withinHours: Math.max(
+          0.017,
+          (Date.now() - new Date(from).getTime()) / 3_600_000,
+        ),
       })
       return hit.blocked === ((cfg.value ?? 'true').toLowerCase() !== 'false')
     }

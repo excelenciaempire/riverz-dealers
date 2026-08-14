@@ -236,6 +236,7 @@ export const automations = {
   condValueLabel: { es: "Valor", en: "Value" },
   purchasedNo: { es: "No compró", en: "Hasn't purchased" },
   purchasedYes: { es: "Sí compró", en: "Has purchased" },
+  windowSinceTrigger: { es: "desde que empezó", en: "since it started" },
   windowEver: { es: "alguna vez", en: "ever" },
   dpMessaged: { es: "Ya le escribimos", en: "Already messaged" },
   messagedNo: { es: "No le escribimos", en: "Not messaged" },
