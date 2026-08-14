@@ -97,27 +97,44 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
     description:
-      'Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.',
+      'Recupera ventas: a los 15 minutos de abandonar el carrito, si no compró y nadie más le escribió, le mandamos el link para retomarlo.',
     category: 'shopify',
     icon: 'shopping-cart',
-    tags: ['Shopify', 'Espera 2 h'],
+    tags: ['Shopify', 'Espera 15 min'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     suggested_template_body:
       'Hola {{customer_name}}, dejaste tu carrito sin terminar. Te lo guardamos por si quieres retomarlo: {{checkout_url}}.',
     steps: [
       {
-        // No `wait` step here: the cart-recovery cron only fires this
-        // trigger once the checkout is `created_at < now() - 2h`, so the
-        // 2-hour delay is already applied upstream. A wait step here would
-        // stack on top and push the recovery message to ~4h, contradicting
-        // the "2 horas después" the card promises.
-        //
-        // The cron always fires outside Meta's 24h customer-service
-        // window, so only an approved template can be sent — free-text
-        // `send_message` would fail at runtime.
+        // 1. Esperar. La espera vive acá y no en el cron: el flujo se arma
+        //    con las piezas de la plataforma y se ve entero en el lienzo.
+        step_type: 'wait',
+        step_config: { amount: 15, unit: 'minutes' },
+      },
+      {
+        // 2. ¿Compró en el medio? Quien volvió y pagó no recibe nada.
+        step_type: 'condition',
+        step_config: { subject: 'purchased', operand: '15m', value: 'false' },
+      },
+      {
+        // 3. ¿Ya le escribimos? Un rechazo de tarjeta deja el checkout
+        //    abierto, así que la misma persona cae en las dos colas. El de
+        //    pago rechazado sale a los 10 minutos y éste a los 15: sin esta
+        //    pregunta recibiría dos mensajes con cinco minutos de
+        //    diferencia. Gana el de pago porque dice lo que pasó de verdad.
+        step_type: 'condition',
+        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
+        branch: 'yes',
+        parent_index: 1,
+      },
+      {
+        // 4. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
+        //    envío cae fuera de la ventana de 24 h de Meta.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
+        branch: 'yes',
+        parent_index: 2,
       },
       {
         // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
@@ -125,6 +142,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         // real antes de activar).
         step_type: 'add_tag',
         step_config: { tag_id: '' },
+        branch: 'yes',
+        parent_index: 2,
       },
     ],
   },
@@ -134,14 +153,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     requiresGateway: 'mercadopago',
     name: 'Pago rechazado',
     description:
-      'Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.',
+      'Al cliente se le rechazó el pago y a los 10 minutos todavía no completó la compra. Le escribimos para retomarla.',
     category: 'shopify',
     icon: 'credit-card',
     // La espera va en la píldora porque es LA decisión del flujo: es lo que
     // separa "se le rechazó el pago" de "no compró". Verla antes de abrir
     // la plantilla evita la duda de si esto le escribe a alguien que ya
     // pagó en el segundo intento.
-    tags: ['Mercado Pago', 'Espera 3 h'],
+    tags: ['Mercado Pago', 'Espera 10 min'],
     trigger_type: 'payment_rejected',
     // Sin configuración: la automatización corre desde que se instala y la
     // espera la pone el paso `Esperar` del flujo.
@@ -153,14 +172,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         // 1. Esperar. Un rechazo se reintenta solo muy seguido: escribir al
         //    toque interrumpe a alguien que está en pleno checkout.
         step_type: 'wait',
-        step_config: { amount: 3, unit: 'hours' },
+        step_config: { amount: 10, unit: 'minutes' },
       },
       {
         // 2. Preguntar si compró. Se evalúa DESPUÉS de la espera, que es el
         //    único momento en que la respuesta significa algo: quien pagó en
         //    el segundo intento sale del flujo por acá.
         step_type: 'condition',
-        step_config: { subject: 'purchased', operand: '3h', value: 'false' },
+        step_config: { subject: 'purchased', operand: '10m', value: 'false' },
       },
       {
         // 3. Rama Sí (= no compró): recién ahí se le escribe.

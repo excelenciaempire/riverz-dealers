@@ -45,13 +45,13 @@ export const automations = {
   // copy stay in the catalog (customer-facing copy the merchant edits).
   "tpl_carrito-abandonado_name": { es: "Carrito abandonado", en: "Abandoned cart" },
   "tpl_carrito-abandonado_desc": {
-    es: "Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.",
-    en: "Recover sales: when a customer abandons their cart, we send them the link to pick it back up 2 hours later.",
+    es: "A los 15 minutos de abandonar el carrito, si no compró y nadie más le escribió, le mandamos el link para retomarlo.",
+    en: "15 minutes after the cart is abandoned, if they haven't purchased and nobody else messaged them, we send the link to pick it back up.",
   },
   "tpl_pago-rechazado_name": { es: "Pago rechazado", en: "Declined payment" },
   "tpl_pago-rechazado_desc": {
-    es: "Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.",
-    en: "The customer's payment was declined and 3 hours later they still haven't completed the purchase. We reach out to pick it back up.",
+    es: "Al cliente se le rechazó el pago y a los 10 minutos todavía no completó la compra. Le escribimos para retomarla.",
+    en: "The customer's payment was declined and 10 minutes later they still haven't completed the purchase. We reach out to pick it back up.",
   },
   "tpl_nuevo-pedido_name": { es: "Nuevo pedido", en: "New order" },
   "tpl_nuevo-pedido_desc": {
@@ -237,6 +237,9 @@ export const automations = {
   purchasedNo: { es: "No compró", en: "Hasn't purchased" },
   purchasedYes: { es: "Sí compró", en: "Has purchased" },
   windowEver: { es: "alguna vez", en: "ever" },
+  dpMessaged: { es: "Ya le escribimos", en: "Already messaged" },
+  messagedNo: { es: "No le escribimos", en: "Not messaged" },
+  messagedYes: { es: "Ya le escribimos", en: "Already messaged" },
   condWindowLabel: { es: "En las últimas", en: "In the last" },
   dpPurchased: { es: "Compró", en: "Purchased" },
   dpPaymentReason: { es: "Motivo del rechazo", en: "Decline reason" },

@@ -26,6 +26,7 @@ import {
 import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import { purchasedSince } from '@/lib/commerce/purchased-since'
+import { recentlyContacted } from '@/lib/outreach/cooldown'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -976,6 +977,18 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       // que manda el mensaje.
       const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
       return bought === want
+    }
+    case 'messaged': {
+      // ¿Ya le escribimos nosotros hace poco? Es la misma pregunta que hace
+      // la barrera compartida antes de cualquier envío, pero acá vive como
+      // paso del flujo: se ve en el lienzo y cada quien elige su ventana.
+      if (!args.contactId) return false
+      const hit = await recentlyContacted(db, {
+        workspaceId: args.automation.workspace_id,
+        contactId: args.contactId,
+        withinHours: windowMs(cfg.operand) / 3_600_000,
+      })
+      return hit.blocked === ((cfg.value ?? 'true').toLowerCase() !== 'false')
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window

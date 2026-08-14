@@ -453,6 +453,7 @@ function dataPointIdFromCfg(
     if (subject === 'in_segment') return c.kind === 'segment'
     if (subject === 'message_content') return c.kind === 'message'
     if (subject === 'purchased') return c.kind === 'purchased'
+    if (subject === 'messaged') return c.kind === 'messaged'
     return false
   })?.id
 }
@@ -469,6 +470,8 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
   // `operand` es la ventana y `value` el lado que se quiere.
   if (c.kind === 'purchased')
     return { subject: 'purchased', operand: '24h', op: undefined, value: 'false', value2: undefined }
+  if (c.kind === 'messaged')
+    return { subject: 'messaged', operand: '24h', op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -572,8 +575,8 @@ function ConditionFields({
         </FieldBlock>
       )}
 
-      {dp && dp.condition.kind === "purchased" && (
-        <PurchasedFields cfg={cfg} set={set} />
+      {dp && (dp.condition.kind === "purchased" || dp.condition.kind === "messaged") && (
+        <PurchasedFields cfg={cfg} set={set} kind={dp.condition.kind} />
       )}
 
       {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
@@ -593,9 +596,11 @@ function ConditionFields({
 function PurchasedFields({
   cfg,
   set,
+  kind,
 }: {
   cfg: Record<string, unknown>
   set: (patch: Record<string, unknown>) => void
+  kind: "purchased" | "messaged"
 }) {
   const t = useT()
   const ever = String(cfg.operand ?? "") === "ever"
@@ -638,8 +643,12 @@ function PurchasedFields({
           onChange={(e) => set({ value: e.target.value })}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
         >
-          <option value="false">{t("automations.purchasedNo")}</option>
-          <option value="true">{t("automations.purchasedYes")}</option>
+          <option value="false">
+            {t(kind === "messaged" ? "automations.messagedNo" : "automations.purchasedNo")}
+          </option>
+          <option value="true">
+            {t(kind === "messaged" ? "automations.messagedYes" : "automations.purchasedYes")}
+          </option>
         </select>
       </FieldBlock>
     </div>
@@ -2861,11 +2870,13 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   const label = t(dp.labelKey)
   const kind = dp.condition.kind
   if (kind === "tag" || kind === "segment") return label
-  if (kind === "purchased") {
-    // "Compró · No · en las últimas 3 horas". El renderer de booleanos
-    // genérico decía "No, es su primera compra", que acá no viene al caso:
-    // la pregunta no es si alguna vez compró, sino si compró en la ventana.
-    const side = cfg.value === "true" ? t("automations.purchasedYes") : t("automations.purchasedNo")
+  if (kind === "purchased" || kind === "messaged") {
+    // "No compró · en las últimas 3 horas". El renderer de booleanos genérico
+    // reutilizaba el texto de "ya compró alguna vez", que acá no viene al
+    // caso: la pregunta es sobre la ventana, no sobre el histórico.
+    const yes = kind === "messaged" ? "automations.messagedYes" : "automations.purchasedYes"
+    const no = kind === "messaged" ? "automations.messagedNo" : "automations.purchasedNo"
+    const side = cfg.value === "true" ? t(yes) : t(no)
     if (String(operand ?? "") === "ever") return `${side} · ${t("automations.windowEver")}`
     const m = /^([0-9]+)([mhd])$/.exec(String(operand ?? "24h"))
     const n = m ? m[1] : "24"

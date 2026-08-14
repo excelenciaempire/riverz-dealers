@@ -699,7 +699,11 @@ export type ConditionSubject =
   // Se evalua EN VIVO contra los pedidos de la tienda, no contra el contexto
   // capturado al disparar. `operand` es la ventana ("3h", "7d"): sirve en
   // cualquier automatizacion, no solo despues de un pago rechazado.
-  | 'purchased';
+  | 'purchased'
+  // Si ya le mandamos un mensaje nuestro en la ventana pedida. Deja que un
+  // flujo se aparte cuando otro ya hablo con esa persona, a la vista y no
+  // escondido en un cron.
+  | 'messaged';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

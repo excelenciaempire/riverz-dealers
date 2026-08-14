@@ -22,6 +22,7 @@ export type ConditionSource =
   | { kind: 'segment' } // subject 'in_segment'
   | { kind: 'message' } // subject 'message_content'
   | { kind: 'purchased' } // subject 'purchased' (se resuelve en vivo, con ventana)
+  | { kind: 'messaged' } // subject 'messaged' (¿ya le escribimos?, con ventana)
 
 export interface DataPoint {
   /** Stable id used in the picker + to rebuild a condition. */
@@ -361,6 +362,17 @@ export const DATA_POINTS: DataPoint[] = [
     triggers: 'all',
     usableInConditions: true,
     condition: { kind: 'purchased' },
+  },
+  {
+    // Para que un flujo pueda apartarse cuando otro ya le hablo a esa
+    // persona. Sirve en cualquiera: carrito, pagos, reactivacion.
+    id: 'messaged',
+    labelKey: 'automations.dpMessaged',
+    group: 'contact',
+    valueKind: 'bool',
+    triggers: 'all',
+    usableInConditions: true,
+    condition: { kind: 'messaged' },
   },
   {
     id: 'payment_attempts',

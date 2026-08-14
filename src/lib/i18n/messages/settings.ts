@@ -99,6 +99,12 @@ export const settings = {
   },
   mpConnected: { es: "Mercado Pago conectado", en: "Mercado Pago connected" },
   mpDisconnected: { es: "Mercado Pago desconectado", en: "Mercado Pago disconnected" },
+  mpNotifyUrlLabel: {
+    es: "Pega esta URL en Mercado Pago → Tus integraciones → Webhooks, evento \"Pagos\", para que los rechazos lleguen al instante.",
+    en: "Paste this URL in Mercado Pago → Your integrations → Webhooks, event \"Payments\", so declines arrive instantly.",
+  },
+  mpNotifyUrlCopy: { es: "Copiar URL", en: "Copy URL" },
+  mpNotifyUrlCopied: { es: "URL copiada", en: "URL copied" },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",

@@ -59,8 +59,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   { name: "flows-sweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
   { name: "ai-followups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
-  // Trae los rechazos de cada cuenta con Mercado Pago conectado. Sólo
-  // ingesta: el envío lo decide mercadopago-recovery, a los :45.
+  // Red de seguridad del webhook de Mercado Pago: levanta lo que no haya
+  // llegado por aviso. Sólo ingesta; el envío lo decide mercadopago-recovery.
   { name: "mercadopago-sync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *" },
   { name: "delivery-watchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
   // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
@@ -70,12 +70,16 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "ads-sync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *" },
 
   // --- horas ---
-  { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "0 * * * *" },
+  // Cada 5 minutos, igual que la recuperación de pagos. El checkout entra por
+  // webhook en segundos y la espera de 2 h la aplica el propio cron, así que
+  // correr una vez por hora le sumaba hasta 59 minutos a esa espera: un
+  // carrito abandonado a las 10:05 recién salía a las 13:00.
+  { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "*/5 * * * *" },
   { name: "tiendanube-checkouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *" },
-  // A los :45 para no pisarse con la recuperación de carritos (:00): la
-  // misma persona puede estar en las dos colas y así el antispam por
-  // teléfono de cada una ve lo que hizo la otra.
-  { name: "mercadopago-recovery", path: "/api/cron/mercadopago-recovery", schedule: "45 * * * *" },
+  // Cada 5 minutos: con el webhook de Mercado Pago el rechazo entra en
+  // segundos, y una cola que arranca una vez por hora se comía esa ventaja.
+  // La corrida sale barata — sin filas pendientes devuelve enseguida.
+  { name: "mercadopago-recovery", path: "/api/cron/mercadopago-recovery", schedule: "*/5 * * * *" },
   { name: "shopify-feedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
   { name: "meta-contact-names", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *" },
   {

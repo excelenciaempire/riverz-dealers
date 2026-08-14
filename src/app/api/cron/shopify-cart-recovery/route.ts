@@ -13,14 +13,15 @@ import { getLogger } from '@/lib/log/logger'
 const log = getLogger('cron.shopify-cart-recovery')
 
 /**
- * Cron de carritos abandonados (Pilar).
+ * Cron de carritos abandonados.
  *
- * Corre cada hora. Busca filas en `shopify_checkouts` que cumplen:
+ * Corre cada 5 minutos. Busca filas en `shopify_checkouts` que cumplen:
  *
- *   - `completed_at IS NULL`               (carrito sigue abierto)
- *   - `recovery_dispatched_at IS NULL`     (no le mandamos recovery todavía)
- *   - `created_at < now() - interval '2h'` (pasaron al menos 2 horas)
- *   - `customer_phone IS NOT NULL`         (necesitamos un WhatsApp)
+ *   - `completed_at IS NULL`           (carrito sigue abierto)
+ *   - `recovery_dispatched_at IS NULL` (no le mandamos recovery todavía)
+ *   - `customer_phone IS NOT NULL`     (necesitamos un WhatsApp)
+ *   - la espera cumplida: la del paso `Esperar` del flujo si la tiene, o
+ *     las 2 horas históricas del cron si la automatización es de las viejas
  *
  * Para cada uno:
  *
@@ -47,7 +48,6 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
 
   const { data: due, error } = await admin
     .from('shopify_checkouts')
@@ -57,7 +57,6 @@ async function cronHandler(request: Request) {
     .is('completed_at', null)
     .is('recovery_dispatched_at', null)
     .not('customer_phone', 'is', null)
-    .lt('created_at', twoHoursAgo)
     .order('created_at', { ascending: true })
     .limit(50)
 
@@ -65,6 +64,41 @@ async function cronHandler(request: Request) {
     return serverError(error)
   }
   if (!due || due.length === 0) {
+    return NextResponse.json({ processed: 0 })
+  }
+
+  // ¿Quién pone la espera, el cron o el flujo?
+  //
+  // Las automatizaciones nuevas la traen adentro, como paso `Esperar`, y ahí
+  // el cron tiene que disparar apenas existe el carrito: sumarle sus 2 horas
+  // dejaría el mensaje a las 2 h 15 en vez de a los 15 minutos. Las viejas no
+  // tienen ese paso, así que para ellas la espera sigue siendo del cron —
+  // cambiarla les mandaría el mensaje al instante, que no es lo que armaron.
+  const { data: cartAutos } = await admin
+    .from('automations')
+    .select('id, workspace_id')
+    .in('workspace_id', [...new Set(due.map((r) => (r as { workspace_id: string }).workspace_id))])
+    .eq('trigger_type', 'shopify_abandoned_checkout')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+  const autoIds = ((cartAutos ?? []) as { id: string; workspace_id: string }[])
+  const { data: waitSteps } = autoIds.length
+    ? await admin
+        .from('automation_steps')
+        .select('automation_id')
+        .in('automation_id', autoIds.map((a) => a.id))
+        .eq('step_type', 'wait')
+    : { data: [] }
+  const withWait = new Set(((waitSteps ?? []) as { automation_id: string }[]).map((s) => s.automation_id))
+  const flowOwnsWait = new Set(
+    autoIds.filter((a) => withWait.has(a.id)).map((a) => a.workspace_id),
+  )
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  const ready = due.filter((r) => {
+    const row = r as { workspace_id: string; created_at: string }
+    return flowOwnsWait.has(row.workspace_id) || row.created_at < twoHoursAgo
+  })
+  if (ready.length === 0) {
     return NextResponse.json({ processed: 0 })
   }
 
@@ -79,7 +113,7 @@ async function cronHandler(request: Request) {
 
   let processed = 0
   let dispatched = 0
-  for (const row of due) {
+  for (const row of ready) {
     const r = row as {
       id: string
       workspace_id: string

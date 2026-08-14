@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Trash2, Copy } from 'lucide-react';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ export function MercadoPagoCard() {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [connected, setConnected] = useState(false);
+  const [notifyUrl, setNotifyUrl] = useState<string | null>(null);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,7 +34,10 @@ export function MercadoPagoCard() {
     try {
       const res = await fetch('/api/integrations/mercadopago', { cache: 'no-store' });
       const json = await res.json();
-      if (res.ok) setConnected(!!json.connected);
+      if (res.ok) {
+        setConnected(!!json.connected);
+        setNotifyUrl(json.notify_url ?? null);
+      }
     } catch {
       /* no-op */
     } finally {
@@ -64,6 +68,8 @@ export function MercadoPagoCard() {
       }
       setConnected(true);
       setToken('');
+      setNotifyUrl(json.notify_url ?? null);
+      await load();
       toast.success(t('settings.mpConnected'));
     } catch {
       toast.error(t('settings.networkError'));
@@ -136,6 +142,28 @@ export function MercadoPagoCard() {
               )}
             </button>
           </li>
+          {notifyUrl && (
+            <li className="rounded-md bg-muted/40 px-2 py-2 ring-1 ring-border/50">
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                {t('settings.mpNotifyUrlLabel')}
+              </p>
+              <div className="mt-1 flex items-center gap-1">
+                <code className="min-w-0 flex-1 truncate text-[10px] text-foreground">
+                  {notifyUrl}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(notifyUrl);
+                    toast.success(t('settings.mpNotifyUrlCopied'));
+                  }}
+                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={t('settings.mpNotifyUrlCopy')}
+                >
+                  <Copy className="size-3.5" />
+                </button>
+              </div>
+            </li>
+          )}
         </ul>
       ) : null}
 

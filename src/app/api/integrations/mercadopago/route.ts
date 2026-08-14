@@ -5,6 +5,9 @@ import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
 import { verifyToken } from '@/lib/mercadopago/client';
+import { webhookUrl } from '@/lib/mercadopago/webhook-url';
+import { publicBaseUrl } from '@/lib/base-url';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -55,10 +58,22 @@ export async function GET() {
     updated_at: string;
     last_sync_at: string | null;
   } | null;
+
+  // La URL de aviso se devuelve sólo cuando ya está conectado: antes de eso
+  // no hay nada que avisar y pegarla en Mercado Pago no haría nada.
+  let notifyUrl: string | null = null;
+  if (row?.is_active) {
+    const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
+    if (workspaceId) {
+      notifyUrl = webhookUrl(workspaceId, publicBaseUrl());
+    }
+  }
+
   return NextResponse.json({
     connected: !!row?.is_active,
     updated_at: row?.updated_at ?? null,
     last_sync_at: row?.last_sync_at ?? null,
+    notify_url: notifyUrl,
   });
 }
 
