@@ -227,17 +227,8 @@ export const automations = {
   dpTrackingCompany: { es: "Transportista", en: "Carrier" },
   dpCheckoutUrl: { es: "Link del carrito", en: "Cart link" },
   mpTriggerSummary: {
-    es: "Espera {hours} h · ignora rechazos de más de {days} días",
-    en: "Waits {hours} h · ignores declines older than {days} days",
-  },
-  guardEyebrow: { es: "Antes de enviar", en: "Before sending" },
-  mpGuardTitle: {
-    es: "Espera {hours} h y verifica que no haya comprado",
-    en: "Waits {hours} h and checks they haven't purchased",
-  },
-  mpGuardBody: {
-    es: "Si en ese tiempo completó la compra, no recibe nada. Tampoco quien ya recibió otro mensaje en las últimas 24 h.",
-    en: "If they complete the purchase in that time, they get nothing. Same for anyone who already got another message in the last 24 h.",
+    es: "Ignora rechazos de más de {days} días",
+    en: "Ignores declines older than {days} days",
   },
   mpNotConnected: {
     es: "Falta conectar Mercado Pago. Sin eso no llega ningún pago rechazado y esta automatización no se dispara.",

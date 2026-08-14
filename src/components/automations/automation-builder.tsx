@@ -398,9 +398,8 @@ function triggerSummary(
   t: TFn,
 ): string | null {
   if (type === "payment_rejected") {
-    const hours = Number(config?.hours_after) > 0 ? Number(config.hours_after) : 3
     const days = Number(config?.max_age_days) > 0 ? Number(config.max_age_days) : 14
-    return t("automations.mpTriggerSummary", { hours: String(hours), days: String(days) })
+    return t("automations.mpTriggerSummary", { days: String(days) })
   }
   if (type === "keyword_match") {
     const words = Array.isArray(config?.keywords) ? (config.keywords as string[]) : []
@@ -1284,7 +1283,6 @@ export function AutomationBuilder({
               onTypeChange={(t) => patchTop("trigger_type", t)}
               onConfigChange={(c) => patchTop("trigger_config", c)}
             />
-            <GuardCard type={state.trigger_type} config={state.trigger_config} />
             <StepList
               steps={state.steps}
               parentPath={[]}
@@ -1316,50 +1314,6 @@ export function AutomationBuilder({
 // ------------------------------------------------------------
 // Trigger card
 // ------------------------------------------------------------
-
-/**
- * Caja intermedia que muestra lo que el motor hace ENTRE el disparador y el
- * primer paso: esperar y descartar a quien ya compró.
- *
- * Es de sólo lectura a propósito. Si fuera un paso más del flujo, se podría
- * borrar o mover, y una automatización sin esa comprobación le escribe "no
- * pudimos procesar tu pago" a gente que tiene el pedido confirmado. Es una
- * garantía del sistema, no una opción — pero tiene que verse, porque un
- * lienzo que se lee "pago rechazado → enviar plantilla" esconde justo la
- * parte que hace que el mensaje sea correcto.
- *
- * Se dibuja sólo para los disparadores que de verdad tienen esa etapa. Para
- * el resto, el lienzo queda igual que antes.
- */
-function GuardCard({
-  type,
-  config,
-}: {
-  type: AutomationTriggerType
-  config: Record<string, unknown>
-}) {
-  const t = useT()
-  if (type !== "payment_rejected") return null
-  const hours = Number(config?.hours_after) > 0 ? Number(config.hours_after) : 3
-
-  return (
-    <div className="flex items-center">
-      <div className="h-px w-8 bg-border" />
-      <div className="w-[248px] shrink-0 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {t("automations.guardEyebrow")}
-        </div>
-        <div className="mt-0.5 text-sm font-medium text-foreground">
-          {t("automations.mpGuardTitle", { hours: String(hours) })}
-        </div>
-        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-          {t("automations.mpGuardBody")}
-        </p>
-      </div>
-      <div className="h-px w-8 bg-border" />
-    </div>
-  )
-}
 
 function TriggerCard({
   type,
