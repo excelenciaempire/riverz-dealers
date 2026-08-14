@@ -21,7 +21,6 @@ import {
   PencilLine,
   Hourglass,
   GitBranch,
-  GitFork,
   Webhook,
   CircleSlash,
   PhoneCall,
@@ -207,8 +206,12 @@ interface StepMeta {
 // `label` holds an i18n key, resolved with t() where the meta is rendered.
 const STEP_META: Record<BuilderStepType, StepMeta> = {
   switch: {
-    label: "automations.stepSwitch",
-    icon: GitFork,
+    // Mismo nombre e icono que `condition`: para quien arma el flujo es UN
+    // elemento. Que por dentro se guarden distinto (binario con ramas
+    // anidadas vs multi-camino) es asunto nuestro, no suyo — verlos con
+    // iconos distintos hacía pensar que son dos cosas.
+    label: "automations.stepCondition",
+    icon: GitBranch,
     border: "border-l-amber-500",
     iconBg: "bg-amber-500/15",
     iconText: "text-amber-600 dark:text-amber-400",
@@ -1868,7 +1871,7 @@ function StepRenderer({
         // Condition: card on the left, its two branch lanes fanning out to
         // the right so each path keeps flowing in the chain's direction
         // instead of dropping into stacked vertical columns.
-        <div className="z-10 flex items-center gap-2">
+        <div className="z-10 flex items-start gap-2">
           {cardEl}
           <ConditionBranches step={step} parentPath={path} {...props} />
         </div>
@@ -1876,7 +1879,7 @@ function StepRenderer({
         // Switch: card on the left, one lane per case + an "en otro caso"
         // lane fanning out to the right (same visual grammar as a condition,
         // just N lanes instead of two).
-        <div className="z-10 flex items-center gap-2">
+        <div className="z-10 flex items-start gap-2">
           {cardEl}
           <SwitchBranches
             step={step}
@@ -1958,6 +1961,9 @@ function ConditionBranches({
  * paso —o agregar un camino— para que la línea deje de llegar a donde tiene
  * que llegar. Medido, agregar o quitar caminos reacomoda todo solo.
  */
+/** Media altura de una tarjeta (h-[78px]): el centro del tronco. */
+const CARD_HALF = 39
+
 function BranchFan({
   lanes,
 }: {
@@ -1965,20 +1971,37 @@ function BranchFan({
 }) {
   const wrap = useRef<HTMLDivElement | null>(null)
   const [spine, setSpine] = useState<{ top: number; height: number } | null>(null)
+  // Alto de fila común: un camino con una condición anidada adentro mide
+  // mucho más que uno con un botón, y con filas de distinto alto los centros
+  // quedan a distancias distintas — dos caminos se ven pegados y otros dos
+  // separados, aunque el hueco declarado sea el mismo.
+  const [rowHeight, setRowHeight] = useState<number | null>(null)
+  // Cuánto hay que subir el abanico para que su centro caiga en el centro de
+  // la tarjeta que lo abre. Sin esto, centrar la fila movía la tarjeta hacia
+  // abajo y la sacaba de la línea del tronco.
+  const [offset, setOffset] = useState(0)
 
   useEffect(() => {
     const el = wrap.current
     if (!el) return
     const measure = () => {
       const rows = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")]
-      if (rows.length === 0) return setSpine(null)
+      if (rows.length === 0) {
+        setSpine(null)
+        return
+      }
+      const tallest = Math.max(...rows.map((r) => r.scrollHeight))
+      setRowHeight(tallest)
+
       const base = el.getBoundingClientRect().top
       const centers = rows.map((r) => {
         const b = r.getBoundingClientRect()
         return b.top - base + b.height / 2
       })
       const top = Math.min(...centers)
-      setSpine({ top, height: Math.max(...centers) - top })
+      const bottom = Math.max(...centers)
+      setSpine({ top, height: bottom - top })
+      setOffset(CARD_HALF - (top + bottom) / 2)
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -1988,7 +2011,11 @@ function BranchFan({
   }, [lanes.length])
 
   return (
-    <div ref={wrap} className="relative flex flex-col gap-8 pl-10">
+    <div
+      ref={wrap}
+      className="relative flex flex-col gap-8 pl-10"
+      style={{ marginTop: offset }}
+    >
       {/* Espina: une el primer ramal con el último. */}
       {spine && lanes.length > 1 && (
         <span
@@ -1998,7 +2025,12 @@ function BranchFan({
         />
       )}
       {lanes.map((lane) => (
-        <div key={lane.key} data-lane-row className="relative flex items-center">
+        <div
+          key={lane.key}
+          data-lane-row
+          className="relative flex items-center"
+          style={rowHeight ? { minHeight: rowHeight } : undefined}
+        >
           {/* Ramal horizontal hasta el carril. */}
           <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
           {/* La etiqueta va FUERA del flujo, flotando arriba del carril.
@@ -2022,9 +2054,21 @@ function BranchFan({
   )
 }
 
-/** Etiqueta corta de un camino: el mismo resumen que muestra la tarjeta. */
-function caseShortLabel(cfg: Record<string, unknown>, t: TFn): string {
-  return conditionPreview(cfg, t)
+/**
+ * Etiqueta del carril: corta y sin la ventana.
+ *
+ * El resumen completo ("No compró · desde que empezó") ya está en la tarjeta
+ * de la condición. Repetirlo en cada carril lo obligaba a truncarse —
+ * "NO LE ESCRIBIMOS · EN LAS ÚLTIMAS 2…"— y encima de forma distinta en cada
+ * camino. Acá alcanza con qué camino es.
+ */
+function caseShortLabel(cfg: Record<string, unknown>, t: TFn, index: number): string {
+  const full = conditionPreview(cfg, t)
+  if (!cfg.subject) return t("automations.switchPathN", { n: String(index + 1) })
+  // El resumen viene como "lado · ventana": el lado solo ya identifica el
+  // camino, y es lo que entra sin cortarse.
+  const side = full.split(" · ")[0]
+  return side || t("automations.switchPathN", { n: String(index + 1) })
 }
 
 function SwitchBranches({
@@ -2086,9 +2130,9 @@ function SwitchBranches({
   return (
     <BranchFan
       lanes={[
-        ...sd.cases.map((c) => ({
+        ...sd.cases.map((c, i) => ({
           key: c.ckey,
-          label: caseShortLabel(c.cfg, t),
+          label: caseShortLabel(c.cfg, t, i),
           color: "border-emerald-500/40 bg-emerald-500/10 text-accent-ink",
           content: (
             <SwitchLaneSteps
