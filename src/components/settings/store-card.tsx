@@ -402,6 +402,17 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                 }}
                 className="bg-background text-sm"
               />
+              {/* El desvío por claves va ARRIBA del botón: así el botón queda
+                  último, alineado con el de las demás tarjetas de la grilla.
+                  Se queda porque la aprobación automática no prospera en todo
+                  WordPress (detrás de proxy o con login), y sin este camino esos
+                  comercios no tienen forma de conectar. */}
+              <button
+                onClick={() => setMode('keys')}
+                className="w-full px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                {t('settings.woocommerceUseKeysLink')}
+              </button>
               <button
                 onClick={handleWooConnect}
                 disabled={busy}
@@ -413,12 +424,6 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
                   <Image src={meta.logo} alt="" width={16} height={16} />
                 )}
                 {t('common.connect')}
-              </button>
-              <button
-                onClick={() => setMode('keys')}
-                className="w-full px-3 py-1 text-[11px] text-muted-foreground hover:text-foreground"
-              >
-                {t('settings.woocommerceUseKeysLink')}
               </button>
             </>
           )}

@@ -82,7 +82,7 @@ export function MercadoLibreConnect({
       <button
         onClick={() => setAdding(true)}
         disabled={busy}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
       >
         <Plus className="size-4" />
         {t("settings.addAnotherAccount")}

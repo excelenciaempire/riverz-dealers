@@ -901,6 +901,12 @@ async function windowStart(
   operand: string | undefined,
   logId: string | null,
 ): Promise<string> {
+  // "Alguna vez": sin límite hacia atrás. Sin este caso, `windowMs` no
+  // reconocía "ever" y devolvía su default de 24 h, así que la condición
+  // contestaba por el último día creyendo contestar por el histórico — mal,
+  // y en silencio.
+  if (operand === 'ever') return new Date(0).toISOString()
+
   if (!operand || operand === 'since_trigger') {
     if (!logId) return new Date(Date.now() - 24 * 3_600_000).toISOString()
     const { data } = await db

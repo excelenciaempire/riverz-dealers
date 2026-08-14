@@ -26,6 +26,7 @@ import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
 import { ShopifyCard } from "@/components/settings/shopify-card";
 import { StoreCard } from "@/components/settings/store-card";
 import { MercadoPagoCard } from "@/components/settings/mercadopago-card";
+import { KlaviyoCard } from "@/components/settings/klaviyo-card";
 import { MercadoLibreConnect } from "@/components/settings/mercadolibre-connect";
 import { cn } from "@/lib/utils";
 
@@ -574,11 +575,13 @@ export function ChannelsPanel() {
                         disabled={busy}
                         className={cn(
                           "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          // Un solo botón de acción para todas las tarjetas, con
+                          // el mismo color: conectar y añadir otra cuenta son lo
+                          // mismo, y el gris hacía ver la tarjeta ya conectada
+                          // como si estuviera a medias.
                           !ready
                             ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
-                            : anyConnected
-                              ? "border border-border bg-muted/50 text-foreground hover:bg-accent"
-                              : "bg-primary text-primary-foreground hover:bg-primary/90",
+                            : "bg-primary text-primary-foreground hover:bg-primary/90",
                         )}
                       >
                         {!ready ? (
@@ -634,6 +637,7 @@ export function ChannelsPanel() {
         <StoreCard platform="tiendanube" />
         <StoreCard platform="woocommerce" />
         <MercadoPagoCard />
+        <KlaviyoCard />
       </ul>
     </div>
   );
