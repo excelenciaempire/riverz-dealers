@@ -881,7 +881,7 @@ export default function ProductDetailPage() {
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="h-9 bg-foreground text-background hover:bg-foreground/90"
+            className="h-9 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}
             {t('products.saveChanges')}

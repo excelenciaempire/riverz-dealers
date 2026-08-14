@@ -244,7 +244,7 @@ export default function TemplatesPage() {
           </Button>
           <Button
             render={<Link href="/plantillas/nueva" />}
-            className="h-9 bg-foreground text-background hover:bg-foreground/90"
+            className="h-9 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="size-4" />
             {t('templates.newTemplate')}
@@ -346,7 +346,7 @@ export default function TemplatesPage() {
                           onClick={() =>
                             router.push(`/plantillas/${toShortId(template.id)}`)
                           }
-                          className="text-muted-foreground"
+                          className="text-accent-ink hover:text-accent-ink"
                         >
                           <BarChart3 className="size-3.5" />
                           <span className="hidden sm:inline">

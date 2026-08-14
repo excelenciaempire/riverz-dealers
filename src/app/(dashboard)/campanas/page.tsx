@@ -234,7 +234,7 @@ export default function BroadcastsPage() {
         </div>
         <Button
           onClick={() => router.push('/campanas/nueva')}
-          className="h-9 bg-foreground text-background hover:bg-foreground/90"
+          className="h-9 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="size-4" />
           {t('broadcasts.newCampaign')}
@@ -256,7 +256,7 @@ export default function BroadcastsPage() {
           </p>
           <Button
             onClick={() => router.push('/campanas/nueva')}
-            className="mt-5 bg-foreground text-background hover:bg-foreground/90"
+            className="mt-5 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="size-4" />
             {t('broadcasts.createFirstCampaign')}
@@ -368,6 +368,7 @@ export default function BroadcastsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="text-accent-ink hover:text-accent-ink"
                           onClick={() =>
                             router.push(`/campanas/${toShortId(broadcast.id)}`)
                           }

@@ -268,7 +268,7 @@ export function AiBuilderPanel({
                 disabled={!input.trim() || sending}
                 className={cn(
                   "inline-flex size-9 items-center justify-center rounded-md",
-                  "bg-foreground text-background transition-opacity",
+                  "bg-primary text-primary-foreground transition-opacity",
                   "hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40",
                 )}
                 aria-label={t("flows.send")}
