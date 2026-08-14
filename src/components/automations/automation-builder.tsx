@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react"
+import { Fragment, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import Image from "next/image"
 import Link from "@/components/i18n/locale-link"
@@ -28,6 +28,8 @@ import {
   Zap,
   Loader2,
   ArrowRight,
+  Undo2,
+  Redo2,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -385,22 +387,14 @@ function triggerLabel(type: AutomationTriggerType, t: TFn): string {
 }
 
 /**
- * Segunda línea de la tarjeta del disparador: qué configuración tiene.
- *
- * El lienzo dibuja una caja por paso, pero lo que el disparador decide
- * —cuánto espera, a quién descarta— vivía sólo dentro del acordeón. Un
- * flujo que se lee "pago rechazado → enviar plantilla" esconde justamente
- * lo que hace que el mensaje sea correcto.
+ * Segunda línea de la tarjeta del disparador: qué configuración tiene, igual
+ * que la tarjeta de acción muestra el nombre de la plantilla. Devuelve null
+ * para los disparadores que no configuran nada.
  */
 function triggerSummary(
   type: AutomationTriggerType,
   config: Record<string, unknown>,
-  t: TFn,
 ): string | null {
-  if (type === "payment_rejected") {
-    const days = Number(config?.max_age_days) > 0 ? Number(config.max_age_days) : 14
-    return t("automations.mpTriggerSummary", { days: String(days) })
-  }
   if (type === "keyword_match") {
     const words = Array.isArray(config?.keywords) ? (config.keywords as string[]) : []
     return words.length ? words.join(", ") : null
@@ -1009,7 +1003,47 @@ export function AutomationBuilder({
   // and warn right in the canvas when none is connected.
   const whatsappConnected = connections.channels.has("whatsapp")
   const isEditing = !!initial.id
-  const [state, setState] = useState<BuilderInitial>(initial)
+  // Historial para deshacer/rehacer. Guarda el estado ENTERO en cada cambio:
+  // el flujo son unos pocos pasos, así que copiarlo es barato y evita tener
+  // que describir cada mutación como una operación inversa — que es donde
+  // este tipo de historial se rompe.
+  const [past, setPast] = useState<BuilderInitial[]>([])
+  const [future, setFuture] = useState<BuilderInitial[]>([])
+  const [state, setStateRaw] = useState<BuilderInitial>(initial)
+  const setState = useCallback(
+    (updater: (s: BuilderInitial) => BuilderInitial) => {
+      setStateRaw((s) => {
+        const next = updater(s)
+        if (next === s) return s
+        setPast((p) => [...p.slice(-49), s])
+        setFuture([])
+        return next
+      })
+    },
+    [],
+  )
+  const undo = useCallback(() => {
+    setPast((p) => {
+      if (p.length === 0) return p
+      const prev = p[p.length - 1]
+      setStateRaw((cur) => {
+        setFuture((f) => [cur, ...f.slice(0, 49)])
+        return prev
+      })
+      return p.slice(0, -1)
+    })
+  }, [])
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f
+      const next = f[0]
+      setStateRaw((cur) => {
+        setPast((p) => [...p.slice(-49), cur])
+        return next
+      })
+      return f.slice(1)
+    })
+  }, [])
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
@@ -1264,6 +1298,34 @@ export function AutomationBuilder({
             />
           </div>
         )}
+        {!templatePreview && (
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={undo}
+              disabled={past.length === 0}
+              aria-label={t("automations.undo")}
+              title={t("automations.undo")}
+              className="border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={redo}
+              disabled={future.length === 0}
+              aria-label={t("automations.redo")}
+              title={t("automations.redo")}
+              className="border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
         {isEditing && !templatePreview && (
           <Button
             type="button"
@@ -1422,9 +1484,9 @@ function TriggerCard({
                 disparador queda escondido detrás del acordeón y el lienzo
                 miente por omisión: se lee "pago rechazado → enviar" cuando
                 en realidad hay una espera y una comprobación en el medio. */}
-            {triggerSummary(type, config, t) && (
+            {triggerSummary(type, config) && (
               <div className="truncate text-[11px] text-muted-foreground">
-                {triggerSummary(type, config, t)}
+                {triggerSummary(type, config)}
               </div>
             )}
           </div>
@@ -1476,7 +1538,7 @@ function TriggerCard({
               />
             )}
             {type === "payment_rejected" && (
-              <PaymentRejectedConfig config={config} onChange={onConfigChange} />
+              <PaymentRejectedConfig />
             )}
           </div>
         )}
@@ -1492,21 +1554,17 @@ function TriggerCard({
  * cumplirse, el sistema comprueba si la persona terminó comprando y sólo
  * escribe si no lo hizo. Por eso el texto habla de eso y no de un retardo.
  */
-function PaymentRejectedConfig({
-  config,
-  onChange,
-}: {
-  config: Record<string, unknown>
-  onChange: (c: Record<string, unknown>) => void
-}) {
+/**
+ * Aviso de Mercado Pago sin conectar. El disparador no tiene nada mas que
+ * configurar: la automatizacion corre desde que se instala, asi que no hay
+ * antiguedad que elegir, y la espera la pone el paso `Esperar` del flujo.
+ */
+function PaymentRejectedConfig() {
   const t = useT()
-  // Sin Mercado Pago conectado no entra ni un pago rechazado, así que la
-  // automatización se puede activar y no dispararse nunca. El aviso es lo
-  // único que convierte ese silencio en algo accionable.
   const [mpConnected, setMpConnected] = useState<boolean | null>(null)
   useEffect(() => {
     let alive = true
-    fetch('/api/integrations/mercadopago', { cache: 'no-store' })
+    fetch("/api/integrations/mercadopago", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (alive) setMpConnected(j ? !!j.connected : null)
@@ -1520,55 +1578,19 @@ function PaymentRejectedConfig({
       alive = false
     }
   }, [])
-  const num = (v: unknown, fallback: number) => {
-    const n = Number(v)
-    return Number.isFinite(n) && n > 0 ? n : fallback
-  }
+
+  if (mpConnected !== false) return null
   return (
-    <div className="space-y-2">
-      {mpConnected === false && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-xs text-amber-800 dark:text-amber-200">
-            {t("automations.mpNotConnected")}
-          </p>
-          <Link
-            href="/integraciones"
-            className="mt-1 inline-block text-xs font-medium underline underline-offset-2"
-          >
-            {t("automations.mpConnectCta")}
-          </Link>
-        </div>
-      )}
-      <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          {t("automations.mpHoursAfterLabel")}
-        </label>
-        <Input
-          type="number"
-          min={1}
-          max={168}
-          value={num(config.hours_after, 3)}
-          onChange={(e) =>
-            onChange({ ...config, hours_after: num(e.target.value, 3) })
-          }
-          className="bg-muted text-foreground"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          {t("automations.mpMaxAgeLabel")}
-        </label>
-        <Input
-          type="number"
-          min={1}
-          max={90}
-          value={num(config.max_age_days, 14)}
-          onChange={(e) =>
-            onChange({ ...config, max_age_days: num(e.target.value, 14) })
-          }
-          className="bg-muted text-foreground"
-        />
-      </div>
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+      <p className="text-xs text-amber-800 dark:text-amber-200">
+        {t("automations.mpNotConnected")}
+      </p>
+      <Link
+        href="/integraciones"
+        className="mt-1 inline-block text-xs font-medium underline underline-offset-2"
+      >
+        {t("automations.mpConnectCta")}
+      </Link>
     </div>
   )
 }
@@ -1971,11 +1993,12 @@ function SwitchBranches({
         ? { ...d, elseSteps: fn(d.elseSteps) }
         : { ...d, cases: d.cases.map((c) => (c.ckey === lane ? { ...c, steps: fn(c.steps) } : c)) },
     )
-  const addStep = (lane: string | "else", type: BuilderStepType) =>
-    mutateLane(lane, (steps) => [
-      ...steps,
-      { cid: cid(), step_type: type, step_config: blankConfig(type) },
-    ])
+  const addStep = (lane: string | "else", type: BuilderStepType, at?: number) =>
+    mutateLane(lane, (steps) => {
+      const node = { cid: cid(), step_type: type, step_config: blankConfig(type) }
+      const i = at === undefined ? steps.length : Math.max(0, Math.min(at, steps.length))
+      return [...steps.slice(0, i), node, ...steps.slice(i)]
+    })
   const changeStep = (lane: string | "else", idx: number, next: BuilderStep) =>
     mutateLane(lane, (steps) => steps.map((s, i) => (i === idx ? next : s)))
   const removeStep = (lane: string | "else", idx: number) =>
@@ -2012,7 +2035,7 @@ function SwitchBranches({
           steps={c.steps}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
-          onAdd={(type) => addStep(c.ckey, type)}
+          onAdd={(type, at) => addStep(c.ckey, type, at)}
           onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
           onRemoveStep={(i) => removeStep(c.ckey, i)}
           onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
@@ -2028,7 +2051,7 @@ function SwitchBranches({
           steps={sd.elseSteps}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
-          onAdd={(type) => addStep("else", type)}
+          onAdd={(type, at) => addStep("else", type, at)}
           onChangeStep={(i, n) => changeStep("else", i, n)}
           onRemoveStep={(i) => removeStep("else", i)}
           onMoveStep={(i, dir) => moveStep("else", i, dir)}
@@ -2057,7 +2080,7 @@ function SwitchCaseLane({
   steps: BuilderStep[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
-  onAdd: (type: BuilderStepType) => void
+  onAdd: (type: BuilderStepType, at: number) => void
   onChangeStep: (i: number, n: BuilderStep) => void
   onRemoveStep: (i: number) => void
   onMoveStep: (i: number, dir: -1 | 1) => void
@@ -2101,7 +2124,7 @@ function SwitchLaneSteps({
   steps: BuilderStep[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
-  onAdd: (type: BuilderStepType) => void
+  onAdd: (type: BuilderStepType, at: number) => void
   onChangeStep: (i: number, n: BuilderStep) => void
   onRemoveStep: (i: number) => void
   onMoveStep: (i: number, dir: -1 | 1) => void
@@ -2109,20 +2132,26 @@ function SwitchLaneSteps({
   return (
     <div className="flex items-start gap-2">
       {steps.map((s, i) => (
-        <LeafStepCard
-          key={s.cid}
-          step={s}
-          expanded={expandedId === s.cid}
-          onToggle={() => setExpandedId(expandedId === s.cid ? null : s.cid)}
-          onChange={(n) => onChangeStep(i, n)}
-          onRemove={() => onRemoveStep(i)}
-          onMoveUp={() => onMoveStep(i, -1)}
-          onMoveDown={() => onMoveStep(i, 1)}
-          canUp={i > 0}
-          canDown={i < steps.length - 1}
-        />
+        <Fragment key={s.cid}>
+          <LeafStepCard
+            step={s}
+            expanded={expandedId === s.cid}
+            onToggle={() => setExpandedId(expandedId === s.cid ? null : s.cid)}
+            onChange={(n) => onChangeStep(i, n)}
+            onRemove={() => onRemoveStep(i)}
+            onMoveUp={() => onMoveStep(i, -1)}
+            onMoveDown={() => onMoveStep(i, 1)}
+            canUp={i > 0}
+            canDown={i < steps.length - 1}
+          />
+          {/* Entre cada par de pasos, no sólo al final: si no, para meter algo
+              en el medio hay que agregarlo al final y moverlo. */}
+          <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, i + 1)} />
+        </Fragment>
       ))}
-      <AddButton orientation="h" types={LEAF_STEPS} onPick={onAdd} />
+      {steps.length === 0 && (
+        <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, 0)} />
+      )}
     </div>
   )
 }

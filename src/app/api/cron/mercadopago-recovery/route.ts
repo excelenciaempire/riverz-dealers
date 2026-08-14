@@ -40,45 +40,6 @@ const log = getLogger('cron.mercadopago-recovery')
  * siguiente.
  */
 
-/**
- * Espera antes de escribir, por defecto. Un rechazo se reintenta solo muy
- * seguido (se ven hasta 11 intentos de la misma persona): escribir al toque
- * interrumpe a alguien que está en pleno checkout. Pasadas las horas, quien
- * no completó la compra es un cliente perdido de verdad.
- *
- * Se puede cambiar por automatización en `trigger_config.hours_after`.
- */
-const DEFAULT_GRACE_HOURS = 1
-
-/**
- * Antigüedad máxima por defecto. Sin este tope, encender la automatización
- * con meses de historial cargado le escribiría a cientos de personas por un
- * pago que falló en marzo. Configurable en `trigger_config.max_age_days`.
- */
-const DEFAULT_MAX_AGE_DAYS = 14
-
-/** Techo duro de la espera configurable: una semana. */
-const MAX_GRACE_HOURS = 168
-
-interface TriggerSettings {
-  graceHours: number
-  maxAgeDays: number
-}
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(Math.max(Math.trunc(n), min), max)
-}
-
-/** Lee la espera y la antigüedad que configuró el comerciante. */
-function settingsOf(config: Record<string, unknown> | null | undefined): TriggerSettings {
-  return {
-    graceHours: clampInt(config?.hours_after, DEFAULT_GRACE_HOURS, 1, MAX_GRACE_HOURS),
-    maxAgeDays: clampInt(config?.max_age_days, DEFAULT_MAX_AGE_DAYS, 1, 90),
-  }
-}
-
 /** No volver a escribirle a la misma persona antes de esto. */
 const RECONTACT_DAYS = 30
 
@@ -241,10 +202,6 @@ async function boughtSinceRejection(
 
 async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const now = Date.now()
-  // La espera real es por automatización, así que acá sólo se descarta lo
-  // recién nacido (una hora, el mínimo configurable). El corte fino de cada
-  // workspace se aplica fila por fila, más abajo.
-  const minCutoff = new Date(now - 3_600_000).toISOString()
 
   const { data, error } = await admin
     .from('mp_rejected_payments')
@@ -258,7 +215,6 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
     // central: el mensaje es para el que se quedó sin comprar.
     .is('paid_at', null)
     .not('phone', 'is', null)
-    .lt('rejected_at', minCutoff)
     .order('rejected_at', { ascending: false })
     .limit(BATCH)
 
@@ -278,7 +234,7 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const workspaces = [...new Set(due.map((r) => r.workspace_id))]
   const { data: autos } = await admin
     .from('automations')
-    .select('id, workspace_id, trigger_config')
+    .select('id, workspace_id, created_at')
     .in('workspace_id', workspaces)
     .eq('trigger_type', 'payment_rejected')
     .eq('is_active', true)
@@ -286,25 +242,24 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   const automations = (autos ?? []) as {
     id: string
     workspace_id: string
-    trigger_config: Record<string, unknown> | null
+    created_at: string
   }[]
   const ready = new Set(await resolveSendableWorkspaces(admin, automations))
 
-  // La espera y la antigüedad las decide el comerciante en la automatización.
-  const settingsByWorkspace = new Map<string, TriggerSettings>()
+  // La automatización empieza a valer DESDE QUE SE INSTALA. Un rechazo
+  // anterior es historial: la persona ya siguió su camino hace rato y
+  // escribirle ahora por algo de la semana pasada es peor que no escribirle.
+  // Esto reemplaza a la antigüedad configurable — no hay nada que elegir.
+  const installedAt = new Map<string, string>()
   for (const a of automations) {
-    if (!settingsByWorkspace.has(a.workspace_id)) {
-      settingsByWorkspace.set(a.workspace_id, settingsOf(a.trigger_config))
-    }
+    const prev = installedAt.get(a.workspace_id)
+    if (!prev || a.created_at < prev) installedAt.set(a.workspace_id, a.created_at)
   }
 
   const actionable = due.filter((r) => {
     if (!ready.has(r.workspace_id)) return false
-    const s = settingsByWorkspace.get(r.workspace_id)
-    if (!s) return false
-    // Todavía no cumplió la espera: se deja para una corrida futura SIN
-    // reclamarla, porque no es un descarte sino un "todavía no".
-    return r.rejected_at < new Date(now - s.graceHours * 3_600_000).toISOString()
+    const since = installedAt.get(r.workspace_id)
+    return Boolean(since) && r.rejected_at >= (since as string)
   })
   if (actionable.length === 0) {
     return { processed: 0, dispatched: 0, skipped: 0, waiting_to_send: due.length }
@@ -336,17 +291,6 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
       .select('id')
       .maybeSingle()
     if (!claim) continue
-
-    const settings = settingsByWorkspace.get(r.workspace_id) ?? {
-      graceHours: DEFAULT_GRACE_HOURS,
-      maxAgeDays: DEFAULT_MAX_AGE_DAYS,
-    }
-    const ageFloor = new Date(now - settings.maxAgeDays * 86_400_000).toISOString()
-    if (r.rejected_at < ageFloor) {
-      await skip(admin, r.id, 'too_old')
-      skipped++
-      continue
-    }
 
     // ¿Terminó comprando? El pago rechazado no crea pedido, así que un
     // pedido posterior de esa misma persona significa que volvió y pagó

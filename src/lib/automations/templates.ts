@@ -143,11 +143,9 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     // pagó en el segundo intento.
     tags: ['Mercado Pago', 'Espera 3 h'],
     trigger_type: 'payment_rejected',
-    // La espera vive en el paso `wait`, no acá: el flujo se arma con las
-    // piezas de la plataforma y se ve entero en el lienzo. `hours_after`
-    // queda en su mínimo para que el disparador no sume una segunda espera
-    // encima de la del flujo.
-    trigger_config: { hours_after: 1, max_age_days: 14 },
+    // Sin configuración: la automatización corre desde que se instala y la
+    // espera la pone el paso `Esperar` del flujo.
+    trigger_config: {},
     suggested_template_body:
       'Hola {{customer_name}}, no pudimos procesar el pago de tu pedido por {{total_price}}. Responde este mensaje y te ayudamos a completar la compra.',
     steps: [
