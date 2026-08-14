@@ -339,7 +339,10 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         .from('automation_pending_executions')
         .insert({
           automation_id: args.automation.id,
-          user_id: args.ownerUserId ?? args.automation.user_id,
+          user_id:
+            args.ownerUserId ??
+            (args.automation as { user_id?: string | null }).user_id ??
+            null,
           workspace_id: args.automation.workspace_id,
           contact_id: args.contactId,
           log_id: args.logId,
