@@ -139,7 +139,9 @@ export function MercadoPagoCard() {
                 'rounded-md px-2 py-2 ring-1',
                 alert === 'renovacion_fallida'
                   ? 'bg-red-500/10 ring-red-500/40'
-                  : 'bg-amber-500/10 ring-amber-500/40',
+                  : alert === 'mejorable'
+                    ? 'bg-muted/60 ring-border'
+                    : 'bg-amber-500/10 ring-amber-500/40',
               )}
             >
               <p className="flex items-start gap-1.5 text-[11px] leading-snug text-foreground">
@@ -147,6 +149,8 @@ export function MercadoPagoCard() {
                 <span>
                   {alert === 'renovacion_fallida'
                     ? t('settings.mpRenewFailed')
+                    : alert === 'mejorable'
+                    ? t('settings.mpUpgradeToOauth')
                     : t('settings.mpExpiringSoon', {
                         date: expiresAt
                           ? new Date(expiresAt).toLocaleDateString()
@@ -159,7 +163,9 @@ export function MercadoPagoCard() {
                   href="/api/mercadopago/oauth/start"
                   className="mt-1.5 inline-block text-[11px] font-medium underline underline-offset-2"
                 >
-                  {t('settings.mpReconnect')}
+                  {alert === 'mejorable'
+                    ? t('common.connect')
+                    : t('settings.mpReconnect')}
                 </a>
               )}
             </li>

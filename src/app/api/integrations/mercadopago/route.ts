@@ -92,6 +92,11 @@ export async function GET() {
   if (row?.is_active) {
     if (row.renew_failed_at) alert = 'renovacion_fallida';
     else if (msLeft !== null && msLeft < 14 * 86_400_000) alert = 'vence_pronto';
+    // Conectado a mano teniendo la aplicación disponible: no está roto, pero
+    // se pierde las dos cosas que sí resuelve autorizar — los rechazos al
+    // instante y la renovación automática. Sin este aviso no hay forma de
+    // enterarse de que existe un camino mejor.
+    else if (expiresAt === null && oauth) alert = 'mejorable';
   }
 
   return NextResponse.json({
