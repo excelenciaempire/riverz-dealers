@@ -84,17 +84,14 @@ export default function AutomationsPage() {
   const allTemplates = useMemo(() => listTemplates(), [])
   // Contexto de pasarelas: decide qué recetas tienen sentido para este
   // comercio. Ver /api/automations/template-context.
-  const [gatewayCtx, setGatewayCtx] = useState<{
-    mercadopago: boolean
-    latam: boolean
-  } | null>(null)
+  const [gatewayCtx, setGatewayCtx] = useState<{ mercadopago: boolean } | null>(null)
   useEffect(() => {
     let alive = true
     fetch("/api/automations/template-context", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (alive && j) {
-          setGatewayCtx({ mercadopago: !!j.payments?.mercadopago, latam: !!j.latam })
+          setGatewayCtx({ mercadopago: !!j.payments?.mercadopago })
         }
       })
       .catch(() => {
@@ -109,8 +106,12 @@ export default function AutomationsPage() {
     // desaparecer es peor que tardar un instante en aparecer.
     return allTemplates.filter((tpl) => {
       if (!tpl.requiresGateway) return true
-      if (!gatewayCtx) return false
-      return gatewayCtx.mercadopago || gatewayCtx.latam
+      // Sólo con la pasarela conectada. El descubrimiento ya no depende de
+      // esta tarjeta: Mercado Pago es un conector visible en Integraciones,
+      // junto a las tiendas, así que el camino es conectar y ahí aparece la
+      // receta — y no al revés. La heurística por región dejó de hacer
+      // falta con eso.
+      return Boolean(gatewayCtx?.mercadopago)
     })
   }, [allTemplates, gatewayCtx])
   // The automation engine sends exclusively via WhatsApp (meta-send.ts →

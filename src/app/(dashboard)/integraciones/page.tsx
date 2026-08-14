@@ -2,7 +2,6 @@
 
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
-import { MercadoPagoCard } from '@/components/settings/mercadopago-card';
 import { ApifyCard } from '@/components/settings/apify-card';
 import { useT } from '@/hooks/use-locale';
 
@@ -32,13 +31,6 @@ export default function IntegracionesPage() {
             {t('settings.ownAudience')}
           </h2>
           <KlaviyoCard />
-        </div>
-
-        <div>
-          <h2 className="mb-2 text-sm font-semibold text-foreground">
-            {t('settings.recoverSales')}
-          </h2>
-          <MercadoPagoCard />
         </div>
 
         <div>

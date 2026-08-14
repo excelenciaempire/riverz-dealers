@@ -100,7 +100,6 @@ export const settings = {
   mpConnected: { es: "Mercado Pago conectado", en: "Mercado Pago connected" },
   mpDisconnected: { es: "Mercado Pago desconectado", en: "Mercado Pago disconnected" },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
-  recoverSales: { es: "Recupera ventas", en: "Recover sales" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
     en: "Replace API key…",
