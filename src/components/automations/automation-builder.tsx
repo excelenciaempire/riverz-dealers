@@ -2131,6 +2131,9 @@ function SwitchLaneSteps({
 }) {
   return (
     <div className="flex items-start gap-2">
+      {/* Tambien delante del primero: si no, no hay forma de meter un paso
+          entre la condicion y lo que ya tiene el camino. */}
+      <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, 0)} />
       {steps.map((s, i) => (
         <Fragment key={s.cid}>
           <LeafStepCard
@@ -2149,9 +2152,7 @@ function SwitchLaneSteps({
           <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, i + 1)} />
         </Fragment>
       ))}
-      {steps.length === 0 && (
-        <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, 0)} />
-      )}
+
     </div>
   )
 }
