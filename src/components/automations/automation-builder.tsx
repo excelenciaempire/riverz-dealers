@@ -1458,7 +1458,7 @@ function TriggerCard({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-3 px-4 py-3 text-left"
+          className="flex min-h-[72px] w-full items-center gap-3 px-4 py-3 text-left"
         >
           <div
             className={cn(
@@ -1769,7 +1769,7 @@ function StepRenderer({
           <button
             type="button"
             onClick={() => props.setExpandedId(expanded ? null : step.cid)}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left"
+            className="flex min-h-[72px] w-full items-center gap-3 px-4 py-3 text-left"
           >
             <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
             <div
@@ -2200,7 +2200,7 @@ function LeafStepCard({
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+          className="flex min-h-[72px] w-full items-center gap-3 px-3 py-2.5 text-left"
         >
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg, meta.iconText)}>
             {meta.brand === "whatsapp" ? (
