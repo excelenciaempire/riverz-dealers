@@ -60,6 +60,13 @@ export const errInbox = {
     es: "Este canal no admite plantillas",
     en: "This channel does not support templates",
   },
+  // El botón lleva el enlace de ESE cliente y solo lo sabe el disparador de la
+  // automatización. Meta la rechazaba con "(#131008) Required parameter is
+  // missing", que no explica nada.
+  templateDynamicLink: {
+    es: "Esta plantilla se envía automáticamente: su botón lleva un enlace distinto para cada cliente.",
+    en: "This template is sent automatically: its button carries a different link for each customer.",
+  },
   contactNotFound: { es: "Contacto no encontrado", en: "Contact not found" },
   uploadInvalid: { es: "Archivo o conversación inválidos", en: "Invalid file or conversation" },
   uploadTooLarge: { es: "El archivo supera 25 MB", en: "File exceeds 25 MB" },

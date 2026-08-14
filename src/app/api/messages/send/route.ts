@@ -6,6 +6,41 @@ import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Contact, Conversation, Message } from "@/types";
+import { isButtonUrlVariable } from "@/lib/whatsapp/dynamic-links";
+
+/**
+ * ¿La plantilla lleva un botón de enlace VARIABLE (carrito, seguimiento…)?
+ *
+ * Ese botón se llena con el link de ESE cliente, que solo conoce el disparador
+ * de la automatización. Enviada a mano desde la bandeja, Meta la rechaza con
+ * "(#131008) Required parameter is missing" y el comercio se queda con una
+ * burbuja fallida sin explicación.
+ */
+async function templateNeedsDynamicLink(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  templateName: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("message_templates")
+    .select("buttons")
+    .eq("workspace_id", workspaceId)
+    .eq("name", templateName);
+  const rows = (data ?? []) as Array<{
+    buttons?: Array<Record<string, unknown>> | null;
+  }>;
+  // Mismo criterio que el selector de plantillas de la bandeja: la marca del
+  // editor (`url_variable`) o un {{n}} suelto en la URL.
+  return rows.some((r) =>
+    (r.buttons ?? []).some((b) => {
+      if (String(b?.type ?? "").toUpperCase() !== "URL") return false;
+      return (
+        isButtonUrlVariable(b?.url_variable) ||
+        /\{\{\s*\d+\s*\}\}/.test(String(b?.url ?? ""))
+      );
+    }),
+  );
+}
 
 /**
  * Unified send endpoint. Resolves the conversation → contact → connection
@@ -216,6 +251,20 @@ export async function POST(req: Request): Promise<Response> {
     if (templateName) {
       if (!adapter.sendTemplate) {
         throw new Error(translate(locale, "errInbox.templateUnsupported"));
+      }
+      // Una plantilla con botón de enlace VARIABLE necesita un link distinto por
+      // cliente (el carrito de ESA persona, el seguimiento de ESE pedido): eso
+      // solo lo sabe el disparador de una automatización. Mandada a mano, Meta
+      // la rechazaba con "(#131008) Required parameter is missing", que no le
+      // dice nada a nadie. Se avisa antes de gastar el envío.
+      if (
+        await templateNeedsDynamicLink(
+          admin,
+          (conversation as Conversation).workspace_id,
+          templateName,
+        )
+      ) {
+        throw new Error(translate(locale, "errInbox.templateDynamicLink"));
       }
       result = await adapter.sendTemplate({
         channel,
