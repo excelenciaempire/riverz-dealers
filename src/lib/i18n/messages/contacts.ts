@@ -79,6 +79,7 @@ export const contacts = {
   filterChIgComment: { es: "Comentarios IG", en: "IG comments" },
   filterChFbComment: { es: "Comentarios FB", en: "FB comments" },
   filterChVoice: { es: "Llamadas", en: "Calls" },
+  openChat: { es: "Ver chat", en: "View chat" },
   infoChannel: { es: "Canal de origen", en: "Source channel" },
   infoCreated: { es: "Alta", en: "Added" },
   infoLastActivity: { es: "Última actividad", en: "Last activity" },

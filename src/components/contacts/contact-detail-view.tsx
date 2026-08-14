@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ContactTags } from '@/components/contacts/contact-tags';
+import { ContactChatLinks } from '@/components/contacts/contact-chat-links';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -239,6 +240,7 @@ export function ContactDetailView({
                     {contact.name || contact.phone}
                   </SheetDescription>
                 </div>
+                <ContactChatLinks contactId={contactId} />
               </div>
             </SheetHeader>
 
@@ -500,13 +502,23 @@ function renderShopifyData(
 function renderContactInfo(
   contact: Contact,
   t: TFn,
-  fmt: { date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string },
+  fmt: {
+    date: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string;
+    dateTime: (v: string | number | Date, o?: Intl.DateTimeFormatOptions) => string;
+  },
 ) {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  // El alta lleva la hora: dos contactos del mismo día se ordenan por ella.
+  const stampOpts: Intl.DateTimeFormatOptions = {
+    ...opts,
+    hour: '2-digit',
+    minute: '2-digit',
+  };
   const rows: Array<[string, string]> = [];
   const ch = (contact as unknown as { channel?: string | null }).channel;
   if (ch) rows.push([t('contacts.infoChannel'), ch]);
-  if (contact.created_at) rows.push([t('contacts.infoCreated'), fmt.date(contact.created_at, opts)]);
+  if (contact.created_at)
+    rows.push([t('contacts.infoCreated'), fmt.dateTime(contact.created_at, stampOpts)]);
   const lastIn = (contact as unknown as { last_inbound_at?: string | null }).last_inbound_at;
   if (lastIn) rows.push([t('contacts.infoLastActivity'), fmt.date(lastIn, opts)]);
   if (rows.length === 0) return null;

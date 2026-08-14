@@ -441,16 +441,37 @@ export default function ContactsPage() {
   // que se selecciona.
   async function selectAllMatching() {
     if (!workspaceId) return;
-    const base = supabase.from('contacts').select('id').eq('workspace_id', workspaceId);
-    // El cast evita que TS recorra el tipo del `select('id')` columna por
-    // columna al compararlo con FilterableQuery (instanciación infinita).
-    const filtered = await applyFilters(base as unknown as FilterableQuery);
-    if (!filtered) {
-      setSelectedIds(new Set());
-      return;
+    // PostgREST corta TODA respuesta en 1.000 filas, así que un `.limit(10000)`
+    // devolvía 1.000 y "seleccionar los 3.256" marcaba sólo esos. Se pagina
+    // hasta agotar el filtro; el builder es de un solo uso, así que la consulta
+    // se reconstruye en cada vuelta. El orden explícito (alta + id como
+    // desempate) hace que las páginas no se solapen ni se salteen filas.
+    const PAGE = 1000;
+    const ids: string[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const base = supabase
+        .from('contacts')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      // El cast evita que TS recorra el tipo del `select('id')` columna por
+      // columna al compararlo con FilterableQuery (instanciación infinita).
+      const filtered = await applyFilters(base as unknown as FilterableQuery);
+      if (!filtered) break;
+      const { data, error } = await (filtered.query as unknown as typeof base).range(
+        offset,
+        offset + PAGE - 1,
+      );
+      if (error) {
+        toast.error(t('contacts.loadContactsError'));
+        break;
+      }
+      const rows = (data ?? []) as Array<{ id: string }>;
+      ids.push(...rows.map((r) => r.id));
+      if (rows.length < PAGE) break;
     }
-    const { data } = await (filtered.query as unknown as typeof base).limit(10000);
-    setSelectedIds(new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id)));
+    setSelectedIds(new Set(ids));
   }
 
   async function exportCsv(cols: ResolvedColumn[]) {
@@ -819,11 +840,13 @@ export default function ContactsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
-                    {fmt.date(contact.created_at, {
+                  <TableCell className="text-muted-foreground text-xs hidden lg:table-cell whitespace-nowrap">
+                    {fmt.dateTime(contact.created_at, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
                     })}
                   </TableCell>
                   <TableCell>
