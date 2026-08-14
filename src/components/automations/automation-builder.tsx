@@ -1988,7 +1988,7 @@ function BranchFan({
   }, [lanes.length])
 
   return (
-    <div ref={wrap} className="relative flex flex-col gap-6 pl-10">
+    <div ref={wrap} className="relative flex flex-col gap-8 pl-10">
       {/* Espina: une el primer ramal con el último. */}
       {spine && lanes.length > 1 && (
         <span
@@ -1998,15 +1998,17 @@ function BranchFan({
         />
       )}
       {lanes.map((lane) => (
-        <div key={lane.key} data-lane-row className="relative flex items-center gap-2">
+        <div key={lane.key} data-lane-row className="relative flex items-center">
           {/* Ramal horizontal hasta el carril. */}
           <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
-          {/* Ancho fijo: con la etiqueta encima, la tarjeta bajaba y ningún
-              camino quedaba a la altura del tronco; con ancho variable, cada
-              camino arrancaba en una x distinta. */}
+          {/* La etiqueta va FUERA del flujo, flotando arriba del carril.
+              Ocupando lugar en la fila —al costado o encima— corría el primer
+              paso de cada camino a una x distinta según lo largo que fuera su
+              nombre, y las tarjetas dejaban de formar columnas. Así todos los
+              caminos arrancan exactamente donde termina el ramal. */}
           <span
             className={cn(
-              "w-24 shrink-0 truncate rounded-full border px-2 py-0.5 text-center text-[11px] font-semibold uppercase",
+              "pointer-events-none absolute -top-2.5 left-0 z-10 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
               lane.color,
             )}
             title={lane.label}
