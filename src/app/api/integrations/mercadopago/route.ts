@@ -51,13 +51,15 @@ export async function GET() {
 
   const { data } = await supabase
     .from('workspace_integrations')
-    .select('is_active, updated_at, last_sync_at')
+    .select('is_active, updated_at, last_sync_at, expires_at, renew_failed_at')
     .eq('provider', 'mercadopago')
     .maybeSingle();
   const row = data as {
     is_active: boolean;
     updated_at: string;
     last_sync_at: string | null;
+    expires_at: string | null;
+    renew_failed_at: string | null;
   } | null;
 
   // Con OAuth la URL de avisos vive en la aplicación y no la pega nadie, así
@@ -72,10 +74,32 @@ export async function GET() {
     }
   }
 
+  // Cuándo avisarle al comerciante. Una conexión por OAuth que se renueva
+  // sola NO genera aviso: ese es justamente el punto. Sólo se avisa cuando
+  // el sistema no puede resolverlo por su cuenta.
+  //
+  //   renovacion_fallida — hay refresh pero el último intento falló (le
+  //     revocó el permiso a la aplicación, o cambió el secreto).
+  //     Reconectar lo arregla.
+  //   vence_pronto — conexión hecha pegando el token, que no tiene refresh
+  //     y hay que rotar a mano.
+  //
+  // `expires_at` sólo lo escribe el flujo de OAuth, así que su ausencia es
+  // exactamente "esto se conectó a mano" y no hace falta otra bandera.
+  const expiresAt = row?.expires_at ?? null;
+  const msLeft = expiresAt ? new Date(expiresAt).getTime() - Date.now() : null;
+  let alert: string | null = null;
+  if (row?.is_active) {
+    if (row.renew_failed_at) alert = 'renovacion_fallida';
+    else if (msLeft !== null && msLeft < 14 * 86_400_000) alert = 'vence_pronto';
+  }
+
   return NextResponse.json({
     connected: !!row?.is_active,
     updated_at: row?.updated_at ?? null,
     last_sync_at: row?.last_sync_at ?? null,
+    expires_at: expiresAt,
+    alert,
     notify_url: notifyUrl,
     oauth,
   });

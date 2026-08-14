@@ -183,15 +183,24 @@ export async function freshAccessToken(
           ? encrypt(next.refreshToken)
           : row.refresh_token_encrypted,
         expires_at: next.expiresAt,
+        renew_failed_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq('workspace_id', workspaceId)
       .eq('provider', 'mercadopago')
     return next.accessToken
   } catch {
-    // El refresco falló (revocaron el permiso, cambió el secreto). Se
-    // devuelve el token actual: puede seguir siendo válido, y si no lo es
-    // el error aparece donde se usa, con contexto.
+    // El refresco falló: le revocaron el permiso a la aplicación, o cambió
+    // el secreto. Se deja la marca para que Integraciones pueda decirlo —
+    // sin ella la pantalla sólo ve una fecha de vencimiento y no sabe si el
+    // sistema está renovando bien o viene fallando hace días.
+    await admin
+      .from('workspace_integrations')
+      .update({ renew_failed_at: new Date().toISOString() })
+      .eq('workspace_id', workspaceId)
+      .eq('provider', 'mercadopago')
+    // Se devuelve el token actual igual: puede seguir siendo válido un rato
+    // más, y mientras tanto la recuperación no se corta de golpe.
     return token
   }
 }

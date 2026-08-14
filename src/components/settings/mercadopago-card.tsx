@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, Trash2, Copy } from 'lucide-react';
+import { Loader2, CheckCircle2, Trash2, Copy, AlertTriangle } from 'lucide-react';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,8 @@ export function MercadoPagoCard() {
   const [connected, setConnected] = useState(false);
   const [notifyUrl, setNotifyUrl] = useState<string | null>(null);
   const [oauth, setOauth] = useState(false);
+  const [alert, setAlert] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,6 +41,8 @@ export function MercadoPagoCard() {
         setConnected(!!json.connected);
         setNotifyUrl(json.notify_url ?? null);
         setOauth(!!json.oauth);
+        setAlert(json.alert ?? null);
+        setExpiresAt(json.expires_at ?? null);
       }
     } catch {
       /* no-op */
@@ -126,6 +130,40 @@ export function MercadoPagoCard() {
         </div>
       ) : connected ? (
         <ul className="space-y-1">
+          {/* El aviso va primero y con su acción al lado: una conexión que
+              hay que renovar y no lo dice se apaga sola y el comerciante se
+              entera por las ventas que dejaron de recuperarse. */}
+          {alert && (
+            <li
+              className={cn(
+                'rounded-md px-2 py-2 ring-1',
+                alert === 'renovacion_fallida'
+                  ? 'bg-red-500/10 ring-red-500/40'
+                  : 'bg-amber-500/10 ring-amber-500/40',
+              )}
+            >
+              <p className="flex items-start gap-1.5 text-[11px] leading-snug text-foreground">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  {alert === 'renovacion_fallida'
+                    ? t('settings.mpRenewFailed')
+                    : t('settings.mpExpiringSoon', {
+                        date: expiresAt
+                          ? new Date(expiresAt).toLocaleDateString()
+                          : '',
+                      })}
+                </span>
+              </p>
+              {oauth && (
+                <a
+                  href="/api/mercadopago/oauth/start"
+                  className="mt-1.5 inline-block text-[11px] font-medium underline underline-offset-2"
+                >
+                  {t('settings.mpReconnect')}
+                </a>
+              )}
+            </li>
+          )}
           <li className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="flex-1 truncate text-xs text-foreground">

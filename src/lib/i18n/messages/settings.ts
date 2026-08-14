@@ -105,6 +105,15 @@ export const settings = {
   },
   mpNotifyUrlCopy: { es: "Copiar URL", en: "Copy URL" },
   mpNotifyUrlCopied: { es: "URL copiada", en: "URL copied" },
+  mpRenewFailed: {
+    es: "No pudimos renovar la conexión con Mercado Pago. Vuelve a conectarla o la recuperación de pagos va a dejar de funcionar.",
+    en: "We couldn't renew the Mercado Pago connection. Reconnect it or payment recovery will stop working.",
+  },
+  mpExpiringSoon: {
+    es: "Tu acceso a Mercado Pago vence el {date}. Vuelve a conectarlo para que la recuperación siga andando.",
+    en: "Your Mercado Pago access expires on {date}. Reconnect it to keep recovery running.",
+  },
+  mpReconnect: { es: "Volver a conectar", en: "Reconnect" },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
