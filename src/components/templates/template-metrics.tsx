@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Loader2, Send, CheckCheck, Eye, MousePointerClick, ShoppingCart } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, Send, CheckCheck, Eye, MousePointerClick, ShoppingCart, Target } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 
@@ -12,44 +12,91 @@ interface AnalyticsResponse {
   cart: {
     recovered: number;
     revenue: number;
+    reached: number;
+    converted: number;
     buyers: Array<{ name: string; amount: number; at: string | null }>;
   } | null;
 }
+
+/** Cada cuánto se vuelve a pedir el panel mientras se lo está mirando. */
+const REFRESH_MS = 60_000;
 
 /**
  * Métricas de una plantilla, bajo la vista previa. Enviados / entregados /
  * leídos siempre; clics + CTR solo si la plantilla tiene botón; conversión de
  * carrito solo si es una plantilla de recuperación. Datos de la Template
  * Analytics API de Meta (últimos 30 días) + shopify_checkouts.
+ *
+ * Se refresca solo cada minuto y al volver a la pestaña: una recuperación
+ * entra cuando el cliente compra, no cuando alguien recarga. Mientras la
+ * pestaña está oculta no se pide nada.
  */
 export function TemplateMetrics({ templateId }: { templateId: string }) {
   const t = useT();
   const fmt = useFormat();
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  // Vive fuera de React: la baja un cleanup que corre después del fetch.
+  const aliveRef = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/whatsapp/templates/${templateId}/analytics`, {
+        cache: 'no-store',
+      });
+      const j = r.ok ? ((await r.json()) as AnalyticsResponse) : null;
+      if (!aliveRef.current) return;
+      // Un fallo puntual de red no borra lo que ya se está mostrando.
+      if (j) {
+        setData(j);
+        setUpdatedAt(new Date());
+      }
+    } catch {
+      /* se reintenta en el próximo ciclo */
+    } finally {
+      if (aliveRef.current) setLoading(false);
+    }
+  }, [templateId]);
 
   useEffect(() => {
-    let cancelled = false;
+    aliveRef.current = true;
     setLoading(true);
-    fetch(`/api/whatsapp/templates/${templateId}/analytics`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled) setData(j as AnalyticsResponse | null);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
+    setData(null);
+    setUpdatedAt(null);
+    void load();
+
+    const tick = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, REFRESH_MS);
+    // Al volver a la pestaña se pide de inmediato: lo que se ve al mirar
+    // tiene que ser de ahora, no de cuando se fue.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load();
     };
-  }, [templateId]);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      aliveRef.current = false;
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [load]);
 
   const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '—');
 
   return (
     <section className="rounded-xl border border-border bg-card p-4">
-      <h2 className="mb-3 text-sm font-semibold text-foreground">{t('templates.metricsTitle')}</h2>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">{t('templates.metricsTitle')}</h2>
+        {updatedAt && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {t('templates.metricsUpdatedAt', {
+              time: fmt.time(updatedAt, { hour: '2-digit', minute: '2-digit' }),
+            })}
+          </span>
+        )}
+      </div>
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -92,7 +139,7 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
                 <ShoppingCart className="h-3.5 w-3.5" />
                 {t('templates.metricCartTitle')}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <Tile
                   label={t('templates.metricCartRecovered')}
                   value={fmt.number(data.cart.recovered)}
@@ -100,6 +147,17 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
                 <Tile
                   label={t('templates.metricCartRevenue')}
                   value={`$${fmt.number(Math.round(data.cart.revenue))}`}
+                />
+                {/* Tasa de conversión por persona: de cuántos recibieron el
+                    mensaje, cuántos compraron. */}
+                <Tile
+                  icon={Target}
+                  label={t('templates.metricCartRate')}
+                  value={pct(data.cart.converted, data.cart.reached)}
+                  sub={t('templates.metricCartRateSub', {
+                    converted: fmt.number(data.cart.converted),
+                    reached: fmt.number(data.cart.reached),
+                  })}
                 />
               </div>
 

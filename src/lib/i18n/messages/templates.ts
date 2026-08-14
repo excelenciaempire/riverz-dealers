@@ -246,6 +246,12 @@ export const templates = {
     en: "Bought after receiving the message:",
   },
   metricCartBuyerUnknown: { es: "Cliente sin nombre", en: "Unnamed customer" },
+  metricCartRate: { es: "Tasa de conversión", en: "Conversion rate" },
+  metricCartRateSub: {
+    es: "{converted} de {reached} que lo recibieron",
+    en: "{converted} of {reached} who received it",
+  },
+  metricsUpdatedAt: { es: "Actualizado {time}", en: "Updated {time}" },
   usedIn: { es: "Usada en", en: "Used in" },
 
   // ── Layout ──

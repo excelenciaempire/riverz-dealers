@@ -208,9 +208,17 @@ export async function GET(
     //
     // La compra se busca por los dos caminos posibles: volver al checkout
     // (shopify_checkouts) o cerrar por la conversación (orders).
+    // `reached` / `converted` son la tasa de conversión, y se cuentan por
+    // DESTINATARIO en vez de por compra: el denominador es a cuánta gente le
+    // llegó y el numerador cuánta compró. No se usan `sent`/`delivered` de
+    // Meta, que cuentan la plantilla entera del WABA sobre otra ventana: una
+    // tasa con numerador y denominador de fuentes distintas puede pasar del
+    // 100 % y no se puede explicar.
     let cart: {
       recovered: number;
       revenue: number;
+      reached: number;
+      converted: number;
       buyers: Array<{ name: string; amount: number; at: string | null }>;
     } | null = null;
 
@@ -262,7 +270,7 @@ export async function GET(
         // Sin envíos no hay nada que atribuir. El bloque en cero sólo tiene
         // sentido si la plantilla está enganchada esperando su primer disparo.
         cart = isConfiguredForCart
-          ? { recovered: 0, revenue: 0, buyers: [] }
+          ? { recovered: 0, revenue: 0, reached: 0, converted: 0, buyers: [] }
           : null;
       } else {
         // El checkout guarda teléfono, no contact_id: se emparejan por los
@@ -279,14 +287,24 @@ export async function GET(
         }>;
         const sentAtByPhone = new Map<string, number>();
         const nameByContact = new Map<string, string>();
+        // Clave única de destinatario. El teléfono manda porque es lo que
+        // comparten los tres orígenes (mensaje, checkout, pedido); el id sólo
+        // cubre al contacto sin teléfono cargado. Dos contactos duplicados con
+        // el mismo número son UNA persona: cuenta una vez de los dos lados de
+        // la tasa.
+        const recipientKeyByContact = new Map<string, string>();
         for (const c of contacts) {
           nameByContact.set(c.id, (c.name ?? '').trim());
           const key = phoneKey(c.phone);
+          recipientKeyByContact.set(c.id, key || c.id);
           const at = firstSendByContact.get(c.id);
           if (!key || at === undefined) continue;
           const prev = sentAtByPhone.get(key);
           if (prev === undefined || at < prev) sentAtByPhone.set(key, at);
         }
+        const reachedKeys = new Set<string>();
+        for (const cid of firstSendByContact.keys())
+          reachedKeys.add(recipientKeyByContact.get(cid) ?? cid);
 
         // Carritos del workspace en la ventana: los que dispararon una
         // recuperación (para saber si esta plantilla ES la del carrito) y los
@@ -337,6 +355,8 @@ export async function GET(
           // vista por los dos caminos sin confundirla con una segunda compra.
           type Purchase = {
             token: string;
+            /** Destinatario que compró — alimenta el numerador de la tasa. */
+            recipient: string;
             name: string;
             amount: number;
             at: string;
@@ -351,6 +371,7 @@ export async function GET(
             if (new Date(c.completed_at).getTime() < sentAt) continue;
             purchases.push({
               token: (c.checkout_id ?? '').trim(),
+              recipient: phoneKey(c.customer_phone),
               name:
                 (c.customer_name ?? '').trim() ||
                 (c.customer_email ?? '').trim() ||
@@ -384,6 +405,10 @@ export async function GET(
             if (new Date(o.created_at).getTime() < sentAt) continue;
             purchases.push({
               token: (o.checkout_token ?? '').trim(),
+              recipient:
+                (o.contact_id
+                  ? recipientKeyByContact.get(o.contact_id)
+                  : undefined) ?? phoneKey(o.customer_phone),
               name:
                 (o.customer_name ?? '').trim() ||
                 (o.contact_id ? (nameByContact.get(o.contact_id) ?? '') : '') ||
@@ -416,7 +441,17 @@ export async function GET(
             .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
             .slice(0, 20)
             .map((p) => ({ name: p.name, amount: p.amount, at: p.at }));
-          cart = { recovered: recoveredRows.length, revenue, buyers };
+          // Personas, no compras: quien compró dos veces convirtió una vez.
+          const convertedKeys = new Set(
+            recoveredRows.map((p) => p.recipient).filter(Boolean)
+          );
+          cart = {
+            recovered: recoveredRows.length,
+            revenue,
+            reached: reachedKeys.size,
+            converted: convertedKeys.size,
+            buyers,
+          };
         }
       }
     }
