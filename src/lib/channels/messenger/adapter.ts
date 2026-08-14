@@ -118,14 +118,26 @@ export const messengerAdapter: ChannelAdapter = {
     // window) — ONLY for human sends (invalid for bot/automation) and ONLY for
     // id-recipient DMs, never comment private replies (those carry their own
     // 7-day window and take no tag).
+    //
+    // Si el reintento TAMBIÉN falla se conserva el error ORIGINAL: sin el
+    // permiso human_agent aprobado, Meta contesta "(#10) To use 'Human Agent'…"
+    // y ese texto tapaba la causa real (ventana de 24 h cerrada).
     if (!res.ok && input.humanAgent && !input.commentId) {
       const firstErr = parseMetaError(detail);
       if (
         describeMetaSendError("messenger", res.status, firstErr).category ===
         "outside_window"
       ) {
-        res = await send(true);
-        detail = res.ok ? "" : await res.text().catch(() => "");
+        const retry = await send(true);
+        if (retry.ok) {
+          res = retry;
+          detail = "";
+        } else {
+          console.error(
+            `[messenger] fallback HUMAN_AGENT rechazado (${retry.status}):`,
+            await retry.text().catch(() => ""),
+          );
+        }
       }
     }
     if (!res.ok) {

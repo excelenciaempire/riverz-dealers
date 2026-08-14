@@ -63,6 +63,25 @@ export function parseMetaError(bodyText: string): MetaErrorShape | null {
   }
 }
 
+/**
+ * ¿Meta rechazó el reintento porque la app no tiene aprobada la etiqueta
+ * HUMAN_AGENT? — "(#10) To use 'Human Agent', your use of this endpoint must be
+ * reviewed and approved by Facebook".
+ *
+ * Importa porque ese rechazo NO es el motivo por el que el mensaje no salió: el
+ * motivo real es la ventana de 24 h que ya se cerró. El fallback es solo una red
+ * de seguridad; que se caiga no puede tapar la causa que el comercio sí puede
+ * entender ("pedile al cliente que escriba" / usar plantilla).
+ */
+export function isHumanAgentUnapproved(parsed: MetaErrorShape | null): boolean {
+  const err = parsed?.error;
+  if (!err) return false;
+  return (
+    (err.code === 10 || err.code === 200) &&
+    /human[\s_]?agent/i.test(err.message ?? "")
+  );
+}
+
 /** Localized channel label woven into the messages ("Instagram", "Messenger", ...). */
 function channelLabel(channel: string, locale: Locale): string {
   switch (channel) {
@@ -106,6 +125,18 @@ export function describeMetaSendError(
       category: "advanced_access",
       permanent: true,
       userMessage: translate(locale, "errMeta.metaAdvancedAccess", { label }),
+    };
+  }
+
+  // "(#10) To use 'Human Agent'…" — la etiqueta del fallback no está aprobada.
+  // Ese rechazo solo ocurre DESPUÉS de que el envío normal quedó fuera de la
+  // ventana de 24 h: lo que el comercio necesita leer es eso, no un permiso
+  // interno que no puede resolver desde la app.
+  if (isHumanAgentUnapproved(parsed)) {
+    return {
+      category: "outside_window",
+      permanent: true,
+      userMessage: translate(locale, "errMeta.metaOutsideWindow", { label }),
     };
   }
 

@@ -78,11 +78,21 @@ export async function sendMetaMedia(
   let detail = res.ok ? "" : await res.text().catch(() => "");
   // Misma red de seguridad que el texto: un humano contestando fuera de la
   // ventana de 24 h reintenta una vez con la etiqueta HUMAN_AGENT (7 días).
+  // Y, como allá, si el reintento también falla se conserva el error ORIGINAL:
+  // el "(#10) To use 'Human Agent'…" del permiso sin aprobar no explica nada.
   if (!res.ok) {
     const firstErr = parseMetaError(detail);
     if (describeMetaSendError(channel, res.status, firstErr).category === "outside_window") {
-      res = await send(true);
-      detail = res.ok ? "" : await res.text().catch(() => "");
+      const retry = await send(true);
+      if (retry.ok) {
+        res = retry;
+        detail = "";
+      } else {
+        console.error(
+          `[${channel}] fallback HUMAN_AGENT rechazado (${retry.status}):`,
+          await retry.text().catch(() => ""),
+        );
+      }
     }
   }
   if (!res.ok) {

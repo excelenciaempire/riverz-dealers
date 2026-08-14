@@ -99,14 +99,28 @@ export const instagramAdapter: ChannelAdapter = {
     // window) — ONLY for human sends (invalid for bot/automation) and ONLY for
     // id-recipient DMs, never comment private replies (those carry their own
     // 7-day window and take no tag).
+    //
+    // Si el reintento TAMBIÉN falla, se conserva el error ORIGINAL: la app no
+    // tiene aprobada la etiqueta HUMAN_AGENT y Meta responde "(#10) To use
+    // 'Human Agent'…", un texto que no le dice nada al comercio y que tapaba la
+    // causa real (la ventana de 24 h cerrada). El fallback es una red de
+    // seguridad: cuando se cae, calla.
     if (!res.ok && input.humanAgent && !input.commentId) {
       const firstErr = parseMetaError(detail);
       if (
         describeMetaSendError("instagram", res.status, firstErr).category ===
         "outside_window"
       ) {
-        res = await send(true);
-        detail = res.ok ? "" : await res.text().catch(() => "");
+        const retry = await send(true);
+        if (retry.ok) {
+          res = retry;
+          detail = "";
+        } else {
+          console.error(
+            `[instagram] fallback HUMAN_AGENT rechazado (${retry.status}):`,
+            await retry.text().catch(() => ""),
+          );
+        }
       }
     }
     if (!res.ok) {

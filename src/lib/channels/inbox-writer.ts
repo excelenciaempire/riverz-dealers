@@ -35,8 +35,11 @@ import { originFromProactiveKind } from "@/lib/inbox/message-origin";
  * El DM de una regla de comentarios y la respuesta pública de Comentarios se
  * envían por el adapter y aparecen en la bandeja recién cuando Meta manda el
  * eco: para entonces son indistinguibles de algo que escribió una persona desde
- * la app. `ig_proactive_log` guarda el texto de cada envío proactivo, así que un
- * match por (workspace, texto, últimos minutos) los reconoce.
+ * la app. Dos libros los delatan:
+ *
+ *   comment_to_dm_log — guarda el id EXTERNO del DM y de la respuesta pública de
+ *                       cada regla: match exacto, sin ambigüedad.
+ *   ig_proactive_log  — guarda el texto de cada envío proactivo de la IA.
  *
  * Best-effort: si no hay match, el mensaje queda sin origen —que es exactamente
  * lo que corresponde para un mensaje escrito a mano.
@@ -48,10 +51,29 @@ const PROACTIVE_CHANNELS = new Set<Channel>([
   "fb_comment",
 ]);
 
-async function originFromRecentProactiveLog(
+async function originOfAutomatedSend(
   db: SupabaseClient,
-  args: { workspaceId: string; text: string; at: string },
+  args: {
+    workspaceId: string;
+    externalMessageId: string | null;
+    text: string;
+    at: string;
+  },
 ): Promise<string | null> {
+  const externalId = (args.externalMessageId ?? "").trim();
+  if (externalId) {
+    const { data: rule } = await db
+      .from("comment_to_dm_log")
+      .select("id")
+      .eq("workspace_id", args.workspaceId)
+      .or(
+        `dm_external_id.eq.${externalId},public_reply_external_id.eq.${externalId}`,
+      )
+      .limit(1)
+      .maybeSingle();
+    if (rule) return "comment_rule";
+  }
+
   const text = (args.text ?? "").trim();
   if (!text) return null;
   const since = new Date(Date.parse(args.at) - 15 * 60_000).toISOString();
@@ -314,8 +336,9 @@ export async function ingestInboundEvent(
   // Solo en los canales donde hay envíos proactivos (Meta): en correo o Mercado
   // Libre esta consulta nunca acertaría y el poll trae salientes de a montones.
   if (event.outbound && PROACTIVE_CHANNELS.has(channel)) {
-    const attributed = await originFromRecentProactiveLog(db, {
+    const attributed = await originOfAutomatedSend(db, {
       workspaceId,
+      externalMessageId: event.externalMessageId ?? null,
       text: event.text,
       at: event.receivedAt,
     });
