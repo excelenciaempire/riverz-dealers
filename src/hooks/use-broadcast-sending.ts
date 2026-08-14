@@ -7,6 +7,7 @@ import { recordBroadcastConversation } from '@/lib/broadcasts/conversations';
 import { renderTemplateBody } from '@/lib/whatsapp/template-render';
 import { resolveSegment } from '@/lib/segments/resolve';
 import { escapeLike } from '@/lib/security/like';
+import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
 import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
@@ -132,17 +133,25 @@ async function fetchCustomValueIndex(
   const index: CustomValueIndex = new Map();
   if (contactIds.length === 0) return index;
 
-  // Supabase PostgREST caps the .in(...) IN-clause roughly at 1000
-  // values. Page through to stay safe.
-  const PAGE = 500;
-  for (let i = 0; i < contactIds.length; i += PAGE) {
-    const slice = contactIds.slice(i, i + PAGE);
-    const { data } = await supabase
-      .from('contact_custom_values')
-      .select('contact_id, custom_field_id, value')
-      .in('contact_id', slice);
+  // Se parte la lista de ids por el largo de URL de PostgREST.
+  for (const slice of chunk(contactIds, 300)) {
+    // Y dentro del lote se pagina: cada contacto puede tener varios campos, así
+    // que 300 contactos pasan de las 1.000 filas por respuesta.
+    const data = await fetchAllRows<{
+      contact_id: string;
+      custom_field_id: string;
+      value: string | null;
+    }>((from, to) =>
+      supabase
+        .from('contact_custom_values')
+        .select('contact_id, custom_field_id, value')
+        .in('contact_id', slice)
+        .order('contact_id', { ascending: true })
+        .order('custom_field_id', { ascending: true })
+        .range(from, to),
+    );
 
-    for (const row of data ?? []) {
+    for (const row of data) {
       const bucket = index.get(row.contact_id) ?? new Map<string, string>();
       bucket.set(row.custom_field_id, row.value ?? '');
       index.set(row.contact_id, bucket);
@@ -166,37 +175,33 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     // gates opt-out before send). Previously this hook silently
     // messaged opted-out contacts on "Enviar ahora".
     if (audience.type === 'all') {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('opted_out', false);
-      if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-      contacts = data ?? [];
+      contacts = await fetchAllRows<Contact>((from, to) =>
+        supabase
+          .from('contacts')
+          .select('*')
+          .eq('opted_out', false)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+      );
     } else if (
       audience.type === 'tags' &&
       audience.tagIds &&
       audience.tagIds.length > 0
     ) {
-      const { data: contactTags, error: tagError } = await supabase
-        .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', audience.tagIds);
-
-      if (tagError)
-        throw new Error(`Failed to fetch contact tags: ${tagError.message}`);
-
-      if (contactTags && contactTags.length > 0) {
-        const uniqueContactIds = [
-          ...new Set(contactTags.map((ct) => ct.contact_id)),
-        ];
-        const { data, error } = await supabase
+      // El filtro por etiqueta va sobre el join: traerse la lista de vínculos y
+      // reenviarla en un `.in()` se quedaba en los primeros 1.000 (PostgREST no
+      // devuelve más por respuesta) y la campaña salía con la mitad de la gente.
+      contacts = await fetchAllRows<Contact>((from, to) =>
+        supabase
           .from('contacts')
-          .select('*')
-          .in('id', uniqueContactIds)
-          .eq('opted_out', false);
-        if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-        contacts = data ?? [];
-      }
+          .select('*, contact_tags!inner(tag_id)')
+          .in('contact_tags.tag_id', audience.tagIds!)
+          .eq('opted_out', false)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to),
+      );
     } else if (audience.type === 'custom_field' && audience.customField) {
       contacts = await resolveCustomFieldAudience(supabase, audience.customField);
     } else if (audience.type === 'csv' && audience.csvContacts) {
@@ -227,11 +232,18 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     // Apply exclude tags (works across all contact-derived audience
     // types). CSV contacts are synthetic so exclusion doesn't apply.
     if (audience.excludeTagIds && audience.excludeTagIds.length > 0) {
-      const { data: excludeRows } = await supabase
-        .from('contact_tags')
-        .select('contact_id')
-        .in('tag_id', audience.excludeTagIds);
-      const excludedIds = new Set((excludeRows ?? []).map((r) => r.contact_id));
+      // Paginado por seguridad: una lista de exclusión recortada a 1.000 no
+      // excluye — le manda la campaña a quien el merchant pidió dejar afuera.
+      const excludeRows = await fetchAllRows<{ contact_id: string }>((from, to) =>
+        supabase
+          .from('contact_tags')
+          .select('contact_id')
+          .in('tag_id', audience.excludeTagIds!)
+          .order('contact_id', { ascending: true })
+          .order('tag_id', { ascending: true })
+          .range(from, to),
+      );
+      const excludedIds = new Set(excludeRows.map((r) => r.contact_id));
       contacts = contacts.filter((c) => !excludedIds.has(c.id));
     }
 
@@ -270,19 +282,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     }
     const phones = [...uniqueByPhone.keys()];
 
-    // Single round-trip lookup of existing contacts by phone.
-    const { data: existing, error: lookupErr } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', user.id)
-      .in('phone', phones);
-    if (lookupErr) {
-      throw new Error(`Failed to look up CSV contacts: ${lookupErr.message}`);
-    }
-
+    // Búsqueda de los que ya existen, en lotes por largo de URL y paginada por
+    // el tope de 1.000 filas: si la lista vuelve corta, los que faltan se
+    // vuelven a insertar y el CSV duplica contactos.
     const byPhone = new Map<string, Contact>();
-    for (const c of (existing ?? []) as Contact[]) {
-      if (c.phone) byPhone.set(c.phone, c);
+    for (const slice of chunk(phones, 300)) {
+      const existing = await fetchAllRows<Contact>((from, to) =>
+        supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', user.id)
+          .in('phone', slice)
+          .order('id', { ascending: true })
+          .range(from, to),
+      );
+      for (const c of existing) {
+        if (c.phone) byPhone.set(c.phone, c);
+      }
     }
 
     // Insert only missing contacts, in one batch per 200 rows (PostgREST
@@ -324,30 +340,39 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     // Build the WHERE clause for the operator. PostgREST supports
     // eq/neq/ilike via the query builder — use ilike with wildcards
-    // for "contains" so the match is case-insensitive.
-    let query = supabase
-      .from('contact_custom_values')
-      .select('contact_id')
-      .eq('custom_field_id', fieldId);
+    // for "contains" so the match is case-insensitive. Se arma de nuevo en
+    // cada página porque el builder es de un solo uso.
+    const page = (from: number, to: number) => {
+      let query = supabase
+        .from('contact_custom_values')
+        .select('contact_id')
+        .eq('custom_field_id', fieldId);
+      if (operator === 'is') query = query.eq('value', value);
+      else if (operator === 'is_not') query = query.neq('value', value);
+      else if (operator === 'contains')
+        query = query.ilike('value', `%${escapeLike(value)}%`);
+      return query.order('contact_id', { ascending: true }).range(from, to);
+    };
 
-    if (operator === 'is') query = query.eq('value', value);
-    else if (operator === 'is_not') query = query.neq('value', value);
-    else if (operator === 'contains') query = query.ilike('value', `%${escapeLike(value)}%`);
+    const matches = await fetchAllRows<{ contact_id: string }>(page);
 
-    const { data: matches, error: matchErr } = await query;
-    if (matchErr)
-      throw new Error(`Custom-field filter failed: ${matchErr.message}`);
-
-    const contactIds = [...new Set((matches ?? []).map((m) => m.contact_id))];
+    const contactIds = [...new Set(matches.map((m) => m.contact_id))];
     if (contactIds.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
-      .in('id', contactIds)
-      .eq('opted_out', false);
-    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-    return data ?? [];
+    const out: Contact[] = [];
+    for (const slice of chunk(contactIds, 300)) {
+      const rows = await fetchAllRows<Contact>((from, to) =>
+        supabase
+          .from('contacts')
+          .select('*')
+          .in('id', slice)
+          .eq('opted_out', false)
+          .order('id', { ascending: true })
+          .range(from, to),
+      );
+      out.push(...rows);
+    }
+    return out;
   }
 
   async function createAndSendBroadcast(payload: BroadcastPayload): Promise<string> {

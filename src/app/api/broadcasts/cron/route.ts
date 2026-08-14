@@ -15,6 +15,7 @@ import {
   isUsPhone,
 } from '@/lib/whatsapp/phone-utils'
 import { recordBroadcastConversation } from '@/lib/broadcasts/conversations'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { renderTemplateBody } from '@/lib/whatsapp/template-render'
 import { assertCronAuthAny } from '@/lib/auth/cron'
 import { withCronRun } from "@/lib/cron/heartbeat";
@@ -166,12 +167,23 @@ async function sendOneBroadcast(
   // to a workspace the owner is no longer the primary member of, and
   // the old fallback could silently zero out the recipient list and
   // mark the broadcast as `sent`.
-  const { data: recipientsRaw } = await admin
-    .from('broadcast_recipients')
-    .select('*, contact:contacts(*)')
-    .eq('broadcast_id', broadcastId)
-    .eq('status', 'pending')
-  const allRecipients = recipientsRaw ?? []
+  // Paginado, no opcional: PostgREST devuelve como mucho 1.000 filas por
+  // respuesta, así que una campaña de 3.000 personas mandaba a las primeras
+  // 1.000 y al terminar se marcaba `sent` — las otras 2.000 quedaban en
+  // `pending` para siempre, sin error ni aviso.
+  type PendingRecipient = Record<string, unknown> & {
+    id: string
+    contact: Record<string, unknown> | null
+  }
+  const allRecipients = await fetchAllRows<PendingRecipient>((from, to) =>
+    admin
+      .from('broadcast_recipients')
+      .select('*, contact:contacts(*)')
+      .eq('broadcast_id', broadcastId)
+      .eq('status', 'pending')
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   // Belt + suspenders: confine the recipient → contact join to the
   // broadcast's own workspace. RLS is bypassed by the service-role

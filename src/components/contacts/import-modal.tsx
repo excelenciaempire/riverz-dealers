@@ -3,6 +3,7 @@
 import { useState, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -217,13 +218,20 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       // file itself) by WhatsApp identity = phone digits. The unique index
       // (workspace_id, channel, external_id) would otherwise reject repeats
       // on re-import; we skip them cleanly instead of erroring.
-      const { data: existing } = await supabase
-        .from('contacts')
-        .select('external_id')
-        .eq('workspace_id', workspace.id)
-        .eq('channel', 'whatsapp');
+      // Paginado: la lista de los que ya están se cortaba en 1.000, así que a
+      // partir de ahí el importador no reconocía duplicados y los reintentaba.
+      const existing = await fetchAllRows<{ external_id: string | null }>(
+        (from, to) =>
+          supabase
+            .from('contacts')
+            .select('external_id')
+            .eq('workspace_id', workspace.id)
+            .eq('channel', 'whatsapp')
+            .order('id', { ascending: true })
+            .range(from, to),
+      );
       const seen = new Set(
-        (existing ?? [])
+        existing
           .map((c) => (c.external_id ? onlyDigits(String(c.external_id)) : ''))
           .filter(Boolean),
       );

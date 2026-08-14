@@ -1,6 +1,7 @@
 import type { Contact } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SegmentMatchMode, SegmentRule } from './types';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 /**
  * Resolve a segment definition to the concrete contact list it matches.
@@ -62,11 +63,20 @@ export async function resolveSegment(
 
   if (needsTags) {
     for (let i = 0; i < ids.length; i += ID_CHUNK) {
-      const { data: ct } = await supabase
-        .from('contact_tags')
-        .select('contact_id, tag_id')
-        .in('contact_id', ids.slice(i, i + ID_CHUNK));
-      for (const row of (ct ?? []) as { contact_id: string; tag_id: string }[]) {
+      // Paginado dentro del lote: 300 contactos con varias etiquetas cada uno
+      // pasan de las 1.000 filas por respuesta, y una etiqueta que no llega
+      // hace que una regla "tiene la etiqueta X" deje fuera a quien sí la tiene.
+      const ct = await fetchAllRows<{ contact_id: string; tag_id: string }>(
+        (from, to) =>
+          supabase
+            .from('contact_tags')
+            .select('contact_id, tag_id')
+            .in('contact_id', ids.slice(i, i + ID_CHUNK))
+            .order('contact_id', { ascending: true })
+            .order('tag_id', { ascending: true })
+            .range(from, to),
+      );
+      for (const row of ct) {
         const set = tagsByContact.get(row.contact_id) ?? new Set<string>();
         set.add(row.tag_id);
         tagsByContact.set(row.contact_id, set);
@@ -76,15 +86,20 @@ export async function resolveSegment(
 
   if (needsCustom) {
     for (let i = 0; i < ids.length; i += ID_CHUNK) {
-      const { data: ccv } = await supabase
-        .from('contact_custom_values')
-        .select('contact_id, custom_field_id, value')
-        .in('contact_id', ids.slice(i, i + ID_CHUNK));
-      for (const row of (ccv ?? []) as {
+      const ccv = await fetchAllRows<{
         contact_id: string;
         custom_field_id: string;
         value: string | null;
-      }[]) {
+      }>((from, to) =>
+        supabase
+          .from('contact_custom_values')
+          .select('contact_id, custom_field_id, value')
+          .in('contact_id', ids.slice(i, i + ID_CHUNK))
+          .order('contact_id', { ascending: true })
+          .order('custom_field_id', { ascending: true })
+          .range(from, to),
+      );
+      for (const row of ccv) {
         const m =
           customByContact.get(row.contact_id) ?? new Map<string, string>();
         m.set(row.custom_field_id, row.value ?? '');

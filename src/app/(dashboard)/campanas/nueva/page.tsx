@@ -30,6 +30,7 @@ import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { resolveSegment } from '@/lib/segments/resolve';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { SegmentEditor } from '@/components/contacts/segments-panel';
 import { estimateFromSample, rateFor, toCategory } from '@/lib/whatsapp/pricing';
 
@@ -191,11 +192,18 @@ export default function NewBroadcastPage() {
             }
             return;
           }
-          const { data } = await supabase
-            .from('contact_tags')
-            .select('contact_id')
-            .in('tag_id', selectedTagIds);
-          const ids = [...new Set((data ?? []).map((r) => r.contact_id))];
+          // Paginado: con 1.000 filas por respuesta el contador se quedaba
+          // clavado en "1000 destinatarios" para cualquier etiqueta más grande.
+          const data = await fetchAllRows<{ contact_id: string }>((from, to) =>
+            supabase
+              .from('contact_tags')
+              .select('contact_id')
+              .in('tag_id', selectedTagIds)
+              .order('contact_id', { ascending: true })
+              .order('tag_id', { ascending: true })
+              .range(from, to),
+          );
+          const ids = [...new Set(data.map((r) => r.contact_id))];
           const { data: cts } = await supabase
             .from('contacts')
             .select('phone')

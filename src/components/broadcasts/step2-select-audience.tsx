@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/hooks/use-locale';
@@ -169,36 +170,42 @@ export function Step2SelectAudience({
         audience.tagIds &&
         audience.tagIds.length > 0
       ) {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
-          .in('tag_id', audience.tagIds)
-          .eq('contacts.workspace_id', workspaceId)
-          .eq('contacts.opted_out', false)
-          .not('contacts.phone', 'is', null);
-        baseIds = new Set(
-          (data ?? []).map((r) => (r as { contact_id: string }).contact_id),
+        const data = await fetchAllRows<{ contact_id: string }>((from, to) =>
+          supabase
+            .from('contact_tags')
+            .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
+            .in('tag_id', audience.tagIds!)
+            .eq('contacts.workspace_id', workspaceId)
+            .eq('contacts.opted_out', false)
+            .not('contacts.phone', 'is', null)
+            .order('contact_id', { ascending: true })
+            .order('tag_id', { ascending: true })
+            .range(from, to),
         );
+        baseIds = new Set(data.map((r) => r.contact_id));
       } else if (
         audience.type === 'custom_field' &&
         audience.customField?.fieldId &&
         audience.customField.value
       ) {
         const { fieldId, operator, value } = audience.customField;
-        let q = supabase
-          .from('contact_custom_values')
-          .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
-          .eq('custom_field_id', fieldId)
-          .eq('contacts.workspace_id', workspaceId)
-          .eq('contacts.opted_out', false)
-          .not('contacts.phone', 'is', null);
-        if (operator === 'is') q = q.eq('value', value);
-        else if (operator === 'is_not') q = q.neq('value', value);
-        else q = q.ilike('value', `%${value}%`);
-        const { data } = await q;
-        baseIds = new Set(
-          (data ?? []).map((r) => (r as { contact_id: string }).contact_id),
-        );
+        const data = await fetchAllRows<{ contact_id: string }>((from, to) => {
+          let q = supabase
+            .from('contact_custom_values')
+            .select('contact_id, contacts!inner(id, workspace_id, phone, opted_out)')
+            .eq('custom_field_id', fieldId)
+            .eq('contacts.workspace_id', workspaceId)
+            .eq('contacts.opted_out', false)
+            .not('contacts.phone', 'is', null);
+          if (operator === 'is') q = q.eq('value', value);
+          else if (operator === 'is_not') q = q.neq('value', value);
+          else q = q.ilike('value', `%${value}%`);
+          return q
+            .order('contact_id', { ascending: true })
+            .order('custom_field_id', { ascending: true })
+            .range(from, to);
+        });
+        baseIds = new Set(data.map((r) => r.contact_id));
       } else if (
         audience.type === 'csv' &&
         audience.csvContacts &&
@@ -215,11 +222,16 @@ export function Step2SelectAudience({
       // Apply exclude tags
       let excludeSet: Set<string> | null = null;
       if (audience.excludeTagIds && audience.excludeTagIds.length > 0) {
-        const { data: excludeRows } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', audience.excludeTagIds);
-        excludeSet = new Set((excludeRows ?? []).map((r) => r.contact_id));
+        const excludeRows = await fetchAllRows<{ contact_id: string }>((from, to) =>
+          supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .in('tag_id', audience.excludeTagIds!)
+            .order('contact_id', { ascending: true })
+            .order('tag_id', { ascending: true })
+            .range(from, to),
+        );
+        excludeSet = new Set(excludeRows.map((r) => r.contact_id));
       }
 
       if (baseIds) {
