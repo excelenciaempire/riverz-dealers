@@ -1924,62 +1924,96 @@ function ConditionBranches({
     // Two lanes stacked one over the other (Sí above, No below). Each lane
     // is a horizontal chain, so the branches read as the flow forking and
     // carrying on rightward. The dashed rail ties them back to the card.
-    <div className="flex flex-col gap-10 self-stretch border-l-2 border-dashed border-border pl-6">
-      <BranchLane label={t("automations.branchYes")} color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink">
-        <StepList {...props} steps={yes} parentPath={yesPath} />
-      </BranchLane>
-      <BranchLane label={t("automations.branchNo")} color="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400">
-        <StepList {...props} steps={no} parentPath={noPath} />
-      </BranchLane>
-    </div>
+    <BranchFan
+      lanes={[
+        {
+          key: "yes",
+          label: t("automations.branchYes"),
+          color: "border-emerald-500/40 bg-emerald-500/10 text-accent-ink",
+          content: <StepList {...props} steps={yes} parentPath={yesPath} />,
+        },
+        {
+          key: "no",
+          label: t("automations.branchNo"),
+          color: "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+          content: <StepList {...props} steps={no} parentPath={noPath} />,
+        },
+      ]}
+    />
   )
 }
 
-function BranchLane({
-  label,
-  color,
-  children,
+/**
+ * Abanico de caminos: el tronco entra por la izquierda, se abre en una espina
+ * vertical y de ahí sale un ramal a cada camino.
+ *
+ * La espina se mide, no se estima: va del centro del primer carril al centro
+ * del último, leídos del DOM. Con posiciones fijas alcanzaba mientras todos
+ * los carriles midieran igual, pero basta desplegar la configuración de un
+ * paso —o agregar un camino— para que la línea deje de llegar a donde tiene
+ * que llegar. Medido, agregar o quitar caminos reacomoda todo solo.
+ */
+function BranchFan({
+  lanes,
 }: {
-  label: string
-  color: string
-  children: React.ReactNode
+  lanes: { key: string; label: string; color: string; content: React.ReactNode }[]
 }) {
+  const wrap = useRef<HTMLDivElement | null>(null)
+  const [spine, setSpine] = useState<{ top: number; height: number } | null>(null)
+
+  useEffect(() => {
+    const el = wrap.current
+    if (!el) return
+    const measure = () => {
+      const rows = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")]
+      if (rows.length === 0) return setSpine(null)
+      const base = el.getBoundingClientRect().top
+      const centers = rows.map((r) => {
+        const b = r.getBoundingClientRect()
+        return b.top - base + b.height / 2
+      })
+      const top = Math.min(...centers)
+      setSpine({ top, height: Math.max(...centers) - top })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    el.querySelectorAll("[data-lane-row]").forEach((r) => ro.observe(r))
+    return () => ro.disconnect()
+  }, [lanes.length])
+
   return (
-    <div className="flex items-start gap-3">
-      {/* La etiqueta va arriba del carril y no a su izquierda: pegada al
-          costado empujaba los pasos y ningun camino arrancaba a la misma
-          altura que el resto del flujo. Arriba, todos los caminos empiezan
-          en la misma linea y la etiqueta dice cual es cual. */}
-      <div className="flex flex-col gap-1.5">
+    <div ref={wrap} className="relative flex flex-col gap-6 pl-10">
+      {/* Espina: une el primer ramal con el último. */}
+      {spine && lanes.length > 1 && (
         <span
-          className={cn(
-            "w-fit shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
-            color,
-          )}
-        >
-          {label}
-        </span>
-        {children}
-      </div>
+          aria-hidden
+          className="absolute left-5 w-px bg-border"
+          style={{ top: spine.top, height: spine.height }}
+        />
+      )}
+      {lanes.map((lane) => (
+        <div key={lane.key} data-lane-row className="relative flex items-center">
+          {/* Ramal horizontal hasta el carril. */}
+          <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
+          <div className="flex flex-col gap-1.5">
+            <span
+              className={cn(
+                "w-fit rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
+                lane.color,
+              )}
+            >
+              {lane.label}
+            </span>
+            {lane.content}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
-// ------------------------------------------------------------
-// Multi-case "Bifurcar según…" (switch) node. A builder-only card that
-// compiles to nested binary conditions on save (switch-compile.ts). Its cases
-// + "en otro caso" lane are edited in place on step.switchData via the switch's
-// own updateStep(path) — leaf actions only, so it never touches the canvas
-// path system. Decompiled chains with nested branching stay as conditions.
-// ------------------------------------------------------------
-
-/** A data point worth branching on with N discrete cases: a value the merchant
- *  compares (units, total) or picks from a set (offer, text). bool/tag/segment/
- *  message are binary → a plain "Condición" fits those better. This single
- *  predicate gates BOTH the create-time picker AND the load-time collapse, so a
- *  chain can never decompile into a switch the UI can't render or edit. */
-/** Short natural label for a path lane — the case's filter rendered as a
- *  phrase (e.g. "Unidades que compró al menos 4", "Tiene la etiqueta VIP"). */
+/** Etiqueta corta de un camino: el mismo resumen que muestra la tarjeta. */
 function caseShortLabel(cfg: Record<string, unknown>, t: TFn): string {
   return conditionPreview(cfg, t)
 }
@@ -2042,96 +2076,60 @@ function SwitchBranches({
   // pasos.
   const linear = sd.cases.length === 1 && sd.elseSteps.length === 0
 
-  return (
-    <div
-      className={cn(
-        linear
-          ? "flex items-start"
-          : "flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4",
-      )}
-    >
-      {sd.cases.map((c) => (
-        <SwitchCaseLane
-          key={c.ckey}
-          label={caseShortLabel(c.cfg, t)}
-          bare={linear}
-          steps={c.steps}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          onAdd={(type, at) => addStep(c.ckey, type, at)}
-          onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
-          onRemoveStep={(i) => removeStep(c.ckey, i)}
-          onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
-        />
-      ))}
-
-      {!linear && (
-      <BranchLane
-        label={t("automations.switchElse")}
-        color="border-slate-400/40 bg-slate-400/10 text-muted-foreground"
-      >
+  if (linear) {
+    const only = sd.cases[0]
+    return (
+      <div className="flex items-start">
         <SwitchLaneSteps
-          steps={sd.elseSteps}
+          steps={only.steps}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
-          onAdd={(type, at) => addStep("else", type, at)}
-          onChangeStep={(i, n) => changeStep("else", i, n)}
-          onRemoveStep={(i) => removeStep("else", i)}
-          onMoveStep={(i, dir) => moveStep("else", i, dir)}
-        />
-      </BranchLane>
-      )}
-
-    </div>
-  )
-}
-
-function SwitchCaseLane({
-  label,
-  bare,
-  steps,
-  expandedId,
-  setExpandedId,
-  onAdd,
-  onChangeStep,
-  onRemoveStep,
-  onMoveStep,
-}: {
-  label: string
-  /** Sin carril ni etiqueta: los pasos siguen la misma linea del tronco. */
-  bare?: boolean
-  steps: BuilderStep[]
-  expandedId: string | null
-  setExpandedId: (id: string | null) => void
-  onAdd: (type: BuilderStepType, at: number) => void
-  onChangeStep: (i: number, n: BuilderStep) => void
-  onRemoveStep: (i: number) => void
-  onMoveStep: (i: number, dir: -1 | 1) => void
-}) {
-  const body = (
-      <div className="flex flex-col gap-2">
-        {/* El filtro de cada camino se edita DENTRO de la tarjeta, al
-            desplegarla — como en todo el resto de los elementos. Acá el
-            carril muestra sólo lo que ese camino hace. */}
-        <SwitchLaneSteps
-          steps={steps}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          onAdd={onAdd}
-          onChangeStep={onChangeStep}
-          onRemoveStep={onRemoveStep}
-          onMoveStep={onMoveStep}
+          onAdd={(type, at) => addStep(only.ckey, type, at)}
+          onChangeStep={(i, n) => changeStep(only.ckey, i, n)}
+          onRemoveStep={(i) => removeStep(only.ckey, i)}
+          onMoveStep={(i, dir) => moveStep(only.ckey, i, dir)}
         />
       </div>
-  )
-  if (bare) return body
+    )
+  }
+
   return (
-    <BranchLane
-      label={label}
-      color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink"
-    >
-      {body}
-    </BranchLane>
+    <BranchFan
+      lanes={[
+        ...sd.cases.map((c) => ({
+          key: c.ckey,
+          label: caseShortLabel(c.cfg, t),
+          color: "border-emerald-500/40 bg-emerald-500/10 text-accent-ink",
+          content: (
+            <SwitchLaneSteps
+              steps={c.steps}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              onAdd={(type, at) => addStep(c.ckey, type, at)}
+              onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
+              onRemoveStep={(i) => removeStep(c.ckey, i)}
+              onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
+            />
+          ),
+        })),
+        {
+          key: "else",
+          label: t("automations.switchElse"),
+          color: "border-slate-400/40 bg-slate-400/10 text-muted-foreground",
+          content: (
+            <SwitchLaneSteps
+              steps={sd.elseSteps}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              onAdd={(type, at) => addStep("else", type, at)}
+              onChangeStep={(i, n) => changeStep("else", i, n)}
+              onRemoveStep={(i) => removeStep("else", i)}
+              onMoveStep={(i, dir) => moveStep("else", i, dir)}
+            />
+          ),
+        },
+      ]}
+    />
   )
 }
 
