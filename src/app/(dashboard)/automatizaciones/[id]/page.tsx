@@ -192,26 +192,35 @@ export default function AutomationDetailPage() {
       if (!automationId) return;
       try {
         const supabase = createClient();
-        const [autRes, logRes] = await Promise.all([
-          supabase
-            .from('automations')
-            .select('*')
-            .eq(idColumn(automationId), automationId)
-            .maybeSingle(),
-          supabase
-            .from('automation_logs')
-            .select('*, contact:contacts(id, name, phone)')
-            .eq('automation_id', automationId)
-            .order('created_at', { ascending: false })
-            .limit(100),
-        ]);
+        // Primero la automatización, DESPUÉS sus registros — no en paralelo.
+        // La URL que arma la lista trae el id corto (8 caracteres), y
+        // `automation_logs.automation_id` es un uuid: buscarlo con el corto
+        // reventaba la consulta entera ("invalid input syntax for type
+        // uuid") y la pantalla mostraba "Error" para cualquier
+        // automatización abierta desde la lista, tuviera corridas o no.
+        // Sólo fallaba desde ahí, porque entrando con el uuid completo
+        // ambas consultas eran válidas.
+        const autRes = await supabase
+          .from('automations')
+          .select('*')
+          .eq(idColumn(automationId), automationId)
+          .maybeSingle();
         if (autRes.error) throw autRes.error;
-        if (logRes.error) throw logRes.error;
         if (!autRes.data) {
           setError(t('automations.notFound'));
           return;
         }
-        setAutomation(autRes.data as Automation);
+        const automationRow = autRes.data as Automation;
+
+        const logRes = await supabase
+          .from('automation_logs')
+          .select('*, contact:contacts(id, name, phone)')
+          .eq('automation_id', automationRow.id)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (logRes.error) throw logRes.error;
+
+        setAutomation(automationRow);
         setLogs((logRes.data ?? []) as AutomationLog[]);
       } catch (err) {
         setError(t('automations.genericError'));

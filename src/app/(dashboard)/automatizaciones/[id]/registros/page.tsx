@@ -9,6 +9,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 
+import { idColumn } from "@/lib/short-id"
 import { createClient } from "@/lib/supabase/client"
 import type { Automation, AutomationLog } from "@/types"
 import { Button } from "@/components/ui/button"
@@ -35,22 +36,29 @@ export default function AutomationLogsPage({
     async function load() {
       try {
         const supabase = createClient()
-        const [autRes, logRes] = await Promise.all([
-          supabase
-            .from("automations")
-            .select("*")
-            .eq("id", id)
-            .maybeSingle(),
-          supabase
-            .from("automation_logs")
-            .select("*, contact:contacts(id, name, phone)")
-            .eq("automation_id", id)
-            .order("created_at", { ascending: false })
-            .limit(100),
-        ])
+        // Mismo cuidado que en la pantalla de estadísticas: la URL puede
+        // traer el id corto, y `automation_logs.automation_id` es un uuid.
+        // Se resuelve primero la automatización y recién después se piden
+        // sus registros con el id real.
+        const autRes = await supabase
+          .from("automations")
+          .select("*")
+          .eq(idColumn(id), id)
+          .maybeSingle()
         if (autRes.error) throw autRes.error
+        const automationRow = autRes.data as Automation | null
+
+        const logRes = automationRow
+          ? await supabase
+              .from("automation_logs")
+              .select("*, contact:contacts(id, name, phone)")
+              .eq("automation_id", automationRow.id)
+              .order("created_at", { ascending: false })
+              .limit(100)
+          : { data: [], error: null }
         if (logRes.error) throw logRes.error
-        setAutomation(autRes.data as Automation | null)
+
+        setAutomation(automationRow)
         setLogs((logRes.data ?? []) as AutomationLog[])
       } catch (err) {
         setError(t("automations.logsLoadFailed"))
