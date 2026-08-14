@@ -6,8 +6,10 @@
  * three code paths that can mint a Supabase `auth.users` row:
  *
  *   1. `POST /api/auth/signup`            → 403
- *   2. `POST /api/workspace/invite`       → 403 (calls inviteUserByEmail)
- *   3. `/registro` + `/signup` page       → redirected to the landing in `proxy.ts`
+ *   2. `/registro` + `/signup` page       → redirected to the landing in `proxy.ts`
+ *
+ * Las invitaciones de equipo NO entran acá: tienen su propio interruptor
+ * (`invitesOpen()`, más abajo) y siguen abiertas durante el prelanzamiento.
  *
  * Existing users keep signing in, recovering passwords and confirming email
  * as usual — nothing here touches `/ingresar`, `/recuperar-clave`,
@@ -24,4 +26,19 @@
  */
 export function signupsOpen(): boolean {
   return process.env.NEXT_PUBLIC_RIVERZ_SIGNUPS === "open";
+}
+
+/**
+ * Invitaciones de equipo: ABIERTAS aunque el registro público esté cerrado.
+ *
+ * Sumar a un compañero no es registro público: lo hace un admin del workspace,
+ * a un correo puntual, y la cuenta que se crea entra a ESE espacio. Cerrarlo
+ * junto con `/registro` dejaba a los clientes sin poder armar su equipo, que es
+ * parte del producto que ya pagaron.
+ *
+ * Para cerrarlas (por ejemplo, si alguien abusa del alta): poner
+ * `NEXT_PUBLIC_RIVERZ_INVITES=closed` y redesplegar.
+ */
+export function invitesOpen(): boolean {
+  return process.env.NEXT_PUBLIC_RIVERZ_INVITES !== "closed";
 }

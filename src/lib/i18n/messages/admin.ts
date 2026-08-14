@@ -220,7 +220,7 @@ export const admin = {
   countProducts: { es: "Productos", en: "Products" },
   recentErrors: { es: "Errores recientes", en: "Recent errors" },
   roleAdmin: { es: "Administrador", en: "Admin" },
-  roleAgent: { es: "Agente", en: "Agent" },
+  roleAgent: { es: "Usuario", en: "User" },
   sectionsAll: { es: "Acceso total", en: "Full access" },
   sectionsLimited: { es: "{n} secciones", en: "{n} sections" },
   lastError: { es: "Último error", en: "Last error" },

@@ -421,6 +421,10 @@ export const settings = {
     es: "Invitación enviada a {email}",
     en: "Invitation sent to {email}",
   },
+  inviteLinkCopied: {
+    es: "Invitación creada. Enlace copiado: envíaselo tú.",
+    en: "Invitation created. Link copied — send it yourself.",
+  },
   memberRemoved: { es: "Miembro eliminado", en: "Member removed" },
   noWorkspace: {
     es: "Sin espacio de trabajo. Vuelve a iniciar sesión.",
@@ -437,7 +441,7 @@ export const settings = {
   memberPending: { es: "Pendiente", en: "Pending" },
   memberYou: { es: "(tú)", en: "(you)" },
   roleAdmin: { es: "Administrador", en: "Admin" },
-  roleAgent: { es: "Agente", en: "Agent" },
+  roleAgent: { es: "Usuario", en: "User" },
   removeMember: { es: "Eliminar miembro", en: "Remove member" },
 
   // Per-member menu access (RBAC)

@@ -7,7 +7,7 @@ import { serverError } from "@/lib/api/errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { sanitizeSections } from "@/lib/rbac/sections";
-import { signupsOpen } from "@/lib/auth/signups";
+import { invitesOpen } from "@/lib/auth/signups";
 
 /**
  * POST /api/workspace/invite
@@ -26,9 +26,10 @@ export async function POST(req: Request): Promise<Response> {
   if (block) return block;
   const locale = await getLocale();
 
-  // Pre-launch: inviteUserByEmail (below) mints a real auth.users row, so
-  // this route creates accounts just like /api/auth/signup. Closed with it.
-  if (!signupsOpen()) {
+  // Sumar equipo sigue vivo en prelanzamiento: lo dispara un admin del
+  // workspace hacia un correo puntual, no es alta pública. Interruptor propio
+  // por si hay que cortarlo sin tocar el registro.
+  if (!invitesOpen()) {
     return NextResponse.json(
       { error: translate(locale, "errAccount.invitesClosed") },
       { status: 403 },

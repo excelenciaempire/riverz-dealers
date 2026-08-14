@@ -34,7 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Profile, WorkspaceInvite, WorkspaceMember } from "@/types";
-import { signupsOpen } from "@/lib/auth/signups";
+import { invitesOpen } from "@/lib/auth/signups";
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -168,12 +168,24 @@ export function WorkspacePanel() {
       }),
     });
     setInviting(false);
+    const payload = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      accept_url?: string;
+      mail_delivered?: boolean;
+    };
     if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
       toast.error(payload.error ?? t("settings.inviteError"));
       return;
     }
-    toast.success(t("settings.inviteSent", { email: inviteEmail }));
+    // Si el correo no salió (cuota de Supabase, SMTP sin configurar), la
+    // invitación existe igual: se copia el enlace para mandarlo a mano en vez
+    // de dejar al admin creyendo que ya llegó.
+    if (payload.mail_delivered === false && payload.accept_url) {
+      await navigator.clipboard?.writeText(payload.accept_url).catch(() => {});
+      toast.success(t("settings.inviteLinkCopied"));
+    } else {
+      toast.success(t("settings.inviteSent", { email: inviteEmail }));
+    }
     setInviteEmail("");
     setInviteRole("agent");
     setInviteAllowed([]);
@@ -223,7 +235,7 @@ export function WorkspacePanel() {
       }
       await fetchMembersAndInvites();
     },
-    [fetchMembersAndInvites],
+    [fetchMembersAndInvites, t],
   );
 
   const handleSaveInviteAccess = useCallback(async () => {
@@ -433,9 +445,9 @@ export function WorkspacePanel() {
           })}
         </ul>
 
-        {/* Invite form. Hidden during pre-launch: /api/workspace/invite
-            creates an auth user, so it 403s while sign-ups are closed. */}
-        {isAdmin && signupsOpen() && (
+        {/* Invitar equipo: sigue disponible en prelanzamiento (el registro
+            público está cerrado, sumar compañeros no). */}
+        {isAdmin && invitesOpen() && (
           <div className="border-t border-border px-5 py-4">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <UserPlus className="size-4 text-accent-ink" />
