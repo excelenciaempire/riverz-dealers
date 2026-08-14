@@ -943,6 +943,22 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       // responde "y mientras tanto, ¿compró?", que es el único momento en
       // que la pregunta significa algo.
       if (!args.contactId) return false
+
+      // "Alguna vez" no se puede contestar con la API de pedidos: sólo
+      // devuelve una ventana reciente. Para eso está la marca del contacto,
+      // que es justamente el histórico. Antes esto era un dato aparte en el
+      // selector ("Ya compró alguna vez") y convivía con éste: dos preguntas
+      // de compra, una al lado de la otra, sin forma de saber cuál usar.
+      if ((cfg.operand ?? '') === 'ever') {
+        const { data: row } = await db
+          .from('contacts')
+          .select('is_shopify_customer')
+          .eq('id', args.contactId)
+          .maybeSingle()
+        const ever = Boolean((row as { is_shopify_customer?: boolean } | null)?.is_shopify_customer)
+        return ever === ((cfg.value ?? 'true').toLowerCase() !== 'false')
+      }
+
       const since = new Date(Date.now() - windowMs(cfg.operand)).toISOString()
       const { data: c } = await db
         .from('contacts')

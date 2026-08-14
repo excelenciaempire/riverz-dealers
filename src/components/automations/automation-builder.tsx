@@ -598,9 +598,10 @@ function PurchasedFields({
   set: (patch: Record<string, unknown>) => void
 }) {
   const t = useT()
+  const ever = String(cfg.operand ?? "") === "ever"
   const m = /^(\d+)([mhd])$/.exec(String(cfg.operand ?? "24h")) ?? ["", "24", "h"]
   const amount = Number(m[1]) > 0 ? Number(m[1]) : 24
-  const unit = m[2] === "m" || m[2] === "d" ? m[2] : "h"
+  const unit = ever ? "ever" : m[2] === "m" || m[2] === "d" ? m[2] : "h"
   const setWindow = (a: number, u: string) => set({ operand: `${Math.max(1, a)}${u}` })
 
   return (
@@ -611,17 +612,23 @@ function PurchasedFields({
             type="number"
             min={1}
             value={amount}
+            disabled={ever}
             onChange={(e) => setWindow(Number(e.target.value), unit)}
-            className="w-20 bg-muted text-foreground"
+            className="w-20 bg-muted text-foreground disabled:opacity-40"
           />
           <select
             value={unit}
-            onChange={(e) => setWindow(amount, e.target.value)}
+            onChange={(e) =>
+              e.target.value === "ever"
+                ? set({ operand: "ever" })
+                : setWindow(amount, e.target.value)
+            }
             className="flex-1 rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
           >
             <option value="m">{t("automations.unitMinutes")}</option>
             <option value="h">{t("automations.unitHours")}</option>
             <option value="d">{t("automations.unitDays")}</option>
+            <option value="ever">{t("automations.windowEver")}</option>
           </select>
         </div>
       </FieldBlock>
@@ -1844,7 +1851,7 @@ function StepRenderer({
         // Condition: card on the left, its two branch lanes fanning out to
         // the right so each path keeps flowing in the chain's direction
         // instead of dropping into stacked vertical columns.
-        <div className="z-10 flex items-start gap-4">
+        <div className="z-10 flex items-start gap-2">
           {cardEl}
           <ConditionBranches step={step} parentPath={path} {...props} />
         </div>
@@ -1852,7 +1859,7 @@ function StepRenderer({
         // Switch: card on the left, one lane per case + an "en otro caso"
         // lane fanning out to the right (same visual grammar as a condition,
         // just N lanes instead of two).
-        <div className="z-10 flex items-start gap-4">
+        <div className="z-10 flex items-start gap-2">
           {cardEl}
           <SwitchBranches
             step={step}
@@ -1905,7 +1912,7 @@ function ConditionBranches({
     // Two lanes stacked one over the other (Sí above, No below). Each lane
     // is a horizontal chain, so the branches read as the flow forking and
     // carrying on rightward. The dashed rail ties them back to the card.
-    <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
+    <div className="flex flex-col gap-10 self-stretch border-l-2 border-dashed border-border pl-6">
       <BranchLane label={t("automations.branchYes")} color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink">
         <StepList {...props} steps={yes} parentPath={yesPath} />
       </BranchLane>
@@ -1926,18 +1933,22 @@ function BranchLane({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-start gap-1">
-      {/* Pill sits at the card-header line (~28px) so it aligns with the
-          first step's icon row in the lane. */}
-      <span
-        className={cn(
-          "mt-7 shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
-          color,
-        )}
-      >
-        {label}
-      </span>
-      {children}
+    <div className="flex items-start gap-3">
+      {/* La etiqueta va arriba del carril y no a su izquierda: pegada al
+          costado empujaba los pasos y ningun camino arrancaba a la misma
+          altura que el resto del flujo. Arriba, todos los caminos empiezan
+          en la misma linea y la etiqueta dice cual es cual. */}
+      <div className="flex flex-col gap-1.5">
+        <span
+          className={cn(
+            "w-fit shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
+            color,
+          )}
+        >
+          {label}
+        </span>
+        {children}
+      </div>
     </div>
   )
 }
@@ -2855,6 +2866,7 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
     // genérico decía "No, es su primera compra", que acá no viene al caso:
     // la pregunta no es si alguna vez compró, sino si compró en la ventana.
     const side = cfg.value === "true" ? t("automations.purchasedYes") : t("automations.purchasedNo")
+    if (String(operand ?? "") === "ever") return `${side} · ${t("automations.windowEver")}`
     const m = /^([0-9]+)([mhd])$/.exec(String(operand ?? "24h"))
     const n = m ? m[1] : "24"
     const u = m ? m[2] : "h"
