@@ -92,7 +92,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       'Recupera ventas: cuando un cliente abandona su carrito, le enviamos el link para retomarlo 2 horas después.',
     category: 'shopify',
     icon: 'shopping-cart',
-    tags: ['Shopify', 'Recovery'],
+    tags: ['Shopify', 'Espera 2 h'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     suggested_template_body:

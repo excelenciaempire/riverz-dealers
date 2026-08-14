@@ -364,6 +364,23 @@ function TemplateCard({
         {t(automationTemplateDescKey(template.slug))}
       </p>
 
+      {/* Las píldoras existían en el catálogo pero nunca se dibujaban. Son
+          el resumen de lo que hace la receta —de dónde salen los datos y
+          cuánto espera— y verlo antes de abrirla evita tener que deducirlo
+          del párrafo. */}
+      {template.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {template.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="mt-4 flex items-end justify-end gap-2 pt-1">
         <span
           className={cn(
