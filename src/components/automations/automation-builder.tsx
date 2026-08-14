@@ -610,7 +610,7 @@ function PurchasedFields({
   const setWindow = (a: number, u: string) => set({ operand: `${Math.max(1, a)}${u}` })
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="space-y-2">
       <FieldBlock label={t("automations.condWindowLabel")}>
         <div className="flex gap-2">
           <Input
@@ -1525,9 +1525,9 @@ function PaymentRejectedConfig({
     return Number.isFinite(n) && n > 0 ? n : fallback
   }
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="space-y-2">
       {mpConnected === false && (
-        <div className="sm:col-span-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-800 dark:text-amber-200">
             {t("automations.mpNotConnected")}
           </p>
@@ -1722,9 +1722,12 @@ function StepRenderer({
   // Card widths on mobile fill the full canvas column (max-w-2xl px-4
   // still keeps them reasonable). On sm+ the original fixed widths
   // come back so the flow visual stays recognisable.
-  const width = isBranch
-    ? "w-full max-w-[400px] sm:w-[400px]"
-    : "w-full max-w-[320px] sm:w-80"
+  // Todas las tarjetas miden lo mismo. La condicion tenia 400px "porque su
+  // configuracion es mas ancha", y el resultado era una fila con una caja
+  // fuera de escala: el lienzo se leia desparejo justo en el paso que hay
+  // que entender mejor. La configuracion, ancha o angosta, vive adentro al
+  // desplegar — como en todos los demas.
+  const width = "w-full max-w-[320px] sm:w-80"
 
   const cardEl = (
     <div className={cn("flex flex-col", width)}>
