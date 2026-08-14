@@ -17,24 +17,39 @@ interface Row {
 }
 
 /**
- * Cliente falso con la forma exacta que encadena la consulta real:
- * from().select().gte().lt().order().order().range(). Devuelve las filas
+ * Cliente falso con la forma exacta que encadenan las consultas reales:
+ * from().select().gte().lt()[.order().order()].range(). Devuelve las filas
  * en la primera página y vacío después, que es lo que corta el paginado.
+ *
+ * `messages` trae los mensajes; `conversations` trae las que se ABRIERON en
+ * la ventana (lo que decide si un intercambio cuenta como primera respuesta).
+ * Por defecto se consideran abiertas todas las del set de mensajes, que es el
+ * caso normal; `openedIds` permite simular un hilo viejo.
  */
-function fakeDb(rows: Row[]) {
-  let served = false
-  const builder: Record<string, unknown> = {}
-  const chain = () => builder
-  builder.select = chain
-  builder.gte = chain
-  builder.lt = chain
-  builder.order = chain
-  builder.range = () => {
-    const data = served ? [] : rows
-    served = true
-    return Promise.resolve({ data, error: null })
+function fakeDb(rows: Row[], openedIds?: string[]) {
+  const opened = (openedIds ?? [...new Set(rows.map((r) => r.conversation_id))]).map(
+    (id) => ({ id }),
+  )
+  const table = (data: unknown[]) => {
+    let served = false
+    const builder: Record<string, unknown> = {}
+    const chain = () => builder
+    builder.select = chain
+    builder.gte = chain
+    builder.lt = chain
+    builder.order = chain
+    builder.range = () => {
+      const page = served ? [] : data
+      served = true
+      return Promise.resolve({ data: page, error: null })
+    }
+    return builder
   }
-  return { from: () => builder } as never
+  const messages = table(rows)
+  const conversations = table(opened)
+  return {
+    from: (name: string) => (name === 'conversations' ? conversations : messages),
+  } as never
 }
 
 const at = (iso: string) => new Date(iso)
@@ -120,6 +135,56 @@ describe('loadResponseTime', () => {
     // Se mide desde el PRIMER mensaje de la ráfaga: 20 minutos, no 11.
     expect(report.first.thisPeriodAvg).toBe(20)
     expect(report.all.thisPeriodAvg).toBe(20)
+  })
+
+  it('no suma el silencio: si el cliente vuelve tras un día, el reloj arranca de nuevo', async () => {
+    // Quedó un mensaje sin contestar el día 9. El cliente vuelve el 10 y le
+    // respondemos en 2 minutos. Contestamos al mensaje NUEVO: el promedio es
+    // 2 minutos, no las 24 horas de silencio que hubo en el medio.
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-09T09:00:00Z'),
+      msg('c1', 'customer', '2026-03-10T10:00:00Z'),
+      msg('c1', 'agent', '2026-03-10T10:02:00Z'),
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows), 'UTC', RANGE, PREV)
+
+    expect(report.first.thisPeriodAvg).toBe(2)
+    expect(report.all.thisPeriodAvg).toBe(2)
+    // Y el silencio no se cuela como una espera enorme en el período anterior.
+    expect(report.first.prevPeriodAvg).toBeNull()
+  })
+
+  it('una ráfaga larga sin contestar sí acumula la espera real', async () => {
+    // Acá el cliente insiste cada pocas horas y nunca lo dejamos solo más de
+    // un día: la espera es genuina y tiene que contarse entera.
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-10T00:00:00Z'),
+      msg('c1', 'customer', '2026-03-10T06:00:00Z'),
+      msg('c1', 'customer', '2026-03-10T12:00:00Z'),
+      msg('c1', 'agent', '2026-03-10T18:00:00Z'),
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows), 'UTC', RANGE, PREV)
+
+    expect(report.first.thisPeriodAvg).toBe(18 * 60)
+  })
+
+  it('un hilo viejo que escribe hoy no fabrica una "primera respuesta"', async () => {
+    // c2 se abrió antes de la ventana: lo de hoy es un turno más, no la
+    // apertura. Antes aportaba una primera respuesta nueva cada período.
+    const rows: Row[] = [
+      msg('c1', 'customer', '2026-03-10T10:00:00Z'),
+      msg('c1', 'agent', '2026-03-10T10:10:00Z'),
+      msg('c2', 'customer', '2026-03-10T11:00:00Z'),
+      msg('c2', 'agent', '2026-03-10T12:00:00Z'),
+    ]
+
+    const report = await loadResponseTime(fakeDb(rows, ['c1']), 'UTC', RANGE, PREV)
+
+    expect(report.first.thisPeriodAvg).toBe(10)
+    // "Todas" sigue viendo los dos turnos: (10 + 60) / 2.
+    expect(report.all.thisPeriodAvg).toBe(35)
   })
 
   it('atribuye al período anterior lo que cae fuera del rango', async () => {

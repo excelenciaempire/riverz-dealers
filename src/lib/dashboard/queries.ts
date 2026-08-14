@@ -206,6 +206,13 @@ export async function loadConversationsSeries(
 
 // --- 3. Response time by day of week ----------------------------------
 
+/**
+ * Silencio a partir del cual un mensaje del cliente empieza una consulta
+ * nueva en vez de continuar la anterior. 24 h es la misma ventana de
+ * atención que usa WhatsApp, así que coincide con lo que el comercio ve.
+ */
+const SESSION_GAP_MS = 24 * 60 * 60 * 1000
+
 export async function loadResponseTime(
   db: DB,
   tz: string,
@@ -220,21 +227,37 @@ export async function loadResponseTime(
   const fetchEnd = iso(new Date(Math.max(range.end.getTime(), prev.end.getTime())))
   // Paginated: ordered by (conversation_id, created_at) so the customer→reply
   // pairing below sees complete conversations even past the 1000-row cap.
-  const rows = await fetchAllRows<{
-    conversation_id: string
-    sender_type: string
-    created_at: string
-    content_type: string | null
-  }>((from, to) =>
-    db
-      .from('messages')
-      .select('conversation_id, sender_type, created_at, content_type')
-      .gte('created_at', fetchStart)
-      .lt('created_at', fetchEnd)
-      .order('conversation_id', { ascending: true })
-      .order('created_at', { ascending: true })
-      .range(from, to),
-  )
+  const [rows, openedRows] = await Promise.all([
+    fetchAllRows<{
+      conversation_id: string
+      sender_type: string
+      created_at: string
+      content_type: string | null
+    }>((from, to) =>
+      db
+        .from('messages')
+        .select('conversation_id, sender_type, created_at, content_type')
+        .gte('created_at', fetchStart)
+        .lt('created_at', fetchEnd)
+        .order('conversation_id', { ascending: true })
+        .order('created_at', { ascending: true })
+        .range(from, to),
+    ),
+    // Conversaciones ABIERTAS dentro de la ventana. Sin esto, "primera
+    // respuesta" no era la primera de la conversación sino la primera que
+    // caía en el rango: un hilo de hace meses que escribe hoy aportaba una
+    // "primera respuesta" nueva cada período, mezclando turnos del medio
+    // con la apertura real.
+    fetchAllRows<{ id: string }>((from, to) =>
+      db
+        .from('conversations')
+        .select('id')
+        .gte('created_at', fetchStart)
+        .lt('created_at', fetchEnd)
+        .range(from, to),
+    ),
+  ])
+  const openedInWindow = new Set(openedRows.map((c) => c.id))
 
   // Pair each unreplied customer message with the next outbound from the
   // agent/bot. A customer message counts once (avoids inflating averages if
@@ -251,16 +274,31 @@ export async function loadResponseTime(
   const samples: Sample[] = []
   let currentConv = ''
   let pendingCustomer: Date | null = null
+  let lastCustomer: Date | null = null
   let repliedInConv = false
   for (const row of rows) {
     if (row.conversation_id !== currentConv) {
       currentConv = row.conversation_id
       pendingCustomer = null
+      lastCustomer = null
       repliedInConv = false
     }
     const ts = new Date(row.created_at)
     if (row.sender_type === 'customer') {
-      if (!pendingCustomer) pendingCustomer = ts
+      // El reloj arranca en el primer mensaje de la ráfaga, PERO se reinicia
+      // si el cliente volvió después de un silencio largo: esa respuesta
+      // contesta al mensaje nuevo, no al viejo que quedó sin contestar. Sin
+      // el corte, el tiempo muerto entre visitas se sumaba al promedio (un
+      // mensaje sin responder de hace dos semanas convertía una respuesta de
+      // 2 minutos en una de 14 días) y encima la respuesta rápida real se
+      // perdía.
+      if (
+        !pendingCustomer ||
+        (lastCustomer && ts.getTime() - lastCustomer.getTime() > SESSION_GAP_MS)
+      ) {
+        pendingCustomer = ts
+      }
+      lastCustomer = ts
     } else if (pendingCustomer && row.content_type !== 'template') {
       // Una plantilla/broadcast NO es una respuesta a la pregunta del cliente
       // (es un envío masivo de marketing al mismo hilo): no debe contar como
@@ -268,10 +306,11 @@ export async function loadResponseTime(
       samples.push({
         customerAt: pendingCustomer,
         responseAt: ts,
-        isFirst: !repliedInConv,
+        isFirst: !repliedInConv && openedInWindow.has(row.conversation_id),
       })
       repliedInConv = true
       pendingCustomer = null
+      lastCustomer = null
     }
   }
 
