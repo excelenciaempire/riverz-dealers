@@ -1989,12 +1989,26 @@ function SwitchBranches({
       return copy
     })
 
+  // Un solo camino y sin "en otro caso" es una secuencia recta: los pasos
+  // siguen en la misma linea, sin carril ni etiqueta que repita lo que la
+  // tarjeta de la condicion ya dice. El carril con etiqueta aparece recien
+  // cuando hay algo que distinguir — dos caminos, o un "en otro caso" con
+  // pasos.
+  const linear = sd.cases.length === 1 && sd.elseSteps.length === 0
+
   return (
-    <div className="flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4">
+    <div
+      className={cn(
+        linear
+          ? "flex items-start"
+          : "flex flex-col gap-5 self-stretch border-l-2 border-dashed border-border pl-4",
+      )}
+    >
       {sd.cases.map((c) => (
         <SwitchCaseLane
           key={c.ckey}
           label={caseShortLabel(c.cfg, t)}
+          bare={linear}
           steps={c.steps}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
@@ -2005,6 +2019,7 @@ function SwitchBranches({
         />
       ))}
 
+      {!linear && (
       <BranchLane
         label={t("automations.switchElse")}
         color="border-slate-400/40 bg-slate-400/10 text-muted-foreground"
@@ -2019,6 +2034,7 @@ function SwitchBranches({
           onMoveStep={(i, dir) => moveStep("else", i, dir)}
         />
       </BranchLane>
+      )}
 
     </div>
   )
@@ -2026,6 +2042,7 @@ function SwitchBranches({
 
 function SwitchCaseLane({
   label,
+  bare,
   steps,
   expandedId,
   setExpandedId,
@@ -2035,6 +2052,8 @@ function SwitchCaseLane({
   onMoveStep,
 }: {
   label: string
+  /** Sin carril ni etiqueta: los pasos siguen la misma linea del tronco. */
+  bare?: boolean
   steps: BuilderStep[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
@@ -2043,11 +2062,7 @@ function SwitchCaseLane({
   onRemoveStep: (i: number) => void
   onMoveStep: (i: number, dir: -1 | 1) => void
 }) {
-  return (
-    <BranchLane
-      label={label}
-      color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink"
-    >
+  const body = (
       <div className="flex flex-col gap-2">
         {/* El filtro de cada camino se edita DENTRO de la tarjeta, al
             desplegarla — como en todo el resto de los elementos. Acá el
@@ -2062,6 +2077,14 @@ function SwitchCaseLane({
           onMoveStep={onMoveStep}
         />
       </div>
+  )
+  if (bare) return body
+  return (
+    <BranchLane
+      label={label}
+      color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink"
+    >
+      {body}
     </BranchLane>
   )
 }
@@ -2131,7 +2154,7 @@ function LeafStepCard({
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
   return (
-    <div className="flex w-full max-w-[280px] flex-col sm:w-72">
+    <div className="flex w-full max-w-[320px] flex-col sm:w-80">
       <div className={cn("rounded-lg border border-border border-l-4 bg-card shadow-sm", meta.border)}>
         <button
           type="button"
