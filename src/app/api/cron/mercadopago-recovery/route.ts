@@ -48,7 +48,7 @@ const log = getLogger('cron.mercadopago-recovery')
  *
  * Se puede cambiar por automatización en `trigger_config.hours_after`.
  */
-const DEFAULT_GRACE_HOURS = 3
+const DEFAULT_GRACE_HOURS = 1
 
 /**
  * Antigüedad máxima por defecto. Sin este tope, encender la automatización
@@ -482,6 +482,9 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
             payment_reason_code: r.status_detail ?? '',
             payment_reason_bucket: bucket,
             checkout_url: r.recovery_url ?? '',
+            // Lo lee la condición 'compró después del rechazo' al evaluarse,
+            // que es después de la espera del flujo.
+            rejected_at: r.rejected_at,
           },
         },
       })

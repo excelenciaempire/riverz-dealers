@@ -143,27 +143,44 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     // pagó en el segundo intento.
     tags: ['Mercado Pago', 'Espera 3 h'],
     trigger_type: 'payment_rejected',
-    // `hours_after` es la espera y el filtro a la vez: al cumplirse, el cron
-    // recién ahí comprueba si la persona compró. Quien pagó en el segundo
-    // intento queda fuera solo, sin que el comerciante configure nada.
-    trigger_config: { hours_after: 3, max_age_days: 14 },
+    // La espera vive en el paso `wait`, no acá: el flujo se arma con las
+    // piezas de la plataforma y se ve entero en el lienzo. `hours_after`
+    // queda en su mínimo para que el disparador no sume una segunda espera
+    // encima de la del flujo.
+    trigger_config: { hours_after: 1, max_age_days: 14 },
     suggested_template_body:
       'Hola {{customer_name}}, no pudimos procesar el pago de tu pedido por {{total_price}}. Responde este mensaje y te ayudamos a completar la compra.',
     steps: [
       {
-        // Sin paso `wait`: la espera ya la aplica el cron con `hours_after`,
-        // y sumar una acá la duplicaría igual que en carrito abandonado.
+        // 1. Esperar. Un rechazo se reintenta solo muy seguido: escribir al
+        //    toque interrumpe a alguien que está en pleno checkout.
+        step_type: 'wait',
+        step_config: { amount: 3, unit: 'hours' },
+      },
+      {
+        // 2. Preguntar si compró. Se evalúa DESPUÉS de la espera, que es el
+        //    único momento en que la respuesta significa algo: quien pagó en
+        //    el segundo intento sale del flujo por acá.
+        step_type: 'condition',
+        step_config: { subject: 'purchased_since', value: 'false' },
+      },
+      {
+        // 3. Rama Sí (= no compró): recién ahí se le escribe.
         //
-        // Va plantilla y no mensaje suelto porque el envío cae siempre
-        // fuera de la ventana de 24h de Meta. Categoría Utility: el aviso
-        // es transaccional (hay un pago que no prosperó), y las Marketing
-        // de este tipo se entregan mucho peor.
+        //    Va plantilla y no mensaje suelto porque el envío cae siempre
+        //    fuera de la ventana de 24h de Meta. Categoría Utility: el aviso
+        //    es transaccional (hay un pago que no prosperó), y las Marketing
+        //    de este tipo se entregan mucho peor.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
+        branch: 'yes',
+        parent_index: 1,
       },
       {
         step_type: 'add_tag',
         step_config: { tag_id: '' },
+        branch: 'yes',
+        parent_index: 1,
       },
     ],
   },

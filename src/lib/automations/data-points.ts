@@ -21,6 +21,7 @@ export type ConditionSource =
   | { kind: 'tag' } // subject 'tag_presence'
   | { kind: 'segment' } // subject 'in_segment'
   | { kind: 'message' } // subject 'message_content'
+  | { kind: 'purchased_since' } // subject 'purchased_since' (se resuelve en vivo)
 
 export interface DataPoint {
   /** Stable id used in the picker + to rebuild a condition. */
@@ -348,6 +349,18 @@ export const DATA_POINTS: DataPoint[] = [
     usableInConditions: true,
     templateVarKey: 'payment_reason',
     condition: { kind: 'var', varKey: 'payment_reason' },
+  },
+  {
+    // La única que se resuelve en vivo al evaluarse, no con lo que había al
+    // disparar. Puesta después de una espera, es la que distingue "se le
+    // rechazó el pago" de "no compró".
+    id: 'purchased_since',
+    labelKey: 'automations.dpPurchasedSince',
+    group: 'order',
+    valueKind: 'bool',
+    triggers: ['payment_rejected'],
+    usableInConditions: true,
+    condition: { kind: 'purchased_since' },
   },
   {
     id: 'payment_attempts',

@@ -459,6 +459,7 @@ function dataPointIdFromCfg(
     if (subject === 'tag_presence') return c.kind === 'tag'
     if (subject === 'in_segment') return c.kind === 'segment'
     if (subject === 'message_content') return c.kind === 'message'
+    if (subject === 'purchased_since') return c.kind === 'purchased_since'
     return false
   })?.id
 }
@@ -472,6 +473,10 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
     return { subject: 'contact_field', operand: c.column, op: defaultOpFor(dp), value: '', value2: undefined }
   if (c.kind === 'tag') return { subject: 'tag_presence', operand: '', op: undefined, value: '', value2: undefined }
   if (c.kind === 'segment') return { subject: 'in_segment', operand: '', op: undefined, value: '', value2: undefined }
+  // Sin operando: la respuesta se resuelve en vivo. `value` es solo el lado
+  // que se quiere: 'false' = la rama Si es "no compro", que es la que envia.
+  if (c.kind === 'purchased_since')
+    return { subject: 'purchased_since', operand: '', op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -572,6 +577,19 @@ function ConditionFields({
             placeholder={t("automations.messageContainsPlaceholder")}
             className="bg-muted text-foreground"
           />
+        </FieldBlock>
+      )}
+
+      {dp && dp.condition.kind === "purchased_since" && (
+        <FieldBlock label={t("automations.condValueLabel")}>
+          <select
+            value={String(cfg.value ?? "false")}
+            onChange={(e) => set({ value: e.target.value })}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
+          >
+            <option value="false">{t("automations.purchasedSinceNo")}</option>
+            <option value="true">{t("automations.purchasedSinceYes")}</option>
+          </select>
         </FieldBlock>
       )}
 

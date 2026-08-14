@@ -25,6 +25,7 @@ import {
 } from '@/lib/whatsapp/dynamic-links'
 import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
+import { purchasedSince } from '@/lib/commerce/purchased-since'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -919,6 +920,33 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         (args.context.vars as Record<string, unknown> | undefined)?.[cfg.operand],
         cfg,
       )
+    }
+    case 'purchased_since': {
+      // Verdadero si la persona compró DESPUÉS del momento que dejó el
+      // disparador. Se consulta en vivo, no del contexto: la gracia del
+      // paso está en que corre después de la espera, cuando la respuesta
+      // ya puede haber cambiado.
+      if (!args.contactId) return false
+      const since =
+        (args.context.vars as Record<string, unknown> | undefined)?.rejected_at ??
+        (args.context.vars as Record<string, unknown> | undefined)?.triggered_at
+      if (!since) return false
+      const { data: c } = await db
+        .from('contacts')
+        .select('email, phone')
+        .eq('id', args.contactId)
+        .maybeSingle()
+      const contact = c as { email: string | null; phone: string | null } | null
+      const bought = await purchasedSince(db, {
+        workspaceId: args.automation.workspace_id,
+        sinceIso: String(since),
+        email: contact?.email,
+        phone: contact?.phone,
+      })
+      // `value` permite invertirlo desde la UI: "compró = no" es la rama
+      // que manda el mensaje.
+      const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
+      return bought === want
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window
