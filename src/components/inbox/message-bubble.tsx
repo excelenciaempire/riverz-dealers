@@ -717,11 +717,29 @@ function TemplateButtons({ message }: { message: Message }) {
  */
 function EmailBody({ message }: { message: Message }) {
   const t = useT();
-  if (emailIsHtml(message)) {
-    return <EmailHtmlBody html={(message.html_body as string).trim()} />;
-  }
   const rawText = message.content_text ?? "";
   const { primary, quoted } = splitEmailQuote(rawText);
+
+  if (emailIsHtml(message)) {
+    // Una respuesta trae el mensaje nuevo arriba y todo el correo anterior
+    // abajo. Si sólo se dibuja el HTML, esas dos o tres líneas —lo único
+    // que la persona escribió— quedan perdidas encima de un correo entero
+    // con su logo y sus imágenes, y a simple vista parece que no dijo nada.
+    //
+    // Se muestran primero, en grande, y el correo completo sigue debajo tal
+    // cual: el diseño no se toca, sólo deja de tapar lo que importa.
+    return (
+      <div className="space-y-2">
+        {primary && (
+          <div className="rounded-lg bg-muted/50 px-3 py-2">
+            <LinkifiedText text={primary} />
+          </div>
+        )}
+        <EmailHtmlBody html={(message.html_body as string).trim()} />
+      </div>
+    );
+  }
+
   const isReply = quoted.length > 0;
   const text = isReply
     ? primary
@@ -743,8 +761,11 @@ function isRichHtml(html: string): boolean {
 function emailIsHtml(message: Message): boolean {
   const html = message.html_body?.trim();
   if (!html) return false;
-  const { quoted } = splitEmailQuote(message.content_text ?? "");
-  if (quoted.length > 0) return false; // it's a reply → show the text
+  // Antes una respuesta se degradaba a texto pelado aunque el correo
+  // tuviera diseño. Ahora se conserva el HTML y el mensaje nuevo va arriba
+  // (ver EmailBody): se ve lo que la persona escribió sin perder el correo.
+  // Una respuesta SIN diseño —prosa y nada más— sigue yendo como texto,
+  // que es como se lee mejor.
   return isRichHtml(html);
 }
 
@@ -891,7 +912,7 @@ function decodeHtmlEntities(s: string): string {
  * intro inline — not just at line start — so it also folds legacy rows
  * whose HTML was flattened to a single line at ingest time.
  */
-function splitEmailQuote(raw: string): { primary: string; quoted: string } {
+export function splitEmailQuote(raw: string): { primary: string; quoted: string } {
   const decoded = decodeHtmlEntities(raw).replace(/\r\n/g, "\n");
 
   const inlineMarkers: RegExp[] = [
@@ -900,6 +921,14 @@ function splitEmailQuote(raw: string): { primary: string; quoted: string } {
     /El\s+(?:lun|mar|mi[eé]|jue|vie|s[aá]b|dom)[a-zé.]*,?\s+\d{1,2}\b[\s\S]*?escribi[oó]:/i,
     // English: "On <weekday>, <date> … wrote:".
     /On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[\s\S]*?\bwrote:/i,
+    // Apple Mail en iOS/macOS cita SIN día de la semana:
+    // "El 13 ago 2026, a la(s) 12:58 a. m., Fulano <x@y> escribió:".
+    // Sin esta variante la cita no se detectaba, así que el mensaje nuevo
+    // no se podía separar del correo citado y quedaba enterrado.
+    /El\s+\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z.]*\s+\d{4}[\s\S]{0,400}?escribi[o\u00f3]:/i,
+    // Las mismas, en inglés, en los dos órdenes que usan los clientes.
+    /On\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}[\s\S]{0,400}?\bwrote:/i,
+    /On\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s*\d{4}[\s\S]{0,400}?\bwrote:/i,
     // Outlook reply header block: "De: … Enviado: …" / "From: … Sent: …".
     /\bDe:\s[\s\S]{0,400}?\bEnviado(?:\s+el)?:/i,
     /\bFrom:\s[\s\S]{0,400}?\bSent:/i,
