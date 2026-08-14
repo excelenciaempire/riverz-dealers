@@ -2033,21 +2033,24 @@ function BranchFan({
         >
           {/* Ramal horizontal hasta el carril. */}
           <span aria-hidden className="absolute left-[-1.25rem] w-5 border-t border-border" />
-          {/* La etiqueta va FUERA del flujo, flotando arriba del carril.
-              Ocupando lugar en la fila —al costado o encima— corría el primer
-              paso de cada camino a una x distinta según lo largo que fuera su
-              nombre, y las tarjetas dejaban de formar columnas. Así todos los
-              caminos arrancan exactamente donde termina el ramal. */}
-          <span
-            className={cn(
-              "pointer-events-none absolute -top-2.5 left-0 z-10 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
-              lane.color,
-            )}
-            title={lane.label}
-          >
-            {lane.label}
-          </span>
-          {lane.content}
+          {/* La etiqueta se ancla al CONTENIDO, no a la fila.
+              Anclada a la fila quedaba arriba de todo, y como las filas
+              comparten el alto de la más alta, en un camino corto la etiqueta
+              flotaba lejos de su propio botón. Fuera del flujo igual: si
+              ocupara lugar, correría el primer paso de cada camino a una x
+              distinta según lo largo que fuera su nombre. */}
+          <div className="relative">
+            <span
+              className={cn(
+                "pointer-events-none absolute -top-2.5 left-0 z-10 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
+                lane.color,
+              )}
+              title={lane.label}
+            >
+              {lane.label}
+            </span>
+            {lane.content}
+          </div>
         </div>
       ))}
     </div>
