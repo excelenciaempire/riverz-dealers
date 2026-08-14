@@ -45,6 +45,14 @@ export interface TemplateStepSeed {
 
 export interface AutomationTemplateDefinition {
   slug: TemplateSlug
+  /**
+   * Pasarela de pago que esta receta necesita. Cuando está, la tarjeta sólo
+   * se ofrece a quien la tiene conectada o a quien opera donde esa pasarela
+   * existe (ver /api/automations/template-context). Sin esto, una tienda de
+   * Estados Unidos vería para siempre una receta de Mercado Pago que nunca
+   * va a poder usar.
+   */
+  requiresGateway?: 'mercadopago'
   name: string
   description: string
   /** Bucket the card belongs to. Used to colour-code or group. */
@@ -123,6 +131,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
 
   'pago-rechazado': {
     slug: 'pago-rechazado',
+    requiresGateway: 'mercadopago',
     name: 'Pago rechazado',
     description:
       'Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.',

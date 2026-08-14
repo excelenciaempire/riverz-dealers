@@ -81,7 +81,38 @@ export default function AutomationsPage() {
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const templates = useMemo(() => listTemplates(), [])
+  const allTemplates = useMemo(() => listTemplates(), [])
+  // Contexto de pasarelas: decide qué recetas tienen sentido para este
+  // comercio. Ver /api/automations/template-context.
+  const [gatewayCtx, setGatewayCtx] = useState<{
+    mercadopago: boolean
+    latam: boolean
+  } | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch("/api/automations/template-context", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j) {
+          setGatewayCtx({ mercadopago: !!j.payments?.mercadopago, latam: !!j.latam })
+        }
+      })
+      .catch(() => {
+        /* sin contexto se cae al caso conservador de abajo */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  const templates = useMemo(() => {
+    // Mientras carga se ocultan las recetas con pasarela: aparecer y
+    // desaparecer es peor que tardar un instante en aparecer.
+    return allTemplates.filter((tpl) => {
+      if (!tpl.requiresGateway) return true
+      if (!gatewayCtx) return false
+      return gatewayCtx.mercadopago || gatewayCtx.latam
+    })
+  }, [allTemplates, gatewayCtx])
   // The automation engine sends exclusively via WhatsApp (meta-send.ts →
   // whatsapp_config). The module layout only requires *some* channel, so a
   // workspace with e.g. only email connected still needs this WA-specific gate.
