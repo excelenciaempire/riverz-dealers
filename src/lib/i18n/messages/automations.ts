@@ -327,10 +327,7 @@ export const automations = {
   voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
 
   // Builder — unified multi-path "Condición" node (N filtered paths + "en otro caso")
-  switchHint: {
-    es: "Cada camino tiene su filtro; gana el primero que se cumpla. Si no se cumple ninguno, va a «En otro caso».",
-    en: "Each path has its own filter; the first one that matches wins. If none match, it goes to “Otherwise”.",
-  },
+  switchPathN: { es: "Camino {n}", en: "Path {n}" },
   switchAddCase: { es: "Añadir camino", en: "Add path" },
   switchRemoveCase: { es: "Quitar camino", en: "Remove path" },
   switchElse: { es: "En otro caso", en: "Otherwise" },

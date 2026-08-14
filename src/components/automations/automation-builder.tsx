@@ -1962,20 +1962,6 @@ function SwitchBranches({
       switchData: fn(s.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }),
     }))
 
-  const addCase = () =>
-    patch((d) => ({
-      ...d,
-      // Each path carries its own filter (edited in the lane via ConditionFields);
-      // a fresh path starts empty for the user to pick a data point.
-      cases: [...d.cases, { ckey: cid(), cfg: {}, steps: [] }],
-    }))
-  const removeCase = (ckey: string) =>
-    patch((d) => ({ ...d, cases: d.cases.filter((c) => c.ckey !== ckey) }))
-  const patchCaseCfg = (ckey: string, p: Record<string, unknown>) =>
-    patch((d) => ({
-      ...d,
-      cases: d.cases.map((c) => (c.ckey === ckey ? { ...c, cfg: { ...c.cfg, ...p } } : c)),
-    }))
   const mutateLane = (
     lane: string | "else",
     fn: (steps: BuilderStep[]) => BuilderStep[],
@@ -2009,9 +1995,6 @@ function SwitchBranches({
         <SwitchCaseLane
           key={c.ckey}
           label={caseShortLabel(c.cfg, t)}
-          cfg={c.cfg}
-          onCfg={(p) => patchCaseCfg(c.ckey, p)}
-          onRemove={() => removeCase(c.ckey)}
           steps={c.steps}
           expandedId={expandedId}
           setExpandedId={setExpandedId}
@@ -2037,23 +2020,12 @@ function SwitchBranches({
         />
       </BranchLane>
 
-      <button
-        type="button"
-        onClick={addCase}
-        className="inline-flex items-center gap-1.5 self-start rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {t("automations.switchAddCase")}
-      </button>
     </div>
   )
 }
 
 function SwitchCaseLane({
   label,
-  cfg,
-  onCfg,
-  onRemove,
   steps,
   expandedId,
   setExpandedId,
@@ -2063,9 +2035,6 @@ function SwitchCaseLane({
   onMoveStep,
 }: {
   label: string
-  cfg: Record<string, unknown>
-  onCfg: (p: Record<string, unknown>) => void
-  onRemove: () => void
   steps: BuilderStep[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
@@ -2074,27 +2043,15 @@ function SwitchCaseLane({
   onRemoveStep: (i: number) => void
   onMoveStep: (i: number, dir: -1 | 1) => void
 }) {
-  const t = useT()
   return (
     <BranchLane
       label={label}
       color="border-emerald-500/40 bg-emerald-500/10 text-accent-ink"
     >
       <div className="flex flex-col gap-2">
-        <div className="flex items-start gap-1 rounded-md border border-border bg-card/60 p-2">
-          <div className="min-w-[180px] flex-1">
-            {/* Each path is a full condition (any data point + operator + value). */}
-            <ConditionFields cfg={cfg} set={onCfg} />
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("automations.switchRemoveCase")}
-            onClick={onRemove}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* El filtro de cada camino se edita DENTRO de la tarjeta, al
+            desplegarla — como en todo el resto de los elementos. Acá el
+            carril muestra sólo lo que ese camino hace. */}
         <SwitchLaneSteps
           steps={steps}
           expandedId={expandedId}
@@ -2374,6 +2331,72 @@ function AddButton({
 // Per-step config editor
 // ------------------------------------------------------------
 
+/**
+ * Los caminos de una "Condición" multi-camino, editados DENTRO de la
+ * tarjeta.
+ *
+ * Antes cada filtro vivía en su carril del lienzo, siempre abierto: la
+ * condición era el único elemento que no se veía como los demás ni guardaba
+ * su configuración detrás del clic. Los carriles ahora muestran sólo lo que
+ * cada camino hace.
+ */
+function SwitchPathsEditor({
+  step,
+  onChange,
+}: {
+  step: BuilderStep
+  onChange: (s: BuilderStep) => void
+}) {
+  const t = useT()
+  const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
+  const patch = (next: SwitchData<BuilderStep>) => onChange({ ...step, switchData: next })
+
+  return (
+    <div className="space-y-3">
+      {sd.cases.map((c, i) => (
+        <div key={c.ckey} className="rounded-md border border-border bg-muted/40 p-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t("automations.switchPathN", { n: String(i + 1) })}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("automations.switchRemoveCase")}
+              onClick={() =>
+                patch({ ...sd, cases: sd.cases.filter((x) => x.ckey !== c.ckey) })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <ConditionFields
+            cfg={c.cfg}
+            set={(p) =>
+              patch({
+                ...sd,
+                cases: sd.cases.map((x) =>
+                  x.ckey === c.ckey ? { ...x, cfg: { ...x.cfg, ...p } } : x,
+                ),
+              })
+            }
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          patch({ ...sd, cases: [...sd.cases, { ckey: cid(), cfg: {}, steps: [] }] })
+        }
+        className="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {t("automations.switchAddCase")}
+      </button>
+    </div>
+  )
+}
+
 function StepEditor({
   step,
   onChange,
@@ -2617,11 +2640,7 @@ function StepEditor({
       return <ConditionFields cfg={cfg} set={set} />
 
     case "switch":
-      // The paths (each with its own filter) + "en otro caso" are edited in the
-      // lanes on the canvas (SwitchBranches); here we only explain the model.
-      return (
-        <p className="text-[11px] text-muted-foreground">{t("automations.switchHint")}</p>
-      )
+      return <SwitchPathsEditor step={step} onChange={onChange} />
 
     case "send_webhook":
       return (
