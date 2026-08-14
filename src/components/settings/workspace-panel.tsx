@@ -11,7 +11,6 @@ import {
   UserPlus,
   ShieldCheck,
   Shield,
-  AlertTriangle,
   SlidersHorizontal,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -34,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { WorkspaceInvite, WorkspaceMember } from "@/types";
+import type { Profile, WorkspaceInvite, WorkspaceMember } from "@/types";
 import { signupsOpen } from "@/lib/auth/signups";
 
 export function WorkspacePanel() {
@@ -47,6 +46,7 @@ export function WorkspacePanel() {
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [savingTz, setSavingTz] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
@@ -71,8 +71,6 @@ export function WorkspacePanel() {
     value: string[] | null;
   } | null>(null);
   const [savingInvite, setSavingInvite] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (workspace) {
@@ -84,10 +82,13 @@ export function WorkspacePanel() {
   const fetchMembersAndInvites = useCallback(async () => {
     if (!workspace) return;
     const supabase = createClient();
-    const [membersRes, invitesRes] = await Promise.all([
+    // El perfil se trae aparte a propósito: workspace_members.user_id apunta a
+    // auth.users, no a profiles, así que no hay FK que PostgREST pueda embeber.
+    // Pedirlo con `profiles!...fkey(...)` devolvía error y la lista quedaba vacía.
+    const [membersRes, invitesRes, authRes] = await Promise.all([
       supabase
         .from("workspace_members")
-        .select("*, user:profiles!workspace_members_user_id_fkey(full_name, email, avatar_url)")
+        .select("*")
         .eq("workspace_id", workspace.id)
         .order("joined_at", { ascending: true }),
       supabase
@@ -96,35 +97,22 @@ export function WorkspacePanel() {
         .eq("workspace_id", workspace.id)
         .is("accepted_at", null)
         .order("created_at", { ascending: false }),
+      supabase.auth.getUser(),
     ]);
-    setMembers((membersRes.data ?? []) as WorkspaceMember[]);
+    const rows = (membersRes.data ?? []) as WorkspaceMember[];
+    const userIds = [...new Set(rows.map((m) => m.user_id).filter(Boolean))];
+    const { data: profileRows } = userIds.length
+      ? await supabase.from("profiles").select("*").in("user_id", userIds)
+      : { data: [] as Profile[] };
+    const byUser = new Map((profileRows ?? []).map((p) => [p.user_id as string, p as Profile]));
+    setCurrentUserId(authRes.data.user?.id ?? null);
+    setMembers(rows.map((m) => ({ ...m, user: byUser.get(m.user_id) })));
     setInvites((invitesRes.data ?? []) as WorkspaceInvite[]);
   }, [workspace]);
 
   useEffect(() => {
     void fetchMembersAndInvites();
   }, [fetchMembersAndInvites]);
-
-  const handleDeleteWorkspace = useCallback(async () => {
-    if (!workspace) return;
-    setDeleting(true);
-    const res = await fetchWithCsrf("/api/workspaces/delete", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        workspace_id: workspace.id,
-        confirm_name: deleteConfirm,
-      }),
-    });
-    setDeleting(false);
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      toast.error(payload.error ?? t("settings.workspaceDeleteError"));
-      return;
-    }
-    toast.success(t("settings.workspaceDeleted"));
-    window.location.href = "/ingresar";
-  }, [workspace, deleteConfirm, fetchWithCsrf, t]);
 
   const handleRename = useCallback(async () => {
     if (!workspace) return;
@@ -363,7 +351,7 @@ export function WorkspacePanel() {
           {members.map((m) => {
             const user = (m as WorkspaceMember & { user?: { full_name: string; email: string; avatar_url?: string } })
               .user;
-            const isYou = false;
+            const isYou = m.user_id === currentUserId;
             return (
               <li key={m.id} className="px-5 py-3">
                 <div className="flex items-center gap-3">
@@ -618,40 +606,6 @@ export function WorkspacePanel() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {/* Danger zone — workspace deletion. Only the owner sees it. */}
-      {isAdmin && (
-        <section className="rounded-xl border border-red-500/30 bg-red-500/5 p-5">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="size-5 text-red-500" />
-            <h2 className="text-base font-semibold text-foreground">
-              {t("settings.deleteWorkspacePermanently")}
-            </h2>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("settings.deleteWorkspaceWarning")}
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
-            <Input
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder={t("settings.deleteWorkspaceConfirmPlaceholder", { name: workspace.name })}
-              className="bg-card text-foreground"
-            />
-            <Button
-              onClick={handleDeleteWorkspace}
-              disabled={deleting || deleteConfirm.trim() !== workspace.name}
-              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                t("settings.deleteWorkspace")
-              )}
-            </Button>
-          </div>
         </section>
       )}
     </div>
