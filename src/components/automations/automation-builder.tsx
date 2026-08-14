@@ -1402,12 +1402,45 @@ function PaymentRejectedConfig({
   onChange: (c: Record<string, unknown>) => void
 }) {
   const t = useT()
+  // Sin Mercado Pago conectado no entra ni un pago rechazado, así que la
+  // automatización se puede activar y no dispararse nunca. El aviso es lo
+  // único que convierte ese silencio en algo accionable.
+  const [mpConnected, setMpConnected] = useState<boolean | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/integrations/mercadopago', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive) setMpConnected(j ? !!j.connected : null)
+      })
+      .catch(() => {
+        // Un fallo de red no es "no conectado": dejar null oculta el aviso
+        // en vez de mandar a reconectar algo que ya funciona.
+        if (alive) setMpConnected(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
   const num = (v: unknown, fallback: number) => {
     const n = Number(v)
     return Number.isFinite(n) && n > 0 ? n : fallback
   }
   return (
     <div className="grid gap-2 sm:grid-cols-2">
+      {mpConnected === false && (
+        <div className="sm:col-span-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          <p className="text-xs text-amber-800 dark:text-amber-200">
+            {t("automations.mpNotConnected")}
+          </p>
+          <Link
+            href="/integraciones"
+            className="mt-1 inline-block text-xs font-medium underline underline-offset-2"
+          >
+            {t("automations.mpConnectCta")}
+          </Link>
+        </div>
+      )}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">
           {t("automations.mpHoursAfterLabel")}

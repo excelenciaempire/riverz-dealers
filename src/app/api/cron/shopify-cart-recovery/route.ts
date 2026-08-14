@@ -6,6 +6,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
+import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { getLogger } from '@/lib/log/logger'
 
@@ -179,6 +180,23 @@ async function cronHandler(request: Request) {
         email: r.customer_email ?? undefined,
       })
       if (!contactId) {
+        processed++
+        continue
+      }
+
+      // Barrera compartida: si YA le mandamos una plantilla en las últimas
+      // 24h —de este cron, del de pagos, de una campaña, de donde sea— no
+      // se le suma otra. Ver lib/outreach/cooldown.ts para por qué la señal
+      // es la plantilla y no el flujo que la originó.
+      const nudged = await recentlyContacted(admin, {
+        workspaceId: r.workspace_id,
+        contactId,
+      })
+      if (nudged.blocked) {
+        log.info('carrito omitido: ya se le escribió', {
+          checkoutId: r.id,
+          lastTemplate: nudged.template,
+        })
         processed++
         continue
       }

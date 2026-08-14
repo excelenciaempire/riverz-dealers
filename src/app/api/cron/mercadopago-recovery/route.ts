@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { isOptedOut } from '@/lib/whatsapp/opt-out'
+import { recentlyContacted } from '@/lib/outreach/cooldown'
 import {
   REJECTION_REASONS,
   shouldContact,
@@ -423,6 +424,23 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
       })
       if (!contactId) {
         await skip(admin, r.id, 'no_contact')
+        skipped++
+        continue
+      }
+
+      // Barrera compartida contra duplicados: si ya se le mandó cualquier
+      // plantilla en las últimas 24h, no se le suma ésta. Cubre lo que las
+      // barreras por tabla no pueden ver —una campaña, una reactivación—
+      // porque mira el envío real y no el flujo que lo originó.
+      const nudged = await recentlyContacted(admin, {
+        workspaceId: r.workspace_id,
+        contactId,
+      })
+      if (nudged.blocked) {
+        await admin
+          .from('mp_rejected_payments')
+          .update({ contact_id: contactId, skip_reason: 'recently_contacted' })
+          .eq('id', r.id)
         skipped++
         continue
       }

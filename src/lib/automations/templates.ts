@@ -128,7 +128,11 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       'Al cliente se le rechazó el pago y a las 3 horas todavía no completó la compra. Le escribimos para retomarla.',
     category: 'shopify',
     icon: 'credit-card',
-    tags: ['Mercado Pago', 'Recovery'],
+    // La espera va en la píldora porque es LA decisión del flujo: es lo que
+    // separa "se le rechazó el pago" de "no compró". Verla antes de abrir
+    // la plantilla evita la duda de si esto le escribe a alguien que ya
+    // pagó en el segundo intento.
+    tags: ['Mercado Pago', 'Espera 3 h'],
     trigger_type: 'payment_rejected',
     // `hours_after` es la espera y el filtro a la vez: al cumplirse, el cron
     // recién ahí comprueba si la persona compró. Quien pagó en el segundo

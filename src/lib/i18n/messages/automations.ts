@@ -226,6 +226,11 @@ export const automations = {
   dpTrackingUrl: { es: "Link de seguimiento", en: "Tracking link" },
   dpTrackingCompany: { es: "Transportista", en: "Carrier" },
   dpCheckoutUrl: { es: "Link del carrito", en: "Cart link" },
+  mpNotConnected: {
+    es: "Falta conectar Mercado Pago. Sin eso no llega ningún pago rechazado y esta automatización no se dispara.",
+    en: "Mercado Pago isn't connected yet. Without it no declined payments arrive and this automation never fires.",
+  },
+  mpConnectCta: { es: "Conectar Mercado Pago", en: "Connect Mercado Pago" },
   mpHoursAfterLabel: { es: "Escribir después de (horas)", en: "Write after (hours)" },
   mpMaxAgeLabel: { es: "Ignorar rechazos de más de (días)", en: "Ignore declines older than (days)" },
   mpHoursAfterHint: {
