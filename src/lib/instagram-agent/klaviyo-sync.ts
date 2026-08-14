@@ -1,20 +1,18 @@
 /**
- * Sync de leads capturados a Klaviyo (owned audience).
+ * Empuje inmediato a Klaviyo del lead que captura el agente de Instagram.
  *
- * Cuando el agente captura un email/teléfono en la conversación, lo empujamos
- * a Klaviyo para construir la audiencia propia de la marca (lo que Blueberry
- * vende como "first-party data capture"). Best-effort y desactivado por
- * defecto: si el workspace no tiene Klaviyo conectado, es un no-op silencioso.
+ * Es el atajo del caso caliente: la persona acaba de dejar su correo en la
+ * conversación y el comercio quiere poder escribirle ya, sin esperar al
+ * siguiente barrido. El espejo completo de la base (todos los canales, con
+ * etiquetas y bajas) lo hace el cron `klaviyo-sync` sobre
+ * `@/lib/integrations/klaviyo`; acá sólo va el perfil suelto.
  *
- * La credencial se resuelve por workspace (tabla workspace_integrations,
- * encriptada) con `resolveKlaviyoKey`; hay fallback a `KLAVIYO_API_KEY` (env)
- * para despliegues mono-tenant.
+ * Best-effort y apagado por defecto: si el workspace no tiene Klaviyo
+ * conectado, no hace nada.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { decrypt } from '@/lib/whatsapp/encryption';
-
-const KLAVIYO_API = 'https://a.klaviyo.com/api/profiles/';
-const KLAVIYO_REVISION = '2024-10-15';
+import { klaviyoFetch } from '@/lib/integrations/klaviyo';
+import { resolveWorkspaceKey } from '@/lib/integrations/workspace-key';
 
 export interface LeadSyncInput {
   email?: string | null;
@@ -31,21 +29,7 @@ export async function resolveKlaviyoKey(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string | null> {
-  const { data } = await db
-    .from('workspace_integrations')
-    .select('api_key_encrypted, is_active')
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'klaviyo')
-    .maybeSingle();
-  const row = data as { api_key_encrypted: string; is_active: boolean } | null;
-  if (row?.is_active && row.api_key_encrypted) {
-    try {
-      return decrypt(row.api_key_encrypted);
-    } catch {
-      /* clave corrupta: cae al fallback de env */
-    }
-  }
-  return process.env.KLAVIYO_API_KEY ?? null;
+  return resolveWorkspaceKey(db, workspaceId, 'klaviyo', process.env.KLAVIYO_API_KEY);
 }
 
 export async function syncLeadToKlaviyo(
@@ -67,14 +51,8 @@ export async function syncLeadToKlaviyo(
   }
 
   try {
-    const res = await fetch(KLAVIYO_API, {
+    const res = await klaviyoFetch(apiKey, '/profiles/', {
       method: 'POST',
-      headers: {
-        Authorization: `Klaviyo-API-Key ${apiKey}`,
-        revision: KLAVIYO_REVISION,
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
       body: JSON.stringify({ data: { type: 'profile', attributes } }),
     });
     // 409 = el perfil ya existe (duplicado): lo tratamos como éxito.

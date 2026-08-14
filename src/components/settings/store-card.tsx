@@ -250,7 +250,7 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
           <Image src={meta.logo} alt={meta.label} width={28} height={28} />
         </div>
         <div className="min-w-0">

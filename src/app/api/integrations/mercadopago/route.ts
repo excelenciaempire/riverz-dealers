@@ -64,10 +64,14 @@ export async function GET() {
 
   // Con OAuth la URL de avisos vive en la aplicación y no la pega nadie, así
   // que sólo se devuelve para las conexiones hechas con token pegado — que
-  // son las únicas que la necesitan.
+  // son las únicas que la necesitan. Lo que manda es cómo se conectó ESTE
+  // workspace (`expires_at` sólo lo escribe OAuth), no si la aplicación
+  // existe: si no, al habilitar OAuth se le esconde la URL a quien ya estaba
+  // conectado a mano y sus rechazos dejan de llegar al instante.
   const oauth = oauthConfigured();
+  const expiresAt = row?.expires_at ?? null;
   let notifyUrl: string | null = null;
-  if (row?.is_active && !oauth) {
+  if (row?.is_active && expiresAt === null) {
     const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
     if (workspaceId) {
       notifyUrl = webhookUrl(workspaceId, publicBaseUrl());
@@ -86,17 +90,18 @@ export async function GET() {
   //
   // `expires_at` sólo lo escribe el flujo de OAuth, así que su ausencia es
   // exactamente "esto se conectó a mano" y no hace falta otra bandera.
-  const expiresAt = row?.expires_at ?? null;
+  //
+  // Una conexión hecha pegando el token y funcionando NO genera aviso. Antes
+  // sí ("conectaste pegando el token, autoriza la aplicación"), y era un
+  // cartel permanente sobre algo que no está roto: repetía la promesa de
+  // "al instante" que ya hace la URL de avisos de abajo y mandaba a un flujo
+  // que no siempre está habilitado. Un aviso que no se puede sacar
+  // haciéndole caso entrena a ignorar todos los demás.
   const msLeft = expiresAt ? new Date(expiresAt).getTime() - Date.now() : null;
   let alert: string | null = null;
   if (row?.is_active) {
     if (row.renew_failed_at) alert = 'renovacion_fallida';
     else if (msLeft !== null && msLeft < 14 * 86_400_000) alert = 'vence_pronto';
-    // Conectado a mano teniendo la aplicación disponible: no está roto, pero
-    // se pierde las dos cosas que sí resuelve autorizar — los rechazos al
-    // instante y la renovación automática. Sin este aviso no hay forma de
-    // enterarse de que existe un camino mejor.
-    else if (expiresAt === null && oauth) alert = 'mejorable';
   }
 
   return NextResponse.json({

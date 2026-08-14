@@ -330,18 +330,39 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
     if (step.step_type === 'wait') {
       const cfg = step.step_config as WaitStepConfig
       const ms = waitMs(cfg)
-      await db.from('automation_pending_executions').insert({
-        automation_id: args.automation.id,
-        workspace_id: args.automation.workspace_id,
-        contact_id: args.contactId,
-        log_id: args.logId,
-        parent_step_id: args.parentStepId,
-        branch: args.branch,
-        next_step_position: step.position + 1,
-        context: args.context,
-        run_at: new Date(Date.now() + ms).toISOString(),
-        status: 'pending',
-      })
+      // `user_id` es NOT NULL en esta tabla (a diferencia de automation_logs,
+      // que la 053 dejó nullable). Sin este campo el INSERT se caía en
+      // silencio: el paso quedaba anotado como "esperando N minutos", nadie
+      // encolaba la reanudación y el flujo se quedaba dormido para siempre en
+      // "parcial" — el mensaje nunca salía.
+      const { error: enqueueErr } = await db
+        .from('automation_pending_executions')
+        .insert({
+          automation_id: args.automation.id,
+          user_id: args.ownerUserId ?? args.automation.user_id,
+          workspace_id: args.automation.workspace_id,
+          contact_id: args.contactId,
+          log_id: args.logId,
+          parent_step_id: args.parentStepId,
+          branch: args.branch,
+          next_step_position: step.position + 1,
+          context: args.context,
+          run_at: new Date(Date.now() + ms).toISOString(),
+          status: 'pending',
+        })
+      if (enqueueErr) {
+        // Que se vea: una espera que no se encola no es una espera, es un
+        // flujo cortado.
+        console.error('[automations] no se pudo encolar la espera:', enqueueErr)
+        results.push({
+          step_id: step.id,
+          step_type: step.step_type,
+          status: 'failed',
+          detail: enqueueErr.message,
+        })
+        await appendResults(args.logId, results, 'failed', enqueueErr.message)
+        return
+      }
       results.push({
         step_id: step.id,
         step_type: step.step_type,

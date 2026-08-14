@@ -58,6 +58,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: "*/10 * * * *",
   },
   { name: "flows-sweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
+  // Espeja los contactos hacia Klaviyo. Por marca de agua: la primera corrida
+  // sube la base y las siguientes sólo lo que cambió.
+  { name: "klaviyo-sync", path: "/api/cron/klaviyo-sync", schedule: "*/15 * * * *" },
   { name: "ai-followups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
   // Red de seguridad del webhook de Mercado Pago: levanta lo que no haya
   // llegado por aviso. Sólo ingesta; el envío lo decide mercadopago-recovery.

@@ -15,9 +15,12 @@ import { cn } from '@/lib/utils';
  * integración que no está donde el comercio busca integraciones no se conecta
  * nunca. Misma tarjeta que Mercado Pago o las tiendas.
  *
- * Qué hace hoy: cuando el agente de Instagram captura un correo o un teléfono
- * en la conversación, lo empuja como perfil a Klaviyo (audiencia propia de la
- * marca). La key se guarda encriptada por workspace y nunca vuelve al cliente.
+ * Qué hace al conectar: el cron `klaviyo-sync` espeja los contactos de Riverz
+ * (todos los canales) como perfiles de Klaviyo, con sus etiquetas y sus datos
+ * de compra, dentro de una lista "Riverz"; las bajas se suprimen. Además el
+ * agente de Instagram empuja al instante el lead que captura.
+ *
+ * La key se guarda encriptada por workspace y nunca vuelve al cliente.
  */
 export function KlaviyoCard() {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -99,7 +102,7 @@ export function KlaviyoCard() {
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card p-2 shadow-sm ring-1 ring-border">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
           <Image src="/channels/klaviyo.svg" alt="Klaviyo" width={28} height={28} />
         </div>
         <div className="min-w-0">

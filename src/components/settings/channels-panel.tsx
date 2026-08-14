@@ -340,8 +340,8 @@ export function ChannelsPanel() {
         </div>
       )}
 
-      {/* Header */}
-      <h2 className="text-xl font-bold text-foreground">{t("settings.channels")}</h2>
+      {/* La página ya se titula "Integraciones": un segundo título encima de
+          la misma grilla no agrega información. */}
       {!isAdmin && (
         <p className="text-xs text-muted-foreground">{t("settings.readOnly")}</p>
       )}
@@ -397,14 +397,9 @@ export function ChannelsPanel() {
               )}
             >
               <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "flex size-11 shrink-0 items-center justify-center rounded-xl p-2 shadow-sm ring-1 ring-border",
-                    // El logo de Meta es azul sobre transparente: va en una
-                    // caja blanca para que contraste con la tarjeta oscura.
-                    g.logoSrc ? "bg-white" : "bg-card",
-                  )}
-                >
+                {/* Todos los logos van sobre blanco: son marcas de colores
+                    sobre fondo transparente y en modo oscuro se pierden. */}
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
                   <ChannelLogo channel={g.logoChannel} src={g.logoSrc} size={28} />
                 </div>
                 <div className="min-w-0">

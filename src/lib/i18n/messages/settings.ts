@@ -35,8 +35,8 @@ export const settings = {
 
   // Klaviyo card
   klaviyoDescription: {
-    es: "Sincroniza los leads que captura el Agente de Instagram a tu lista de email/SMS.",
-    en: "Sync the leads captured by the Instagram Agent to your email/SMS list.",
+    es: "Tus contactos de Riverz, con sus etiquetas, en tu lista de email y SMS.",
+    en: "Your Riverz contacts, with their tags, in your email and SMS list.",
   },
   connected: { es: "Conectado", en: "Connected" },
   klaviyoInvalidKey: {
@@ -84,10 +84,6 @@ export const settings = {
   mpExpiringSoon: {
     es: "Tu acceso a Mercado Pago vence el {date}. Vuelve a conectarlo para que la recuperación siga andando.",
     en: "Your Mercado Pago access expires on {date}. Reconnect it to keep recovery running.",
-  },
-  mpUpgradeToOauth: {
-    es: "Conectaste pegando el token. Autoriza la aplicación y los pagos rechazados llegan al instante, sin tener que renovar nada a mano.",
-    en: "You connected by pasting a token. Authorize the app and declined payments arrive instantly, with nothing to renew by hand.",
   },
   mpReconnect: { es: "Volver a conectar", en: "Reconnect" },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
