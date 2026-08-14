@@ -2076,30 +2076,11 @@ function SwitchBranches({
       return copy
     })
 
-  // Un solo camino y sin "en otro caso" es una secuencia recta: los pasos
-  // siguen en la misma linea, sin carril ni etiqueta que repita lo que la
-  // tarjeta de la condicion ya dice. El carril con etiqueta aparece recien
-  // cuando hay algo que distinguir — dos caminos, o un "en otro caso" con
-  // pasos.
-  const linear = sd.cases.length === 1 && sd.elseSteps.length === 0
-
-  if (linear) {
-    const only = sd.cases[0]
-    return (
-      <div className="flex items-start">
-        <SwitchLaneSteps
-          steps={only.steps}
-          expandedId={expandedId}
-          setExpandedId={setExpandedId}
-          onAdd={(type, at) => addStep(only.ckey, type, at)}
-          onChangeStep={(i, n) => changeStep(only.ckey, i, n)}
-          onRemoveStep={(i) => removeStep(only.ckey, i)}
-          onMoveStep={(i, dir) => moveStep(only.ckey, i, dir)}
-        />
-      </div>
-    )
-  }
-
+  // Una condición SIEMPRE muestra sus caminos, incluido el "en otro caso"
+  // aunque esté vacío. Hubo una versión que dibujaba el caso de un solo
+  // camino como línea recta, y escondía justamente lo que hay que ver: qué
+  // pasa con quien NO cumple. Un flujo donde esa rama no se ve parece que
+  // sigue de largo para todos.
   return (
     <BranchFan
       lanes={[
