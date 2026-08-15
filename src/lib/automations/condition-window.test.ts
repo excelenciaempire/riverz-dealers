@@ -30,10 +30,10 @@ describe('receta de pago rechazado', () => {
       // Desde que arrancó el flujo, no una duración repetida: si repitiera
       // los 10 minutos habría que mantener dos números sincronizados.
       { subject: 'purchased', operand: 'since_trigger', value: 'false' },
-      // El cruce con el rescate de carrito, a la vista. La ventana va al
-      // techo del motor (90 dias) porque aca conviene equivocarse por no
-      // molestar: quien recibio CUALQUIER plantilla en ese plazo queda afuera.
-      { subject: 'messaged', operand: '90d', value: 'false' },
+      // El cruce con el rescate de carrito, a la vista. Cuenta CUALQUIER
+      // plantilla, no sólo las de rescate: dos días alcanzan para no
+      // insistir por el mismo episodio sin apagar la recuperación.
+      { subject: 'messaged', operand: '48h', value: 'false' },
     ])
   })
 
@@ -71,8 +71,8 @@ describe('receta de carrito abandonado', () => {
       { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       // Gana pago rechazado: dice lo que pasó de verdad y su plantilla es
       // Utility, que Meta entrega.
-      { subject: 'rejected_open', operand: '90d', value: 'false' },
-      { subject: 'messaged', operand: '90d', value: 'false' },
+      { subject: 'rejected_open', operand: '48h', value: 'false' },
+      { subject: 'messaged', operand: '48h', value: 'false' },
     ])
   })
 
@@ -82,6 +82,48 @@ describe('receta de carrito abandonado', () => {
     expect(send?.branch).toBe('yes')
     expect(send?.parent_index).toBe(3)
     expect(tag?.parent_index).toBe(3)
+  })
+})
+
+describe('receta de pago pendiente (transferencia)', () => {
+  const tpl = AUTOMATION_TEMPLATES['pago-pendiente']
+
+  it('sale del flujo si el pedido ya está pagado', () => {
+    expect(tpl.trigger_type).toBe('shopify_order_created')
+    expect(tpl.steps[0].step_config).toMatchObject({
+      subject: 'context_var',
+      operand: 'financial_status',
+      value: 'pending',
+    })
+  })
+
+  it('recuerda a la 1 h, a las 6 y a las 24 del pedido', () => {
+    // Las esperas son acumulativas: 1 + 5 + 18 = 24 h desde el pedido.
+    const waits = tpl.steps
+      .filter((s) => s.step_type === 'wait')
+      .map((s) => s.step_config as { amount: number; unit: string })
+    expect(waits).toEqual([
+      { amount: 1, unit: 'hours' },
+      { amount: 5, unit: 'hours' },
+      { amount: 18, unit: 'hours' },
+    ])
+  })
+
+  it('vuelve a preguntar si pagó antes de cada recordatorio', () => {
+    const paid = cfgs('pago-pendiente').filter((c) => c.subject === 'order_paid')
+    expect(paid).toEqual([
+      { subject: 'order_paid', value: 'false' },
+      { subject: 'order_paid', value: 'false' },
+      { subject: 'order_paid', value: 'false' },
+    ])
+    expect(tpl.steps.filter((s) => s.step_type === 'send_template')).toHaveLength(3)
+  })
+
+  it('NO lleva la barrera de "ya le escribimos"', () => {
+    // La confirmación del pedido sale minutos antes, así que esa barrera
+    // mataría este flujo el primer día. Su anti-duplicado es preguntar si
+    // pagó, no cuánto hace que le hablamos.
+    expect(cfgs('pago-pendiente').map((c) => c.subject)).not.toContain('messaged')
   })
 })
 

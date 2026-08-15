@@ -526,7 +526,10 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
   if (c.kind === 'messaged')
     return { subject: 'messaged', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
   if (c.kind === 'rejected_open')
-    return { subject: 'rejected_open', operand: '24h', op: undefined, value: 'false', value2: undefined }
+    return { subject: 'rejected_open', operand: '48h', op: undefined, value: 'false', value2: undefined }
+  // Sin ventana: la pregunta es por el pedido de ESTE flujo, no por un plazo.
+  if (c.kind === 'order_paid')
+    return { subject: 'order_paid', operand: undefined, op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -638,6 +641,21 @@ function ConditionFields({
           <PurchasedFields cfg={cfg} set={set} kind={dp.condition.kind} />
         )}
 
+      {/* "Pagó el pedido" no lleva ventana: pregunta por el pedido de ESTE
+          flujo, no por un plazo. Sólo el lado. */}
+      {dp && dp.condition.kind === "order_paid" && (
+        <FieldBlock label={t("automations.condValueLabel")}>
+          <select
+            value={String(cfg.value ?? "false")}
+            onChange={(e) => set({ value: e.target.value })}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
+          >
+            <option value="false">{t(SIDE_LABEL.order_paid.no)}</option>
+            <option value="true">{t(SIDE_LABEL.order_paid.yes)}</option>
+          </select>
+        </FieldBlock>
+      )}
+
       {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
         <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} products={products} />
       )}
@@ -656,6 +674,7 @@ const SIDE_LABEL = {
     no: "automations.rejectedOpenNo",
     yes: "automations.rejectedOpenYes",
   },
+  order_paid: { no: "automations.orderPaidNo", yes: "automations.orderPaidYes" },
 } as const
 
 /**
@@ -3156,6 +3175,12 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   const label = t(dp.labelKey)
   const kind = dp.condition.kind
   if (kind === "tag" || kind === "segment") return label
+  // Sin ventana que mostrar: el lado ya lo dice todo ("No pagó").
+  if (kind === "order_paid") {
+    return cfg.value === "true"
+      ? t(SIDE_LABEL.order_paid.yes)
+      : t(SIDE_LABEL.order_paid.no)
+  }
   if (kind === "purchased" || kind === "messaged" || kind === "rejected_open") {
     // "No compró · en las últimas 3 horas". El renderer de booleanos genérico
     // reutilizaba el texto de "ya compró alguna vez", que acá no viene al

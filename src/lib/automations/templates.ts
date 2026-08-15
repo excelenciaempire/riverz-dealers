@@ -9,6 +9,7 @@ import type { Locale } from '@/lib/i18n/config'
 export type TemplateSlug =
   | 'carrito-abandonado'
   | 'pago-rechazado'
+  | 'pago-pendiente'
   | 'nuevo-pedido'
   | 'enviar-tracking'
   | 'post-survey'
@@ -122,17 +123,17 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    deja el checkout abierto, así que la misma persona entra por los
         //    dos rescates. Gana el de pago: dice lo que pasó de verdad.
         step_type: 'condition',
-        step_config: { subject: 'rejected_open', operand: '90d', value: 'false' },
+        step_config: { subject: 'rejected_open', operand: '48h', value: 'false' },
         branch: 'yes',
         parent_index: 1,
       },
       {
-        // 4. ¿Ya le escribimos? La ventana va al techo del motor —90 días—
-        //    porque acá conviene equivocarse por no molestar. Es amplia a
-        //    propósito: quien recibió CUALQUIER plantilla en ese plazo queda
-        //    afuera. Se baja desde el mismo paso, sin tocar código.
+        // 4. ¿Ya le escribimos? Cuenta CUALQUIER plantilla, no sólo las de
+        //    rescate: dos días alcanzan para no insistirle a la misma persona
+        //    por el mismo episodio sin apagar la recuperación. La ventana se
+        //    edita en el paso, sin tocar código.
         step_type: 'condition',
-        step_config: { subject: 'messaged', operand: '90d', value: 'false' },
+        step_config: { subject: 'messaged', operand: '48h', value: 'false' },
         branch: 'yes',
         parent_index: 2,
       },
@@ -190,12 +191,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
-        // 3. ¿Ya le escribimos hoy? Cubre el cruce con el rescate de carrito:
+        // 3. ¿Ya le escribimos en los últimos dos días? Cubre el cruce con el
+        //    rescate de carrito:
         //    si esa persona ya recibió el "dejaste tu carrito", no se le suma
         //    este encima. El motor aplica la misma barrera igual, pero acá se
         //    ve y cada comercio elige su ventana.
         step_type: 'condition',
-        step_config: { subject: 'messaged', operand: '90d', value: 'false' },
+        step_config: { subject: 'messaged', operand: '48h', value: 'false' },
         branch: 'yes',
         parent_index: 1,
       },
@@ -216,6 +218,110 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { tag_id: '' },
         branch: 'yes',
         parent_index: 2,
+      },
+    ],
+  },
+
+  'pago-pendiente': {
+    slug: 'pago-pendiente',
+    name: 'Pago pendiente',
+    description:
+      'El cliente hizo el pedido pero todavía no pagó (transferencia). Le recordamos a la hora, a las 6 y a las 24, y paramos apenas paga.',
+    category: 'shopify',
+    icon: 'credit-card',
+    tags: ['Shopify', 'Transferencia', '1 h · 6 h · 24 h'],
+    trigger_type: 'shopify_order_created',
+    trigger_config: {},
+    suggested_template_body:
+      'Hola {{customer_name}}, tu pedido {{order_name}} por {{total_price}} está reservado y esperando la transferencia. Cuando la hagas, mándanos el comprobante por acá.',
+    steps: [
+      {
+        // 1. ¿Quedó esperando pago? Un pedido pagado con tarjeta sale del
+        //    flujo acá mismo y no gasta ni una espera.
+        step_type: 'condition',
+        step_config: {
+          subject: 'context_var',
+          operand: 'financial_status',
+          op: 'eq',
+          value: 'pending',
+        },
+      },
+      {
+        // 2. Una hora. Suficiente para que pase por el banco sin que el
+        //    recordatorio pise a la confirmación del pedido.
+        step_type: 'wait',
+        step_config: { amount: 1, unit: 'hours' },
+        branch: 'yes',
+        parent_index: 0,
+      },
+      {
+        // 3. ¿Pagó mientras tanto? Se le pregunta a la tienda AHORA. El
+        //    estado que trajo el webhook es el del momento del pedido y
+        //    después de una espera no dice nada.
+        step_type: 'condition',
+        step_config: { subject: 'order_paid', value: 'false' },
+        branch: 'yes',
+        parent_index: 0,
+      },
+      {
+        // 4. Primer recordatorio, con el alias.
+        //
+        //    Este flujo NO lleva el paso "ya le escribimos": no es un rescate
+        //    cruzado, es el recordatorio del mismo pedido, y la confirmación
+        //    de compra sale minutos antes. Su anti-duplicado es la pregunta
+        //    de arriba — si pagó, no se manda nada.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+        branch: 'yes',
+        parent_index: 2,
+      },
+      {
+        // 5. Cinco horas más: seis desde el pedido.
+        step_type: 'wait',
+        step_config: { amount: 5, unit: 'hours' },
+        branch: 'yes',
+        parent_index: 2,
+      },
+      {
+        step_type: 'condition',
+        step_config: { subject: 'order_paid', value: 'false' },
+        branch: 'yes',
+        parent_index: 2,
+      },
+      {
+        // 6. Segundo recordatorio: acá conviene ofrecer ayuda, no repetir.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+        branch: 'yes',
+        parent_index: 5,
+      },
+      {
+        // 7. Dieciocho horas más: veinticuatro desde el pedido.
+        step_type: 'wait',
+        step_config: { amount: 18, unit: 'hours' },
+        branch: 'yes',
+        parent_index: 5,
+      },
+      {
+        step_type: 'condition',
+        step_config: { subject: 'order_paid', value: 'false' },
+        branch: 'yes',
+        parent_index: 5,
+      },
+      {
+        // 8. Último aviso y se deja de insistir.
+        step_type: 'send_template',
+        step_config: { template_name: '', language: 'es', variables: {} },
+        branch: 'yes',
+        parent_index: 8,
+      },
+      {
+        // La etiqueta es lo que deja al pedido sin pagar visible en Contactos
+        // y usable como segmento.
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+        branch: 'yes',
+        parent_index: 8,
       },
     ],
   },
@@ -376,6 +482,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'carrito-abandonado',
   'pago-rechazado',
+  'pago-pendiente',
   'nuevo-pedido',
   'enviar-tracking',
   'post-survey',
@@ -393,6 +500,8 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
   'carrito-abandonado':
     'Hi {{customer_name}}, you left your cart unfinished. We saved it in case you want to pick it back up: {{checkout_url}}.',
+  'pago-pendiente':
+    'Hi {{customer_name}}, your order {{order_name}} for {{total_price}} is reserved and waiting for the transfer. Send us the receipt here once you make it.',
   'nuevo-pedido':
     "Thanks for your purchase, {{customer_name}}. We confirmed order {{order_name}} for {{total_price}} {{currency}}. We'll let you know as soon as it ships.",
   'enviar-tracking':

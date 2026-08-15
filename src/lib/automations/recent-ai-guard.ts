@@ -97,6 +97,44 @@ export async function automationHasChatSteps(automationId: string): Promise<bool
 }
 
 /**
+ * ¿Este flujo habla YA, o antes espera?
+ *
+ * La guardia existe para que un mensaje enlatado no aterrice arriba de una
+ * conversación que la IA está teniendo en ese momento. Un flujo cuyo tronco
+ * empieza con un paso `Esperar` no puede hacer eso: cuando hable van a haber
+ * pasado horas, y la ventana de la guardia son cinco minutos.
+ *
+ * Ante la duda —o si la consulta falla— se responde que sí habla, que deja
+ * la guardia como estaba.
+ */
+export async function automationSpeaksImmediately(automationId: string): Promise<boolean> {
+  const db = supabaseAdmin()
+  const { data, error } = await db
+    .from('automation_steps')
+    .select('step_type, position, parent_step_id')
+    .eq('automation_id', automationId)
+  if (error) return true
+  const steps = (data ?? []) as {
+    step_type: string
+    position: number
+    parent_step_id: string | null
+  }[]
+  // Sin ninguna espera, habla apenas se dispara.
+  if (!steps.some((s) => s.step_type === 'wait')) return true
+  // Con espera: sólo habla ya si hay un envío en el tronco ANTES de la
+  // primera espera del tronco. Los envíos que cuelgan de una condición
+  // posterior a la espera llegan siempre después.
+  const trunk = steps
+    .filter((s) => s.parent_step_id === null)
+    .sort((a, b) => a.position - b.position)
+  for (const s of trunk) {
+    if (s.step_type === 'wait') return false
+    if (s.step_type === 'send_message' || s.step_type === 'send_template') return true
+  }
+  return false
+}
+
+/**
  * Same as `automationHasChatSteps` but accepts a pre-loaded steps
  * array (used by resume paths that already have them in memory).
  */
@@ -165,6 +203,11 @@ export async function shouldAllowAutomationSend(args: {
   if (isTransactionalTrigger(args.triggerType)) return { allow: true }
   const hasChatSteps = await automationHasChatSteps(args.automation.id)
   if (!hasChatSteps) return { allow: true }
+  // Un flujo que arranca esperando no puede caerle encima a una conversación
+  // viva: para cuando hable ya pasaron horas. Frenarlo acá era descartar el
+  // recordatorio de transferencia entero —que habla recién a la hora— porque
+  // la IA había pasado el link de pago dos minutos antes.
+  if (!(await automationSpeaksImmediately(args.automation.id))) return { allow: true }
   const recent = await wasAiOrAgentRecentlyActive(args.contactId)
   if (recent) {
     return { allow: false, reason: 'ai_or_agent_active_within_5min' }
