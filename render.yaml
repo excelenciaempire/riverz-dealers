@@ -108,6 +108,10 @@ services:
       # le avisa por WhatsApp cuando algo se rompe en cualquier cuenta.
       - key: PLATFORM_ALERT_PHONE
         sync: false
+      # Host de la documentación pública. Sólo hace falta si algún día se sirve
+      # desde otro dominio; por defecto docs.riverz.co.
+      - key: DOCS_HOST
+        sync: false
       # Upstash Redis — rate limit distribuido. Sin estas variables el
       # limitador cae a memoria por proceso y deja pasar burst en
       # multi-réplica. Crear base en https://upstash.com.
