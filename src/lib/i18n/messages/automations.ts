@@ -119,6 +119,13 @@ export const automations = {
   saveDraft: { es: "Guardar borrador", en: "Save draft" },
   useTemplate: { es: "Usar plantilla", en: "Use template" },
   saveFailed: { es: "No se pudo guardar", en: "Couldn't save" },
+  unsavedTitle: { es: "Hay cambios sin guardar", en: "You have unsaved changes" },
+  unsavedBody: {
+    es: "Si sales ahora se pierden.",
+    en: "If you leave now, they're lost.",
+  },
+  unsavedDiscard: { es: "Salir sin guardar", en: "Leave without saving" },
+  unsavedSave: { es: "Guardar y salir", en: "Save and leave" },
   toastSaved: { es: "Guardada", en: "Saved" },
   toastCreated: { es: "Creada", en: "Created" },
   toastTemplateAdded: { es: "Plantilla agregada", en: "Template added" },

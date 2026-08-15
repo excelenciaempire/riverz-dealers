@@ -36,6 +36,14 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -182,6 +190,23 @@ export interface BuilderInitial {
   audience_segment_id?: string | null
   is_active: boolean
   steps: BuilderStep[]
+}
+
+/**
+ * El flujo entero como texto, para comparar contra lo último que se guardó.
+ * Se listan los campos a mano —y no el objeto suelto— para que un dato que
+ * el editor use de adorno no cuente como cambio sin guardar.
+ */
+function snapshot(s: BuilderInitial): string {
+  return JSON.stringify({
+    name: s.name,
+    description: s.description ?? "",
+    trigger_type: s.trigger_type,
+    trigger_config: s.trigger_config ?? {},
+    audience_segment_id: s.audience_segment_id ?? null,
+    is_active: s.is_active,
+    steps: s.steps,
+  })
 }
 
 // ------------------------------------------------------------
@@ -1076,6 +1101,37 @@ export function AutomationBuilder({
     })
   }, [])
   const [saving, setSaving] = useState(false)
+  // Lo guardado hasta ahora, como texto, para saber si quedó algo sin
+  // guardar. El editor no guarda solo: se compara contra esta foto y si
+  // difiere, salir pregunta antes de tirar el trabajo.
+  const [savedSnapshot, setSavedSnapshot] = useState(() => snapshot(initial))
+  const dirty = !templatePreview && snapshot(state) !== savedSnapshot
+  // Adónde ir cuando la persona confirme que quiere salir.
+  const [leavingTo, setLeavingTo] = useState<string | null>(null)
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+
+  // Recargar o cerrar la pestaña no pasa por el diálogo: ahí sólo se puede
+  // pedirle al navegador que muestre el suyo.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [])
+
+  /** Salir a `href`, preguntando primero si hay cambios sin guardar. */
+  const leave = useCallback(
+    (href: string) => {
+      if (dirtyRef.current) setLeavingTo(href)
+      else router.push(href)
+    },
+    [router],
+  )
+
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [segments, setSegments] = useState<ContactSegment[]>([])
@@ -1220,7 +1276,7 @@ export function AutomationBuilder({
     setState((s) => ({ ...s, steps: moveAt(s.steps, path, direction) }))
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true)
     try {
       const payload = {
@@ -1263,7 +1319,7 @@ export function AutomationBuilder({
         } else {
           toast.error(body?.error ?? t("automations.saveFailed"))
         }
-        return
+        return false
       }
       toast.success(
         isEditing
@@ -1272,9 +1328,13 @@ export function AutomationBuilder({
             ? t("automations.toastTemplateAdded")
             : t("automations.toastCreated"),
       )
+      // Desde acá, lo que hay en pantalla es lo guardado: salir ya no
+      // pregunta nada.
+      setSavedSnapshot(snapshot(state))
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automatizaciones/${body.automation.id}/editar`)
       }
+      return true
     } finally {
       setSaving(false)
     }
@@ -1305,7 +1365,7 @@ export function AutomationBuilder({
       <header className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-card/80 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:gap-3 sm:px-4">
         <button
           type="button"
-          onClick={() => router.push("/automatizaciones")}
+          onClick={() => leave("/automatizaciones")}
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label={t("automations.back")}
         >
@@ -1361,7 +1421,7 @@ export function AutomationBuilder({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(`/automatizaciones/${initial.id}`)}
+            onClick={() => leave(`/automatizaciones/${initial.id}`)}
             className="border-border bg-transparent text-foreground hover:bg-muted"
           >
             <BarChart3 className="h-4 w-4" />
@@ -1369,7 +1429,7 @@ export function AutomationBuilder({
           </Button>
         )}
         <Button
-          onClick={save}
+          onClick={() => void save()}
           disabled={saving}
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
@@ -1381,6 +1441,44 @@ export function AutomationBuilder({
               : t("automations.saveDraft")}
         </Button>
       </header>
+
+      <Dialog open={leavingTo !== null} onOpenChange={(o) => !o && setLeavingTo(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("automations.unsavedTitle")}</DialogTitle>
+            <DialogDescription>{t("automations.unsavedBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                const to = leavingTo
+                setLeavingTo(null)
+                if (to) router.push(to)
+              }}
+            >
+              {t("automations.unsavedDiscard")}
+            </Button>
+            <Button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                const to = leavingTo
+                void save().then((ok) => {
+                  if (!ok) return
+                  setLeavingTo(null)
+                  if (to) router.push(to)
+                })
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t("automations.unsavedSave")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {templatePreview && (
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-xs text-muted-foreground">
