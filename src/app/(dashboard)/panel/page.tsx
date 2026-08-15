@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
+import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
 import {
@@ -180,6 +181,11 @@ export default function DashboardPage() {
         <h1 className="app-page-title">{t('dashboard.overview')}</h1>
         <LiveIndicator connected={isConnected} t={t} />
       </div>
+
+      {/* Lo que se rompio en silencio. Va PRIMERO: si un envio no salio, eso
+          importa mas que cualquier metrica de la pantalla. Solo aparece cuando
+          hay algo. */}
+      <NeedsAttention />
 
       {/* Checklist de onboarding. Solo aparece mientras falte algo (o se oculte). */}
       <SetupChecklist />

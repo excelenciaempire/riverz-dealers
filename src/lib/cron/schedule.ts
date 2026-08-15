@@ -113,6 +113,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     timeoutMs: 1_800_000,
   },
   { name: "pii-purge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
+  // Avisa por correo lo que se rompió en silencio. Una vez por día: la
+  // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
+  { name: "issues-alert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },
   { name: "meta-token-refresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *" },
   { name: "reengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },
 ];

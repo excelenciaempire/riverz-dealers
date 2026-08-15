@@ -22,6 +22,7 @@ import { errProducts } from "./errProducts";
 import { errStores } from "./errStores";
 import { errWhatsapp } from "./errWhatsapp";
 import { flows } from "./flows";
+import { health } from "./health";
 import { igAgent } from "./igAgent";
 import { inbox } from "./inbox";
 import { landing } from "./landing";
@@ -55,6 +56,7 @@ const NAMESPACES: Record<string, Namespace> = {
   errStores,
   errWhatsapp,
   flows,
+  health,
   igAgent,
   inbox,
   landing,
