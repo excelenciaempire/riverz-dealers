@@ -156,6 +156,43 @@ const WaitingCountsContext = createContext<Record<string, number>>({})
  * haya que convertir píxeles de pantalla a píxeles de CSS — la misma cuenta
  * que ya se equivocó una vez con las líneas del abanico.
  */
+/**
+ * El asa por la que se agarra una tarjeta.
+ *
+ * Vive FUERA del botón de la cabecera y encima de él, absoluta. Adentro no
+ * sirve: el botón se queda con el `mousedown` y Chrome nunca dispara el
+ * `dragstart`, así que la tarjeta no se movía por más que el código estuviera
+ * bien — con eventos sintéticos andaba, con el mouse no.
+ */
+function Asa({
+  onTake,
+  onDrop,
+  cid,
+}: {
+  onTake: () => void
+  onDrop: () => void
+  cid: string
+}) {
+  const t = useT()
+  return (
+    <span
+      draggable
+      data-drag-handle
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move"
+        // Firefox no arranca el arrastre sin datos.
+        e.dataTransfer.setData("text/plain", cid)
+        onTake()
+      }}
+      onDragEnd={onDrop}
+      aria-label={t("automations.dragHandle")}
+      className="absolute left-2 top-0 z-10 flex h-[78px] w-5 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+    >
+      <GripVertical className="h-4 w-4" aria-hidden />
+    </span>
+  )
+}
+
 interface Arrastre {
   cid: string
   /** Para no dejar caer un paso dentro de sí mismo. */
@@ -2058,43 +2095,30 @@ function StepRenderer({
     <div className={cn("flex flex-col", width)}>
         <div
           className={cn(
-            "rounded-lg border border-border border-l-4 bg-card shadow-lg transition-opacity",
+            "relative rounded-lg border border-border border-l-4 bg-card shadow-lg transition-opacity",
             meta.border,
             // La tarjeta que viaja se atenúa: sin eso parece que sigue en su
             // lugar y no se entiende qué se está moviendo.
             arrastre.arrastrando?.cid === step.cid && "opacity-40",
           )}
         >
+          {/* El asa va FUERA del botón, no adentro. Adentro, Chrome no
+              arranca nunca el arrastre: el botón se queda con el mousedown y
+              el `dragstart` no llega a dispararse. Es lo que hacía que
+              funcionara al dispararlo por código y no con el mouse. */}
+          <Asa
+            onTake={() =>
+              arrastre.tomar({ cid: step.cid, step, origen: { kind: "arbol", path } })
+            }
+            onDrop={() => arrastre.tomar(null)}
+            cid={step.cid}
+          />
           <button
             type="button"
             onClick={() => props.setExpandedId(expanded ? null : step.cid)}
             data-card-head
-            // Se arrastra desde el asa, no desde toda la cabecera: si toda la
-            // cabecera arrastrara, no se podría desplegar la configuración
-            // sin que el paso se empezara a mover.
-            draggable={false}
-            className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
+            className="flex h-[78px] w-full items-center gap-3 py-3 pl-9 pr-4 text-left"
           >
-            <span
-              draggable
-              onDragStart={(e) => {
-                e.stopPropagation()
-                e.dataTransfer.effectAllowed = "move"
-                // Firefox no arranca el arrastre sin datos.
-                e.dataTransfer.setData("text/plain", step.cid)
-                arrastre.tomar({
-                  cid: step.cid,
-                  step,
-                  origen: { kind: "arbol", path },
-                })
-              }}
-              onDragEnd={() => arrastre.tomar(null)}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t("automations.dragHandle")}
-              className="flex-shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
-            >
-              <GripVertical className="h-4 w-4" aria-hidden />
-            </span>
             <div
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-lg",
@@ -2694,36 +2718,28 @@ function LeafStepCard({
     <div className="flex w-full max-w-[320px] flex-col sm:w-80">
       <div
         className={cn(
-          "rounded-lg border border-border border-l-4 bg-card shadow-sm transition-opacity",
+          "relative rounded-lg border border-border border-l-4 bg-card shadow-sm transition-opacity",
           meta.border,
           arrastre.arrastrando?.cid === step.cid && "opacity-40",
         )}
       >
+        <Asa
+          onTake={() =>
+            arrastre.tomar({
+              cid: step.cid,
+              step,
+              origen: { kind: "carril", owner, lane, index },
+            })
+          }
+          onDrop={() => arrastre.tomar(null)}
+          cid={step.cid}
+        />
         <button
           type="button"
           onClick={onToggle}
           data-card-head
-          className="flex h-[78px] w-full items-center gap-3 px-3 py-2.5 text-left"
+          className="flex h-[78px] w-full items-center gap-3 py-2.5 pl-9 pr-3 text-left"
         >
-          <span
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation()
-              e.dataTransfer.effectAllowed = "move"
-              e.dataTransfer.setData("text/plain", step.cid)
-              arrastre.tomar({
-                cid: step.cid,
-                step,
-                origen: { kind: "carril", owner, lane, index },
-              })
-            }}
-            onDragEnd={() => arrastre.tomar(null)}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={t("automations.dragHandle")}
-            className="flex-shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
-          >
-            <GripVertical className="h-4 w-4" aria-hidden />
-          </span>
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg, meta.iconText)}>
             {meta.brand === "whatsapp" ? (
               <Image src="/channels/whatsapp.svg" alt="" width={18} height={18} />
@@ -3792,7 +3808,7 @@ function clampScale(s: number) {
 /** Selectors a click on which should not start a pan — the user is
  *  trying to interact with a control, not move the canvas. */
 const INTERACTIVE_SELECTOR =
-  'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"]'
+  'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-drag-handle]'
 
 function CanvasViewport({ children }: { children: React.ReactNode }) {
   const t = useT()
