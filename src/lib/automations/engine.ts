@@ -18,6 +18,7 @@ import type {
 import { supabaseAdmin } from './admin-client'
 import { enqueueCall } from '@/lib/voice/queue'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import type { SendReason } from '@/lib/outreach/send-gate'
 import { createShortLink } from '@/lib/links/short-link'
 import {
   resolveButtonUrlFromVars,
@@ -340,6 +341,46 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   }
 }
 
+/**
+ * ¿Esta persona ya avisó que pagó?
+ *
+ * No es lo mismo que "está cobrado": es que lo dijo por chat y todavía nadie
+ * lo confirmó en la tienda. Alcanza para callar los recordatorios, que es lo
+ * único que se decide acá.
+ */
+async function avisoDePago(
+  db: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+  contactId: string | null,
+): Promise<boolean> {
+  if (!contactId) return false
+  const { data } = await db
+    .from('orders')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('contact_id', contactId)
+    .not('payment_reported_at', 'is', null)
+    .limit(1)
+    .maybeSingle()
+  return Boolean(data)
+}
+
+/**
+ * Qué clase de mensaje es, según lo que lo disparó.
+ *
+ * Un rescate sale a buscar una venta que no se cerró y por eso se enfría: no
+ * se le insiste dos veces a la misma persona por lo mismo. Un aviso del
+ * pedido no, y no es un detalle — el recordatorio de transferencia manda tres
+ * mensajes en 24 h, así que enfriarlo lo mataría después del primero.
+ */
+function motivoDelDisparador(trigger: AutomationTriggerType): SendReason {
+  return trigger === 'shopify_abandoned_checkout' ||
+    trigger === 'payment_rejected' ||
+    trigger === 'customer_inactive'
+    ? 'rescate'
+    : 'transaccional'
+}
+
 interface ExecuteArgs {
   automation: Automation
   contactId: string | null
@@ -594,6 +635,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         contactId: args.contactId,
         text,
         automationName: args.automation.name,
+        reason: motivoDelDisparador(args.automation.trigger_type),
       })
       return `sent via Meta (${whatsapp_message_id})`
     }
@@ -700,6 +742,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         buttonUrlParam,
         buttonUrlIndex,
         automationName: args.automation.name,
+        reason: motivoDelDisparador(args.automation.trigger_type),
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }
@@ -1315,7 +1358,15 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       // sin cumplirse y el recordatorio no sale. Callar es más barato que
       // escribirle a quien ya pagó.
       if (status === null) return want
-      const paid = status === 'paid' || status === 'partially_paid'
+      // "Dijo que pagó" cuenta igual que "está pagado" para dejar de
+      // insistir. Shopify puede tardar en enterarse —el comprobante llegó por
+      // WhatsApp y todavía nadie lo confirmó— y mientras tanto seguir
+      // mandando recordatorios es exactamente lo que hay que evitar. Dar por
+      // COBRADO es otra decisión y vive en lib/payments/reported-payment.ts.
+      const paid =
+        status === 'paid' ||
+        status === 'partially_paid' ||
+        (await avisoDePago(db, args.automation.workspace_id, args.contactId))
       return paid === want
     }
     case 'time_of_day': {

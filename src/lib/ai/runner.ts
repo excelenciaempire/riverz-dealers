@@ -31,6 +31,7 @@ import {
   buildOrderTool,
   LOOKUP_ORDER_TOOL,
   ESCALATE_TO_CALL_TOOL,
+  REGISTRAR_PAGO_TOOL,
   runWithTools,
   type ShopifyToolContext,
   type VoiceEscalationContext,
@@ -1464,6 +1465,10 @@ async function generateReply(
         ]
       : []),
     ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
+    // Registrar un pago informado no necesita Shopify conectado: el pedido
+    // puede estar espejado de otro canal, y aunque no se pueda cobrar, callar
+    // los recordatorios ya vale por sí solo.
+    ...(primaryContact.id ? [REGISTRAR_PAGO_TOOL] : []),
   ];
   const result = await runWithTools(client, {
     // Mercado Libre no permite consultar pedidos en vivo (comprador

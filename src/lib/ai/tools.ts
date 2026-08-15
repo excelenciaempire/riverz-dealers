@@ -16,6 +16,11 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import {
+  registerReportedPayment,
+  pendingOrderFor,
+} from '@/lib/payments/reported-payment'
+import { askForApproval } from '@/lib/approvals/ask'
+import {
   createCheckoutLink,
   fmtMoney,
   type CheckoutConfig,
@@ -369,6 +374,40 @@ export interface LocalOrdersContext {
   contactId: string
 }
 
+/**
+ * `registrar_pago` — el cliente dice que ya transfirió.
+ *
+ * Existe porque el comprobante llega por WhatsApp y hasta hoy moría ahí:
+ * Shopify sólo se enteraba si el comercio lo marcaba a mano, así que el
+ * pedido seguía pendiente y los recordatorios le seguían llegando a alguien
+ * que ya había pagado.
+ *
+ * El monto es lo que decide todo. Con monto que coincide, se cobra solo; sin
+ * monto o con uno que no cierra, se le pregunta a una persona — pero los
+ * recordatorios se callan en los dos casos.
+ */
+export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
+  name: 'registrar_pago',
+  description:
+    'Registra que el cliente informó haber pagado su pedido pendiente (transferencia, depósito). Úsala cuando mande un comprobante o diga que ya transfirió. Si el comprobante muestra el monto, pásalo: con el monto exacto el pedido se marca como pagado solo; sin él queda esperando que alguien del negocio lo confirme. En los dos casos dejamos de mandarle recordatorios.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      amount: {
+        type: 'number',
+        description:
+          'Monto que figura en el comprobante, sólo si lo puedes leer con certeza. Sin separadores de miles. Si no se ve claro, no lo inventes: omítelo.',
+      },
+      note: {
+        type: 'string',
+        description:
+          'Qué viste: "comprobante de transferencia por 52.365 del 15/08" o "dice que ya transfirió, sin comprobante".',
+      },
+    },
+    required: ['note'],
+  },
+}
+
 export async function runTool(
   toolName: string,
   toolInput: unknown,
@@ -376,6 +415,67 @@ export async function runTool(
   voice: VoiceEscalationContext | null = null,
   localOrders: LocalOrdersContext | null = null,
 ): Promise<string> {
+  if (toolName === 'registrar_pago') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo registrar pagos en esta conversación.',
+      })
+    }
+    const input = (toolInput ?? {}) as { amount?: number; note?: string }
+    const res = await registerReportedPayment({
+      db: localOrders.db,
+      workspaceId: localOrders.workspaceId,
+      contactId: localOrders.contactId,
+      amount: typeof input.amount === 'number' ? input.amount : null,
+    })
+
+    if (res.kind === 'sin_pedido') {
+      return JSON.stringify({
+        ok: false,
+        message:
+          'No encontré un pedido pendiente de pago a nombre de esta persona. Preguntale el número de pedido.',
+      })
+    }
+    if (res.kind === 'error') {
+      return JSON.stringify({ ok: false, message: `No se pudo registrar: ${res.error}` })
+    }
+    if (res.kind === 'cobrado') {
+      return JSON.stringify({
+        ok: true,
+        estado: 'pagado',
+        message: `El pedido quedó marcado como pagado por ${res.amount}. Confirmaselo y decile que ya se prepara el envío.`,
+      })
+    }
+
+    // No alcanzó para cobrar solo: se le pregunta a una persona del negocio.
+    const pedido = await pendingOrderFor(
+      localOrders.db,
+      localOrders.workspaceId,
+      localOrders.contactId,
+    )
+    await askForApproval({
+      db: localOrders.db,
+      workspaceId: localOrders.workspaceId,
+      kind: 'pago_informado',
+      title: `Pago informado — pedido ${pedido?.orderNumber ?? 's/n'}`,
+      body:
+        `Un cliente dice que ya pagó ${pedido?.total ?? ''} ${pedido?.currency ?? ''}. ` +
+        `${input.note ?? ''} (${res.reason}). ¿Lo marco como pagado en Shopify?`,
+      payload: {
+        order_id: pedido?.id,
+        shopify_order_id: pedido?.shopifyOrderId,
+        contact_id: localOrders.contactId,
+      },
+    })
+    return JSON.stringify({
+      ok: true,
+      estado: 'en_verificacion',
+      message:
+        'Quedó registrado y dejamos de mandarle recordatorios. Decile que lo estamos verificando y que le confirmamos en breve. NO le digas que ya está pagado.',
+    })
+  }
+
   if (toolName === 'escalate_to_call') {
     if (!voice) {
       return JSON.stringify({

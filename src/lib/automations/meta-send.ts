@@ -15,6 +15,7 @@ import {
 } from '@/lib/whatsapp/phone-utils'
 import { US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
 import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
+import { checkSendGate, type SendReason } from '@/lib/outreach/send-gate'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -35,6 +36,14 @@ import { supabaseAdmin } from './admin-client'
  *  que la bandeja diga QUÉ automatización escribió (migración 143). */
 interface OriginArgs {
   automationName?: string | null
+  /**
+   * Por qué sale (ver lib/outreach/send-gate.ts). Decide si se enfría: un
+   * aviso del pedido no, un rescate sí. Sin esto, el segundo recordatorio de
+   * transferencia moriría contra el enfriamiento del primero.
+   */
+  reason?: SendReason
+  /** Horas del enfriamiento, si se quiere otra que la del motivo. */
+  cooldownHours?: number
 }
 
 interface SendTextArgs extends OriginArgs {
@@ -99,6 +108,40 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
+  }
+
+  // El portón de salida. Vale sobre todo por la baja: hasta acá el motor
+  // nunca la miró, así que una automatización disparada por un webhook de
+  // Shopify —confirmación, tracking, recordatorio de pago— le escribía igual
+  // a quien puso STOP. Quien la miraba era el cron, y esas no pasan por
+  // ningún cron.
+  //
+  // El motivo lo decide el disparador: un rescate se enfría, un aviso del
+  // pedido no (si no, el segundo recordatorio de transferencia nunca saldría).
+  const verdict = await checkSendGate({
+    db,
+    workspaceId: input.workspaceId,
+    contactId: input.contactId,
+    kind: input.kind,
+    reason: input.reason ?? 'transaccional',
+    cooldownHours: input.cooldownHours,
+  })
+  if (!verdict.allow) {
+    // Queda escrito con nombre propio: el comercio ve "no salió porque pidió
+    // la baja" en vez de un hueco en el registro.
+    await db.from('messages').insert({
+      conversation_id: input.conversationId,
+      sender_type: 'bot',
+      content_type: input.kind === 'template' ? 'template' : 'text',
+      content_text: null,
+      template_name: input.kind === 'template' ? input.templateName : null,
+      status: 'failed',
+      error_code: `bloqueado_${verdict.barrier}`,
+      error_reason: verdict.detail,
+      origin: 'automation',
+      origin_name: input.automationName ?? null,
+    })
+    return { whatsapp_message_id: '' }
   }
 
   // Gate: Meta NO entrega plantillas de MARKETING a números de EE.UU. (pausa
