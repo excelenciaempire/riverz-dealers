@@ -1856,7 +1856,11 @@ function StepList(props: StepListProps) {
 
   return (
     <div className="flex items-start">
-      <AddButton orientation="h" onPick={(t) => props.addStepAt(parentScope, 0, t)} />
+      <AddButton
+        orientation="h"
+        tail={steps.length > 0}
+        onPick={(t) => props.addStepAt(parentScope, 0, t)}
+      />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
@@ -2048,6 +2052,7 @@ function StepRenderer({
       {!isCondition && !isSwitch && (
         <AddButton
           orientation="h"
+          tail={index < total - 1}
           onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
         />
       )}
@@ -2101,27 +2106,41 @@ function ConditionBranches({
 }
 
 /**
- * Abanico de caminos: el tronco entra por la izquierda, se abre en una espina
- * vertical y de ahí sale un ramal a cada camino.
+ * Abanico de caminos: el tronco sale de la tarjeta, se abre en una espina
+ * vertical y de ahí sale un ramal a cada camino. La etiqueta del camino va
+ * montada SOBRE el ramal, no flotando arriba: antes quedaba a media altura
+ * entre dos filas, sin tocar nada, y no se leía de qué camino era.
  *
- * La espina se mide, no se estima: va del centro del primer carril al centro
- * del último, leídos del DOM. Con posiciones fijas alcanzaba mientras todos
- * los carriles midieran igual, pero basta desplegar la configuración de un
- * paso —o agregar un camino— para que la línea deje de llegar a donde tiene
- * que llegar. Medido, agregar o quitar caminos reacomoda todo solo.
+ * Todo cuelga de una sola altura, 39 px desde el arranque de la fila: la
+ * cabecera de una tarjeta mide 78 px fijos, la columna de la etiqueta también,
+ * y el "+ Añadir" se baja 26 px para caer ahí. Por eso el ramal entra siempre
+ * por la cabecera aunque la tarjeta esté desplegada, sin medir nada.
+ *
+ * Lo único que hay que medir es dónde arranca cada fila —dependen del alto del
+ * camino de arriba— y se mide con offsetTop, que ya viene en píxeles de CSS.
+ * Con getBoundingClientRect había que deshacer a mano el zoom del lienzo o las
+ * líneas se encogían dos veces.
+ *
+ * Las columnas son una grilla: la de las etiquetas mide lo que la etiqueta más
+ * larga, así los caminos arrancan todos a la misma altura horizontal en vez de
+ * escalonarse según lo largo que sea su nombre.
  */
 /** Media altura de la cabecera de una tarjeta (h-[78px]): el centro del tronco. */
 const CARD_HALF = 39
 
 /**
- * Color de las líneas del lienzo.
+ * Color y grosor de las líneas del lienzo.
  *
  * `border` sobre el fondo oscuro del lienzo quedaba casi invisible: el flujo
  * se veía como tarjetas sueltas y había que adivinar qué se conectaba con
  * qué. Las líneas son la mitad de la información de un diagrama.
+ *
+ * 2 px, el mismo grosor que los tramos del "+ Añadir": con 1 px la línea
+ * cambiaba de grosor justo donde se unían.
  */
 const LINE = "bg-foreground/25"
-const LINE_BORDER = "border-foreground/25"
+/** Grosor de la línea; el centro cae en CARD_HALF, así que se dibuja 1 px antes. */
+const LINE_W = 2
 
 function BranchFan({
   lanes,
@@ -2129,71 +2148,29 @@ function BranchFan({
   lanes: { key: string; label: string; color: string; content: React.ReactNode }[]
 }) {
   const wrap = useRef<HTMLDivElement | null>(null)
-  const [spine, setSpine] = useState<{ top: number; height: number } | null>(null)
-  // Dónde entra el ramal en cada carril, medido desde el borde del abanico.
-  const [anchors, setAnchors] = useState<number[]>([])
-  // No se igualan los altos de fila. Se probó, y en el carril corto —el que
-  // sólo tiene el botón de añadir— dejaba un hueco vacío del tamaño del
-  // carril más alto. La separación pareja se consigue con el hueco entre
-  // filas, que es el mismo para todos los caminos de todas las condiciones;
-  // cada fila mide lo que mide su contenido.
+  // Dónde arranca cada fila, en píxeles de CSS desde el borde del abanico.
+  const [rows, setRows] = useState<number[]>([])
   // Cuánto hay que subir el abanico para que su centro caiga en el centro de
-  // la tarjeta que lo abre. Sin esto, centrar la fila movía la tarjeta hacia
-  // abajo y la sacaba de la línea del tronco.
+  // la tarjeta que lo abre. Sin esto, el tronco entraba torcido.
   const [offset, setOffset] = useState(0)
 
   const measure = useCallback(() => {
     const el = wrap.current
     if (!el) return
-    {
-      const rows = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")]
-      if (rows.length === 0) {
-        setSpine(null)
-        setAnchors([])
-        return
-      }
-      const base = el.getBoundingClientRect().top
-      // El lienzo tiene zoom. Lo que se mide viene en píxeles de pantalla —ya
-      // achicados— y lo que se escribe son píxeles de CSS, que el zoom vuelve
-      // a achicar. Medir al 62% y escribir sin corregir encogía las líneas una
-      // segunda vez: la espina quedaba corta y los ramales entraban por arriba
-      // de la cabecera. La cabecera mide 78 px de CSS siempre, así que
-      // comparándola contra lo que se ve sale la escala exacta.
-      const probe = el.querySelector<HTMLElement>("[data-card-head]")
-      const scale = probe ? probe.getBoundingClientRect().height / 78 : 1
-      const px = (n: number) => (scale > 0 ? n / scale : n)
-
-      // El ramal entra por la CABECERA de la primera tarjeta del carril, no
-      // por el centro de la fila. Una tarjeta crece hacia abajo al desplegar
-      // su configuración: apuntando al centro, la línea se despegaba de la
-      // cabecera y terminaba entrando por la mitad de un panel abierto.
-      // La cabecera no se mueve, así que la línea tampoco.
-      const rowTops = rows.map((r) => px(r.getBoundingClientRect().top - base))
-      const points = rows.map((r, i) => {
-        const head = r.querySelector<HTMLElement>("[data-card-head]")
-        if (head) {
-          const h = head.getBoundingClientRect()
-          return px(h.top - base) + px(h.height) / 2
-        }
-        // Un carril sin tarjetas —sólo el botón de añadir— se centra solo.
-        return rowTops[i] + px(r.getBoundingClientRect().height) / 2
-      })
-      const top = Math.min(...points)
-      const bottom = Math.max(...points)
-      const next = points.map((p, i) => p - rowTops[i])
-      const height = bottom - top
-      const off = CARD_HALF - (top + bottom) / 2
-      // Sólo se escribe si de verdad cambió: esto corre después de cada
-      // pintada y guardar lo mismo volvería a pintar, sin fin.
-      const same = (a: number, b: number) => Math.abs(a - b) < 0.5
-      setAnchors((prev) =>
-        prev.length === next.length && prev.every((v, i) => same(v, next[i])) ? prev : next,
-      )
-      setSpine((prev) =>
-        prev && same(prev.top, top) && same(prev.height, height) ? prev : { top, height },
-      )
-      setOffset((prev) => (same(prev, off) ? prev : off))
-    }
+    // offsetTop, no getBoundingClientRect: el lienzo está escalado y el rect
+    // vendría en píxeles de pantalla, que hay que dividir por el zoom antes de
+    // escribirlos de vuelta como CSS. offsetTop ya es layout.
+    const tops = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")].map(
+      (r) => r.offsetTop,
+    )
+    // Sólo se escribe si de verdad cambió: esto corre después de cada pintada
+    // y guardar lo mismo volvería a pintar, sin fin.
+    const same = (a: number, b: number) => Math.abs(a - b) < 0.5
+    setRows((prev) =>
+      prev.length === tops.length && prev.every((v, i) => same(v, tops[i])) ? prev : tops,
+    )
+    const off = tops.length ? -(tops[0] + tops[tops.length - 1]) / 2 : 0
+    setOffset((prev) => (same(prev, off) ? prev : off))
   }, [])
 
   // Después de cada pintada, no sólo cuando algo cambia de tamaño. Desplegar
@@ -2203,7 +2180,6 @@ function BranchFan({
   //
   // Medir el DOM es exactamente para lo que sirve un efecto, y `measure` sólo
   // escribe cuando el número cambió de verdad, así que no encadena pintadas.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(measure)
 
   useEffect(() => {
@@ -2215,51 +2191,65 @@ function BranchFan({
     return () => ro.disconnect()
   }, [lanes.length, measure])
 
+  const first = rows.length ? rows[0] : 0
+  const last = rows.length ? rows[rows.length - 1] : 0
+
   return (
     <div
       ref={wrap}
-      className="relative flex flex-col gap-5 pl-8"
+      className="relative grid grid-cols-[max-content_auto] items-start gap-y-5 pl-8"
       style={{ marginTop: offset }}
     >
+      {/* Tronco: de la tarjeta que abre el abanico hasta la espina. Sin esto
+          la tarjeta y sus caminos se veían como dos cosas sueltas. */}
+      <span
+        aria-hidden
+        className={cn("absolute -left-2 w-6", LINE)}
+        style={{ top: (first + last) / 2 + CARD_HALF - LINE_W / 2, height: LINE_W }}
+      />
       {/* Espina: une el primer ramal con el último. */}
-      {spine && lanes.length > 1 && (
+      {rows.length > 1 && (
         <span
           aria-hidden
-          className={cn("absolute left-4 w-px", LINE)}
-          style={{ top: spine.top, height: spine.height }}
+          className={cn("absolute left-4", LINE)}
+          style={{
+            top: first + CARD_HALF - LINE_W / 2,
+            height: last - first + LINE_W,
+            width: LINE_W,
+          }}
         />
       )}
-      {lanes.map((lane, i) => (
-        <div
-          key={lane.key}
-          data-lane-row
-          className="relative flex items-start"
-        >
-          {/* Ramal horizontal hasta el carril, a la altura de su cabecera. */}
-          <span
-            aria-hidden
-            className={cn("absolute left-[-1rem] w-4 border-t", LINE_BORDER)}
-            style={{ top: anchors[i] ?? CARD_HALF }}
-          />
-          {/* La etiqueta se ancla al CONTENIDO, no a la fila.
-              Anclada a la fila quedaba arriba de todo, y como las filas
-              comparten el alto de la más alta, en un camino corto la etiqueta
-              flotaba lejos de su propio botón. Fuera del flujo igual: si
-              ocupara lugar, correría el primer paso de cada camino a una x
-              distinta según lo largo que fuera su nombre. */}
-          <div className="relative">
+      {lanes.map((lane) => (
+        <Fragment key={lane.key}>
+          {/* Columna de la etiqueta: el ramal entra por la izquierda, pasa por
+              la etiqueta y sigue hasta el primer paso del camino. Mide 78 px
+              —lo mismo que una cabecera— para que su centro caiga en el
+              tronco aunque el camino esté vacío. */}
+          {/* Sin hueco entre la etiqueta y la línea: el cable tiene que tocar
+              la etiqueta, si no vuelve a leerse como dos piezas sueltas. */}
+          <div data-lane-row className="relative flex h-[78px] items-center">
+            <span
+              aria-hidden
+              className={cn("absolute -left-4 w-4", LINE)}
+              style={{ top: CARD_HALF - LINE_W / 2, height: LINE_W }}
+            />
             <span
               className={cn(
-                "pointer-events-none absolute -top-2.5 left-0 z-10 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
+                "min-w-0 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase",
                 lane.color,
               )}
               title={lane.label}
             >
               {lane.label}
             </span>
-            {lane.content}
+            <span
+              aria-hidden
+              className={cn("min-w-6 flex-1", LINE)}
+              style={{ height: LINE_W }}
+            />
           </div>
-        </div>
+          <div className="justify-self-start">{lane.content}</div>
+        </Fragment>
       ))}
     </div>
   )
@@ -2399,7 +2389,12 @@ function SwitchLaneSteps({
     <div className="flex items-start gap-2">
       {/* Tambien delante del primero: si no, no hay forma de meter un paso
           entre la condicion y lo que ya tiene el camino. */}
-      <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, 0)} />
+      <AddButton
+        orientation="h"
+        types={LEAF_STEPS}
+        tail={steps.length > 0}
+        onPick={(ty) => onAdd(ty, 0)}
+      />
       {steps.map((s, i) => (
         <Fragment key={s.cid}>
           <LeafStepCard
@@ -2415,7 +2410,12 @@ function SwitchLaneSteps({
           />
           {/* Entre cada par de pasos, no sólo al final: si no, para meter algo
               en el medio hay que agregarlo al final y moverlo. */}
-          <AddButton orientation="h" types={LEAF_STEPS} onPick={(ty) => onAdd(ty, i + 1)} />
+          <AddButton
+            orientation="h"
+            types={LEAF_STEPS}
+            tail={i < steps.length - 1}
+            onPick={(ty) => onAdd(ty, i + 1)}
+          />
         </Fragment>
       ))}
 
@@ -2516,12 +2516,17 @@ function AddButton({
   onPick,
   orientation = "v",
   types = ADDABLE_STEPS,
+  tail = true,
 }: {
   onPick: (t: BuilderStepType) => void
   orientation?: "h" | "v"
   /** Which step types the menu offers (default: the full chain menu; switch
    *  case/else lanes pass LEAF_STEPS so they can't nest branching). */
   types?: BuilderStepType[]
+  /** Tramo de línea DESPUÉS del botón. El último "+ Añadir" de una cadena no
+   *  lo lleva: quedaba un cable cortado colgando en el aire, que se lee como
+   *  que el flujo sigue hacia algo que no está. */
+  tail?: boolean
 }) {
   const t = useT()
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
@@ -2644,7 +2649,7 @@ function AddButton({
           </div>,
           document.body,
         )}
-      <div className={cn(seg, LINE)} aria-hidden />
+      {tail && <div className={cn(seg, LINE)} aria-hidden />}
     </div>
   )
 }
