@@ -55,8 +55,19 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   // Secretos de integración: cifrados, pero no hay razón para sacarlos de la DB.
   channel_connections: ['secrets', 'webhook_secret'],
   ai_agents: ['api_key_encrypted'],
-  shopify_connections: ['access_token', 'admin_token', 'access_token_encrypted'],
-  workspace_integrations: ['credentials', 'api_key_encrypted'],
+  shopify_connections: [
+    'access_token',
+    'admin_token',
+    'access_token_encrypted',
+    'refresh_token',
+    'refresh_token_encrypted',
+  ],
+  workspace_integrations: [
+    'credentials',
+    'api_key_encrypted',
+    'refresh_token_encrypted',
+    'access_token_encrypted',
+  ],
 
   // Identidad del comercio, no del comprador: nombre y correo se pueden ver
   // (es a quién se le factura y a quién se le escribe). El teléfono no lo

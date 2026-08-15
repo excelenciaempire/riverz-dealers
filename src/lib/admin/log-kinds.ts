@@ -11,7 +11,16 @@ export const LOG_KINDS = [
   'automations',
   'flows',
   'messages',
+  // Plantillas y campañas no tenían ninguna superficie en el panel, aunque el
+  // negocio dependa de que Meta apruebe las primeras y de que las segundas
+  // terminen de enviarse.
+  'templates',
+  'broadcasts',
   'webhooks',
+  // El historial de los trabajos de fondo. /admin/operacion muestra la última
+  // corrida de cada uno; acá se ve si algo falla siempre o falló una vez.
+  'crons',
+  'approvals',
   'comment_to_dm',
   'ig_proactive',
   'voice',

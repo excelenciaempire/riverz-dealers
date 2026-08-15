@@ -343,12 +343,178 @@ async function voiceLogs(f: LogFilters): Promise<LogEntry[]> {
   }));
 }
 
+/**
+ * Plantillas de WhatsApp. El negocio depende de que Meta las apruebe: una
+ * rechazada no se puede usar en ninguna campaña ni automatización, y una que
+ * queda en PENDING para siempre suele ser el WABA bloqueado por facturación.
+ * No había ninguna pantalla del panel que las mirara.
+ */
+async function templateLogs(f: LogFilters): Promise<LogEntry[]> {
+  let q = select(
+    'message_templates',
+    'id, workspace_id, name, status, category, language, rejected_reason, updated_at, created_at',
+  );
+  if (f.status) q = q.ilike('status', f.status);
+  const { data, error } = await applyCommon(q, f, { timeColumn: 'updated_at' });
+  if (error) throw new Error(`[admin/logs] templates: ${error.message}`);
+
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    workspace_id: string;
+    name: string;
+    status: string | null;
+    category: string | null;
+    language: string | null;
+    rejected_reason: string | null;
+    updated_at: string;
+  }>).map((r) => {
+    const status = (r.status ?? '').toLowerCase();
+    return {
+      id: r.id,
+      at: r.updated_at,
+      workspaceId: r.workspace_id,
+      workspaceName: null,
+      level:
+        status === 'rejected' ? 'error' : status === 'approved' ? 'ok' : 'warn',
+      status: r.status,
+      detail: r.rejected_reason ?? r.name,
+      extra: { name: r.name, category: r.category, language: r.language },
+    } satisfies LogEntry;
+  });
+}
+
+/**
+ * Campañas. Antes sólo existían como un número suelto en la ficha del comercio,
+ * así que una que quedaba "enviando" y no terminaba no se veía por ningún lado.
+ */
+async function broadcastLogs(f: LogFilters): Promise<LogEntry[]> {
+  let q = select(
+    'broadcasts',
+    'id, workspace_id, name, status, total_recipients, sent_count, failed_count, error_message, updated_at, created_at',
+  );
+  if (f.status) q = q.eq('status', f.status);
+  const { data, error } = await applyCommon(q, f, { timeColumn: 'updated_at' });
+  if (error) throw new Error(`[admin/logs] broadcasts: ${error.message}`);
+
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    workspace_id: string;
+    name: string | null;
+    status: string;
+    total_recipients: number | null;
+    sent_count: number | null;
+    failed_count: number | null;
+    error_message: string | null;
+    updated_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    at: r.updated_at,
+    workspaceId: r.workspace_id,
+    workspaceName: null,
+    level:
+      r.status === 'failed' || r.error_message
+        ? 'error'
+        : (r.failed_count ?? 0) > 0 || r.status === 'sending'
+          ? 'warn'
+          : 'ok',
+    status: r.status,
+    detail: r.error_message ?? r.name,
+    extra: {
+      recipients: r.total_recipients,
+      sent: r.sent_count,
+      failed: r.failed_count,
+    },
+  }));
+}
+
+/**
+ * Corridas de los trabajos de fondo. `/admin/operacion` muestra la ÚLTIMA de
+ * cada uno; acá está el historial, que es donde se ve si algo falla siempre o
+ * falló una vez.
+ */
+async function cronLogs(f: LogFilters): Promise<LogEntry[]> {
+  let q = select(
+    'cron_runs',
+    'id, name, status, started_at, finished_at, duration_ms, error',
+  );
+  if (f.status) q = q.eq('status', f.status);
+  const { data, error } = await applyCommon(q, f, {
+    workspaceColumn: null,
+    timeColumn: 'started_at',
+  });
+  if (error) throw new Error(`[admin/logs] crons: ${error.message}`);
+
+  return ((data ?? []) as unknown as Array<{
+    id: string | number;
+    name: string;
+    status: string;
+    started_at: string;
+    duration_ms: number | null;
+    error: string | null;
+  }>).map((r) => ({
+    id: String(r.id),
+    at: r.started_at,
+    // Los trabajos son de la plataforma, no de un comercio.
+    workspaceId: null,
+    workspaceName: null,
+    level: r.status === 'ok' ? 'ok' : 'error',
+    status: r.status,
+    detail: r.error ?? r.name,
+    extra: { job: r.name, ms: r.duration_ms },
+  }));
+}
+
+/**
+ * Decisiones que esperaron a una persona. Es el registro de quién aprobó qué
+ * y por dónde — y de las que vencieron sin que nadie contestara, que es el
+ * modo de falla silencioso de todo este camino.
+ */
+async function approvalLogs(f: LogFilters): Promise<LogEntry[]> {
+  let q = select(
+    'approval_requests',
+    'id, workspace_id, kind, title, status, decided_via, decided_at, result, created_at',
+  );
+  if (f.status) q = q.eq('status', f.status);
+  const { data, error } = await applyCommon(q, f);
+  if (error) throw new Error(`[admin/logs] approvals: ${error.message}`);
+
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    workspace_id: string;
+    kind: string;
+    title: string | null;
+    status: string;
+    decided_via: string | null;
+    decided_at: string | null;
+    result: string | null;
+    created_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    at: r.created_at,
+    workspaceId: r.workspace_id,
+    workspaceName: null,
+    level:
+      r.status === 'fallida' || r.status === 'vencida'
+        ? 'error'
+        : r.status === 'pendiente'
+          ? 'warn'
+          : 'ok',
+    status: r.status,
+    detail: r.result ?? r.title,
+    extra: { kind: r.kind, via: r.decided_via, decided_at: r.decided_at },
+  }));
+}
+
 const READERS: Record<LogKind, (f: LogFilters) => Promise<LogEntry[]>> = {
   ai: aiLogs,
   automations: automationLogs,
   flows: flowLogs,
   messages: messageLogs,
+  templates: templateLogs,
+  broadcasts: broadcastLogs,
   webhooks: webhookLogs,
+  crons: cronLogs,
+  approvals: approvalLogs,
   comment_to_dm: commentToDmLogs,
   ig_proactive: igProactiveLogs,
   voice: voiceLogs,

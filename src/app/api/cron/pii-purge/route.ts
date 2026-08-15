@@ -88,12 +88,73 @@ async function cronHandler(request: Request) {
     }
   }
 
+  const retencion = await purgeOperationalLogs(admin)
+
   // 207 si algún workspace falló, para que el monitor de Render lo marque.
   const status = failed > 0 ? 207 : 200
   return NextResponse.json(
-    { candidates: targets.length, purged, failed, graceDays, results },
+    { candidates: targets.length, purged, failed, graceDays, retencion, results },
     { status },
   )
+}
+
+/** Días que se conservan las corridas de los trabajos de fondo. */
+const CRON_RUNS_DAYS = 30
+/** Días que se conserva un webhook YA procesado. */
+const WEBHOOK_DAYS = 14
+
+/**
+ * Retención de las dos tablas operativas que crecían para siempre.
+ *
+ * No había un solo DELETE sobre ninguna de las dos en todo el repo.
+ * `cron_runs` suma del orden de diez mil filas por día — seis trabajos corren
+ * cada minuto — y `webhook_events_raw` guarda el CUERPO CRUDO de cada webhook
+ * entrante, con mensajes y teléfonos adentro. Eso último no es sólo espacio: es
+ * PII de compradores acumulándose sin vencimiento en una tabla que existe para
+ * poder depurar un webhook de anteayer.
+ *
+ * Los que todavía no se procesaron NO se borran: son justamente los que hay que
+ * mirar, y son los que cuenta la alerta del panel.
+ *
+ * Va acá y no en un cron nuevo porque este ya es el barrendero diario.
+ */
+async function purgeOperationalLogs(
+  admin: SupabaseClient,
+): Promise<{ cronRuns: number; webhooks: number }> {
+  const out = { cronRuns: 0, webhooks: 0 }
+
+  const cronCutoff = new Date(Date.now() - CRON_RUNS_DAYS * 86_400_000).toISOString()
+  try {
+    const { data, error } = await admin
+      .from('cron_runs')
+      .delete()
+      .lt('started_at', cronCutoff)
+      .select('id')
+    if (error) throw new Error(error.message)
+    out.cronRuns = (data ?? []).length
+  } catch (err) {
+    log.warn('cron_runs purge failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  const hookCutoff = new Date(Date.now() - WEBHOOK_DAYS * 86_400_000).toISOString()
+  try {
+    const { data, error } = await admin
+      .from('webhook_events_raw')
+      .delete()
+      .not('processed_at', 'is', null)
+      .lt('received_at', hookCutoff)
+      .select('id')
+    if (error) throw new Error(error.message)
+    out.webhooks = (data ?? []).length
+  } catch (err) {
+    log.warn('webhook_events_raw purge failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  return out
 }
 
 /**

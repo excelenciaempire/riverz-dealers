@@ -484,12 +484,103 @@ export async function listChannels(opts: {
     }
   >;
 
-  const names = await workspaceNames(rows.map((r) => r.workspace_id));
-  return rows.map(({ config, ...r }) => ({
+  const mensajeria = rows.map(({ config, ...r }) => ({
     ...r,
     health_status: config?.health_status ?? null,
+  }));
+
+  // La otra mitad de Riverz. Las tiendas y los medios de pago viven en tablas
+  // distintas de los canales de mensajería, y el panel no las miraba: toda la
+  // parte de comercio —Shopify, Tiendanube, WooCommerce, Mercado Pago,
+  // Klaviyo— no tenía salud a nivel plataforma, aunque `issues.ts` ya supiera
+  // leer la primera de esas tablas.
+  const comercio = await listCommerceConnections(opts);
+
+  const todas = [...mensajeria, ...comercio];
+  const names = await workspaceNames(todas.map((r) => r.workspace_id));
+  return todas.map((r) => ({
+    ...r,
     workspace_name: names.get(r.workspace_id) ?? null,
   }));
+}
+
+/** Canales que no son de mensajería, normalizados a la misma fila. */
+async function listCommerceConnections(opts: {
+  channel?: string;
+  status?: string;
+}): Promise<Omit<ChannelRow, 'workspace_name'>[]> {
+  const client = db();
+
+  const [tiendas, integraciones] = await Promise.all([
+    safeSelect(
+      client,
+      'shopify_connections',
+      'id, workspace_id, platform, shop_domain, status, currency, created_at, updated_at',
+    ).limit(500),
+    safeSelect(
+      client,
+      'workspace_integrations',
+      'id, workspace_id, provider, external_account_id, expires_at, created_at, updated_at',
+    ).limit(500),
+  ]);
+
+  const vacio = {
+    label: null,
+    last_synced_at: null,
+    last_error: null,
+    health_can_send: null,
+    health_review_status: null,
+    health_blockers: null,
+    health_status: null,
+    quality_rating: null,
+    messaging_limit_tier: null,
+  };
+
+  const filas: Omit<ChannelRow, 'workspace_name'>[] = [
+    ...((tiendas.data ?? []) as unknown as Array<{
+      id: string;
+      workspace_id: string;
+      platform: string | null;
+      shop_domain: string;
+      status: string;
+      currency: string | null;
+      created_at: string | null;
+    }>).map((s) => ({
+      ...vacio,
+      id: s.id,
+      workspace_id: s.workspace_id,
+      channel: s.platform ?? 'shopify',
+      status: s.status,
+      external_account_id: s.shop_domain,
+      label: s.currency,
+      created_at: s.created_at,
+    })),
+    ...((integraciones.data ?? []) as unknown as Array<{
+      id: string;
+      workspace_id: string;
+      provider: string;
+      external_account_id: string | null;
+      expires_at: string | null;
+      created_at: string | null;
+    }>).map((i) => ({
+      ...vacio,
+      id: i.id,
+      workspace_id: i.workspace_id,
+      channel: i.provider,
+      // Un token vencido es una conexión rota aunque la fila diga otra cosa: es
+      // lo que hace que dejen de entrar los pagos rechazados de Mercado Pago.
+      status:
+        i.expires_at && Date.parse(i.expires_at) < Date.now() ? 'expired' : 'connected',
+      external_account_id: i.external_account_id,
+      created_at: i.created_at,
+    })),
+  ];
+
+  return filas.filter(
+    (f) =>
+      (!opts.channel || f.channel === opts.channel) &&
+      (!opts.status || f.status === opts.status),
+  );
 }
 
 /** Nombres de comercio para un lote de ids — para no mostrar UUIDs pelados. */

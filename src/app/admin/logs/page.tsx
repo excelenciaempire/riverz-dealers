@@ -19,7 +19,13 @@ import {
   Clamp,
   type Column,
 } from "../_components/admin-ui";
-import { RangePicker, RefreshButton, fromDays } from "../_components/filters";
+import {
+  Choice,
+  RangePicker,
+  RefreshButton,
+  SearchInput,
+  fromDays,
+} from "../_components/filters";
 
 /**
  * Visor unificado de registros de toda la plataforma.
@@ -33,10 +39,33 @@ const KIND_LABEL: Record<LogKind, string> = {
   automations: "admin.logKindAutomations",
   flows: "admin.logKindFlows",
   messages: "admin.logKindMessages",
+  templates: "admin.logKindTemplates",
+  broadcasts: "admin.logKindBroadcasts",
   webhooks: "admin.logKindWebhooks",
+  crons: "admin.logKindCrons",
+  approvals: "admin.logKindApprovals",
   comment_to_dm: "admin.logKindCommentToDm",
   ig_proactive: "admin.logKindIgProactive",
   voice: "admin.logKindVoice",
+};
+
+/**
+ * Estados que tiene sentido filtrar en cada fuente. Van crudos porque son los
+ * valores que la base guarda: traducirlos escondería que el filtro es literal.
+ */
+const STATUS_OPTIONS: Record<LogKind, string[]> = {
+  ai: ["sent", "skipped", "failed"],
+  automations: ["success", "partial", "failed"],
+  flows: ["completed", "running", "failed"],
+  messages: [],
+  templates: ["APPROVED", "PENDING", "REJECTED"],
+  broadcasts: ["draft", "scheduled", "sending", "sent", "failed"],
+  webhooks: [],
+  crons: ["ok", "error"],
+  approvals: ["pendiente", "aprobada", "rechazada", "vencida", "fallida"],
+  comment_to_dm: [],
+  ig_proactive: [],
+  voice: ["completed", "failed", "no_answer", "busy"],
 };
 
 export default function AdminLogsPage() {
@@ -44,8 +73,15 @@ export default function AdminLogsPage() {
   const format = useFormat();
   const [kind, setKind] = useState<LogKind>("ai");
   const [days, setDays] = useState(7);
+  // La API acepta estos dos filtros desde el primer día y la pantalla no los
+  // exponía: había que editar la URL a mano para acotar por comercio.
+  const [workspace, setWorkspace] = useState("");
+  const [level, setLevel] = useState("");
 
-  const url = `/api/admin/logs?kind=${kind}&from=${encodeURIComponent(fromDays(days))}&limit=200`;
+  const url =
+    `/api/admin/logs?kind=${kind}&from=${encodeURIComponent(fromDays(days))}&limit=200` +
+    (workspace ? `&workspace=${encodeURIComponent(workspace)}` : "") +
+    (level ? `&status=${encodeURIComponent(level)}` : "");
   const { data, loading, error, reload, live } =
     useAdminData<{ entries: LogEntry[] }>(url);
 
@@ -112,6 +148,19 @@ export default function AdminLogsPage() {
         description={kind === "ai" ? t("admin.logsAiHint") : t("admin.readOnlyNote")}
         actions={
           <>
+            <SearchInput
+              value={workspace}
+              onChange={setWorkspace}
+              placeholder={t("admin.filterWorkspace")}
+            />
+            <Choice
+              value={level}
+              onChange={setLevel}
+              options={[
+                { value: "", label: t("admin.filterAnyStatus") },
+                ...STATUS_OPTIONS[kind].map((s) => ({ value: s, label: s })),
+              ]}
+            />
             <RangePicker days={days} onChange={setDays} />
             <RefreshButton onClick={reload} />
           </>

@@ -23,6 +23,15 @@ import {
 } from "../_components/admin-ui";
 import { Choice, RefreshButton } from "../_components/filters";
 
+/**
+ * Todo lo que un comercio puede tener conectado, en un solo lugar.
+ *
+ * Los primeros son canales de mensajería (`channel_connections`); los últimos
+ * son tiendas (`shopify_connections`) y medios de pago o marketing
+ * (`workspace_integrations`). Vivían en tablas distintas y por eso el panel
+ * mostraba sólo los primeros — pero para el comercio, y para quien mira si algo
+ * se cayó, es exactamente el mismo problema.
+ */
 const CHANNELS = [
   "whatsapp",
   "instagram",
@@ -32,13 +41,21 @@ const CHANNELS = [
   "fb_comment",
   "ig_comment",
   "mercadolibre",
+  // Faltaba: el CHECK de la tabla lo admite desde la migración 135.
+  "ml_review",
   "tiktok_comment",
   "voice",
+  // Comercio
+  "shopify",
+  "tiendanube",
+  "woocommerce",
+  "mercadopago",
+  "klaviyo",
 ];
 
 const STATUSES = ["connected", "disconnected", "error", "pending", "expired"];
 
-/** Salud de todas las conexiones de canal de la plataforma. */
+/** Salud de todas las conexiones de la plataforma. */
 export default function AdminChannelsPage() {
   const t = useT();
   const format = useFormat();
