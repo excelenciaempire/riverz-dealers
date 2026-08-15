@@ -474,8 +474,24 @@ const FB_PAGE_FIELDS = [
 // IG-user messaging subscribe below it). Verified in prod: the page has no
 // `comments` field yet IG comments still arrive. Page-level IG handles
 // messaging only; the ig-user object is subscribed separately.
-const IG_PAGE_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
-const IG_USER_FIELDS = ["messages", "messaging_postbacks", "message_reactions"];
+// `messaging_optins` es la aceptación de Marketing Messages: sin ese evento no
+// llega el token con el que se le puede escribir a alguien fuera de la ventana
+// de 24 h, y la lista de suscriptores nunca se llena. Va en las DOS listas
+// porque la suscripción se lee y se une en cada reconexión: si sólo se
+// activara a mano en el panel de Meta, la próxima reconexión de la cuenta lo
+// borraría sin que nadie lo note.
+const IG_PAGE_FIELDS = [
+  "messages",
+  "messaging_postbacks",
+  "message_reactions",
+  "messaging_optins",
+];
+const IG_USER_FIELDS = [
+  "messages",
+  "messaging_postbacks",
+  "message_reactions",
+  "messaging_optins",
+];
 
 /**
  * App-level webhook subscriptions (`GET /{app-id}/subscriptions`). These are
@@ -605,7 +621,11 @@ export async function isWabaSubscribed(
 /** Expected app-level subscription object→fields. A missing/inactive entry here
  *  means an entire inbound surface stops for ALL merchants at once. */
 export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
-  instagram: ["comments", "messages"], // IG comments + IG DMs
+  // `messaging_optins` = la aceptación de Marketing Messages. Sin ese campo no
+  // llega el token que permite escribirle a alguien fuera de la ventana de 24 h
+  // y la lista de suscriptores deja de crecer — en silencio, porque todo lo
+  // demás sigue funcionando. Por eso se vigila como los otros.
+  instagram: ["comments", "messages", "messaging_optins"], // IG comments + IG DMs + opt-in
   page: ["feed", "messages"], // FB comments (feed) + Messenger DMs
   // WhatsApp inbound + `smb_message_echoes` = messages the merchant sends from
   // their own WhatsApp app (coexistence) syncing back into Riverz. Both are
