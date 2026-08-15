@@ -753,6 +753,161 @@ export interface ContextMessage {
   } | null;
 }
 
+/**
+ * Todos los hilos de la MISMA persona, sin importar el canal.
+ *
+ * Un contacto puede estar duplicado a propósito —una fila por canal— con
+ * `unified_contact_id` apuntando al primario (ver lib/contacts/dedupe.ts).
+ * Se juntan el primario y sus hermanos, y de ahí salen las conversaciones.
+ *
+ * Ante cualquier problema devuelve sólo la conversación en curso: mejor el
+ * contexto de antes que ninguno.
+ */
+async function siblingConversationIds(
+  db: SupabaseClient,
+  conversation: Conversation,
+): Promise<string[]> {
+  const contactId = conversation.contact_id;
+  if (!contactId) return [conversation.id];
+  try {
+    const { data: me } = await db
+      .from('contacts')
+      .select('id, unified_contact_id')
+      .eq('id', contactId)
+      .maybeSingle();
+    const row = me as { id: string; unified_contact_id: string | null } | null;
+    const primary = row?.unified_contact_id ?? contactId;
+
+    const { data: family } = await db
+      .from('contacts')
+      .select('id')
+      .or(`id.eq.${primary},unified_contact_id.eq.${primary}`);
+    const ids = ((family ?? []) as { id: string }[]).map((c) => c.id);
+    if (!ids.includes(contactId)) ids.push(contactId);
+
+    const { data: convs } = await db
+      .from('conversations')
+      .select('id')
+      .in('contact_id', ids)
+      .is('deleted_at', null);
+    const out = ((convs ?? []) as { id: string }[]).map((c) => c.id);
+    return out.length ? out : [conversation.id];
+  } catch {
+    return [conversation.id];
+  }
+}
+
+interface CallRow {
+  created_at: string;
+  direction: string | null;
+  status: string | null;
+  outcome: string | null;
+  summary: string | null;
+  duration_seconds: number | null;
+}
+
+/** Las llamadas de esta persona, para intercalarlas en el historial. */
+async function recentCalls(
+  db: SupabaseClient,
+  conversation: Conversation,
+  limit: number,
+): Promise<CallRow[]> {
+  if (!conversation.contact_id) return [];
+  try {
+    const { data } = await db
+      .from('voice_calls')
+      .select('created_at, direction, status, outcome, summary, duration_seconds')
+      .eq('contact_id', conversation.contact_id)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(10, limit));
+    return (data ?? []) as CallRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Una llamada contada en una línea, como la contaría alguien del equipo. */
+function describeCall(c: CallRow, now: number): string {
+  const cuando = relativeStamp(c.created_at, now);
+  const quien = c.direction === 'inbound' ? 'nos llamó' : 'la llamamos';
+  const partes = [`[${cuando} · llamada]`, quien];
+  const seg = c.duration_seconds ?? 0;
+  if (seg > 0) {
+    const m = Math.floor(seg / 60);
+    partes.push(m > 0 ? `(${m} min ${seg % 60}s)` : `(${seg}s)`);
+  }
+  const cierre = c.outcome || c.status;
+  if (cierre) partes.push(`— ${cierre}`);
+  if (c.summary) partes.push(`— ${c.summary}`);
+  return partes.join(' ');
+}
+
+/**
+ * "hace 10 minutos", "ayer", "hace 3 días".
+ *
+ * El modelo veía la conversación sin ninguna hora: no podía distinguir un
+ * mensaje de recién de uno de la semana pasada, y contestaba "como te decía"
+ * sobre algo de hace un mes. Va en palabras y no en fecha exacta porque es
+ * como lo diría una persona, y no obliga a razonar con husos horarios.
+ */
+export function relativeStamp(iso: string, now: number = Date.now()): string {
+  const ms = now - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  if (d === 1) return 'ayer';
+  if (d < 30) return `hace ${d} días`;
+  const meses = Math.round(d / 30);
+  return meses === 1 ? 'hace 1 mes' : `hace ${meses} meses`;
+}
+
+/** Nombre visible de cada canal, para marcar de dónde viene cada turno. */
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  ig_comment: 'comentario de Instagram',
+  messenger: 'Messenger',
+  fb_comment: 'comentario de Facebook',
+  gmail: 'correo',
+  outlook: 'correo',
+  mercadolibre: 'Mercado Libre',
+  ml_review: 'opinión de Mercado Libre',
+  tiktok_comment: 'comentario de TikTok',
+  voice: 'llamada',
+};
+
+/**
+ * El encabezado de cada turno: cuándo, por dónde y quién lo mandó.
+ *
+ * Ejemplos:
+ *   [hace 2 h]
+ *   [ayer · Instagram]
+ *   [hace 10 min · automatización: Carrito abandonado]
+ *
+ * El canal sólo se nombra cuando NO es el de la conversación en curso: en un
+ * chat de WhatsApp, repetir "WhatsApp" en cada línea es ruido; lo que importa
+ * es distinguir el turno que llegó por otro lado.
+ */
+function turnHeader(args: {
+  at: string;
+  channel: string | null;
+  currentChannel: string | null;
+  automation: string | null;
+  now?: number;
+}): string {
+  const parts = [relativeStamp(args.at, args.now)];
+  if (args.channel && args.channel !== args.currentChannel) {
+    parts.push(CHANNEL_LABEL[args.channel] ?? args.channel);
+  }
+  if (args.automation) parts.push(`automatización: ${args.automation}`);
+  const inner = parts.filter(Boolean).join(' · ');
+  return inner ? `[${inner}] ` : '';
+}
+
 export interface LoadedContext {
   messages: ContextMessage[];
   /** Resumen rodante de la conversación previo (migration 048).
@@ -782,12 +937,21 @@ export async function loadContext(
   limit: number,
 ): Promise<LoadedContext> {
   const safeLimit = Math.max(1, Math.min(100, limit || 30));
+
+  // ── Toda la persona, no un hilo suelto ──
+  // La misma clienta escribe por WhatsApp y comenta en Instagram: son dos
+  // conversaciones distintas y el agente veía una sola, así que contestaba
+  // como si lo otro no hubiera pasado. Se juntan todos los hilos de esa
+  // persona —incluidos los de sus contactos unificados— y se mezclan por
+  // fecha; el tope sigue siendo el mismo para el total.
+  const conversationIds = await siblingConversationIds(db, conversation);
+
   const { data } = await db
     .from('messages')
     .select(
-      'id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, created_at',
+      'id, sender_type, content_text, media_url, media_type, media_mime, media_transcription, created_at, channel, origin, origin_name, conversation_id',
     )
-    .eq('conversation_id', conversation.id)
+    .in('conversation_id', conversationIds)
     .order('created_at', { ascending: false })
     .limit(safeLimit);
 
@@ -807,6 +971,9 @@ export async function loadContext(
     media_mime: string | null;
     media_transcription: string | null;
     created_at: string;
+    channel: string | null;
+    origin: string | null;
+    origin_name: string | null;
   }[])
     // Sólo descartamos filas vacías SI tampoco tienen media —
     // un voice note sin caption todavía tiene contenido procesable.
@@ -814,7 +981,12 @@ export async function loadContext(
       (m) => (m.content_text && m.content_text.trim()) || m.media_url,
     )
     .reverse();
-  const messages: ContextMessage[] = rowsRaw.map((m) => {
+
+  const now = Date.now();
+  const currentChannel = (conversation as { channel?: string | null }).channel ?? null;
+
+  type Turn = ContextMessage & { at: string };
+  const turns: Turn[] = rowsRaw.map((m) => {
     const role: 'user' | 'assistant' =
       m.sender_type === 'customer' ? 'user' : 'assistant';
     const media =
@@ -826,13 +998,46 @@ export async function loadContext(
             transcription: m.media_transcription,
           }
         : null;
+    // Lo que mandó una automatización se marca como tal: leído sin la marca,
+    // el modelo cree que esas palabras son suyas y sigue una conversación que
+    // en realidad no tuvo.
+    const automation =
+      m.origin === 'automation' ? m.origin_name || 'sin nombre' : null;
+    const head = turnHeader({
+      at: m.created_at,
+      channel: m.channel,
+      currentChannel,
+      automation,
+      now,
+    });
     return {
       role,
-      content: (m.content_text ?? '').trim(),
+      content: head + (m.content_text ?? '').trim(),
       messageId: m.id,
       media,
+      at: m.created_at,
     };
   });
+
+  // ── Las llamadas, en la misma línea de tiempo ──
+  // Vivían en otra tabla y para el agente no existían: preguntarle "¿me
+  // llamaron?" era preguntarle por algo que nunca vio.
+  for (const c of await recentCalls(db, conversation, safeLimit)) {
+    turns.push({
+      role: 'assistant',
+      content: describeCall(c, now),
+      at: c.created_at,
+    });
+  }
+
+  turns.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  // `at` es sólo para ordenar y mezclar; al modelo va dentro del encabezado.
+  const messages: ContextMessage[] = turns.slice(-safeLimit).map((turn) => ({
+    role: turn.role,
+    content: turn.content,
+    messageId: turn.messageId,
+    media: turn.media,
+  }));
 
   const rollingSummary = conversation.ai_summary ?? null;
 
