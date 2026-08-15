@@ -14,6 +14,13 @@ import type { AutomationTriggerType } from '@/types'
 // surface at save time.
 // ------------------------------------------------------------
 
+/**
+ * Sujetos de condición que no llevan `operand`: la pregunta ya está completa
+ * sin él. "¿Pagó el pedido?" es sobre el pedido de este flujo, no sobre una
+ * ventana de tiempo ni una columna.
+ */
+const SUBJECTS_WITHOUT_OPERAND = new Set(['order_paid'])
+
 export interface ValidationIssue {
   /** Dot-path for the UI to highlight; stable enough to build a table. */
   path: string
@@ -109,7 +116,12 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       if (!nonEmpty(c.subject)) {
         issues.push({ path: `${path}.subject`, message: 'condition subject is required' })
       }
-      if (!nonEmpty(c.operand)) {
+      // `operand` es el complemento del sujeto: la columna, la etiqueta, la
+      // ventana. Hay sujetos que no lo necesitan porque la pregunta ya está
+      // completa sin él — "¿pagó el pedido?" es sobre el pedido de este
+      // flujo, no sobre un plazo. Exigirlo dejaba el flujo sin poder
+      // guardarse con un error que no se podía resolver desde la pantalla.
+      if (!SUBJECTS_WITHOUT_OPERAND.has(String(c.subject)) && !nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required' })
       }
       break
