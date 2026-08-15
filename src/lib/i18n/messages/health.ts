@@ -40,6 +40,15 @@ export const health: Namespace = {
     en: "{n} campaign(s) got stuck sending and never finished",
   },
 
+  // Decisiones que esperan a una persona
+  approvalsTitle: { es: "Esperando tu decisión", en: "Waiting on you" },
+  approvalApprove: { es: "Aprobar", en: "Approve" },
+  approvalReject: { es: "Rechazar", en: "Reject" },
+  approvalFailed: {
+    es: "No se pudo registrar la decisión.",
+    en: "Couldn't record the decision.",
+  },
+
   // Ingresos atribuidos
   revenueTitle: { es: "Lo que generó Riverz", en: "What Riverz generated" },
   revenueStoreTotal: {

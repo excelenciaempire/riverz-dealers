@@ -18,6 +18,11 @@ interface Profile {
   avatar_url: string | null;
   role: string | null;
   /**
+   * Teléfono de la persona (migración 151). Es a donde sale la pregunta cuando
+   * Riverz no decide solo — p. ej. un pago informado que no cierra.
+   */
+  phone: string | null;
+  /**
    * Opted-in beta feature keys for this account. No current feature
    * reads this — Flows was the last user and went to soft-GA in PR
    * #134 — but the column survives for future beta gates.
@@ -76,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, avatar_url, role, beta_features")
+        .select("id, full_name, email, avatar_url, role, beta_features, phone")
         .eq("user_id", userId)
         .maybeSingle();
 

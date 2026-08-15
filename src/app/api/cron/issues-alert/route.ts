@@ -20,7 +20,12 @@ const log = getLogger('cron.issues-alert')
  * Si el problema sigue mañana, el correo vuelve — que es lo correcto, porque
  * sigue roto. Y no hace falta ninguna tabla nueva que mantener al día.
  */
-const MAX_WORKSPACES = 50
+/**
+ * Tamaño de página del barrido. Antes esto era un `.limit(50)` a secas y sin
+ * orden: a partir del comercio 51 había cuentas que no recibían el aviso nunca,
+ * en silencio y sin quedar registrado en ningún lado.
+ */
+const PAGE = 100
 
 async function cronHandler(request: Request) {
   try {
@@ -31,33 +36,59 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
-  const { data, error } = await admin
-    .from('workspaces')
-    .select('id, name, owner_id')
-    .limit(MAX_WORKSPACES)
-  if (error) return serverError(error)
-
-  const rows = (data ?? []) as Array<{ id: string; name: string | null; owner_id: string | null }>
   let notified = 0
   let withIssues = 0
+  let scanned = 0
+  // Motivos por los que un aviso no salió. Sin esto, "0 notificados" no
+  // distingue "no había nada roto" de "falta la clave de Resend".
+  const skipped = { noEmail: 0, sendFailed: 0, collectFailed: 0 }
 
-  for (const ws of rows) {
-    let issues: Issue[] = []
-    try {
-      issues = await collectWorkspaceIssues(admin, ws.id)
-    } catch (err) {
-      log.captureException(err, { workspaceId: ws.id })
-      continue
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await admin
+      .from('workspaces')
+      .select('id, name, owner_id')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + PAGE - 1)
+    if (error) return serverError(error)
+
+    const rows = (data ?? []) as Array<{
+      id: string
+      name: string | null
+      owner_id: string | null
+    }>
+    if (rows.length === 0) break
+    scanned += rows.length
+
+    for (const ws of rows) {
+      let issues: Issue[] = []
+      try {
+        issues = await collectWorkspaceIssues(admin, ws.id)
+      } catch (err) {
+        log.captureException(err, { workspaceId: ws.id })
+        skipped.collectFailed++
+        continue
+      }
+      if (issues.length === 0) continue
+      withIssues++
+
+      const email = await ownerEmail(ws.owner_id)
+      if (!email) {
+        skipped.noEmail++
+        continue
+      }
+      if (await sendAlert(email, ws.name ?? 'tu cuenta', issues)) notified++
+      else skipped.sendFailed++
     }
-    if (issues.length === 0) continue
-    withIssues++
 
-    const email = await ownerEmail(ws.owner_id)
-    if (!email) continue
-    if (await sendAlert(email, ws.name ?? 'tu cuenta', issues)) notified++
+    if (rows.length < PAGE) break
   }
 
-  return NextResponse.json({ workspaces: rows.length, withIssues, notified })
+  if (skipped.sendFailed > 0 && !process.env.RESEND_API_KEY) {
+    log.warn('no se pudo avisar: falta RESEND_API_KEY', { pendientes: skipped.sendFailed })
+  }
+
+  return NextResponse.json({ workspaces: scanned, withIssues, notified, skipped })
 }
 
 async function ownerEmail(ownerId: string | null): Promise<string | null> {
@@ -105,6 +136,10 @@ function describe(issue: Issue): string {
   switch (issue.kind) {
     case 'automation_stuck':
       return `${issue.count} envío(s) de una automatización quedaron a medias${detail}`
+    case 'automation_failed':
+      // El detalle acá es el mensaje crudo del error ("template not found:
+      // carrito_v3"): es lo más accionable que manda este correo.
+      return `${issue.count} corrida(s) de una automatización fallaron${detail}`
     case 'sends_failing':
       return `${issue.count} mensajes no se pudieron entregar${detail}`
     case 'whatsapp_blocked':

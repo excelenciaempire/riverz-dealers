@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
+import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
@@ -191,6 +192,11 @@ export default function DashboardPage() {
           importa mas que cualquier metrica de la pantalla. Solo aparece cuando
           hay algo. */}
       <NeedsAttention />
+
+      {/* Decisiones que la IA no toma sola y esperan a una persona. Van con lo
+          roto y no con las metricas: un pago informado sin responder es un
+          cliente esperando. */}
+      <PendingApprovals />
 
       {/* Checklist de onboarding. Solo aparece mientras falte algo (o se oculte). */}
       <SetupChecklist />

@@ -87,6 +87,11 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
  * A quién se le pregunta: el dueño del workspace, o el primer administrador
  * con teléfono. Se busca en `profiles`, que es donde vive el teléfono de la
  * persona — no en `contacts`, que son los clientes del comercio.
+ *
+ * El emparejamiento va por `user_id` y NO por `id`: en `profiles` el `id` es un
+ * uuid propio de la fila y el id de `auth.users` vive en `user_id` (migración
+ * 001). Buscar por `id` con ids de auth no encuentra jamás a nadie, que es lo
+ * que dejó mudas todas las aprobaciones hasta acá.
  */
 async function quienDecide(
   db: SupabaseClient,
@@ -114,10 +119,13 @@ async function quienDecide(
 
   const { data: perfiles } = await db
     .from('profiles')
-    .select('id, phone')
-    .in('id', candidatos)
+    .select('user_id, phone')
+    .in('user_id', candidatos)
   const porId = new Map(
-    ((perfiles ?? []) as { id: string; phone: string | null }[]).map((p) => [p.id, p.phone]),
+    ((perfiles ?? []) as { user_id: string; phone: string | null }[]).map((p) => [
+      p.user_id,
+      p.phone,
+    ]),
   )
   // Se respeta el orden: primero el dueño.
   for (const id of candidatos) {

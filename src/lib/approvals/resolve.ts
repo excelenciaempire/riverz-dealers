@@ -35,18 +35,31 @@ export interface ResolveResult {
 /**
  * Busca la pregunta por su código corto y la resuelve.
  *
- * El código son los 6 primeros caracteres del id. Alcanza: sólo se busca
- * entre las pendientes y sin vencer de ese teléfono, así que el universo son
- * dos o tres, no un millón.
+ * El código son los 6 primeros caracteres del id, y **por sí solo no autoriza
+ * nada**: la búsqueda se acota primero al teléfono al que se le preguntó. Antes
+ * no era así — se barrían las 50 pendientes más nuevas de TODA la plataforma y
+ * se elegía por prefijo — con dos consecuencias: cualquiera que acertara seis
+ * caracteres resolvía la decisión de otro comercio, y pasadas las 50 pendientes
+ * los códigos legítimos dejaban de encontrarse.
+ *
+ * El teléfono se compara por los últimos 8 dígitos, como en el resto del
+ * código: lo que guarda `notified_phone` y lo que manda Meta en `from` pueden
+ * diferir en el prefijo (el clásico 54911… contra 5411… de Argentina).
  */
 export async function resolveByCode(
   db: SupabaseClient,
   args: { code: string; decision: Decision; phone?: string | null },
 ): Promise<ResolveResult> {
+  const ultimos8 = (args.phone ?? '').replace(/\D/g, '').slice(-8)
+  if (ultimos8.length < 8) {
+    return { ok: false, message: 'No encontré ninguna decisión pendiente con ese código.' }
+  }
+
   const { data } = await db
     .from('approval_requests')
     .select('id, workspace_id, kind, payload, status, expires_at, title')
     .eq('status', 'pendiente')
+    .like('notified_phone', `%${ultimos8}`)
     .order('created_at', { ascending: false })
     .limit(50)
   const filas = (data ?? []) as {
@@ -74,6 +87,7 @@ export async function resolveByCode(
     approvalId: fila.id,
     decision: args.decision,
     via: 'whatsapp',
+    workspaceId: fila.workspace_id,
   })
 }
 
@@ -83,6 +97,11 @@ export async function resolveByCode(
  * El UPDATE condicionado a `status = 'pendiente'` es lo que evita que dos
  * respuestas —el WhatsApp y el panel, o dos mensajes seguidos— ejecuten la
  * misma acción dos veces: la segunda no encuentra fila que actualizar.
+ *
+ * `workspaceId` es la barrera de cuenta y se pasa siempre que quien decide
+ * llegó por una vía atada a un comercio (el panel, o el MCP con su
+ * workspace_id). Sin él, un id de aprobación suelto alcanzaba para aprobar algo
+ * de otra cuenta — y aprobar ejecuta: marca un pedido como pagado en Shopify.
  */
 export async function decidir(
   db: SupabaseClient,
@@ -91,9 +110,10 @@ export async function decidir(
     decision: Decision
     via: 'whatsapp' | 'panel'
     decidedBy?: string | null
+    workspaceId?: string | null
   },
 ): Promise<ResolveResult> {
-  const { data, error } = await db
+  let q = db
     .from('approval_requests')
     .update({
       status: args.decision,
@@ -103,6 +123,8 @@ export async function decidir(
     })
     .eq('id', args.approvalId)
     .eq('status', 'pendiente')
+  if (args.workspaceId) q = q.eq('workspace_id', args.workspaceId)
+  const { data, error } = await q
     .select('id, workspace_id, kind, payload, title')
     .maybeSingle()
   if (error) return { ok: false, message: `No se pudo registrar: ${error.message}` }
@@ -160,6 +182,7 @@ async function ejecutar(
             payment_report_outcome: 'aprobado',
           })
           .eq('id', orderId)
+          .eq('workspace_id', fila.workspace_id)
       }
       return { ok: true, message: 'Pedido marcado como pagado en Shopify.' }
     }

@@ -169,6 +169,15 @@ export const settings = {
   uploadPhoto: { es: "Subir foto", en: "Upload photo" },
   displayName: { es: "Nombre para mostrar", en: "Display name" },
   emailLabel: { es: "Correo", en: "Email" },
+  phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
+  phoneHint: {
+    es: "A este número te preguntamos lo que la IA no decide sola, como un pago informado que no cierra.",
+    en: "We message this number when the AI can't decide on its own — like a reported payment that doesn't add up.",
+  },
+  phoneInvalid: {
+    es: "Ese número no parece válido. Incluye el código de país.",
+    en: "That number doesn't look valid. Include the country code.",
+  },
   emailChangePendingNotice: {
     es: "Revisa la bandeja de {oldEmail} y {newEmail} — ambos deben confirmar antes de que el cambio tenga efecto.",
     en: "Check the inbox of {oldEmail} and {newEmail} — both must confirm before the change takes effect.",

@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,6 +46,7 @@ export function ProfileForm() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
@@ -57,6 +59,7 @@ export function ProfileForm() {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
+    setPhone(profile.phone ?? '');
   }, [profile]);
 
   // Cleanup object URLs to avoid leaks.
@@ -132,6 +135,14 @@ export function ProfileForm() {
       toast.error(t('settings.emailInvalid'));
       return;
     }
+    // Vacío es válido (nadie está obligado a dar el teléfono); lo que no vale
+    // es uno que WhatsApp no pueda marcar, porque el aviso se perdería en
+    // silencio, que es justo el modo de falla que se está arreglando.
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone && !isValidE164(sanitizePhoneForMeta(trimmedPhone))) {
+      toast.error(t('settings.phoneInvalid'));
+      return;
+    }
 
     setSaving(true);
     try {
@@ -167,6 +178,9 @@ export function ProfileForm() {
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
+          // Se guarda ya normalizado a dígitos: es lo que compara Meta cuando
+          // vuelve la respuesta por WhatsApp.
+          phone: trimmedPhone ? sanitizePhoneForMeta(trimmedPhone) : null,
         })
         .eq('user_id', user.id);
       if (updateError) {
@@ -217,6 +231,7 @@ export function ProfileForm() {
     !!profile &&
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
+      phone.trim() !== (profile.phone ?? '') ||
       pendingAvatar !== null ||
       removeAvatar);
 
@@ -318,6 +333,23 @@ export function ProfileForm() {
                 </span>
               </p>
             )}
+          </div>
+
+          {/* Teléfono: es a donde Riverz pregunta lo que no decide solo. */}
+          <div className="space-y-2">
+            <Label htmlFor="profile-phone" className="text-foreground">
+              {t('settings.phoneLabel')}
+            </Label>
+            <Input
+              id="profile-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+54 9 11 5555 5555"
+              maxLength={30}
+              disabled={saving}
+            />
+            <p className="text-xs text-muted-foreground">{t('settings.phoneHint')}</p>
           </div>
 
           {/* Read-only block */}

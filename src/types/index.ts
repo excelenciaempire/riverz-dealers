@@ -82,6 +82,11 @@ export interface Profile {
   avatar_url?: string;
   role: string;
   beta_features?: string[];
+  /**
+   * Teléfono de la persona (migración 151). Es a donde sale la pregunta cuando
+   * Riverz no decide solo — p. ej. un pago informado que no cierra.
+   */
+  phone?: string | null;
   /** IANA timezone (e.g. "America/Bogota"). Drives every format() in the inbox. */
   timezone?: string;
   created_at: string;

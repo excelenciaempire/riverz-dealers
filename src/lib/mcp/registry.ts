@@ -325,6 +325,9 @@ export const MCP_TOOLS: McpTool[] = [
         approvalId: String(args.approval_id),
         decision: args.aprobar ? 'aprobada' : 'rechazada',
         via: 'panel',
+        // El workspace no es decorativo: sin él, un id suelto aprueba algo de
+        // otra cuenta, y aprobar cobra un pedido en Shopify.
+        workspaceId: ws(args),
       })
     },
   },
