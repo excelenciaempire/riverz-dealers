@@ -5,6 +5,7 @@ import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/l
 import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpen } from '@/lib/auth/signups'
+import { adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -92,6 +93,26 @@ export async function proxy(request: NextRequest) {
         }
       : undefined,
   )
+  // El panel de plataforma vive en su propio host (admin.riverz.co): ahi la
+  // raiz ES el panel. En el dominio del producto /admin sigue sirviendo hasta
+  // que ADMIN_SUBDOMAIN_ONLY corte el camino viejo — cortarlo antes de que el
+  // DNS propague dejaria al equipo sin panel.
+  const host = request.headers.get('host')
+  if (isAdminHost(host)) {
+    const target = adminRewrite(request.nextUrl.pathname)
+    if (target) {
+      const url = request.nextUrl.clone()
+      url.pathname = target
+      return NextResponse.rewrite(url)
+    }
+  } else if (
+    subdomainOnly() &&
+    (request.nextUrl.pathname === '/admin' || request.nextUrl.pathname.startsWith('/admin/'))
+  ) {
+    // 404 y no redirect: quien no sabe que el panel existe, no se entera.
+    return new NextResponse(null, { status: 404 })
+  }
+
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   // Next 16 reads the CSP from the *request* headers to stamp the nonce
