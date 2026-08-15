@@ -50,13 +50,39 @@ function passthrough(pathname: string): boolean {
 }
 
 /**
+ * Secciones que existen dentro del panel. Se listan a mano y no se importan de
+ * `sections.ts` porque eso arrastraría los iconos al bundle del proxy, que
+ * corre en cada pedido.
+ */
+const SECTIONS = new Set([
+  'auditoria',
+  'canales',
+  'comercios',
+  'funcionalidades',
+  'ia',
+  'infra',
+  'lista-espera',
+  'logs',
+  'operacion',
+  'uso',
+  'usuarios',
+  'voz',
+  'whatsapp',
+]);
+
+/**
  * Ruta interna que corresponde a un pedido al host del panel.
  * `admin.riverz.co/` → `/admin`, `admin.riverz.co/ia` → `/admin/ia`.
  * Devuelve null si no hay que reescribir nada.
+ *
+ * Lo que no es una sección del panel cae en su home en vez de reescribirse a
+ * ciegas: el login termina mandando a `/panel` (la ruta del producto) y sin
+ * esto el equipo aterrizaba en un 404 justo después de entrar.
  */
 export function adminRewrite(pathname: string): string | null {
   if (passthrough(pathname)) return null;
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return null;
-  if (pathname === '/') return '/admin';
-  return `/admin${pathname}`;
+  const first = pathname.split('/')[1] ?? '';
+  if (!first) return '/admin';
+  return SECTIONS.has(first) ? `/admin${pathname}` : '/admin';
 }
