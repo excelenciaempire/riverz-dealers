@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHmac } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { limitByKey } from '@/lib/rate-limit'
-import { MCP_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
+import { ALL_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
 import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/tokens'
 
 /**
@@ -190,6 +190,41 @@ function resumenSeguro(tool: McpTool, salida: unknown): string {
 }
 
 /**
+ * ¿Esta llave puede ver y usar esta herramienta?
+ *
+ * Dos cortes distintos. Uno es de quién: las que hablan de la plataforma y no
+ * de una cuenta son del equipo. El otro es de qué puede hacer la llave: una de
+ * sólo lectura no llega a nada que cambie algo, ni siquiera a lo que pide
+ * confirmación — la confirmación protege de un error, no de una llave filtrada.
+ */
+function visible(tool: McpTool, actor: McpActor): boolean {
+  if (tool.platformOnly && actor.kind !== 'platform') return false
+  if (actor.scope === 'lectura' && tool.risk !== 'lectura') return false
+  return true
+}
+
+/**
+ * Versiones del protocolo que este servidor sabe hablar.
+ *
+ * Importa más de lo que parece. Se venía respondiendo `2024-11-05` fijo, que en
+ * el spec es la revisión del transporte HTTP+SSE — dos endpoints y una conexión
+ * abierta. Lo que hay acá es un POST y nada más, que es el transporte
+ * "Streamable HTTP" de las revisiones siguientes. Un cliente estricto que lea
+ * esa respuesta se queda esperando el canal de eventos que nunca abrimos.
+ *
+ * Se contesta con la versión que pidió el cliente cuando la conocemos, y con la
+ * nuestra cuando no: es lo que dice el spec y es lo que hace que esto siga
+ * funcionando con clientes más nuevos sin tocar el código otra vez.
+ */
+const VERSIONES = ['2025-06-18', '2025-03-26', '2024-11-05']
+const VERSION_PREFERIDA = VERSIONES[0]
+
+function versionNegociada(pedida: unknown): string {
+  const v = typeof pedida === 'string' ? pedida : ''
+  return VERSIONES.includes(v) ? v : VERSION_PREFERIDA
+}
+
+/**
  * Techo de llamadas por actor.
  *
  * Las rutas de `/admin` ya se limitan (120/min por email) y esta puerta no,
@@ -222,7 +257,7 @@ export async function POST(request: Request) {
   switch (body.method) {
     case 'initialize':
       return rpcOk(body.id, {
-        protocolVersion: '2024-11-05',
+        protocolVersion: versionNegociada(body.params?.protocolVersion),
         capabilities: { tools: {} },
         serverInfo: { name: 'riverz', version: '1' },
       })
@@ -233,9 +268,7 @@ export async function POST(request: Request) {
 
     case 'tools/list':
       return rpcOk(body.id, {
-        tools: MCP_TOOLS.filter(
-          (t) => !t.platformOnly || actor.kind === 'platform',
-        ).map((t) => ({
+        tools: ALL_TOOLS.filter((t) => visible(t, actor)).map((t) => ({
           name: t.name,
           // El riesgo va en la descripción para que el agente sepa, antes de
           // llamar, cuáles van a pedirle confirmación.
@@ -267,8 +300,14 @@ export async function POST(request: Request) {
       if (!tool) return rpcError(body.id, -32602, `no existe la herramienta ${nombre}`)
       // No alcanza con esconderlas de `tools/list`: quien tenga el nombre puede
       // llamarlas igual.
-      if (tool.platformOnly && actor.kind !== 'platform') {
-        return rpcError(body.id, -32003, `${nombre} es sólo del equipo de Riverz`)
+      if (!visible(tool, actor)) {
+        return rpcError(
+          body.id,
+          -32003,
+          tool.platformOnly
+            ? `${nombre} es sólo del equipo de Riverz`
+            : `esta clave es de sólo lectura y ${nombre} cambia cosas`,
+        )
       }
 
       const argsCrudos = (body.params?.arguments ?? {}) as Record<string, unknown>

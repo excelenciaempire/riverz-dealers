@@ -42,6 +42,20 @@ export interface TemplateStepSeed {
   branch?: 'yes' | 'no' | null
   /** Index (within this seed list) of the Condition parent, if nested. */
   parent_index?: number | null
+  /**
+   * Nombre de la etiqueta que este `add_tag` debe usar, cuando la receta ya
+   * sabe cuál es.
+   *
+   * `add_tag` sólo funciona por `tag_id`, y una receta no puede traer el id de
+   * una etiqueta de un workspace que todavía no existe. Al instalar se
+   * resuelve por nombre y se crea si falta, así que el comercio no tiene que
+   * inventar cómo llamarla — y todos los comercios terminan con el mismo
+   * nombre, que es lo que hace que un segmento "carrito-recuperado" signifique
+   * lo mismo en todas las cuentas.
+   *
+   * Sin nombre, el hueco queda vacío a propósito y el comercio elige la suya.
+   */
+  tag_name?: string
 }
 
 export interface AutomationTemplateDefinition {
@@ -98,7 +112,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
     description:
-      'Recupera ventas: a los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo.',
+      'Recupera ventas: a los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo. Marca como recuperado solo a quien compra después.',
     category: 'shopify',
     icon: 'shopping-cart',
     tags: ['Shopify', 'Espera 15 min'],
@@ -108,51 +122,82 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       'Hola {{customer_name}}, dejaste tu carrito sin terminar. Te lo guardamos por si quieres retomarlo: {{checkout_url}}.',
     steps: [
       {
-        // 1. Esperar. La espera vive acá y no en el cron: el flujo se arma
+        // 1. Marcar el carrito abandonado, antes de todo. Es un hecho, no un
+        //    resultado: cuando esto corre la persona YA dejó el carrito. Va
+        //    primero para que la etiqueta esté puesta aunque después el flujo
+        //    se corte —porque compró sola, porque ya le habíamos escrito— y
+        //    para que se pueda segmentar por "abandonó" con independencia de
+        //    si llegamos a escribirle.
+        step_type: 'add_tag',
+        step_config: { tag_id: '' },
+        tag_name: 'carrito-abandonado',
+      },
+      {
+        // 2. Esperar. La espera vive acá y no en el cron: el flujo se arma
         //    con las piezas de la plataforma y se ve entero en el lienzo.
         step_type: 'wait',
         step_config: { amount: 15, unit: 'minutes' },
       },
       {
-        // 2. ¿Compró en el medio? Quien volvió y pagó no recibe nada.
+        // 3. ¿Compró en el medio? Quien volvió y pagó no recibe nada.
         step_type: 'condition',
         step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
-        // 3. ¿Tiene un pago rechazado sin resolver? Un rechazo de tarjeta
+        // 4. ¿Tiene un pago rechazado sin resolver? Un rechazo de tarjeta
         //    deja el checkout abierto, así que la misma persona entra por los
         //    dos rescates. Gana el de pago: dice lo que pasó de verdad.
         step_type: 'condition',
         step_config: { subject: 'rejected_open', operand: '48h', value: 'false' },
         branch: 'yes',
-        parent_index: 1,
+        parent_index: 2,
       },
       {
-        // 4. ¿Ya le escribimos? Cuenta CUALQUIER plantilla, no sólo las de
+        // 5. ¿Ya le escribimos? Cuenta CUALQUIER plantilla, no sólo las de
         //    rescate: dos días alcanzan para no insistirle a la misma persona
         //    por el mismo episodio sin apagar la recuperación. La ventana se
         //    edita en el paso, sin tocar código.
         step_type: 'condition',
         step_config: { subject: 'messaged', operand: '48h', value: 'false' },
         branch: 'yes',
-        parent_index: 2,
+        parent_index: 3,
       },
       {
-        // 5. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
+        // 6. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
         //    envío cae fuera de la ventana de 24 h de Meta.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
         branch: 'yes',
-        parent_index: 3,
+        parent_index: 4,
       },
       {
-        // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
-        // nueva o elige una existente al usar la plantilla (validate exige un tag
-        // real antes de activar).
+        // 7. La ventana de atribución. Dos días desde el mensaje: quien vuelve
+        //    a comprar por un recordatorio de carrito lo hace el mismo día o
+        //    al siguiente, y estirarlo más empieza a colgarse compras que la
+        //    persona iba a hacer igual.
+        step_type: 'wait',
+        step_config: { amount: 48, unit: 'hours' },
+        branch: 'yes',
+        parent_index: 4,
+      },
+      {
+        // 8. ¿Y ahora sí compró? En el paso 3 ya sabíamos que NO había
+        //    comprado, así que una compra que aparezca acá es posterior al
+        //    mensaje: es la venta que recuperó este flujo.
+        step_type: 'condition',
+        step_config: { subject: 'purchased', operand: 'since_trigger', value: 'true' },
+        branch: 'yes',
+        parent_index: 4,
+      },
+      {
+        // 9. Sólo entonces la etiqueta de recuperado. Es la que dice cuánto
+        //    vale esta automatización: puesta al mandar el mensaje marcaría a
+        //    todo el que lo recibió y no significaría nada.
         step_type: 'add_tag',
         step_config: { tag_id: '' },
+        tag_name: 'carrito-recuperado',
         branch: 'yes',
-        parent_index: 3,
+        parent_index: 7,
       },
     ],
   },

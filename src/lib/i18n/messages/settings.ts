@@ -192,6 +192,17 @@ export const settings = {
     es: "Ya hay diez llaves activas. Revocá alguna antes de crear otra.",
     en: "There are already ten active keys. Revoke one before creating another.",
   },
+  mcpScopeRead: { es: "Sólo lectura", en: "Read only" },
+  mcpScopeFull: { es: "Lectura y escritura", en: "Read and write" },
+  mcpScopeReadHint: {
+    es: "Consulta tu operación y no cambia nada. Es lo que conviene para un tablero o un análisis.",
+    en: "Queries your operation and changes nothing. The right choice for a dashboard or analysis.",
+  },
+  mcpScopeFullHint: {
+    es: "Además puede prender automatizaciones y escribirle a un cliente. Lo irreversible sigue pidiendo confirmación.",
+    en: "Can also toggle automations and message a customer. Irreversible actions still ask for confirmation.",
+  },
+  mcpActivity: { es: "Lo último que hizo tu agente", en: "What your agent did recently" },
   mcpHowTitle: { es: "Cómo se conecta", en: "How to connect" },
   phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
   phoneHint: {

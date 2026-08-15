@@ -7,6 +7,7 @@ import { Copy, Check, Loader2, Trash2, KeyRound } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,8 +21,19 @@ interface TokenRow {
   id: string;
   name: string;
   prefix: string;
+  scope: 'lectura' | 'total';
   created_at: string;
   last_used_at: string | null;
+}
+
+interface ActivityRow {
+  id: number;
+  actor: string;
+  tool: string;
+  risk: string;
+  ok: boolean;
+  summary: string | null;
+  created_at: string;
 }
 
 /**
@@ -42,18 +54,24 @@ export function McpPanel() {
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [tokens, setTokens] = useState<TokenRow[] | null>(null);
+  const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [name, setName] = useState('');
+  const [scope, setScope] = useState<'lectura' | 'total'>('lectura');
   const [creating, setCreating] = useState(false);
   const [fresh, setFresh] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/mcp/tokens', { cache: 'no-store' });
-      if (res.ok) setTokens(((await res.json()).tokens ?? []) as TokenRow[]);
-      else setTokens([]);
+      const [t, a] = await Promise.all([
+        fetch('/api/mcp/tokens', { cache: 'no-store' }),
+        fetch('/api/mcp/activity', { cache: 'no-store' }),
+      ]);
+      setTokens(t.ok ? (((await t.json()).tokens ?? []) as TokenRow[]) : []);
+      setActivity(a.ok ? (((await a.json()).activity ?? []) as ActivityRow[]) : []);
     } catch {
       setTokens([]);
+      setActivity([]);
     }
   }, []);
 
@@ -68,7 +86,7 @@ export function McpPanel() {
       const res = await fetchWithCsrf('/api/mcp/tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), scope }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -156,10 +174,29 @@ export function McpPanel() {
               if (e.key === 'Enter') void create();
             }}
           />
+          <div className="flex gap-1 rounded-md border border-border p-0.5">
+            {(['lectura', 'total'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={cn(
+                  'h-8 rounded px-2.5 text-xs transition-colors',
+                  scope === s
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {t(s === 'lectura' ? 'settings.mcpScopeRead' : 'settings.mcpScopeFull')}
+              </button>
+            ))}
+          </div>
           <Button onClick={create} disabled={creating || !name.trim()}>
             {creating ? <Loader2 className="size-4 animate-spin" /> : t('settings.mcpCreate')}
           </Button>
         </div>
+        <p className="-mt-3 text-xs text-muted-foreground">
+          {t(scope === 'lectura' ? 'settings.mcpScopeReadHint' : 'settings.mcpScopeFullHint')}
+        </p>
 
         {/* Las que hay */}
         {tokens && tokens.length > 0 && (
@@ -170,6 +207,12 @@ export function McpPanel() {
                   <p className="truncate text-sm text-foreground">{tk.name}</p>
                   <p className="text-xs text-muted-foreground">
                     <code>{tk.prefix}…</code>
+                    {' · '}
+                    {t(
+                      tk.scope === 'lectura'
+                        ? 'settings.mcpScopeRead'
+                        : 'settings.mcpScopeFull',
+                    )}
                     {' · '}
                     {tk.last_used_at
                       ? t('settings.mcpLastUsed', {
@@ -190,6 +233,35 @@ export function McpPanel() {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Qué hizo. Darle una llave a un programa y no poder ver qué hizo con
+            ella es pedir confianza a cambio de nada. */}
+        {activity && activity.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-foreground">
+              {t('settings.mcpActivity')}
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {activity.slice(0, 10).map((a) => (
+                <li key={a.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                  <span
+                    className={cn(
+                      'size-1.5 shrink-0 rounded-full',
+                      a.ok ? 'bg-emerald-500' : 'bg-red-500',
+                    )}
+                  />
+                  <code className="shrink-0 text-foreground">{a.tool}</code>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {a.summary}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {format.dateTime(a.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* Cómo se conecta. Sin esto la llave es un string sin destino. */}

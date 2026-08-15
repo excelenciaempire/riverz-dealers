@@ -17,9 +17,18 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * crearlo, como toda credencial que se respeta.
  */
 
+/** Qué puede hacer una llave. Ver la migración 159. */
+export type McpScope = 'lectura' | 'total'
+
 export type McpActor =
-  | { kind: 'platform'; label: string }
-  | { kind: 'workspace'; workspaceId: string; tokenId: string; label: string }
+  | { kind: 'platform'; label: string; scope: McpScope }
+  | {
+      kind: 'workspace'
+      workspaceId: string
+      tokenId: string
+      label: string
+      scope: McpScope
+    }
 
 const PREFIX = 'rvz_'
 
@@ -66,17 +75,22 @@ export async function resolveActor(
 
   const platform = process.env.MCP_ADMIN_TOKEN
   if (platform && sameSecret(presented, platform)) {
-    return { kind: 'platform', label: 'plataforma' }
+    return { kind: 'platform', label: 'plataforma', scope: 'total' }
   }
 
   const { data } = await db
     .from('mcp_tokens')
-    .select('id, workspace_id, name')
+    .select('id, workspace_id, name, scope')
     .eq('token_hash', hashToken(presented))
     .is('revoked_at', null)
     .maybeSingle()
 
-  const row = data as { id: string; workspace_id: string; name: string } | null
+  const row = data as {
+    id: string
+    workspace_id: string
+    name: string
+    scope: McpScope | null
+  } | null
   if (!row) return null
 
   // "Cuándo se usó por última vez" es lo que permite revocar sin miedo: se ve
@@ -93,6 +107,9 @@ export async function resolveActor(
     workspaceId: row.workspace_id,
     tokenId: row.id,
     label: row.name,
+    // Una llave sin alcance declarado es de antes de la 159: puede todo, que es
+    // lo que podía cuando se creó.
+    scope: row.scope ?? 'total',
   }
 }
 

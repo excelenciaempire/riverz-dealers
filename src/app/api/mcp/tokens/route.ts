@@ -39,7 +39,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin()
       .from('mcp_tokens')
-      .select('id, name, prefix, created_at, last_used_at')
+      .select('id, name, prefix, scope, created_at, last_used_at')
       .eq('workspace_id', ctx.workspaceId)
       .is('revoked_at', null)
       .order('created_at', { ascending: false })
@@ -58,9 +58,15 @@ export async function POST(request: Request) {
   const ctx = await contexto()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await request.json().catch(() => null)) as { name?: string } | null
+  const body = (await request.json().catch(() => null)) as {
+    name?: string
+    scope?: string
+  } | null
   const name = (body?.name ?? '').trim().slice(0, 60)
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 })
+  // Por defecto, sólo lectura. Una llave que puede escribir tiene que pedirse a
+  // propósito: el valor por defecto es el que elige casi todo el mundo.
+  const scope = body?.scope === 'total' ? 'total' : 'lectura'
 
   const admin = supabaseAdmin()
   try {
@@ -84,9 +90,10 @@ export async function POST(request: Request) {
         name,
         token_hash: hashToken(token),
         prefix: tokenPrefix(token),
+        scope,
         created_by: ctx.userId,
       })
-      .select('id, name, prefix, created_at')
+      .select('id, name, prefix, scope, created_at')
       .single()
     if (error) return serverError(error)
 

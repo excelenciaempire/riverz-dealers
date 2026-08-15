@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
 import { decidir } from '@/lib/approvals/resolve'
+import { MERCHANT_TOOLS } from './merchant-tools'
 
 /**
  * Las herramientas que la operación expone a un agente.
@@ -394,6 +395,14 @@ export const MCP_TOOLS: McpTool[] = [
   },
 ]
 
+/**
+ * Todo lo que expone el servidor: las de operación (arriba, pensadas para el
+ * equipo) más las del comercio. Van en archivos separados porque contestan
+ * preguntas distintas, y juntas en una sola lista porque para el agente del otro
+ * lado son una sola caja de herramientas.
+ */
+export const ALL_TOOLS: McpTool[] = [...MCP_TOOLS, ...MERCHANT_TOOLS]
+
 export function findTool(name: string): McpTool | undefined {
-  return MCP_TOOLS.find((t) => t.name === name)
+  return ALL_TOOLS.find((t) => t.name === name)
 }

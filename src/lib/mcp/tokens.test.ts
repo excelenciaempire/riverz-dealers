@@ -20,7 +20,9 @@ import {
 const WS = '11111111-1111-1111-1111-111111111111';
 
 /** Cliente falso con una sola llave viva en la tabla. */
-function fakeDb(row: { id: string; workspace_id: string; name: string } | null): SupabaseClient {
+function fakeDb(
+  row: { id: string; workspace_id: string; name: string; scope?: string } | null,
+): SupabaseClient {
   return {
     from() {
       const chain: Record<string, unknown> = {};
@@ -95,7 +97,7 @@ describe('resolveActor', () => {
 
   it('una llave de comercio queda atada a su cuenta', async () => {
     const actor = await resolveActor(
-      fakeDb({ id: 'tok-1', workspace_id: WS, name: 'n8n' }),
+      fakeDb({ id: 'tok-1', workspace_id: WS, name: 'n8n', scope: 'total' }),
       'rvz_loquesea',
     );
     expect(actor).toEqual({
@@ -103,6 +105,7 @@ describe('resolveActor', () => {
       workspaceId: WS,
       tokenId: 'tok-1',
       label: 'n8n',
+      scope: 'total',
     });
   });
 
@@ -125,10 +128,10 @@ describe('rateKey', () => {
     // La regresión que esto fija: la clave del limitador salía de la cabecera
     // `x-mcp-actor`, que la elige el que llama — bastaba variarla para que el
     // techo no existiera.
-    const a: McpActor = { kind: 'workspace', workspaceId: WS, tokenId: 'tok-1', label: 'a' };
-    const b: McpActor = { kind: 'workspace', workspaceId: WS, tokenId: 'tok-2', label: 'a' };
+    const a: McpActor = { kind: 'workspace', workspaceId: WS, tokenId: 'tok-1', label: 'a', scope: 'total' };
+    const b: McpActor = { kind: 'workspace', workspaceId: WS, tokenId: 'tok-2', label: 'a', scope: 'total' };
     expect(rateKey(a)).not.toBe(rateKey(b));
     expect(rateKey(a)).toContain('tok-1');
-    expect(rateKey({ kind: 'platform', label: 'plataforma' })).toBe('mcp:platform');
+    expect(rateKey({ kind: 'platform', label: 'plataforma', scope: 'total' })).toBe('mcp:platform');
   });
 });
