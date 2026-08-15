@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { limitByKey } from '@/lib/rate-limit'
 import { ALL_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
 import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/tokens'
+import { issuer } from '@/lib/mcp/oauth'
 
 /**
  * La operación de Riverz, expuesta como herramientas.
@@ -190,6 +191,28 @@ function resumenSeguro(tool: McpTool, salida: unknown): string {
 }
 
 /**
+ * La respuesta cuando no hay credencial.
+ *
+ * Es un 401 con `WWW-Authenticate` apuntando al documento que dice dónde pedir
+ * permiso (RFC 9728). Ese encabezado es el que convierte "no tenés acceso" en
+ * "andá acá a pedirlo": un conector que descubre servidores solo hace
+ * exactamente esto — llama sin credencial, lee esta respuesta y arranca el
+ * flujo. Sin el encabezado, la única vía sería pegar un token a mano.
+ *
+ * El cuerpo sigue siendo JSON-RPC para los clientes que no miran el status.
+ */
+function sinCredencial() {
+  const res = rpcError(null, -32001, 'clave inválida o ausente')
+  return new NextResponse(res.body, {
+    status: 401,
+    headers: {
+      'Content-Type': 'application/json',
+      'WWW-Authenticate': `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource"`,
+    },
+  })
+}
+
+/**
  * ¿Esta llave puede ver y usar esta herramienta?
  *
  * Dos cortes distintos. Uno es de quién: las que hablan de la plataforma y no
@@ -236,7 +259,7 @@ const MCP_RATE = { limit: 60, windowMs: 60_000 }
 export async function POST(request: Request) {
   const actor = await autorizado(request)
   if (!actor) {
-    return rpcError(null, -32001, 'clave inválida o ausente')
+    return sinCredencial()
   }
 
   // Se limita por LLAVE. Antes la clave del limitador salía de la cabecera

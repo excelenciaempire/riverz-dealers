@@ -31,6 +31,7 @@ import { legal } from "./legal";
 import { layout } from "./layout";
 import { metrics } from "./metrics";
 import { nav } from "./nav";
+import { oauth } from "./oauth";
 import { products } from "./products";
 import { settings } from "./settings";
 import { system } from "./system";
@@ -65,6 +66,7 @@ const NAMESPACES: Record<string, Namespace> = {
   layout,
   metrics,
   nav,
+  oauth,
   products,
   settings,
   system,

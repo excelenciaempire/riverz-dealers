@@ -6,6 +6,7 @@ import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpen } from '@/lib/auth/signups'
 import { adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
+import { docsRewrite, isDocsHost } from '@/lib/docs/host'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -98,6 +99,16 @@ export async function proxy(request: NextRequest) {
   // que ADMIN_SUBDOMAIN_ONLY corte el camino viejo — cortarlo antes de que el
   // DNS propague dejaria al equipo sin panel.
   const host = request.headers.get('host')
+  // La documentacion tambien vive en su propio host (docs.riverz.co). Va antes
+  // del panel porque son hosts distintos y el orden solo importa para leerlo.
+  if (isDocsHost(host)) {
+    const target = docsRewrite(request.nextUrl.pathname)
+    if (target) {
+      const url = request.nextUrl.clone()
+      url.pathname = target
+      return NextResponse.rewrite(url)
+    }
+  }
   if (isAdminHost(host)) {
     const target = adminRewrite(request.nextUrl.pathname)
     if (target) {

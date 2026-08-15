@@ -83,6 +83,8 @@ export async function resolveActor(
     .select('id, workspace_id, name, scope')
     .eq('token_hash', hashToken(presented))
     .is('revoked_at', null)
+    // Los emitidos por OAuth vencen; los pegados a mano no tienen vencimiento.
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .maybeSingle()
 
   const row = data as {

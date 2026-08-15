@@ -31,6 +31,8 @@ function fakeDb(
         select: self,
         eq: self,
         is: self,
+        or: self,
+        gt: self,
         update: self,
         maybeSingle: async () => ({ data: row }),
         then: (fn: (v: unknown) => unknown) => Promise.resolve(fn({ data: row })),
