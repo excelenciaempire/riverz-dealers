@@ -34,6 +34,7 @@ export type ConditionSource =
   | { kind: 'purchased' } // subject 'purchased' (se resuelve en vivo, con ventana)
   | { kind: 'messaged' } // subject 'messaged' (¿ya le escribimos?, con ventana)
   | { kind: 'rejected_open' } // subject 'rejected_open' (¿tiene un rechazo sin resolver?)
+  | { kind: 'order_paid' } // subject 'order_paid' (¿el pedido ya está pagado?, en vivo)
 
 export interface DataPoint {
   /** Stable id used in the picker + to rebuild a condition. */
@@ -241,14 +242,30 @@ export const DATA_POINTS: DataPoint[] = [
     condition: { kind: 'var', varKey: 'total_discounts' },
   },
   {
+    // Se puede preguntar: es lo que separa un pedido pagado de uno que espera
+    // una transferencia, y sin esto no había forma de armar ese flujo.
     id: 'financial_status',
     labelKey: 'automations.dpFinancialStatus',
     group: 'order',
     valueKind: 'text',
     triggers: ORDER_TRIGGERS,
-    usableInConditions: false,
+    usableInConditions: true,
     templateVarKey: 'financial_status',
     condition: { kind: 'var', varKey: 'financial_status' },
+  },
+  {
+    // La versión en vivo del anterior. El webhook trae el estado que el
+    // pedido tenía al crearse y ese dato queda congelado en el contexto; la
+    // pregunta después de una espera sólo significa algo si se vuelve a
+    // consultar. Es la diferencia entre recordarle la transferencia a quien
+    // no pagó y molestar a quien ya pagó.
+    id: 'order_paid',
+    labelKey: 'automations.dpOrderPaid',
+    group: 'order',
+    valueKind: 'bool',
+    triggers: ORDER_TRIGGERS,
+    usableInConditions: true,
+    condition: { kind: 'order_paid' },
   },
   {
     id: 'fulfillment_status',

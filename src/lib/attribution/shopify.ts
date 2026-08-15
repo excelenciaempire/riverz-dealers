@@ -88,6 +88,32 @@ export async function getActiveShopifyConnection(
  * treatment/control baselines. Acceptable at current pilot volumes; if a
  * merchant exceeds this, follow the `Link: rel=next` cursor and accumulate.
  */
+/**
+ * El estado de pago de UN pedido, ahora mismo.
+ *
+ * Hace falta para los pedidos que se pagan por transferencia: el webhook trae
+ * el estado que tenía al crearse ("pending") y eso queda congelado en el
+ * contexto del flujo. Preguntar de nuevo después de la espera es la única
+ * forma de no mandarle un recordatorio a quien ya transfirió.
+ *
+ * Devuelve null si no se pudo consultar — quien llama decide, y para un
+ * recordatorio la respuesta prudente es no mandarlo.
+ */
+export async function fetchOrderFinancialStatus(
+  conn: ActiveShopifyConnection,
+  orderId: string,
+): Promise<string | null> {
+  const client = new ShopifyAdminClient(conn.shopDomain, conn.token);
+  try {
+    const data = await client.rest<{ order?: { financial_status?: string | null } }>(
+      `/orders/${encodeURIComponent(orderId)}.json?fields=financial_status`,
+    );
+    return data.order?.financial_status ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchRecentOrders(
   conn: ActiveShopifyConnection,
   sinceIso: string,

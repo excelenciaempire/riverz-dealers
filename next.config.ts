@@ -78,6 +78,11 @@ const LEGACY_REDIRECTS: { from: string; to: string }[] = [
   { from: "/automations/new", to: "/automatizaciones/nueva" },
   { from: "/automations/:id/edit", to: "/automatizaciones/:id/editar" },
   { from: "/automations/:id/logs", to: "/automatizaciones/:id/registros" },
+  // Las campañas de voz vivían bajo /campanas, donde las gobernaba la bandera
+  // de campañas y el guard que exige WhatsApp conectado. Un enlace guardado a
+  // la ruta vieja daba 404.
+  { from: "/campanas/voz", to: "/voz/campanas" },
+  { from: "/broadcasts/voz", to: "/voz/campanas" },
 ];
 
 const nextConfig: NextConfig = {

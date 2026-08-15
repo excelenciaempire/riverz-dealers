@@ -71,7 +71,7 @@ export interface MetaOptinEvent {
   title?: string;
 }
 
-/** ¿Este evento del webhook es una aceptación de Marketing Messages? */
+/** ¿Este evento del webhook es de Marketing Messages (alta O baja)? */
 export function isMarketingOptin(optin: unknown): optin is MetaOptinEvent {
   const o = optin as MetaOptinEvent | null;
   return Boolean(
@@ -80,6 +80,22 @@ export function isMarketingOptin(optin: unknown): optin is MetaOptinEvent {
       o.type === 'notification_messages' &&
       o.notification_messages_token,
   );
+}
+
+/**
+ * ¿La persona pidió DEJAR de recibir?
+ *
+ * Meta manda el "Stop these messages" por el MISMO webhook y con el token
+ * adentro, distinguiéndolo sólo por `notification_messages_status`. Leer nada
+ * más el token y guardar 'active' convertía una baja en un alta: la persona
+ * apretaba "no quiero más" y le seguíamos mandando marketing. Es lo único de
+ * esta funcionalidad que no es un bug sino un problema de cumplimiento.
+ */
+export function isOptOutEvent(optin: MetaOptinEvent): boolean {
+  const status = String(
+    optin.notification_messages_status ?? optin.user_token_status ?? '',
+  ).toUpperCase();
+  return status.includes('STOP') || status.includes('REVOK');
 }
 
 /** Meta manda el vencimiento en segundos epoch; a veces como string. */
@@ -139,7 +155,8 @@ export async function recordOptIn(
     notification_messages_token: token,
     token_expiry_timestamp: expiryToIso(input.optin.token_expiry_timestamp),
     title: (input.optin.title || DEFAULT_OPTIN_TITLE).slice(0, 65),
-    status: 'active' as const,
+    // Alta o baja: las dos llegan por acá y sólo las separa este campo.
+    status: isOptOutEvent(input.optin) ? ('revoked' as const) : ('active' as const),
     updated_at: new Date().toISOString(),
   };
   // Sólo se pisa si lo pudimos resolver: un webhook que llega antes de que

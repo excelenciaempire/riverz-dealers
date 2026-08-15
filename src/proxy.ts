@@ -205,7 +205,31 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protected pages - redirect to login if not authenticated
-  const protectedPaths = ['/panel', '/bandeja', '/contactos', '/campanas', '/automatizaciones', '/menus', '/ajustes', '/admin']
+  // Toda sección del panel, no solo algunas. Faltaban /voz, /asistente,
+  // /comentarios, /plantillas, /agente-instagram, /productos, /pedidos,
+  // /integraciones y /actividad: entrar sin sesión no mostraba datos (RLS los
+  // tapa) pero tampoco mandaba a iniciar sesión, así que se veía un panel
+  // vacío y roto en vez de la pantalla de login. Mover las campañas de voz a
+  // /voz/campanas lo hizo visible.
+  const protectedPaths = [
+    '/panel',
+    '/bandeja',
+    '/contactos',
+    '/asistente',
+    '/menus',
+    '/comentarios',
+    '/voz',
+    '/plantillas',
+    '/campanas',
+    '/automatizaciones',
+    '/agente-instagram',
+    '/productos',
+    '/pedidos',
+    '/actividad',
+    '/integraciones',
+    '/ajustes',
+    '/admin',
+  ]
   if (!user && protectedPaths.some(path => canonicalPath.startsWith(path))) {
     return redirectTo('/ingresar')
   }

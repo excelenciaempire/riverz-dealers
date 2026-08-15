@@ -235,6 +235,34 @@ const OUTCOME_WORDING: Record<VoiceCallOutcome, { memory: string; tag: string }>
 const CONTACT_MEMORY_MAX_CHARS = 2000;
 
 /**
+ * Ids de TODOS los intentos de esta llamada, del último al primero.
+ *
+ * Un reintento no reusa la fila: `scheduleRetry` inserta una `voice_calls`
+ * nueva encadenada por `parent_call_id`. Una automatización que quedó
+ * esperando se estacionó sobre el id del PRIMER intento, así que buscar sólo
+ * por el id actual no la encontraba nunca. `max_attempts` está topeado en 6,
+ * así que la cadena es corta por construcción; el tope del bucle es una red
+ * contra un ciclo imposible en los datos.
+ */
+async function callAttemptChain(
+  db: SupabaseClient,
+  call: VoiceCall,
+): Promise<string[]> {
+  const ids = [call.id];
+  let parent = call.parent_call_id ?? null;
+  for (let i = 0; i < 8 && parent; i += 1) {
+    ids.push(parent);
+    const { data } = await db
+      .from('voice_calls')
+      .select('parent_call_id')
+      .eq('id', parent)
+      .maybeSingle();
+    parent = (data as { parent_call_id?: string | null } | null)?.parent_call_id ?? null;
+  }
+  return ids;
+}
+
+/**
  * Fold what happened on the phone into the contact's memory, so the TEXT
  * agent knows about it the next time this person writes on WhatsApp.
  * Without this the call was a dead end: the transcript lived in its own
@@ -425,9 +453,14 @@ export async function persistCallResult(
     // "llamar; si no contesta, mandar WhatsApp" work as a single automation.
     // Separate from the trigger below, which STARTS a new automation rather
     // than continuing a suspended one. Both paths stay supported.
-    void resumeAfterVoiceCall(call.id, resultVars).catch((err) =>
-      console.error('[voice] resume parked automation failed:', err),
-    );
+    //
+    // Se pasa la CADENA de intentos, no sólo este id: la corrida se estacionó
+    // sobre el primer intento y acá reporta el último.
+    void callAttemptChain(db, call)
+      .then((ids) => resumeAfterVoiceCall(ids, resultVars))
+      .catch((err) =>
+        console.error('[voice] resume parked automation failed:', err),
+      );
 
     void runAutomationsForTrigger({
       workspaceId: call.workspace_id,

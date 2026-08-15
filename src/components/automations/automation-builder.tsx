@@ -506,6 +506,7 @@ function dataPointIdFromCfg(
     if (subject === 'purchased') return c.kind === 'purchased'
     if (subject === 'messaged') return c.kind === 'messaged'
     if (subject === 'rejected_open') return c.kind === 'rejected_open'
+    if (subject === 'order_paid') return c.kind === 'order_paid'
     return false
   })?.id
 }

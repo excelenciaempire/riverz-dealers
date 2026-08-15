@@ -53,6 +53,33 @@ async function customerRepliedSince(
   return (count ?? 0) > 0;
 }
 
+/**
+ * Cancelar una llamada que ya no se va a hacer, SIN dejar dormida a la
+ * automatización que la estaba esperando.
+ *
+ * Los tres motivos de cancelación (kill switch, opt-out, el cliente ya
+ * contestó) escribían el estado directo sobre `voice_calls` y seguían de
+ * largo. Una corrida estacionada sobre esa llamada no se enteraba nunca y
+ * quedaba dormida hasta el tope de 24 h: el WhatsApp de "si no contesta"
+ * salía un día después, cuando el motivo real era que el cliente ya había
+ * respondido. Pasar por `persistCallResult` la despierta enseguida y por la
+ * rama correcta, además de dejar el resultado registrado como cualquier otra
+ * llamada terminada.
+ */
+async function cancelCall(
+  call: VoiceCall,
+  reason: 'kill_switch' | 'opt_out' | 'customer_replied',
+): Promise<void> {
+  await persistCallResult({
+    call_id: call.id,
+    status: 'canceled',
+    ended_at: new Date().toISOString(),
+    error: reason,
+  }).catch((err) =>
+    console.error('[cron/voice-calls] cancel-persist failed:', call.id, reason, err),
+  );
+}
+
 async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
@@ -108,10 +135,7 @@ async function cronHandler(request: Request) {
       const cfg = (conn as { config?: VoiceConnectionConfig } | null)?.config ?? {};
       const connStatus = (conn as { status?: string } | null)?.status;
       if (cfg.kill_switch || connStatus === 'disconnected') {
-        await db
-          .from('voice_calls')
-          .update({ status: 'canceled', ended_at: nowIso, error: 'kill_switch', updated_at: nowIso })
-          .eq('id', row.id);
+        await cancelCall(row, 'kill_switch');
         continue;
       }
 
@@ -123,10 +147,7 @@ async function cronHandler(request: Request) {
         .eq('id', row.contact_id)
         .maybeSingle();
       if ((contactRow as { voice_opt_out?: boolean } | null)?.voice_opt_out) {
-        await db
-          .from('voice_calls')
-          .update({ status: 'canceled', ended_at: nowIso, error: 'opt_out', updated_at: nowIso })
-          .eq('id', row.id);
+        await cancelCall(row, 'opt_out');
         continue;
       }
 
@@ -135,15 +156,7 @@ async function cronHandler(request: Request) {
       // the WhatsApp, bought, and got phoned about the cart anyway hours
       // later — the single fastest way to make the feature feel dumb.
       if (row.context?.skip_if_replied && (await customerRepliedSince(db, row))) {
-        await db
-          .from('voice_calls')
-          .update({
-            status: 'canceled',
-            ended_at: nowIso,
-            error: 'customer_replied',
-            updated_at: nowIso,
-          })
-          .eq('id', row.id);
+        await cancelCall(row, 'customer_replied');
         continue;
       }
 

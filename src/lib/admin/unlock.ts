@@ -45,6 +45,11 @@ export function issueToken(email: string): string {
 }
 
 export function verifyToken(token: string | undefined, email: string): boolean {
+  // Sin contraseña configurada no hay nada válido: si no se comprueba acá, un
+  // token firmado con el secreto vacío verifica contra el secreto vacío. Hoy
+  // `isUnlocked` ya lo corta antes, pero esta función es pública y el próximo
+  // que la use no tiene por qué saberlo.
+  if (!unlockConfigured()) return false;
   if (!token) return false;
   const [body, sig] = token.split('.');
   if (!body || !sig) return false;

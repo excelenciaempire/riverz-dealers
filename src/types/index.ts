@@ -707,7 +707,11 @@ export type ConditionSubject =
   // Si tiene un pago rechazado sin resolver. Un rechazo de tarjeta deja el
   // checkout abierto, asi que la misma persona entra por los dos rescates:
   // esto deja que el de carrito se aparte, dicho en el lienzo.
-  | 'rejected_open';
+  | 'rejected_open'
+  // Si el pedido ya figura pagado, consultado a la tienda en el momento. El
+  // webhook trae el estado que tenia al crearse, y despues de una espera eso
+  // ya no dice nada: es la pregunta de los pedidos por transferencia.
+  | 'order_paid';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

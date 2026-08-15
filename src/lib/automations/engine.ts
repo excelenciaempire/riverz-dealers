@@ -26,6 +26,10 @@ import {
 import { shouldAllowAutomationSend } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import { purchasedSince } from '@/lib/commerce/purchased-since'
+import {
+  getActiveShopifyConnection,
+  fetchOrderFinancialStatus,
+} from '@/lib/attribution/shopify'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
@@ -225,15 +229,22 @@ export async function resumePendingExecution(pending: {
  * were never started by an automation.
  */
 export async function resumeAfterVoiceCall(
-  callId: string,
+  callIds: string | string[],
   vars: Record<string, unknown>,
 ): Promise<void> {
   try {
     const db = supabaseAdmin()
+    // Se buscan VARIOS ids porque un reintento es una fila `voice_calls`
+    // NUEVA: la corrida quedó estacionada sobre el id del PRIMER intento y
+    // quien reporta el resultado es el último. Sin la cadena completa, la
+    // reanudación no encontraba nada justo en el caso para el que existe
+    // —"no contestó, volvé a intentar"— y el flujo dormía las 24 h del tope.
+    const keys = (Array.isArray(callIds) ? callIds : [callIds]).filter(Boolean)
+    if (keys.length === 0) return
     const { data: rows } = await db
       .from('automation_pending_executions')
       .select('*')
-      .eq('resume_key', callId)
+      .in('resume_key', keys)
       .eq('status', 'pending')
       .limit(1)
     const row = (rows ?? [])[0] as Record<string, unknown> | undefined
@@ -265,7 +276,7 @@ export async function resumeAfterVoiceCall(
       context: { ...stored, vars: { ...(stored.vars ?? {}), ...vars } },
     })
   } catch (err) {
-    console.error('[automations] resumeAfterVoiceCall failed:', callId, err)
+    console.error('[automations] resumeAfterVoiceCall failed:', callIds, err)
   }
 }
 
@@ -1287,6 +1298,25 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         .limit(1)
         .maybeSingle()
       return Boolean(hit) === want
+    }
+    case 'order_paid': {
+      // ¿El pedido ya figura pagado? Se le pregunta a la tienda AHORA, no al
+      // contexto: el webhook guardó el estado que el pedido tenía al crearse
+      // y después de una espera ese dato no dice nada. Es la pregunta de los
+      // pedidos por transferencia — el cliente paga horas después, y sin
+      // volver a consultar el recordatorio le llega igual.
+      const orderId = String((args.context?.vars ?? {}).order_id ?? '')
+      const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
+      if (!orderId) return false
+      const conn = await getActiveShopifyConnection(db, args.automation.workspace_id)
+      if (!conn) return false
+      const status = await fetchOrderFinancialStatus(conn, orderId)
+      // Sin respuesta de la tienda no se afirma nada: la rama de "pagó" queda
+      // sin cumplirse y el recordatorio no sale. Callar es más barato que
+      // escribirle a quien ya pagó.
+      if (status === null) return want
+      const paid = status === 'paid' || status === 'partially_paid'
+      return paid === want
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window

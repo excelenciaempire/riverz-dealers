@@ -51,10 +51,23 @@ export function channelLabels(channels: string[], locale?: Locale): string {
     .join(', ');
 }
 
-function effectiveChannels(scope: string, channels: string[]): string[] {
-  if (scope === 'workspace') return [...AI_CHANNELS];
+/**
+ * Los canales que este agente ocupa DE VERDAD.
+ *
+ * `voice` sólo cuenta si el agente tiene la voz encendida. La fila del canal
+ * se conserva aunque se apague (apagarla y volver a prenderla no debe borrar
+ * lo que el comercio eligió), así que sin este filtro un agente con la voz
+ * apagada seguía "ocupando" las llamadas y bloqueaba a otro agente que sí
+ * podía atenderlas, con un conflicto que la pantalla ni siquiera muestra.
+ */
+function effectiveChannels(
+  scope: string,
+  channels: string[],
+  voiceEnabled = true,
+): string[] {
   const allowed = AI_CHANNELS as readonly string[];
-  return channels.filter((c) => allowed.includes(c));
+  const base = scope === 'workspace' ? [...AI_CHANNELS] : channels.filter((c) => allowed.includes(c));
+  return voiceEnabled ? base : base.filter((c) => c !== 'voice');
 }
 
 export interface ChannelConflict {
@@ -74,14 +87,18 @@ export async function findChannelConflict(
     agentId: string | null;
     scope: string;
     channels: string[];
+    /** Si la voz está apagada, este agente no ocupa el canal de llamadas. */
+    voiceEnabled?: boolean;
   },
 ): Promise<ChannelConflict | null> {
-  const mine = new Set(effectiveChannels(args.scope, args.channels));
+  const mine = new Set(
+    effectiveChannels(args.scope, args.channels, args.voiceEnabled !== false),
+  );
   if (mine.size === 0) return null;
 
   let query = admin
     .from('ai_agents')
-    .select('id, name, scope, ai_agent_channels(channel)')
+    .select('id, name, scope, voice_enabled, ai_agent_channels(channel)')
     .eq('workspace_id', args.workspaceId)
     .eq('is_active', true)
     .is('deleted_at', null);
@@ -91,11 +108,13 @@ export async function findChannelConflict(
   for (const a of (data ?? []) as Array<{
     name: string | null;
     scope: string;
+    voice_enabled?: boolean | null;
     ai_agent_channels?: { channel: string }[];
   }>) {
     const theirs = effectiveChannels(
       a.scope,
       (a.ai_agent_channels ?? []).map((c) => c.channel),
+      a.voice_enabled !== false,
     );
     const overlap = theirs.filter((c) => mine.has(c));
     if (overlap.length > 0) {
