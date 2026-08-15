@@ -324,6 +324,11 @@ export const admin = {
 
   // ── Clave de IA de la plataforma ──
   sectionAiKey: { es: "IA", en: "AI" },
+  sectionPlatformWhatsapp: { es: "WhatsApp", en: "WhatsApp" },
+  sectionPlatformWhatsappDesc: {
+    es: "El número con el que Riverz avisa a los comercios. Aparte del de cada cuenta.",
+    en: "The number Riverz uses to alert merchants. Separate from each account's own.",
+  },
   sectionAiKeyDesc: {
     es: "Quién paga la IA de cada cuenta",
     en: "Who pays for each account's AI",

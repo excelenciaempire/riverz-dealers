@@ -11,6 +11,7 @@ import {
   Mailbox,
   Server,
   KeyRound,
+  MessageCircle,
 } from "lucide-react";
 
 /**
@@ -38,6 +39,13 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: "admin.sectionAiKey",
     description: "admin.sectionAiKeyDesc",
     icon: KeyRound,
+    group: "configuracion",
+  },
+  {
+    href: "/admin/whatsapp",
+    label: "admin.sectionPlatformWhatsapp",
+    description: "admin.sectionPlatformWhatsappDesc",
+    icon: MessageCircle,
     group: "configuracion",
   },
   // ── Comercios y su consumo ──

@@ -1,0 +1,83 @@
+'use client';
+
+import { useState } from 'react';
+import { Loader2, Lock } from 'lucide-react';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+
+/**
+ * Pantalla de la segunda llave. No dice qué hay del otro lado ni quién es el
+ * usuario: si alguien llegó hasta acá sin la contraseña, no se lleva ni un
+ * dato más de los que ya tenía.
+ */
+export function UnlockForm({ configured }: { configured: boolean }) {
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!password.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetchWithCsrf('/api/admin/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(json?.error ?? 'No se pudo abrir');
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setError('Error de red');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-background p-6">
+      <form
+        onSubmit={submit}
+        className="w-full max-w-sm space-y-4 rounded-xl border border-border bg-card p-6"
+      >
+        <div className="flex items-center gap-2">
+          <Lock className="size-4 text-muted-foreground" />
+          <h1 className="text-sm font-semibold text-foreground">Panel de plataforma</h1>
+        </div>
+
+        {configured ? (
+          <>
+            <input
+              type="password"
+              autoFocus
+              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Contraseña del panel"
+              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+            />
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <button
+              type="submit"
+              disabled={busy || !password.trim()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Entrar
+            </button>
+          </>
+        ) : (
+          <p className="text-xs leading-snug text-muted-foreground">
+            Falta definir <code>ADMIN_PANEL_PASSWORD</code> en el servidor. Sin esa
+            contraseña el panel no se abre para nadie.
+          </p>
+        )}
+      </form>
+    </div>
+  );
+}
