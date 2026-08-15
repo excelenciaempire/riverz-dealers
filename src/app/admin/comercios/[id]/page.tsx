@@ -1,10 +1,14 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
+import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/admin/feature-flags";
 import type { WorkspaceDetail } from "@/lib/admin/queries";
 import {
   useAdminData,
@@ -268,7 +272,109 @@ export default function AdminWorkspaceDetailPage({
           </ul>
         )}
       </Panel>
+
+      <WorkspaceFeatures
+        workspaceId={workspace.id}
+        global={data.features.global}
+        overrides={data.features.overrides}
+        onChanged={reload}
+      />
     </div>
+  );
+}
+
+/**
+ * Funcionalidades de ESTE comercio.
+ *
+ * El interruptor de /admin/funcionalidades es global: prende o apaga algo para
+ * todas las cuentas. Acá se escribe la excepción, que es lo que hace falta para
+ * probar algo con un comercio piloto o para dejar una función fuera de una
+ * cuenta que no la contrató.
+ *
+ * Tres estados a propósito, y no dos: "como el global" tiene que ser distinto
+ * de "prendida", porque si no, poner la excepción una vez ya no se puede
+ * deshacer nunca.
+ */
+function WorkspaceFeatures({
+  workspaceId,
+  global,
+  overrides,
+  onChanged,
+}: {
+  workspaceId: string;
+  global: Record<string, boolean>;
+  overrides: Record<string, boolean>;
+  onChanged: () => void;
+}) {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const set = async (key: string, value: boolean | null) => {
+    setSaving(key);
+    try {
+      const res = await fetchWithCsrf("/api/admin/feature-flags", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key, enabled: value, workspaceId }),
+      });
+      if (!res.ok) throw new Error("failed");
+      toast.success(t("admin.featureSaved"));
+      onChanged();
+    } catch {
+      toast.error(t("admin.featureSaveError"));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <Panel title={t("admin.wsFeaturesTitle")}>
+      <p className="px-4 pt-3 text-xs text-muted-foreground">
+        {t("admin.wsFeaturesDesc")}
+      </p>
+      <ul className="mt-1 divide-y divide-border">
+        {FEATURES.map((f) => {
+          const globalOn = global[f.key] !== false;
+          const override = overrides[f.key];
+          const current: "global" | "on" | "off" =
+            override === undefined ? "global" : override ? "on" : "off";
+          return (
+            <li key={f.key} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground">{t(f.labelKey)}</p>
+                <Muted>
+                  {t(globalOn ? "admin.wsFeatureGlobalOn" : "admin.wsFeatureGlobalOff")}
+                </Muted>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                {(
+                  [
+                    ["global", null, "admin.wsFeatureFollow"],
+                    ["on", true, "admin.wsFeatureOn"],
+                    ["off", false, "admin.wsFeatureOff"],
+                  ] as const
+                ).map(([id, value, label]) => (
+                  <button
+                    key={id}
+                    disabled={saving === f.key}
+                    onClick={() => set(f.key, value)}
+                    className={cn(
+                      "h-7 rounded-md px-2.5 text-xs transition-colors disabled:opacity-50",
+                      current === id
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {t(label)}
+                  </button>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
   );
 }
 

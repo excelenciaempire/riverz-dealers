@@ -29,30 +29,71 @@ export async function PUT(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     key?: string;
-    enabled?: boolean;
+    /** `null` borra la excepción del comercio y lo devuelve al valor global. */
+    enabled?: boolean | null;
+    /** Si viene, se escribe la excepción de ESE comercio, no el valor global. */
+    workspaceId?: string;
   } | null;
-  if (!body?.key || typeof body.enabled !== 'boolean') {
-    return NextResponse.json({ error: 'key and enabled required' }, { status: 400 });
+  if (!body?.key) {
+    return NextResponse.json({ error: 'key required' }, { status: 400 });
   }
   if (!FEATURES.some((f) => f.key === body.key)) {
     return NextResponse.json({ error: 'unknown feature' }, { status: 400 });
   }
 
-  const { error } = await supabaseAdmin()
-    .from('feature_flags')
-    .upsert(
-      {
-        key: body.key,
-        enabled: body.enabled,
-        updated_at: new Date().toISOString(),
-        updated_by: gate.actor.userId,
-      },
-      { onConflict: 'key' },
-    );
+  const db = supabaseAdmin();
+
+  // ── Excepción de un comercio ──
+  if (body.workspaceId) {
+    // `null` = sacar la excepción. Es lo que devuelve la cuenta al valor
+    // global, y hace falta que sea explícito: sin esto, una vez puesta la
+    // excepción no habría forma de volver atrás.
+    const { error } =
+      body.enabled === null
+        ? await db
+            .from('workspace_feature_flags')
+            .delete()
+            .eq('workspace_id', body.workspaceId)
+            .eq('key', body.key)
+        : await db.from('workspace_feature_flags').upsert(
+            {
+              workspace_id: body.workspaceId,
+              key: body.key,
+              enabled: body.enabled,
+              updated_at: new Date().toISOString(),
+              updated_by: gate.actor.userId,
+            },
+            { onConflict: 'workspace_id,key' },
+          );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.workspace_feature_flag',
+      targetType: 'workspace',
+      targetId: body.workspaceId,
+      meta: { key: body.key, enabled: body.enabled },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── Valor global ──
+  if (typeof body.enabled !== 'boolean') {
+    return NextResponse.json({ error: 'enabled required' }, { status: 400 });
+  }
+
+  const { error } = await db.from('feature_flags').upsert(
+    {
+      key: body.key,
+      enabled: body.enabled,
+      updated_at: new Date().toISOString(),
+      updated_by: gate.actor.userId,
+    },
+    { onConflict: 'key' },
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Apagar una funcionalidad la esconde para TODOS los comercios: queda rastro
-  // de quién lo hizo y cuándo.
+  // Apagar una funcionalidad acá la esconde para todos los comercios que no
+  // tengan una excepción propia: queda rastro de quién lo hizo y cuándo.
   await recordAdminAction(gate.actor, request, {
     action: 'update.feature_flag',
     targetType: 'feature_flag',

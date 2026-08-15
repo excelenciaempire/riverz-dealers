@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveShortId } from '@/lib/short-id';
 import { collectPlatformIssues, collectWorkspaceIssues, type Issue } from '@/lib/health/issues';
+import { getFeatureFlags, getWorkspaceOverrides } from './feature-flags';
 import { assertMetadataOnly } from './pii';
 
 /**
@@ -206,6 +207,11 @@ export interface WorkspaceDetail {
    * rechazada no dejan ninguna línea de error y no aparecían por ningún lado.
    */
   issues: Issue[];
+  /** Funcionalidades: el valor global y la excepción de este comercio. */
+  features: {
+    global: Record<string, boolean>;
+    overrides: Record<string, boolean>;
+  };
 }
 
 async function countIn(table: string, workspaceId: string): Promise<number> {
@@ -249,6 +255,8 @@ export async function getWorkspaceDetail(
     autoErrRes,
     voiceErrRes,
     issues,
+    globalFlags,
+    overrides,
   ] = await Promise.all([
     client
       .from('profiles')
@@ -294,6 +302,8 @@ export async function getWorkspaceDetail(
       .order('created_at', { ascending: false })
       .limit(5),
     collectWorkspaceIssues(client, id),
+    getFeatureFlags(client),
+    getWorkspaceOverrides(client, id),
   ]);
 
   // Los miembros vienen de dos tablas: la membresía y el perfil (identidad del
@@ -362,6 +372,7 @@ export async function getWorkspaceDetail(
     },
     recentErrors,
     issues,
+    features: { global: globalFlags, overrides },
   };
 }
 

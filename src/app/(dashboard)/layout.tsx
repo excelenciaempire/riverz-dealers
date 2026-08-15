@@ -54,17 +54,22 @@ export default async function DashboardLayout({
     } = await supabase.auth.getUser();
     platformAdmin = isPlatformAdmin(user?.email);
     if (user) {
-      // Feature flags (plataforma-wide) para esconder funcionalidades del menú
-      // y bloquear su URL. Fail-soft: ante error, todo habilitado. Solo para
-      // sesiones reales — un visitante anónimo no llega a ver el menú, así que
-      // consultarlo fuera del `if` era una query de más en cada render.
-      flags = await getFeatureFlags(supabaseAdmin());
-      await ensureWorkspace(
+      // El workspace primero: los flags ahora admiten una excepción por
+      // comercio, así que hay que saber de qué comercio se trata antes de
+      // resolverlos. `ensureWorkspace` ya lo resuelve internamente, así que
+      // capturar su retorno no cuesta ninguna consulta extra.
+      const workspaceId = await ensureWorkspace(
         supabaseAdmin(),
         user.id,
         user.email,
         user.user_metadata,
       );
+      // Feature flags para esconder funcionalidades del menú y bloquear su URL:
+      // el valor global, con la excepción del comercio pisándolo. Fail-soft:
+      // ante error, todo habilitado. Solo para sesiones reales — un visitante
+      // anónimo no llega a ver el menú, así que consultarlo fuera del `if` era
+      // una query de más en cada render.
+      flags = await getFeatureFlags(supabaseAdmin(), workspaceId);
       // Re-consent gate: if the Terms/Privacy changed since this user last
       // accepted (LEGAL_VERSION bumped), block the app until they accept the
       // new version. Fail-soft — any read error defaults to NOT gating so a

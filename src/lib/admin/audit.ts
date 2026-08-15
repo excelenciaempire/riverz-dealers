@@ -27,6 +27,7 @@ export type AdminAction =
   | 'view.waitlist'
   | 'view.infrastructure'
   | 'update.feature_flag'
+  | 'update.workspace_feature_flag'
   | 'update.voice_model'
   | 'view.ai_key'
   | 'view.feature_flags'

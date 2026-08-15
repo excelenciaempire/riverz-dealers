@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { getFeatureFlags, isFeatureEnabled } from "@/lib/admin/feature-flags";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
+import { resolveWorkspaceIdForUser } from "@/lib/workspaces/resolve";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,12 @@ export default async function FlowsLayout({ children }: { children: React.ReactN
     data: { user },
   } = await supabase.auth.getUser();
   if (!isPlatformAdmin(user?.email)) {
-    const flags = await getFeatureFlags(supabaseAdmin());
+    // Con el workspace: el flag puede tener una excepcion por comercio, y sin
+    // pasarlo este corte duro evaluaria el global y contradiria al menu.
+    const workspaceId = user
+      ? await resolveWorkspaceIdForUser(supabase, user.id)
+      : null;
+    const flags = await getFeatureFlags(supabaseAdmin(), workspaceId);
     if (!isFeatureEnabled(flags, "flows")) redirect("/panel");
   }
 

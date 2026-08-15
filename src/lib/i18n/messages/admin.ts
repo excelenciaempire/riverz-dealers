@@ -538,6 +538,18 @@ export const admin = {
 
   lockPanel: { es: "Cerrar el panel", en: "Lock the panel" },
 
+  // Excepciones de funcionalidad por comercio.
+  wsFeaturesTitle: { es: "Funcionalidades de este comercio", en: "Features for this merchant" },
+  wsFeaturesDesc: {
+    es: "Cada una sigue el valor global salvo que acá se diga otra cosa.",
+    en: "Each one follows the global value unless overridden here.",
+  },
+  wsFeatureFollow: { es: "Global", en: "Global" },
+  wsFeatureOn: { es: "Prendida", en: "On" },
+  wsFeatureOff: { es: "Apagada", en: "Off" },
+  wsFeatureGlobalOn: { es: "Global: prendida", en: "Global: on" },
+  wsFeatureGlobalOff: { es: "Global: apagada", en: "Global: off" },
+
   live: { es: "En vivo", en: "Live" },
   liveHint: {
     es: "Se actualiza solo cada 30 segundos mientras miras esta pestaña.",

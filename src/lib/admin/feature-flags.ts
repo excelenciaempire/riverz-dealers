@@ -116,10 +116,61 @@ export function canUsePath(
   return !feat || isFeatureEnabled(flags, feat);
 }
 
-/** Lee todos los flags de la DB. Fail-soft: ante error, todo habilitado. */
-export async function getFeatureFlags(db: SupabaseClient): Promise<FeatureFlags> {
+/**
+ * Lee los flags que le corresponden a un comercio.
+ *
+ * Dos capas: el valor global (`feature_flags`) y la excepción por comercio
+ * (`workspace_feature_flags`, migración 156), que lo pisa. Se resuelven acá y
+ * se devuelve un solo mapa ya plano, así que nada de lo que consume esto
+ * —`canUsePath`, el sidebar, el SectionGuard— tiene que enterarse de que hay
+ * dos capas.
+ *
+ * Sin `workspaceId` devuelve sólo los globales, que es lo que quiere el panel
+ * de plataforma cuando muestra la configuración de base.
+ *
+ * Fail-soft: ante error, todo habilitado. Un problema leyendo esta tabla no
+ * puede dejar a un comercio sin la mitad de la aplicación.
+ */
+export async function getFeatureFlags(
+  db: SupabaseClient,
+  workspaceId?: string | null,
+): Promise<FeatureFlags> {
   try {
-    const { data } = await db.from('feature_flags').select('key, enabled');
+    const [globalRes, wsRes] = await Promise.all([
+      db.from('feature_flags').select('key, enabled'),
+      workspaceId
+        ? db
+            .from('workspace_feature_flags')
+            .select('key, enabled')
+            .eq('workspace_id', workspaceId)
+        : Promise.resolve({ data: [] as { key: string; enabled: boolean }[] }),
+    ]);
+
+    const out: FeatureFlags = {};
+    for (const row of (globalRes.data ?? []) as { key: string; enabled: boolean }[]) {
+      out[row.key] = row.enabled;
+    }
+    // La excepción del comercio va después: gana sobre el global.
+    for (const row of ((wsRes as { data?: { key: string; enabled: boolean }[] }).data ??
+      []) as { key: string; enabled: boolean }[]) {
+      out[row.key] = row.enabled;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Sólo las excepciones de un comercio, para poder mostrarlas y editarlas. */
+export async function getWorkspaceOverrides(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<FeatureFlags> {
+  try {
+    const { data } = await db
+      .from('workspace_feature_flags')
+      .select('key, enabled')
+      .eq('workspace_id', workspaceId);
     const out: FeatureFlags = {};
     for (const row of (data ?? []) as { key: string; enabled: boolean }[]) {
       out[row.key] = row.enabled;
