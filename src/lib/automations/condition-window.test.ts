@@ -30,8 +30,10 @@ describe('receta de pago rechazado', () => {
       // Desde que arrancó el flujo, no una duración repetida: si repitiera
       // los 10 minutos habría que mantener dos números sincronizados.
       { subject: 'purchased', operand: 'since_trigger', value: 'false' },
-      // El cruce con el rescate de carrito, a la vista.
-      { subject: 'messaged', operand: '24h', value: 'false' },
+      // El cruce con el rescate de carrito, a la vista. La ventana va al
+      // techo del motor (90 dias) porque aca conviene equivocarse por no
+      // molestar: quien recibio CUALQUIER plantilla en ese plazo queda afuera.
+      { subject: 'messaged', operand: '90d', value: 'false' },
     ])
   })
 
@@ -69,8 +71,8 @@ describe('receta de carrito abandonado', () => {
       { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       // Gana pago rechazado: dice lo que pasó de verdad y su plantilla es
       // Utility, que Meta entrega.
-      { subject: 'rejected_open', operand: '24h', value: 'false' },
-      { subject: 'messaged', operand: '24h', value: 'false' },
+      { subject: 'rejected_open', operand: '90d', value: 'false' },
+      { subject: 'messaged', operand: '90d', value: 'false' },
     ])
   })
 
