@@ -81,6 +81,10 @@ export const settings = {
     es: "Pega esta URL en Mercado Pago → Tus integraciones → Webhooks, evento \"Pagos\", para que los rechazos lleguen al instante.",
     en: "Paste this URL in Mercado Pago → Your integrations → Webhooks, event \"Payments\", so declines arrive instantly.",
   },
+  mpNotifyUrlSummary: {
+    es: "Conectar pegando la URL de avisos",
+    en: "Connect by pasting the notifications URL",
+  },
   mpNotifyUrlCopy: { es: "Copiar URL", en: "Copy URL" },
   mpNotifyUrlCopied: { es: "URL copiada", en: "URL copied" },
   mpRenewFailed: {

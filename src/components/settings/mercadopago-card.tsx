@@ -202,26 +202,34 @@ export function MercadoPagoCard() {
               </a>
             </li>
           )}
+          {/* La URL de avisos es plomería: sólo hace falta mientras la
+              conexión sea a mano, y compite con el camino de un clic que la
+              vuelve innecesaria. Va plegada — quien la necesita la abre. */}
           {notifyUrl && (
             <li className="rounded-md bg-muted/40 px-2 py-2 ring-1 ring-border/50">
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                {t('settings.mpNotifyUrlLabel')}
-              </p>
-              <div className="mt-1 flex items-center gap-1">
-                <code className="min-w-0 flex-1 truncate text-[10px] text-foreground">
-                  {notifyUrl}
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(notifyUrl);
-                    toast.success(t('settings.mpNotifyUrlCopied'));
-                  }}
-                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={t('settings.mpNotifyUrlCopy')}
-                >
-                  <Copy className="size-3.5" />
-                </button>
-              </div>
+              <details>
+                <summary className="cursor-pointer list-none text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                  {t('settings.mpNotifyUrlSummary')}
+                </summary>
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  {t('settings.mpNotifyUrlLabel')}
+                </p>
+                <div className="mt-1 flex items-center gap-1">
+                  <code className="min-w-0 flex-1 truncate text-[10px] text-foreground">
+                    {notifyUrl}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(notifyUrl);
+                      toast.success(t('settings.mpNotifyUrlCopied'));
+                    }}
+                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label={t('settings.mpNotifyUrlCopy')}
+                  >
+                    <Copy className="size-3.5" />
+                  </button>
+                </div>
+              </details>
             </li>
           )}
         </ul>
