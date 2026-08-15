@@ -2142,10 +2142,10 @@ function BranchFan({
   // abajo y la sacaba de la línea del tronco.
   const [offset, setOffset] = useState(0)
 
-  useEffect(() => {
+  const measure = useCallback(() => {
     const el = wrap.current
     if (!el) return
-    const measure = () => {
+    {
       const rows = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")]
       if (rows.length === 0) {
         setSpine(null)
@@ -2180,16 +2180,40 @@ function BranchFan({
       })
       const top = Math.min(...points)
       const bottom = Math.max(...points)
-      setAnchors(points.map((p, i) => p - rowTops[i]))
-      setSpine({ top, height: bottom - top })
-      setOffset(CARD_HALF - (top + bottom) / 2)
+      const next = points.map((p, i) => p - rowTops[i])
+      const height = bottom - top
+      const off = CARD_HALF - (top + bottom) / 2
+      // Sólo se escribe si de verdad cambió: esto corre después de cada
+      // pintada y guardar lo mismo volvería a pintar, sin fin.
+      const same = (a: number, b: number) => Math.abs(a - b) < 0.5
+      setAnchors((prev) =>
+        prev.length === next.length && prev.every((v, i) => same(v, next[i])) ? prev : next,
+      )
+      setSpine((prev) =>
+        prev && same(prev.top, top) && same(prev.height, height) ? prev : { top, height },
+      )
+      setOffset((prev) => (same(prev, off) ? prev : off))
     }
-    measure()
+  }, [])
+
+  // Después de cada pintada, no sólo cuando algo cambia de tamaño. Desplegar
+  // una tarjeta mueve los carriles de abajo sin cambiar el alto de ninguno,
+  // y el observador de tamaño no se entera: la espina quedaba donde estaba,
+  // sin llegar al último camino.
+  //
+  // Medir el DOM es exactamente para lo que sirve un efecto, y `measure` sólo
+  // escribe cuando el número cambió de verdad, así que no encadena pintadas.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(measure)
+
+  useEffect(() => {
+    const el = wrap.current
+    if (!el) return
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     el.querySelectorAll("[data-lane-row]").forEach((r) => ro.observe(r))
     return () => ro.disconnect()
-  }, [lanes.length])
+  }, [lanes.length, measure])
 
   return (
     <div
