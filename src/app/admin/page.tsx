@@ -20,6 +20,12 @@ import { Sparkline } from "./_components/sparkline";
 interface Payload {
   overview: PlatformOverview | null;
   series: ActivityPoint[];
+  /** Estado de los trabajos de fondo, calculado contra el catálogo real. */
+  ops?: {
+    cronsBroken: number;
+    schedulerAlive: boolean;
+    schedulerLastTickAt: string | null;
+  };
 }
 
 /**
@@ -40,11 +46,16 @@ export default function AdminHomePage() {
   const o = data?.overview ?? null;
   const series = data?.series ?? [];
 
+  // El reloj va primero y aparte: si no late, los demás contadores describen un
+  // pasado. Y la cuenta de crons rotos viene de `ops` y no de `overview`, que
+  // sólo mira el estado de la última corrida — un trabajo que dejó de correr
+  // deja su última fila en 'ok' y por ahí daba 0 con todo caído.
+  const ops = data?.ops;
   const alerts: { n: number; label: string; href: string }[] = o
     ? [
         { n: o.connections_error, label: t("admin.alertConnections"), href: "/admin/canales" },
         { n: o.webhooks_unprocessed, label: t("admin.alertWebhooks"), href: "/admin/operacion" },
-        { n: o.crons_error, label: t("admin.alertCrons"), href: "/admin/operacion" },
+        { n: ops?.cronsBroken ?? o.crons_error, label: t("admin.alertCrons"), href: "/admin/operacion" },
       ].filter((a) => a.n > 0)
     : [];
 
@@ -64,11 +75,25 @@ export default function AdminHomePage() {
         <>
           {/* Lo que requiere atención va primero: es a lo que se entra a mirar. */}
           <Panel title={t("admin.alertsTitle")}>
-            {alerts.length === 0 ? (
+            {ops && !ops.schedulerAlive && (
+              <Link
+                href="/admin/operacion"
+                className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm transition-colors hover:bg-muted/50"
+              >
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  {t("admin.schedulerDead")}
+                </span>
+                <span className="flex-1 text-foreground">
+                  {t("admin.schedulerDeadNote")}
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+            )}
+            {alerts.length === 0 && ops?.schedulerAlive !== false ? (
               <p className="px-4 py-4 text-sm text-emerald-600 dark:text-emerald-400">
                 {t("admin.allClear")}
               </p>
-            ) : (
+            ) : alerts.length === 0 ? null : (
               <ul className="divide-y divide-border">
                 {alerts.map((a) => (
                   <li key={a.href + a.label}>

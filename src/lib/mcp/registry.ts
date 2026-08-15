@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { SCHEDULED_JOBS } from '@/lib/cron/schedule'
+import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
 import { decidir } from '@/lib/approvals/resolve'
 
 /**
@@ -289,18 +289,19 @@ export const MCP_TOOLS: McpTool[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     async run() {
-      const { data } = await db()
-        .from('cron_runs')
-        .select('name, status, started_at, duration_ms, error')
-        .gte('started_at', new Date(Date.now() - 24 * 3_600_000).toISOString())
-        .order('started_at', { ascending: false })
+      // El mismo RPC que mira el panel, y no un reduce propio sobre una ventana
+      // de 24 h: así la respuesta del agente y la pantalla no se contradicen, y
+      // los trabajos diarios no desaparecen por quedar fuera de la ventana.
+      const { data } = await db().rpc('admin_cron_health')
       const ultima = new Map<string, unknown>()
       for (const r of (data ?? []) as { name: string }[]) {
-        if (!ultima.has(r.name)) ultima.set(r.name, r)
+        ultima.set(r.name, r)
       }
       return SCHEDULED_JOBS.map((j) => ({
         nombre: j.name,
         frecuencia: j.schedule,
+        disparado_por: j.parent ?? 'reloj',
+        atrasado: isStale(j.schedule, (ultima.get(j.name) as { started_at?: string } | undefined)?.started_at ?? null),
         ultima_corrida: ultima.get(j.name) ?? null,
       }))
     },

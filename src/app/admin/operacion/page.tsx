@@ -21,15 +21,30 @@ import {
 } from "../_components/admin-ui";
 import { RefreshButton } from "../_components/filters";
 
+/** Latido del reloj interno, tal como lo devuelve `schedulerStatus()`. */
+interface SchedulerBeat {
+  started: boolean;
+  jobs: number;
+  lastTickAt: string | null;
+  running: string[];
+}
+
 type OpsPayload = OpsStatus & {
   schedules: CronSpec[];
-  undeclared: CronSpec[];
+  scheduler: SchedulerBeat;
 };
 
 /** Fila de la tabla: lo esperado (catálogo) cruzado con lo ocurrido (cron_runs). */
 interface JobRow extends CronSpec {
   run: CronRow | null;
 }
+
+/**
+ * El reloj despierta cada minuto. Dos minutos sin latir ya no es un retraso
+ * normal: o el proceso se reinició o el reloj se murió, y con él TODO lo que
+ * dispara — campañas, carritos, respuestas de la IA.
+ */
+const BEAT_STALE_MS = 2 * 60_000;
 
 export default function AdminOpsPage() {
   const t = useT();
@@ -50,8 +65,15 @@ export default function AdminOpsPage() {
         header: t("admin.colJob"),
         cell: (j) => (
           <div>
-            <p className="font-medium text-foreground">{j.name}</p>
-            <Muted>{j.what}</Muted>
+            <p className="font-medium text-foreground">
+              {j.name}
+              {j.parent && (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  · {j.parent}
+                </span>
+              )}
+            </p>
+            <Muted>{t(j.whatKey)}</Muted>
           </div>
         ),
       },
@@ -66,12 +88,7 @@ export default function AdminOpsPage() {
       {
         key: "schedule",
         header: t("admin.colSchedule"),
-        cell: (j) =>
-          j.schedule ? (
-            <code className="text-xs text-muted-foreground">{j.schedule}</code>
-          ) : (
-            <Muted>{t("admin.cronUndeclaredNote")}</Muted>
-          ),
+        cell: (j) => <code className="text-xs text-muted-foreground">{j.schedule}</code>,
       },
       {
         key: "last",
@@ -143,6 +160,9 @@ export default function AdminOpsPage() {
   if (error || !data) return <LoadError onRetry={reload} />;
 
   const broken = jobs.filter((j) => jobStatus(j, t).tone === "error").length;
+  const beat = data.scheduler;
+  const beatAgeMs = beat?.lastTickAt ? Date.now() - Date.parse(beat.lastTickAt) : null;
+  const beatOk = Boolean(beat?.started) && beatAgeMs !== null && beatAgeMs < BEAT_STALE_MS;
 
   return (
     <div className="space-y-5">
@@ -152,7 +172,18 @@ export default function AdminOpsPage() {
         actions={<RefreshButton onClick={reload} />}
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* El latido va PRIMERO: sin reloj, los otros números son de ayer. */}
+        <Stat
+          label={t("admin.schedulerBeat")}
+          value={beatOk ? t("admin.schedulerAlive") : t("admin.schedulerDead")}
+          hint={
+            beat?.lastTickAt
+              ? format.dateTime(beat.lastTickAt)
+              : t("admin.never")
+          }
+          tone={beatOk ? "ok" : "error"}
+        />
         <Stat
           label={t("admin.alertCrons")}
           value={String(broken)}
@@ -164,9 +195,9 @@ export default function AdminOpsPage() {
           tone={data.webhooks.unprocessed > 0 ? "warn" : "ok"}
         />
         <Stat
-          label={t("admin.cronUndeclared")}
-          value={String(data.undeclared.length)}
-          tone={data.undeclared.length > 0 ? "warn" : "ok"}
+          label={t("admin.schedulerRunning")}
+          value={String(beat?.running?.length ?? 0)}
+          hint={beat?.running?.join(", ") || undefined}
         />
       </div>
 
@@ -190,9 +221,11 @@ export default function AdminOpsPage() {
 /**
  * Estado de un trabajo cruzando el catálogo con lo que realmente ocurrió.
  *
- * No declarado en render.yaml NO implica que no corra: hay trabajos que algo
- * externo al blueprint dispara igual. Si reportó corridas en las últimas 24 h
- * está vivo, y lo que hay que señalar es solo que el blueprint no lo refleja.
+ * Ya no existe "no declarado": hay un solo catálogo, y todo lo que está en él
+ * lo dispara el reloj (o su padre, en el caso de los sub-trabajos). Un trabajo
+ * sin corridas o con la última demasiado vieja está atrasado, y eso es rojo —
+ * antes, tres trabajos con `schedule: null` en el catálogo viejo se libraban de
+ * esta comprobación y no había forma de que se pintaran mal.
  */
 function jobStatus(
   j: JobRow,
@@ -200,11 +233,6 @@ function jobStatus(
 ): { tone: Tone; label: string } {
   if (j.run?.status === "error")
     return { tone: "error", label: t("admin.statusError") };
-  if (!j.schedule) {
-    return j.run && j.run.runs_24h > 0
-      ? { tone: "warn", label: t("admin.cronUndeclaredRunning") }
-      : { tone: "warn", label: t("admin.cronUndeclared") };
-  }
   if (isStale(j.schedule, j.run?.started_at ?? null))
     return { tone: "error", label: t("admin.cronStale") };
   return { tone: "ok", label: t("admin.infraStatusOk") };

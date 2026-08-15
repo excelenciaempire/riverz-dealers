@@ -269,16 +269,123 @@ export const admin = {
   colDuration: { es: "Duración", en: "Duration" },
   colRuns24h: { es: "24 h", en: "24 h" },
   cronStale: { es: "Sin reportar", en: "Not reporting" },
-  cronUndeclared: { es: "Nadie lo dispara", en: "Nothing triggers it" },
-  cronUndeclaredRunning: {
-    es: "Corre fuera del blueprint",
-    en: "Runs outside the blueprint",
-  },
-  cronUndeclaredNote: {
-    es: "Existe en el código pero no está declarado en render.yaml.",
-    en: "It exists in the code but isn't declared in render.yaml.",
-  },
   webhooksUnprocessed: { es: "sin procesar", en: "unprocessed" },
+
+  // El reloj interno. Sin él, todos los demás números son de antes.
+  schedulerBeat: { es: "Reloj interno", en: "Internal clock" },
+  schedulerAlive: { es: "Latiendo", en: "Beating" },
+  schedulerDead: { es: "Detenido", en: "Stopped" },
+  schedulerRunning: { es: "Corriendo ahora", en: "Running now" },
+  schedulerDeadNote: {
+    es: "Ningún trabajo de fondo se está disparando: ni campañas, ni carritos, ni seguimientos.",
+    en: "No background job is firing: no campaigns, no cart recovery, no follow-ups.",
+  },
+
+  // Qué hace cada trabajo, en una línea.
+  cronFlowsResume: { es: "Reanuda flujos en espera", en: "Resumes waiting flows" },
+  cronAutomations: {
+    es: "Drena pasos de espera de automatizaciones",
+    en: "Drains automation wait steps",
+  },
+  cronFlowsRetries: {
+    es: "Reintenta ejecuciones de flujo fallidas",
+    en: "Retries failed flow runs",
+  },
+  cronBroadcasts: { es: "Envía campañas programadas", en: "Sends scheduled campaigns" },
+  cronVoiceCalls: { es: "Despacha llamadas en cola", en: "Dispatches queued calls" },
+  cronVoiceCampaignRun: { es: "Avanza campañas de voz", en: "Advances voice campaigns" },
+  cronInstagramAgent: {
+    es: "Motor de DMs proactivos de Instagram",
+    en: "Instagram proactive DM engine",
+  },
+  cronOutlookPoll: { es: "Sondea buzones de Outlook", en: "Polls Outlook mailboxes" },
+  cronGmailPoll: { es: "Sondea buzones de Gmail", en: "Polls Gmail mailboxes" },
+  cronMercadolibre: {
+    es: "Preguntas, pedidos, envíos, reclamos y catálogo de Mercado Libre",
+    en: "Mercado Libre questions, orders, shipping, claims and catalog",
+  },
+  cronCommentSync: {
+    es: "Sincroniza comentarios de Facebook e Instagram",
+    en: "Syncs Facebook and Instagram comments",
+  },
+  cronCommentReconcile: {
+    es: "Reconcilia comentarios borrados u ocultados",
+    en: "Reconciles deleted or hidden comments",
+  },
+  cronContactsSync: {
+    es: "Completa datos de contactos desde la tienda",
+    en: "Fills in contact data from the store",
+  },
+  cronTiktokComments: {
+    es: "Única vía de entrada de comentarios de TikTok",
+    en: "The only way TikTok comments come in",
+  },
+  cronInstagramEnrich: {
+    es: "Enriquece perfiles públicos de Instagram",
+    en: "Enriches public Instagram profiles",
+  },
+  cronFlowsSweep: { es: "Barre flujos vencidos por tiempo", en: "Sweeps timed-out flows" },
+  cronKlaviyoSync: { es: "Espeja los contactos hacia Klaviyo", en: "Mirrors contacts to Klaviyo" },
+  cronAiFollowups: {
+    es: "Seguimientos de la IA cuando el cliente calla",
+    en: "AI follow-ups when the customer goes quiet",
+  },
+  cronMercadopagoSync: {
+    es: "Trae los pagos rechazados de Mercado Pago",
+    en: "Pulls rejected Mercado Pago payments",
+  },
+  cronDeliveryWatchdog: { es: "Marca envíos sin confirmar", en: "Flags unconfirmed deliveries" },
+  cronAdsSync: {
+    es: "Marca qué comentarios vienen de un anuncio",
+    en: "Flags which comments came from an ad",
+  },
+  cronShopifyCartRecovery: { es: "Recupera carritos abandonados", en: "Recovers abandoned carts" },
+  cronTiendanubeCheckouts: {
+    es: "Descubre carritos abandonados de Tiendanube",
+    en: "Finds abandoned Tiendanube carts",
+  },
+  cronMercadopagoRecovery: {
+    es: "Recupera pagos rechazados de Mercado Pago",
+    en: "Recovers rejected Mercado Pago payments",
+  },
+  cronShopifyFeedback: { es: "Pide opinión tras la entrega", en: "Asks for feedback after delivery" },
+  cronMetaContactNames: {
+    es: "Completa nombres de contactos de Meta",
+    en: "Fills in Meta contact names",
+  },
+  cronMetaWebhookSubs: {
+    es: "Reaplica suscripciones de webhooks de Meta",
+    en: "Re-applies Meta webhook subscriptions",
+  },
+  cronCommerceWebhooks: {
+    es: "Repunta los webhooks de las tiendas al dominio actual",
+    en: "Repoints store webhooks at the current domain",
+  },
+  cronGmailWatch: { es: "Renueva la suscripción push de Gmail", en: "Renews the Gmail push subscription" },
+  cronOutlookWatch: {
+    es: "Renueva la suscripción push de Outlook",
+    en: "Renews the Outlook push subscription",
+  },
+  cronMetaDmBackfill: {
+    es: "Reingesta historial de mensajes de Meta",
+    en: "Re-ingests Meta message history",
+  },
+  cronPiiPurge: {
+    es: "Borra datos personales de comercios eliminados",
+    en: "Deletes personal data from removed accounts",
+  },
+  cronIssuesAlert: {
+    es: "Avisa al comercio lo que se rompió en silencio",
+    en: "Emails each account what broke silently",
+  },
+  cronMetaTokenRefresh: { es: "Renueva el token de Facebook Login", en: "Renews the Facebook Login token" },
+  cronReengagement: { es: "Reengancha compradores inactivos", en: "Re-engages dormant buyers" },
+  cronMlOrders: {
+    es: "Pedidos, envíos y reclamos de Mercado Libre",
+    en: "Mercado Libre orders, shipping and claims",
+  },
+  cronMlCatalog: { es: "Precio y stock de Mercado Libre", en: "Mercado Libre price and stock" },
+  cronMlReviews: { es: "Opiniones de Mercado Libre", en: "Mercado Libre reviews" },
   colProvider: { es: "Origen", en: "Source" },
   colAttempts: { es: "Intentos", en: "Attempts" },
 

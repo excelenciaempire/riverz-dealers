@@ -30,6 +30,18 @@ export type ScheduledJob = {
    * corridas.
    */
   timeoutMs?: number;
+  /**
+   * Clave i18n de "qué hace", en el namespace `admin`. Es clave y no texto
+   * porque el panel de plataforma la pinta y Riverz se ve en dos idiomas.
+   */
+  whatKey: string;
+  /**
+   * Sub-trabajo: no lo dispara el reloj, lo dispara otro trabajo con su propio
+   * ritmo interno (`pingCron`) porque es más caro que su padre. Escribe en
+   * `cron_runs` con nombre propio, así que necesita fila y umbral propios en el
+   * panel — antes no estaban en ningún catálogo y eran invisibles.
+   */
+  parent?: string;
 };
 
 /** Suficiente para el más lento de los normales (contacts-sync, ~30 s). */
@@ -37,68 +49,68 @@ export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
   // --- cada minuto ---
-  { name: "flows-resume", path: "/api/cron/flows-resume", schedule: "* * * * *" },
-  { name: "automations", path: "/api/automations/cron", schedule: "* * * * *" },
-  { name: "flows-retries", path: "/api/flows/retries/cron", schedule: "* * * * *" },
-  { name: "broadcasts", path: "/api/broadcasts/cron", schedule: "* * * * *" },
-  { name: "voice-calls", path: "/api/cron/voice-calls", schedule: "* * * * *" },
-  { name: "voice-campaign-run", path: "/api/cron/voice-campaign-run", schedule: "* * * * *" },
+  { name: "flows-resume", whatKey: "admin.cronFlowsResume", path: "/api/cron/flows-resume", schedule: "* * * * *" },
+  { name: "automations", whatKey: "admin.cronAutomations", path: "/api/automations/cron", schedule: "* * * * *" },
+  { name: "flows-retries", whatKey: "admin.cronFlowsRetries", path: "/api/flows/retries/cron", schedule: "* * * * *" },
+  { name: "broadcasts", whatKey: "admin.cronBroadcasts", path: "/api/broadcasts/cron", schedule: "* * * * *" },
+  { name: "voice-calls", whatKey: "admin.cronVoiceCalls", path: "/api/cron/voice-calls", schedule: "* * * * *" },
+  { name: "voice-campaign-run", whatKey: "admin.cronVoiceCampaignRun", path: "/api/cron/voice-campaign-run", schedule: "* * * * *" },
 
   // --- minutos ---
-  { name: "instagram-agent", path: "/api/cron/instagram-agent", schedule: "*/2 * * * *" },
-  { name: "outlook-poll", path: "/api/cron/outlook-poll", schedule: "*/2 * * * *" },
-  { name: "gmail-poll", path: "/api/cron/gmail-poll", schedule: "*/5 * * * *" },
-  { name: "mercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
-  { name: "comment-sync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
-  { name: "contacts-sync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
-  { name: "tiktok-comments", path: "/api/cron/tiktok-comments", schedule: "*/10 * * * *" },
+  { name: "instagram-agent", whatKey: "admin.cronInstagramAgent", path: "/api/cron/instagram-agent", schedule: "*/2 * * * *" },
+  { name: "outlook-poll", whatKey: "admin.cronOutlookPoll", path: "/api/cron/outlook-poll", schedule: "*/2 * * * *" },
+  { name: "gmail-poll", whatKey: "admin.cronGmailPoll", path: "/api/cron/gmail-poll", schedule: "*/5 * * * *" },
+  { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
+  { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
+  { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
+  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/10 * * * *" },
   {
-    name: "instagram-external-enrich",
+    name: "instagram-external-enrich", whatKey: "admin.cronInstagramEnrich",
     path: "/api/cron/instagram-external-enrich",
     schedule: "*/10 * * * *",
   },
-  { name: "flows-sweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
+  { name: "flows-sweep", whatKey: "admin.cronFlowsSweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
   // Espeja los contactos hacia Klaviyo. Por marca de agua: la primera corrida
   // sube la base y las siguientes sólo lo que cambió.
-  { name: "klaviyo-sync", path: "/api/cron/klaviyo-sync", schedule: "*/15 * * * *" },
-  { name: "ai-followups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
+  { name: "klaviyo-sync", whatKey: "admin.cronKlaviyoSync", path: "/api/cron/klaviyo-sync", schedule: "*/15 * * * *" },
+  { name: "ai-followups", whatKey: "admin.cronAiFollowups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
   // Red de seguridad del webhook de Mercado Pago: levanta lo que no haya
   // llegado por aviso. Sólo ingesta; el envío lo decide mercadopago-recovery.
-  { name: "mercadopago-sync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *" },
-  { name: "delivery-watchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
+  { name: "mercadopago-sync", whatKey: "admin.cronMercadopagoSync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *" },
+  { name: "delivery-watchdog", whatKey: "admin.cronDeliveryWatchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
   // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
   // un secret: al mudar de dominio quedó apuntando al host viejo y el mapa
   // post_id → ad_id se congeló, así que los comentarios sobre anuncios dejaron
   // de marcarse como tales. Acá dentro la URL no puede desviarse.
-  { name: "ads-sync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *" },
+  { name: "ads-sync", whatKey: "admin.cronAdsSync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *" },
 
   // --- horas ---
   // Cada 5 minutos, igual que la recuperación de pagos. El checkout entra por
   // webhook en segundos y la espera de 2 h la aplica el propio cron, así que
   // correr una vez por hora le sumaba hasta 59 minutos a esa espera: un
   // carrito abandonado a las 10:05 recién salía a las 13:00.
-  { name: "shopify-cart-recovery", path: "/api/cron/shopify-cart-recovery", schedule: "*/5 * * * *" },
-  { name: "tiendanube-checkouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *" },
+  { name: "shopify-cart-recovery", whatKey: "admin.cronShopifyCartRecovery", path: "/api/cron/shopify-cart-recovery", schedule: "*/5 * * * *" },
+  { name: "tiendanube-checkouts", whatKey: "admin.cronTiendanubeCheckouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *" },
   // Cada 5 minutos: con el webhook de Mercado Pago el rechazo entra en
   // segundos, y una cola que arranca una vez por hora se comía esa ventaja.
   // La corrida sale barata — sin filas pendientes devuelve enseguida.
-  { name: "mercadopago-recovery", path: "/api/cron/mercadopago-recovery", schedule: "*/5 * * * *" },
-  { name: "shopify-feedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
-  { name: "meta-contact-names", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *" },
+  { name: "mercadopago-recovery", whatKey: "admin.cronMercadopagoRecovery", path: "/api/cron/mercadopago-recovery", schedule: "*/5 * * * *" },
+  { name: "shopify-feedback", whatKey: "admin.cronShopifyFeedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
+  { name: "meta-contact-names", whatKey: "admin.cronMetaContactNames", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *" },
   {
-    name: "meta-webhook-subscriptions",
+    name: "meta-webhook-subscriptions", whatKey: "admin.cronMetaWebhookSubs",
     path: "/api/cron/meta-webhook-subscriptions",
     schedule: "0 */6 * * *",
   },
   // El mismo desvío de dominio, del lado de las tiendas: Shopify, Tiendanube y
   // WooCommerce guardan la URL al conectar y no la revisan nunca más.
   {
-    name: "commerce-webhooks",
+    name: "commerce-webhooks", whatKey: "admin.cronCommerceWebhooks",
     path: "/api/cron/commerce-webhooks",
     schedule: "30 */6 * * *",
   },
-  { name: "gmail-watch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
-  { name: "outlook-watch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
+  { name: "gmail-watch", whatKey: "admin.cronGmailWatch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
+  { name: "outlook-watch", whatKey: "admin.cronOutlookWatch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
 
   // --- diarios ---
   // Diario y no horario: medido en prod 2026-08-04, cada corrida tarda ~22 min
@@ -107,17 +119,48 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // una ventana de 17,7 h). Es un backfill de respaldo — los DMs nuevos entran
   // por webhook, esto sólo recupera lo que Meta no entregó.
   {
-    name: "meta-dm-backfill",
+    name: "meta-dm-backfill", whatKey: "admin.cronMetaDmBackfill",
     path: "/api/cron/meta-dm-backfill",
     schedule: "0 5 * * *",
     timeoutMs: 1_800_000,
   },
-  { name: "pii-purge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
+  { name: "pii-purge", whatKey: "admin.cronPiiPurge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
   // Avisa por correo lo que se rompió en silencio. Una vez por día: la
   // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
-  { name: "issues-alert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },
-  { name: "meta-token-refresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *" },
-  { name: "reengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },
+  { name: "issues-alert", whatKey: "admin.cronIssuesAlert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },
+  { name: "meta-token-refresh", whatKey: "admin.cronMetaTokenRefresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *" },
+  { name: "reengagement", whatKey: "admin.cronReengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },
+
+  // --- sub-trabajos ---
+  // El reloj NO los dispara (los filtra `dueJobs` por tener `parent`): los
+  // dispara su padre con un ritmo interno propio, porque son más caros que él.
+  // Están acá porque escriben en `cron_runs` con nombre propio y sin fila en el
+  // catálogo eran invisibles para el panel: corrían, fallaban y nadie lo veía.
+  // El `schedule` es su cadencia real, y sirve para el umbral de atraso.
+  {
+    name: "comment-sync-reconcile", whatKey: "admin.cronCommentReconcile",
+    path: "/api/cron/comment-sync",
+    schedule: "*/10 * * * *",
+    parent: "comment-sync",
+  },
+  {
+    name: "mercadolibre-orders", whatKey: "admin.cronMlOrders",
+    path: "/api/cron/mercadolibre",
+    schedule: "*/15 * * * *",
+    parent: "mercadolibre",
+  },
+  {
+    name: "mercadolibre-catalog", whatKey: "admin.cronMlCatalog",
+    path: "/api/cron/mercadolibre",
+    schedule: "0 * * * *",
+    parent: "mercadolibre",
+  },
+  {
+    name: "ml-reviews", whatKey: "admin.cronMlReviews",
+    path: "/api/cron/mercadolibre",
+    schedule: "0 * * * *",
+    parent: "mercadolibre",
+  },
 ];
 
 /**
@@ -188,7 +231,45 @@ export function isDue(schedule: string, at: Date): boolean {
   return true;
 }
 
-/** Trabajos que corresponden al minuto de `at`. */
+/**
+ * Trabajos que corresponden al minuto de `at`.
+ *
+ * Los sub-trabajos quedan fuera: su `schedule` describe cada cuánto DEBERÍAN
+ * correr —para poder marcarlos atrasados en el panel— pero quien los dispara es
+ * su padre. Lanzarlos desde acá los correría dos veces.
+ */
 export function dueJobs(at: Date): ScheduledJob[] {
-  return SCHEDULED_JOBS.filter((job) => isDue(job.schedule, at));
+  return SCHEDULED_JOBS.filter((job) => !job.parent && isDue(job.schedule, at));
+}
+
+/**
+ * Milisegundos que deberían pasar, como mucho, entre dos corridas de este
+ * schedule. Vive acá y no en el panel porque el schedule vive acá: tenerlo del
+ * otro lado fue exactamente lo que dejó que los dos catálogos se separaran.
+ */
+export function expectedIntervalMs(schedule: string): number | null {
+  const [min, hour] = schedule.split(" ");
+  if (min === "*") return 60_000;
+  const everyMin = min?.match(/^\*\/(\d+)$/);
+  if (everyMin) return Number(everyMin[1]) * 60_000;
+  const everyHour = hour?.match(/^\*\/(\d+)$/);
+  if (everyHour) return Number(everyHour[1]) * 3_600_000;
+  if (hour === "*") return 3_600_000;
+  return 24 * 3_600_000;
+}
+
+/**
+ * ¿Este trabajo lleva demasiado sin reportar? Se dan tres intervalos de margen
+ * antes de gritar, para no marcar en rojo por un retraso normal.
+ *
+ * Sin fecha de última corrida el trabajo está atrasado, no sano: antes esto
+ * devolvía `false` para todo lo que no tuviera schedule declarado, y como el
+ * catálogo del panel traía `schedule: null` en tres trabajos que sí corrían,
+ * esos tres nunca se podían poner en rojo.
+ */
+export function isStale(schedule: string, lastRunIso: string | null, now = Date.now()): boolean {
+  const interval = expectedIntervalMs(schedule);
+  if (!interval) return false;
+  if (!lastRunIso) return true;
+  return now - new Date(lastRunIso).getTime() > interval * 3;
 }

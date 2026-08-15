@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { dueJobs, isDue, SCHEDULED_JOBS } from "./schedule";
+import {
+  dueJobs,
+  expectedIntervalMs,
+  isDue,
+  isStale,
+  SCHEDULED_JOBS,
+} from "./schedule";
 
 /** Fecha UTC a partir de sus partes, para no depender de la zona local. */
 function utc(y: number, mo: number, d: number, h: number, mi: number): Date {
@@ -77,11 +83,71 @@ describe("isDue", () => {
 });
 
 describe("SCHEDULED_JOBS", () => {
-  it("no repite nombres ni rutas", () => {
+  it("no repite nombres, ni rutas entre los que dispara el reloj", () => {
     const names = SCHEDULED_JOBS.map((j) => j.name);
-    const paths = SCHEDULED_JOBS.map((j) => j.path);
     expect(new Set(names).size).toBe(names.length);
-    expect(new Set(paths).size).toBe(paths.length);
+
+    // Las rutas sólo tienen que ser únicas entre los trabajos que dispara el
+    // reloj: dos apuntando al mismo endpoint serían la misma corrida dos veces.
+    // Un sub-trabajo COMPARTE la ruta de su padre a propósito — es el mismo
+    // handler, con su propio ritmo interno y su propio nombre en `cron_runs`.
+    const disparados = SCHEDULED_JOBS.filter((j) => !j.parent).map((j) => j.path);
+    expect(new Set(disparados).size).toBe(disparados.length);
+  });
+
+  it("cada sub-trabajo apunta a un padre que existe", () => {
+    const names = new Set(SCHEDULED_JOBS.map((j) => j.name));
+    for (const job of SCHEDULED_JOBS) {
+      if (job.parent) expect(names.has(job.parent)).toBe(true);
+    }
+  });
+
+  it("el reloj no dispara sub-trabajos", () => {
+    // Si los disparara, correrían dos veces: una por su padre y otra por acá.
+    const subs = new Set(
+      SCHEDULED_JOBS.filter((j) => j.parent).map((j) => j.name),
+    );
+    for (let m = 0; m < 60; m++) {
+      for (const job of dueJobs(utc(2026, 8, 3, 0, m))) {
+        expect(subs.has(job.name)).toBe(false);
+      }
+    }
+  });
+
+  it("todo trabajo declara qué hace, con una clave i18n del panel", () => {
+    for (const job of SCHEDULED_JOBS) {
+      expect(job.whatKey).toMatch(/^admin\./);
+    }
+  });
+
+  it("todo trabajo se puede marcar atrasado", () => {
+    // La regresión que esto fija: en el catálogo viejo del panel había tres
+    // trabajos con `schedule: null`, y sin schedule no hay intervalo esperado,
+    // así que `isStale` devolvía false SIEMPRE. Se podían morir en silencio.
+    for (const job of SCHEDULED_JOBS) {
+      expect(expectedIntervalMs(job.schedule)).toBeGreaterThan(0);
+      expect(isStale(job.schedule, null)).toBe(true);
+    }
+  });
+});
+
+describe("isStale", () => {
+  const ahora = Date.UTC(2026, 7, 15, 12, 0);
+
+  it("da margen de tres intervalos antes de gritar", () => {
+    const hace2min = new Date(ahora - 2 * 60_000).toISOString();
+    const hace10min = new Date(ahora - 10 * 60_000).toISOString();
+    expect(isStale("* * * * *", hace2min, ahora)).toBe(false);
+    expect(isStale("* * * * *", hace10min, ahora)).toBe(true);
+  });
+
+  it("sin ninguna corrida está atrasado, no sano", () => {
+    expect(isStale("0 3 * * *", null, ahora)).toBe(true);
+  });
+
+  it("un trabajo diario tolera más de un día", () => {
+    const ayer = new Date(ahora - 25 * 3_600_000).toISOString();
+    expect(isStale("0 3 * * *", ayer, ahora)).toBe(false);
   });
 
   it("todos los horarios son expresiones que el matcher entiende", () => {

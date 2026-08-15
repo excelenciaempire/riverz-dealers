@@ -491,9 +491,20 @@ export interface OpsStatus {
   };
 }
 
+/**
+ * La última corrida de cada trabajo, con sus conteos de 24 h.
+ *
+ * Una sola función para todo el que necesite esto: el panel de operación, el
+ * home, `/api/health/crons` y la herramienta `cron_estado` del MCP. Antes cada
+ * uno tenía su propio cálculo y se contradecían entre sí.
+ */
+export async function getCronHealth(): Promise<CronRow[]> {
+  return rpc<CronRow>('admin_cron_health', {});
+}
+
 export async function getOpsStatus(): Promise<OpsStatus> {
   const client = db();
-  const crons = await rpc<CronRow>('admin_cron_health', {});
+  const crons = await getCronHealth();
 
   const [{ count: unprocessed }, failingRes] = await Promise.all([
     client
