@@ -939,7 +939,11 @@ async function windowStart(
       .eq('id', logId)
       .maybeSingle()
     const started = (data as { created_at?: string } | null)?.created_at
-    if (started) return started
+    // Postgres la devuelve con espacio ("2026-08-14 19:10:01.33+00"); quien la
+    // recibe la compara contra fechas de Shopify y se la manda a su API, y las
+    // dos cosas piden ISO de verdad.
+    const startedMs = started ? Date.parse(started) : NaN
+    if (!Number.isNaN(startedMs)) return new Date(startedMs).toISOString()
     // Sin log no hay desde cuándo: se cae al día, que es el default viejo.
     return new Date(Date.now() - 24 * 3_600_000).toISOString()
   }

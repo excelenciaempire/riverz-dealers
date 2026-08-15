@@ -93,10 +93,15 @@ async function cronHandler(request: Request) {
   const flowOwnsWait = new Set(
     autoIds.filter((a) => withWait.has(a.id)).map((a) => a.workspace_id),
   )
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  // En milisegundos: `created_at` llega de Postgres con espacio en vez de "T"
+  // y comparado como texto siempre daba "más viejo que hace dos horas", así
+  // que la espera de dos horas no frenaba a nadie.
+  const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
   const ready = due.filter((r) => {
     const row = r as { workspace_id: string; created_at: string }
-    return flowOwnsWait.has(row.workspace_id) || row.created_at < twoHoursAgo
+    if (flowOwnsWait.has(row.workspace_id)) return true
+    const born = Date.parse(row.created_at)
+    return !Number.isNaN(born) && born < twoHoursAgo
   })
   if (ready.length === 0) {
     return NextResponse.json({ processed: 0 })

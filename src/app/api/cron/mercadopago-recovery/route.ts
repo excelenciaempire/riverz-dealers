@@ -6,6 +6,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { isOptedOut } from '@/lib/whatsapp/opt-out'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
+import { isAfter } from '@/lib/commerce/purchased-since'
 import {
   REJECTION_REASONS,
   shouldContact,
@@ -190,7 +191,10 @@ async function boughtSinceRejection(
   const last8 = normPhone(row.phone)?.slice(-8) ?? null
 
   return orders.some((o) => {
-    if (o.created_at <= row.rejected_at) return false
+    // Shopify manda la fecha en la zona de la tienda y `rejected_at` viene de
+    // Postgres: comparadas como texto, el pedido que sí prosperó parecía
+    // anterior al rechazo. Ver isAfter.
+    if (!isAfter(o.created_at, row.rejected_at)) return false
     if (email && (o.email ?? '').toLowerCase() === email) return true
     if (last8) {
       const op = normPhone(o.phone)

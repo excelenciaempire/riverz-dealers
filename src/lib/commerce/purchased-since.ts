@@ -22,6 +22,27 @@ import {
  * últimos 8 dígitos del teléfono, que cubre a quien volvió a comprar como
  * invitado con otro correo.
  */
+
+/**
+ * ¿`when` cae después de `sinceIso`? En milisegundos, nunca comparando texto.
+ *
+ * Las dos fechas llegan en formatos distintos: Shopify las manda en la zona
+ * de la tienda ("2026-08-14T16:44:28-04:00") y Postgres con espacio y otro
+ * huso ("2026-08-14 19:10:01.33+00"). Comparadas como cadenas, un pedido de
+ * las 16:44 hora local parece anterior a un rechazo de las 19:10 UTC aunque
+ * haya pasado una hora y media después.
+ *
+ * Se comió el caso que más importa: la persona que compraba durante la espera
+ * quedaba marcada como "no compró" y recibía igual el mensaje de carrito
+ * abandonado o de pago rechazado.
+ */
+export function isAfter(when: string | null | undefined, sinceIso: string): boolean {
+  const a = Date.parse(when ?? '')
+  const b = Date.parse(sinceIso)
+  if (Number.isNaN(a) || Number.isNaN(b)) return false
+  return a > b
+}
+
 export async function purchasedSince(
   db: SupabaseClient,
   args: {
@@ -35,16 +56,20 @@ export async function purchasedSince(
 ): Promise<boolean> {
   if (!args.email && !args.phone) return false
 
+  const sinceMs = Date.parse(args.sinceIso)
+  if (Number.isNaN(sinceMs)) return false
+
   let orders: Awaited<ReturnType<typeof fetchRecentOrders>>
   try {
     const conn = await getActiveShopifyConnection(db, args.workspaceId)
     if (!conn) return false
     const days = args.lookbackDays ?? 90
-    const since = new Date(Date.now() - days * 86_400_000).toISOString()
+    const windowMs = Date.now() - days * 86_400_000
     // Se pide desde la fecha más vieja de las dos: si `sinceIso` es más
     // reciente que la ventana, igual alcanza; si es más viejo, la ventana
     // manda y el resultado puede quedar corto — por eso el default es 90d.
-    orders = await fetchRecentOrders(conn, since < args.sinceIso ? since : args.sinceIso)
+    const fromMs = Math.min(windowMs, sinceMs)
+    orders = await fetchRecentOrders(conn, new Date(fromMs).toISOString())
   } catch {
     // Shopify caído o token vencido: se responde "no compró". El error
     // opuesto —frenar por una caída ajena— apagaría la recuperación entera
@@ -56,7 +81,7 @@ export async function purchasedSince(
   const last8 = args.phone ? (normPhone(args.phone)?.slice(-8) ?? null) : null
 
   return orders.some((o) => {
-    if (o.created_at <= args.sinceIso) return false
+    if (!isAfter(o.created_at, args.sinceIso)) return false
     if (email && (o.email ?? '').toLowerCase() === email) return true
     if (last8) {
       const op = normPhone(o.phone)
