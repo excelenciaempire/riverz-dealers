@@ -24,6 +24,12 @@ interface Fetched<T> {
   reload: () => void;
   /** Se está refrescando solo (no es la primera carga). */
   live: boolean;
+  /**
+   * Para las pantallas que escriben: mover la UI antes de que conteste el
+   * servidor y revertir si falla. Sin esto, un interruptor tarda medio segundo
+   * en moverse y parece que no se apretó.
+   */
+  setData: React.Dispatch<React.SetStateAction<T | null>>;
 }
 
 /** Cada cuánto se refresca sola una pantalla del panel. */
@@ -121,7 +127,7 @@ export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
   }, [url, nonce, intervalMs]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
-  return { data, loading, error, reload, live };
+  return { data, loading, error, reload, live, setData };
 }
 
 // ────────────────────────────────────────────────────────────────

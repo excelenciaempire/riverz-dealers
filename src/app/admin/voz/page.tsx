@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useLocale, useT } from '@/hooks/use-locale';
+import { Loading, LoadError } from '../_components/admin-ui';
 import type { VoiceModelConfig } from '@/lib/voice/model-config';
 import {
   LAYER_PROVIDERS,
@@ -35,18 +36,25 @@ export default function AdminVoiceModelPage() {
   }>({ stt_api_key: '', llm_api_key: '', tts_api_key: '', realtime_api_key: '' });
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const res = await fetch('/api/admin/voice-model', { cache: 'no-store' });
       if (res.status === 403 || res.status === 401) {
         setForbidden(true);
         return;
       }
+      if (!res.ok) throw new Error(String(res.status));
       const json = await res.json();
-      if (res.ok) setConfig(json.config as VoiceModelConfig);
+      setConfig(json.config as VoiceModelConfig);
+    } catch {
+      // Un corte de red no es una falta de permiso. Antes las dos cosas
+      // terminaban en el mismo cartel de "prohibido", sin forma de reintentar.
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -105,15 +113,9 @@ export default function AdminVoiceModelPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <Loading />;
 
-  if (forbidden || !config) {
+  if (forbidden) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-20 text-center text-muted-foreground">
         <ShieldAlert className="h-8 w-8" />
@@ -121,6 +123,8 @@ export default function AdminVoiceModelPage() {
       </div>
     );
   }
+
+  if (failed || !config) return <LoadError onRetry={load} />;
 
   const isRealtime = config.mode === 'realtime';
 

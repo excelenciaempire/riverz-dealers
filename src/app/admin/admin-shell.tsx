@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Lock } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { useT } from "@/hooks/use-locale";
@@ -42,6 +43,7 @@ export function AdminShell({
             <div className="flex-1" />
 
             <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
+            <LockButton />
             {/* URL absoluta y <a> pelado: el panel vive en admin.riverz.co, asi
                 que un href relativo se queda en el subdominio y no lleva a la
                 app. Con el host propio, volver a la app es salir del origen. */}
@@ -58,5 +60,41 @@ export function AdminShell({
         <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
       </div>
     </CsrfProvider>
+  );
+}
+
+/**
+ * Cerrar el panel sin cerrar la sesión de Riverz.
+ *
+ * `DELETE /api/admin/unlock` existía desde que se puso la segunda llave y no lo
+ * llamaba nada: la única forma de volver a pedir la contraseña era esperar 12
+ * horas a que venciera la cookie. En una pantalla que ve todas las cuentas,
+ * poder cerrarla al levantarse de la máquina no es un lujo.
+ */
+function LockButton() {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <button
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await fetch("/api/admin/unlock", {
+            method: "DELETE",
+            credentials: "same-origin",
+          });
+          window.location.reload();
+        } catch {
+          setBusy(false);
+        }
+      }}
+      disabled={busy}
+      title={t("admin.lockPanel")}
+      aria-label={t("admin.lockPanel")}
+      className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+    >
+      <Lock className="h-4 w-4" />
+    </button>
   );
 }

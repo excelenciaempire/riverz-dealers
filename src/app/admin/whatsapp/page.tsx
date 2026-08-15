@@ -1,7 +1,5 @@
 'use client';
 
-import { useT } from '@/hooks/use-locale';
-
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, MessageCircle, ShieldAlert } from 'lucide-react';
@@ -9,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
 import { WhatsAppEmbeddedSignup } from '@/components/settings/whatsapp-embedded-signup';
+import { Loading, LoadError } from '../_components/admin-ui';
 
 interface Status {
   configured: boolean;
@@ -38,6 +38,7 @@ export default function AdminWhatsAppPage() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [status, setStatus] = useState<Status | null>(null);
+  const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [phoneNumberId, setPhoneNumberId] = useState('');
@@ -48,8 +49,20 @@ export default function AdminWhatsAppPage() {
   const [isActive, setIsActive] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/admin/whatsapp', { cache: 'no-store' });
-    if (!res.ok) return;
+    setFailed(false);
+    let res: Response;
+    try {
+      res = await fetch('/api/admin/whatsapp', { cache: 'no-store' });
+    } catch {
+      setFailed(true);
+      return;
+    }
+    // Antes un fallo salía por acá sin decir nada y la pantalla se quedaba
+    // girando para siempre, sin forma de reintentar.
+    if (!res.ok) {
+      setFailed(true);
+      return;
+    }
     const json = (await res.json()) as Status;
     setStatus(json);
     setPhoneNumberId(json.phoneNumberId ?? '');
@@ -81,24 +94,19 @@ export default function AdminWhatsAppPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'No se pudo guardar');
+        toast.error(json.error ?? t('admin.saveFailed'));
         return;
       }
       setStatus(json as Status);
       setToken('');
-      toast.success('Guardado');
+      toast.success(t('common.saved'));
     } finally {
       setSaving(false);
     }
   }
 
-  if (!status) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (failed) return <LoadError onRetry={load} />;
+  if (!status) return <Loading />;
 
   return (
     <div className="space-y-5">

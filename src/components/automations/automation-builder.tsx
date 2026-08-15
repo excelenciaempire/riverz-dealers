@@ -3025,24 +3025,20 @@ function AddButton({
         className={cn(
           "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-primary bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-accent-ink transition-all hover:bg-primary/20",
           open && "bg-primary/20",
-          // Mientras algo viaja, cada hueco se ensancha y se anuncia; el que
-          // está bajo el puntero se pinta lleno. Es lo único que le dice a la
-          // persona dónde va a caer lo que soltó.
-          arrastrando && "px-6 py-2",
-          encima && "scale-110 bg-primary/40 shadow-[0_0_0_3px_rgba(0,0,0,0.06)]",
+          // Mientras algo viaja, los huecos se encienden y el que está bajo el
+          // puntero se pinta lleno — pero SIN cambiar de tamaño ni de texto.
+          //
+          // Antes se ensanchaban y decían "Soltar aquí", y eso reacomodaba la
+          // fila entera justo al empezar el gesto: las tarjetas se corrían a
+          // la derecha y el hueco al que apuntabas ya no estaba donde lo
+          // habías mirado. Se soltaba en cualquier lado, o en ninguno. La
+          // escala y el anillo son transformaciones: se ven y no mueven nada.
+          arrastrando && "bg-primary/25",
+          encima && "scale-125 bg-primary/50 ring-2 ring-primary",
         )}
       >
-        {arrastrando ? (
-          <>
-            <ArrowDown className="h-3.5 w-3.5" />
-            {t("automations.dropHere")}
-          </>
-        ) : (
-          <>
-            <Plus className="h-3.5 w-3.5" />
-            {t("automations.add")}
-          </>
-        )}
+        <Plus className="h-3.5 w-3.5" />
+        {t("automations.add")}
       </button>
       {open &&
         pos &&

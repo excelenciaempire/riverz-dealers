@@ -533,6 +533,10 @@ export const admin = {
     en: "Everything it does lands in Audit → Agent, reads included. Irreversible actions ask for confirmation first.",
   },
 
+  saveFailed: { es: "No se pudo guardar", en: "Couldn't save" },
+
+  lockPanel: { es: "Cerrar el panel", en: "Lock the panel" },
+
   live: { es: "En vivo", en: "Live" },
   liveHint: {
     es: "Se actualiza solo cada 30 segundos mientras miras esta pestaña.",

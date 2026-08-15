@@ -53,8 +53,10 @@ export function isPlatformAdmin(email: string | null | undefined): boolean {
   return allowlist(process.env.PLATFORM_ADMIN_EMAILS).has(normalize(email));
 }
 
-/** Client-side mirror (nav visibility only; never a security boundary). */
-export function isPlatformAdminClient(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return allowlist(process.env.NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS).has(normalize(email));
-}
+// Acá vivía `isPlatformAdminClient`, un espejo de esto para el navegador que
+// leía `NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS`. No lo importaba nadie: su único uso
+// previsto era esconder o mostrar una entrada de menú, y el sidebar
+// deliberadamente no tiene ninguna al panel. Exponer la lista del equipo en el
+// bundle del cliente a cambio de nada no es un intercambio que valga la pena;
+// quien necesite el dato del lado del cliente que lo reciba por props desde el
+// layout, que ya resuelve `isPlatformAdmin` en el servidor.

@@ -1,14 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, ShieldAlert, KeyRound, Check } from 'lucide-react';
+import { Loader2, KeyRound, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
+import {
+  useAdminData,
+  Loading,
+  LoadError,
+} from '../_components/admin-ui';
 
 type Mode = 'all' | 'selected' | 'off';
 
@@ -51,29 +56,15 @@ const usd = (n: number) =>
 export default function AdminAiKeyPage() {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [forbidden, setForbidden] = useState(false);
+  // Sin refresco automático a propósito: hay un campo de clave en pantalla y
+  // una recarga de fondo mientras alguien escribe le borraría lo tipeado.
+  const { data, loading, error, reload, setData } = useAdminData<Payload>(
+    '/api/admin/ai-key',
+    0,
+  );
   const [keyDraft, setKeyDraft] = useState('');
   const [savingKey, setSavingKey] = useState(false);
   const [savingWs, setSavingWs] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/ai-key', { cache: 'no-store' });
-      if (res.status === 403) {
-        setForbidden(true);
-        return;
-      }
-      if (res.ok) setData((await res.json()) as Payload);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const setMode = useCallback(
     async (mode: Mode) => {
@@ -90,9 +81,9 @@ export default function AdminAiKeyPage() {
         return;
       }
       toast.success(t('admin.aiKeySaved'));
-      void load();
+      reload();
     },
-    [data, fetchWithCsrf, load, t],
+    [data, fetchWithCsrf, reload, setData, t],
   );
 
   const saveKey = useCallback(async () => {
@@ -110,11 +101,11 @@ export default function AdminAiKeyPage() {
       }
       setKeyDraft('');
       toast.success(t('admin.aiKeySaved'));
-      void load();
+      reload();
     } finally {
       setSavingKey(false);
     }
-  }, [fetchWithCsrf, keyDraft, load, t]);
+  }, [fetchWithCsrf, keyDraft, reload, t]);
 
   const toggleWorkspace = useCallback(
     async (row: WorkspaceRow, enabled: boolean) => {
@@ -145,13 +136,13 @@ export default function AdminAiKeyPage() {
           toast.success(t('admin.aiKeySaved'));
         }
       } catch {
-        void load();
+        reload();
         toast.error(t('admin.aiKeySaveError'));
       } finally {
         setSavingWs(null);
       }
     },
-    [fetchWithCsrf, load, t],
+    [fetchWithCsrf, reload, setData, t],
   );
 
   const sorted = useMemo(
@@ -165,24 +156,8 @@ export default function AdminAiKeyPage() {
     [data],
   );
 
-  if (loading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (forbidden) {
-    return (
-      <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
-        <ShieldAlert className="mt-0.5 size-4 text-amber-600 dark:text-amber-400" />
-        <p className="text-amber-700 dark:text-amber-300">{t('admin.forbidden')}</p>
-      </div>
-    );
-  }
-
-  if (!data) return null;
+  if (loading) return <Loading />;
+  if (error || !data) return <LoadError onRetry={reload} />;
 
   const MODES: { value: Mode; label: string; hint: string }[] = [
     { value: 'all', label: t('admin.aiKeyModeAll'), hint: t('admin.aiKeyModeAllHint') },
