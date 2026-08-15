@@ -86,10 +86,22 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
       // interfaz lo diga en vez de mostrarla "activa" para siempre.
       // (Caso real: Shopify dejó de aceptar los tokens que no expiran.)
       if (/\b(401|403)\b/.test(result.error)) {
-        await db
+        // `expired` y no un estado nuevo: la columna tiene un CHECK con
+        // ('active','uninstalled','expired','error') y un valor fuera de esa
+        // lista hace fallar el UPDATE. Escribir 'revoked' fallaba en silencio
+        // —el error se ignoraba— y la conexión seguía marcada activa,
+        // reintentando cada seis horas contra un token que la tienda ya no
+        // acepta. Justo el modo de falla que este archivo trata de evitar.
+        const { error: markErr } = await db
           .from("shopify_connections")
-          .update({ status: "revoked" })
+          .update({ status: "expired" })
           .eq("id", row.id);
+        if (markErr) {
+          log.warn("no se pudo marcar la conexión como vencida", {
+            shopDomain: row.shop_domain,
+            error: markErr.message,
+          });
+        }
       }
     }
     results.push(result);
