@@ -505,6 +505,7 @@ function dataPointIdFromCfg(
     if (subject === 'message_content') return c.kind === 'message'
     if (subject === 'purchased') return c.kind === 'purchased'
     if (subject === 'messaged') return c.kind === 'messaged'
+    if (subject === 'rejected_open') return c.kind === 'rejected_open'
     return false
   })?.id
 }
@@ -523,6 +524,8 @@ function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
     return { subject: 'purchased', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
   if (c.kind === 'messaged')
     return { subject: 'messaged', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
+  if (c.kind === 'rejected_open')
+    return { subject: 'rejected_open', operand: '24h', op: undefined, value: 'false', value2: undefined }
   return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
 }
 
@@ -2111,10 +2114,11 @@ function ConditionBranches({
  * montada SOBRE el ramal, no flotando arriba: antes quedaba a media altura
  * entre dos filas, sin tocar nada, y no se leía de qué camino era.
  *
- * Todo cuelga de una sola altura, 39 px desde el arranque de la fila: la
- * cabecera de una tarjeta mide 78 px fijos, la columna de la etiqueta también,
- * y el "+ Añadir" se baja 26 px para caer ahí. Por eso el ramal entra siempre
- * por la cabecera aunque la tarjeta esté desplegada, sin medir nada.
+ * Todo cuelga de una sola altura, 40 px desde el arranque de la fila: la
+ * cabecera de una tarjeta mide 78 px fijos más su borde, y tanto la columna de
+ * la etiqueta como el "+ Añadir" son cajas de ese mismo alto que centran su
+ * contenido. Por eso el ramal entra siempre por la cabecera aunque la tarjeta
+ * esté desplegada, sin medir nada.
  *
  * Lo único que hay que medir es dónde arranca cada fila —dependen del alto del
  * camino de arriba— y se mide con offsetTop, que ya viene en píxeles de CSS.
@@ -2125,8 +2129,13 @@ function ConditionBranches({
  * larga, así los caminos arrancan todos a la misma altura horizontal en vez de
  * escalonarse según lo largo que sea su nombre.
  */
-/** Media altura de la cabecera de una tarjeta (h-[78px]): el centro del tronco. */
-const CARD_HALF = 39
+/**
+ * Alto de la cabecera de una tarjeta: 78 px de botón + el borde de arriba y el
+ * de abajo. Es la caja a la que se alinea todo lo demás de la fila.
+ */
+const HEAD_H = "h-20"
+/** Media cabecera: la altura exacta a la que corre toda línea horizontal. */
+const CARD_HALF = 40
 
 /**
  * Color y grosor de las líneas del lienzo.
@@ -2222,12 +2231,12 @@ function BranchFan({
       {lanes.map((lane) => (
         <Fragment key={lane.key}>
           {/* Columna de la etiqueta: el ramal entra por la izquierda, pasa por
-              la etiqueta y sigue hasta el primer paso del camino. Mide 78 px
-              —lo mismo que una cabecera— para que su centro caiga en el
-              tronco aunque el camino esté vacío. */}
-          {/* Sin hueco entre la etiqueta y la línea: el cable tiene que tocar
+              la etiqueta y sigue hasta el primer paso del camino. Mide lo mismo
+              que una cabecera para que su centro caiga en el tronco aunque el
+              camino esté vacío.
+              Sin hueco entre la etiqueta y la línea: el cable tiene que tocar
               la etiqueta, si no vuelve a leerse como dos piezas sueltas. */}
-          <div data-lane-row className="relative flex h-[78px] items-center">
+          <div data-lane-row className={cn("relative flex items-center", HEAD_H)}>
             <span
               aria-hidden
               className={cn("absolute -left-4 w-4", LINE)}
@@ -2580,12 +2589,14 @@ function AddButton({
         // Siempre a full opacidad: el "+ Añadir" es la acción principal para
         // construir el flujo, así que tiene que verse sin buscarlo.
         "opacity-100",
-        // En horizontal se ancla arriba y baja hasta la altura de la cabecera
-        // (39px): una tarjeta crece hacia abajo al desplegarse, así que
-        // centrarlo con la tarjeta entera despegaría la línea. El margen
-        // descuenta la media altura del propio botón para que la línea quede
-        // a la altura de la cabecera y no debajo.
-        orientation === "h" ? "flex-row self-start mt-[26px]" : "flex-col",
+        // En horizontal ocupa una caja del alto de una cabecera y se centra
+        // dentro: así la línea sale exactamente a la misma altura que la de la
+        // tarjeta de al lado. Con un margen calculado a mano quedaba un par de
+        // píxeles más abajo —el alto del botón depende de la tipografía— y la
+        // línea se veía escalonada justo en la unión. Y es una caja del alto de
+        // la cabecera, no de la tarjeta entera, porque la tarjeta crece hacia
+        // abajo al desplegarse y arrastraría la línea con ella.
+        orientation === "h" ? cn("flex-row self-start", HEAD_H) : "flex-col",
       )}
     >
       <div className={cn(seg, LINE)} aria-hidden />
