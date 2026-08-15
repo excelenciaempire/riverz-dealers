@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Lock } from 'lucide-react';
-import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 /**
  * Pantalla de la segunda llave. No dice qué hay del otro lado ni quién es el
@@ -10,10 +9,32 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
  * dato más de los que ya tenía.
  */
 export function UnlockForm({ configured }: { configured: boolean }) {
-  const fetchWithCsrf = useFetchWithCsrf();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [csrf, setCsrf] = useState<string | null>(null);
+
+  /**
+   * El token CSRF se pide acá y no se toma del provider: esta pantalla es lo
+   * PRIMERO que ve el navegador en admin.riverz.co, un origen donde todavía no
+   * hay ninguna cookie nuestra. Sin esto, el primer intento moría con
+   * `csrf_mismatch` y había que recargar para poder entrar.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/csrf', { cache: 'no-store' });
+        const json = (await res.json()) as { token?: string };
+        if (!cancelled && json.token) setCsrf(json.token);
+      } catch {
+        /* sin token el envío falla y lo dice */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,9 +42,13 @@ export function UnlockForm({ configured }: { configured: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetchWithCsrf('/api/admin/unlock', {
+      const res = await fetch('/api/admin/unlock', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'x-csrf-token': csrf } : {}),
+        },
         body: JSON.stringify({ password }),
       });
       if (!res.ok) {
