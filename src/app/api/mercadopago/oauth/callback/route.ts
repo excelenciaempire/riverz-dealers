@@ -18,8 +18,17 @@ const log = getLogger('mercadopago.oauth');
  * integraciones: la migración 078 le sacó a `authenticated` el SELECT de
  * tabla para tapar los secretos, y sin él el upsert de PostgREST falla.
  */
-function back(status: string) {
-  return NextResponse.redirect(`${publicBaseUrl()}/integraciones?mercadopago=${status}`);
+/**
+ * Vuelve a Integraciones con el resultado. Cuando falla viaja además una
+ * pista corta: sin ella, "no se pudo conectar" obliga a abrir los registros
+ * del servidor para saber si fue la aplicación mal registrada, el permiso
+ * negado o un token vencido — y quien conecta no tiene esos registros.
+ */
+function back(status: string, detail?: string) {
+  const url = new URL('/integraciones', publicBaseUrl());
+  url.searchParams.set('mercadopago', status);
+  if (detail) url.searchParams.set('detalle', detail.slice(0, 200));
+  return NextResponse.redirect(url.toString());
 }
 
 export async function GET(request: NextRequest) {
@@ -35,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const tokens = await exchangeCode(code);
-    if (!tokens.accessToken) return back('error');
+    if (!tokens.accessToken) return back('error', 'sin access_token');
 
     const admin = supabaseAdmin();
 
@@ -66,12 +75,12 @@ export async function GET(request: NextRequest) {
     );
     if (error) {
       log.captureException(error, { workspaceId });
-      return back('error');
+      return back('error', error.message);
     }
 
     return back('conectado');
   } catch (err) {
     log.captureException(err, { workspaceId });
-    return back('error');
+    return back('error', err instanceof Error ? err.message : String(err));
   }
 }

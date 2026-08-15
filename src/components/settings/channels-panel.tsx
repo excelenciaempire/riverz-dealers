@@ -272,8 +272,14 @@ export function ChannelsPanel() {
     connectionsByChannel.set(c.channel, list);
   }
 
-  const anyProviderMissing =
-    providers && (!providers.meta || !providers.google || !providers.microsoft);
+  // Las aplicaciones de OAuth son de Riverz, no del comercio: sus variables
+  // de entorno y sus URLs de retorno se configuran una vez para toda la
+  // plataforma. El cartel con META_APP_ID / GOOGLE_CLIENT_ID y las URLs para
+  // pegar es documentación interna, y al dueño de una tienda le llega como
+  // una tarea suya que no puede hacer — encima arriba de todo, antes de lo
+  // único que sí puede hacer, que es conectar. La tarjeta afectada ya dice
+  // "Próximamente" por su cuenta.
+  const anyProviderMissing = false;
 
   return (
     <div className="space-y-4">
@@ -545,16 +551,11 @@ export function ChannelsPanel() {
                     <>
                       <button
                         onClick={() => {
-                          if (!ready) {
-                            toast.error(
-                              g.connectChannel === "gmail"
-                                ? t("settings.configureGoogleFirst")
-                                : g.connectChannel === "outlook"
-                                  ? t("settings.configureMicrosoftFirst")
-                                  : t("settings.configureMetaFirst"),
-                            );
-                            return;
-                          }
+                          // Sin aplicación configurada no hay nada que
+                          // intentar: el botón queda inerte en vez de tirar
+                          // un error que le pide al comercio algo que no
+                          // depende de él.
+                          if (!ready) return;
                           // Meta page channels: use the real OAuth / Facebook
                           // Login for Business flow when a login configuration
                           // is set (required for App Review — the reviewer must
@@ -567,7 +568,7 @@ export function ChannelsPanel() {
                           }
                           handleConnect(g.connectChannel);
                         }}
-                        disabled={busy}
+                        disabled={busy || !ready}
                         className={cn(
                           "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                           // Un solo botón de acción para todas las tarjetas, con
@@ -575,15 +576,17 @@ export function ChannelsPanel() {
                           // mismo, y el gris hacía ver la tarjeta ya conectada
                           // como si estuviera a medias.
                           !ready
-                            ? "cursor-not-allowed border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
+                            ? "cursor-not-allowed border border-border bg-muted/40 text-muted-foreground"
                             : "bg-primary text-primary-foreground hover:bg-primary/90",
                         )}
                       >
                         {!ready ? (
-                          <>
-                            <AlertCircle className="size-4" />
-                            {t("settings.configureProvider")}
-                          </>
+                          // Falta la aplicación del lado de Riverz, no del
+                          // comercio: nadie puede resolverlo desde acá, así
+                          // que se dice lo único cierto y accionable — todavía
+                          // no está. "Configura el proveedor" mandaba a
+                          // buscar una pantalla que no existe.
+                          <>{t("settings.comingSoon")}</>
                         ) : (
                           <>
                             <ChannelLogo channel={g.logoChannel} size={16} />

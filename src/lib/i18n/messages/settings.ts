@@ -97,6 +97,12 @@ export const settings = {
     en: "Authorize the app and it renews itself, with no URL to paste.",
   },
   mpUpgradeCta: { es: "Conectar con un clic", en: "Connect with one click" },
+  connectResultOk: { es: "Cuenta conectada", en: "Account connected" },
+  connectResultError: { es: "No se pudo conectar", en: "Couldn't connect" },
+  connectResultCancelled: {
+    es: "Conexión cancelada",
+    en: "Connection cancelled",
+  },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
@@ -589,6 +595,7 @@ export const settings = {
     en: "or connect by pasting a token manually",
   },
   configureProvider: { es: "Configura el proveedor", en: "Set up the provider" },
+  comingSoon: { es: "Próximamente", en: "Coming soon" },
   mlCountryLabel: { es: "País", en: "Country" },
   mlCountryPlaceholder: { es: "Elige tu país", en: "Choose your country" },
   mlChooseCountryFirst: {

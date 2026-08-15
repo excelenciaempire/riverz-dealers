@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Loader2, Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useT } from "@/hooks/use-locale";
@@ -51,10 +51,12 @@ export function MercadoLibreConnect({
   const [adding, setAdding] = useState(false);
 
   if (!ready) {
+    // La aplicación falta del lado de Riverz: el comercio no tiene nada que
+    // configurar, así que se dice lo único cierto en vez de mandarlo a
+    // buscar una pantalla que no existe.
     return (
-      <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-300">
-        <AlertCircle className="size-4" />
-        {t("settings.configureProvider")}
+      <div className="flex w-full items-center justify-center rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-muted-foreground">
+        {t("settings.comingSoon")}
       </div>
     );
   }

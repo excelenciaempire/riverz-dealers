@@ -1,6 +1,8 @@
 'use client';
 
+import { Suspense } from 'react';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
+import { ConnectionResult } from '@/components/settings/connection-result';
 import { useT } from '@/hooks/use-locale';
 
 /**
@@ -17,6 +19,11 @@ export default function IntegracionesPage() {
   const t = useT();
   return (
     <div className="space-y-5">
+      {/* useSearchParams necesita un límite de Suspense. */}
+      <Suspense fallback={null}>
+        <ConnectionResult />
+      </Suspense>
+
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('settings.integrations')}</h1>
       </div>
