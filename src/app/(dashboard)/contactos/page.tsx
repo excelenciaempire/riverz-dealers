@@ -820,7 +820,7 @@ export default function ContactsPage() {
                           title={t('contacts.shopifyCustomer')}
                           className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
                         >
-                          Shopify
+                          {t('contacts.storeBadge')}
                         </span>
                       )}
                     </div>

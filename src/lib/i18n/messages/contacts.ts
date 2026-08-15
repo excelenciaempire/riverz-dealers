@@ -27,7 +27,11 @@ export const contacts = {
   colCreated: { es: "Creado", en: "Created" },
 
   noName: { es: "Sin nombre", en: "No name" },
-  shopifyCustomer: { es: "Cliente Shopify", en: "Shopify customer" },
+  // La clave arrastra "shopify" por historia; el texto NO puede, porque el
+  // comprador puede venir de Tiendanube o WooCommerce y la etiqueta se
+  // muestra al lado de su nombre.
+  shopifyCustomer: { es: "Cliente de la tienda", en: "Store customer" },
+  storeBadge: { es: "Tienda", en: "Store" },
 
   // Empty states
   noResults: { es: "Sin resultados.", en: "No results." },
@@ -72,7 +76,7 @@ export const contacts = {
   dateLast7: { es: "últimos 7 días", en: "last 7 days" },
   dateLast30: { es: "últimos 30 días", en: "last 30 days" },
   dateLast90: { es: "últimos 90 días", en: "last 90 days" },
-  filterShopifyLabel: { es: "Shopify", en: "Shopify" },
+  filterShopifyLabel: { es: "Tienda", en: "Store" },
   filterChannelLabel: { es: "Canal", en: "Channel" },
   filterAnyShopify: { es: "todos", en: "all" },
   filterAnyChannel: { es: "todos", en: "all" },
@@ -397,10 +401,10 @@ export const contacts = {
     es: "Si el contacto tiene cargado un campo.",
     en: "Whether the contact has a field filled in.",
   },
-  ruleShopifyLabel: { es: "Cliente Shopify", en: "Shopify customer" },
+  ruleShopifyLabel: { es: "Cliente de la tienda", en: "Store customer" },
   ruleShopifyDesc: {
-    es: "Si el contacto compró o no en Shopify.",
-    en: "Whether the contact is a Shopify customer.",
+    es: "Si el contacto compró o no en tu tienda.",
+    en: "Whether the contact has bought in your store.",
   },
   ruleOfferLabel: { es: "Oferta elegida", en: "Offer chosen" },
   ruleOfferDesc: {
