@@ -124,37 +124,71 @@ async function purgeOperationalLogs(
   const out = { cronRuns: 0, webhooks: 0 }
 
   const cronCutoff = new Date(Date.now() - CRON_RUNS_DAYS * 86_400_000).toISOString()
-  try {
-    const { data, error } = await admin
-      .from('cron_runs')
-      .delete()
-      .lt('started_at', cronCutoff)
-      .select('id')
-    if (error) throw new Error(error.message)
-    out.cronRuns = (data ?? []).length
-  } catch (err) {
-    log.warn('cron_runs purge failed', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
+  out.cronRuns = await deleteOlderThan(admin, {
+    table: 'cron_runs',
+    column: 'started_at',
+    cutoff: cronCutoff,
+  })
 
   const hookCutoff = new Date(Date.now() - WEBHOOK_DAYS * 86_400_000).toISOString()
+  out.webhooks = await deleteOlderThan(admin, {
+    table: 'webhook_events_raw',
+    column: 'received_at',
+    cutoff: hookCutoff,
+    // Los que todavía no se procesaron NO se borran: son los que hay que mirar.
+    onlyProcessed: true,
+  })
+
+  return out
+}
+
+/** Cuánto se borra como mucho por corrida. */
+const PURGE_BATCH = 5_000
+/** Cuántos lotes por corrida, para no comerse el timeout del cron. */
+const PURGE_MAX_BATCHES = 20
+
+/**
+ * Borra en lotes lo más viejo que el corte.
+ *
+ * En lotes y no de una: al momento de escribir esto `cron_runs` tenía 444.489
+ * filas, o sea que el primer borrado se lleva unos seis meses de historia. Un
+ * `DELETE` suelto sobre eso corre el riesgo de pasarse del corte del cron, y
+ * pedirle `select('id')` encima traería CIENTOS DE MILES de ids de vuelta a
+ * Node para contarlos. Se borra de a 5.000, hasta 20 lotes por corrida: lo que
+ * sobre se lleva la corrida de mañana, que para una limpieza diaria alcanza.
+ */
+async function deleteOlderThan(
+  admin: SupabaseClient,
+  opts: { table: string; column: string; cutoff: string; onlyProcessed?: boolean },
+): Promise<number> {
+  let total = 0
   try {
-    const { data, error } = await admin
-      .from('webhook_events_raw')
-      .delete()
-      .not('processed_at', 'is', null)
-      .lt('received_at', hookCutoff)
-      .select('id')
-    if (error) throw new Error(error.message)
-    out.webhooks = (data ?? []).length
+    for (let i = 0; i < PURGE_MAX_BATCHES; i++) {
+      let pick = admin
+        .from(opts.table)
+        .select('id')
+        .lt(opts.column, opts.cutoff)
+        .order(opts.column, { ascending: true })
+        .limit(PURGE_BATCH)
+      if (opts.onlyProcessed) pick = pick.not('processed_at', 'is', null)
+
+      const { data, error } = await pick
+      if (error) throw new Error(error.message)
+      const ids = ((data ?? []) as Array<{ id: string | number }>).map((r) => r.id)
+      if (ids.length === 0) break
+
+      const { error: delErr } = await admin.from(opts.table).delete().in('id', ids)
+      if (delErr) throw new Error(delErr.message)
+      total += ids.length
+      if (ids.length < PURGE_BATCH) break
+    }
   } catch (err) {
-    log.warn('webhook_events_raw purge failed', {
+    log.warn(`${opts.table} purge failed`, {
+      deleted: total,
       error: err instanceof Error ? err.message : String(err),
     })
   }
-
-  return out
+  return total
 }
 
 /**
