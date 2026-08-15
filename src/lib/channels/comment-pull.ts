@@ -69,6 +69,9 @@ interface RawComment {
   message?: string;
   created_time?: string;
   from?: { id?: string; username?: string; name?: string };
+  /** Oculto del público: `hidden` en Instagram, `is_hidden` en Facebook. */
+  hidden?: boolean;
+  is_hidden?: boolean;
   /** Las respuestas anidadas: Instagram las llama `replies`, Facebook `comments`. */
   replies?: { data?: RawComment[] };
   comments?: { data?: RawComment[] };
@@ -85,18 +88,27 @@ const DIALECT: Record<
   ig_comment: {
     edge: "media",
     timeField: "timestamp",
+    // `hidden` en Instagram, `is_hidden` en Facebook: son campos distintos y
+    // no se pueden intercambiar. Vienen desde la ingesta para que un
+    // comentario que YA estaba oculto cuando lo trajimos no se vea visible
+    // hasta que pase la conciliación, que corre cada diez minutos.
     commentFields:
-      "id,text,timestamp,username,from{id,username}," +
-      "replies{id,text,timestamp,username,from{id,username}}",
+      "id,text,timestamp,username,hidden,from{id,username}," +
+      "replies{id,text,timestamp,username,hidden,from{id,username}}",
   },
   fb_comment: {
     edge: "posts",
     timeField: "created_time",
     commentFields:
-      "id,message,created_time,from{id,name}," +
-      "comments{id,message,created_time,from{id,name}}",
+      "id,message,created_time,is_hidden,from{id,name}," +
+      "comments{id,message,created_time,is_hidden,from{id,name}}",
   },
 };
+
+/** ¿Vino oculto? Instagram lo llama `hidden` y Facebook `is_hidden`. */
+function ocultoEn(c: RawComment): boolean {
+  return c.hidden === true || c.is_hidden === true;
+}
 
 /** El texto del comentario, se llame `text` (Instagram) o `message` (Facebook). */
 function textOf(c: RawComment): string {
@@ -368,6 +380,13 @@ async function ingestCustomerComment(
     receivedAt,
     suppressAutoReply,
   });
+  // Ya venía oculto de la red. Sin anotarlo acá el comentario entra como
+  // visible y se ve así hasta que pase la conciliación —diez minutos— justo
+  // en el caso en que el comercio acaba de ocultarlo y viene a comprobar que
+  // quedó bien.
+  if (written && ocultoEn(comment)) {
+    await db.from("messages").update({ is_hidden: true }).eq("message_id", commentId);
+  }
   return Boolean(written);
 }
 

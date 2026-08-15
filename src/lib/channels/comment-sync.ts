@@ -36,9 +36,9 @@ const MAX_PER_RUN = 300;
 /** Parallel Graph reads. Small enough to stay well under Meta's rate limits. */
 const CONCURRENCY = 6;
 
-type Lifecycle = "delete" | "hide" | "unhide" | "edit";
+export type Lifecycle = "delete" | "hide" | "unhide" | "edit";
 
-interface CommentRow {
+export interface CommentRow {
   id: string;
   message_id: string | null;
   is_hidden: boolean | null;
@@ -86,7 +86,7 @@ export async function applyCommentLifecycle(
   return changed;
 }
 
-function patchFor(
+export function patchFor(
   row: CommentRow,
   kind: Lifecycle,
   text?: string,

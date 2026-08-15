@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Phone,
   Mic,
+  EyeOff,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -979,6 +980,9 @@ export function MessageBubble({
     message.channel === "ig_comment" ||
     message.channel === "tiktok_comment";
 
+  /** Escondido del público en la red, pero acá se sigue leyendo entero. */
+  const ocultoEnMeta = isComment && message.is_hidden === true && !isCommentDeleted(message);
+
   // Email channels render as full-width cards rather than chat bubbles —
   // an email thread reads better as stacked messages with an explicit
   // "Tú / cliente" header and a color-coded side rail than as left/right
@@ -1058,6 +1062,13 @@ export function MessageBubble({
           isAgent
             ? "rounded-br-md bg-primary text-primary-foreground"
             : "rounded-bl-md bg-muted text-foreground",
+          // Oculto en Instagram/Facebook: el comentario sigue entero acá —lo
+          // que dijo la persona no se pierde por haberlo escondido del
+          // público— pero la burbuja tiene que leerse distinta de un rato.
+          // Con el chip solo dentro de la barra de moderación había que
+          // fijarse para notarlo, y quien mira el hilo necesita saber al pasar
+          // que eso ya no lo ve nadie más.
+          ocultoEnMeta && "opacity-70 ring-1 ring-inset ring-amber-500/40",
         )}
       >
         {senderName && (
@@ -1078,7 +1089,17 @@ export function MessageBubble({
             {t("inbox.commentDeleted")}
           </span>
         ) : (
-          <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
+          <>
+            {/* Qué cambió, dicho antes del texto: el comentario está ahí, lo
+                que dejó de estar es a la vista del público. */}
+            {ocultoEnMeta && (
+              <p className="mb-1 flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                <EyeOff className="size-3" aria-hidden />
+                {t("inbox.commentHiddenNotice")}
+              </p>
+            )}
+            <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />
+          </>
         )}
         <div
           className={cn(

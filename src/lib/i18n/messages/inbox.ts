@@ -163,6 +163,12 @@ export const inbox = {
   // Native comment view
   commentLike: { es: "Me gusta", en: "Like" },
   commentDeleted: { es: "Comentario eliminado", en: "Comment deleted" },
+  // Qué cambió y qué no: el comentario sigue entero acá, lo que dejó de estar
+  // es a la vista del público.
+  commentHiddenNotice: {
+    es: "Oculto en la publicación",
+    en: "Hidden on the post",
+  },
 
   // Ad-referral banner (customer arrived from a click-to-message ad)
   adBadge: { es: "Anuncio", en: "Ad" },

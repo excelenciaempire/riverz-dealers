@@ -39,8 +39,32 @@ export async function setCommentHidden(
       ),
       signal: AbortSignal.timeout(15_000),
     });
+    if (res.ok) await anotarOculto(commentId, hidden);
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Deja el estado escrito también de este lado.
+ *
+ * Sin esto, ocultar por acá —lo que hace el agente de Instagram con el spam—
+ * cambiaba el comentario en la red y no en la bandeja: el comercio veía el
+ * comentario como visible hasta que el cron de conciliación pasara, hasta diez
+ * minutos después. La fila se busca por el id de Meta, que es el mismo que
+ * viaja en `messages.message_id`.
+ *
+ * Best-effort igual que el resto: si no se puede escribir, el cron lo corrige.
+ */
+async function anotarOculto(commentId: string, hidden: boolean): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import('@/lib/automations/admin-client');
+    await supabaseAdmin()
+      .from('messages')
+      .update({ is_hidden: hidden })
+      .eq('message_id', commentId);
+  } catch (err) {
+    console.error('[comments] no se pudo anotar el ocultado:', commentId, err);
   }
 }

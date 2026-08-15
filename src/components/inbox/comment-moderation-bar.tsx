@@ -85,7 +85,12 @@ export function CommentModerationBar({
           <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
         </button>
       )}
-      {!own && (
+      {/* Ocultar es sólo para lo ajeno —ni Facebook ni Instagram dejan
+          esconder un comentario de la misma cuenta que lo escribió—, pero
+          VOLVER A MOSTRAR tiene que estar siempre. Si un comentario propio
+          figura oculto, alguien lo escondió desde la app nativa y sin este
+          botón no había forma de revertirlo desde acá. */}
+      {(!own || hidden) && (
         <button
           onClick={() => act(hidden ? "unhide" : "hide")}
           disabled={busy !== null}
