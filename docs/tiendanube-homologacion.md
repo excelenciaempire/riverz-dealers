@@ -277,6 +277,36 @@ Dos configuraciones de la tienda demo faltaban y se corrigieron:
 | Video demo | Pendiente (guion en la sección 3) |
 | Definición sobre NubeSDK | Consultada a socios@tiendanube.com |
 
+## 6.1 Instalación desde Tiendanube — resuelta (2026-08-15)
+
+Faltaba el escenario que la homologación pide primero y textual:
+*"instalación de la app desde Nuvemshop y **no** desde el panel de la
+app"*. No era un problema de cómo grabar el video: el callback exigía un
+`state` firmado que sólo emite nuestro propio botón, así que **cualquier
+comercio que llegara desde la tienda de aplicaciones moría** en
+`/integraciones?tiendanube=error&reason=invalid_state`.
+
+El callback ahora distingue los dos orígenes, y se agregó el camino
+"instalar primero, reclamar después" que ya existía para Shopify
+(migración 149, que generaliza la tabla de la 101):
+
+| Origen | Qué pasa |
+| --- | --- |
+| Desde Riverz | El `state` firmado dice a qué workspace atar la tienda. Igual que antes. |
+| Desde Tiendanube, comercio sin cuenta | Se canjea el código, el token se estaciona cifrado, el navegador se lleva un token de reclamo de un solo uso, y el panel ata la tienda apenas el comercio entra. |
+| Desde Tiendanube, tienda ya conocida | Reinstalación: se vuelve a atar a su dueño de siempre, sin pasar por el reclamo. |
+
+Probado de punta a punta el 2026-08-15 contra la tienda demo, borrando
+antes su conexión para simular un comercio que nunca la instaló:
+
+| Paso | Resultado |
+| --- | --- |
+| `tiendanube.com/apps/37693/authorize` | Muestra "Instalar Riverz" con la lista de permisos |
+| Aceptar | Redirige a `riverz.co/ingresar?tiendanube=pending` |
+| Instalación estacionada | Fila en `shopify_pending_installs` con el scope completo y el token cifrado |
+| Ingreso del comercio | El panel reclama sola la tienda |
+| Conexión final | `active`, dominio real `riverzdemo.mitiendanube.com`, fila pendiente consumida |
+
 ## 7. Lo que realmente traba el envío
 
 El botón **"Solicitar homologación"** vive en la pestaña Configuración de la
@@ -296,3 +326,83 @@ publicación figura *Pendiente***. Ese formulario pide:
 
 De esto, lo único que no se puede escribir sin una decisión del dueño es la
 forma de cobro y en qué países se publica.
+
+---
+
+## 8. Textos listos para pegar en Datos de publicación
+
+Escritos para pegarse tal cual. Respetan los límites del formulario y la
+regla de Tiendanube de no usar emojis.
+
+### URLs
+
+| Campo | Valor |
+| --- | --- |
+| URL de configuraciones | `https://riverz.co/integraciones` |
+| URL de política de privacidad | `https://riverz.co/privacidad` |
+| URL de soporte | `https://riverz.co/soporte` |
+| E-mail de soporte | `riverzoficial@gmail.com` |
+| Handle | `riverz` (ya cargado) |
+
+### Descripción breve (132 de 140 caracteres)
+
+> Conecta tu tienda con WhatsApp: recupera carritos abandonados, avisa cada
+> pedido y responde con un asistente que conoce tu catálogo.
+
+### Descripción larga (1.184 de 2.000 caracteres)
+
+> Riverz junta WhatsApp, Instagram, Messenger y tu correo en una sola
+> bandeja, y los conecta con lo que pasa en tu tienda.
+>
+> Qué hace con los datos de tu tienda:
+>
+> - Carrito abandonado. Si alguien deja la compra a medias, Riverz le
+>   escribe a las dos horas con el link para terminarla.
+> - Aviso de cada pedido. Confirmación al comprar, aviso al despachar y
+>   seguimiento al entregar, sin copiar y pegar nada.
+> - Catálogo al día. Tus productos, precios y promociones se sincronizan
+>   solos. El asistente cotiza el precio que paga el cliente, no el de
+>   lista.
+> - Clientes ordenados. Cada comprador entra con su teléfono, lo que
+>   compró y una etiqueta que lo separa de quien todavía no compró.
+> - Asistente con IA. Responde dudas de envíos, precios y disponibilidad
+>   con la información real de tu tienda, a cualquier hora.
+> - Campañas. Mandas una promoción a un segmento y ves quién abrió, quién
+>   respondió y quién compró.
+>
+> Cómo empezar:
+>
+> 1. Instala Riverz desde la tienda de aplicaciones.
+> 2. Entra o crea tu cuenta. Tu tienda queda conectada sola.
+> 3. Conecta tu WhatsApp y elige qué avisos quieres mandar.
+>
+> No hay que programar nada ni tocar el diseño de tu tienda.
+
+### Preguntas frecuentes
+
+1. **¿Necesito saber programar?** No. Se instala desde la tienda de
+   aplicaciones y el catálogo se sincroniza solo.
+2. **¿Qué datos de mi tienda lee Riverz?** Productos, pedidos, clientes y
+   páginas de contenido. Puede cambiar pedidos para reflejar lo que se
+   acuerda por chat. Nada más.
+3. **¿Sirve si vendo por Instagram además de la tienda?** Sí. Instagram,
+   Messenger, WhatsApp y correo llegan a la misma bandeja, con el
+   historial de compras de cada persona al lado.
+4. **¿Cómo recupera un carrito abandonado?** Riverz revisa cada hora los
+   carritos sin terminar y, a las dos horas, le escribe a quien dejó su
+   teléfono con el link para completar la compra.
+5. **¿El asistente inventa precios?** No. Cotiza con el catálogo
+   sincronizado, y usa el precio promocional cuando existe.
+6. **¿Puedo desinstalarla cuando quiera?** Sí, desde Mis aplicaciones o
+   desde el propio panel de Riverz. Al desinstalar dejamos de procesar
+   los eventos de tu tienda.
+7. **¿Necesito un WhatsApp aparte?** Necesitas un número que puedas usar
+   con WhatsApp Business. Riverz te guía para conectarlo.
+
+### Lo que sigue faltando
+
+- **Ícono de 200 × 200 px** y **entre 3 y 5 imágenes de 1920 × 1080 px**.
+- **Forma de cobro** (gratis / pago único / mensual) y **en qué países**
+  se publica. Decisión del dueño.
+- **Saldo en Anthropic.** La descripción menciona el asistente con IA; si
+  un revisor lo prueba con la cuenta sin saldo, no responde.

@@ -54,6 +54,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   privacidad: "privacy",
   terminos: "terms",
   "eliminar-datos": "data-deletion",
+  soporte: "support",
 };
 
 /** English slug → canonical (Spanish) first segment. */

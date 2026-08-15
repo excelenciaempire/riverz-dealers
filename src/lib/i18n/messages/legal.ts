@@ -513,4 +513,24 @@ export const legal = {
     es: "Mensajes, comentarios, nombre de perfil, identificadores y metadatos de conversación asociados a tu cuenta en nuestra base de datos. Cierta información puede conservarse si la ley lo exige.",
     en: "Messages, comments, profile name, identifiers and conversation metadata associated with your account in our database. Certain information may be retained if required by law.",
   },
+
+  // Soporte
+  supportMetaTitle: { es: "Soporte", en: "Support" },
+  supportMetaDescription: {
+    es: "Cómo contactar al equipo de riverz.",
+    en: "How to reach the riverz team.",
+  },
+  supportTitle: { es: "Soporte", en: "Support" },
+  supportIntro: {
+    es: "Escríbenos y te respondemos. Si el problema es con una tienda o un canal conectado, cuéntanos cuál y qué esperabas que pasara.",
+    en: "Write to us and we'll get back to you. If the problem involves a connected store or channel, tell us which one and what you expected to happen.",
+  },
+  supportHours: {
+    es: "Atendemos de lunes a viernes, en español e inglés.",
+    en: "We answer Monday to Friday, in Spanish and English.",
+  },
+  supportLegal: {
+    es: "Para temas de datos personales, consulta la",
+    en: "For personal data matters, see the",
+  },
 } satisfies Namespace;
