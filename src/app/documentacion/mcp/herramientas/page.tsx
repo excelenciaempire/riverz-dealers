@@ -14,17 +14,17 @@ export const dynamic = 'force-static';
 const RIESGO: Record<string, { label: string; nota: string; clase: string }> = {
   lectura: {
     label: 'Lectura',
-    nota: 'No cambia nada. Disponible con cualquier llave.',
+    nota: 'No modifican nada. Disponibles con cualquier llave.',
     clase: 'text-emerald-600 dark:text-emerald-400',
   },
   reversible: {
     label: 'Reversible',
-    nota: 'Cambia algo que se puede deshacer. Necesita una llave de escritura.',
+    nota: 'Modifican algo que se puede deshacer. Requieren una llave de escritura.',
     clase: 'text-amber-600 dark:text-amber-400',
   },
   irreversible: {
     label: 'Irreversible',
-    nota: 'Le llega a una persona. Necesita llave de escritura Y confirmación.',
+    nota: 'Su efecto llega a una persona. Requieren llave de escritura y además confirmación.',
     clase: 'text-red-600 dark:text-red-400',
   },
 };
@@ -39,14 +39,14 @@ export default function DocsHerramientas() {
     <article>
       <H1>Herramientas</H1>
       <Lead>
-        Las {tools.length} herramientas que expone Riverz por MCP. Esta lista se genera del código
-        que corre en producción, así que no puede quedar vieja.
+        Las {tools.length} herramientas que Riverz expone por MCP. La lista se genera a partir del
+        código que corre en producción, de modo que no puede quedar desactualizada.
       </Lead>
 
       <Nota>
-        <Code>workspace_id</Code> aparece en muchos esquemas porque el servidor lo usa
-        internamente, pero <strong>no hace falta que lo mandes</strong>: sale de tu llave. Si
-        mandás uno que no es el tuyo, la llamada se rechaza.
+        <Code>workspace_id</Code> aparece en varios esquemas porque el servidor lo utiliza
+        internamente, pero <strong>no hace falta enviarlo</strong>: se toma de la llave. Si se
+        envía uno que no corresponde, la llamada se rechaza.
       </Nota>
 
       {(['lectura', 'reversible', 'irreversible'] as const).map((r) => {
