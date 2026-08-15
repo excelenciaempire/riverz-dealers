@@ -35,9 +35,15 @@ export const settings = {
 
   // Klaviyo card
   klaviyoDescription: {
-    es: "Tus contactos de Riverz, con sus etiquetas, en tu lista de email y SMS.",
-    en: "Your Riverz contacts, with their tags, in your email and SMS list.",
+    es: "Tus contactos y lo que compran, en tu lista. Sus segmentos, acá como etiquetas.",
+    en: "Your contacts and what they buy, in your list. Their segments, here as tags.",
   },
+  klaviyoHookHint: {
+    es: "Pega esta URL en la acción \"Webhook\" de un flujo de Klaviyo para que ese flujo mande un WhatsApp. En el cuerpo: phone, template y variables.",
+    en: "Paste this URL into a Klaviyo flow's \"Webhook\" action so that flow sends a WhatsApp. Body: phone, template and variables.",
+  },
+  klaviyoHookCopy: { es: "Copiar URL", en: "Copy URL" },
+  klaviyoHookCopied: { es: "URL copiada", en: "URL copied" },
   connected: { es: "Conectado", en: "Connected" },
   klaviyoInvalidKey: {
     es: "Pega una API key válida de Klaviyo.",

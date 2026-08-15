@@ -8,6 +8,10 @@ import {
   KlaviyoUnauthorizedError,
   syncWorkspaceToKlaviyo,
 } from '@/lib/integrations/klaviyo'
+import { syncWorkspaceEvents } from '@/lib/integrations/klaviyo-events'
+import { syncKlaviyoSegments } from '@/lib/integrations/klaviyo-segments'
+import { syncKlaviyoOptOuts } from '@/lib/integrations/klaviyo-optout'
+import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.klaviyo-sync')
@@ -48,7 +52,17 @@ async function cronHandler(request: Request) {
 
   let ok = 0
   let failed = 0
-  const totals = { scanned: 0, synced: 0, suppressed: 0, skipped: 0 }
+  const totals = {
+    scanned: 0,
+    synced: 0,
+    suppressed: 0,
+    skipped: 0,
+    events: 0,
+    segments: 0,
+    tagged: 0,
+    untagged: 0,
+    optedOut: 0,
+  }
 
   for (const row of rows) {
     const apiKey = await resolveWorkspaceKey(
@@ -63,6 +77,7 @@ async function cronHandler(request: Request) {
     }
 
     try {
+      // 1. Los contactos, con sus etiquetas y sus bajas.
       const res = await syncWorkspaceToKlaviyo(admin, {
         workspaceId: row.workspace_id,
         apiKey,
@@ -72,6 +87,35 @@ async function cronHandler(request: Request) {
       totals.synced += res.synced
       totals.suppressed += res.suppressed
       totals.skipped += res.skipped
+
+      // 2. Lo que pasó: compras, carritos, pagos rechazados y conversación.
+      //    Es lo que dispara sus flujos y lo que le atribuye la plata.
+      const events = await syncWorkspaceEvents(admin, {
+        workspaceId: row.workspace_id,
+        apiKey,
+        since: row.last_sync_at,
+      })
+      totals.events += events.sent
+
+      // 3. Sus segmentos, de vuelta como etiquetas de Riverz.
+      const ownerUserId = await resolveWorkspaceOwnerUserId(admin, row.workspace_id)
+      const segments = await syncKlaviyoSegments(admin, {
+        workspaceId: row.workspace_id,
+        apiKey,
+        ownerUserId,
+      })
+      totals.segments += segments.segments
+      totals.tagged += segments.tagged
+      totals.untagged += segments.untagged
+
+      // 4. Quien se dio de baja allá deja de recibir WhatsApp acá.
+      const outs = await syncKlaviyoOptOuts(admin, {
+        workspaceId: row.workspace_id,
+        apiKey,
+        since: row.last_sync_at,
+      })
+      totals.optedOut += outs.optedOut
+
       ok++
     } catch (err) {
       // Clave revocada o rotada: no hay reintento que la arregle. Se

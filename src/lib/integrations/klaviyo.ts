@@ -20,6 +20,7 @@
  * Klaviyo exige al menos un identificador (correo o teléfono E.164) por
  * perfil; quien no tenga ninguno se saltea en vez de romper el lote entero.
  */
+import { createHmac, timingSafeEqual } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
 import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
@@ -82,8 +83,23 @@ export async function ensureRiverzList(apiKey: string): Promise<string | null> {
   }
 }
 
+/**
+ * Identificadores del perfil, normalizados. Klaviyo exige al menos uno; sin
+ * ninguno no hay a quién actualizar y quien llama descarta la fila en vez de
+ * romper el lote entero.
+ */
+export function profileIdentity(
+  email?: string | null,
+  phone?: string | null,
+): { email: string | null; phone: string | null } | null {
+  const mail = email?.trim() || null;
+  const tel = toE164(phone);
+  if (!mail && !tel) return null;
+  return { email: mail, phone: tel };
+}
+
 /** Teléfono en E.164 o null: Klaviyo rechaza cualquier otro formato. */
-function toE164(phone?: string | null): string | null {
+export function toE164(phone?: string | null): string | null {
   const digits = sanitizePhoneForMeta(phone ?? '');
   if (!digits) return null;
   const e164 = `+${digits}`;
@@ -207,6 +223,39 @@ async function suppressEmails(apiKey: string, emails: string[]): Promise<number>
     }
   }
   return done;
+}
+
+/**
+ * Token de la URL que el comercio pega en la acción "Webhook" de un flujo de
+ * Klaviyo. Es una firma HMAC del workspace, no un secreto guardado: no hay
+ * fila que crear, no caduca, y no se puede fabricar sin la clave del servidor.
+ * Va en la ruta, que es lo único que Klaviyo deja configurar sin cabeceras.
+ */
+export function klaviyoHookToken(workspaceId: string): string {
+  const sig = createHmac('sha256', hookKey())
+    .update(`klaviyo-hook:${workspaceId}`)
+    .digest('base64url')
+    .slice(0, 32);
+  return `${workspaceId}.${sig}`;
+}
+
+/** Workspace del token, o null si la firma no cierra. */
+export function verifyKlaviyoHookToken(token: string): string | null {
+  const at = token.lastIndexOf('.');
+  if (at <= 0) return null;
+  const workspaceId = token.slice(0, at);
+  const expected = klaviyoHookToken(workspaceId);
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  // El largo se compara primero: timingSafeEqual LANZA con buffers distintos.
+  if (a.length !== b.length) return null;
+  return timingSafeEqual(a, b) ? workspaceId : null;
+}
+
+function hookKey(): Buffer {
+  const k = process.env.ENCRYPTION_KEY;
+  if (!k) throw new Error('ENCRYPTION_KEY not set — required to sign the Klaviyo hook');
+  return Buffer.from(k, 'hex');
 }
 
 /** La clave dejó de servir (rotada o revocada): no tiene arreglo automático. */

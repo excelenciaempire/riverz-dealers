@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Trash2, Copy } from 'lucide-react';
+import { toast as sonner } from 'sonner';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
@@ -29,12 +30,19 @@ export function KlaviyoCard() {
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** URL para el paso de WhatsApp dentro de los flujos de Klaviyo. */
+  const [hookUrl, setHookUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/integrations/klaviyo', { cache: 'no-store' });
       const json = await res.json();
       if (res.ok) setConnected(!!json.connected);
+      if (res.ok && json.connected) {
+        const hook = await fetch('/api/integrations/klaviyo/hook', { cache: 'no-store' });
+        const hookJson = await hook.json().catch(() => null);
+        if (hook.ok && hookJson?.url) setHookUrl(hookJson.url as string);
+      }
     } catch {
       /* no-op */
     } finally {
@@ -65,6 +73,7 @@ export function KlaviyoCard() {
       }
       setConnected(true);
       setApiKey('');
+      await load();
       toast.success(t('settings.klaviyoConnected'));
     } catch {
       toast.error(t('settings.networkError'));
@@ -137,6 +146,31 @@ export function KlaviyoCard() {
               )}
             </button>
           </li>
+          {/* El paso de WhatsApp dentro de los flujos de Klaviyo. Va acá y no
+              en la documentación porque es el único momento en que se entiende
+              para qué sirve: la cuenta ya está conectada. */}
+          {hookUrl && (
+            <li className="rounded-md bg-muted/40 px-2 py-2 ring-1 ring-border/50">
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                {t('settings.klaviyoHookHint')}
+              </p>
+              <div className="mt-1 flex items-center gap-1">
+                <code className="min-w-0 flex-1 truncate text-[10px] text-foreground">
+                  {hookUrl}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(hookUrl);
+                    sonner.success(t('settings.klaviyoHookCopied'));
+                  }}
+                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={t('settings.klaviyoHookCopy')}
+                >
+                  <Copy className="size-3.5" />
+                </button>
+              </div>
+            </li>
+          )}
         </ul>
       ) : null}
 
