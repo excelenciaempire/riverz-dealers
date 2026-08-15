@@ -157,10 +157,21 @@ const WaitingCountsContext = createContext<Record<string, number>>({})
  * que ya se equivocó una vez con las líneas del abanico.
  */
 interface Arrastre {
-  path: StepPath
   cid: string
   /** Para no dejar caer un paso dentro de sí mismo. */
   step: BuilderStep
+  /**
+   * De dónde salió. Hay dos formas de vivir en el lienzo y no se mezclan:
+   * los pasos del árbol se direccionan por camino, y los de los carriles de
+   * una condición multi-camino por (carril, posición) dentro de esa tarjeta.
+   *
+   * Un hueco sólo acepta lo que sabe recibir. Cruzar de un mundo al otro no
+   * se ofrece: es preferible que no haya dónde soltar a que la tarjeta
+   * aparezca en un lugar que nadie pidió.
+   */
+  origen:
+    | { kind: "arbol"; path: StepPath }
+    | { kind: "carril"; owner: string; lane: string; index: number }
 }
 const DragContext = createContext<{
   arrastrando: Arrastre | null
@@ -1660,7 +1671,9 @@ export function AutomationBuilder({
               deleteStepAt={deleteStepAt}
               moveStepAt={moveStepAt}
               moveStepTo={(destino, index) => {
-                if (arrastrando) moveStepTo(arrastrando.path, destino, index)
+                if (arrastrando?.origen.kind === "arbol") {
+                  moveStepTo(arrastrando.origen.path, destino, index)
+                }
               }}
             />
           </div>
@@ -2069,7 +2082,11 @@ function StepRenderer({
                 e.dataTransfer.effectAllowed = "move"
                 // Firefox no arranca el arrastre sin datos.
                 e.dataTransfer.setData("text/plain", step.cid)
-                arrastre.tomar({ path, cid: step.cid, step })
+                arrastre.tomar({
+                  cid: step.cid,
+                  step,
+                  origen: { kind: "arbol", path },
+                })
               }}
               onDragEnd={() => arrastre.tomar(null)}
               onClick={(e) => e.stopPropagation()}
@@ -2426,6 +2443,7 @@ function SwitchBranches({
   updateStep: (path: StepPath, updater: (s: BuilderStep) => BuilderStep) => void
 }) {
   const t = useT()
+  const arrastre = useContext(DragContext)
   const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] }
 
   // Every mutation reshapes step.switchData through the switch's own path.
@@ -2463,6 +2481,63 @@ function SwitchBranches({
       return copy
     })
 
+  /**
+   * Soltar un paso en un carril, venga de este carril o del de al lado.
+   *
+   * Se hace en UNA sola escritura sobre los caminos, y no sacando de un lado
+   * y poniendo en el otro: si fueran dos, entre una y otra el paso no existe
+   * en ningún lado, y cualquier redibujado en el medio lo pierde.
+   */
+  const soltarEnCarril = (destino: string | "else", index: number) => {
+    const a = arrastre.arrastrando
+    if (!a || a.origen.kind !== "carril" || a.origen.owner !== step.cid) return
+    const origen = a.origen
+    patch((d) => {
+      const leer = (lane: string) =>
+        lane === "else" ? d.elseSteps : (d.cases.find((c) => c.ckey === lane)?.steps ?? [])
+      const escribir = (lane: string, steps: BuilderStep[]) =>
+        lane === "else"
+          ? { elseSteps: steps }
+          : { cases: d.cases.map((c) => (c.ckey === lane ? { ...c, steps } : c)) }
+
+      const nodo = leer(origen.lane)[origen.index]
+      if (!nodo) return d
+
+      if (origen.lane === destino) {
+        const lista = [...leer(destino)]
+        lista.splice(origen.index, 1)
+        // Sacarlo corre todo lo que venía después, así que el hueco elegido
+        // se mueve con ellos.
+        const i = origen.index < index ? index - 1 : index
+        lista.splice(i, 0, nodo)
+        return { ...d, ...escribir(destino, lista) }
+      }
+
+      const sinEl = leer(origen.lane).filter((_, i) => i !== origen.index)
+      const conEl = [...leer(destino)]
+      conEl.splice(index, 0, nodo)
+      let siguiente = { ...d, ...escribir(origen.lane, sinEl) }
+      siguiente = { ...siguiente, ...escribir(destino, conEl) }
+      // El segundo `escribir` recalcula `cases` sobre `d`, no sobre lo que
+      // dejó el primero: cuando los dos carriles son casos, se rearma la
+      // lista completa a mano para no perder la primera edición.
+      if (origen.lane !== "else" && destino !== "else") {
+        siguiente = {
+          ...d,
+          cases: d.cases.map((c) =>
+            c.ckey === origen.lane
+              ? { ...c, steps: sinEl }
+              : c.ckey === destino
+                ? { ...c, steps: conEl }
+                : c,
+          ),
+        }
+      }
+      return siguiente
+    })
+    arrastre.tomar(null)
+  }
+
   // Una condición SIEMPRE muestra sus caminos, incluido el "en otro caso"
   // aunque esté vacío. Hubo una versión que dibujaba el caso de un solo
   // camino como línea recta, y escondía justamente lo que hay que ver: qué
@@ -2484,6 +2559,9 @@ function SwitchBranches({
               onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
               onRemoveStep={(i) => removeStep(c.ckey, i)}
               onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
+              owner={step.cid}
+              lane={c.ckey}
+              onDropAt={(at) => soltarEnCarril(c.ckey, at)}
             />
           ),
         })),
@@ -2500,6 +2578,9 @@ function SwitchBranches({
               onChangeStep={(i, n) => changeStep("else", i, n)}
               onRemoveStep={(i) => removeStep("else", i)}
               onMoveStep={(i, dir) => moveStep("else", i, dir)}
+              owner={step.cid}
+              lane="else"
+              onDropAt={(at) => soltarEnCarril("else", at)}
             />
           ),
         },
@@ -2516,6 +2597,9 @@ function SwitchLaneSteps({
   onChangeStep,
   onRemoveStep,
   onMoveStep,
+  owner,
+  lane,
+  onDropAt,
 }: {
   steps: BuilderStep[]
   expandedId: string | null
@@ -2524,6 +2608,11 @@ function SwitchLaneSteps({
   onChangeStep: (i: number, n: BuilderStep) => void
   onRemoveStep: (i: number) => void
   onMoveStep: (i: number, dir: -1 | 1) => void
+  /** Qué condición y qué carril son estos: lo necesita el arrastre para saber
+   *  de dónde salió lo que se está moviendo y adónde puede caer. */
+  owner: string
+  lane: string
+  onDropAt: (index: number) => void
 }) {
   return (
     <div className="flex items-start gap-2">
@@ -2534,6 +2623,7 @@ function SwitchLaneSteps({
         types={LEAF_STEPS}
         tail={steps.length > 0}
         onPick={(ty) => onAdd(ty, 0)}
+        onDrop={() => onDropAt(0)}
       />
       {steps.map((s, i) => (
         <Fragment key={s.cid}>
@@ -2547,6 +2637,9 @@ function SwitchLaneSteps({
             onMoveDown={() => onMoveStep(i, 1)}
             canUp={i > 0}
             canDown={i < steps.length - 1}
+            owner={owner}
+            lane={lane}
+            index={i}
           />
           {/* Entre cada par de pasos, no sólo al final: si no, para meter algo
               en el medio hay que agregarlo al final y moverlo. */}
@@ -2555,6 +2648,7 @@ function SwitchLaneSteps({
             types={LEAF_STEPS}
             tail={i < steps.length - 1}
             onPick={(ty) => onAdd(ty, i + 1)}
+            onDrop={() => onDropAt(i + 1)}
           />
         </Fragment>
       ))}
@@ -2575,6 +2669,9 @@ function LeafStepCard({
   onMoveDown,
   canUp,
   canDown,
+  owner,
+  lane,
+  index,
 }: {
   step: BuilderStep
   expanded: boolean
@@ -2585,19 +2682,48 @@ function LeafStepCard({
   onMoveDown: () => void
   canUp: boolean
   canDown: boolean
+  owner: string
+  lane: string
+  index: number
 }) {
   const t = useT()
+  const arrastre = useContext(DragContext)
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
   return (
     <div className="flex w-full max-w-[320px] flex-col sm:w-80">
-      <div className={cn("rounded-lg border border-border border-l-4 bg-card shadow-sm", meta.border)}>
+      <div
+        className={cn(
+          "rounded-lg border border-border border-l-4 bg-card shadow-sm transition-opacity",
+          meta.border,
+          arrastre.arrastrando?.cid === step.cid && "opacity-40",
+        )}
+      >
         <button
           type="button"
           onClick={onToggle}
           data-card-head
           className="flex h-[78px] w-full items-center gap-3 px-3 py-2.5 text-left"
         >
+          <span
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation()
+              e.dataTransfer.effectAllowed = "move"
+              e.dataTransfer.setData("text/plain", step.cid)
+              arrastre.tomar({
+                cid: step.cid,
+                step,
+                origen: { kind: "carril", owner, lane, index },
+              })
+            }}
+            onDragEnd={() => arrastre.tomar(null)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={t("automations.dragHandle")}
+            className="flex-shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" aria-hidden />
+          </span>
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg, meta.iconText)}>
             {meta.brand === "whatsapp" ? (
               <Image src="/channels/whatsapp.svg" alt="" width={18} height={18} />
