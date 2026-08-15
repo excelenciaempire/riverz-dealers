@@ -43,4 +43,12 @@ export const errStores = {
     es: "En tu WordPress, entra a Ajustes → Enlaces permanentes y elige cualquier opción que no sea «Simple». Después vuelve a intentar.",
     en: "In your WordPress, go to Settings → Permalinks and pick any option other than “Plain”. Then try again.",
   },
+  tiendanubeClaimExpired: {
+    es: "La instalación venció. Vuelve a instalar Riverz desde tu tienda.",
+    en: "The install expired. Install Riverz again from your store.",
+  },
+  tiendanubeClaimFailed: {
+    es: "No pudimos terminar de conectar tu tienda. Intenta de nuevo.",
+    en: "We couldn't finish connecting your store. Try again.",
+  },
 } satisfies Namespace;

@@ -237,6 +237,10 @@ export const settings = {
     es: "Tienda {shop} conectada",
     en: "Store {shop} connected",
   },
+  storeClaimed: {
+    es: "Tienda {shop} conectada",
+    en: "Store {shop} connected",
+  },
 
   // Tiendanube card
   tiendanubeDescription: {

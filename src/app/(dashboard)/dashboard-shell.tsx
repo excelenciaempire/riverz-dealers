@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { NavProgress } from "@/components/layout/nav-progress";
-import { ShopifyClaimGuard } from "@/components/settings/shopify-claim-guard";
+import { StoreClaimGuard } from "@/components/settings/store-claim-guard";
 import { SectionGuard } from "@/components/layout/section-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { FeatureFlagsProvider } from "@/hooks/use-feature-flags";
@@ -109,7 +109,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
-      <ShopifyClaimGuard />
+      <StoreClaimGuard />
       <SectionGuard />
     </div>
   );

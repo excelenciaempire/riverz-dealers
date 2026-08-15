@@ -21,6 +21,13 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 export { CLAIM_COOKIE, CLAIM_HINT_COOKIE } from '@/lib/shopify/claim-cookies'
 const CLAIM_TTL_MS = 24 * 60 * 60 * 1000
 
+/**
+ * La tabla es de las tres plataformas desde la migración 149. El defecto
+ * es 'shopify' para que las llamadas de ese flujo —que está en revisión—
+ * no cambien ni una línea.
+ */
+type PendingPlatform = 'shopify' | 'tiendanube' | 'woocommerce'
+
 function hashToken(raw: string): string {
   return createHash('sha256').update(raw, 'utf8').digest('hex')
 }
@@ -32,27 +39,33 @@ export async function createPendingInstall(
     shopName?: string | null
     accessToken: string
     scope?: string | null
+    platform?: PendingPlatform
+    externalStoreId?: string | null
   },
 ): Promise<{ claimToken: string }> {
   const claimToken = randomBytes(32).toString('hex')
   const { error } = await admin.from('shopify_pending_installs').upsert(
     {
+      platform: args.platform ?? 'shopify',
       shop_domain: args.shopDomain,
       shop_name: args.shopName ?? null,
+      external_store_id: args.externalStoreId ?? null,
       claim_token_hash: hashToken(claimToken),
       access_token: encrypt(args.accessToken),
       scope: args.scope ?? null,
       created_at: new Date().toISOString(),
     },
-    { onConflict: 'shop_domain' },
+    { onConflict: 'platform,shop_domain' },
   )
   if (error) throw new Error(`pending install upsert failed: ${error.message}`)
   return { claimToken }
 }
 
 export interface ClaimedInstall {
+  platform: PendingPlatform
   shopDomain: string
   shopName: string | null
+  externalStoreId: string | null
   accessToken: string
   scope: string | null
 }
@@ -60,6 +73,9 @@ export interface ClaimedInstall {
 /**
  * Redeem a claim token: returns the decrypted install and deletes the row,
  * or null when the token is unknown/expired. Single-use by construction.
+ *
+ * El token identifica la fila por sí solo, así que no hace falta decir de
+ * qué plataforma es: la fila lo dice.
  */
 export async function claimPendingInstall(
   admin: SupabaseClient,
@@ -68,7 +84,9 @@ export async function claimPendingInstall(
   if (!/^[a-f0-9]{64}$/.test(rawToken)) return null
   const { data: row } = await admin
     .from('shopify_pending_installs')
-    .select('id, shop_domain, shop_name, access_token, scope, created_at')
+    .select(
+      'id, platform, shop_domain, shop_name, external_store_id, access_token, scope, created_at',
+    )
     .eq('claim_token_hash', hashToken(rawToken))
     .maybeSingle()
   if (!row) return null
@@ -80,8 +98,10 @@ export async function claimPendingInstall(
   if (!createdAt || Date.now() - createdAt > CLAIM_TTL_MS) return null
 
   return {
+    platform: (row.platform ?? 'shopify') as PendingPlatform,
     shopDomain: row.shop_domain,
     shopName: row.shop_name ?? null,
+    externalStoreId: row.external_store_id ?? null,
     accessToken: decrypt(row.access_token),
     scope: row.scope ?? null,
   }
@@ -91,10 +111,12 @@ export async function claimPendingInstall(
 export async function hasPendingInstall(
   admin: SupabaseClient,
   shopDomain: string,
+  platform: PendingPlatform = 'shopify',
 ): Promise<boolean> {
   const { data: row } = await admin
     .from('shopify_pending_installs')
     .select('created_at')
+    .eq('platform', platform)
     .eq('shop_domain', shopDomain)
     .maybeSingle()
   if (!row?.created_at) return false
