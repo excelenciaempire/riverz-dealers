@@ -140,11 +140,12 @@ async function cronHandler(request: Request) {
     return NextResponse.json({ problemas: actuales.size, nuevos: 0, avisado: false })
   }
 
-  const destino = process.env.PLATFORM_ALERT_PHONE
-  if (!destino) {
+  const telefono = process.env.PLATFORM_ALERT_PHONE
+  const correo = process.env.PLATFORM_ALERT_EMAIL
+  if (!telefono && !correo) {
     log.warn('hay novedades y no hay a quién avisarle', {
       nuevos: nuevas.length,
-      falta: 'PLATFORM_ALERT_PHONE',
+      falta: 'PLATFORM_ALERT_PHONE o PLATFORM_ALERT_EMAIL',
     })
     return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
   }
@@ -159,27 +160,64 @@ async function cronHandler(request: Request) {
     lineas.push(`· y ${nuevas.length - MAX_LINEAS} más`)
   }
 
+  const titulo = 'Riverz · algo nuevo se rompió'
+  const cuerpo = lineas.join('\n')
+  const via: string[] = []
+
   // Por el helper compartido y no por `sendTextMessage` a secas: Meta sólo
   // entrega texto libre dentro de las 24 h posteriores a que alguien nos
   // escriba. Escrito con texto libre, este aviso andaba el día de la prueba y
   // dejaba de salir en silencio al día siguiente — el peor modo de falla para
   // algo cuya única función es avisar.
-  const enviado = await sendPlatformAlert({
-    to: destino,
-    title: 'Riverz · algo nuevo se rompió',
-    body: lineas.join('\n'),
-  })
-  if (!enviado.ok) {
-    log.warn('no se pudo avisar', { error: enviado.error, nuevos: nuevas.length })
-    return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
+  if (telefono) {
+    const enviado = await sendPlatformAlert({ to: telefono, title: titulo, body: cuerpo })
+    if (enviado.ok) via.push('whatsapp')
+    else log.warn('no se pudo avisar por whatsapp', { error: enviado.error })
+  }
+
+  // El correo NO es un plan B de segunda: es el que funciona sin tener un
+  // número de WhatsApp dado de alta, sin plantilla aprobada y sin ventana de
+  // 24 h. Los dos salen si los dos están configurados — un aviso duplicado
+  // molesta; uno que no sale, no se nota.
+  if (correo && (await avisarPorCorreo(correo, titulo, cuerpo))) via.push('correo');
+
+  if (via.length === 0) {
+    log.warn('había novedades y ningún aviso salió', { nuevos: nuevas.length })
   }
 
   return NextResponse.json({
     problemas: actuales.size,
     nuevos: nuevas.length,
     cronsRotos: cronsRotos.length,
-    avisado: true,
+    avisado: via.length > 0,
+    via,
   })
+}
+
+/** El mismo aviso, por Resend. Sin fallar la corrida si el correo no sale. */
+async function avisarPorCorreo(to: string, titulo: string, cuerpo: string): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return false
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: process.env.WAITLIST_FROM || 'Riverz <onboarding@resend.dev>',
+        to: [to],
+        subject: titulo,
+        html:
+          `<div style="font-family:system-ui;max-width:520px">` +
+          `<h2 style="margin:0 0 8px">${titulo}</h2>` +
+          `<pre style="white-space:pre-wrap;font-family:system-ui;font-size:14px">${cuerpo}</pre>` +
+          `<p style="color:#666;font-size:13px">Sólo se avisa lo que apareció desde el último aviso.</p>` +
+          `</div>`,
+      }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 export const GET = withCronRun('platform-watch', cronHandler)

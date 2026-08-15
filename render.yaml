@@ -108,6 +108,12 @@ services:
       # le avisa por WhatsApp cuando algo se rompe en cualquier cuenta.
       - key: PLATFORM_ALERT_PHONE
         sync: false
+      # Correo del equipo para el mismo aviso. Alcanza con UNO de los dos:
+      # el correo funciona sin número dado de alta, sin plantilla aprobada y
+      # sin la ventana de 24 h de Meta, así que es el que anda desde el minuto
+      # cero. Si están los dos, el aviso sale por los dos.
+      - key: PLATFORM_ALERT_EMAIL
+        sync: false
       # Host de la documentación pública. Sólo hace falta si algún día se sirve
       # desde otro dominio; por defecto docs.riverz.co.
       - key: DOCS_HOST
