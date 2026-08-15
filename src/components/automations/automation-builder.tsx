@@ -159,34 +159,32 @@ const WaitingCountsContext = createContext<Record<string, number>>({})
 /**
  * El asa por la que se agarra una tarjeta.
  *
- * Vive FUERA del botón de la cabecera y encima de él, absoluta. Adentro no
- * sirve: el botón se queda con el `mousedown` y Chrome nunca dispara el
- * `dragstart`, así que la tarjeta no se movía por más que el código estuviera
- * bien — con eventos sintéticos andaba, con el mouse no.
+ * Va con eventos de puntero y NO con el arrastre nativo del navegador. Se
+ * probó con el nativo y no arranca en este lienzo: entre el botón de la
+ * cabecera, la captura de puntero del lienzo que se mueve y la escala CSS, el
+ * `dragstart` no llega a dispararse con el mouse — disparado por código
+ * andaba, que es lo que hizo creer que estaba listo.
+ *
+ * Con punteros no hay nada que negociar: se escucha en la ventana mientras
+ * dura el gesto y se busca el hueco por posición. Las coordenadas del puntero
+ * y las de `getBoundingClientRect` están las dos en píxeles de pantalla, así
+ * que el zoom del lienzo no entra en la cuenta.
  */
-function Asa({
-  onTake,
-  onDrop,
-  cid,
-}: {
-  onTake: () => void
-  onDrop: () => void
-  cid: string
-}) {
+function Asa({ onTake }: { onTake: () => void; cid?: string }) {
   const t = useT()
+  const arrastre = useContext(DragContext)
   return (
     <span
-      draggable
       data-drag-handle
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move"
-        // Firefox no arranca el arrastre sin datos.
-        e.dataTransfer.setData("text/plain", cid)
+      onPointerDown={(e) => {
+        if (e.button !== 0 && e.pointerType === "mouse") return
+        e.preventDefault()
+        e.stopPropagation()
         onTake()
+        arrastre.apuntar(e.clientX, e.clientY)
       }}
-      onDragEnd={onDrop}
       aria-label={t("automations.dragHandle")}
-      className="absolute left-2 top-0 z-10 flex h-[78px] w-5 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+      className="absolute left-2 top-0 z-10 flex h-[78px] w-5 touch-none cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
     >
       <GripVertical className="h-4 w-4" aria-hidden />
     </span>
@@ -213,7 +211,21 @@ interface Arrastre {
 const DragContext = createContext<{
   arrastrando: Arrastre | null
   tomar: (a: Arrastre | null) => void
-}>({ arrastrando: null, tomar: () => {} })
+  /** Empieza el gesto en estas coordenadas de pantalla. */
+  apuntar: (x: number, y: number) => void
+  /** Cada hueco se anota para poder encontrarlo por posición. */
+  registrar: (id: string, fn: { current: (() => void) | undefined }) => void
+  olvidar: (id: string) => void
+  /** El hueco bajo el puntero ahora mismo. */
+  activo: string | null
+}>({
+  arrastrando: null,
+  tomar: () => {},
+  apuntar: () => {},
+  registrar: () => {},
+  olvidar: () => {},
+  activo: null,
+})
 
 /** Friendly sample values for the inline template preview (so {{n}} renders a
  *  realistic value instead of a placeholder once mapped to a data point). */
@@ -1278,6 +1290,81 @@ export function AutomationBuilder({
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [arrastrando, tomar] = useState<Arrastre | null>(null)
+  const [activo, setActivo] = useState<string | null>(null)
+  // Los huecos, anotados con su acción. Es un ref y no estado porque cambia
+  // en cada pintada y no hay nada que redibujar cuando cambia.
+  const huecos = useRef(new Map<string, { current: (() => void) | undefined }>())
+
+  const registrar = useCallback(
+    (id: string, fn: { current: (() => void) | undefined }) => {
+      huecos.current.set(id, fn)
+    },
+    [],
+  )
+  const olvidar = useCallback((id: string) => {
+    huecos.current.delete(id)
+  }, [])
+
+  /**
+   * Qué hueco está bajo el puntero.
+   *
+   * No se exige puntería: si no hay ninguno exactamente debajo, gana el más
+   * cercano dentro de un radio. Con las tarjetas a 40% de zoom, pedir el
+   * píxel exacto es pedir demasiado.
+   */
+  const huecoEn = useCallback((x: number, y: number): string | null => {
+    let mejor: { id: string; d: number } | null = null
+    for (const id of huecos.current.keys()) {
+      const el = document.querySelector(`[data-drop-slot="${id}"]`)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      const dentro = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const d = dentro ? 0 : Math.hypot(x - cx, y - cy)
+      if (d > 160) continue
+      if (!mejor || d < mejor.d) mejor = { id, d }
+    }
+    return mejor?.id ?? null
+  }, [])
+
+  const apuntar = useCallback(
+    (x: number, y: number) => setActivo(huecoEn(x, y)),
+    [huecoEn],
+  )
+
+  // Mientras dura el gesto se escucha en la ventana: el puntero se va a ir
+  // de la tarjeta enseguida, y si sólo escuchara el elemento de origen el
+  // arrastre se cortaría al primer movimiento.
+  useEffect(() => {
+    if (!arrastrando) return
+    const mover = (e: PointerEvent) => setActivo(huecoEn(e.clientX, e.clientY))
+    const soltar = (e: PointerEvent) => {
+      const id = huecoEn(e.clientX, e.clientY)
+      huecos.current.get(id ?? "")?.current?.()
+      tomar(null)
+      setActivo(null)
+    }
+    const cancelar = () => {
+      tomar(null)
+      setActivo(null)
+    }
+    window.addEventListener("pointermove", mover)
+    window.addEventListener("pointerup", soltar)
+    window.addEventListener("pointercancel", cancelar)
+    // Escapar suelta sin mover: un gesto empezado sin querer no tiene por qué
+    // terminar cambiando el flujo.
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelar()
+    }
+    window.addEventListener("keydown", escape)
+    return () => {
+      window.removeEventListener("pointermove", mover)
+      window.removeEventListener("pointerup", soltar)
+      window.removeEventListener("pointercancel", cancelar)
+      window.removeEventListener("keydown", escape)
+    }
+  }, [arrastrando, huecoEn])
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [segments, setSegments] = useState<ContactSegment[]>([])
   const [tags, setTags] = useState<ContactTag[]>([])
@@ -1535,7 +1622,9 @@ export function AutomationBuilder({
     <OffersContext.Provider value={offers}>
     <ProductsContext.Provider value={products}>
     <WaitingCountsContext.Provider value={waitingCounts}>
-    <DragContext.Provider value={{ arrastrando, tomar }}>
+    <DragContext.Provider
+      value={{ arrastrando, tomar, apuntar, registrar, olvidar, activo }}
+    >
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -2110,8 +2199,6 @@ function StepRenderer({
             onTake={() =>
               arrastre.tomar({ cid: step.cid, step, origen: { kind: "arbol", path } })
             }
-            onDrop={() => arrastre.tomar(null)}
-            cid={step.cid}
           />
           <button
             type="button"
@@ -2731,8 +2818,6 @@ function LeafStepCard({
               origen: { kind: "carril", owner, lane, index },
             })
           }
-          onDrop={() => arrastre.tomar(null)}
-          cid={step.cid}
         />
         <button
           type="button"
@@ -2817,11 +2902,26 @@ function AddButton({
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  const [encima, setEncima] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const arrastre = useContext(DragContext)
   const arrastrando = Boolean(arrastre.arrastrando) && Boolean(onDrop)
+
+  // Cada hueco se anota con su acción para que el gesto lo encuentre por
+  // posición. La acción va en un ref: cambia en cada pintada y volver a
+  // anotarse cada vez sería registrar y borrar sesenta veces por segundo.
+  const slotId = useId()
+  const accion = useRef<(() => void) | undefined>(undefined)
+  accion.current = onDrop
+  const { registrar, olvidar } = arrastre
+  useEffect(() => {
+    if (!onDrop) return
+    registrar(slotId, accion)
+    return () => olvidar(slotId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotId, registrar, olvidar, Boolean(onDrop)])
+
+  const encima = arrastre.activo === slotId
 
   // Menú PROPIO (portaleado a body, con onClick nativo) en vez del DropdownMenu
   // de base-ui: base-ui NO registra el click del mouse en los items cuando el
@@ -2863,21 +2963,7 @@ function AddButton({
 
   return (
     <div
-      onDragOver={(e) => {
-        if (!arrastre.arrastrando || !onDrop) return
-        // Sin esto el navegador no considera la zona soltable.
-        e.preventDefault()
-        e.dataTransfer.dropEffect = "move"
-        setEncima(true)
-      }}
-      onDragLeave={() => setEncima(false)}
-      onDrop={(e) => {
-        if (!arrastre.arrastrando || !onDrop) return
-        e.preventDefault()
-        setEncima(false)
-        onDrop()
-        arrastre.tomar(null)
-      }}
+      data-drop-slot={onDrop ? slotId : undefined}
       className={cn(
         "group/add relative flex items-center",
         // Siempre a full opacidad: el "+ Añadir" es la acción principal para
