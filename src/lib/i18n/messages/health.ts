@@ -31,6 +31,14 @@ export const health: Namespace = {
     es: "{n} plantilla(s) rechazadas por Meta: no se pueden usar hasta corregirlas",
     en: "{n} template(s) rejected by Meta: unusable until you fix them",
   },
+  automation_failed: {
+    es: "{n} corrida(s) de una automatización fallaron",
+    en: "{n} automation run(s) failed",
+  },
+  system_error: {
+    es: "Un proceso de fondo viene fallando: puede frenar envíos",
+    en: "A background job is failing: it can hold up sends",
+  },
   broadcast_stalled: {
     es: "{n} campaña(s) quedaron enviando y no terminaron",
     en: "{n} campaign(s) got stuck sending and never finished",

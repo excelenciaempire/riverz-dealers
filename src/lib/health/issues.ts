@@ -24,11 +24,13 @@ export interface Issue {
   /** Clave estable; la UI la traduce y decide el link. */
   kind:
     | 'automation_stuck'
+    | 'automation_failed'
     | 'sends_failing'
     | 'whatsapp_blocked'
     | 'connection_error'
     | 'template_rejected'
-    | 'broadcast_stalled';
+    | 'broadcast_stalled'
+    | 'system_error';
   severity: IssueSeverity;
   /** Cuántas cosas caen bajo este aviso (mensajes, corridas, conexiones). */
   count: number;
@@ -52,19 +54,24 @@ export async function collectWorkspaceIssues(
   const now = Date.now();
   const issues: Issue[] = [];
 
-  const [stuck, failing, connections, templates, broadcasts] = await Promise.all([
-    stuckRuns(db, workspaceId, now),
-    failingSends(db, workspaceId, now),
-    brokenConnections(db, workspaceId),
-    rejectedTemplates(db, workspaceId),
-    stalledBroadcasts(db, workspaceId, now),
-  ]);
+  const [stuck, failed, failing, connections, templates, broadcasts, system] =
+    await Promise.all([
+      stuckRuns(db, workspaceId, now),
+      failedRuns(db, workspaceId, now),
+      failingSends(db, workspaceId, now),
+      brokenConnections(db, workspaceId),
+      rejectedTemplates(db, workspaceId),
+      stalledBroadcasts(db, workspaceId, now),
+      systemErrors(db, now),
+    ]);
 
   if (stuck) issues.push(stuck);
+  if (failed) issues.push(failed);
   if (failing) issues.push(failing);
   issues.push(...connections);
   if (templates) issues.push(templates);
   if (broadcasts) issues.push(broadcasts);
+  if (system) issues.push(system);
 
   // Lo crítico primero: son las que cortan envíos.
   return issues.sort((a, b) =>
@@ -123,6 +130,86 @@ async function stuckRuns(
     count: dead.length,
     detail: (automation as { name?: string } | null)?.name ?? null,
     href: `/automatizaciones/${dead[0].automation_id}`,
+  };
+}
+
+/**
+ * Corridas que reventaron, con el error tal cual quedó anotado.
+ *
+ * Es el aviso más literal de todos: una automatización que tira una excepción
+ * escribe `status: failed` y su `error_message`, y hasta ahora eso vivía dentro
+ * del detalle de la automatización — había que entrar a buscarlo sabiendo que
+ * existía. El mensaje del error se muestra crudo a propósito: "template not
+ * found: carrito_v3" le dice al comercio exactamente qué arreglar, mucho mejor
+ * que un "algo falló" traducido.
+ */
+async function failedRuns(
+  db: SupabaseClient,
+  workspaceId: string,
+  now: number,
+): Promise<Issue | null> {
+  const since = new Date(now - 24 * 3600_000).toISOString();
+  const { data } = await db
+    .from('automation_logs')
+    .select('id, automation_id, error_message')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'failed')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const rows = (data ?? []) as Array<{
+    automation_id: string;
+    error_message: string | null;
+  }>;
+  if (rows.length === 0) return null;
+
+  const message = rows.find((r) => r.error_message)?.error_message ?? null;
+  return {
+    kind: 'automation_failed',
+    severity: 'critical',
+    count: rows.length,
+    detail: message ? message.slice(0, 120) : null,
+    href: `/automatizaciones/${rows[0].automation_id}`,
+  };
+}
+
+/**
+ * El motor de fondo falló. No es del comercio, pero le pega de lleno: si el
+ * cron de campañas viene reventando, sus mensajes no salen y todo lo demás en
+ * pantalla se ve normal. Se muestra igual, con el nombre del trabajo y su
+ * error, porque el silencio es peor que la jerga.
+ */
+async function systemErrors(db: SupabaseClient, now: number): Promise<Issue | null> {
+  const since = new Date(now - 2 * 3600_000).toISOString();
+  const { data } = await db
+    .from('cron_runs')
+    .select('name, status, error, started_at')
+    .eq('status', 'error')
+    .gte('started_at', since)
+    .order('started_at', { ascending: false })
+    .limit(50);
+  const rows = (data ?? []) as Array<{ name: string; error: string | null }>;
+  if (rows.length === 0) return null;
+
+  // Si el mismo trabajo ya volvió a correr bien, fue un tropiezo puntual y no
+  // hay nada que atender: sólo cuenta lo que sigue roto ahora.
+  const names = [...new Set(rows.map((r) => r.name))];
+  const { data: recovered } = await db
+    .from('cron_runs')
+    .select('name')
+    .in('name', names)
+    .eq('status', 'ok')
+    .gte('started_at', rows[0] ? since : since);
+  const healthy = new Set(((recovered ?? []) as Array<{ name: string }>).map((r) => r.name));
+  const broken = rows.filter((r) => !healthy.has(r.name));
+  if (broken.length === 0) return null;
+
+  return {
+    kind: 'system_error',
+    severity: 'critical',
+    count: new Set(broken.map((b) => b.name)).size,
+    detail: `${broken[0].name}${broken[0].error ? `: ${broken[0].error.slice(0, 100)}` : ''}`,
+    href: '/inicio',
   };
 }
 
