@@ -323,6 +323,11 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
           ) : platform === 'tiendanube' ? (
             <button
               onClick={handleTiendanubeConnect}
+              // El título nombra la plataforma porque la página tiene una
+              // docena de botones que dicen sólo "Conectar": sin esto no hay
+              // manera de distinguirlos ni para un lector de pantalla ni
+              // desde fuera.
+              title={`${t('common.connect')} ${meta.label}`}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               <Image src={meta.logo} alt="" width={16} height={16} />
