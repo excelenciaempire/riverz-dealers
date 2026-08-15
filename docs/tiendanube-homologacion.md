@@ -235,6 +235,30 @@ cambia el tamaño del trabajo.
 
 ---
 
+## 5.1 Pedido real: webhook verificado (2026-08-14)
+
+Se compró en la tienda demo desde el navegador, como lo haría un cliente:
+pedido **#100** (`2045729799`), Serum Vitamina C, COP 69.000.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Entrega del webhook | El portal (Aplicaciones → Logs) registra `Webhook delivered successfully to https://riverz.co/api/tiendanube/webhooks — 200 — 929 ms` |
+| Firma HMAC | Verificada: el handler siguió más allá del 401 |
+| Lectura del pedido por API | Hecha: el handler resuelve el recurso porque el cuerpo no lo trae |
+| Alta en `shopify_order_fulfillment_state` | Fila del pedido creada — el claim de `order/created` funcionó |
+| Disparo de automatización | **No**, terminó en `no_phone` |
+
+Dos configuraciones de la tienda demo faltaban y se corrigieron:
+
+- **No había ningún medio de pago activo**, así que el checkout mostraba
+  "No encontramos ninguna opción de pago disponible" y no dejaba cerrar la
+  compra. Se activó el pago personalizado **"A convenir"**.
+- **El checkout no pedía teléfono**, y sin teléfono la ingesta corta en
+  `no_phone`: espeja el pedido pero no crea contacto ni dispara nada. Se
+  activó "Pedir teléfono de contacto" en Configuración → Opciones del
+  checkout. Sin esto, la escena de funcionalidad del video no tiene
+  mensaje de WhatsApp que mostrar.
+
 ## 6. Estado del checklist
 
 | Requisito | Estado |
@@ -247,6 +271,28 @@ cambia el tamaño del trabajo.
 | Diagrama de secuencia | Hecho (sección 2) |
 | Instalación probada de punta a punta | Hecho (sección 4.1) |
 | Cuenta Riverz para el revisor | Hecho |
-| Webhook de pedido recibido con un pedido real | Pendiente |
+| Webhook de pedido recibido con un pedido real | Hecho (sección 5.1) |
+| Datos básicos en el portal | Hecho |
+| **Datos de publicación en el portal** | **Pendiente — es lo que traba el botón** |
 | Video demo | Pendiente (guion en la sección 3) |
-| Definición sobre NubeSDK | **Pendiente — bloquea el envío** |
+| Definición sobre NubeSDK | Consultada a socios@tiendanube.com |
+
+## 7. Lo que realmente traba el envío
+
+El botón **"Solicitar homologación"** vive en la pestaña Configuración de la
+app y está bloqueado con el mensaje "Completa los formularios de datos
+básicos y de publicación". Datos básicos figura *Finalizada*; **Datos de
+publicación figura *Pendiente***. Ese formulario pide:
+
+1. **URLs**: de configuraciones, de política de privacidad, de soporte, y un
+   e-mail de soporte. El handle ya está tomado como `riverz`.
+2. **Por país** (Argentina, Brasil, Chile, Colombia, México), y cada uno por
+   separado:
+   - Forma de cobro: gratis, pago único o mensual recurrente.
+   - Descripción breve (≤140 caracteres) y descripción larga (≤2000).
+   - Ícono de **exactamente 200 × 200 px**, hasta 400 KB.
+   - Entre **3 y 5 imágenes de exactamente 1920 × 1080 px**, hasta 5 MB.
+   - Video de YouTube de hasta 3 minutos y hasta 10 preguntas frecuentes.
+
+De esto, lo único que no se puede escribir sin una decisión del dueño es la
+forma de cobro y en qué países se publica.
