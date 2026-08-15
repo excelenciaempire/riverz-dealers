@@ -15,6 +15,7 @@ import {
 } from '@/lib/automations/validate'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -32,12 +33,9 @@ export async function GET(request: Request) {
   let resolvedWorkspaceId: string | null =
     url.searchParams.get('workspace_id') ?? null
   if (resolvedWorkspaceId) {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('workspace_id', resolvedWorkspaceId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Un workspace borrado ya no es un destino válido: la membresía
+    // sobrevive al borrado, así que preguntarla sola lo aceptaría.
+    const member = await isMemberOfLiveWorkspace(admin, user.id, resolvedWorkspaceId)
     if (!member) {
       return NextResponse.json(
         { error: translate(locale, 'errFlows.notWorkspaceMember') },
@@ -45,13 +43,12 @@ export async function GET(request: Request) {
       )
     }
   } else {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .order('joined_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    const member = {
+      // Descarta los workspaces borrados. Sin eso, una cuenta que se
+      // unió primero a uno que después borró escribe siempre ahí: la
+      // fila se guarda y no aparece en ninguna pantalla.
+      workspace_id: await resolveWorkspaceIdForUser(admin, user.id),
+    }
     resolvedWorkspaceId =
       (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
   }
@@ -154,12 +151,9 @@ export async function POST(request: Request) {
   let resolvedWorkspaceId: string | null =
     (body.workspace_id as string | undefined) ?? null
   if (resolvedWorkspaceId) {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('workspace_id', resolvedWorkspaceId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Un workspace borrado ya no es un destino válido: la membresía
+    // sobrevive al borrado, así que preguntarla sola lo aceptaría.
+    const member = await isMemberOfLiveWorkspace(admin, user.id, resolvedWorkspaceId)
     if (!member) {
       return NextResponse.json(
         { error: translate(locale, 'errFlows.notWorkspaceMember') },
@@ -167,15 +161,11 @@ export async function POST(request: Request) {
       )
     }
   } else {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .order('joined_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    resolvedWorkspaceId =
-      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+    // Acá se ESCRIBE, así que el workspace equivocado no se nota: la
+    // automatización se guarda, no aparece en ninguna pantalla y no la
+    // dispara nadie. Es lo que enterró dos flujos y una automatización en
+    // esta misma cuenta.
+    resolvedWorkspaceId = await resolveWorkspaceIdForUser(admin, user.id)
   }
   if (!resolvedWorkspaceId) {
     return NextResponse.json(

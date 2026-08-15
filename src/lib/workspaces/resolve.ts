@@ -54,3 +54,28 @@ export async function resolveWorkspaceIdForUser(
     .maybeSingle()
   return (member as { workspace_id?: string } | null)?.workspace_id ?? null
 }
+
+/**
+ * ¿Este usuario es miembro de ESE workspace, y el workspace sigue vivo?
+ *
+ * La comprobación de membresía suelta —un SELECT sobre `workspace_members`—
+ * acepta workspaces borrados, porque borrar uno sólo le pone la marca a la
+ * fila de `workspaces` y no toca las membresías. Escribir ahí es escribir en
+ * un lugar que la aplicación ya no muestra: la automatización se guarda, no
+ * aparece en ninguna pantalla y no la dispara nadie.
+ */
+export async function isMemberOfLiveWorkspace(
+  db: SupabaseClient,
+  userId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  if (!userId || !workspaceId) return false
+  const { data } = await db
+    .from('workspace_members')
+    .select('workspace_id, workspaces!inner(deleted_at)')
+    .eq('user_id', userId)
+    .eq('workspace_id', workspaceId)
+    .is('workspaces.deleted_at', null)
+    .maybeSingle()
+  return Boolean(data)
+}

@@ -5,6 +5,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { escapeLike } from '@/lib/security/like';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 
 /**
  * POST /api/broadcasts/audience-preview
@@ -83,13 +84,12 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin();
-  const { data: member } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const member = {
+      // Descarta los workspaces borrados. Sin eso, una cuenta que se
+      // unió primero a uno que después borró escribe siempre ahí: la
+      // fila se guarda y no aparece en ninguna pantalla.
+      workspace_id: await resolveWorkspaceIdForUser(admin, user.id),
+    };
   const workspaceId =
     (member as { workspace_id?: string } | null)?.workspace_id ?? null;
   if (!workspaceId) {

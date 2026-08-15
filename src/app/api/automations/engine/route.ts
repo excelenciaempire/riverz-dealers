@@ -6,6 +6,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import type { AutomationTriggerType } from '@/types'
+import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
 
 /**
  * Manual trigger for testing or for external integrations that want
@@ -39,12 +40,9 @@ export async function POST(request: Request) {
   let resolvedWorkspaceId: string | null =
     (body.workspace_id as string | undefined) ?? null
   if (resolvedWorkspaceId) {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('workspace_id', resolvedWorkspaceId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Un workspace borrado ya no es un destino válido: la membresía
+    // sobrevive al borrado, así que preguntarla sola lo aceptaría.
+    const member = await isMemberOfLiveWorkspace(admin, user.id, resolvedWorkspaceId)
     if (!member) {
       return NextResponse.json(
         { error: translate(locale, 'errFlows.notWorkspaceMember') },
@@ -52,15 +50,10 @@ export async function POST(request: Request) {
       )
     }
   } else {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .order('joined_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    resolvedWorkspaceId =
-      (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
+    // Descarta los workspaces borrados: sin eso, una cuenta que se unió
+    // primero a uno que después borró dispara siempre contra ese, donde no
+    // hay ninguna automatización, y la llamada contesta "ok" sin hacer nada.
+    resolvedWorkspaceId = await resolveWorkspaceIdForUser(admin, user.id)
   }
   if (!resolvedWorkspaceId) {
     return NextResponse.json(

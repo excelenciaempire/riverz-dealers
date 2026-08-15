@@ -10,6 +10,7 @@ import {
 } from '@/lib/flows/templates'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 /**
  * GET /api/flows — list the caller's flows.
@@ -92,13 +93,12 @@ export async function POST(request: Request) {
   // and the previous insert was leaving it null which made every
   // freshly-created flow invisible to the auth-scoped GET that
   // /flows/[id] uses (→ "Flujo no encontrado").
-  const { data: membership } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', userId)
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
+  const membership = {
+      // Descarta los workspaces borrados. Sin eso, una cuenta que se
+      // unió primero a uno que después borró escribe siempre ahí: la
+      // fila se guarda y no aparece en ninguna pantalla.
+      workspace_id: await resolveWorkspaceIdForUser(admin, userId),
+    }
   const workspaceId = (membership as { workspace_id?: string } | null)?.workspace_id
   if (!workspaceId) {
     return NextResponse.json(

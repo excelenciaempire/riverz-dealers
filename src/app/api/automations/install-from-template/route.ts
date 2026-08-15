@@ -12,6 +12,7 @@ import {
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
 
 // ------------------------------------------------------------
 // Install an automation from a pre-built template in one POST.
@@ -67,12 +68,9 @@ export async function POST(request: Request) {
   // matched any runAutomationsForTrigger(workspace_id=…) dispatch.
   let workspaceId = body?.workspace_id ?? null
   if (workspaceId) {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('workspace_id', workspaceId)
-      .eq('user_id', user.id)
-      .maybeSingle()
+    // Un workspace borrado ya no es un destino válido: la membresía
+    // sobrevive al borrado, así que preguntarla sola lo aceptaría.
+    const member = await isMemberOfLiveWorkspace(admin, user.id, workspaceId)
     if (!member) {
       return NextResponse.json(
         { error: translate(locale, 'errFlows.notWorkspaceMember') },
@@ -80,13 +78,12 @@ export async function POST(request: Request) {
       )
     }
   } else {
-    const { data: member } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .order('joined_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    const member = {
+      // Descarta los workspaces borrados. Sin eso, una cuenta que se
+      // unió primero a uno que después borró escribe siempre ahí: la
+      // fila se guarda y no aparece en ninguna pantalla.
+      workspace_id: await resolveWorkspaceIdForUser(admin, user.id),
+    }
     workspaceId =
       (member as { workspace_id?: string | null } | null)?.workspace_id ?? null
   }
