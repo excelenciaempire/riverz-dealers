@@ -37,7 +37,6 @@ import {
   Zap,
   Loader2,
   ArrowRight,
-  ArrowDown,
   Undo2,
   Redo2,
   ZoomIn,
