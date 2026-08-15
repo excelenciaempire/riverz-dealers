@@ -104,7 +104,14 @@ async function throwMetaError(response: Response, fallback: string): Promise<nev
     subcode = err?.error_subcode
     // Meta pone la explicación accionable en error_data.details o
     // error_user_msg; preferimos esa al `message` genérico.
-    detail = err?.error_data?.details || err?.error_user_msg || undefined
+    // `error_user_title` es el titular en castellano de la consola de Meta
+    // ("Content in This Language Already Exists"); sin él, `message` llega
+    // como "Invalid parameter" y no se entiende nada.
+    detail =
+      err?.error_data?.details ||
+      err?.error_user_msg ||
+      err?.error_user_title ||
+      undefined
     fbtraceId = err?.fbtrace_id
   } catch {
     // response body wasn't JSON — keep the fallback

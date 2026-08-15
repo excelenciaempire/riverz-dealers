@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   createMessageTemplate,
+  MetaApiError,
   type MetaTemplateCategory,
 } from '@/lib/whatsapp/meta-api'
 import {
@@ -177,13 +178,17 @@ export async function POST(request: Request) {
         components,
       })
     } catch (err) {
-      // Surface Meta's reason (e.g. duplicate name, invalid variable) directly.
+      // El motivo REAL de Meta viaja en `detail` (error_user_msg /
+      // error_user_title); `message` suele ser "Invalid parameter", que no le
+      // dice nada a nadie. Se muestra el detalle cuando existe.
+      const detail = err instanceof MetaApiError ? err.detail : undefined
       return NextResponse.json(
         {
           error:
-            err instanceof Error
+            detail ||
+            (err instanceof Error
               ? err.message
-              : translate(locale, 'errWhatsapp.metaRejectedTemplate'),
+              : translate(locale, 'errWhatsapp.metaRejectedTemplate')),
         },
         { status: 502 },
       )
