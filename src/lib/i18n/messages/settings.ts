@@ -107,6 +107,10 @@ export const settings = {
     es: "Conexión cancelada",
     en: "Connection cancelled",
   },
+  connectResultRetry: {
+    es: "La autorización venció. Vuelve a darle a Conectar.",
+    en: "The authorization expired. Hit Connect again.",
+  },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",

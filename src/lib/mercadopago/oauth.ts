@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { publicBaseUrl } from '@/lib/base-url'
 
@@ -65,13 +65,34 @@ export function verifyState(state: string): string | null {
   return workspaceId
 }
 
-export function authorizeUrl(workspaceId: string): string {
+/**
+ * PKCE. Mercado Pago lo exige: sin `code_verifier`, el canje del código
+ * responde 400 `code_verifier is a required parameter` y la conexión no se
+ * completa nunca.
+ *
+ * El secreto se arma al empezar, viaja sólo su hash hasta Mercado Pago y se
+ * guarda en una cookie del navegador hasta la vuelta. Así, un código robado
+ * en el camino no alcanza para canjear nada: falta el original.
+ */
+export const PKCE_COOKIE = 'mp_oauth_pkce'
+
+export function newVerifier(): string {
+  return randomBytes(32).toString('base64url')
+}
+
+export function challengeFor(verifier: string): string {
+  return createHash('sha256').update(verifier).digest('base64url')
+}
+
+export function authorizeUrl(workspaceId: string, verifier: string): string {
   const qs = new URLSearchParams({
     client_id: clientId(),
     response_type: 'code',
     platform_id: 'mp',
     state: signState(workspaceId),
     redirect_uri: redirectUri(),
+    code_challenge: challengeFor(verifier),
+    code_challenge_method: 'S256',
   })
   return `${AUTH_URL}?${qs}`
 }
@@ -109,13 +130,14 @@ async function postToken(body: Record<string, string>): Promise<MpTokens> {
   return parseTokens(JSON.parse(text) as Record<string, unknown>)
 }
 
-export function exchangeCode(code: string): Promise<MpTokens> {
+export function exchangeCode(code: string, verifier: string): Promise<MpTokens> {
   return postToken({
     client_id: clientId(),
     client_secret: clientSecret(),
     code,
     grant_type: 'authorization_code',
     redirect_uri: redirectUri(),
+    code_verifier: verifier,
   })
 }
 

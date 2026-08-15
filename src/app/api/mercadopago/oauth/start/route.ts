@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
-import { authorizeUrl, oauthConfigured } from '@/lib/mercadopago/oauth';
+import {
+  authorizeUrl,
+  newVerifier,
+  oauthConfigured,
+  PKCE_COOKIE,
+} from '@/lib/mercadopago/oauth';
 
 /**
  * Arranque del "Conectar" de Mercado Pago: manda al comerciante a autorizar.
@@ -30,5 +35,17 @@ export async function GET() {
     return NextResponse.json({ error: 'oauth_not_configured' }, { status: 503 });
   }
 
-  return NextResponse.redirect(authorizeUrl(workspaceId));
+  // El secreto de PKCE se arma acá y viaja en una cookie hasta la vuelta;
+  // a Mercado Pago sólo le va su hash. `lax` alcanza: el regreso es una
+  // navegación de primer nivel.
+  const verifier = newVerifier();
+  const res = NextResponse.redirect(authorizeUrl(workspaceId, verifier));
+  res.cookies.set(PKCE_COOKIE, verifier, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 600,
+  });
+  return res;
 }

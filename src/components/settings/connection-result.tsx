@@ -44,6 +44,8 @@ export function ConnectionResult() {
       toast.success(t('settings.mpConnected'));
     } else if (mp === 'cancelado') {
       toast.info(t('settings.connectResultCancelled'));
+    } else if (mp === 'reintentar') {
+      toast.error(t('settings.connectResultRetry'));
     } else if (mp) {
       toast.error(t('settings.connectResultError'), {
         description: params.get('detalle') ?? undefined,

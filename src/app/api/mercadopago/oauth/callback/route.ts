@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { publicBaseUrl } from '@/lib/base-url';
-import { exchangeCode, verifyState } from '@/lib/mercadopago/oauth';
+import { exchangeCode, verifyState, PKCE_COOKIE } from '@/lib/mercadopago/oauth';
 import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('mercadopago.oauth');
@@ -28,7 +28,10 @@ function back(status: string, detail?: string) {
   const url = new URL('/integraciones', publicBaseUrl());
   url.searchParams.set('mercadopago', status);
   if (detail) url.searchParams.set('detalle', detail.slice(0, 200));
-  return NextResponse.redirect(url.toString());
+  const res = NextResponse.redirect(url.toString());
+  // El secreto de PKCE sirve una sola vez, salga bien o mal.
+  res.cookies.delete(PKCE_COOKIE);
+  return res;
 }
 
 export async function GET(request: NextRequest) {
@@ -42,8 +45,14 @@ export async function GET(request: NextRequest) {
   // El comerciante cerró la pantalla o negó el permiso.
   if (!code) return back('cancelado');
 
+  // El secreto de PKCE quedó en una cookie al empezar. Si no está, la
+  // autorización arrancó en otro navegador o pasaron más de diez minutos:
+  // se vuelve a empezar, que es lo único que lo arregla.
+  const verifier = request.cookies.get(PKCE_COOKIE)?.value;
+  if (!verifier) return back('reintentar');
+
   try {
-    const tokens = await exchangeCode(code);
+    const tokens = await exchangeCode(code, verifier);
     if (!tokens.accessToken) return back('error', 'sin access_token');
 
     const admin = supabaseAdmin();
