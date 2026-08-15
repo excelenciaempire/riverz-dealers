@@ -35,4 +35,23 @@ export const health: Namespace = {
     es: "{n} campaña(s) quedaron enviando y no terminaron",
     en: "{n} campaign(s) got stuck sending and never finished",
   },
+
+  // Ingresos atribuidos
+  revenueTitle: { es: "Lo que generó Riverz", en: "What Riverz generated" },
+  revenueStoreTotal: {
+    es: "Tienda: {total} en {orders} pedidos",
+    en: "Store: {total} across {orders} orders",
+  },
+  revenueByAutomation: { es: "Por automatización", en: "By automation" },
+  revenueByBroadcast: { es: "Por campaña", en: "By campaign" },
+  revenueByFlow: { es: "Por flujo", en: "By flow" },
+  revenueByIgAgent: { es: "Agente de Instagram", en: "Instagram agent" },
+  revenueNothingAttributed: {
+    es: "Todavía no hay pedidos que se puedan atribuir a un envío de Riverz en este rango.",
+    en: "No orders in this range can be traced back to a Riverz message yet.",
+  },
+  revenueDisclaimer: {
+    es: "Cuenta el pedido de quien recibió un mensaje en las 72 h previas. Las vistas no se suman entre sí: un mismo pedido puede aparecer en varias.",
+    en: "Counts orders from people who got a message in the previous 72h. The views don't add up: one order can appear in several.",
+  },
 };

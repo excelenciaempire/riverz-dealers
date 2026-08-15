@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
+import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
 import {
@@ -55,6 +56,9 @@ export default function DashboardPage() {
   const [preset, setPreset] = useState<RangePreset>('7d')
   const [custom, setCustom] = useState<CustomRange | null>(null)
 
+  // Rango activo en ISO. La tarjeta de ingresos atribuidos consulta una API
+  // propia (no Supabase), asi que necesita el rango, no el resultado.
+  const [rangeIso, setRangeIso] = useState<{ start: string; end: string } | null>(null)
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [series, setSeries] = useState<ConversationsSeriesPoint[] | null>(null)
@@ -88,6 +92,7 @@ export default function DashboardPage() {
     const db = createClient()
     const activeTz = tzRef.current
     const range = rangeForPreset(activeTz, presetRef.current, customRef.current)
+    setRangeIso({ start: range.start.toISOString(), end: range.end.toISOString() })
     const prev = previousRangeForPreset(activeTz, presetRef.current, range)
     const epoch = ++epochRef.current
     const fresh = () => epoch === epochRef.current
@@ -240,6 +245,10 @@ export default function DashboardPage() {
 
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+
+      {/* Lo que genero Riverz, en plata. El calculo ya existia y no lo miraba
+          nadie: no tenia pantalla. */}
+      <AttributedRevenue start={rangeIso?.start ?? null} end={rangeIso?.end ?? null} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
