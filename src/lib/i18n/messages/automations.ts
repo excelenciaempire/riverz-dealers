@@ -382,6 +382,10 @@ export const automations = {
   addStep: { es: "Añadir paso", en: "Add step" },
   dragHandle: { es: "Arrastrar para mover", en: "Drag to move" },
   dropHere: { es: "Soltar aquí", en: "Drop here" },
+  dragOverSlot: {
+    es: "llévalo a un hueco",
+    en: "move it over a slot",
+  },
   chooseWhatToDo: { es: "Elige qué hacer", en: "Choose what to do" },
 
   // Builder — send_message / send_template editors

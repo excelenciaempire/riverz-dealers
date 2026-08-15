@@ -1328,8 +1328,14 @@ export function AutomationBuilder({
     return mejor?.id ?? null
   }, [])
 
+  // Dónde está el puntero: lo sigue la tarjeta fantasma.
+  const [puntero, setPuntero] = useState<{ x: number; y: number } | null>(null)
+
   const apuntar = useCallback(
-    (x: number, y: number) => setActivo(huecoEn(x, y)),
+    (x: number, y: number) => {
+      setPuntero({ x, y })
+      setActivo(huecoEn(x, y))
+    },
     [huecoEn],
   )
 
@@ -1338,16 +1344,21 @@ export function AutomationBuilder({
   // arrastre se cortaría al primer movimiento.
   useEffect(() => {
     if (!arrastrando) return
-    const mover = (e: PointerEvent) => setActivo(huecoEn(e.clientX, e.clientY))
+    const mover = (e: PointerEvent) => {
+      setPuntero({ x: e.clientX, y: e.clientY })
+      setActivo(huecoEn(e.clientX, e.clientY))
+    }
     const soltar = (e: PointerEvent) => {
       const id = huecoEn(e.clientX, e.clientY)
       huecos.current.get(id ?? "")?.current?.()
       tomar(null)
       setActivo(null)
+      setPuntero(null)
     }
     const cancelar = () => {
       tomar(null)
       setActivo(null)
+      setPuntero(null)
     }
     window.addEventListener("pointermove", mover)
     window.addEventListener("pointerup", soltar)
@@ -1625,6 +1636,30 @@ export function AutomationBuilder({
     <DragContext.Provider
       value={{ arrastrando, tomar, apuntar, registrar, olvidar, activo }}
     >
+    {/* La tarjeta que viaja, pegada al puntero. Sin esto el gesto es invisible:
+        la de origen se atenúa y nada más, así que no se sabe si se agarró algo
+        ni qué. Va portaleada al body porque el lienzo recorta y escala, y una
+        pieza que sigue al mouse no puede estar sujeta a eso. */}
+    {arrastrando && puntero &&
+      createPortal(
+        <div
+          style={{
+            position: "fixed",
+            left: puntero.x + 14,
+            top: puntero.y + 14,
+            zIndex: 100,
+            pointerEvents: "none",
+          }}
+          className="flex items-center gap-2 rounded-lg border border-primary/50 bg-card px-3 py-2 text-sm text-foreground shadow-xl"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" aria-hidden />
+          {t(STEP_META[arrastrando.step.step_type].label)}
+          <span className="text-[11px] text-muted-foreground">
+            {activo ? t("automations.dropHere") : t("automations.dragOverSlot")}
+          </span>
+        </div>,
+        document.body,
+      )}
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
