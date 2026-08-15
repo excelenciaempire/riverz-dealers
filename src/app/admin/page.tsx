@@ -25,6 +25,8 @@ interface Payload {
     cronsBroken: number;
     schedulerAlive: boolean;
     schedulerLastTickAt: string | null;
+    workspacesWithIssues: number;
+    workspacesCritical: number;
   };
 }
 
@@ -53,6 +55,13 @@ export default function AdminHomePage() {
   const ops = data?.ops;
   const alerts: { n: number; label: string; href: string }[] = o
     ? [
+        // Primero los comercios rotos: es lo único de esta lista que se
+        // traduce, hoy, en un cliente que no recibió lo que esperaba.
+        {
+          n: ops?.workspacesCritical ?? 0,
+          label: t("admin.alertWorkspacesBroken"),
+          href: "/admin/comercios",
+        },
         { n: o.connections_error, label: t("admin.alertConnections"), href: "/admin/canales" },
         { n: o.webhooks_unprocessed, label: t("admin.alertWebhooks"), href: "/admin/operacion" },
         { n: ops?.cronsBroken ?? o.crons_error, label: t("admin.alertCrons"), href: "/admin/operacion" },

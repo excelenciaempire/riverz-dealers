@@ -41,8 +41,16 @@ export default function AdminWorkspaceDetailPage({
       </div>
     );
 
-  const { workspace, owner, members, connections, agents, counts, recentErrors } =
-    data;
+  const {
+    workspace,
+    owner,
+    members,
+    connections,
+    agents,
+    counts,
+    recentErrors,
+    issues,
+  } = data;
 
   return (
     <div className="space-y-5">
@@ -54,6 +62,36 @@ export default function AdminWorkspaceDetailPage({
           .filter(Boolean)
           .join(" · ")}
       />
+
+      {/* Lo que está roto AHORA — el mismo criterio que ve el comercio en su
+          Inicio. Va antes que los números: los últimos errores son historial,
+          esto es estado, y una corrida trabada no deja línea de error. */}
+      {issues.length > 0 && (
+        <Panel title={t("health.needsAttention")}>
+          <ul className="divide-y divide-border">
+            {issues.map((issue) => (
+              <li
+                key={`${issue.kind}-${issue.href}`}
+                className="flex items-start gap-2.5 px-4 py-2.5 text-sm"
+              >
+                <span
+                  className={
+                    issue.severity === "critical"
+                      ? "mt-1.5 size-1.5 shrink-0 rounded-full bg-red-500"
+                      : "mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500"
+                  }
+                />
+                <span className="min-w-0 flex-1 text-foreground">
+                  {t(`health.${issue.kind}`, { n: issue.count })}
+                  {issue.detail && (
+                    <span className="text-muted-foreground"> · {issue.detail}</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       {/* Volumen */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">

@@ -15,21 +15,30 @@
  * Regla de qué entra: sólo lo accionable por el comercio y lo que ya pasó. Un
  * aviso que no se puede atender es ruido, y a la tercera vez que aparece deja
  * de leerse — con él, todos los demás.
+ *
+ * La detección vive en SQL (`admin_workspace_issues`, migración 152) y no acá.
+ * El motivo es el alcance: eran seis consultas por cuenta, así que el panel de
+ * plataforma no podía correrlas para todos los comercios y terminaba diciendo
+ * "todo en orden" el mismo día en que un comercio recibía el correo con seis
+ * problemas. Ahora la misma función contesta por una cuenta o por todas, y las
+ * dos pantallas no se pueden contradecir.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type IssueSeverity = 'critical' | 'warning';
 
+export type IssueKind =
+  | 'automation_stuck'
+  | 'automation_failed'
+  | 'sends_failing'
+  | 'whatsapp_blocked'
+  | 'connection_error'
+  | 'template_rejected'
+  | 'broadcast_stalled';
+
 export interface Issue {
   /** Clave estable; la UI la traduce y decide el link. */
-  kind:
-    | 'automation_stuck'
-    | 'automation_failed'
-    | 'sends_failing'
-    | 'whatsapp_blocked'
-    | 'connection_error'
-    | 'template_rejected'
-    | 'broadcast_stalled';
+  kind: IssueKind;
   severity: IssueSeverity;
   /** Cuántas cosas caen bajo este aviso (mensajes, corridas, conexiones). */
   count: number;
@@ -39,303 +48,81 @@ export interface Issue {
   href: string;
 }
 
-/** Una corrida dormida más de esto ya no está esperando: está trabada. */
-const STUCK_RUN_HOURS = 2;
-/** Ventana para contar fallas de envío. */
-const FAILURE_WINDOW_HOURS = 6;
-/** Menos que esto es ruido normal (un número mal escrito, un bloqueo puntual). */
-const FAILURE_MIN = 3;
+/** Fila cruda de la función SQL. */
+export interface IssueRow {
+  workspace_id: string;
+  kind: IssueKind;
+  severity: IssueSeverity;
+  count: number;
+  detail: string | null;
+  /** Id de la automatización, cuando el aviso apunta a una en particular. */
+  ref_id: string | null;
+}
 
+/** A dónde se resuelve cada clase de problema. */
+function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id'>): string {
+  switch (row.kind) {
+    case 'automation_stuck':
+    case 'automation_failed':
+      return row.ref_id ? `/automatizaciones/${row.ref_id}` : '/automatizaciones';
+    case 'sends_failing':
+      return '/bandeja';
+    case 'connection_error':
+    case 'whatsapp_blocked':
+      return '/integraciones';
+    case 'template_rejected':
+      return '/plantillas';
+    case 'broadcast_stalled':
+      return '/campanas';
+  }
+}
+
+/** Lo crítico primero: son las que cortan envíos. */
+function porGravedad(a: Issue, b: Issue): number {
+  if (a.severity === b.severity) return b.count - a.count;
+  return a.severity === 'critical' ? -1 : 1;
+}
+
+export function toIssue(row: IssueRow): Issue {
+  return {
+    kind: row.kind,
+    severity: row.severity,
+    count: Number(row.count) || 0,
+    detail: row.detail,
+    href: hrefFor(row),
+  };
+}
+
+/** Lo que necesita atención en UN comercio. */
 export async function collectWorkspaceIssues(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<Issue[]> {
-  const now = Date.now();
-  const issues: Issue[] = [];
-
-  const [stuck, failed, failing, connections, templates, broadcasts] =
-    await Promise.all([
-      stuckRuns(db, workspaceId, now),
-      failedRuns(db, workspaceId, now),
-      failingSends(db, workspaceId, now),
-      brokenConnections(db, workspaceId),
-      rejectedTemplates(db, workspaceId),
-      stalledBroadcasts(db, workspaceId, now),
-    ]);
-
-  if (stuck) issues.push(stuck);
-  if (failed) issues.push(failed);
-  if (failing) issues.push(failing);
-  issues.push(...connections);
-  if (templates) issues.push(templates);
-  if (broadcasts) issues.push(broadcasts);
-
-  // Lo crítico primero: son las que cortan envíos.
-  return issues.sort((a, b) =>
-    a.severity === b.severity ? b.count - a.count : a.severity === 'critical' ? -1 : 1,
-  );
+  const { data, error } = await db.rpc('admin_workspace_issues', {
+    p_workspace_id: workspaceId,
+  });
+  if (error) throw new Error(`[health] admin_workspace_issues: ${error.message}`);
+  return ((data ?? []) as IssueRow[]).map(toIssue).sort(porGravedad);
 }
 
 /**
- * Corridas que se quedaron a mitad de camino. "Parcial" es normal mientras la
- * automatización espera; deja de serlo cuando pasaron horas y no hay ninguna
- * reanudación encolada — ahí el mensaje no va a salir nunca solo.
+ * Lo mismo para TODA la plataforma, agrupado por comercio. Es lo que mira el
+ * panel: una sola consulta en vez de seis por cuenta.
  */
-async function stuckRuns(
+export async function collectPlatformIssues(
   db: SupabaseClient,
-  workspaceId: string,
-  now: number,
-): Promise<Issue | null> {
-  const cutoff = new Date(now - STUCK_RUN_HOURS * 3600_000).toISOString();
-  const { data } = await db
-    .from('automation_logs')
-    .select('id, automation_id')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'partial')
-    .lt('created_at', cutoff)
-    .order('created_at', { ascending: false })
-    .limit(200);
-  const rows = (data ?? []) as Array<{ id: string; automation_id: string }>;
-  if (rows.length === 0) return null;
+): Promise<Map<string, Issue[]>> {
+  const { data, error } = await db.rpc('admin_workspace_issues', {
+    p_workspace_id: null,
+  });
+  if (error) throw new Error(`[health] admin_workspace_issues: ${error.message}`);
 
-  // Una espera encolada (pendiente o corriendo) significa que el sistema
-  // todavía la tiene en la mano: no es un problema del comercio.
-  const { data: queued } = await db
-    .from('automation_pending_executions')
-    .select('log_id')
-    .in('status', ['pending', 'running'])
-    .in(
-      'log_id',
-      rows.map((r) => r.id),
-    );
-  const alive = new Set(
-    ((queued ?? []) as Array<{ log_id: string | null }>).map((q) => q.log_id),
-  );
-  const dead = rows.filter((r) => !alive.has(r.id));
-  if (dead.length === 0) return null;
-
-  // El nombre de la automatización dice más que un conteo suelto.
-  const { data: automation } = await db
-    .from('automations')
-    .select('name')
-    .eq('id', dead[0].automation_id)
-    .maybeSingle();
-
-  return {
-    kind: 'automation_stuck',
-    severity: 'critical',
-    count: dead.length,
-    detail: (automation as { name?: string } | null)?.name ?? null,
-    href: `/automatizaciones/${dead[0].automation_id}`,
-  };
-}
-
-/**
- * Corridas que reventaron, con el error tal cual quedó anotado.
- *
- * Es el aviso más literal de todos: una automatización que tira una excepción
- * escribe `status: failed` y su `error_message`, y hasta ahora eso vivía dentro
- * del detalle de la automatización — había que entrar a buscarlo sabiendo que
- * existía. El mensaje del error se muestra crudo a propósito: "template not
- * found: carrito_v3" le dice al comercio exactamente qué arreglar, mucho mejor
- * que un "algo falló" traducido.
- */
-async function failedRuns(
-  db: SupabaseClient,
-  workspaceId: string,
-  now: number,
-): Promise<Issue | null> {
-  const since = new Date(now - 24 * 3600_000).toISOString();
-  const { data } = await db
-    .from('automation_logs')
-    .select('id, automation_id, error_message')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'failed')
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(100);
-  const rows = (data ?? []) as Array<{
-    automation_id: string;
-    error_message: string | null;
-  }>;
-  if (rows.length === 0) return null;
-
-  const message = rows.find((r) => r.error_message)?.error_message ?? null;
-  return {
-    kind: 'automation_failed',
-    severity: 'critical',
-    count: rows.length,
-    detail: message ? message.slice(0, 120) : null,
-    href: `/automatizaciones/${rows[0].automation_id}`,
-  };
-}
-
-/** Mensajes que Meta rechazó en las últimas horas, con el motivo más repetido. */
-async function failingSends(
-  db: SupabaseClient,
-  workspaceId: string,
-  now: number,
-): Promise<Issue | null> {
-  const since = new Date(now - FAILURE_WINDOW_HOURS * 3600_000).toISOString();
-  const { data } = await db
-    .from('messages')
-    .select('id, error_reason, conversations!inner(workspace_id)')
-    .eq('conversations.workspace_id', workspaceId)
-    .eq('status', 'failed')
-    .gte('created_at', since)
-    .limit(500);
-  const rows = (data ?? []) as Array<{ error_reason: string | null }>;
-  if (rows.length < FAILURE_MIN) return null;
-
-  const byReason = new Map<string, number>();
-  for (const r of rows) {
-    const reason = (r.error_reason ?? '').trim() || 'sin motivo';
-    byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
+  const out = new Map<string, Issue[]>();
+  for (const row of (data ?? []) as IssueRow[]) {
+    const list = out.get(row.workspace_id) ?? [];
+    list.push(toIssue(row));
+    out.set(row.workspace_id, list);
   }
-  const top = [...byReason.entries()].sort((a, b) => b[1] - a[1])[0];
-
-  return {
-    kind: 'sends_failing',
-    severity: 'critical',
-    count: rows.length,
-    detail: top?.[0] ?? null,
-    href: '/bandeja',
-  };
-}
-
-/**
- * Conexiones caídas y WhatsApp bloqueado. Son distintas cosas para el comercio:
- * una conexión en error se arregla reconectando; un WABA bloqueado se arregla
- * en el panel de Meta (impuestos, medio de pago) y ninguna plantilla sale hasta
- * entonces.
- */
-async function brokenConnections(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<Issue[]> {
-  const { data } = await db
-    .from('channel_connections')
-    .select('channel, status, config')
-    .eq('workspace_id', workspaceId);
-  const rows = (data ?? []) as Array<{
-    channel: string;
-    status: string;
-    config?: { health_status?: string | null } | null;
-  }>;
-
-  const out: Issue[] = [];
-
-  const broken = rows.filter((r) => r.status === 'error' || r.status === 'expired');
-  if (broken.length > 0) {
-    out.push({
-      kind: 'connection_error',
-      severity: 'critical',
-      count: broken.length,
-      detail: broken.map((b) => b.channel).join(', '),
-      href: '/integraciones',
-    });
-  }
-
-  // Tiendas cuya credencial dejó de servir. Viven en otra tabla que los
-  // canales de mensajería, pero para el comercio es el mismo problema: algo
-  // que conectó una vez y hoy no funciona.
-  //
-  // Sólo 'error' y 'expired'. 'uninstalled' NO es una falla: es el comercio
-  // desconectando su tienda a propósito, o desinstalando la app desde su
-  // panel. Avisarle que "dejó de funcionar y hay que volver a conectarla"
-  // convierte una decisión suya en una alarma roja que no se puede apagar
-  // más que volviendo a conectar — y como el aviso vive arriba de todo en
-  // Inicio, entrena a ignorar la zona entera.
-  const { data: stores } = await db
-    .from('shopify_connections')
-    .select('platform, shop_domain, status')
-    .eq('workspace_id', workspaceId)
-    .in('status', ['error', 'expired']);
-  const deadStores = (stores ?? []) as Array<{
-    platform: string | null;
-    shop_domain: string;
-  }>;
-  // Se suma al aviso de canales en vez de empujar otra línea: las dos tienen
-  // el mismo `kind` y el mismo destino, así que como entradas separadas
-  // chocan en la clave de React y el comercio ve el problema partido en dos.
-  if (deadStores.length > 0) {
-    const domains = deadStores.map((s) => s.shop_domain);
-    const existing = out.find((i) => i.kind === 'connection_error');
-    if (existing) {
-      existing.count += deadStores.length;
-      existing.detail = [existing.detail, ...domains].filter(Boolean).join(', ');
-    } else {
-      out.push({
-        kind: 'connection_error',
-        severity: 'critical',
-        count: deadStores.length,
-        detail: domains.join(', '),
-        href: '/integraciones',
-      });
-    }
-  }
-
-  const blocked = rows.filter(
-    (r) =>
-      r.channel === 'whatsapp' &&
-      String(r.config?.health_status ?? '').toUpperCase() === 'BLOCKED',
-  );
-  if (blocked.length > 0) {
-    out.push({
-      kind: 'whatsapp_blocked',
-      severity: 'critical',
-      count: blocked.length,
-      detail: null,
-      href: '/integraciones',
-    });
-  }
-
+  for (const list of out.values()) list.sort(porGravedad);
   return out;
-}
-
-/** Plantillas que Meta rechazó: no se pueden usar en campañas ni automatizaciones. */
-async function rejectedTemplates(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<Issue | null> {
-  const { data } = await db
-    .from('message_templates')
-    .select('id, name, status')
-    .eq('workspace_id', workspaceId)
-    .ilike('status', 'rejected')
-    .limit(50);
-  const rows = (data ?? []) as Array<{ name: string }>;
-  if (rows.length === 0) return null;
-  return {
-    kind: 'template_rejected',
-    severity: 'warning',
-    count: rows.length,
-    detail: rows[0]?.name ?? null,
-    href: '/plantillas',
-  };
-}
-
-/** Campañas que quedaron "enviando" y no terminaron. */
-async function stalledBroadcasts(
-  db: SupabaseClient,
-  workspaceId: string,
-  now: number,
-): Promise<Issue | null> {
-  const cutoff = new Date(now - 2 * 3600_000).toISOString();
-  const { data } = await db
-    .from('broadcasts')
-    .select('id, name')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'sending')
-    .lt('updated_at', cutoff)
-    .limit(20);
-  const rows = (data ?? []) as Array<{ id: string; name: string | null }>;
-  if (rows.length === 0) return null;
-  return {
-    kind: 'broadcast_stalled',
-    severity: 'warning',
-    count: rows.length,
-    detail: rows[0]?.name ?? null,
-    href: '/campanas',
-  };
 }

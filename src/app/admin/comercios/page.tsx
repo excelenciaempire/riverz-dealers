@@ -57,6 +57,21 @@ export default function AdminWorkspacesPage() {
         ),
       },
       {
+        // Lo mismo que el comercio ve en su Inicio, del lado de la plataforma.
+        key: "health",
+        header: t("admin.colHealth"),
+        cell: (r) => {
+          const critical = r.issues.filter((i) => i.severity === "critical").length;
+          if (r.issues.length === 0) return <StatusPill tone="ok" label={t("admin.healthOk")} />;
+          return (
+            <StatusPill
+              tone={critical > 0 ? "error" : "warn"}
+              label={t("admin.healthIssues", { n: r.issues.length })}
+            />
+          );
+        },
+      },
+      {
         key: "channels",
         header: t("admin.colChannels"),
         cell: (r) =>

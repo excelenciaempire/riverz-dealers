@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveShortId } from '@/lib/short-id';
+import { collectPlatformIssues, collectWorkspaceIssues, type Issue } from '@/lib/health/issues';
 import { assertMetadataOnly } from './pii';
 
 /**
@@ -118,6 +119,8 @@ export interface WorkspaceRow {
   agents_active: number;
   last_activity_at: string | null;
   total_count: number;
+  /** Lo que está roto en este comercio, ahora mismo. */
+  issues: Issue[];
 }
 
 export async function listWorkspaces(opts: {
@@ -125,12 +128,19 @@ export async function listWorkspaces(opts: {
   limit?: number;
   offset?: number;
 }): Promise<{ rows: WorkspaceRow[]; total: number }> {
-  const rows = await rpc<WorkspaceRow>('admin_workspace_rows', {
-    p_search: opts.search?.trim() || null,
-    p_limit: opts.limit ?? 50,
-    p_offset: opts.offset ?? 0,
-  });
-  return { rows, total: rows[0]?.total_count ?? 0 };
+  // Los problemas se traen de una sola consulta para toda la plataforma y se
+  // pegan en memoria: preguntarlos por comercio serían seis consultas por fila.
+  const [rows, issues] = await Promise.all([
+    rpc<WorkspaceRow>('admin_workspace_rows', {
+      p_search: opts.search?.trim() || null,
+      p_limit: opts.limit ?? 50,
+      p_offset: opts.offset ?? 0,
+    }),
+    collectPlatformIssues(db()),
+  ]);
+
+  const withIssues = rows.map((r) => ({ ...r, issues: issues.get(r.id) ?? [] }));
+  return { rows: withIssues, total: rows[0]?.total_count ?? 0 };
 }
 
 export interface WorkspaceDetail {
@@ -189,6 +199,13 @@ export interface WorkspaceDetail {
     at: string | null;
     detail: string | null;
   }>;
+  /**
+   * Lo que está roto, con el mismo criterio que ve el comercio en su Inicio.
+   * No es lo mismo que `recentErrors`: los últimos errores son un historial,
+   * esto es el estado — una corrida trabada en "parcial" o una plantilla
+   * rechazada no dejan ninguna línea de error y no aparecían por ningún lado.
+   */
+  issues: Issue[];
 }
 
 async function countIn(table: string, workspaceId: string): Promise<number> {
@@ -231,6 +248,7 @@ export async function getWorkspaceDetail(
     aiErrRes,
     autoErrRes,
     voiceErrRes,
+    issues,
   ] = await Promise.all([
     client
       .from('profiles')
@@ -275,6 +293,7 @@ export async function getWorkspaceDetail(
       .not('error', 'is', null)
       .order('created_at', { ascending: false })
       .limit(5),
+    collectWorkspaceIssues(client, id),
   ]);
 
   // Los miembros vienen de dos tablas: la membresía y el perfil (identidad del
@@ -342,6 +361,7 @@ export async function getWorkspaceDetail(
       orders,
     },
     recentErrors,
+    issues,
   };
 }
 
@@ -422,6 +442,11 @@ export interface ChannelRow {
   health_can_send: string | null;
   health_review_status: string | null;
   health_blockers: unknown;
+  /**
+   * `config.health_status` del WABA. Es el campo que la app usa para decidir
+   * "WhatsApp bloqueado" (ver src/lib/health/issues.ts) y el panel ni lo pedía.
+   */
+  health_status: string | null;
   quality_rating: string | null;
   messaging_limit_tier: string | null;
   created_at: string | null;
@@ -431,8 +456,11 @@ export async function listChannels(opts: {
   channel?: string;
   status?: string;
 }): Promise<ChannelRow[]> {
+  // `config` trae `health_status`, que es lo único de ese jsonb que mira el
+  // panel. No es un secreto (los secretos viven en `secrets`, que la barrera
+  // bloquea), pero se recorta acá para no arrastrar el resto al navegador.
   const columns =
-    'id, workspace_id, channel, label, status, external_account_id, last_synced_at, last_error, health_can_send, health_review_status, health_blockers, quality_rating, messaging_limit_tier, created_at';
+    'id, workspace_id, channel, label, status, external_account_id, last_synced_at, last_error, health_can_send, health_review_status, health_blockers, quality_rating, messaging_limit_tier, created_at, config';
   let q = safeSelect(db(), 'channel_connections', columns).order('updated_at', {
     ascending: false,
   });
@@ -441,10 +469,18 @@ export async function listChannels(opts: {
 
   const { data, error } = await q.limit(500);
   if (error) throw new Error(`[admin] listChannels: ${error.message}`);
-  const rows = (data ?? []) as unknown as Omit<ChannelRow, 'workspace_name'>[];
+  const rows = (data ?? []) as unknown as Array<
+    Omit<ChannelRow, 'workspace_name' | 'health_status'> & {
+      config?: { health_status?: string | null } | null;
+    }
+  >;
 
   const names = await workspaceNames(rows.map((r) => r.workspace_id));
-  return rows.map((r) => ({ ...r, workspace_name: names.get(r.workspace_id) ?? null }));
+  return rows.map(({ config, ...r }) => ({
+    ...r,
+    health_status: config?.health_status ?? null,
+    workspace_name: names.get(r.workspace_id) ?? null,
+  }));
 }
 
 /** Nombres de comercio para un lote de ids — para no mostrar UUIDs pelados. */

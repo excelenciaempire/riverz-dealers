@@ -95,6 +95,34 @@ export default function AdminChannelsPage() {
         cell: (r) => <Clamp text={r.external_account_id} />,
       },
       {
+        // La pregunta que más importa de un WhatsApp: ¿puede mandar?
+        //
+        // Estos tres campos ya venían en la respuesta —`listChannels` los pide
+        // explícitamente— y la tabla no los mostraba: se pintaba la calidad,
+        // que es otra cosa. Un WABA con `health_status = BLOCKED` (medio de
+        // pago o datos fiscales pendientes en Meta) tiene calidad verde y no
+        // entrega una sola plantilla.
+        key: "cansend",
+        header: t("admin.colCanSend"),
+        cell: (r) => {
+          if (r.channel !== "whatsapp") return <Muted>—</Muted>;
+          if (r.health_status?.toUpperCase() === "BLOCKED") {
+            return <StatusPill tone="error" label={t("admin.waBlocked")} />;
+          }
+          const can = r.health_can_send?.toUpperCase();
+          if (can === "BLOCKED" || can === "LIMITED") {
+            return (
+              <StatusPill
+                tone={can === "BLOCKED" ? "error" : "warn"}
+                label={t(can === "BLOCKED" ? "admin.waBlocked" : "admin.waLimited")}
+              />
+            );
+          }
+          if (!can) return <Muted>—</Muted>;
+          return <StatusPill tone="ok" label={t("admin.waCanSend")} />;
+        },
+      },
+      {
         key: "quality",
         header: t("admin.qualityRating"),
         cell: (r) =>

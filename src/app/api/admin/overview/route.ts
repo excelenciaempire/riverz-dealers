@@ -6,6 +6,8 @@ import {
 } from '@/lib/admin/queries';
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule';
 import { schedulerStatus } from '@/lib/cron/scheduler';
+import { collectPlatformIssues } from '@/lib/health/issues';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,10 +34,11 @@ export async function GET(request: Request) {
     request,
     { action: 'view.overview', meta: { from: from.toISOString(), to: to.toISOString() } },
     async () => {
-      const [overview, series, crons] = await Promise.all([
+      const [overview, series, crons, issues] = await Promise.all([
         getPlatformOverview(from, to),
         getActivitySeries(from, to),
         getCronHealth(),
+        collectPlatformIssues(supabaseAdmin()),
       ]);
 
       const lastRun = new Map(crons.map((c) => [c.name, c]));
@@ -47,6 +50,13 @@ export async function GET(request: Request) {
       const beat = schedulerStatus();
       const beatAgeMs = beat.lastTickAt ? Date.now() - Date.parse(beat.lastTickAt) : null;
 
+      // Cuántos comercios tienen algo roto AHORA. Es lo que faltaba para que el
+      // home dejara de decir "todo en orden" mientras el cron diario le mandaba
+      // a un comercio un correo con seis problemas.
+      const critical = [...issues.values()].filter((list) =>
+        list.some((i) => i.severity === 'critical'),
+      ).length;
+
       return {
         overview,
         series,
@@ -55,6 +65,8 @@ export async function GET(request: Request) {
           schedulerAlive:
             beat.started && beatAgeMs !== null && beatAgeMs < BEAT_STALE_MS,
           schedulerLastTickAt: beat.lastTickAt,
+          workspacesWithIssues: issues.size,
+          workspacesCritical: critical,
         },
         from: from.toISOString(),
         to: to.toISOString(),
