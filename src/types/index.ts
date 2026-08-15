@@ -272,6 +272,10 @@ export interface Conversation {
    *  failed), o null si el último es del cliente. Mantiene el tick estilo
    *  WhatsApp en el preview de la bandeja. Trigger, migración 102. */
   last_message_status?: MessageStatus | null;
+  /** El último mensaje es un comentario oculto en Instagram/Facebook. Marca el
+   *  preview de la bandeja sin tener que abrir la conversación para saberlo.
+   *  Disparador, migración 161. */
+  last_message_hidden?: boolean | null;
   unread_count: number;
   /** Resumen rodante del historial viejo de esta conversación.
    *  Migration 048. */

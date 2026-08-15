@@ -35,6 +35,7 @@ import {
   CheckCheck,
   Clock,
   XCircle,
+  EyeOff,
 } from "lucide-react";
 import { NewChatModal } from "@/components/inbox/new-chat-modal";
 import { toast } from "sonner";
@@ -215,7 +216,11 @@ export function ConversationList({
       const sig = loaded
         .map(
           (c) =>
-            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}`,
+            // `last_message_hidden` entra en la firma porque cambia SIN que
+            // cambie nada más: ocultar un comentario no mueve el último
+            // mensaje ni el no-leído, así que sin esto el resync lo daría por
+            // "sin cambios" y la lista se quedaría con el estado viejo.
+            `${c.id}:${c.last_message_at}:${c.unread_count}:${c.deleted_at ?? ""}:${c.last_message_hidden ? 1 : 0}`,
         )
         .join("|");
       if (sig !== lastSigRef.current) {
@@ -744,7 +749,22 @@ const ConversationItem = memo(function ConversationItem({
               conversation.last_message_status && (
                 <PreviewTick status={conversation.last_message_status} />
               )}
-            <span className="min-w-0 flex-1 truncate">
+            {/* Comentario oculto en la publicación: se marca acá también, no
+                sólo dentro de la conversación. El texto se sigue leyendo —
+                ocultar no borra lo que dijeron— pero desde la lista tiene que
+                verse que eso ya no lo ve nadie más. */}
+            {conversation.last_message_hidden && (
+              <EyeOff
+                className="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-label={t("inbox.commentHiddenNotice")}
+              />
+            )}
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate",
+                conversation.last_message_hidden && "italic opacity-70",
+              )}
+            >
               {/* En ML el prefijo del subject ("Pregunta · <id>") repetiría el
                   badge de arriba y el id crudo no aporta — lo omitimos ahí. */}
               {conversation.subject && conversation.channel !== "mercadolibre" ? (
@@ -798,6 +818,7 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.status === b.conversation.status &&
   a.conversation.last_sender_type === b.conversation.last_sender_type &&
   a.conversation.last_message_status === b.conversation.last_message_status &&
+  a.conversation.last_message_hidden === b.conversation.last_message_hidden &&
   a.conversation.subject === b.conversation.subject &&
   a.conversation.thread_external_id === b.conversation.thread_external_id &&
   a.conversation.is_ad === b.conversation.is_ad &&
