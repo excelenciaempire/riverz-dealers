@@ -29,8 +29,7 @@ export interface Issue {
     | 'whatsapp_blocked'
     | 'connection_error'
     | 'template_rejected'
-    | 'broadcast_stalled'
-    | 'system_error';
+    | 'broadcast_stalled';
   severity: IssueSeverity;
   /** Cuántas cosas caen bajo este aviso (mensajes, corridas, conexiones). */
   count: number;
@@ -54,7 +53,7 @@ export async function collectWorkspaceIssues(
   const now = Date.now();
   const issues: Issue[] = [];
 
-  const [stuck, failed, failing, connections, templates, broadcasts, system] =
+  const [stuck, failed, failing, connections, templates, broadcasts] =
     await Promise.all([
       stuckRuns(db, workspaceId, now),
       failedRuns(db, workspaceId, now),
@@ -62,7 +61,6 @@ export async function collectWorkspaceIssues(
       brokenConnections(db, workspaceId),
       rejectedTemplates(db, workspaceId),
       stalledBroadcasts(db, workspaceId, now),
-      systemErrors(db, now),
     ]);
 
   if (stuck) issues.push(stuck);
@@ -71,7 +69,6 @@ export async function collectWorkspaceIssues(
   issues.push(...connections);
   if (templates) issues.push(templates);
   if (broadcasts) issues.push(broadcasts);
-  if (system) issues.push(system);
 
   // Lo crítico primero: son las que cortan envíos.
   return issues.sort((a, b) =>
@@ -170,46 +167,6 @@ async function failedRuns(
     count: rows.length,
     detail: message ? message.slice(0, 120) : null,
     href: `/automatizaciones/${rows[0].automation_id}`,
-  };
-}
-
-/**
- * El motor de fondo falló. No es del comercio, pero le pega de lleno: si el
- * cron de campañas viene reventando, sus mensajes no salen y todo lo demás en
- * pantalla se ve normal. Se muestra igual, con el nombre del trabajo y su
- * error, porque el silencio es peor que la jerga.
- */
-async function systemErrors(db: SupabaseClient, now: number): Promise<Issue | null> {
-  const since = new Date(now - 2 * 3600_000).toISOString();
-  const { data } = await db
-    .from('cron_runs')
-    .select('name, status, error, started_at')
-    .eq('status', 'error')
-    .gte('started_at', since)
-    .order('started_at', { ascending: false })
-    .limit(50);
-  const rows = (data ?? []) as Array<{ name: string; error: string | null }>;
-  if (rows.length === 0) return null;
-
-  // Si el mismo trabajo ya volvió a correr bien, fue un tropiezo puntual y no
-  // hay nada que atender: sólo cuenta lo que sigue roto ahora.
-  const names = [...new Set(rows.map((r) => r.name))];
-  const { data: recovered } = await db
-    .from('cron_runs')
-    .select('name')
-    .in('name', names)
-    .eq('status', 'ok')
-    .gte('started_at', rows[0] ? since : since);
-  const healthy = new Set(((recovered ?? []) as Array<{ name: string }>).map((r) => r.name));
-  const broken = rows.filter((r) => !healthy.has(r.name));
-  if (broken.length === 0) return null;
-
-  return {
-    kind: 'system_error',
-    severity: 'critical',
-    count: new Set(broken.map((b) => b.name)).size,
-    detail: `${broken[0].name}${broken[0].error ? `: ${broken[0].error.slice(0, 100)}` : ''}`,
-    href: '/inicio',
   };
 }
 
