@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/guard';
+import { adminGet } from '@/lib/admin/route';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { csrfGuard } from '@/lib/csrf';
 import {
   platformWhatsAppStatus,
@@ -12,10 +14,10 @@ import {
  *
  * El token entra pero no sale: la pantalla sólo sabe si hay uno puesto.
  */
-export async function GET() {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
-  return NextResponse.json(await platformWhatsAppStatus());
+export async function GET(request: Request) {
+  return adminGet(request, { action: 'view.platform_whatsapp' }, () =>
+    platformWhatsAppStatus(),
+  );
 }
 
 export async function POST(request: Request) {
@@ -51,5 +53,20 @@ export async function POST(request: Request) {
     // El caso típico: falta aplicar la migración 147.
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
+
+  // Queda registrado, como todas las mutaciones del panel. Estas dos —ésta y la
+  // del alta guiada— eran las únicas que escribían credenciales de plataforma
+  // sin dejar rastro. El token nunca entra en la auditoría; sólo si cambió.
+  await recordAdminAction(gate.actor, request, {
+    action: 'update.platform_whatsapp',
+    targetType: 'platform',
+    meta: {
+      phone_number_id: body.phoneNumberId?.trim() || null,
+      token_changed: Boolean(body.token?.trim()),
+      is_active: body.isActive === true,
+      via: 'manual',
+    },
+  });
+
   return NextResponse.json(await platformWhatsAppStatus());
 }

@@ -416,6 +416,15 @@ export interface UsageRow {
   orders: number;
   /** Tokens desglosados por modelo — las tarifas difieren hasta 10x. */
   tokens_by_model: Record<string, { prompt: number; completion: number }>;
+  /**
+   * Los mismos tokens, cortados por quién paga (`ai_replies.key_source`:
+   * `platform` o la clave del propio comercio). Es la pregunta entera de
+   * /admin/ia, que antes la contestaba con su propio barrido y su propia tarifa.
+   */
+  tokens_by_source: Record<
+    string,
+    { prompt: number; completion: number; calls: number }
+  >;
 }
 
 export async function listUsage(from: Date, to: Date): Promise<UsageRow[]> {

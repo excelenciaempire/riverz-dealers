@@ -5,7 +5,9 @@ import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
-import { costForModel } from '@/lib/admin/cost';
+import { adminGet } from '@/lib/admin/route';
+import { estimateAiCostUsd } from '@/lib/admin/cost';
+import { listUsage } from '@/lib/admin/queries';
 
 /**
  * Clave de IA de la plataforma (solo equipo Riverz).
@@ -21,26 +23,30 @@ import { costForModel } from '@/lib/admin/cost';
 
 const DAYS = 30;
 
-export async function GET() {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
+export async function GET(request: Request) {
+  return adminGet(request, { action: 'view.ai_key' }, () => aiKeyPayload());
+}
 
+/** El cuerpo de la pantalla: modo, si hay clave, y el gasto por comercio. */
+async function aiKeyPayload() {
   const db = supabaseAdmin();
   const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
 
-  const [settingsRes, enabledRes, workspacesRes, repliesRes] = await Promise.all([
+  const [settingsRes, enabledRes, usage] = await Promise.all([
     db
       .from('platform_ai_settings')
       .select('mode, anthropic_key_encrypted, updated_at')
       .eq('id', true)
       .maybeSingle(),
     db.from('platform_ai_workspaces').select('workspace_id, enabled'),
-    db.from('workspaces').select('id, name').order('name'),
-    db
-      .from('ai_replies')
-      .select('workspace_id, key_source, prompt_tokens, completion_tokens, status')
-      .gte('created_at', since)
-      .limit(50_000),
+    // El mismo RPC que /admin/uso, en vez de un barrido propio.
+    //
+    // Antes esta ruta se traía hasta 50.000 filas de `ai_replies` a Node y las
+    // sumaba en JS con `costForModel(null, …)`, o sea tarifando TODO al modelo
+    // más barato: el mismo comercio mostraba dos costos distintos en dos
+    // pantallas del mismo panel, y pasadas las 50.000 filas el número quedaba
+    // corto sin avisar. Además listaba `workspaces` sin filtrar `deleted_at`.
+    listUsage(new Date(since), new Date()),
   ]);
 
   const settings = settingsRes.data as {
@@ -55,45 +61,44 @@ export async function GET() {
       .map((r) => r.workspace_id),
   );
 
-  // Gasto por comercio y por bolsillo. El modelo no se guarda por respuesta,
-  // así que se tarifa con el modelo por defecto: sirve para comparar cuentas
-  // entre sí y dimensionar el precio, que es para lo que se mira esta pantalla.
-  const spend = new Map<string, { platform: number; own: number; calls: number }>();
-  for (const r of (repliesRes.data ?? []) as {
-    workspace_id: string;
-    key_source: string | null;
-    prompt_tokens: number | null;
-    completion_tokens: number | null;
-    status: string;
-  }[]) {
-    if (r.status !== 'sent') continue;
-    const cur = spend.get(r.workspace_id) ?? { platform: 0, own: 0, calls: 0 };
-    const usd = costForModel(null, r.prompt_tokens ?? 0, r.completion_tokens ?? 0);
-    if (r.key_source === 'platform') cur.platform += usd;
-    else cur.own += usd;
-    cur.calls += 1;
-    spend.set(r.workspace_id, cur);
-  }
-
   const mode = settings?.mode ?? 'selected';
   const encKey = settings?.anthropic_key_encrypted ?? null;
 
-  const workspaces = ((workspacesRes.data ?? []) as { id: string; name: string }[]).map(
-    (w) => {
-      const s = spend.get(w.id);
-      return {
-        id: w.id,
-        name: w.name,
-        covered: mode === 'all' ? true : enabledSet.has(w.id),
-        explicit: enabledSet.has(w.id),
-        calls: s?.calls ?? 0,
-        spend_platform_usd: Number((s?.platform ?? 0).toFixed(4)),
-        spend_own_usd: Number((s?.own ?? 0).toFixed(4)),
-      };
-    },
-  );
+  // Gasto por bolsillo, con la MISMA tarifa por modelo que /admin/uso.
+  //
+  // El desglose por modelo y el desglose por bolsillo son dos cortes de los
+  // mismos tokens, así que se reparte el costo total del comercio en la
+  // proporción de tokens de cada bolsillo. Es una estimación —igual que todo
+  // este número, que son precios de lista sin descuento por caché— pero es UNA,
+  // y coincide con la otra pantalla.
+  const workspaces = usage.map((row) => {
+    const total = estimateAiCostUsd(
+      row.prompt_tokens,
+      row.completion_tokens,
+      row.tokens_by_model,
+    );
+    const bySource = row.tokens_by_source ?? {};
+    const tokensDe = (k: string) =>
+      (bySource[k]?.prompt ?? 0) + (bySource[k]?.completion ?? 0);
+    const tokensTotal = Object.values(bySource).reduce(
+      (a, v) => a + (v?.prompt ?? 0) + (v?.completion ?? 0),
+      0,
+    );
+    const parte = (k: string) =>
+      tokensTotal > 0 ? (total * tokensDe(k)) / tokensTotal : 0;
 
-  return NextResponse.json({
+    return {
+      id: row.workspace_id,
+      name: row.workspace_name,
+      covered: mode === 'all' ? true : enabledSet.has(row.workspace_id),
+      explicit: enabledSet.has(row.workspace_id),
+      calls: Object.values(bySource).reduce((a, v) => a + (v?.calls ?? 0), 0),
+      spend_platform_usd: Number(parte('platform').toFixed(4)),
+      spend_own_usd: Number((total - parte('platform')).toFixed(4)),
+    };
+  });
+
+  return {
     mode,
     has_key: !!encKey,
     key_hint: keyHint(encKey),
@@ -107,7 +112,7 @@ export async function GET() {
       own_usd: Number(workspaces.reduce((a, w) => a + w.spend_own_usd, 0).toFixed(4)),
       covered: workspaces.filter((w) => w.covered).length,
     },
-  });
+  };
 }
 
 export async function PUT(request: Request) {

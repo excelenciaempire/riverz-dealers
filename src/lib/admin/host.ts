@@ -17,6 +17,8 @@
  * equipo sin panel hasta que propague el DNS.
  */
 
+import { ADMIN_SLUGS } from '@/app/admin/sections-list';
+
 /** Host del panel. Configurable para poder probarlo en otro dominio. */
 export function adminHost(): string {
   return (process.env.ADMIN_HOST || 'admin.riverz.co').toLowerCase();
@@ -50,25 +52,16 @@ function passthrough(pathname: string): boolean {
 }
 
 /**
- * Secciones que existen dentro del panel. Se listan a mano y no se importan de
- * `sections.ts` porque eso arrastraría los iconos al bundle del proxy, que
- * corre en cada pedido.
+ * Secciones que existen dentro del panel.
+ *
+ * Se importan de `sections-list.ts`, que es la lista SIN iconos — el motivo por
+ * el que antes acá había una copia a mano era no arrastrar lucide al bundle del
+ * proxy, que corre en cada pedido. Con la lista partida en dos, ese motivo
+ * desaparece y la copia también: mantener dos listas en sincronía a mano
+ * termina, siempre, en una sección nueva que en `admin.riverz.co` cae al home
+ * sin que nada falle.
  */
-const SECTIONS = new Set([
-  'auditoria',
-  'canales',
-  'comercios',
-  'funcionalidades',
-  'ia',
-  'infra',
-  'lista-espera',
-  'logs',
-  'operacion',
-  'uso',
-  'usuarios',
-  'voz',
-  'whatsapp',
-]);
+const SECTIONS = ADMIN_SLUGS;
 
 /**
  * Ruta interna que corresponde a un pedido al host del panel.

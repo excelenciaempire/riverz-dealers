@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/guard';
+import { recordAdminAction } from '@/lib/admin/audit';
 import { csrfGuard } from '@/lib/csrf';
 import { savePlatformWhatsApp, platformWhatsAppStatus } from '@/lib/admin/platform-whatsapp';
 import { getLogger } from '@/lib/log/logger';
@@ -81,6 +82,18 @@ export async function POST(request: Request) {
       gate.actor.userId,
     );
     if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 500 });
+
+    // Igual que la carga manual: queda registrado quién conectó el número de la
+    // plataforma. El token no entra en la auditoría.
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.platform_whatsapp',
+      targetType: 'platform',
+      meta: {
+        phone_number_id: body.phone_number_id,
+        waba_id: body.waba_id ?? null,
+        via: 'embedded_signup',
+      },
+    });
 
     return NextResponse.json(await platformWhatsAppStatus());
   } catch (err) {

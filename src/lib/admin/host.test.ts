@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { adminRewrite, isAdminHost } from './host';
+import { ADMIN_SECTION_LIST } from '@/app/admin/sections-list';
 
 /**
  * El ruteo por host se rompe en silencio: no falla ningún test de producto,
@@ -38,5 +39,19 @@ describe('host del panel', () => {
     expect(adminRewrite('/_next/static/x.js')).toBeNull();
     expect(adminRewrite('/admin')).toBeNull();
     expect(adminRewrite('/admin/ia')).toBeNull();
+  });
+
+  it('conoce TODAS las secciones del panel, no una copia a mano', () => {
+    // La regresión que esto fija: la lista de slugs vivía duplicada en host.ts,
+    // así que una sección nueva agregada sólo en sections.ts caía al home en
+    // admin.riverz.co sin que nada fallara.
+    for (const section of ADMIN_SECTION_LIST) {
+      const slug = section.href.replace(/^\/admin\//, '');
+      expect(adminRewrite(`/${slug}`)).toBe(section.href);
+    }
+  });
+
+  it('una sub-ruta de una sección también reescribe', () => {
+    expect(adminRewrite('/comercios/a1b2c3d4')).toBe('/admin/comercios/a1b2c3d4');
   });
 });

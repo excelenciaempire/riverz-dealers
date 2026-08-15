@@ -14,123 +14,49 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+import {
+  ADMIN_SECTION_LIST,
+  type AdminGroup,
+  type AdminSectionMeta,
+} from "./sections-list";
+
 /**
- * Secciones del panel de plataforma. Fuente única: barra superior + home.
+ * Secciones del panel de plataforma, con su icono.
+ *
+ * La lista en sí vive en `sections-list.ts`, sin iconos, porque el proxy la
+ * necesita en cada pedido y no puede cargar lucide. Acá sólo se le pega el
+ * icono a cada una.
  *
  * `group` solo agrupa las tarjetas del home; la barra superior las lista
- * seguidas. Las etiquetas son cortas a propósito — con once secciones, un
+ * seguidas. Las etiquetas son cortas a propósito — con trece secciones, un
  * nombre largo rompe la barra en pantallas chicas.
  */
-export type AdminGroup = "comercios" | "observabilidad" | "configuracion";
+export type { AdminGroup };
 
-export interface AdminSection {
-  href: string;
-  /** Clave i18n del nombre. */
-  label: string;
-  /** Clave i18n de la descripción. */
-  description: string;
+export interface AdminSection extends AdminSectionMeta {
   icon: React.ComponentType<{ className?: string }>;
-  group: AdminGroup;
 }
 
-export const ADMIN_SECTIONS: AdminSection[] = [
-  {
-    href: "/admin/ia",
-    label: "admin.sectionAiKey",
-    description: "admin.sectionAiKeyDesc",
-    icon: KeyRound,
-    group: "configuracion",
-  },
-  {
-    href: "/admin/whatsapp",
-    label: "admin.sectionPlatformWhatsapp",
-    description: "admin.sectionPlatformWhatsappDesc",
-    icon: MessageCircle,
-    group: "configuracion",
-  },
-  // ── Comercios y su consumo ──
-  {
-    href: "/admin/comercios",
-    label: "admin.sectionWorkspaces",
-    description: "admin.sectionWorkspacesDesc",
-    icon: Store,
-    group: "comercios",
-  },
-  {
-    href: "/admin/usuarios",
-    label: "admin.sectionUsers",
-    description: "admin.sectionUsersDesc",
-    icon: Users,
-    group: "comercios",
-  },
-  {
-    href: "/admin/uso",
-    label: "admin.sectionUsage",
-    description: "admin.sectionUsageDesc",
-    icon: Gauge,
-    group: "comercios",
-  },
-  {
-    href: "/admin/lista-espera",
-    label: "admin.sectionWaitlist",
-    description: "admin.sectionWaitlistDesc",
-    icon: Mailbox,
-    group: "comercios",
-  },
+const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "/admin/ia": KeyRound,
+  "/admin/whatsapp": MessageCircle,
+  "/admin/comercios": Store,
+  "/admin/usuarios": Users,
+  "/admin/uso": Gauge,
+  "/admin/lista-espera": Mailbox,
+  "/admin/logs": ScrollText,
+  "/admin/canales": Radio,
+  "/admin/operacion": Activity,
+  "/admin/infra": Server,
+  "/admin/auditoria": ShieldCheck,
+  "/admin/funcionalidades": ToggleRight,
+  "/admin/voz": SlidersHorizontal,
+};
 
-  // ── Qué está pasando ──
-  {
-    href: "/admin/logs",
-    label: "admin.sectionLogs",
-    description: "admin.sectionLogsDesc",
-    icon: ScrollText,
-    group: "observabilidad",
-  },
-  {
-    href: "/admin/canales",
-    label: "admin.sectionChannels",
-    description: "admin.sectionChannelsDesc",
-    icon: Radio,
-    group: "observabilidad",
-  },
-  {
-    href: "/admin/operacion",
-    label: "admin.sectionOps",
-    description: "admin.sectionOpsDesc",
-    icon: Activity,
-    group: "observabilidad",
-  },
-  {
-    href: "/admin/infra",
-    label: "admin.infraTitle",
-    description: "admin.infraDesc",
-    icon: Server,
-    group: "observabilidad",
-  },
-  {
-    href: "/admin/auditoria",
-    label: "admin.sectionAudit",
-    description: "admin.sectionAuditDesc",
-    icon: ShieldCheck,
-    group: "observabilidad",
-  },
-
-  // ── Configuración de plataforma (lo único que se escribe) ──
-  {
-    href: "/admin/funcionalidades",
-    label: "admin.sectionFeatures",
-    description: "admin.sectionFeaturesDesc",
-    icon: ToggleRight,
-    group: "configuracion",
-  },
-  {
-    href: "/admin/voz",
-    label: "admin.sectionVoice",
-    description: "admin.sectionVoiceDesc",
-    icon: SlidersHorizontal,
-    group: "configuracion",
-  },
-];
+export const ADMIN_SECTIONS: AdminSection[] = ADMIN_SECTION_LIST.map((s) => ({
+  ...s,
+  icon: ICONS[s.href] ?? Server,
+}));
 
 export const ADMIN_GROUPS: { key: AdminGroup; label: string }[] = [
   { key: "comercios", label: "admin.groupWorkspaces" },

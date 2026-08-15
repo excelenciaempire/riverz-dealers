@@ -29,8 +29,14 @@ export type AdminAction =
   | 'update.feature_flag'
   | 'update.voice_model'
   | 'view.ai_key'
+  | 'view.feature_flags'
+  | 'view.voice_model'
+  | 'view.platform_whatsapp'
   | 'update.platform_ai_key'
   | 'update.platform_ai_workspace'
+  // Credenciales del WhatsApp de la plataforma. Se auditan como todo lo demás:
+  // eran las únicas dos escrituras del panel que no dejaban rastro.
+  | 'update.platform_whatsapp'
   // Descarga de recursos que el equipo entrega a un comercio. No lleva
   // datos de nadie, pero queda registrada igual: es una salida de archivo
   // desde el panel y conviene poder decir quién la pidió.

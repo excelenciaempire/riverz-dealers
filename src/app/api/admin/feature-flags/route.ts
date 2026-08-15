@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
+import { adminGet } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { getFeatureFlags, FEATURES } from '@/lib/admin/feature-flags';
 
@@ -10,12 +11,14 @@ import { getFeatureFlags, FEATURES } from '@/lib/admin/feature-flags';
  *   GET → { flags: Record<key, enabled>, features: FEATURES }
  *   PUT { key, enabled } → prende/apaga una funcionalidad para todas las cuentas.
  */
-export async function GET() {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
-
-  const flags = await getFeatureFlags(supabaseAdmin());
-  return NextResponse.json({ flags, features: FEATURES });
+export async function GET(request: Request) {
+  // Por `adminGet` como las otras: límite de ritmo, fila de auditoría y
+  // `no-store`. Esta ruta y otras tres llamaban a `requireAdmin()` directo y se
+  // saltaban los tres pasos.
+  return adminGet(request, { action: 'view.feature_flags' }, async () => ({
+    flags: await getFeatureFlags(supabaseAdmin()),
+    features: FEATURES,
+  }));
 }
 
 export async function PUT(request: Request) {

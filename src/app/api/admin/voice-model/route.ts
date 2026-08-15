@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { requireAdmin } from '@/lib/admin/guard';
+import { adminGet } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
 import {
   getVoiceModelConfig,
@@ -16,11 +17,10 @@ import {
  * PUT  → update (STT/LLM/TTS models, mode, realtime engine). Applies to every
  *        workspace; merchants can't reach this.
  */
-export async function GET() {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
-  const config = await getVoiceModelConfig(supabaseAdmin());
-  return NextResponse.json({ config });
+export async function GET(request: Request) {
+  return adminGet(request, { action: 'view.voice_model' }, async () => ({
+    config: await getVoiceModelConfig(supabaseAdmin()),
+  }));
 }
 
 export async function PUT(request: Request) {
