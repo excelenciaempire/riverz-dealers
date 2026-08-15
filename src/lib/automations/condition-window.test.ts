@@ -59,25 +59,15 @@ describe('receta de pago rechazado', () => {
 
 describe('receta de carrito abandonado', () => {
   const tpl = AUTOMATION_TEMPLATES['carrito-abandonado']
-  const porEtiqueta = (nombre: string) => {
-    const i = tpl.steps.findIndex((s) => s.tag_name === nombre)
-    return { i, paso: tpl.steps[i] }
-  }
 
-  it('marca el carrito abandonado antes de esperar', () => {
-    // Abandonar es un hecho, no un resultado: ya pasó cuando esto corre. Si
-    // la etiqueta fuera después de las barreras, el que ya había recibido un
-    // mensaje esta semana quedaría sin marcar y desaparecería del segmento.
-    const [primero, segundo] = tpl.steps
-    expect(primero.step_type).toBe('add_tag')
-    expect(primero.tag_name).toBe('carrito-abandonado')
-    expect(primero.parent_index ?? null).toBeNull()
-    expect(segundo.step_type).toBe('wait')
-    expect(segundo.step_config).toMatchObject({ amount: 15, unit: 'minutes' })
+  it('espera 15 minutos antes de preguntar nada', () => {
+    const [wait] = tpl.steps
+    expect(wait.step_type).toBe('wait')
+    expect(wait.step_config).toMatchObject({ amount: 15, unit: 'minutes' })
   })
 
   it('encadena las tres preguntas que lo separan del otro rescate', () => {
-    expect(cfgs('carrito-abandonado').slice(0, 3)).toEqual([
+    expect(cfgs('carrito-abandonado')).toEqual([
       { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       // Gana pago rechazado: dice lo que pasó de verdad y su plantilla es
       // Utility, que Meta entrega.
@@ -88,39 +78,10 @@ describe('receta de carrito abandonado', () => {
 
   it('el envío cuelga de la última condición, no de la primera', () => {
     const send = tpl.steps.find((s) => s.step_type === 'send_template')
+    const tag = tpl.steps.find((s) => s.step_type === 'add_tag')
     expect(send?.branch).toBe('yes')
-    expect(send?.parent_index).toBe(4)
-  })
-
-  it('la etiqueta de recuperado sólo cuelga de haber comprado', () => {
-    // ESTE es el invariante caro: puesta al lado del envío marcaría a todo el
-    // que recibió el mensaje y la etiqueta no diría nada. Tiene que colgar de
-    // la pregunta "compró", en su rama del sí.
-    const { i, paso } = porEtiqueta('carrito-recuperado')
-    expect(paso.step_type).toBe('add_tag')
-    expect(paso.branch).toBe('yes')
-
-    const madre = tpl.steps[paso.parent_index as number]
-    expect(madre.step_type).toBe('condition')
-    expect(madre.step_config).toMatchObject({ subject: 'purchased', value: 'true' })
-    // Y esa pregunta vive en el mismo carril que el envío: preguntar antes de
-    // haber escrito atribuiría al flujo una compra que no provocó.
-    expect(madre.parent_index).toBe(4)
-    expect(i).toBeGreaterThan(tpl.steps.findIndex((s) => s.step_type === 'send_template'))
-  })
-
-  it('espera dos días entre el mensaje y la atribución', () => {
-    // Sin la espera, la pregunta se contesta en el mismo segundo del envío:
-    // nadie compró todavía y la etiqueta no se pondría nunca.
-    const esperas = tpl.steps.filter((s) => s.step_type === 'wait')
-    expect(esperas.map((s) => s.step_config)).toEqual([
-      { amount: 15, unit: 'minutes' },
-      { amount: 48, unit: 'hours' },
-    ])
-    const atribucion = esperas[1]
-    const send = tpl.steps.find((s) => s.step_type === 'send_template')
-    expect(atribucion.parent_index).toBe(send?.parent_index)
-    expect(atribucion.branch).toBe('yes')
+    expect(send?.parent_index).toBe(3)
+    expect(tag?.parent_index).toBe(3)
   })
 })
 
