@@ -39,6 +39,31 @@ const log = getLogger('cron.shopify-cart-recovery')
  * el mensaje no se manda pero el flag igual se setea — preferimos no
  * spamear a costa de perder algunos recovery sobre intentarlo en loop.
  */
+/**
+ * ¿Este comercio tiene prendida la recuperación de carrito?
+ *
+ * Decide dos cosas: si se devuelve el reclamo del checkout (para que no quede
+ * quemado) y si suena el teléfono. Ante un error de consulta se responde que
+ * sí, que es el comportamiento de antes: mejor un carrito quemado que
+ * devolver a la cola todo lo que ya se envió.
+ */
+async function hayAutomatizacionDeCarrito(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from('automations')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('trigger_type', 'shopify_abandoned_checkout')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle()
+  if (error) return true
+  return Boolean(data)
+}
+
 async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET')
@@ -296,8 +321,25 @@ async function cronHandler(request: Request) {
         contactId,
         context: { vars: cartVars },
       })
-      // Voice AI: si un agente activó "llamar para recuperar carrito", se encola
-      // la llamada sin automatización. Respeta horario/opt-out/límites/dedup.
+
+      // Sin automatización de carrito no se recupera nada, y el reclamo de
+      // arriba ya quedó puesto: si no se libera, ese carrito no se recupera
+      // NUNCA, ni siquiera cuando el comercio prenda la receta más tarde.
+      // Los crons de pagos y de encuesta ya liberaban; éste era la excepción.
+      const activa = await hayAutomatizacionDeCarrito(admin, r.workspace_id)
+      if (!activa) {
+        await admin
+          .from('shopify_checkouts')
+          .update({ recovery_dispatched_at: null })
+          .eq('id', r.id)
+        processed++
+        continue
+      }
+
+      // La llamada de recuperación es parte del mismo rescate: apagar la
+      // automatización tiene que apagar también el teléfono. Antes dependía
+      // sólo del objetivo de voz, así que el comercio desactivaba el carrito
+      // y le seguía sonando el teléfono al cliente.
       void maybeAutoVoiceCall(admin, {
         workspaceId: r.workspace_id,
         contactId,

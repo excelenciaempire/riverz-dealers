@@ -104,9 +104,10 @@ export async function POST(request: Request) {
       )
     }
 
-    let triggerType: AutomationTriggerType | null = null
+    // Una actualización puede traer más de una transición; se emiten todas.
+    let triggerTypes: AutomationTriggerType[] = []
     if (topic === 'orders/create') {
-      triggerType = 'shopify_order_created'
+      triggerTypes = ['shopify_order_created']
       if (orderId > 0) {
         // Atomic claim — migration 059's RPC. Returns true the FIRST
         // time we see this (shop_domain, order_id) and false on every
@@ -200,24 +201,30 @@ export async function POST(request: Request) {
                 }
               | undefined)
           : null
-        // Una sola actualización solo dispara UN evento (el más relevante).
-        // Prioridad: cancelado/reembolsado (excepciones) > pagado > despachado
-        // > entregado.
+        // Una actualización puede traer VARIAS transiciones a la vez: Shopify
+        // manda un solo `orders/updated` cuando alguien marca pagado y
+        // despacha en el mismo movimiento, que es exactamente lo que hace
+        // quien confirma una transferencia y arma el envío seguido.
+        //
+        // Antes se elegía una sola por prioridad y el resto se perdía en
+        // silencio: pagado ganaba, y ese pedido nunca recibía su número de
+        // seguimiento. Ahora se emiten todas, en el orden en que le importan
+        // al cliente. Cancelado y reembolsado siguen siendo excluyentes:
+        // avisar "tu pedido salió" de un pedido cancelado es peor que no
+        // avisar nada.
         if (row?.transitioned_to_cancelled) {
-          triggerType = 'shopify_order_cancelled'
+          triggerTypes = ['shopify_order_cancelled']
         } else if (row?.transitioned_to_refunded) {
-          triggerType = 'shopify_order_refunded'
-        } else if (row?.transitioned_to_paid) {
-          triggerType = 'shopify_order_paid'
-        } else if (row?.transitioned_to_fulfilled) {
-          triggerType = 'shopify_order_fulfilled'
-        } else if (row?.transitioned_to_delivered) {
-          triggerType = 'shopify_order_delivered'
+          triggerTypes = ['shopify_order_refunded']
+        } else {
+          if (row?.transitioned_to_paid) triggerTypes.push('shopify_order_paid')
+          if (row?.transitioned_to_fulfilled) triggerTypes.push('shopify_order_fulfilled')
+          if (row?.transitioned_to_delivered) triggerTypes.push('shopify_order_delivered')
         }
       }
     }
 
-    if (!triggerType) {
+    if (triggerTypes.length === 0) {
       return NextResponse.json({ ok: true, ignored: 'no_transition' })
     }
 
@@ -252,7 +259,7 @@ export async function POST(request: Request) {
     // recompra. Se calcula para todos los pedidos (también los del asistente)
     // y se inyecta como var {{vars.offer_chosen}} más abajo.
     const offer = await resolveOfferChosen(admin, workspaceId, order)
-    if (triggerType === 'shopify_order_created') {
+    if (triggerTypes.includes('shopify_order_created')) {
       // Producto comprado = título del primer ítem del pedido. Se guarda en el
       // contacto para poder ramificar/personalizar recompras por producto.
       const lineItems = Array.isArray(order.line_items) ? order.line_items : []
@@ -296,11 +303,19 @@ export async function POST(request: Request) {
 
     // Atribución por pedido: si el pedido vino del asistente (link con
     // riverz_origin=ai, o pedido creado por la tool create_order con tag
-    // riverz-ia), el ASISTENTE confirma el pago y NOS SALTAMOS la
-    // automatización "Nuevo pedido" para no duplicar el mensaje. Solo en
-    // orders/create (la confirmación de pago); el flujo de fulfilled sigue
-    // usando la automatización normal.
-    if (triggerType === 'shopify_order_created' && isAiAttributedOrder(order)) {
+    // riverz-ia), el ASISTENTE confirma el pago con sus propias palabras.
+    //
+    // Antes esto cortaba acá con un `return`, y así se llevaba puesto TODO lo
+    // demás que cuelga del mismo disparador. El recordatorio de transferencia
+    // —que habla recién a la hora y sólo si no pagó— no tenía nada que ver
+    // con la confirmación duplicada y quedaba muerto justo para los pedidos
+    // que cierra la IA, que son los que más lo necesitan.
+    //
+    // Ahora sólo se saltea lo que duplicaría: las automatizaciones que hablan
+    // al instante. Las que esperan siguen su curso.
+    const confirmadoPorLaIA =
+      triggerTypes.includes('shopify_order_created') && isAiAttributedOrder(order)
+    if (confirmadoPorLaIA) {
       await sendAiOrderConfirmation(admin, {
         workspaceId,
         contactId,
@@ -310,24 +325,29 @@ export async function POST(request: Request) {
       }).catch((err) =>
         console.error('[shopify] ai order confirmation failed:', err),
       )
-      return NextResponse.json({ ok: true, ai_confirmed: true })
     }
 
-    const vars = buildVarsForOrder(triggerType, order, name)
-    vars.offer_chosen = offer.label
-    vars.offer_units = offer.units > 0 ? String(offer.units) : ''
+    // Las variables dependen del evento (el tracking sólo existe en el
+    // despacho), así que se arman una vez por disparador.
+    let vars: Record<string, string> = {}
+    for (const triggerType of triggerTypes) {
+      vars = buildVarsForOrder(triggerType, order, name)
+      vars.offer_chosen = offer.label
+      vars.offer_units = offer.units > 0 ? String(offer.units) : ''
 
-    runAutomationsForTrigger({
-      workspaceId,
-      triggerType,
-      contactId,
-      context: { vars },
-    }).catch((err) => console.error('[shopify] dispatch failed:', err))
+      runAutomationsForTrigger({
+        workspaceId,
+        triggerType,
+        contactId,
+        context: { vars },
+        skipImmediateSenders: confirmadoPorLaIA,
+      }).catch((err) => console.error('[shopify] dispatch failed:', err))
+    }
 
     // Voice AI: si un agente activó "llamar al confirmar pedido" (objetivo
     // order_confirmation), encolamos la llamada sin que el merchant arme una
     // automatización. Solo en el alta del pedido; respeta horario/opt-out/limites.
-    if (triggerType === 'shopify_order_created') {
+    if (triggerTypes.includes('shopify_order_created')) {
       void maybeAutoVoiceCall(admin, {
         workspaceId,
         contactId,

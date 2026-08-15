@@ -24,7 +24,10 @@ import {
   resolveButtonUrlFromVars,
   isButtonUrlVariable,
 } from '@/lib/whatsapp/dynamic-links'
-import { shouldAllowAutomationSend } from './recent-ai-guard'
+import {
+  shouldAllowAutomationSend,
+  automationSpeaksImmediately,
+} from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
 import { purchasedSince } from '@/lib/commerce/purchased-since'
 import {
@@ -58,6 +61,16 @@ export interface DispatchInput {
   triggerType: AutomationTriggerType
   contactId?: string | null
   context?: AutomationContext
+  /**
+   * Saltear las automatizaciones que hablan al instante, dejando correr las
+   * que esperan.
+   *
+   * Lo usa el webhook de pedidos cuando el asistente ya confirmó la compra
+   * con sus propias palabras: la confirmación enlatada sobraría, pero el
+   * recordatorio de transferencia —que habla recién a la hora y sólo si no
+   * pagó— no tiene nada que ver y tiene que seguir su curso.
+   */
+  skipImmediateSenders?: boolean
 }
 
 /**
@@ -86,6 +99,12 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
 
     for (const automation of automations as Automation[]) {
       if (!triggerMatches(automation, input.context)) continue
+      if (
+        input.skipImmediateSenders &&
+        (await automationSpeaksImmediately(automation.id))
+      ) {
+        continue
+      }
       if (!(await audienceMatches(automation, input.contactId ?? null))) continue
       // Recent-AI guard: skip chat-style automations when the IA or a
       // human agent just talked to this contact. See recent-ai-guard.ts
