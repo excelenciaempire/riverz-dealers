@@ -403,9 +403,14 @@ export async function maybeRequestOptIn(
     if (!gate.ok) return;
 
     const cfg = (input.connection.config ?? {}) as Record<string, unknown>;
-    const senderId = String(
-      (input.channel === 'instagram' ? cfg.ig_user_id : cfg.page_id) ?? cfg.page_id ?? '',
-    );
+    // SIEMPRE `page_id`, también en Instagram.
+    //
+    // La API de mensajes de Instagram se llama sobre la PÁGINA de Facebook
+    // vinculada, no sobre el id de la cuenta de IG — es lo que hace
+    // `instagramAdapter.sendText`, que es el camino que funciona en
+    // producción. Usar `ig_user_id` devuelve "(#3) Application does not have
+    // the capability to make this API call", medido contra la cuenta real.
+    const senderId = String(cfg.page_id ?? '');
     const secrets = (input.connection.secrets ?? {}) as Record<string, unknown>;
     const accessTokenEncrypted = String(secrets.access_token ?? '');
     if (!senderId || !accessTokenEncrypted) return;

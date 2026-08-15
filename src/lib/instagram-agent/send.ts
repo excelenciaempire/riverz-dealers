@@ -369,7 +369,9 @@ export async function sendCampaignBatch(
         const connCfg = (conn.config ?? {}) as Record<string, unknown>;
         const connSecrets = (conn.secrets ?? {}) as Record<string, unknown>;
         const res = await sendToSubscriber(db, p.subscription, {
-          senderId: String(connCfg.ig_user_id ?? connCfg.page_id ?? ''),
+          // La página, no la cuenta de IG: es sobre la página que se llama la
+          // API de mensajes de Instagram (igual que `instagramAdapter.sendText`).
+          senderId: String(connCfg.page_id ?? ''),
           accessTokenEncrypted: String(connSecrets.access_token ?? ''),
           text: p.text,
         });
