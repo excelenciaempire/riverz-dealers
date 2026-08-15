@@ -38,6 +38,11 @@ export type AdminAction =
   // Credenciales del WhatsApp de la plataforma. Se auditan como todo lo demás:
   // eran las únicas dos escrituras del panel que no dejaban rastro.
   | 'update.platform_whatsapp'
+  // El interruptor del cobro manual: prender y apagar el acceso de un
+  // comercio. Es la escritura del panel con más consecuencias — deja al
+  // comercio afuera del producto— así que se audita como todo lo demás.
+  | 'update.workspace_suspend'
+  | 'update.workspace_resume'
   // Descarga de recursos que el equipo entrega a un comercio. No lleva
   // datos de nadie, pero queda registrada igual: es una salida de archivo
   // desde el panel y conviene poder decir quién la pidió.

@@ -632,4 +632,22 @@ export const admin = {
     es: "{name} queda sin clave propia: dejará de responder",
     en: "{name} has no key of its own: it will stop replying",
   },
+
+  // Interruptor del cobro manual
+  suspendTitle: { es: "Acceso de la cuenta", en: "Account access" },
+  suspendActive: { es: "Activa.", en: "Active." },
+  suspendedSince: { es: "Suspendida el {date}.", en: "Suspended on {date}." },
+  suspendReasonPlaceholder: {
+    es: "Motivo (nota interna, opcional)",
+    en: "Reason (internal note, optional)",
+  },
+  suspendCta: { es: "Suspender", en: "Suspend" },
+  resumeCta: { es: "Reactivar", en: "Reactivate" },
+  suspendDone: { es: "Cuenta suspendida", en: "Account suspended" },
+  resumeDone: { es: "Cuenta reactivada", en: "Account reactivated" },
+  suspendError: { es: "No se pudo cambiar", en: "Couldn't change it" },
+  suspendHint: {
+    es: "Suspender saca al comercio del panel y frena sus envíos automáticos. No borra nada: lo que llegue se sigue guardando.",
+    en: "Suspending locks the merchant out of the dashboard and stops their automated sends. Nothing is deleted: incoming data is still stored.",
+  },
 } satisfies Namespace;

@@ -22,6 +22,7 @@ import {
   Clamp,
   type Tone,
 } from "../../_components/admin-ui";
+import { SuspensionSwitch } from "../../_components/suspension-switch";
 
 /** Ficha de un comercio: quién es, qué tiene conectado y qué le está fallando. */
 export default function AdminWorkspaceDetailPage({
@@ -67,6 +68,17 @@ export default function AdminWorkspaceDetailPage({
           .filter(Boolean)
           .join(" · ")}
       />
+
+      {/* El interruptor del cobro manual. Arriba de todo porque es lo único
+          de esta pantalla que cambia lo que el comercio puede hacer. */}
+      <Panel title={t("admin.suspendTitle")}>
+        <SuspensionSwitch
+          workspaceId={workspace.id}
+          suspendedAt={workspace.suspended_at}
+          suspendedReason={workspace.suspended_reason}
+          onDone={reload}
+        />
+      </Panel>
 
       {/* Lo que está roto AHORA — el mismo criterio que ve el comercio en su
           Inicio. Va antes que los números: los últimos errores son historial,

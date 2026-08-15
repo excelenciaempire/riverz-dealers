@@ -7,6 +7,8 @@ import { needsReconsent } from "@/lib/legal/version";
 import { ReconsentGate } from "@/components/legal/reconsent-gate";
 import { getFeatureFlags, type FeatureFlags } from "@/lib/admin/feature-flags";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
+import { isWorkspaceSuspended } from "@/lib/workspaces/suspension";
+import { SuspendedGate } from "@/components/layout/suspended-gate";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -47,6 +49,7 @@ export default async function DashboardLayout({
   let mustReconsent = false;
   let flags: FeatureFlags = {};
   let platformAdmin = false;
+  let suspended = false;
   try {
     const supabase = await createClient();
     const {
@@ -70,6 +73,13 @@ export default async function DashboardLayout({
       // anónimo no llega a ver el menú, así que consultarlo fuera del `if` era
       // una query de más en cada render.
       flags = await getFeatureFlags(supabaseAdmin(), workspaceId);
+      // Cuenta suspendida por el equipo (cobro manual). El panel del equipo
+      // no ve esta pantalla: si un admin de plataforma entra a una cuenta
+      // suspendida para revisarla, cortarle el acceso sería justo al revés
+      // de lo que necesita.
+      suspended =
+        !platformAdmin &&
+        (await isWorkspaceSuspended(supabaseAdmin(), workspaceId));
       // Re-consent gate: if the Terms/Privacy changed since this user last
       // accepted (LEGAL_VERSION bumped), block the app until they accept the
       // new version. Fail-soft — any read error defaults to NOT gating so a
@@ -86,6 +96,8 @@ export default async function DashboardLayout({
   } catch (err) {
     console.error("[dashboard/layout] bootstrap failed:", err);
   }
+
+  if (suspended) return <SuspendedGate />;
 
   return (
     <>

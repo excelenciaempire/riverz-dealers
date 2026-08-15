@@ -16,6 +16,7 @@ import type {
   VoiceCallType,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { isWorkspaceSuspended } from '@/lib/workspaces/suspension'
 import { enqueueCall } from '@/lib/voice/queue'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import type { SendReason } from '@/lib/outreach/send-gate'
@@ -83,6 +84,12 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+
+    // Cuenta suspendida (cobro manual, ver lib/workspaces/suspension): no
+    // sale ni un mensaje más. Se corta acá arriba, antes de leer nada, para
+    // que ningún camino nuevo se olvide de preguntarlo.
+    if (await isWorkspaceSuspended(db, input.workspaceId)) return
+
     const { data: automations, error } = await db
       .from('automations')
       .select('*')

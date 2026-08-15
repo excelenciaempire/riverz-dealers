@@ -153,6 +153,10 @@ export interface WorkspaceDetail {
     created_at: string | null;
     deleted_at: string | null;
     owner_id: string;
+    /** Cobro manual: NULL = activa. Ver lib/workspaces/suspension. */
+    suspended_at: string | null;
+    /** Nota interna del equipo. No se le muestra al comercio. */
+    suspended_reason: string | null;
   };
   owner: { email: string | null; full_name: string | null } | null;
   members: Array<{
@@ -233,7 +237,9 @@ export async function getWorkspaceDetail(
 
   const { data: ws } = await client
     .from('workspaces')
-    .select('id, name, slug, timezone, created_at, deleted_at, owner_id')
+    .select(
+      'id, name, slug, timezone, created_at, deleted_at, owner_id, suspended_at, suspended_reason',
+    )
     .eq('id', id)
     .maybeSingle();
   if (!ws) return null;

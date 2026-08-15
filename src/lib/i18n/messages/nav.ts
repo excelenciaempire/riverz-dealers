@@ -49,4 +49,13 @@ export const nav = {
   toggleTheme: { es: "Cambiar tema", en: "Toggle theme" },
   lightTheme: { es: "Tema claro", en: "Light theme" },
   darkTheme: { es: "Tema oscuro", en: "Dark theme" },
+
+  // Cuenta suspendida. Neutro a propósito: la suspensión también cubre bajas
+  // voluntarias y cuentas de prueba que se cierran.
+  suspendedTitle: { es: "Tu cuenta está en pausa", en: "Your account is paused" },
+  suspendedBody: {
+    es: "Tus datos y tus conversaciones están guardados. Escríbenos y la reactivamos.",
+    en: "Your data and conversations are saved. Write to us and we'll turn it back on.",
+  },
+  suspendedCta: { es: "Escribirnos", en: "Contact us" },
 } satisfies Namespace;

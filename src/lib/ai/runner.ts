@@ -48,6 +48,7 @@ import {
 } from './summarize';
 import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
+import { isWorkspaceSuspended } from '@/lib/workspaces/suspension';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -72,6 +73,11 @@ export async function runAiAgent(
   },
 ): Promise<void> {
   try {
+    // Cuenta suspendida (cobro manual, ver lib/workspaces/suspension): el
+    // asistente no contesta. Antes de elegir agente y antes de gastar la
+    // clave de IA — que en la mayoría de las cuentas la paga la plataforma.
+    if (await isWorkspaceSuspended(db, args.workspaceId)) return;
+
     // ── Product routing ──
     // 1. Detect which product the customer is talking about. The
     //    detector is deterministic, ~10ms, no LLM call. Catalog is
