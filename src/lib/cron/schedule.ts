@@ -83,6 +83,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // post_id → ad_id se congeló, así que los comentarios sobre anuncios dejaron
   // de marcarse como tales. Acá dentro la URL no puede desviarse.
   { name: "ads-sync", whatKey: "admin.cronAdsSync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *" },
+  // Le avisa al EQUIPO lo que se rompió, apenas se rompe. `issues-alert` avisa
+  // al comercio una vez por día; este avisa acá y ahora, y sólo lo nuevo.
+  { name: "platform-watch", whatKey: "admin.cronPlatformWatch", path: "/api/cron/platform-watch", schedule: "*/15 * * * *" },
 
   // --- horas ---
   // Cada 5 minutos, igual que la recuperación de pagos. El checkout entra por

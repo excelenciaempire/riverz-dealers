@@ -386,6 +386,10 @@ export const admin = {
   },
   cronMlCatalog: { es: "Precio y stock de Mercado Libre", en: "Mercado Libre price and stock" },
   cronMlReviews: { es: "Opiniones de Mercado Libre", en: "Mercado Libre reviews" },
+  cronPlatformWatch: {
+    es: "Avisa al equipo lo que se acaba de romper",
+    en: "Alerts the team about anything that just broke",
+  },
   colProvider: { es: "Origen", en: "Source" },
   colAttempts: { es: "Intentos", en: "Attempts" },
 

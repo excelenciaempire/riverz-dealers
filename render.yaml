@@ -91,6 +91,23 @@ services:
       # Secreto compartido para el cron de reintentos de flows pendientes.
       - key: FLOWS_RETRY_CRON_SECRET
         sync: false
+      # Resend — por acá salen los correos de la lista de espera y el aviso
+      # diario de "esto se rompió en tu cuenta". Sin esta clave esos correos no
+      # se mandan y no falla nada: el cron devuelve 0 notificados.
+      - key: RESEND_API_KEY
+        sync: false
+      # Segunda llave del panel de plataforma: ser del equipo abre la puerta,
+      # esta contraseña la cierra detrás. Sin ella el panel no abre para nadie.
+      - key: ADMIN_PANEL_PASSWORD
+        sync: false
+      # Clave de la puerta de servicio MCP (/api/mcp). Sin esta variable el
+      # endpoint rechaza todo, que es el estado por defecto y el seguro.
+      - key: MCP_ADMIN_TOKEN
+        sync: false
+      # Teléfono del equipo (E.164, sólo dígitos) al que el cron platform-watch
+      # le avisa por WhatsApp cuando algo se rompe en cualquier cuenta.
+      - key: PLATFORM_ALERT_PHONE
+        sync: false
       # Upstash Redis — rate limit distribuido. Sin estas variables el
       # limitador cae a memoria por proceso y deja pasar burst en
       # multi-réplica. Crear base en https://upstash.com.
