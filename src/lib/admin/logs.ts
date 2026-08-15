@@ -201,7 +201,10 @@ async function messageLogs(f: LogFilters): Promise<LogEntry[]> {
       detail: r.error_reason ?? (r.error_code ? `Meta ${r.error_code}` : null),
       extra: {
         error_code: r.error_code,
-        held_for_quality: r.held_for_quality ? 'sí' : 'no',
+        // Booleano crudo y no 'sí'/'no': este objeto viaja al navegador y la
+        // tabla lo pinta clave por clave, así que un literal en español acá era
+        // texto en español en una pantalla que se ve en dos idiomas.
+        held_for_quality: r.held_for_quality ?? false,
         unconfirmed_at: r.delivery_unconfirmed_at,
       },
     };
@@ -233,7 +236,9 @@ async function webhookLogs(f: LogFilters): Promise<LogEntry[]> {
     workspaceId: null,
     workspaceName: null,
     level: r.last_error ? 'error' : 'warn',
-    status: r.last_error ? 'error' : 'pendiente',
+    // El estado crudo, como en el resto de las fuentes: la UI lo muestra tal
+    // cual, así que tiene que ser una clave de máquina y no una palabra.
+    status: r.last_error ? 'error' : 'pending',
     detail: r.last_error ?? r.provider,
     extra: { provider: r.provider, attempts: r.attempts },
   }));

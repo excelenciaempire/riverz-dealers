@@ -27,6 +27,13 @@ interface Payload {
   has_key: boolean;
   key_hint: string | null;
   days: number;
+  /** La otra vía por la que la IA toca las cuentas: un agente vía /api/mcp. */
+  mcp?: {
+    enabled: boolean;
+    calls_7d: number;
+    failed_7d: number;
+    top_tools: { tool: string; n: number }[];
+  };
   workspaces: WorkspaceRow[];
   totals: { platform_usd: number; own_usd: number; covered: number };
 }
@@ -219,6 +226,49 @@ export default function AdminAiKeyPage() {
           </Button>
         </div>
       </section>
+
+      {/* La otra puerta: un agente operando por MCP. Va acá y no en una sección
+          nueva porque la pregunta es la misma — qué hace la IA sobre las
+          cuentas — y hasta ahora no se veía por ningún lado. */}
+      {data.mcp && (
+        <section className="space-y-2">
+          <div className="text-sm font-medium">{t('admin.mcpTitle')}</div>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5',
+                  data.mcp.enabled
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-muted-foreground',
+                )}
+              >
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    data.mcp.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                  )}
+                />
+                {t(data.mcp.enabled ? 'admin.mcpOn' : 'admin.mcpOff')}
+              </span>
+              <span className="text-muted-foreground">
+                {t('admin.mcpCalls', { n: data.mcp.calls_7d })}
+              </span>
+              {data.mcp.failed_7d > 0 && (
+                <span className="text-red-600 dark:text-red-400">
+                  {t('admin.mcpFailed', { n: data.mcp.failed_7d })}
+                </span>
+              )}
+            </div>
+            {data.mcp.top_tools.length > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {data.mcp.top_tools.map((x) => `${x.tool} (${x.n})`).join(' · ')}
+              </p>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">{t('admin.mcpHint')}</p>
+          </div>
+        </section>
+      )}
 
       {/* A quién cubre */}
       <section className="space-y-3">

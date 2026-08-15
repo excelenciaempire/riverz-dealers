@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/hooks/use-locale';
+
 import { useEffect, useState } from 'react';
 import { Loader2, Lock } from 'lucide-react';
 
@@ -36,6 +38,8 @@ export function UnlockForm({ configured }: { configured: boolean }) {
     };
   }, []);
 
+  const t = useT();
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!password.trim()) return;
@@ -53,12 +57,12 @@ export function UnlockForm({ configured }: { configured: boolean }) {
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(json?.error ?? 'No se pudo abrir');
+        setError(json?.error ?? t('admin.unlockFailed'));
         return;
       }
       window.location.reload();
     } catch {
-      setError('Error de red');
+      setError(t('admin.unlockNetwork'));
     } finally {
       setBusy(false);
     }
@@ -72,7 +76,7 @@ export function UnlockForm({ configured }: { configured: boolean }) {
       >
         <div className="flex items-center gap-2">
           <Lock className="size-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Panel de plataforma</h1>
+          <h1 className="text-sm font-semibold text-foreground">{t('admin.unlockTitle')}</h1>
         </div>
 
         {configured ? (
@@ -83,7 +87,7 @@ export function UnlockForm({ configured }: { configured: boolean }) {
               autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contraseña del panel"
+              placeholder={t('admin.unlockPlaceholder')}
               className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
             />
             {error && <p className="text-xs text-red-500">{error}</p>}
@@ -93,13 +97,12 @@ export function UnlockForm({ configured }: { configured: boolean }) {
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
-              Entrar
+              {t('admin.unlockSubmit')}
             </button>
           </>
         ) : (
           <p className="text-xs leading-snug text-muted-foreground">
-            Falta definir <code>ADMIN_PANEL_PASSWORD</code> en el servidor. Sin esa
-            contraseña el panel no se abre para nadie.
+            {t('admin.unlockNotConfigured')}
           </p>
         )}
       </form>

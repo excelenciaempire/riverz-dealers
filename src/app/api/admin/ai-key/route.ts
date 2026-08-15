@@ -104,6 +104,7 @@ async function aiKeyPayload() {
     key_hint: keyHint(encKey),
     updated_at: settings?.updated_at ?? null,
     days: DAYS,
+    mcp: await mcpStatus(db),
     workspaces,
     totals: {
       platform_usd: Number(
@@ -113,6 +114,43 @@ async function aiKeyPayload() {
       covered: workspaces.filter((w) => w.covered).length,
     },
   };
+}
+
+/**
+ * Estado de la puerta MCP.
+ *
+ * Es la otra vía por la que la IA toca las cuentas —un agente hablando con
+ * `/api/mcp`— y no tenía ninguna superficie: no se veía si la clave estaba
+ * puesta ni si alguien la había usado. Va en esta pantalla, que ya es "quién
+ * paga la IA y qué hace", en vez de inventar una sección nueva.
+ */
+async function mcpStatus(db: ReturnType<typeof supabaseAdmin>) {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  try {
+    const { data } = await db
+      .from('platform_audit_log')
+      .select('tool, risk, ok, created_at')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    const rows = (data ?? []) as Array<{ tool: string; ok: boolean }>;
+    const porHerramienta = new Map<string, number>();
+    for (const r of rows) porHerramienta.set(r.tool, (porHerramienta.get(r.tool) ?? 0) + 1);
+    return {
+      // Sin token la puerta rechaza todo, que es el estado por defecto.
+      enabled: Boolean(process.env.MCP_ADMIN_TOKEN),
+      calls_7d: rows.length,
+      failed_7d: rows.filter((r) => !r.ok).length,
+      top_tools: [...porHerramienta.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tool, n]) => ({ tool, n })),
+    };
+  } catch {
+    // La migración 150 puede no estar aplicada; no es motivo para tumbar la
+    // pantalla entera.
+    return { enabled: Boolean(process.env.MCP_ADMIN_TOKEN), calls_7d: 0, failed_7d: 0, top_tools: [] };
+  }
 }
 
 export async function PUT(request: Request) {

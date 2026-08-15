@@ -43,6 +43,12 @@ export interface LogEntry {
   status: string | null;
   /** Qué pasó, en una línea: motivo de skip, código de error, evento. */
   detail: string | null;
-  /** Pares clave/valor extra para la fila expandida. */
-  extra: Record<string, string | number | null>;
+  /**
+   * Pares clave/valor extra para la fila expandida.
+   *
+   * Los booleanos van como booleanos y no como "sí"/"no": la tabla pinta este
+   * objeto clave por clave, así que un literal en español acá sería texto en
+   * español en una pantalla que se ve en dos idiomas.
+   */
+  extra: Record<string, string | number | boolean | null>;
 }

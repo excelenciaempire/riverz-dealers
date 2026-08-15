@@ -460,6 +460,79 @@ export const admin = {
     en: "this is how we ask the merchant",
   },
 
+  // Pantalla de desbloqueo. Es lo primero que se ve en admin.riverz.co, y era
+  // una de las dos que no pasaban por i18n.
+  unlockTitle: { es: "Panel de plataforma", en: "Platform panel" },
+  unlockPlaceholder: { es: "Contraseña del panel", en: "Panel password" },
+  unlockSubmit: { es: "Entrar", en: "Enter" },
+  unlockFailed: { es: "No se pudo abrir", en: "Couldn't unlock" },
+  unlockNetwork: { es: "Error de red", en: "Network error" },
+  unlockNotConfigured: {
+    es: "Falta definir ADMIN_PANEL_PASSWORD en el servidor. Sin esa contraseña el panel no se abre para nadie.",
+    en: "ADMIN_PANEL_PASSWORD isn't set on the server. Without it the panel opens for nobody.",
+  },
+
+  // WhatsApp de la plataforma. Era la otra pantalla que no pasaba por i18n.
+  waPlatformTitle: { es: "WhatsApp de Riverz", en: "Riverz WhatsApp" },
+  waPlatformDesc: {
+    es: "El número con el que la plataforma le avisa a los comercios cuando algo se rompe. Es aparte del de cada cuenta a propósito: el aviso más importante es justo el que el número del comercio no podría entregar.",
+    en: "The number the platform uses to tell merchants something broke. Separate from each account's own number on purpose: the alert that matters most is exactly the one their number couldn't deliver.",
+  },
+  waNeedsMigration: {
+    es: "Falta aplicar la migración 147_platform_whatsapp.sql. Hasta entonces sólo se puede configurar por variables de entorno.",
+    en: "Migration 147_platform_whatsapp.sql hasn't been applied. Until then it can only be set through environment variables.",
+  },
+  waConnectTitle: { es: "Conectar con Meta", en: "Connect with Meta" },
+  waConnectHint: {
+    es: "Abre el registro de WhatsApp Business de Meta y trae el número y el token sin copiar nada.",
+    en: "Opens Meta's WhatsApp Business signup and brings the number and token over without copying anything.",
+  },
+  waReconnectNote: {
+    es: "Volver a conectarlo reemplaza el token guardado.",
+    en: "Reconnecting replaces the saved token.",
+  },
+  waConnect: { es: "Conectar WhatsApp de Riverz", en: "Connect Riverz WhatsApp" },
+  waReconnect: { es: "Volver a conectar", en: "Reconnect" },
+  waManual: { es: "Cargar los datos a mano", en: "Enter the details by hand" },
+  waPhoneId: { es: "ID del número (phone_number_id)", en: "Number ID (phone_number_id)" },
+  waPhoneIdHint: { es: "Meta → WhatsApp → API Setup", en: "Meta → WhatsApp → API Setup" },
+  waWabaId: {
+    es: "ID de la cuenta de WhatsApp Business (WABA)",
+    en: "WhatsApp Business Account ID (WABA)",
+  },
+  waDisplay: { es: "Número, como se muestra", en: "Number, as displayed" },
+  waToken: { es: "Token permanente", en: "Permanent token" },
+  waTokenSaved: {
+    es: "Ya hay uno guardado — escribe otro sólo si lo cambias",
+    en: "One is already saved — type a new one only to replace it",
+  },
+  waTokenHint: { es: "Token del System User", en: "System User token" },
+  waTemplate: { es: "Plantilla de aviso", en: "Alert template" },
+  waTemplateHint: {
+    es: "Utility aprobada. Las Marketing las retiene Meta.",
+    en: "An approved Utility template. Meta holds back Marketing ones.",
+  },
+  waNotify: { es: "Avisar por WhatsApp", en: "Alert over WhatsApp" },
+  waNotifyHint: {
+    es: "Apagado, los avisos siguen saliendo sólo por correo.",
+    en: "Off, alerts still go out by email only.",
+  },
+
+  voiceCustom: { es: "Otro…", en: "Other…" },
+  voiceProviderId: { es: "id del proveedor", en: "provider id" },
+  voiceModelId: { es: "id del modelo", en: "model id" },
+
+  // La puerta MCP: un agente operando sobre las cuentas.
+  mcpTitle: { es: "Operación por agente (MCP)", en: "Agent access (MCP)" },
+  mcpOn: { es: "Puerta abierta", en: "Door open" },
+  mcpOff: { es: "Cerrada (sin clave)", en: "Closed (no key)" },
+  mcpCalls: { es: "{n} llamada(s) en 7 días", en: "{n} call(s) in 7 days" },
+  mcpFailed: { es: "{n} fallaron", en: "{n} failed" },
+  mcpHint: {
+    es: "Todo lo que hace queda en Auditoría → Agente, incluidas las lecturas. Lo irreversible pide confirmación antes de ejecutarse.",
+    en: "Everything it does lands in Audit → Agent, reads included. Irreversible actions ask for confirmation first.",
+  },
+
   live: { es: "En vivo", en: "Live" },
   liveHint: {
     es: "Se actualiza solo cada 30 segundos mientras miras esta pestaña.",

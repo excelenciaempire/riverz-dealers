@@ -88,13 +88,43 @@ export function withCronRun(
         name,
         startedAt,
         failed ? "error" : "ok",
-        failed
-          ? response.status === 207
-            ? "HTTP 207 (fallo parcial)"
-            : `HTTP ${response.status}`
-          : null,
+        failed ? await motivo(response) : null,
       );
     }
     return response;
   };
+}
+
+/**
+ * El motivo real de una corrida fallida.
+ *
+ * Sólo se conservaba el mensaje cuando el handler LANZABA. Los que atrapan el
+ * error y devuelven un 500 con JSON —la mayoría, porque así se evita que un
+ * comercio roto tumbe el barrido entero— quedaban registrados con la cadena
+ * literal "HTTP 500". La columna del panel se llama "Último error" y casi nunca
+ * decía cuál: había que ir a los logs con la hora en la mano.
+ *
+ * Se lee sobre un CLON: el cuerpo del original tiene que seguir intacto para
+ * quien llamó.
+ */
+async function motivo(response: Response): Promise<string> {
+  const prefijo =
+    response.status === 207 ? "HTTP 207 (fallo parcial)" : `HTTP ${response.status}`;
+  try {
+    const texto = (await response.clone().text()).trim();
+    if (!texto) return prefijo;
+    // Los handlers de la casa contestan `{ error: '…' }` o `{ message: '…' }`.
+    try {
+      const j = JSON.parse(texto) as Record<string, unknown>;
+      const detalle = j.error ?? j.message ?? j.reason;
+      if (typeof detalle === "string" && detalle) {
+        return `${prefijo}: ${detalle}`.slice(0, 500);
+      }
+    } catch {
+      /* no era JSON: sirve el texto crudo */
+    }
+    return `${prefijo}: ${texto}`.slice(0, 500);
+  } catch {
+    return prefijo;
+  }
 }

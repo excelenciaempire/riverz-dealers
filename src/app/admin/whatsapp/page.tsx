@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/hooks/use-locale';
+
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, MessageCircle, ShieldAlert } from 'lucide-react';
@@ -33,6 +35,7 @@ interface Status {
  * El token se escribe pero no se lee: la pantalla sólo dice si hay uno puesto.
  */
 export default function AdminWhatsAppPage() {
+  const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [status, setStatus] = useState<Status | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,22 +104,18 @@ export default function AdminWhatsAppPage() {
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <MessageCircle className="size-5 text-foreground" />
-        <h1 className="text-xl font-semibold text-foreground">WhatsApp de Riverz</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('admin.waPlatformTitle')}</h1>
       </div>
 
       <p className="max-w-2xl text-sm text-muted-foreground">
-        El número con el que la plataforma le avisa a los comercios cuando algo se
-        rompe. Es aparte del de cada cuenta a propósito: el aviso más importante es
-        justo el que el número del comercio no podría entregar.
+        {t('admin.waPlatformDesc')}
       </p>
 
       {status.needsMigration && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" />
           <span>
-            Falta aplicar la migración <code>147_platform_whatsapp.sql</code>. Hasta
-            entonces sólo se puede configurar por variables de entorno
-            (<code>PLATFORM_WHATSAPP_PHONE_ID</code>, <code>PLATFORM_WHATSAPP_TOKEN</code>).
+            {t('admin.waNeedsMigration')}
           </span>
         </div>
       )}
@@ -125,39 +124,39 @@ export default function AdminWhatsAppPage() {
           token lo trae el flujo y nadie lo copia a mano. Los campos de abajo
           quedan como salida de emergencia. */}
       <div className="max-w-2xl space-y-3 rounded-xl border border-border bg-card p-5">
-        <p className="text-sm font-medium text-foreground">Conectar con Meta</p>
+        <p className="text-sm font-medium text-foreground">{t('admin.waConnectTitle')}</p>
         <p className="text-xs text-muted-foreground">
-          Abre el registro de WhatsApp Business de Meta y trae el número y el token
-          sin copiar nada. {status.configured ? 'Volver a conectarlo reemplaza el token guardado.' : ''}
+          {t('admin.waConnectHint')}{' '}
+          {status.configured ? t('admin.waReconnectNote') : ''}
         </p>
         <WhatsAppEmbeddedSignup
           workspaceId="platform"
           target="platform"
-          label={status.configured ? 'Volver a conectar' : 'Conectar WhatsApp de Riverz'}
+          label={status.configured ? t('admin.waReconnect') : t('admin.waConnect')}
           onConnected={() => void load()}
         />
       </div>
 
       <details className="max-w-2xl rounded-xl border border-border bg-card p-5">
         <summary className="cursor-pointer text-sm font-medium text-foreground">
-          Cargar los datos a mano
+          {t('admin.waManual')}
         </summary>
         <div className="mt-4 space-y-4">
-        <Field label="ID del número (phone_number_id)" hint="Meta → WhatsApp → API Setup">
+        <Field label={t('admin.waPhoneId')} hint={t('admin.waPhoneIdHint')}>
           <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} />
         </Field>
-        <Field label="ID de la cuenta de WhatsApp Business (WABA)">
+        <Field label={t('admin.waWabaId')}>
           <Input value={wabaId} onChange={(e) => setWabaId(e.target.value)} />
         </Field>
-        <Field label="Número, como se muestra" hint="+57 300 000 0000">
+        <Field label={t('admin.waDisplay')} hint="+57 300 000 0000">
           <Input
             value={displayPhoneNumber}
             onChange={(e) => setDisplayPhoneNumber(e.target.value)}
           />
         </Field>
         <Field
-          label="Token permanente"
-          hint={status.hasToken ? 'Ya hay uno guardado — escribe otro sólo si lo cambias' : 'Token del System User'}
+          label={t('admin.waToken')}
+          hint={status.hasToken ? t('admin.waTokenSaved') : t('admin.waTokenHint')}
         >
           <Input
             type="password"
@@ -167,17 +166,17 @@ export default function AdminWhatsAppPage() {
           />
         </Field>
         <Field
-          label="Plantilla de aviso"
-          hint="Utility aprobada. Las Marketing las retiene Meta."
+          label={t('admin.waTemplate')}
+          hint={t('admin.waTemplateHint')}
         >
           <Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
         </Field>
 
         <div className="flex items-center justify-between border-t border-border pt-4">
           <div>
-            <p className="text-sm font-medium text-foreground">Avisar por WhatsApp</p>
+            <p className="text-sm font-medium text-foreground">{t('admin.waNotify')}</p>
             <p className="text-xs text-muted-foreground">
-              Apagado, los avisos siguen saliendo sólo por correo.
+              {t('admin.waNotifyHint')}
             </p>
           </div>
           <Switch checked={isActive} onCheckedChange={setIsActive} />
@@ -185,7 +184,7 @@ export default function AdminWhatsAppPage() {
 
         <Button onClick={save} disabled={saving} className="w-full">
           {saving && <Loader2 className="size-4 animate-spin" />}
-          Guardar
+          {t('common.save')}
         </Button>
         </div>
       </details>

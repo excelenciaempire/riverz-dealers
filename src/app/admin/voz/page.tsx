@@ -6,7 +6,7 @@ import { Loader2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useLocale } from '@/hooks/use-locale';
+import { useLocale, useT } from '@/hooks/use-locale';
 import type { VoiceModelConfig } from '@/lib/voice/model-config';
 import {
   LAYER_PROVIDERS,
@@ -310,6 +310,7 @@ function LayerSection({
   modelLabel: string;
   children?: React.ReactNode;
 }) {
+  const t = useT();
   const providers = LAYER_PROVIDERS[layer];
   const opt: ProviderOption | undefined = providers.find((p) => p.id === provider);
   const models = modelsFor(layer, provider);
@@ -339,7 +340,7 @@ function LayerSection({
                 {p.label}
               </option>
             ))}
-            <option value="__custom__">Custom…</option>
+            <option value="__custom__">{t('admin.voiceCustom')}</option>
           </Select>
         </Row>
         {opt?.note ? (
@@ -357,18 +358,18 @@ function LayerSection({
                   {m.label}
                 </option>
               ))}
-              <option value="__custom__">Custom…</option>
+              <option value="__custom__">{t('admin.voiceCustom')}</option>
             </Select>
           </Row>
         ) : (
           <Row label={providerLabel}>
-            <Input placeholder="provider id" value={provider} onChange={(e) => onProvider(e.target.value, model)} />
+            <Input placeholder={t('admin.voiceProviderId')} value={provider} onChange={(e) => onProvider(e.target.value, model)} />
           </Row>
         )}
 
         {(!known || !modelKnown) && (
           <Row label={modelLabel}>
-            <Input value={model} onChange={(e) => onModel(e.target.value)} placeholder="modelo" />
+            <Input value={model} onChange={(e) => onModel(e.target.value)} placeholder={t('admin.voiceModelId')} />
           </Row>
         )}
 
