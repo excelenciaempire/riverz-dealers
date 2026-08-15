@@ -57,6 +57,32 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   ai_agents: ['api_key_encrypted'],
   shopify_connections: ['access_token', 'admin_token', 'access_token_encrypted'],
   workspace_integrations: ['credentials', 'api_key_encrypted'],
+
+  // Identidad del comercio, no del comprador: nombre y correo se pueden ver
+  // (es a quién se le factura y a quién se le escribe). El teléfono no lo
+  // necesita ninguna pantalla del panel, así que no se saca.
+  profiles: ['phone'],
+  workspaces: [],
+  workspace_members: [],
+  admin_audit_log: [],
+  waitlist: [],
+
+  // Tablas que el panel lee y que no tienen ninguna columna de comprador. Van
+  // declaradas igual, con lista vacía: la barrera rechaza lo que no está en
+  // este mapa, así que declararlas es la forma de decir "ya la miré".
+  ai_replies: [],
+  flows: [],
+  automations: [],
+  shopify_products: [],
+  flow_runs: [],
+  message_templates: [],
+  broadcasts: [],
+  cron_runs: [],
+  // `args` y `summary` pueden traer el teléfono del comprador o el texto que se
+  // le mandó — el MCP ya los guarda ocultos, pero las filas viejas no.
+  platform_audit_log: ['args'],
+  approval_requests: ['notified_phone', 'payload'],
+  dropi_connections: ['api_key', 'password', 'credentials'],
 } as const;
 
 /** Limpia un token de `select()`: alias, hints `!inner`, espacios. */
@@ -126,22 +152,36 @@ export function assertMetadataOnly(table: string, select: string): void {
   for (const e of embeds) assertMetadataOnly(e.table, e.inner);
 
   const forbidden = FORBIDDEN_COLUMNS[table];
-  if (!forbidden?.length) return;
+  // Tabla que nadie declaró: se rechaza en vez de dejarla pasar entera.
+  //
+  // Antes, una tabla ausente del catálogo salía por acá sin revisar nada —
+  // incluido `select('*')`. O sea que la barrera protegía exactamente las
+  // catorce tablas que alguien se había acordado de listar, y cualquier tabla
+  // nueva nacía sin protección. Declararla con lista vacía es una línea, y
+  // obliga a mirar qué columnas tiene antes de leerla desde el panel.
+  if (forbidden === undefined) {
+    throw new Error(
+      `[admin] la tabla "${table}" no está declarada en FORBIDDEN_COLUMNS: agrégala (aunque sea con []) antes de leerla desde el panel.`,
+    );
+  }
 
   const asked = own
     .split(",")
     .map(bare)
     .filter(Boolean);
 
+  if (asked.includes("*")) {
+    throw new Error(
+      `[admin] "select(*)" sobre "${table}" traería columnas prohibidas; enumera las columnas.`,
+    );
+  }
+
+  if (!forbidden.length) return;
+
   const hit = asked.find((c) => forbidden.includes(c));
   if (hit) {
     throw new Error(
       `[admin] la consulta sobre "${table}" pide la columna "${hit}", que el panel no puede leer (solo metadatos).`,
-    );
-  }
-  if (asked.includes("*")) {
-    throw new Error(
-      `[admin] "select(*)" sobre "${table}" traería columnas prohibidas; enumera las columnas.`,
     );
   }
 }

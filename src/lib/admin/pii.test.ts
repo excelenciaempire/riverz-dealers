@@ -36,6 +36,20 @@ describe('assertMetadataOnly', () => {
     expect(() => assertMetadataOnly('contacts', '*')).toThrow();
   });
 
+  it('rechaza una tabla que nadie declaró, en vez de dejarla pasar entera', () => {
+    // La barrera protegía sólo las tablas que alguien se acordó de listar:
+    // cualquier tabla nueva pasaba sin revisar, incluido `select('*')`.
+    expect(() => assertMetadataOnly('tabla_que_no_existe', 'id')).toThrow(
+      /no está declarada/,
+    );
+  });
+
+  it('rechaza select(*) incluso sobre una tabla sin columnas prohibidas', () => {
+    // Hoy `flows` no tiene ninguna columna sensible; mañana puede tenerla, y
+    // un `*` escrito hoy la traería sin que nadie lo note.
+    expect(() => assertMetadataOnly('flows', '*')).toThrow(/select\(\*\)/);
+  });
+
   it('permite email/nombre donde son del comercio, no del comprador', () => {
     // profiles y waitlist son gente de Riverz: identificarla es el objetivo.
     expect(() => assertMetadataOnly('profiles', 'user_id, email, full_name')).not.toThrow();

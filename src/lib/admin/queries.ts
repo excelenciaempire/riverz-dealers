@@ -573,6 +573,57 @@ export async function listAudit(opts: {
   return (data ?? []) as AuditRow[];
 }
 
+/**
+ * Lo que un agente hizo sobre la cuenta de un comercio, vía MCP.
+ *
+ * Es el otro libro de actas. `admin_audit_log` (migración 124) anota lo que el
+ * equipo mira y cambia DESDE el panel; `platform_audit_log` (migración 150)
+ * anota lo que el servidor MCP hace sobre datos de un comercio, lecturas
+ * incluidas. La migración 150 dice en su propio comentario que "se lee desde
+ * /admin" — y hasta acá no lo leía nadie: el único uso de la tabla en todo el
+ * repo era el INSERT.
+ */
+export interface PlatformAuditRow {
+  id: number;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  actor: string;
+  tool: string;
+  risk: string;
+  ok: boolean;
+  summary: string | null;
+  created_at: string;
+}
+
+export async function listPlatformAudit(opts: {
+  limit?: number;
+  offset?: number;
+  actor?: string;
+}): Promise<PlatformAuditRow[]> {
+  // `args` no se devuelve: aunque desde ahora se guarda con los campos
+  // sensibles ocultos, las filas viejas se escribieron con el teléfono y el
+  // texto del mensaje adentro, y esto es una pantalla de solo-metadatos.
+  let q = db()
+    .from('platform_audit_log')
+    .select('id, workspace_id, actor, tool, risk, ok, summary, created_at')
+    .order('created_at', { ascending: false });
+  if (opts.actor) q = q.eq('actor', opts.actor);
+  const { data, error } = await q.range(
+    opts.offset ?? 0,
+    (opts.offset ?? 0) + (opts.limit ?? 100) - 1,
+  );
+  if (error) throw new Error(`[admin] listPlatformAudit: ${error.message}`);
+
+  const rows = (data ?? []) as Omit<PlatformAuditRow, 'workspace_name'>[];
+  const names = await workspaceNames(
+    rows.map((r) => r.workspace_id).filter((v): v is string => Boolean(v)),
+  );
+  return rows.map((r) => ({
+    ...r,
+    workspace_name: r.workspace_id ? (names.get(r.workspace_id) ?? null) : null,
+  }));
+}
+
 export interface WaitlistRow {
   id: string;
   email: string;

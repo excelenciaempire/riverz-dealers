@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { limitByKey } from '@/lib/rate-limit'
 import { MCP_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
 
 /**
@@ -90,6 +91,24 @@ function confirmacionValida(token: string, tool: string, args: unknown): boolean
   return timingSafeEqual(esperado, recibido)
 }
 
+/**
+ * Los argumentos, sin lo que identifica a un comprador.
+ *
+ * `por_que_no_salio` recibe un teléfono y `mensaje_enviar` un texto que le llega
+ * a una persona: guardarlos tal cual mete PII del cliente en una tabla de
+ * plataforma que después se lee desde /admin. Se conserva la forma —qué campos
+ * se usaron— porque eso es lo que hace auditable la llamada.
+ */
+const CAMPOS_PII = new Set(['telefono', 'phone', 'texto', 'text', 'email'])
+
+function sinPii(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(args)) {
+    out[k] = CAMPOS_PII.has(k) ? '[oculto]' : v
+  }
+  return out
+}
+
 async function anotar(args: {
   actor: string
   tool: string
@@ -105,7 +124,7 @@ async function anotar(args: {
         workspace_id: (args.toolArgs.workspace_id as string) ?? null,
         actor: args.actor,
         tool: args.tool,
-        args: args.toolArgs,
+        args: sinPii(args.toolArgs),
         risk: args.risk,
         ok: args.ok,
         summary: args.summary.slice(0, 500),
@@ -119,10 +138,47 @@ function comoTexto(valor: unknown): string {
   return typeof valor === 'string' ? valor : JSON.stringify(valor, null, 1)
 }
 
+/**
+ * El resumen que queda guardado, sin arrastrar datos del comprador.
+ *
+ * Una herramienta de LECTURA devuelve justo lo que no puede vivir en una tabla
+ * de plataforma: `por_que_no_salio` trae nombre y teléfono del contacto, y eso
+ * terminaba entero dentro de `platform_audit_log.summary` — visible después
+ * desde /admin, que es solo-metadatos por diseño. Para las lecturas alcanza con
+ * el tamaño de lo que se devolvió: la pregunta que contesta la auditoría es
+ * "quién miró qué", no "qué decía".
+ *
+ * Las que escriben sí guardan su resumen: son pocas, no devuelven fichas de
+ * clientes, y ahí el detalle es justamente lo que uno vuelve a leer.
+ */
+function resumenSeguro(tool: McpTool, salida: unknown): string {
+  if (tool.risk !== 'lectura') return comoTexto(salida).slice(0, 300)
+  const n = Array.isArray(salida)
+    ? salida.length
+    : salida && typeof salida === 'object'
+      ? Object.keys(salida).length
+      : 1
+  return `ok · ${n} resultado(s)`
+}
+
+/**
+ * Techo de llamadas por actor.
+ *
+ * Las rutas de `/admin` ya se limitan (120/min por email) y esta puerta no,
+ * aunque de este lado están las herramientas que ESCRIBEN: sin techo, una clave
+ * de plataforma filtrada permite mandar mensajes a clientes reales en bucle.
+ */
+const MCP_RATE = { limit: 60, windowMs: 60_000 }
+
 export async function POST(request: Request) {
   const actor = autorizado(request)
   if (!actor) {
     return rpcError(null, -32001, 'clave de plataforma inválida o ausente')
+  }
+
+  const rl = await limitByKey(`mcp:${actor}`, MCP_RATE)
+  if (!rl.success) {
+    return rpcError(null, -32005, 'demasiadas llamadas: probá de nuevo en un minuto')
   }
 
   let body: RpcRequest
@@ -214,7 +270,7 @@ export async function POST(request: Request) {
           toolArgs: args,
           risk: tool.risk,
           ok: true,
-          summary: comoTexto(salida).slice(0, 300),
+          summary: resumenSeguro(tool, salida),
         })
         return rpcOk(body.id, {
           content: [{ type: 'text', text: comoTexto(salida) }],
