@@ -114,33 +114,56 @@ async function processWorkspace(
     Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString()
 
-  // Set de contact_ids que alguna vez tuvieron una orden (proxy via logs).
+  // Cuándo compró cada uno. El log del disparador es la mejor fecha de
+  // compra que hay: los pedidos de Shopify no se espejan en `orders` (ahí
+  // sólo viven los de Mercado Libre y los que arma la IA), así que la fila
+  // que dejó `shopify_order_created` al ejecutarse es lo más cercano.
   const { data: orderLogs, error: ordersErr } = await admin
     .from('automation_logs')
-    .select('contact_id')
+    .select('contact_id, created_at')
     .eq('workspace_id', workspaceId)
     .eq('trigger_event', 'shopify_order_created')
     .not('contact_id', 'is', null)
   if (ordersErr) throw ordersErr
-  const customerContactIds = new Set<string>()
-  for (const row of (orderLogs ?? []) as Array<{ contact_id: string | null }>) {
-    if (row.contact_id) customerContactIds.add(row.contact_id)
+  const ultimaCompra = new Map<string, string>()
+  for (const row of (orderLogs ?? []) as Array<{
+    contact_id: string | null
+    created_at: string
+  }>) {
+    if (!row.contact_id) continue
+    const previa = ultimaCompra.get(row.contact_id)
+    if (!previa || row.created_at > previa) ultimaCompra.set(row.contact_id, row.created_at)
   }
-  if (customerContactIds.size === 0) return { processed: 0, dispatched: 0 }
+  if (ultimaCompra.size === 0) return { processed: 0, dispatched: 0 }
 
-  // Contactos en silencio prolongado.
+  // La receta promete "a los 45 días del último pedido" y eso es lo que se
+  // mide. Antes se cortaba por `last_inbound_at` —los 45 días desde que el
+  // cliente ESCRIBIÓ— y encima se exigía que hubiera escrito alguna vez, así
+  // que quien compró y nunca contestó por WhatsApp no entraba nunca. En esta
+  // cuenta son 2.146 personas: la mayoría de los compradores.
+  const enVentana = [...ultimaCompra.entries()]
+    .filter(([, cuando]) => cuando < cutoff)
+    .map(([id]) => id)
+  if (enVentana.length === 0) return { processed: 0, dispatched: 0 }
+
   const { data: candidates, error } = await admin
     .from('contacts')
     .select('id, name, phone, last_inbound_at')
     .eq('workspace_id', workspaceId)
     .eq('opted_out', false)
-    .not('last_inbound_at', 'is', null)
-    .lt('last_inbound_at', cutoff)
-    .in('id', Array.from(customerContactIds))
-    .order('last_inbound_at', { ascending: true })
+    .in('id', enVentana.slice(0, 500))
     .limit(100)
   if (error) throw error
   if (!candidates || candidates.length === 0) return { processed: 0, dispatched: 0 }
+
+  // Quien está hablando con nosotros ahora no necesita que lo reactivemos:
+  // el silencio sigue importando, pero como exclusión y no como requisito.
+  const hablandoDesde = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString()
+  const enConversacion = new Set(
+    (candidates as Array<{ id: string; last_inbound_at: string | null }>)
+      .filter((c) => c.last_inbound_at && c.last_inbound_at > hablandoDesde)
+      .map((c) => c.id),
+  )
 
   // Cooldown.
   const candidateIds = candidates.map((c) => (c as { id: string }).id)
@@ -164,6 +187,7 @@ async function processWorkspace(
       last_inbound_at: string | null
     }
     if (cooldownSet.has(contact.id)) continue
+    if (enConversacion.has(contact.id)) continue
 
     const { data: priorState } = await admin
       .from('contact_reengagement_state')
@@ -189,8 +213,11 @@ async function processWorkspace(
       continue
     }
 
-    const elapsedDays = contact.last_inbound_at
-      ? (Date.now() - new Date(contact.last_inbound_at).getTime()) / 86_400_000
+    // Días desde la COMPRA, que es lo que dice la receta. Cada automatización
+    // puede pedir su propio plazo, y acá se decide cuáles ya llegaron.
+    const compra = ultimaCompra.get(contact.id)
+    const elapsedDays = compra
+      ? (Date.now() - new Date(compra).getTime()) / 86_400_000
       : Number.POSITIVE_INFINITY
 
     const idsToFire: string[] = []
