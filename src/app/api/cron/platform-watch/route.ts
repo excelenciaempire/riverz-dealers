@@ -5,8 +5,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectPlatformIssues, type Issue } from '@/lib/health/issues'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
-import { platformWhatsApp } from '@/lib/admin/platform-whatsapp'
-import { sendTextMessage } from '@/lib/whatsapp/meta-api'
+import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.platform-watch')
@@ -142,11 +141,10 @@ async function cronHandler(request: Request) {
   }
 
   const destino = process.env.PLATFORM_ALERT_PHONE
-  const plataforma = await platformWhatsApp()
-  if (!destino || !plataforma) {
+  if (!destino) {
     log.warn('hay novedades y no hay a quién avisarle', {
       nuevos: nuevas.length,
-      falta: !destino ? 'PLATFORM_ALERT_PHONE' : 'whatsapp de plataforma',
+      falta: 'PLATFORM_ALERT_PHONE',
     })
     return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
   }
@@ -161,16 +159,18 @@ async function cronHandler(request: Request) {
     lineas.push(`· y ${nuevas.length - MAX_LINEAS} más`)
   }
 
-  const texto = `Riverz · algo nuevo se rompió\n\n${lineas.join('\n')}`
-  try {
-    await sendTextMessage({
-      phoneNumberId: plataforma.phoneNumberId,
-      accessToken: plataforma.token,
-      to: destino,
-      text: texto,
-    })
-  } catch (err) {
-    log.captureException(err)
+  // Por el helper compartido y no por `sendTextMessage` a secas: Meta sólo
+  // entrega texto libre dentro de las 24 h posteriores a que alguien nos
+  // escriba. Escrito con texto libre, este aviso andaba el día de la prueba y
+  // dejaba de salir en silencio al día siguiente — el peor modo de falla para
+  // algo cuya única función es avisar.
+  const enviado = await sendPlatformAlert({
+    to: destino,
+    title: 'Riverz · algo nuevo se rompió',
+    body: lineas.join('\n'),
+  })
+  if (!enviado.ok) {
+    log.warn('no se pudo avisar', { error: enviado.error, nuevos: nuevas.length })
     return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
   }
 

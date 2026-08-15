@@ -109,6 +109,56 @@ export async function platformWhatsApp(): Promise<PlatformWhatsApp | null> {
   };
 }
 
+/**
+ * Manda un aviso por el WhatsApp de Riverz.
+ *
+ * Con plantilla si hay una configurada, con texto libre si no. La diferencia no
+ * es de estilo: **Meta sólo entrega texto libre dentro de las 24 h posteriores a
+ * que la persona nos escriba**. Un aviso que sale por texto libre funciona el
+ * día que lo probás —porque acabás de escribirle al número— y deja de salir en
+ * silencio al día siguiente, que es el peor modo de falla posible para algo
+ * cuya única función es avisar.
+ *
+ * Vive acá y no en cada llamador porque son dos —las aprobaciones y el
+ * vigilante de plataforma— y el segundo se había escrito sólo con texto libre.
+ */
+export async function sendPlatformAlert(args: {
+  to: string;
+  /** Título corto: primer parámetro de la plantilla. */
+  title: string;
+  /** El cuerpo. En texto libre va entero; en plantilla, como segundo parámetro. */
+  body: string;
+}): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const plataforma = await platformWhatsApp();
+  if (!plataforma) {
+    return { ok: false, error: 'el WhatsApp de Riverz no está configurado' };
+  }
+
+  const { sendTemplateMessage, sendTextMessage } = await import('@/lib/whatsapp/meta-api');
+  try {
+    if (plataforma.templateName) {
+      const res = await sendTemplateMessage({
+        phoneNumberId: plataforma.phoneNumberId,
+        accessToken: plataforma.token,
+        to: args.to,
+        templateName: plataforma.templateName,
+        language: plataforma.templateLanguage,
+        params: [args.title, args.body],
+      });
+      return { ok: true, messageId: res.messageId ?? undefined };
+    }
+    const res = await sendTextMessage({
+      phoneNumberId: plataforma.phoneNumberId,
+      accessToken: plataforma.token,
+      to: args.to,
+      text: `${args.title}\n\n${args.body}`,
+    });
+    return { ok: true, messageId: res.messageId ?? undefined };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'no se pudo avisar' };
+  }
+}
+
 export interface PlatformWhatsAppInput {
   phoneNumberId?: string | null;
   wabaId?: string | null;
