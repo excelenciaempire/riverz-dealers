@@ -239,23 +239,40 @@ async function brokenConnections(
   // Tiendas cuya credencial dejó de servir. Viven en otra tabla que los
   // canales de mensajería, pero para el comercio es el mismo problema: algo
   // que conectó una vez y hoy no funciona.
+  //
+  // Sólo 'error' y 'expired'. 'uninstalled' NO es una falla: es el comercio
+  // desconectando su tienda a propósito, o desinstalando la app desde su
+  // panel. Avisarle que "dejó de funcionar y hay que volver a conectarla"
+  // convierte una decisión suya en una alarma roja que no se puede apagar
+  // más que volviendo a conectar — y como el aviso vive arriba de todo en
+  // Inicio, entrena a ignorar la zona entera.
   const { data: stores } = await db
     .from('shopify_connections')
     .select('platform, shop_domain, status')
     .eq('workspace_id', workspaceId)
-    .neq('status', 'active');
+    .in('status', ['error', 'expired']);
   const deadStores = (stores ?? []) as Array<{
     platform: string | null;
     shop_domain: string;
   }>;
+  // Se suma al aviso de canales en vez de empujar otra línea: las dos tienen
+  // el mismo `kind` y el mismo destino, así que como entradas separadas
+  // chocan en la clave de React y el comercio ve el problema partido en dos.
   if (deadStores.length > 0) {
-    out.push({
-      kind: 'connection_error',
-      severity: 'critical',
-      count: deadStores.length,
-      detail: deadStores.map((s) => s.shop_domain).join(', '),
-      href: '/integraciones',
-    });
+    const domains = deadStores.map((s) => s.shop_domain);
+    const existing = out.find((i) => i.kind === 'connection_error');
+    if (existing) {
+      existing.count += deadStores.length;
+      existing.detail = [existing.detail, ...domains].filter(Boolean).join(', ');
+    } else {
+      out.push({
+        kind: 'connection_error',
+        severity: 'critical',
+        count: deadStores.length,
+        detail: domains.join(', '),
+        href: '/integraciones',
+      });
+    }
   }
 
   const blocked = rows.filter(
