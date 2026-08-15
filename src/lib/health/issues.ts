@@ -279,6 +279,28 @@ async function brokenConnections(
     });
   }
 
+  // Tiendas cuya credencial dejó de servir. Viven en otra tabla que los
+  // canales de mensajería, pero para el comercio es el mismo problema: algo
+  // que conectó una vez y hoy no funciona.
+  const { data: stores } = await db
+    .from('shopify_connections')
+    .select('platform, shop_domain, status')
+    .eq('workspace_id', workspaceId)
+    .neq('status', 'active');
+  const deadStores = (stores ?? []) as Array<{
+    platform: string | null;
+    shop_domain: string;
+  }>;
+  if (deadStores.length > 0) {
+    out.push({
+      kind: 'connection_error',
+      severity: 'critical',
+      count: deadStores.length,
+      detail: deadStores.map((s) => s.shop_domain).join(', '),
+      href: '/integraciones',
+    });
+  }
+
   const blocked = rows.filter(
     (r) =>
       r.channel === 'whatsapp' &&

@@ -80,6 +80,17 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
         platform,
         error: result.error,
       });
+      // La tienda rechazó nuestra credencial: no es un tropiezo de red, es una
+      // conexión muerta. Se marca para que deje de reintentar cada seis horas
+      // contra algo que sólo se arregla volviendo a conectar, y para que la
+      // interfaz lo diga en vez de mostrarla "activa" para siempre.
+      // (Caso real: Shopify dejó de aceptar los tokens que no expiran.)
+      if (/\b(401|403)\b/.test(result.error)) {
+        await db
+          .from("shopify_connections")
+          .update({ status: "revoked" })
+          .eq("id", row.id);
+      }
     }
     results.push(result);
   }
