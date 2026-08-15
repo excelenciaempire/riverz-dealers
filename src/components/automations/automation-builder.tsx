@@ -27,6 +27,7 @@ import {
   Zap,
   Loader2,
   ArrowRight,
+  ArrowDown,
   Undo2,
   Redo2,
   ZoomIn,
@@ -142,6 +143,29 @@ function treeHasVoiceCall(steps: BuilderStep[]): boolean {
  *  persisted step id. Only populated when editing a saved automation; empty
  *  during template previews / new drafts (nothing is waiting yet). */
 const WaitingCountsContext = createContext<Record<string, number>>({})
+
+/**
+ * El paso que se está arrastrando.
+ *
+ * Vive en un contexto y no en props porque quien lo levanta (la tarjeta) y
+ * quien lo recibe (cada "+ Añadir") están en ramas distintas del árbol, a
+ * veces con tres condiciones de por medio.
+ *
+ * Se usa el arrastre nativo del navegador y no coordenadas propias: el lienzo
+ * tiene zoom, y el navegador ya resuelve qué hay debajo del puntero sin que
+ * haya que convertir píxeles de pantalla a píxeles de CSS — la misma cuenta
+ * que ya se equivocó una vez con las líneas del abanico.
+ */
+interface Arrastre {
+  path: StepPath
+  cid: string
+  /** Para no dejar caer un paso dentro de sí mismo. */
+  step: BuilderStep
+}
+const DragContext = createContext<{
+  arrastrando: Arrastre | null
+  tomar: (a: Arrastre | null) => void
+}>({ arrastrando: null, tomar: () => {} })
 
 /** Friendly sample values for the inline template preview (so {{n}} renders a
  *  realistic value instead of a placeholder once mapped to a data point). */
@@ -1205,6 +1229,7 @@ export function AutomationBuilder({
   )
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [arrastrando, tomar] = useState<Arrastre | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [segments, setSegments] = useState<ContactSegment[]>([])
   const [tags, setTags] = useState<ContactTag[]>([])
@@ -1348,6 +1373,37 @@ export function AutomationBuilder({
     setState((s) => ({ ...s, steps: moveAt(s.steps, path, direction) }))
   }
 
+  /**
+   * Mover un paso a otro lugar del flujo, arrastrándolo.
+   *
+   * Se saca de donde estaba y se pone donde lo soltaron. El orden importa:
+   * si sale antes de un hueco del MISMO carril, todo lo que venía después
+   * corre un lugar, así que el índice de destino hay que corregirlo o el
+   * paso aterriza uno más allá del hueco que se marcó.
+   */
+  function moveStepTo(from: StepPath, destino: ParentScope, index: number) {
+    setState((s) => {
+      const nodo = getAt(s.steps, from)
+      if (!nodo) return s
+      // Un paso no puede caer dentro de sí mismo: se llevaría su propio
+      // destino y el árbol quedaría partido.
+      if (destino.kind === "branch" && contieneCid(nodo, destino.parentCid)) return s
+
+      const origen = from[from.length - 1]
+      const mismoCarril =
+        origen &&
+        (destino.kind === "root"
+          ? origen.kind === "root"
+          : origen.kind === "branch" &&
+            origen.parentCid === destino.parentCid &&
+            origen.branch === destino.branch)
+      const corregido = mismoCarril && origen.index < index ? index - 1 : index
+
+      const sinEl = removeAt(s.steps, from)
+      return { ...s, steps: insertAt(sinEl, destino, corregido, nodo) }
+    })
+  }
+
   async function save(): Promise<boolean> {
     setSaving(true)
     try {
@@ -1431,6 +1487,7 @@ export function AutomationBuilder({
     <OffersContext.Provider value={offers}>
     <ProductsContext.Provider value={products}>
     <WaitingCountsContext.Provider value={waitingCounts}>
+    <DragContext.Provider value={{ arrastrando, tomar }}>
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
@@ -1602,6 +1659,9 @@ export function AutomationBuilder({
               addStepAt={addStepAt}
               deleteStepAt={deleteStepAt}
               moveStepAt={moveStepAt}
+              moveStepTo={(destino, index) => {
+                if (arrastrando) moveStepTo(arrastrando.path, destino, index)
+              }}
             />
           </div>
         </CanvasViewport>
@@ -1609,6 +1669,7 @@ export function AutomationBuilder({
             "Enviar plantilla" step (see StepEditor) — no separate rail. */}
       </div>
     </div>
+    </DragContext.Provider>
     </WaitingCountsContext.Provider>
     </ProductsContext.Provider>
     </OffersContext.Provider>
@@ -1867,6 +1928,9 @@ interface StepListProps {
   addStepAt: (parent: ParentScope, index: number, type: BuilderStepType) => void
   deleteStepAt: (path: StepPath) => void
   moveStepAt: (path: StepPath, direction: -1 | 1) => void
+  /** Soltar el paso que se está arrastrando en este hueco. El origen sale del
+   *  contexto: el hueco sólo sabe adónde, no qué. */
+  moveStepTo: (destino: ParentScope, index: number) => void
 }
 
 function StepList(props: StepListProps) {
@@ -1889,6 +1953,7 @@ function StepList(props: StepListProps) {
         orientation="h"
         tail={steps.length > 0}
         onPick={(t) => props.addStepAt(parentScope, 0, t)}
+        onDrop={() => props.moveStepTo(parentScope, 0)}
       />
       {steps.map((step, idx) => (
         <StepRenderer
@@ -1937,6 +2002,7 @@ function StepRenderer({
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
   const t = useT()
+  const arrastre = useContext(DragContext)
   // El último tramo del camino DESCRIBE este carril, no un paso: lo puso
   // ConditionBranches con índice 0 para que StepList supiera de qué rama
   // cuelga. Al llegar acá hay que reemplazarlo por el índice real, no sumarle
@@ -1979,17 +2045,39 @@ function StepRenderer({
     <div className={cn("flex flex-col", width)}>
         <div
           className={cn(
-            "rounded-lg border border-border border-l-4 bg-card shadow-lg",
+            "rounded-lg border border-border border-l-4 bg-card shadow-lg transition-opacity",
             meta.border,
+            // La tarjeta que viaja se atenúa: sin eso parece que sigue en su
+            // lugar y no se entiende qué se está moviendo.
+            arrastre.arrastrando?.cid === step.cid && "opacity-40",
           )}
         >
           <button
             type="button"
             onClick={() => props.setExpandedId(expanded ? null : step.cid)}
             data-card-head
-          className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
+            // Se arrastra desde el asa, no desde toda la cabecera: si toda la
+            // cabecera arrastrara, no se podría desplegar la configuración
+            // sin que el paso se empezara a mover.
+            draggable={false}
+            className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
           >
-            <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
+            <span
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation()
+                e.dataTransfer.effectAllowed = "move"
+                // Firefox no arranca el arrastre sin datos.
+                e.dataTransfer.setData("text/plain", step.cid)
+                arrastre.tomar({ path, cid: step.cid, step })
+              }}
+              onDragEnd={() => arrastre.tomar(null)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={t("automations.dragHandle")}
+              className="flex-shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4" aria-hidden />
+            </span>
             <div
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-lg",
@@ -2099,6 +2187,7 @@ function StepRenderer({
           orientation="h"
           tail={index < total - 1}
           onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+          onDrop={() => props.moveStepTo(parentScope, index + 1)}
         />
       )}
     </>
@@ -2565,11 +2654,14 @@ function LeafStepCard({
 
 function AddButton({
   onPick,
+  onDrop,
   orientation = "v",
   types = ADDABLE_STEPS,
   tail = true,
 }: {
   onPick: (t: BuilderStepType) => void
+  /** Soltar acá un paso arrastrado. Sin esto el hueco no acepta nada. */
+  onDrop?: () => void
   orientation?: "h" | "v"
   /** Which step types the menu offers (default: the full chain menu; switch
    *  case/else lanes pass LEAF_STEPS so they can't nest branching). */
@@ -2583,8 +2675,11 @@ function AddButton({
   const seg = orientation === "h" ? "h-[2px] w-6" : "h-6 w-[2px]"
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [encima, setEncima] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const arrastre = useContext(DragContext)
+  const arrastrando = Boolean(arrastre.arrastrando) && Boolean(onDrop)
 
   // Menú PROPIO (portaleado a body, con onClick nativo) en vez del DropdownMenu
   // de base-ui: base-ui NO registra el click del mouse en los items cuando el
@@ -2626,6 +2721,21 @@ function AddButton({
 
   return (
     <div
+      onDragOver={(e) => {
+        if (!arrastre.arrastrando || !onDrop) return
+        // Sin esto el navegador no considera la zona soltable.
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "move"
+        setEncima(true)
+      }}
+      onDragLeave={() => setEncima(false)}
+      onDrop={(e) => {
+        if (!arrastre.arrastrando || !onDrop) return
+        e.preventDefault()
+        setEncima(false)
+        onDrop()
+        arrastre.tomar(null)
+      }}
       className={cn(
         "group/add relative flex items-center",
         // Siempre a full opacidad: el "+ Añadir" es la acción principal para
@@ -2651,10 +2761,24 @@ function AddButton({
         className={cn(
           "flex shrink-0 items-center gap-1.5 rounded-full border-2 border-dashed border-primary bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-accent-ink transition-all hover:bg-primary/20",
           open && "bg-primary/20",
+          // Mientras algo viaja, cada hueco se ensancha y se anuncia; el que
+          // está bajo el puntero se pinta lleno. Es lo único que le dice a la
+          // persona dónde va a caer lo que soltó.
+          arrastrando && "px-6 py-2",
+          encima && "scale-110 bg-primary/40 shadow-[0_0_0_3px_rgba(0,0,0,0.06)]",
         )}
       >
-        <Plus className="h-3.5 w-3.5" />
-        {t("automations.add")}
+        {arrastrando ? (
+          <>
+            <ArrowDown className="h-3.5 w-3.5" />
+            {t("automations.dropHere")}
+          </>
+        ) : (
+          <>
+            <Plus className="h-3.5 w-3.5" />
+            {t("automations.add")}
+          </>
+        )}
       </button>
       {open &&
         pos &&
@@ -3272,12 +3396,65 @@ function insertAt(
     copy.splice(index, 0, node)
     return copy
   }
-  return steps.map((s) => {
-    if (s.cid !== parent.parentCid || !s.branches) return s
-    const list = [...s.branches[parent.branch]]
-    list.splice(index, 0, node)
-    return { ...s, branches: { ...s.branches, [parent.branch]: list } }
-  })
+  // Busca la condición a cualquier profundidad. Antes sólo miraba el primer
+  // nivel, así que el "+ Añadir" de un camino que colgaba de otra condición
+  // no encontraba a su padre y no agregaba nada — el botón respondía, se
+  // cerraba el menú, y no pasaba nada.
+  const buscar = (lista: BuilderStep[]): BuilderStep[] =>
+    lista.map((s) => {
+      if (!s.branches) return s
+      if (s.cid === parent.parentCid) {
+        const bucket = [...s.branches[parent.branch]]
+        bucket.splice(index, 0, node)
+        return { ...s, branches: { ...s.branches, [parent.branch]: bucket } }
+      }
+      return {
+        ...s,
+        branches: { yes: buscar(s.branches.yes), no: buscar(s.branches.no) },
+      }
+    })
+  return buscar(steps)
+}
+
+/** El paso que vive en `path`, o null si el camino no lleva a ninguno. */
+function getAt(steps: BuilderStep[], path: StepPath): BuilderStep | null {
+  let lista = steps
+  let encontrado: BuilderStep | null = null
+  for (const tramo of path) {
+    if (tramo.kind === "root") {
+      encontrado = lista[tramo.index] ?? null
+    } else {
+      const padre = buscarPorCid(lista, tramo.parentCid)
+      if (!padre?.branches) return null
+      encontrado = padre.branches[tramo.branch][tramo.index] ?? null
+    }
+    if (!encontrado) return null
+    lista = encontrado.branches ? [encontrado] : [encontrado]
+  }
+  return encontrado
+}
+
+function buscarPorCid(steps: BuilderStep[], cid: string): BuilderStep | null {
+  for (const s of steps) {
+    if (s.cid === cid) return s
+    if (s.branches) {
+      const dentro =
+        buscarPorCid(s.branches.yes, cid) ?? buscarPorCid(s.branches.no, cid)
+      if (dentro) return dentro
+    }
+  }
+  return null
+}
+
+/** ¿`cid` está dentro del subárbol de `nodo`? Un paso no puede caer adentro
+ *  de sí mismo: se llevaría su propio destino y el árbol quedaría partido. */
+function contieneCid(nodo: BuilderStep, cid: string): boolean {
+  if (nodo.cid === cid) return true
+  if (!nodo.branches) return false
+  return (
+    nodo.branches.yes.some((s) => contieneCid(s, cid)) ||
+    nodo.branches.no.some((s) => contieneCid(s, cid))
+  )
 }
 
 function mapAtPath(

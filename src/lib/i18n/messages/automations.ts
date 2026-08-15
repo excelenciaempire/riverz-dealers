@@ -380,6 +380,8 @@ export const automations = {
   // Builder — add-step menu
   add: { es: "Añadir", en: "Add" },
   addStep: { es: "Añadir paso", en: "Add step" },
+  dragHandle: { es: "Arrastrar para mover", en: "Drag to move" },
+  dropHere: { es: "Soltar aquí", en: "Drop here" },
   chooseWhatToDo: { es: "Elige qué hacer", en: "Choose what to do" },
 
   // Builder — send_message / send_template editors
