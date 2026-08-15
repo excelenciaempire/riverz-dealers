@@ -1625,6 +1625,7 @@ function TriggerCard({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          data-card-head
           className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
         >
           <div
@@ -1936,7 +1937,8 @@ function StepRenderer({
           <button
             type="button"
             onClick={() => props.setExpandedId(expanded ? null : step.cid)}
-            className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
+            data-card-head
+          className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
           >
             <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
             <div
@@ -2108,8 +2110,18 @@ function ConditionBranches({
  * paso —o agregar un camino— para que la línea deje de llegar a donde tiene
  * que llegar. Medido, agregar o quitar caminos reacomoda todo solo.
  */
-/** Media altura de una tarjeta (h-[78px]): el centro del tronco. */
+/** Media altura de la cabecera de una tarjeta (h-[78px]): el centro del tronco. */
 const CARD_HALF = 39
+
+/**
+ * Color de las líneas del lienzo.
+ *
+ * `border` sobre el fondo oscuro del lienzo quedaba casi invisible: el flujo
+ * se veía como tarjetas sueltas y había que adivinar qué se conectaba con
+ * qué. Las líneas son la mitad de la información de un diagrama.
+ */
+const LINE = "bg-foreground/25"
+const LINE_BORDER = "border-foreground/25"
 
 function BranchFan({
   lanes,
@@ -2118,6 +2130,8 @@ function BranchFan({
 }) {
   const wrap = useRef<HTMLDivElement | null>(null)
   const [spine, setSpine] = useState<{ top: number; height: number } | null>(null)
+  // Dónde entra el ramal en cada carril, medido desde el borde del abanico.
+  const [anchors, setAnchors] = useState<number[]>([])
   // No se igualan los altos de fila. Se probó, y en el carril corto —el que
   // sólo tiene el botón de añadir— dejaba un hueco vacío del tamaño del
   // carril más alto. La separación pareja se consigue con el hueco entre
@@ -2135,15 +2149,28 @@ function BranchFan({
       const rows = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")]
       if (rows.length === 0) {
         setSpine(null)
+        setAnchors([])
         return
       }
       const base = el.getBoundingClientRect().top
-      const centers = rows.map((r) => {
+      // El ramal entra por la CABECERA de la primera tarjeta del carril, no
+      // por el centro de la fila. Una tarjeta crece hacia abajo al desplegar
+      // su configuración: apuntando al centro, la línea se despegaba de la
+      // cabecera y terminaba entrando por la mitad de un panel abierto.
+      // La cabecera no se mueve, así que la línea tampoco.
+      const points = rows.map((r) => {
         const b = r.getBoundingClientRect()
+        const head = r.querySelector<HTMLElement>("[data-card-head]")
+        if (head) {
+          const h = head.getBoundingClientRect()
+          return h.top - base + h.height / 2
+        }
+        // Un carril sin tarjetas —sólo el botón de añadir— se centra solo.
         return b.top - base + b.height / 2
       })
-      const top = Math.min(...centers)
-      const bottom = Math.max(...centers)
+      const top = Math.min(...points)
+      const bottom = Math.max(...points)
+      setAnchors(points.map((p, i) => p - (rows[i].getBoundingClientRect().top - base)))
       setSpine({ top, height: bottom - top })
       setOffset(CARD_HALF - (top + bottom) / 2)
     }
@@ -2164,18 +2191,22 @@ function BranchFan({
       {spine && lanes.length > 1 && (
         <span
           aria-hidden
-          className="absolute left-4 w-px bg-border"
+          className={cn("absolute left-4 w-px", LINE)}
           style={{ top: spine.top, height: spine.height }}
         />
       )}
-      {lanes.map((lane) => (
+      {lanes.map((lane, i) => (
         <div
           key={lane.key}
           data-lane-row
-          className="relative flex items-center"
+          className="relative flex items-start"
         >
-          {/* Ramal horizontal hasta el carril. */}
-          <span aria-hidden className="absolute left-[-1rem] w-4 border-t border-border" />
+          {/* Ramal horizontal hasta el carril, a la altura de su cabecera. */}
+          <span
+            aria-hidden
+            className={cn("absolute left-[-1rem] w-4 border-t", LINE_BORDER)}
+            style={{ top: anchors[i] ?? CARD_HALF }}
+          />
           {/* La etiqueta se ancla al CONTENIDO, no a la fila.
               Anclada a la fila quedaba arriba de todo, y como las filas
               comparten el alto de la más alta, en un camino corto la etiqueta
@@ -2390,6 +2421,7 @@ function LeafStepCard({
         <button
           type="button"
           onClick={onToggle}
+          data-card-head
           className="flex h-[78px] w-full items-center gap-3 px-3 py-2.5 text-left"
         >
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", meta.iconBg, meta.iconText)}>
@@ -2509,13 +2541,15 @@ function AddButton({
         // Siempre a full opacidad: el "+ Añadir" es la acción principal para
         // construir el flujo, así que tiene que verse sin buscarlo.
         "opacity-100",
-        // Top-align in horizontal mode so the line meets the card header
-        // (cards grow downward when expanded / when conditions sprout
-        // branches), ~28px ≈ half the collapsed header height.
-        orientation === "h" ? "flex-row self-start mt-7" : "flex-col",
+        // En horizontal se ancla arriba y baja hasta la altura de la cabecera
+        // (39px): una tarjeta crece hacia abajo al desplegarse, así que
+        // centrarlo con la tarjeta entera despegaría la línea. El margen
+        // descuenta la media altura del propio botón para que la línea quede
+        // a la altura de la cabecera y no debajo.
+        orientation === "h" ? "flex-row self-start mt-[26px]" : "flex-col",
       )}
     >
-      <div className={cn(seg, "bg-border")} aria-hidden />
+      <div className={cn(seg, LINE)} aria-hidden />
       <button
         ref={triggerRef}
         type="button"
@@ -2576,7 +2610,7 @@ function AddButton({
           </div>,
           document.body,
         )}
-      <div className={cn(seg, "bg-border")} aria-hidden />
+      <div className={cn(seg, LINE)} aria-hidden />
     </div>
   )
 }
