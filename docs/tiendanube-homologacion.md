@@ -1,4 +1,26 @@
-# Homologación de la app de Tiendanube
+# App de Tiendanube
+
+> **2026-08-15 — La homologación ya no hace falta.** La app pasó a
+> distribución **"Para sus clientes"** ("Disponible para las tiendas
+> escogidas por ti"), que según la documentación de Tiendanube **no
+> requiere homologación**. Es lo que corresponde al modelo real: Riverz no
+> se lista en la tienda de aplicaciones, se instala a los comercios que el
+> dueño elige y se les cobra aparte.
+>
+> No hay ninguna lista de tiendas que anotar en el portal: al elegir esa
+> opción el formulario no agrega ningún selector. "Las tiendas escogidas
+> por ti" son, en la práctica, aquellas a las que le pases el enlace:
+>
+> ```
+> https://www.tiendanube.com/apps/37693/authorize
+> ```
+>
+> Verificado después del cambio, de punta a punta contra la tienda demo con
+> la conexión borrada: instalación → cuenta → tienda conectada y activa.
+>
+> Todo lo que sigue —requisitos, guion de video, textos de la ficha— queda
+> como expediente por si algún día se quiere publicar en la tienda de
+> aplicaciones. Para el modelo actual no se usa.
 
 Estado al 2026-07-27. La app existe y está configurada; falta la revisión
 de Tiendanube para que la puedan instalar comercios reales.
