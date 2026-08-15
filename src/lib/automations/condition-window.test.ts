@@ -9,25 +9,41 @@ import { AUTOMATION_TEMPLATES } from './templates'
  * el lienzo — o peor, cuando el mensaje sale a destiempo.
  */
 
+type Cfg = { subject?: string; operand?: string; value?: string }
+const cfgs = (slug: keyof typeof AUTOMATION_TEMPLATES) =>
+  AUTOMATION_TEMPLATES[slug].steps
+    .filter((s) => s.step_type === 'condition')
+    .map((s) => s.step_config as Cfg)
+
 describe('receta de pago rechazado', () => {
   const tpl = AUTOMATION_TEMPLATES['pago-rechazado']
 
-  it('espera 10 minutos y pregunta si compró antes de escribir', () => {
+  it('espera 10 minutos antes de preguntar nada', () => {
     expect(tpl.trigger_type).toBe('payment_rejected')
-    const [wait, cond, send, tag] = tpl.steps
+    const [wait] = tpl.steps
     expect(wait.step_type).toBe('wait')
     expect(wait.step_config).toMatchObject({ amount: 10, unit: 'minutes' })
-    expect(cond.step_type).toBe('condition')
-    expect(cond.step_config).toMatchObject({
-      subject: 'purchased',
+  })
+
+  it('pregunta si compró y si ya le escribimos, en ese orden', () => {
+    expect(cfgs('pago-rechazado')).toEqual([
       // Desde que arrancó el flujo, no una duración repetida: si repitiera
       // los 10 minutos habría que mantener dos números sincronizados.
-      operand: 'since_trigger',
-      value: 'false',
-    })
-    // El envío cuelga de la rama que se cumple, no del tronco.
-    expect(send.branch).toBe('yes')
-    expect(tag.branch).toBe('yes')
+      { subject: 'purchased', operand: 'since_trigger', value: 'false' },
+      // El cruce con el rescate de carrito, a la vista.
+      { subject: 'messaged', operand: '24h', value: 'false' },
+    ])
+  })
+
+  it('el envío y la etiqueta cuelgan de la última condición', () => {
+    const send = tpl.steps.find((s) => s.step_type === 'send_template')
+    const tag = tpl.steps.find((s) => s.step_type === 'add_tag')
+    expect(send?.branch).toBe('yes')
+    expect(tag?.branch).toBe('yes')
+    // El índice 2 es la condición de "ya le escribimos": colgar de la
+    // primera saltearía la segunda pregunta sin que se note en el lienzo.
+    expect(send?.parent_index).toBe(2)
+    expect(tag?.parent_index).toBe(2)
   })
 
   it('no configura nada en el disparador: vale desde que se instala', () => {
@@ -42,26 +58,28 @@ describe('receta de pago rechazado', () => {
 describe('receta de carrito abandonado', () => {
   const tpl = AUTOMATION_TEMPLATES['carrito-abandonado']
 
-  it('espera 15 minutos y pregunta si compró antes de escribir', () => {
-    const [wait, cond, send, tag] = tpl.steps
+  it('espera 15 minutos antes de preguntar nada', () => {
+    const [wait] = tpl.steps
     expect(wait.step_type).toBe('wait')
     expect(wait.step_config).toMatchObject({ amount: 15, unit: 'minutes' })
-    expect(cond.step_config).toMatchObject({
-      subject: 'purchased',
-      operand: 'since_trigger',
-      value: 'false',
-    })
-    expect(send.branch).toBe('yes')
-    expect(tag.branch).toBe('yes')
   })
 
-  it('NO repite la barrera de "ya le escribimos"', () => {
-    // El motor la aplica siempre, se arme el flujo como se arme. Tenerla
-    // también como paso hacía creer que borrarla la desactiva.
-    const subjects = tpl.steps
-      .filter((s) => s.step_type === 'condition')
-      .map((s) => (s.step_config as { subject?: string }).subject)
-    expect(subjects).not.toContain('messaged')
+  it('encadena las tres preguntas que lo separan del otro rescate', () => {
+    expect(cfgs('carrito-abandonado')).toEqual([
+      { subject: 'purchased', operand: 'since_trigger', value: 'false' },
+      // Gana pago rechazado: dice lo que pasó de verdad y su plantilla es
+      // Utility, que Meta entrega.
+      { subject: 'rejected_open', operand: '24h', value: 'false' },
+      { subject: 'messaged', operand: '24h', value: 'false' },
+    ])
+  })
+
+  it('el envío cuelga de la última condición, no de la primera', () => {
+    const send = tpl.steps.find((s) => s.step_type === 'send_template')
+    const tag = tpl.steps.find((s) => s.step_type === 'add_tag')
+    expect(send?.branch).toBe('yes')
+    expect(send?.parent_index).toBe(3)
+    expect(tag?.parent_index).toBe(3)
   })
 })
 

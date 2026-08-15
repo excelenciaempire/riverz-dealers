@@ -118,20 +118,30 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
-        // 3. Recién ahí, el mensaje.
-        //
-        //    NO hay una segunda condición de "¿ya le escribimos?": esa
-        //    barrera vive en el motor y corre siempre, se arme el flujo como
-        //    se arme (lib/outreach/cooldown.ts). Ponerla también acá era
-        //    pedirle al comerciante que mantenga una regla que el sistema ya
-        //    garantiza — y dos condiciones seguidas para una sola decisión.
-        //
-        //    Va plantilla y no texto libre porque el envío cae fuera de la
-        //    ventana de 24 h de Meta.
+        // 3. ¿Tiene un pago rechazado sin resolver? Un rechazo de tarjeta
+        //    deja el checkout abierto, así que la misma persona entra por los
+        //    dos rescates. Gana el de pago: dice lo que pasó de verdad.
+        step_type: 'condition',
+        step_config: { subject: 'rejected_open', operand: '24h', value: 'false' },
+        branch: 'yes',
+        parent_index: 1,
+      },
+      {
+        // 4. ¿Ya le escribimos hoy? El motor aplica esta barrera igual antes
+        //    de cualquier envío, pero acá se ve y se puede mover: cada
+        //    comercio elige su ventana.
+        step_type: 'condition',
+        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
+        branch: 'yes',
+        parent_index: 2,
+      },
+      {
+        // 5. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
+        //    envío cae fuera de la ventana de 24 h de Meta.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
         branch: 'yes',
-        parent_index: 1,
+        parent_index: 3,
       },
       {
         // Etiquetar al final — sin etiqueta por defecto: el merchant escribe una
@@ -140,7 +150,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'add_tag',
         step_config: { tag_id: '' },
         branch: 'yes',
-        parent_index: 1,
+        parent_index: 3,
       },
     ],
   },
@@ -179,7 +189,17 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: { subject: 'purchased', operand: 'since_trigger', value: 'false' },
       },
       {
-        // 3. Rama Sí (= no compró): recién ahí se le escribe.
+        // 3. ¿Ya le escribimos hoy? Cubre el cruce con el rescate de carrito:
+        //    si esa persona ya recibió el "dejaste tu carrito", no se le suma
+        //    este encima. El motor aplica la misma barrera igual, pero acá se
+        //    ve y cada comercio elige su ventana.
+        step_type: 'condition',
+        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
+        branch: 'yes',
+        parent_index: 1,
+      },
+      {
+        // 4. Recién ahí se le escribe.
         //
         //    Va plantilla y no mensaje suelto porque el envío cae siempre
         //    fuera de la ventana de 24h de Meta. Categoría Utility: el aviso
@@ -188,13 +208,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
         branch: 'yes',
-        parent_index: 1,
+        parent_index: 2,
       },
       {
         step_type: 'add_tag',
         step_config: { tag_id: '' },
         branch: 'yes',
-        parent_index: 1,
+        parent_index: 2,
       },
     ],
   },

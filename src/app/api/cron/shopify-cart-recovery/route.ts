@@ -93,6 +93,28 @@ async function cronHandler(request: Request) {
   const flowOwnsWait = new Set(
     autoIds.filter((a) => withWait.has(a.id)).map((a) => a.workspace_id),
   )
+
+  // Lo mismo con las dos barreras que antes vivían escondidas acá: si el
+  // flujo YA pregunta por el pago rechazado o por si le escribimos, manda el
+  // flujo. Si no, el cron las sigue aplicando — un flujo viejo no se queda
+  // sin protección por no haberse actualizado.
+  const { data: condSteps } = autoIds.length
+    ? await admin
+        .from('automation_steps')
+        .select('automation_id, step_config')
+        .in('automation_id', autoIds.map((a) => a.id))
+        .eq('step_type', 'condition')
+    : { data: [] }
+  const asks = (subject: string) => {
+    const ids = new Set(
+      ((condSteps ?? []) as { automation_id: string; step_config: Record<string, unknown> }[])
+        .filter((s) => (s.step_config ?? {}).subject === subject)
+        .map((s) => s.automation_id),
+    )
+    return new Set(autoIds.filter((a) => ids.has(a.id)).map((a) => a.workspace_id))
+  }
+  const flowAsksRejection = asks('rejected_open')
+  const flowAsksMessaged = asks('messaged')
   // En milisegundos: `created_at` llega de Postgres con espacio en vez de "T"
   // y comparado como texto siempre daba "más viejo que hace dos horas", así
   // que la espera de dos horas no frenaba a nadie.
@@ -165,7 +187,7 @@ async function cronHandler(request: Request) {
     // pasó en vez de un "dejaste algo a medias" genérico, y va como
     // plantilla Utility, que Meta entrega — las Marketing de recuperación
     // las viene reteniendo.
-    if (phoneKey) {
+    if (phoneKey && !flowAsksRejection.has(r.workspace_id)) {
       const last8 = phoneKey.slice(-8)
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       const { data: rejected } = await admin
@@ -227,10 +249,12 @@ async function cronHandler(request: Request) {
       // 24h —de este cron, del de pagos, de una campaña, de donde sea— no
       // se le suma otra. Ver lib/outreach/cooldown.ts para por qué la señal
       // es la plantilla y no el flujo que la originó.
-      const nudged = await recentlyContacted(admin, {
-        workspaceId: r.workspace_id,
-        contactId,
-      })
+      const nudged = flowAsksMessaged.has(r.workspace_id)
+        ? { blocked: false, template: null }
+        : await recentlyContacted(admin, {
+            workspaceId: r.workspace_id,
+            contactId,
+          })
       if (nudged.blocked) {
         log.info('carrito omitido: ya se le escribió', {
           checkoutId: r.id,

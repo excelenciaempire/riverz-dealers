@@ -33,6 +33,7 @@ export type ConditionSource =
   | { kind: 'message' } // subject 'message_content'
   | { kind: 'purchased' } // subject 'purchased' (se resuelve en vivo, con ventana)
   | { kind: 'messaged' } // subject 'messaged' (¿ya le escribimos?, con ventana)
+  | { kind: 'rejected_open' } // subject 'rejected_open' (¿tiene un rechazo sin resolver?)
 
 export interface DataPoint {
   /** Stable id used in the picker + to rebuild a condition. */
@@ -385,6 +386,19 @@ export const DATA_POINTS: DataPoint[] = [
     triggers: 'all',
     usableInConditions: true,
     condition: { kind: 'messaged' },
+  },
+  {
+    // El cruce entre los dos rescates, dicho en el lienzo. Un rechazo de
+    // tarjeta deja el checkout abierto, así que la misma persona entra por
+    // los dos lados: sin preguntarlo, recibe "dejaste algo a medias" y
+    // "no pudimos procesar tu pago" con minutos de diferencia.
+    id: 'rejected_open',
+    labelKey: 'automations.dpRejectedOpen',
+    group: 'order',
+    valueKind: 'bool',
+    triggers: 'all',
+    usableInConditions: true,
+    condition: { kind: 'rejected_open' },
   },
   {
     id: 'payment_attempts',

@@ -630,9 +630,12 @@ function ConditionFields({
         </FieldBlock>
       )}
 
-      {dp && (dp.condition.kind === "purchased" || dp.condition.kind === "messaged") && (
-        <PurchasedFields cfg={cfg} set={set} kind={dp.condition.kind} />
-      )}
+      {dp &&
+        (dp.condition.kind === "purchased" ||
+          dp.condition.kind === "messaged" ||
+          dp.condition.kind === "rejected_open") && (
+          <PurchasedFields cfg={cfg} set={set} kind={dp.condition.kind} />
+        )}
 
       {dp && (dp.condition.kind === "var" || dp.condition.kind === "contact_field") && (
         <ConditionValue dp={dp} cfg={cfg} set={set} offers={offers} products={products} />
@@ -640,6 +643,19 @@ function ConditionFields({
     </>
   )
 }
+
+/**
+ * Cómo se nombra cada lado de las condiciones de sí/no con ventana. Es un
+ * mapa y no un encadenado de ternarios porque son tres y van a ser más.
+ */
+const SIDE_LABEL = {
+  purchased: { no: "automations.purchasedNo", yes: "automations.purchasedYes" },
+  messaged: { no: "automations.messagedNo", yes: "automations.messagedYes" },
+  rejected_open: {
+    no: "automations.rejectedOpenNo",
+    yes: "automations.rejectedOpenYes",
+  },
+} as const
 
 /**
  * Controles de la condición "Compró": ventana y lado.
@@ -655,7 +671,7 @@ function PurchasedFields({
 }: {
   cfg: Record<string, unknown>
   set: (patch: Record<string, unknown>) => void
-  kind: "purchased" | "messaged"
+  kind: "purchased" | "messaged" | "rejected_open"
 }) {
   const t = useT()
   const since = String(cfg.operand ?? "since_trigger")
@@ -706,12 +722,8 @@ function PurchasedFields({
           onChange={(e) => set({ value: e.target.value })}
           className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:outline-none"
         >
-          <option value="false">
-            {t(kind === "messaged" ? "automations.messagedNo" : "automations.purchasedNo")}
-          </option>
-          <option value="true">
-            {t(kind === "messaged" ? "automations.messagedYes" : "automations.purchasedYes")}
-          </option>
+          <option value="false">{t(SIDE_LABEL[kind].no)}</option>
+          <option value="true">{t(SIDE_LABEL[kind].yes)}</option>
         </select>
       </FieldBlock>
     </div>
@@ -3143,13 +3155,11 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   const label = t(dp.labelKey)
   const kind = dp.condition.kind
   if (kind === "tag" || kind === "segment") return label
-  if (kind === "purchased" || kind === "messaged") {
+  if (kind === "purchased" || kind === "messaged" || kind === "rejected_open") {
     // "No compró · en las últimas 3 horas". El renderer de booleanos genérico
     // reutilizaba el texto de "ya compró alguna vez", que acá no viene al
     // caso: la pregunta es sobre la ventana, no sobre el histórico.
-    const yes = kind === "messaged" ? "automations.messagedYes" : "automations.purchasedYes"
-    const no = kind === "messaged" ? "automations.messagedNo" : "automations.purchasedNo"
-    const side = cfg.value === "true" ? t(yes) : t(no)
+    const side = cfg.value === "true" ? t(SIDE_LABEL[kind].yes) : t(SIDE_LABEL[kind].no)
     const w = String(operand ?? "since_trigger")
     if (w === "since_trigger") return `${side} · ${t("automations.windowSinceTrigger")}`
     if (w === "ever") return `${side} · ${t("automations.windowEver")}`

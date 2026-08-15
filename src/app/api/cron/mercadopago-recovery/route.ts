@@ -250,6 +250,27 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
   }[]
   const ready = new Set(await resolveSendableWorkspaces(admin, automations))
 
+  // Si el flujo YA pregunta "¿ya le escribimos?", manda el flujo: esa barrera
+  // dejó de estar escondida acá y se ve en el lienzo, con su ventana editable.
+  // Un flujo que no la tenga sigue protegido por el cron, así que nadie se
+  // queda sin red por no haber actualizado su automatización.
+  const flowAsksMessaged = new Set<string>()
+  if (automations.length) {
+    const { data: conds } = await admin
+      .from('automation_steps')
+      .select('automation_id, step_config')
+      .in('automation_id', automations.map((a) => a.id))
+      .eq('step_type', 'condition')
+    const ids = new Set(
+      ((conds ?? []) as { automation_id: string; step_config: Record<string, unknown> }[])
+        .filter((s) => (s.step_config ?? {}).subject === 'messaged')
+        .map((s) => s.automation_id),
+    )
+    for (const a of automations) {
+      if (ids.has(a.id)) flowAsksMessaged.add(a.workspace_id)
+    }
+  }
+
   // La automatización empieza a valer DESDE QUE SE INSTALA. Un rechazo
   // anterior es historial: la persona ya siguió su camino hace rato y
   // escribirle ahora por algo de la semana pasada es peor que no escribirle.
@@ -380,10 +401,12 @@ async function sendPass(admin: ReturnType<typeof supabaseAdmin>) {
       // plantilla en las últimas 24h, no se le suma ésta. Cubre lo que las
       // barreras por tabla no pueden ver —una campaña, una reactivación—
       // porque mira el envío real y no el flujo que lo originó.
-      const nudged = await recentlyContacted(admin, {
-        workspaceId: r.workspace_id,
-        contactId,
-      })
+      const nudged = flowAsksMessaged.has(r.workspace_id)
+        ? { blocked: false }
+        : await recentlyContacted(admin, {
+            workspaceId: r.workspace_id,
+            contactId,
+          })
       if (nudged.blocked) {
         await admin
           .from('mp_rejected_payments')

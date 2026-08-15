@@ -703,7 +703,11 @@ export type ConditionSubject =
   // Si ya le mandamos un mensaje nuestro en la ventana pedida. Deja que un
   // flujo se aparte cuando otro ya hablo con esa persona, a la vista y no
   // escondido en un cron.
-  | 'messaged';
+  | 'messaged'
+  // Si tiene un pago rechazado sin resolver. Un rechazo de tarjeta deja el
+  // checkout abierto, asi que la misma persona entra por los dos rescates:
+  // esto deja que el de carrito se aparte, dicho en el lienzo.
+  | 'rejected_open';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

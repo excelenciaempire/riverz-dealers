@@ -1253,6 +1253,41 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       })
       return hit.blocked === ((cfg.value ?? 'true').toLowerCase() !== 'false')
     }
+    case 'rejected_open': {
+      // ¿Esta persona tiene un pago rechazado que todavía no se resolvió?
+      //
+      // Es el cruce entre los dos rescates. Un rechazo de tarjeta deja el
+      // checkout abierto, así que la misma persona entra por los dos lados y
+      // sin esta pregunta recibe "dejaste algo a medias" y "no pudimos
+      // procesar tu pago" con minutos de diferencia. Gana el de pago: dice lo
+      // que pasó de verdad.
+      //
+      // Se empareja por los últimos 8 dígitos del teléfono, que es lo único
+      // que comparten un checkout de la tienda y un pago de la pasarela.
+      if (!args.contactId) return false
+      const { data: c } = await db
+        .from('contacts')
+        .select('phone')
+        .eq('id', args.contactId)
+        .maybeSingle()
+      const phone = (c as { phone?: string | null } | null)?.phone ?? ''
+      const digits = phone.replace(/\D/g, '')
+      const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
+      if (digits.length < 8) return false === want
+      const from = await windowStart(db, cfg.operand, args.logId)
+      const { data: hit } = await db
+        .from('mp_rejected_payments')
+        .select('id')
+        .eq('workspace_id', args.automation.workspace_id)
+        .like('phone', `%${digits.slice(-8)}`)
+        .gte('rejected_at', from)
+        // Sin resolver: ni pagado después, ni descartado por otra razón.
+        .is('paid_at', null)
+        .is('skip_reason', null)
+        .limit(1)
+        .maybeSingle()
+      return Boolean(hit) === want
+    }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window
       // (supports over-midnight ranges like "18:00-09:00").
