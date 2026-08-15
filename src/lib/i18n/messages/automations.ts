@@ -338,6 +338,10 @@ export const automations = {
     es: "No hay agentes con voz activada. Actívala en Asistente → Voz.",
     en: "No voice-enabled agents. Turn it on in Assistant → Voice.",
   },
+  voiceCallNoAgentsShort: {
+    es: "Ningún agente tiene voz activada.",
+    en: "No agent has voice enabled.",
+  },
   voiceCallObjective: { es: "Objetivo (opcional)", en: "Objective (optional)" },
   voiceCallObjectivePlaceholder: {
     es: "Ej: confirmar la dirección de envío y el método de pago.",

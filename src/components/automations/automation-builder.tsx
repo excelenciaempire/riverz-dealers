@@ -1189,17 +1189,11 @@ export function AutomationBuilder({
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
 
-  // Recargar o cerrar la pestaña no pasa por el diálogo: ahí sólo se puede
-  // pedirle al navegador que muestre el suyo.
-  useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!dirtyRef.current) return
-      e.preventDefault()
-      e.returnValue = ""
-    }
-    window.addEventListener("beforeunload", onBeforeUnload)
-    return () => window.removeEventListener("beforeunload", onBeforeUnload)
-  }, [])
+  // Sin aviso del navegador. El de Chrome no se puede redactar ni traducir
+  // —"¿Salir del sitio? Es posible que los cambios no se guarden"— y salía
+  // ENCIMA del nuestro, así que había que contestar dos veces la misma
+  // pregunta, la segunda peor escrita. Manda el diálogo de Riverz, que
+  // además ofrece guardar en vez de sólo advertir.
 
   /** Salir a `href`, preguntando primero si hay cambios sin guardar. */
   const leave = useCallback(
@@ -1943,12 +1937,28 @@ function StepRenderer({
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
   const t = useT()
-  const path: StepPath = [
-    ...parentPath,
+  // El último tramo del camino DESCRIBE este carril, no un paso: lo puso
+  // ConditionBranches con índice 0 para que StepList supiera de qué rama
+  // cuelga. Al llegar acá hay que reemplazarlo por el índice real, no sumarle
+  // otro tramo encima.
+  //
+  // Sumándolo, el camino ganaba un nivel por cada condición anidada y todas
+  // las operaciones caían un escalón más abajo del que tocaba: editar una
+  // tarjeta cambiaba la de adentro, y borrar la más profunda —que ya no tiene
+  // nada debajo— no hacía absolutamente nada. Eso era el "no me deja
+  // eliminar" y el "hay botones de añadir que no agregan".
+  const path: StepPath =
     parentScope.kind === "root"
-      ? { kind: "root", index }
-      : { kind: "branch", parentCid: parentScope.parentCid, branch: parentScope.branch, index },
-  ]
+      ? [...parentPath, { kind: "root", index }]
+      : [
+          ...parentPath.slice(0, -1),
+          {
+            kind: "branch",
+            parentCid: parentScope.parentCid,
+            branch: parentScope.branch,
+            index,
+          },
+        ]
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
@@ -3110,7 +3120,12 @@ function VoiceCallStepEditor({
             ))}
           </select>
         ) : (
-          <p className="text-xs text-muted-foreground">{t("automations.voiceCallNoAgents")}</p>
+          // Sin agentes de voz no hay nada que elegir, y el paso no va a
+          // sonar. Es lo único que hace falta decir: dónde se activa la voz
+          // ya lo dice la pantalla del asistente.
+          <p className="text-xs text-muted-foreground">
+            {t("automations.voiceCallNoAgentsShort")}
+          </p>
         )}
       </FieldBlock>
       <FieldBlock label={t("automations.voiceCallObjective")}>
@@ -3121,15 +3136,12 @@ function VoiceCallStepEditor({
           className="min-h-16 bg-muted text-foreground"
         />
       </FieldBlock>
-      <label className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-        <span>
-          <span className="block text-sm text-foreground">
-            {t("automations.voiceCallWait")}
-          </span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            {t("automations.voiceCallWaitHint")}
-          </span>
-        </span>
+      {/* Sin explicación al lado: lo que hace el interruptor está en su
+          nombre, y la frase de abajo repetía en dos renglones lo que el
+          lienzo ya muestra — que los pasos siguientes cuelgan de esta
+          tarjeta. */}
+      <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+        <span className="text-sm text-foreground">{t("automations.voiceCallWait")}</span>
         <Switch
           checked={waits}
           onCheckedChange={(v) => set({ wait_for_result: v })}
