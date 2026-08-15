@@ -223,7 +223,11 @@ const DragContext = createContext<{
   /** Empieza el gesto en estas coordenadas de pantalla. */
   apuntar: (x: number, y: number) => void
   /** Cada hueco se anota para poder encontrarlo por posición. */
-  registrar: (id: string, fn: { current: (() => void) | undefined }) => void
+  registrar: (
+    id: string,
+    fn: { current: (() => void) | undefined },
+    etiqueta: { current: string | undefined },
+  ) => void
   olvidar: (id: string) => void
   /** El hueco bajo el puntero ahora mismo. */
   activo: string | null
@@ -1302,11 +1306,23 @@ export function AutomationBuilder({
   const [activo, setActivo] = useState<string | null>(null)
   // Los huecos, anotados con su acción. Es un ref y no estado porque cambia
   // en cada pintada y no hay nada que redibujar cuando cambia.
-  const huecos = useRef(new Map<string, { current: (() => void) | undefined }>())
+  const huecos = useRef(
+    new Map<
+      string,
+      {
+        fn: { current: (() => void) | undefined }
+        etiqueta: { current: string | undefined }
+      }
+    >(),
+  )
 
   const registrar = useCallback(
-    (id: string, fn: { current: (() => void) | undefined }) => {
-      huecos.current.set(id, fn)
+    (
+      id: string,
+      fn: { current: (() => void) | undefined },
+      etiqueta: { current: string | undefined },
+    ) => {
+      huecos.current.set(id, { fn, etiqueta })
     },
     [],
   )
@@ -1359,7 +1375,7 @@ export function AutomationBuilder({
     }
     const soltar = (e: PointerEvent) => {
       const id = huecoEn(e.clientX, e.clientY)
-      huecos.current.get(id ?? "")?.current?.()
+      huecos.current.get(id ?? "")?.fn.current?.()
       tomar(null)
       setActivo(null)
       setPuntero(null)
@@ -1659,12 +1675,20 @@ export function AutomationBuilder({
             zIndex: 100,
             pointerEvents: "none",
           }}
-          className="flex items-center gap-2 rounded-lg border border-primary/50 bg-card px-3 py-2 text-sm text-foreground shadow-xl"
+          className="max-w-xs rounded-lg border border-primary/50 bg-card px-3 py-2 text-sm text-foreground shadow-xl"
         >
-          <GripVertical className="h-4 w-4 text-muted-foreground" aria-hidden />
-          {t(STEP_META[arrastrando.step.step_type].label)}
-          <span className="text-[11px] text-muted-foreground">
-            {activo ? t("automations.dropHere") : t("automations.dragOverSlot")}
+          <span className="flex items-center gap-2">
+            <GripVertical className="h-4 w-4 text-muted-foreground" aria-hidden />
+            {t(STEP_META[arrastrando.step.step_type].label)}
+          </span>
+          {/* Adónde va a caer, con nombre y apellido. Es lo que evita soltar
+              en la rama de al lado sin darse cuenta: los huecos de caminos
+              distintos quedan a centímetros y se ven iguales. */}
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+            {activo
+              ? (huecos.current.get(activo)?.etiqueta.current ??
+                t("automations.dropHere"))
+              : t("automations.dragOverSlot")}
           </span>
         </div>,
         document.body,
@@ -2105,10 +2129,25 @@ interface StepListProps {
   /** Soltar el paso que se está arrastrando en este hueco. El origen sale del
    *  contexto: el hueco sólo sabe adónde, no qué. */
   moveStepTo: (destino: ParentScope, index: number) => void
+  /** Nombre del camino al que pertenece esta tira ("Sí", "No", un caso…). El
+   *  tronco no lleva ninguno. Sólo se usa para decir adónde cae una tarjeta. */
+  laneLabel?: string
 }
 
 function StepList(props: StepListProps) {
-  const { steps, parentPath, ...rest } = props
+  const { steps, parentPath, laneLabel, ...rest } = props
+  const t = useT()
+  // "Después de Enviar plantilla · en el camino Sí". El camino sólo se nombra
+  // cuando hay uno: en el tronco sería ruido.
+  const enCamino = laneLabel
+    ? ` · ${t("automations.dropInLane", { camino: laneLabel })}`
+    : ""
+  const rotulo = (index: number) =>
+    (index === 0
+      ? t("automations.dropAtStart")
+      : t("automations.dropAfter", {
+          paso: t(STEP_META[steps[index - 1].step_type].label),
+        })) + enCamino
   // Everything flows left-to-right — the root chain AND each condition
   // branch. A branch is just the chain continuing horizontally down its
   // own lane, so the two paths read as a fork along the same direction.
@@ -2126,8 +2165,9 @@ function StepList(props: StepListProps) {
       <AddButton
         orientation="h"
         tail={steps.length > 0}
-        onPick={(t) => props.addStepAt(parentScope, 0, t)}
+        onPick={(ty) => props.addStepAt(parentScope, 0, ty)}
         onDrop={() => props.moveStepTo(parentScope, 0)}
+        dropLabel={rotulo(0)}
       />
       {steps.map((step, idx) => (
         <StepRenderer
@@ -2349,8 +2389,14 @@ function StepRenderer({
         <AddButton
           orientation="h"
           tail={index < total - 1}
-          onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+          onPick={(ty) => props.addStepAt(parentScope, index + 1, ty)}
           onDrop={() => props.moveStepTo(parentScope, index + 1)}
+          dropLabel={
+            t("automations.dropAfter", { paso: t(STEP_META[step.step_type].label) }) +
+            (props.laneLabel
+              ? ` · ${t("automations.dropInLane", { camino: props.laneLabel })}`
+              : "")
+          }
         />
       )}
     </>
@@ -2389,13 +2435,27 @@ function ConditionBranches({
           key: "yes",
           label: t("automations.branchYes"),
           color: "border-emerald-500/40 bg-emerald-500/10 text-accent-ink",
-          content: <StepList {...props} steps={yes} parentPath={yesPath} />,
+          content: (
+            <StepList
+              {...props}
+              steps={yes}
+              parentPath={yesPath}
+              laneLabel={t("automations.branchYes")}
+            />
+          ),
         },
         {
           key: "no",
           label: t("automations.branchNo"),
           color: "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-          content: <StepList {...props} steps={no} parentPath={noPath} />,
+          content: (
+            <StepList
+              {...props}
+              steps={no}
+              parentPath={noPath}
+              laneLabel={t("automations.branchNo")}
+            />
+          ),
         },
       ]}
     />
@@ -2707,6 +2767,7 @@ function SwitchBranches({
               onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
               owner={step.cid}
               lane={c.ckey}
+              laneLabel={caseShortLabel(c.cfg, t, i)}
               onDropAt={(at) => soltarEnCarril(c.ckey, at)}
             />
           ),
@@ -2726,6 +2787,7 @@ function SwitchBranches({
               onMoveStep={(i, dir) => moveStep("else", i, dir)}
               owner={step.cid}
               lane="else"
+              laneLabel={t("automations.switchElse")}
               onDropAt={(at) => soltarEnCarril("else", at)}
             />
           ),
@@ -2745,6 +2807,7 @@ function SwitchLaneSteps({
   onMoveStep,
   owner,
   lane,
+  laneLabel,
   onDropAt,
 }: {
   steps: BuilderStep[]
@@ -2758,8 +2821,20 @@ function SwitchLaneSteps({
    *  de dónde salió lo que se está moviendo y adónde puede caer. */
   owner: string
   lane: string
+  /** Cómo se llama este camino en pantalla, para decir adónde cae la tarjeta. */
+  laneLabel: string
   onDropAt: (index: number) => void
 }) {
+  const t = useT()
+  const rotulo = (index: number) =>
+    `${
+      index === 0
+        ? t("automations.dropAtStart")
+        : t("automations.dropAfter", {
+            paso: t(STEP_META[steps[index - 1].step_type].label),
+          })
+    } · ${t("automations.dropInLane", { camino: laneLabel })}`
+
   return (
     <div className="flex items-start gap-2">
       {/* Tambien delante del primero: si no, no hay forma de meter un paso
@@ -2770,6 +2845,7 @@ function SwitchLaneSteps({
         tail={steps.length > 0}
         onPick={(ty) => onAdd(ty, 0)}
         onDrop={() => onDropAt(0)}
+        dropLabel={rotulo(0)}
       />
       {steps.map((s, i) => (
         <Fragment key={s.cid}>
@@ -2795,6 +2871,7 @@ function SwitchLaneSteps({
             tail={i < steps.length - 1}
             onPick={(ty) => onAdd(ty, i + 1)}
             onDrop={() => onDropAt(i + 1)}
+            dropLabel={rotulo(i + 1)}
           />
         </Fragment>
       ))}
@@ -2917,6 +2994,7 @@ function LeafStepCard({
 function AddButton({
   onPick,
   onDrop,
+  dropLabel,
   orientation = "v",
   types = ADDABLE_STEPS,
   tail = true,
@@ -2924,6 +3002,8 @@ function AddButton({
   onPick: (t: BuilderStepType) => void
   /** Soltar acá un paso arrastrado. Sin esto el hueco no acepta nada. */
   onDrop?: () => void
+  /** Adónde lleva este hueco, en palabras: "después de Enviar plantilla". */
+  dropLabel?: string
   orientation?: "h" | "v"
   /** Which step types the menu offers (default: the full chain menu; switch
    *  case/else lanes pass LEAF_STEPS so they can't nest branching). */
@@ -2948,10 +3028,12 @@ function AddButton({
   const slotId = useId()
   const accion = useRef<(() => void) | undefined>(undefined)
   accion.current = onDrop
+  const rotulo = useRef<string | undefined>(undefined)
+  rotulo.current = dropLabel
   const { registrar, olvidar } = arrastre
   useEffect(() => {
     if (!onDrop) return
-    registrar(slotId, accion)
+    registrar(slotId, accion, rotulo)
     return () => olvidar(slotId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotId, registrar, olvidar, Boolean(onDrop)])

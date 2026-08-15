@@ -386,6 +386,12 @@ export const automations = {
     es: "llévalo a un hueco",
     en: "move it over a slot",
   },
+  // Adónde cae la tarjeta, dicho antes de soltarla. Los huecos de dos caminos
+  // distintos quedan a centímetros y se ven iguales: sin esto se suelta a
+  // ciegas y el paso aparece en la rama de al lado.
+  dropAtStart: { es: "Al principio", en: "At the start" },
+  dropAfter: { es: "Después de {paso}", en: "After {paso}" },
+  dropInLane: { es: "en el camino {camino}", en: "in the {camino} path" },
   chooseWhatToDo: { es: "Elige qué hacer", en: "Choose what to do" },
 
   // Builder — send_message / send_template editors
